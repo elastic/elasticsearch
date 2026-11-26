@@ -61,32 +61,81 @@ class SplitPackagesAuditPrecommitPluginFuncTest extends AbstractGradleInternalPl
         result.output.contains("without declaring an explicit or implicit dependency") == false
     }
 
-    def "reports owning project when project build dirs service is available"() {
+    def "reports the owning project of a project dependency with isolated projects enabled (#buildDirLayout build dir, #libraryElements)"() {
         given:
         applyProjectBuildDirsSettingsPlugin()
-        configureSplitPackagesBuild()
+        splitPackageProject("a", buildDirConfig)
+        splitPackageProject("b", """
+        configurations.compileClasspath.attributes {
+            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, '${libraryElements}'))
+        }
+        dependencies { implementation project(':a') }
+        """)
 
         when:
-        def result = gradleRunner(":b:splitPackagesAudit").buildAndFail()
+        def result = gradleRunner(":b:splitPackagesAudit", "--isolated-projects").buildAndFail()
 
         then:
         result.task(":b:splitPackagesAudit").outcome == TaskOutcome.FAILED
-        assertOutputContains(result.getOutput(), "project :a")
-        assertOutputMissing(result.getOutput(), "Build directory unknown to gradle")
+        assertSplitPackageReported(result.output, "project :a")
+        assertOutputMissing(result.output, "Build directory unknown to gradle")
+
+        where:
+        // relocated build directories are unknown to the settings-level service, the owner is taken from the
+        // resolved project artifact instead
+        buildDirLayout | buildDirConfig                              | libraryElements
+        "conventional" | ""                                          | "classes"
+        "relocated"    | "layout.buildDirectory = file('out/build')" | "classes"
+        "conventional" | ""                                          | "jar"
+        "relocated"    | "layout.buildDirectory = file('out/build')" | "jar"
     }
 
-    def "falls back to a build directory label when project build dirs service is unavailable"() {
+    def "reports the owning project of a file dependency into a project build directory"() {
         given:
-        configureSplitPackagesBuild()
+        applyProjectBuildDirsSettingsPlugin()
+        splitPackageProject("a")
+        // a plain file dependency carries no component identity, so the owner can only be derived from the build
+        // directory the classes live in
+        prebuiltClasses("a/build/prebuilt")
+        splitPackageProject("b", "dependencies { implementation files('../a/build/prebuilt') }")
 
         when:
-        def result = gradleRunner(":b:splitPackagesAudit").buildAndFail()
+        def result = gradleRunner(":b:splitPackagesAudit", "--isolated-projects").buildAndFail()
 
         then:
         result.task(":b:splitPackagesAudit").outcome == TaskOutcome.FAILED
-        assertOutputContains(result.getOutput(), "a/build")
-        assertOutputMissing(result.getOutput(), "Build directory unknown to gradle")
-        assertOutputMissing(result.getOutput(), "project :a")
+        assertSplitPackageReported(result.output, "project :a")
+    }
+
+    def "reports the classpath directory when no project owns it"() {
+        given:
+        applyProjectBuildDirsSettingsPlugin()
+        // the "build" ancestor is not a project build directory, so it must not be used as the label either
+        prebuiltClasses("vendor/build/checkout/classes")
+        splitPackageProject("b", "dependencies { implementation files('../vendor/build/checkout/classes') }")
+
+        when:
+        def result = gradleRunner(":b:splitPackagesAudit", "--isolated-projects").buildAndFail()
+
+        then:
+        result.task(":b:splitPackagesAudit").outcome == TaskOutcome.FAILED
+        assertSplitPackageReported(result.output, "./vendor/build/checkout/classes")
+        assertOutputMissing(result.output, "Build directory unknown to gradle")
+    }
+
+    def "reports the classpath directory when project build dirs service is unavailable"() {
+        given:
+        splitPackageProject("a")
+        prebuiltClasses("a/build/prebuilt")
+        splitPackageProject("b", "dependencies { implementation files('../a/build/prebuilt') }")
+
+        when:
+        def result = gradleRunner(":b:splitPackagesAudit", "--isolated-projects").buildAndFail()
+
+        then:
+        result.task(":b:splitPackagesAudit").outcome == TaskOutcome.FAILED
+        assertSplitPackageReported(result.output, "./a/build/prebuilt")
+        assertOutputMissing(result.output, "Build directory unknown to gradle")
     }
 
     private void applyProjectBuildDirsSettingsPlugin() {
@@ -96,32 +145,39 @@ class SplitPackagesAuditPrecommitPluginFuncTest extends AbstractGradleInternalPl
         )
     }
 
-    private void configureSplitPackagesBuild() {
-        settingsFile << """
-        include 'a'
-        include 'b'
-        """
-        buildFile << """
-        subprojects {
-            apply plugin:'java'
-            plugins.apply(org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin)
+    /**
+     * Creates a java project with its own build script (no cross-project configuration, so the build stays compatible
+     * with isolated projects) that defines a class in the package split across projects.
+     */
+    private void splitPackageProject(String name, String extraConfig = "") {
+        subProject(":" + name) << """
+        plugins {
+            id 'java'
         }
-
-        project(':b') {
-            dependencies {
-                implementation files(findProject(':a').sourceSets.main.output.classesDirs)
-            }
-        }
+        plugins.apply(org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin)
+        ${extraConfig}
         """
-
-        file("a/src/main/java/org/acme/splitpkg/FromA.java").text = """
+        file("${name}/src/main/java/org/acme/splitpkg/From${name.capitalize()}.java").text = """
         package org.acme.splitpkg;
-        public class FromA {}
+        public class From${name.capitalize()} {}
         """
+    }
 
-        file("b/src/main/java/org/acme/splitpkg/FromB.java").text = """
-        package org.acme.splitpkg;
-        public class FromB {}
-        """
+    /**
+     * Places a class in the split package into {@code dir} without any task producing it, so file dependencies on
+     * it do not need task dependencies. The audit only inspects class file names, the content is irrelevant.
+     */
+    private void prebuiltClasses(String dir) {
+        file("${dir}/org/acme/splitpkg/Prebuilt.class").bytes = new byte[0]
+    }
+
+    private void assertSplitPackageReported(String output, String dependencyLabel) {
+        assertOutputContains(
+            output,
+            """Project :b defines classes in package org.acme.splitpkg exposed by dependencies
+  Dependencies:
+    ${dependencyLabel}
+  Classes:"""
+        )
     }
 }

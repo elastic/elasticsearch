@@ -22,6 +22,11 @@ import java.util.Map;
  *
  * <p>The service is seeded from the settings {@link ProjectDescriptor} tree to avoid scanning
  * all live {@code Project} instances during project configuration.
+ *
+ * <p>Only conventional {@code <projectDir>/build} directories are known at settings time. The split-packages audit
+ * labels project dependencies from their resolved artifacts instead, so relocated build directories keep their owning
+ * project; this mapping only serves as a fallback for plain file dependencies pointing into another project's build
+ * directory.
  */
 public class ProjectBuildDirsSettingsPlugin implements Plugin<Settings> {
 

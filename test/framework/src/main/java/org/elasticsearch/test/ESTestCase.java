@@ -266,25 +266,6 @@ import static org.hamcrest.Matchers.startsWith;
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class, JnaCleanerThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-// we suppress pretty much all the lucene codecs for now, except asserting
-// assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
-@SuppressCodecs(
-    {
-        "SimpleText",
-        "Memory",
-        "CheapBastard",
-        "Direct",
-        "Compressing",
-        "FST50",
-        "FSTOrd50",
-        "TestBloomFilteredLucenePostings",
-        "MockRandom",
-        "BlockTreeOrds",
-        "LuceneFixedGap",
-        "LuceneVarGapFixedInterval",
-        "LuceneVarGapDocFreqInterval",
-        "Lucene50" }
-)
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
 

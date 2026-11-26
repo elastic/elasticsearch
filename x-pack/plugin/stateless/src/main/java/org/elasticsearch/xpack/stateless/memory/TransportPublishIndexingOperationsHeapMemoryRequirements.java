@@ -36,9 +36,6 @@ public class TransportPublishIndexingOperationsHeapMemoryRequirements extends Tr
     public static final String NAME = "cluster:monitor/stateless/autoscaling/publish_indexing_operations_heap_memory_requirements";
     public static final ActionType<ActionResponse.Empty> INSTANCE = new ActionType<>(NAME);
 
-    /**
-     * Adds the raw indexing operation size
-     */
     public static final TransportVersion PUBLISH_LARGEST_INDEXING_OPERATION_SIZE = TransportVersion.fromName(
         "publish_largest_indexing_operation_size"
     );
@@ -84,13 +81,6 @@ public class TransportPublishIndexingOperationsHeapMemoryRequirements extends Tr
     public static class Request extends MasterNodeRequest<Request> {
         private final long minimumRequiredHeapInBytes;
         private final long largestOperationSizeInBytes;
-
-        /**
-         * A publication from a node that only knows how to send a precomputed heap requirement.
-         */
-        public Request(long minimumRequiredHeapInBytes) {
-            this(minimumRequiredHeapInBytes, 0L);
-        }
 
         /**
          * @param minimumRequiredHeapInBytes  heap computed on the publishing node

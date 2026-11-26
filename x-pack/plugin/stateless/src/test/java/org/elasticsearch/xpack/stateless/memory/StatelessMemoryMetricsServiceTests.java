@@ -1181,44 +1181,38 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
     public void testMinimumRequiredHeapForAcceptingLargeIndexingOps() {
         final AtomicLong now = new AtomicLong(0L);
-        final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
+        final StatelessMemoryMetricsService statelessMemoryMetricsService = new StatelessMemoryMetricsService(now::get, clusterService);
         final long operationSize = randomLongBetween(1L, 50_000_000L);
-        timed.updateLargestIndexingOperationSize(operationSize);
-        assertThat(timed.largestRecentIndexingOpSize(), equalTo(operationSize));
-        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(0L));
+        statelessMemoryMetricsService.updateLargestIndexingOperationSize(operationSize);
+        assertThat(statelessMemoryMetricsService.largestRecentIndexingOpSize(), equalTo(operationSize));
+        assertThat(statelessMemoryMetricsService.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(0L));
 
-        timed.updateLargestIndexingOperationSize(Math.max(0L, operationSize - 1));
-        assertThat(timed.largestRecentIndexingOpSize(), equalTo(operationSize));
+        statelessMemoryMetricsService.updateLargestIndexingOperationSize(Math.max(0L, operationSize - 1));
+        assertThat(statelessMemoryMetricsService.largestRecentIndexingOpSize(), equalTo(operationSize));
 
         final long largerOperation = operationSize + randomLongBetween(1L, 1_000L);
-        timed.updateLargestIndexingOperationSize(largerOperation);
-        assertThat(timed.largestRecentIndexingOpSize(), equalTo(largerOperation));
-        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(0L));
+        statelessMemoryMetricsService.updateLargestIndexingOperationSize(largerOperation);
+        assertThat(statelessMemoryMetricsService.largestRecentIndexingOpSize(), equalTo(largerOperation));
+        assertThat(statelessMemoryMetricsService.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(0L));
 
         final long legacyHeap = randomLongBetween(1L, 1_000L);
-        timed.updateIndexingOperationsHeapMemoryRequirements(legacyHeap);
-        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(legacyHeap));
-        assertThat(timed.largestRecentIndexingOpSize(), equalTo(largerOperation));
+        statelessMemoryMetricsService.updateIndexingOperationsHeapMemoryRequirements(legacyHeap);
+        assertThat(statelessMemoryMetricsService.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(legacyHeap));
+        assertThat(statelessMemoryMetricsService.largestRecentIndexingOpSize(), equalTo(largerOperation));
 
         now.addAndGet(StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos() + 1);
-        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(0L));
-        assertThat(timed.largestRecentIndexingOpSize(), equalTo(0L));
+        assertThat(statelessMemoryMetricsService.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(0L));
+        assertThat(statelessMemoryMetricsService.largestRecentIndexingOpSize(), equalTo(0L));
     }
 
-    public void testMasterOperationUpdatesHeapAndRawSizeIndependently() throws Exception {
+    public void testMasterOperationUpdatesPrecomputedHeapAndOperationSizeInsideRequest() throws Exception {
         final AtomicLong now = new AtomicLong(0L);
         final long operationSize = 1_000L;
         final long precomputedHeap = 1_000_000L;
-        final StatelessMemoryMetricsService both = new StatelessMemoryMetricsService(now::get, clusterService);
-        publish(both, new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(precomputedHeap, operationSize));
-        assertThat(both.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(precomputedHeap));
-        assertThat(both.largestRecentIndexingOpSize(), equalTo(operationSize));
-
-        final long legacyHeap = 777L;
-        final StatelessMemoryMetricsService legacy = new StatelessMemoryMetricsService(now::get, clusterService);
-        publish(legacy, new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(legacyHeap));
-        assertThat(legacy.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(legacyHeap));
-        assertThat(legacy.largestRecentIndexingOpSize(), equalTo(0L));
+        final StatelessMemoryMetricsService statelessMemoryMetricsService = new StatelessMemoryMetricsService(now::get, clusterService);
+        publish(statelessMemoryMetricsService, new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(precomputedHeap, operationSize));
+        assertThat(statelessMemoryMetricsService.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(precomputedHeap));
+        assertThat(statelessMemoryMetricsService.largestRecentIndexingOpSize(), equalTo(operationSize));
     }
 
     private void publish(StatelessMemoryMetricsService metrics, TransportPublishIndexingOperationsHeapMemoryRequirements.Request request)

@@ -356,9 +356,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return indexingOperationsHeapMemoryRequirements.valueIfValid(relativeTimeInNanos());
     }
 
-    /**
-     * Largest raw indexing operation size still inside its validity window, or {@code 0} when none is stored or it has expired.
-     */
     public long largestRecentIndexingOpSize() {
         if (indexingOperationsMemoryMetricsEnabled == false) {
             return 0;

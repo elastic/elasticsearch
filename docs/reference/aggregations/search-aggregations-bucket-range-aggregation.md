@@ -2,6 +2,9 @@
 navigation_title: "Range"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-range-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Range aggregation [search-aggregations-bucket-range-aggregation]

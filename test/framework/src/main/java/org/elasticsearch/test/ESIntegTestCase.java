@@ -475,15 +475,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
 
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards()).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
-
-            // if the test class is annotated with SuppressCodecs("*"), it means don't use lucene's codec randomization
-            // otherwise, use it, it has assertions and so on that can find bugs.
-            SuppressCodecs annotation = getClass().getAnnotation(SuppressCodecs.class);
-            if (annotation != null && annotation.value().length == 1 && "*".equals(annotation.value()[0])) {
-                randomSettingsBuilder.put("index.codec", randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC));
-            } else {
-                randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
-            }
+            randomSettingsBuilder.put("index.codec", randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC));
 
             for (String setting : randomSettingsBuilder.keys()) {
                 assertThat("non index. prefix setting set on index template, its a node setting...", setting, startsWith("index."));

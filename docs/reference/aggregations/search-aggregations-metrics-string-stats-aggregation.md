@@ -2,6 +2,9 @@
 navigation_title: "String stats"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-string-stats-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # String stats aggregation [search-aggregations-metrics-string-stats-aggregation]

@@ -2,6 +2,9 @@
 navigation_title: "Percentiles"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-percentile-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Percentiles aggregation [search-aggregations-metrics-percentile-aggregation]

@@ -87,6 +87,10 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         .equals(configuration.settings().get(SOURCE_MODE));
     protected static final Predicate<Configuration> COLUMNAR_STORED_SOURCE = SYNTHETIC_SOURCE.negate();
 
+    private static final String NUMERIC_CODEC = IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey();
+    protected static final Predicate<Configuration> NUMERIC_CODEC_ENABLED = configuration -> configuration.settings()
+        .hasValue(NUMERIC_CODEC);
+
     private enum Kind {
         ABSENT,
         BARE_NULL,
@@ -286,8 +290,9 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
     }
 
     /**
-     * The configurations that every check runs in: each strict mode, with and without {@code index} where the type has it, and with
-     * the {@code _source} reconstructed from doc values and stored by {@code columnar_stored}.
+     * The configurations that every check runs in: each strict mode, with and without {@code index} where the type has it, with
+     * the {@code _source} reconstructed from doc values and stored by {@code columnar_stored}, and for a {@code long} with the numeric
+     * codec when it is available.
      */
     protected List<Configuration> configurations(Scenario scenario) {
         final List<Configuration> configurations = new ArrayList<>();
@@ -301,6 +306,13 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                 if (scenario.hasIndex()) {
                     configurations.add(new Configuration(mode, false, settings));
                 }
+            }
+        }
+        // NOTE: only a long field writes the numeric codec so far. Its index setting exists while the feature flag is enabled.
+        if (scenario.type().equals("long") && IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled()) {
+            for (final Configuration configuration : List.copyOf(configurations)) {
+                final Settings settings = Settings.builder().put(configuration.settings()).put(NUMERIC_CODEC, true).build();
+                configurations.add(new Configuration(configuration.mode(), configuration.indexed(), settings));
             }
         }
         return configurations;
@@ -374,7 +386,12 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                 int firstSeqNo = 0;
                 for (int g = 0; g < groups.size(); g++) {
                     final IndexingStrategy.Outcome outcome = strategy.index(mapperService, indexWriter, sources(groups.get(g)), firstSeqNo);
-                    if (strategy == IndexingStrategy.BATCH && scenario.batchedGroups().test(configuration, shapes.get(g))) {
+                    // NOTE: a numeric field is refused for batch indexing when it writes the numeric codec
+                    // (NumberFieldMapper#doSupportsColumnarParse
+                    // returns false for binary doc values), so the batch is not required there.
+                    if (strategy == IndexingStrategy.BATCH
+                        && NUMERIC_CODEC_ENABLED.test(configuration) == false
+                        && scenario.batchedGroups().test(configuration, shapes.get(g))) {
                         assertTrue(
                             scenario.type()
                                 + " "

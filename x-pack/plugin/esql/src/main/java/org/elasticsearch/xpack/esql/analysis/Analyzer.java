@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.BindNestedAny;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
@@ -985,6 +986,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class HideNestedScopeFields extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
+            refuseNestedAnyOverDatasets(plan);
             Set<String> read = readCollections(plan);
             plan = plan.transformUp(ExternalRelation.class, relation -> carryCollections(relation, read));
             if (plan.anyMatch(NestedExpand.class::isInstance) == false && plan.anyMatch(NestedPredicate::usedBy) == false) {
@@ -1000,6 +1002,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField;
         }
 
+        /**
+         * Datasets support only {@code NESTED_EXPAND}. A dataset builds its nested scope when the plan expands, and
+         * {@code NESTED_ANY} elsewhere in that plan could bind to it, then fail at run time for want of parent documents, so it
+         * is refused here, where the dataset's scope is removed.
+         */
+        private static void refuseNestedAnyOverDatasets(LogicalPlan plan) {
+            Set<String> datasetPaths = new HashSet<>();
+            plan.forEachDown(ExternalRelation.class, relation -> {
+                for (Attribute attribute : relation.output()) {
+                    if (attribute instanceof FieldAttribute field
+                        && field.field() instanceof NestedScopeField scope
+                        && scope.kind() == NestedScopeField.Kind.COLLECTION) {
+                        datasetPaths.add(scope.path());
+                    }
+                }
+            });
+            if (datasetPaths.isEmpty()) {
+                return;
+            }
+            List<Failure> failures = new ArrayList<>();
+            plan.forEachDown(node -> node.forEachExpression(NestedPredicate.class, predicate -> {
+                if (datasetPaths.contains(predicate.path())) {
+                    failures.add(Failure.fail(predicate, "NESTED_ANY cannot read [" + predicate.path() + "] from a dataset"));
+                }
+            }));
+            if (failures.isEmpty() == false) {
+                throw new VerificationException(failures);
+            }
+        }
+
         /** The paths of the collections that a bound {@code NESTED_EXPAND} reads. */
         private static Set<String> readCollections(LogicalPlan plan) {
             Set<String> paths = new HashSet<>();
@@ -1012,9 +1044,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * A dataset has no hidden documents to find the children through, so each collection an operator reads replaces its
-         * private schema with one column carrying its elements, named for the collection and replacing the column of that
-         * name the dataset would otherwise show. Its properties are the leaves to carry, by name relative to the collection.
+         * A dataset has no hidden documents to find the children through, so each collection {@code NESTED_EXPAND} reads
+         * replaces its private schema with one column carrying its elements, under a name of its own. Its properties are the
+         * leaves to carry, by name relative to the collection.
          */
         private static ExternalRelation carryCollections(ExternalRelation relation, Set<String> read) {
             if (relation.output().stream().noneMatch(HideNestedScopeFields::isNestedScope)) {
@@ -1114,19 +1146,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            boolean nestedScope = plan.anyMatch(NestedExpand.class::isInstance);
+            Set<String> expanded = new HashSet<>();
+            plan.forEachDown(NestedExpand.class, expand -> {
+                if (expand.bound() == false && expand.target() != null) {
+                    expanded.add(expand.target().name());
+                }
+            });
             return plan.transformUp(
                 UnresolvedExternalRelation.class,
-                relation -> relation.analyzed() || relation.resolved() ? relation : resolve(relation, context, nestedScope)
+                relation -> relation.analyzed() || relation.resolved() ? relation : resolve(relation, context, expanded)
             );
         }
 
         @Override
         protected LogicalPlan rule(UnresolvedExternalRelation plan, AnalyzerContext context) {
-            return resolve(plan, context, false);
+            return resolve(plan, context, Set.of());
         }
 
-        private LogicalPlan resolve(UnresolvedExternalRelation plan, AnalyzerContext context, boolean nestedScope) {
+        private LogicalPlan resolve(UnresolvedExternalRelation plan, AnalyzerContext context, Set<String> expanded) {
             // Extract the table path from the expression
             String tablePath = extractTablePath(plan.tablePath());
             if (tablePath == null) {
@@ -1145,14 +1182,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             var metadata = resolvedSource.metadata();
             MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema(), context);
-            NestedColumns nested = NestedColumns.read(metadata.sourceMetadata());
+            NestedColumns nested = nestedColumns(metadata.sourceMetadata());
+            if (expanded.stream().anyMatch(path -> nested.get(path) != null)
+                && context.minimumVersion().supports(NestedExpand.DATASET_VERSION) == false) {
+                throw new VerificationException(
+                    List.of(Failure.fail(plan, "NESTED_EXPAND over a dataset requires all nodes to support it"))
+                );
+            }
             ExternalRelation relation = new ExternalRelation(
                 plan.source(),
                 tablePath,
                 metadata,
                 withCollectionScope(
                     withoutNestedColumns(bindResult.schema(), nested),
-                    nestedScope ? nested : NestedColumns.NONE,
+                    expanded.isEmpty() ? NestedColumns.NONE : nested,
                     plan.source()
                 ),
                 resolvedSource.fileList(),
@@ -1172,7 +1215,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (nested.isEmpty()) {
                 return schema;
             }
-            return schema.stream().filter(attribute -> nested.get(attribute.name()) == null).toList();
+            return schema.stream().filter(attribute -> isNestedColumn(attribute, nested) == false).toList();
+        }
+
+        /**
+         * Whether {@code attribute} is the dataset's own column for a readable nested column: the unsupported column a list of
+         * structures reads as. A column of the same name that is not unsupported, such as a partition column the path shadows,
+         * is a column of its own; and a nested column with a conflict stays visible, so the query names it and is told why.
+         */
+        private static boolean isNestedColumn(Attribute attribute, NestedColumns nested) {
+            NestedColumns.NestedColumn column = nested.get(attribute.name());
+            return column != null && column.conflict() == null && attribute.dataType() == DataType.UNSUPPORTED;
+        }
+
+        /**
+         * The nested columns schema discovery recorded, or none unless datasets support nested columns in this build. A column
+         * of the same name that is not the list itself, such as a partition column the path shadows, stays a column of its own,
+         * and {@code NESTED_EXPAND} then refuses the path because that column replaces it.
+         */
+        private static NestedColumns nestedColumns(Map<String, Object> sourceMetadata) {
+            return EsqlCapabilities.Cap.NESTED_EXPAND_DATASET.isEnabled() ? NestedColumns.read(sourceMetadata) : NestedColumns.NONE;
         }
 
         /**

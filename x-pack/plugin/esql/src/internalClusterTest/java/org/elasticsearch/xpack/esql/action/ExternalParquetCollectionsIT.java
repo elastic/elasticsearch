@@ -21,6 +21,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -49,6 +50,11 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
         return List.of(ParquetDataSourcePlugin.class);
+    }
+
+    @Before
+    public void requireNestedExpandOverDatasets() {
+        assumeTrue("NESTED_EXPAND over datasets is snapshot-only", EsqlCapabilities.Cap.NESTED_EXPAND_DATASET.isEnabled());
     }
 
     @Override
@@ -211,12 +217,43 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
             answer(g.addGroup("answers"), "api.example.com", "A", 60L, "93.184.1.2");
         }))), Map.of());
         assertRows("FROM " + dns, row("www.example.com"), row("api.example.com"));
+        assertRows("FROM " + dns + " | KEEP *", row("www.example.com"), row("api.example.com"));
         assertQueryFails("FROM " + dns + " | KEEP question, answers", "Unknown column [answers]");
+        assertQueryFails("FROM " + dns + " | DROP answers", "answers");
         assertQueryFails("FROM " + dns + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\")", "Unknown column [answers.type]");
         assertRows(
             "FROM " + dns + " | NESTED_EXPAND answers | KEEP question, answers.type | SORT question",
             row("api.example.com", "A"),
             row("www.example.com", "CNAME")
+        );
+        // A plan that expands gives the dataset its nested scope; NESTED_ANY elsewhere in it must not bind to that scope
+        assertQueryFails(
+            "FROM " + dns + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\") | NESTED_EXPAND answers | KEEP question",
+            "NESTED_ANY cannot read [answers] from a dataset"
+        );
+        assertQueryFails(
+            "FROM " + dns + " | EVAL m = NESTED_ANY(answers, answers.ttl < 60) | NESTED_EXPAND answers",
+            "NESTED_ANY cannot read [answers] from a dataset"
+        );
+    }
+
+    /**
+     * A Hive partition key that shares a list's name shadows the file's column, as it shadows any column: the partition value
+     * reads in its place, and the list is not expanded.
+     */
+    public void testPartitionShadowsNestedColumn() throws Exception {
+        Path root = createTempDir().resolve("shadow");
+        write(root.resolve("answers=2024"), "f", DNS, List.of(g -> {
+            g.add("question", "www.example.com");
+            answer(g.addGroup("answers"), "www.example.com", "CNAME", 30L, "lb.example.net");
+        }));
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.parquet";
+        String dataset = registerDataset("shadow", glob, Map.of("partition_detection", "hive"));
+        assertRows("FROM " + dataset + " | KEEP question, answers", row("www.example.com", 2024L));
+        assertQueryFails(
+            "FROM " + dataset + " | NESTED_EXPAND answers",
+            "NESTED_EXPAND cannot use [answers]: a column of that name replaces it here"
         );
     }
 
@@ -447,6 +484,7 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
                 writer.write(g);
             }
         }
+        Files.createDirectories(dir);
         Path file = dir.resolve(name + ".parquet");
         Files.write(file, baos.toByteArray());
         return file;

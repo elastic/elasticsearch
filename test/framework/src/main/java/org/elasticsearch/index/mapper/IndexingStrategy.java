@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.index.IndexWriter;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -36,10 +37,12 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.format.DateTimeParseException;
+import java.time.DateTimeException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * How a test indexes its documents. {@link #DOCUMENT} adds each parsed document with {@code IndexWriter#addDocuments}. {@link #BATCH}
@@ -130,7 +133,8 @@ public enum IndexingStrategy {
                 }
             }
             if (engineBatch == null) {
-                if (failure.thrown instanceof UnsupportedOperationException || isIgnoredMalformedDateFallback(lookup, failure.thrown)) {
+                if (failure.thrown instanceof UnsupportedOperationException
+                    || isIgnoredMalformedDateFallback(lookup, failure.thrown, sources)) {
                     return indexRows(mapperService, indexWriter, escfBatch, firstSeqNo, String.valueOf(failure.thrown.getMessage()));
                 }
                 throw new AssertionError("the mappers failed to map a batch, which is not a request to fall back", failure.thrown);
@@ -148,23 +152,32 @@ public enum IndexingStrategy {
         }
     }
 
+    private static final Pattern DATE_PARSE_FAILURE = Pattern.compile("failed to parse date field \\[(.*?)\\] with format");
+
     // NOTE: DateFieldMapper#doMapColumnBatch does not apply ignore_malformed. It throws the parse failure of a malformed value and relies
-    // on the engine falling back after logging it. That one exception is accepted as a fallback, and only when the mapping holds a date
-    // field with ignore_malformed and the exception is the date parse failure. Any other exception still fails the test.
-    private static boolean isIgnoredMalformedDateFallback(MappingLookup lookup, Throwable thrown) {
+    // on the engine falling back after logging it. That one exception is accepted as a fallback only when the value it names is one of
+    // the input values and a date field with ignore_malformed cannot parse it, so a failure on a valid value, such as the timestamp, still
+    // fails the test. The exception names the value and not the field, so two date fields that differ in their format and share an
+    // ignore_malformed one cannot be told apart.
+    private static boolean isIgnoredMalformedDateFallback(MappingLookup lookup, Throwable thrown, List<String> sources) {
         if (thrown instanceof IllegalArgumentException == false) {
             return false;
         }
-        boolean parseFailure = false;
-        for (Throwable cause = thrown; cause != null && parseFailure == false; cause = cause.getCause()) {
-            parseFailure = cause instanceof DateTimeParseException;
+        final Matcher matcher = DATE_PARSE_FAILURE.matcher(String.valueOf(thrown.getMessage()));
+        if (matcher.find() == false) {
+            return false;
         }
-        if (parseFailure == false) {
+        final String value = matcher.group(1);
+        if (sources.stream().noneMatch(source -> source.contains(value))) {
             return false;
         }
         for (final Mapper mapper : lookup.fieldMappers()) {
             if (mapper instanceof DateFieldMapper date && date.ignoreMalformed()) {
-                return true;
+                try {
+                    date.fieldType().parse(value);
+                } catch (IllegalArgumentException | DateTimeException | ElasticsearchParseException e) {
+                    return true;
+                }
             }
         }
         return false;

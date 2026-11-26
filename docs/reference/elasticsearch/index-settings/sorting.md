@@ -96,20 +96,48 @@ PUT my-index-000001
 
 1. Sorts by `username` ascending, then by the highest `date` value descending, with documents that have no `date` last.
 
+A sort key can also be computed by an ES|QL expression. For example, to group the documents of each hour, newest hour first, and sort them by host within each hour:
+
+```console
+PUT my-index-000001
+{
+  "settings": {
+    "index": {
+      "sort": "DATE_TRUNC(1 hour, @timestamp) DESC, host.name" <1>
+    }
+  },
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "host.name": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+```
+
+1. The hour of `@timestamp` is computed each time a segment is sorted, and isn't stored. See [Computed sort keys](#index-sort-computed-keys).
+
 
 Index sorting supports the following settings:
 
 $$$index-sort-expression$$$
 `index.sort` {applies_to}`stack: ga 9.7`
-:   A comma-separated list of sort fields that configures the whole index sort, using a subset of the [ES|QL `SORT` syntax](/reference/query-languages/esql/commands/sort.md). Each entry is a field, optionally followed by a sort order and the placement of documents without a value:
+:   A comma-separated list of sort keys that configures the whole index sort, using the [ES|QL `SORT` syntax](/reference/query-languages/esql/commands/sort.md). Each entry is a key, optionally followed by a sort order and the placement of documents without a value:
 
     * `field`, `MV_MIN(field)` or `MV_MAX(field)`: The field to sort by. For a multi-valued field, `MV_MIN` and `MV_MAX` sort by its lowest or highest value. Defaults to `MV_MIN` when ascending and `MV_MAX` when descending.
+    * Any other ES|QL expression, for example `DATE_TRUNC(1 hour, @timestamp)`: A key computed from the doc values of the fields it reads. It is never stored. See [Computed sort keys](#index-sort-computed-keys) for the expressions it can use.
     * `ASC` or `DESC`: The sort order. Defaults to `ASC`.
     * `NULLS FIRST` or `NULLS LAST`: Where documents without a value are sorted. Like in ES|QL, a missing value counts as larger than any value, so this defaults to `NULLS LAST` for `ASC` and `NULLS FIRST` for `DESC`.
 
-    Keywords and function names are case-insensitive. Unquoted field names follow the ES|QL identifier rules: dot-separated parts that start with a letter, `_` or `@` and contain only letters, digits and `_`, and that aren't a reserved word such as `null` or `asc`. Any other field name, for example one with a hyphen, whitespace or a comma, must be quoted with backticks, doubling any backtick in the name. Other expressions and functions aren't supported.
+    Keywords and function names are case-insensitive. Unquoted field names follow the ES|QL identifier rules: dot-separated parts that start with a letter, `_` or `@` and contain only letters, digits and `_`, and that aren't a reserved word such as `null` or `asc`. Any other field name, for example one with a hyphen, whitespace or a comma, must be quoted with backticks, doubling any backtick in the name.
 
     The `NULLS` default for `DESC` differs from `index.sort.missing`, which defaults to `_last` for either order. It matches what an ES|QL `SORT field DESC` asks for, so the index sort and the query agree. To keep documents without a value last, write `NULLS LAST`.
+
+    `index.sort` is parsed by ES|QL, so it needs the ES|QL plugin, which the default distribution includes. The `index.sort.*` settings don't.
 
     The expression is stored as written, and the index is sorted from it directly. The `index.sort.*` settings stay unset and default to empty, not to the index mode defaults or the values from the expression. `index.sort` can't be combined with any of the `index.sort.*` settings.
 
@@ -150,6 +178,26 @@ $$$index-sort-missing$$$
 Index sorting can be defined only once at index creation. It is not allowed to add or update a sort on an existing index. Index sorting also has a cost in terms of indexing throughput since documents must be sorted at flush and merge time. You should test the impact on your application before activating this feature.
 ::::
 
+
+
+## Computed sort keys [index-sort-computed-keys]
+
+```{applies_to}
+stack: ga 9.7
+```
+
+A key of `index.sort` that isn't a field, `MV_MIN(field)` or `MV_MAX(field)` is computed by an ES|QL expression from the doc values of the fields it reads. The key is never stored: it's computed again each time a segment is sorted, when it's written and each time it's merged, on whichever node does it. An expression that breaks one of the following rules is rejected when the index is created.
+
+Functions
+:   A key can only use functions that always compute the same result for the same input, on every node and in every version, because a segment sorted by one node can be merged by another. These are the arithmetic, comparison and logical operators, `IS NULL`, `IS NOT NULL`, and the functions `CASE`, `COALESCE`, `DATE_TRUNC`, `MV_MIN` and `MV_MAX`.
+
+    Other functions are rejected, for example functions whose floating point results may differ between JVMs, such as `SIN` and `ROUND`, functions that depend on the JVM's Unicode or locale data, such as `TO_LOWER`, and the type conversions, which parse strings. Aggregate and full-text functions are rejected too, because they don't compute a value for each document.
+
+Fields
+:   A key must read at least one field. Each field must have doc values and be of a numeric, `date`, `date_nanos`, `boolean`, `keyword`, `ip` or `version` type. It can't be an alias, a runtime field or a field under a `nested` object.
+
+Result
+:   A key must return a `long`, `integer`, `double`, `boolean`, `date` or `date_nanos` value. Documents for which it returns no value or several values sort like documents without a value, see `NULLS FIRST` and `NULLS LAST` in [`index.sort`](#index-sort-expression). Keys aren't rewritten by the ES|QL query optimizer, so on edge cases such as an overflow, a key can differ from the same expression in a query: `-n > 0` has no value when `-n` overflows, while a query rewrites it to `n < 0`, which is `true`.
 
 
 ## Early termination of search request [early-terminate]

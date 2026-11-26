@@ -34,10 +34,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -48,6 +51,7 @@ import static org.mockito.Mockito.when;
 public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
 
     private static final String LOCAL_NODE_ID = "local-node";
+    private static final String MASTER_NODE_ID = "master-node";
 
     public void testNoShards() {
         assertThat(determineHealth(Map.of()), equalTo(LocalRecoveryRetriesHealthInfo.EMPTY));
@@ -83,34 +87,8 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
 
     /// Only allocations on the local node are reported, even when another node is the elected master.
     public void testOnlyLocalNodeAllocationsAreConsidered() {
-        DiscoveryNode localNode = DiscoveryNodeUtils.create(randomAlphaOfLength(8));
-        DiscoveryNode remoteNode = DiscoveryNodeUtils.create(randomAlphaOfLength(8));
-
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomIndexName())
-            .settings(indexSettings(IndexVersion.current(), randomUUID(), 2, 0))
-            .build();
-        ShardRouting localRouting = TestShardRouting.newShardRouting(
-            new ShardId(indexMetadata.getIndex(), 0),
-            localNode.getId(),
-            true,
-            ShardRoutingState.INITIALIZING
-        );
-        ShardRouting remoteRouting = TestShardRouting.newShardRouting(
-            new ShardId(indexMetadata.getIndex(), 1),
-            remoteNode.getId(),
-            true,
-            ShardRoutingState.INITIALIZING
-        );
-        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
-        indexRoutingTable.addShard(localRouting);
-        indexRoutingTable.addShard(remoteRouting);
-
-        ClusterState state = ClusterState.builder(ClusterStateCreationUtils.state(localNode, remoteNode, new DiscoveryNode[] { localNode }))
-            .metadata(Metadata.builder().put(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).put(indexMetadata, false)))
-            .routingTable(
-                GlobalRoutingTable.builder().put(Metadata.DEFAULT_PROJECT_ID, RoutingTable.builder().add(indexRoutingTable)).build()
-            )
-            .build();
+        var localRouting = routing(randomShardId(), ShardRoutingState.INITIALIZING);
+        var remoteRouting = routing(randomShardId(), "not-local-node", ShardRoutingState.INITIALIZING);
 
         var service = mock(IndicesClusterStateService.class);
         // Stub a nonzero answer for *any* routing first, so a remote-allocation leak would show up as a false
@@ -120,8 +98,7 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         int localRetries = randomValueOtherThan(defaultRetries, () -> randomIntBetween(1, 10));
         when(service.getLocalRecoveryRetryCount(localRouting)).thenReturn(localRetries);
 
-        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService(state), () -> service);
-
+        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService(state(List.of(localRouting, remoteRouting))), () -> service);
         var health = tracker.determineCurrentHealth();
 
         assertThat(health.localRetries(), equalTo(Map.of(ShardAllocationId.fromRouting(localRouting), localRetries)));
@@ -167,8 +144,8 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         return clusterService;
     }
 
-    /// Builds a real [ClusterState] with routing table matching the provided `routings`,
-    /// all assigned to the local node, with a different node as master.
+    /// Builds a real [ClusterState] with discovery nodes and routing table matching the provided `routings`,
+    /// with a dedicated master ([MASTER_NODE_ID]). Always register [LOCAL_NODE_ID], even if it doesn't host anything.
     private static ClusterState state(List<ShardRouting> routings) {
         ProjectMetadata.Builder projectMetadata = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
         RoutingTable.Builder routingTable = RoutingTable.builder();
@@ -184,16 +161,28 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
             routingTable.add(indexRoutingTable);
         }
 
-        DiscoveryNode localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
-        DiscoveryNode masterNode = DiscoveryNodeUtils.create(randomAlphaOfLength(8));
-        return ClusterState.builder(ClusterStateCreationUtils.state(localNode, masterNode, new DiscoveryNode[] { localNode }))
+        Set<String> nodeIds = new LinkedHashSet<>(routings.stream().map(ShardRouting::currentNodeId).toList());
+        nodeIds.add(LOCAL_NODE_ID);
+        nodeIds.add(MASTER_NODE_ID);
+        Map<String, DiscoveryNode> nodesById = nodeIds.stream().collect(toMap(id -> id, DiscoveryNodeUtils::create));
+        ClusterState stateWithNodes = ClusterStateCreationUtils.state(
+            nodesById.get(LOCAL_NODE_ID),
+            nodesById.get(MASTER_NODE_ID),
+            nodesById.values().toArray(DiscoveryNode[]::new)
+        );
+
+        return ClusterState.builder(stateWithNodes)
             .metadata(Metadata.builder().put(projectMetadata))
             .routingTable(GlobalRoutingTable.builder().put(Metadata.DEFAULT_PROJECT_ID, routingTable).build())
             .build();
     }
 
     private static ShardRouting routing(ShardId shardId, ShardRoutingState routingState) {
-        return TestShardRouting.newShardRouting(shardId, LOCAL_NODE_ID, true, routingState);
+        return routing(shardId, LOCAL_NODE_ID, routingState);
+    }
+
+    private static ShardRouting routing(ShardId shardId, String nodeId, ShardRoutingState routingState) {
+        return TestShardRouting.newShardRouting(shardId, nodeId, true, routingState);
     }
 
     /// Always shard 0: each call gets its own fresh, independent index, so every group in [state] has exactly

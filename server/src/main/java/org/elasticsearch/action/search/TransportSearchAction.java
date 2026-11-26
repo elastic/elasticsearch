@@ -119,7 +119,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
@@ -431,10 +430,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             namedWriteableRegistry,
             searchRequest
         );
+        QueryScheduler.QueryPart coordination = searchService.coordinate(task);
         queryInterceptor.wrapAndRun(
-            listener,
+            ActionListener.releaseAfter(listener, coordination),
             searchCaptureContextBuilder,
-            l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
+            l -> ActionListener.run(
+                l,
+                inner -> executeRequest(
+                    (SearchTask) task,
+                    searchRequest,
+                    inner,
+                    responseListener -> new AsyncSearchActionProvider(responseListener, coordination),
+                    true
+                )
+            )
         );
     }
 
@@ -535,7 +544,35 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return;
         }
 
-        ActionListener<SearchRequest> rewriteListener = originalListener.delegateFailureAndWrap((delegate, rewritten) -> {
+        final boolean isExplain = source != null && source.explain() != null && source.explain();
+        final boolean isProfile = source != null && source.profile();
+        final boolean allowPartialSearchResults = original.allowPartialSearchResults() != null
+            ? original.allowPartialSearchResults()
+            : searchService.defaultAllowPartialSearchResults();
+        final QueryRewriteContext rewriteContext = searchService.getRewriteContext(
+            timeProvider::absoluteStartMillis,
+            clusterState.getMinTransportVersion(),
+            original.getLocalClusterAlias(),
+            resolvedIndices,
+            original.pointInTimeBuilder(),
+            shouldMinimizeRoundtrips(original),
+            isExplain,
+            isProfile,
+            allowPartialSearchResults
+        );
+        rewriteContext.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
+        rewriteContext.setCancellationCheck(task::ensureNotCancelled);
+
+        // Searches run during the rewrite, such as those of compound retrievers, record their phase failures on the rewrite context.
+        final ActionListener<SearchResponse> listenerWithRewriteFailures = originalListener.delegateFailureAndWrap((l, response) -> {
+            final var rewriteFailures = rewriteContext.phaseFailures();
+            if (rewriteFailures.isEmpty()) {
+                l.onResponse(response);
+            } else {
+                ActionListener.respondAndRelease(l, response.withAdditionalPhaseFailures(rewriteFailures));
+            }
+        });
+        ActionListener<SearchRequest> rewriteListener = listenerWithRewriteFailures.delegateFailureAndWrap((delegate, rewritten) -> {
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
             }
@@ -800,23 +837,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         });
 
-        final boolean isExplain = source != null && source.explain() != null && source.explain();
-        final boolean isProfile = source != null && source.profile();
-        final boolean allowPartialSearchResults = original.allowPartialSearchResults() != null
-            ? original.allowPartialSearchResults()
-            : searchService.defaultAllowPartialSearchResults();
-        final QueryRewriteContext rewriteContext = searchService.getRewriteContext(
-            timeProvider::absoluteStartMillis,
-            clusterState.getMinTransportVersion(),
-            original.getLocalClusterAlias(),
-            resolvedIndices,
-            original.pointInTimeBuilder(),
-            shouldMinimizeRoundtrips(original),
-            isExplain,
-            isProfile,
-            allowPartialSearchResults
-        );
-        rewriteContext.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
         // fail as soon as the search is cancelled, without waiting for the async actions of the rewrite to complete
         final SubscribableListener<SearchRequest> rewriteResult = new SubscribableListener<>();
         task.addListener(() -> rewriteResult.onFailure(new TaskCancelledException(task.getReasonCancelled())));
@@ -1026,6 +1046,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchResponse.getSkippedShards(),
                         timeProvider.buildTookInMillis(),
                         searchResponse.getShardFailures(),
+                        searchResponse.getPhaseFailures(),
                         clusters,
                         searchResponse.pointInTimeId(),
                         null,
@@ -1201,29 +1222,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Charges a remote cluster's response from when it starts arriving until it is read. The listener charges what it keeps once it has
-     * the response. A trip on arrival reaches the listener as the {@link CircuitBreakingException} itself, since it is this node that has
-     * no room and not the remote cluster that failed, see {@link #isTripOnThisNode}. A trip while reading would arrive wrapped and count as
-     * the cluster's failure, but no {@link SearchResponse} reader charges a breaker today.
+     * Charges a remote cluster's response while it arrives. The listener charges what it keeps once it has the response. A trip while
+     * reading would arrive wrapped and count as the cluster's failure, see {@link #isTripOnThisNode}, but no {@link SearchResponse} reader
+     * charges a breaker today.
      */
-    static final class RemoteResponseHandler extends ActionListenerResponseHandler<SearchResponse> {
-        private final ShardResponseReservation reservation;
-
+    static final class RemoteResponseHandler extends ReservingResponseHandler<SearchResponse> {
         RemoteResponseHandler(ActionListener<? super SearchResponse> listener, Executor executor, CircuitBreaker circuitBreaker) {
-            super(listener, SearchResponse::new, executor);
-            this.reservation = new ShardResponseReservation(circuitBreaker, SearchResponseMerger.BREAKER_LABEL, listener::onFailure);
-        }
-
-        @Override
-        public Releasable reserveResponseBytes(int bytes) {
-            return reservation.reserve(bytes);
-        }
-
-        @Override
-        public void handleException(TransportException e) {
-            if (reservation.reportTrip() == false) {
-                listener.onFailure(e);
-            }
+            super(listener, SearchResponse::new, executor, circuitBreaker, SearchResponseMerger.BREAKER_LABEL);
         }
     }
 
@@ -2291,9 +2296,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private class AsyncSearchActionProvider implements SearchPhaseProvider {
         private final ActionListener<SearchResponse> listener;
+        private final QueryScheduler.QueryPart coordination;
 
-        AsyncSearchActionProvider(ActionListener<SearchResponse> listener) {
+        AsyncSearchActionProvider(ActionListener<SearchResponse> listener, QueryScheduler.QueryPart coordination) {
             this.listener = listener;
+            this.coordination = coordination;
         }
 
         @Override
@@ -2366,23 +2373,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             // the results charge the query's breaker. A multi-search keeps the results it buffers charged after the search
             // completes, on the node's breaker, so they charge that breaker from the start.
-            QueryScheduler.QueryPart coordination = searchService.coordinate(task);
-            final ActionListener<SearchResponse> listener = ActionListener.releaseAfter(this.listener, coordination);
-            final SearchPhaseResults<SearchPhaseResult> queryResultConsumer;
-            try {
-                queryResultConsumer = searchPhaseController.newSearchPhaseResults(
-                    executor,
-                    searchRequest.bufferSubSearchResponseForMultiSearch() ? circuitBreaker : coordination.breaker(),
-                    task::isCancelled,
-                    task.getProgressListener(),
-                    searchRequest,
-                    shardIterators.size(),
-                    exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
-                );
-            } catch (Exception e) {
-                coordination.close();
-                throw e;
-            }
+            final SearchPhaseResults<SearchPhaseResult> queryResultConsumer = searchPhaseController.newSearchPhaseResults(
+                executor,
+                searchRequest.bufferSubSearchResponseForMultiSearch() ? circuitBreaker : coordination.breaker(),
+                task::isCancelled,
+                task.getProgressListener(),
+                searchRequest,
+                shardIterators.size(),
+                exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
+            );
             boolean success = false;
             try {
                 final AbstractSearchAsyncAction<?> searchPhase;
@@ -2399,7 +2398,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         queryResultConsumer,
                         circuitBreaker,
                         searchRequest,
-                        listener,
+                        this.listener,
                         shardIterators,
                         skippedByClusterAlias,
                         timeProvider,
@@ -2425,7 +2424,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         queryResultConsumer,
                         circuitBreaker,
                         searchRequest,
-                        listener,
+                        this.listener,
                         shardIterators,
                         skippedByClusterAlias,
                         timeProvider,
@@ -2443,7 +2442,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchPhase.start();
             } finally {
                 if (success == false) {
-                    coordination.close();
                     queryResultConsumer.close();
                 }
             }

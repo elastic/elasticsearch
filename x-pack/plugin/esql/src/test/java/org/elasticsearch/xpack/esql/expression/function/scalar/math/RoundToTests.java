@@ -176,7 +176,8 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
                     DataType.LONG,
                     () -> randomLongBetween(0, (long) (n - 1) * 100),
                     IntStream.range(0, n).mapToObj(i -> DataType.LONG).toList(),
-                    () -> IntStream.range(0, n).mapToObj(i -> (long) i * 100).toList()
+                    () -> IntStream.range(0, n).mapToObj(i -> (long) i * 100).toList(),
+                    "FixedInterval"
                 )
             );
             suppliers.add(
@@ -188,16 +189,21 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
                     () -> IntStream.range(0, n).mapToObj(i -> i * 100).toList()
                 )
             );
-            suppliers.add(
-                fixedIntervalLongs(
-                    "<date, " + n + " fixed-interval dates>",
-                    DataType.DATETIME,
-                    () -> randomLongBetween(0, (long) (n - 1) * 300_000),
-                    IntStream.range(0, n).mapToObj(i -> DataType.DATETIME).toList(),
-                    () -> IntStream.range(0, n).mapToObj(i -> (long) i * 300_000).toList()
-                )
-            );
+            suppliers.add(fixedIntervalDates(n, 10_000L, "TenSecondsMillis"));
+            suppliers.add(fixedIntervalDates(n, 60_000L, "OneMinuteMillis"));
+            suppliers.add(fixedIntervalDates(n, 300_000L, "FiveMinutesMillis"));
         }
+    }
+
+    private static TestCaseSupplier fixedIntervalDates(int points, long interval, String expectedSpecialization) {
+        return fixedIntervalLongs(
+            "<date, " + points + " fixed-interval dates, " + interval + " ms>",
+            DataType.DATETIME,
+            () -> randomLongBetween(0, (points - 1) * interval),
+            IntStream.range(0, points).mapToObj(i -> DataType.DATETIME).toList(),
+            () -> IntStream.range(0, points).mapToObj(i -> i * interval).toList(),
+            expectedSpecialization
+        );
     }
 
     private static TestCaseSupplier fixedIntervalLongs(
@@ -205,7 +211,8 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
         DataType fieldType,
         Supplier<Number> fieldSupplier,
         List<DataType> pointsTypes,
-        Supplier<List<Long>> pointsSupplier
+        Supplier<List<Long>> pointsSupplier,
+        String expectedSpecialization
     ) {
         return supplier(name, fieldType, fieldSupplier, pointsTypes, pointsSupplier, (f, p) -> {
             long max = p.stream().mapToLong(l -> l).min().getAsLong();
@@ -215,7 +222,7 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
                 }
             }
             return max;
-        }, "FixedInterval");
+        }, expectedSpecialization);
     }
 
     private static TestCaseSupplier fixedIntervalInts(

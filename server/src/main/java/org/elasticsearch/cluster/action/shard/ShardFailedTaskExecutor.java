@@ -18,10 +18,10 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
-import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 
@@ -51,7 +51,7 @@ public class ShardFailedTaskExecutor implements ClusterStateTaskExecutor<ShardFa
     public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
         List<TaskContext<Task>> tasksToBeApplied = new ArrayList<>();
         List<FailedShard> failedShardsToBeApplied = new ArrayList<>();
-        List<StaleShard> staleShardsToBeApplied = new ArrayList<>();
+        List<ShardAllocationId> staleShardsToBeApplied = new ArrayList<>();
         final ClusterState initialState = batchExecutionContext.initialState();
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
@@ -122,7 +122,7 @@ public class ShardFailedTaskExecutor implements ClusterStateTaskExecutor<ShardFa
                             entry
                         );
                         tasksToBeApplied.add(taskContext);
-                        staleShardsToBeApplied.add(new StaleShard(entry.getShardId(), entry.getAllocationId()));
+                        staleShardsToBeApplied.add(new ShardAllocationId(entry.getShardId(), entry.getAllocationId()));
                     } else {
                         // tasks that correspond to non-existent shards are marked as successful
                         logger.debug("{} ignoring shard failed task [{}] (shard does not exist anymore)", entry.getShardId(), entry);
@@ -159,7 +159,7 @@ public class ShardFailedTaskExecutor implements ClusterStateTaskExecutor<ShardFa
     }
 
     // visible for testing
-    ClusterState applyFailedShards(ClusterState currentState, List<FailedShard> failedShards, List<StaleShard> staleShards) {
+    ClusterState applyFailedShards(ClusterState currentState, List<FailedShard> failedShards, List<ShardAllocationId> staleShards) {
         return allocationService.applyFailedShards(currentState, failedShards, staleShards);
     }
 

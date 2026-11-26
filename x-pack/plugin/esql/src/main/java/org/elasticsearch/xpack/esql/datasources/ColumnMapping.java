@@ -53,8 +53,10 @@ public final class ColumnMapping implements Writeable {
     /**
      * Guards the {@link CastType#KEYWORD} entry added in this version's UBN keyword-fallback
      * work. A coordinator that produced a KEYWORD cast slot but is talking to an older data
-     * node that doesn't know the ordinal would otherwise corrupt the page; we fail fast with
-     * "rolling upgrade in progress" instead. See {@link #writeTo}.
+     * node that doesn't know the ordinal would otherwise corrupt the page. {@link #writeTo}
+     * refuses with {@link IllegalArgumentException} so the query fails as a 4xx (same as a
+     * declared-schema split toward an older node) rather than a 500 from an
+     * {@link IllegalStateException}.
      */
     private static final TransportVersion ESQL_COLUMN_MAPPING_KEYWORD_CAST = TransportVersion.fromName("esql_column_mapping_keyword_cast");
 
@@ -134,13 +136,15 @@ public final class ColumnMapping implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         // Pre-flight the KEYWORD cast against the peer's transport version *before* touching the
         // output stream: a coordinator that produced this mapping under UBN is on a newer version
-        // than a data node that would not recognize the ordinal. Throwing here surfaces the
-        // rolling-upgrade window cleanly; the stream stays untouched so callers can recover
-        // (write another message, fail the request, etc.) without a half-written ColumnMapping.
+        // than a data node that would not recognize the ordinal. IllegalArgumentException maps to
+        // HTTP 400 (same as a declared-schema split toward an older node) so the rolling-upgrade
+        // window is a client error, not a server fault. The stream stays untouched so callers can
+        // recover (write another message, fail the request, etc.) without a half-written ColumnMapping.
         // hasKeywordCast() short-circuits the typical no-KEYWORD path with a single null check.
         if (hasKeywordCast() && out.getTransportVersion().supports(ESQL_COLUMN_MAPPING_KEYWORD_CAST) == false) {
-            throw new IllegalStateException(
-                "KEYWORD cast not supported on transport version " + out.getTransportVersion() + "; rolling upgrade in progress"
+            throw new IllegalArgumentException(
+                "KEYWORD column mapping cast is not supported on all nodes in the cluster; "
+                    + "rolling upgrade in progress, retry after the upgrade"
             );
         }
         out.writeIntArray(index);

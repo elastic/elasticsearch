@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Names one exchange, the hop where pages move from the plan fragment that produces them to the one that consumes them,
@@ -33,7 +34,9 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public record ExchangeRef(String id, @Nullable Integer childIndex) {
 
-    private static final String JVM_TAG = Integer.toHexString(Randomness.get().nextInt(0x1000000));
+    // this cannot be directly initialized with Randomness.get()... value because it causes tests to fail with ExceptionInInitializerError:
+    // this class is loaded before the RandomizedRunner sets the RandomizedContext for the current thread
+    private static final AtomicReference<String> JVM_TAG = new AtomicReference<>();
     private static final AtomicLong COUNTER = new AtomicLong();
 
     public ExchangeRef {
@@ -44,7 +47,13 @@ public record ExchangeRef(String id, @Nullable Integer childIndex) {
 
     /** A fresh id for a new hop. */
     public static String newId() {
-        return "ex-" + JVM_TAG + "-" + COUNTER.incrementAndGet();
+        var jvmTag = JVM_TAG.get();
+        // initialize once, on the first attempt to create a new ExchangeRef
+        if (jvmTag == null) {
+            JVM_TAG.compareAndSet(null, Integer.toHexString(Randomness.get().nextInt(0x1000000)));
+            jvmTag = JVM_TAG.get();
+        }
+        return "ex-" + jvmTag + "-" + COUNTER.incrementAndGet();
     }
 
     public static ExchangeRef newExchange() {

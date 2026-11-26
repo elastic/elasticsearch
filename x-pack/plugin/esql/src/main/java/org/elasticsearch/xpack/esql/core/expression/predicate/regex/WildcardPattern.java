@@ -115,27 +115,32 @@ public class WildcardPattern extends AbstractStringPattern implements Writeable 
     }
 
     /**
-     * Classify this pattern into one of the affix-only fast-path shapes,
-     * unwrapping backslash escapes in a single pass. The result is one of
-     * {@link Shape.Prefix}, {@link Shape.Suffix}, {@link Shape.Contains}, or
-     * {@link Shape.General#INSTANCE}. The first three carry the
-     * literal segment so callers can dispatch to a {@code startsWith} /
-     * {@code endsWith} / substring-search evaluator without building an
-     * {@code Automaton}; {@code General} signals that the pattern does not
-     * match any simple shape (multiple unescaped {@code *}s with text
-     * between them, any unescaped {@code ?}, escaped-only patterns with no
-     * wildcards, dangling backslashes, etc.) and the caller should fall
-     * back to the automaton path.
+     * Classify this pattern into one of the affix fast-path shapes, unwrapping
+     * backslash escapes and collapsing adjacent unescaped {@code *} runs in a
+     * single pass. The result is one of {@link Shape.Prefix}, {@link Shape.Suffix},
+     * {@link Shape.Contains}, {@link Shape.Affix}, or {@link Shape.General#INSTANCE}.
+     * Prefix/suffix/contains keep the simple pinned shapes so existing evaluators
+     * keep firing; {@link Shape.Affix} covers {@code prefix*suffix},
+     * {@code prefix*middle*}, {@code *middle*suffix}, and
+     * {@code prefix*middle*suffix}. {@code General} is the fall-through for
+     * three or more star-groups, any unescaped {@code ?}, escaped-only patterns
+     * with no wildcards, dangling backslashes, and the empty pattern — callers
+     * should then use the automaton path.
      */
     public Shape shape() {
         final int n = wildcard.length();
         if (n == 0) {
             return Shape.General.INSTANCE;
         }
-        StringBuilder unescaped = new StringBuilder(n);
-        int starsCount = 0;
-        boolean firstStarAtStart = false;
-        boolean lastStarAtEnd = false;
+        // Literal segments split by maximal runs of unescaped '*'. At most two
+        // star-groups (three segments) are an Affix/Contains/Prefix/Suffix;
+        // a third group is General.
+        String prefix = "";
+        String middle = "";
+        StringBuilder cur = new StringBuilder(n);
+        int starGroups = 0;
+        int starChars = 0;
+        boolean lastWasStar = false;
         int i = 0;
         while (i < n) {
             char c = wildcard.charAt(i);
@@ -144,7 +149,8 @@ public class WildcardPattern extends AbstractStringPattern implements Writeable 
                     // Dangling escape — let the general automaton path handle it.
                     return Shape.General.INSTANCE;
                 }
-                unescaped.append(wildcard.charAt(i + 1));
+                cur.append(wildcard.charAt(i + 1));
+                lastWasStar = false;
                 i += 2;
                 continue;
             }
@@ -152,45 +158,62 @@ public class WildcardPattern extends AbstractStringPattern implements Writeable 
                 return Shape.General.INSTANCE;
             }
             if (c == '*') {
-                starsCount++;
-                if (starsCount == 1) {
-                    firstStarAtStart = (i == 0);
+                starChars++;
+                if (lastWasStar) {
+                    i++;
+                    continue;
                 }
-                lastStarAtEnd = (i == n - 1);
+                if (starGroups == 3) {
+                    return Shape.General.INSTANCE;
+                }
+                String lit = cur.toString();
+                cur.setLength(0);
+                if (starGroups == 0) {
+                    prefix = lit;
+                } else if (starGroups == 1) {
+                    middle = lit;
+                }
+                starGroups++;
+                lastWasStar = true;
                 i++;
                 continue;
             }
-            unescaped.append(c);
+            cur.append(c);
+            lastWasStar = false;
             i++;
         }
-        if (starsCount == 0) {
-            // Exact-match string — no specific fast path; fall through.
+        if (starGroups == 0 || starGroups >= 3) {
             return Shape.General.INSTANCE;
         }
-        if (starsCount == 1) {
-            if (firstStarAtStart) {
-                return new Shape.Suffix(unescaped.toString());
+        String suffix = cur.toString();
+        if (starGroups == 1) {
+            if (prefix.isEmpty()) {
+                // "*" stays Suffix(""); collapsed "**" (and "***"…) historically
+                // classified as Contains("") — keep that so evaluator-name pins
+                // on the empty-contains shape stay green.
+                if (suffix.isEmpty() && starChars >= 2) {
+                    return new Shape.Contains("");
+                }
+                return new Shape.Suffix(suffix);
             }
-            if (lastStarAtEnd) {
-                return new Shape.Prefix(unescaped.toString());
+            if (suffix.isEmpty()) {
+                return new Shape.Prefix(prefix);
             }
-            // Single star with non-empty body on both sides — prefix*suffix.
-            // No fast path for this shape here.
-            return Shape.General.INSTANCE;
+            return new Shape.Affix(prefix, "", suffix);
         }
-        if (starsCount == 2 && firstStarAtStart && lastStarAtEnd) {
-            return new Shape.Contains(unescaped.toString());
+        if (prefix.isEmpty() && suffix.isEmpty()) {
+            return new Shape.Contains(middle);
         }
-        // More than two unescaped stars, or two stars not pinned to both ends.
-        return Shape.General.INSTANCE;
+        return new Shape.Affix(prefix, middle, suffix);
     }
 
     /**
-     * Classification of a {@link WildcardPattern} into the simple fast-path
-     * shapes. The three concrete records carry the unescaped literal
-     * segment; {@link General} is the fall-through case for everything else.
+     * Classification of a {@link WildcardPattern} into the fast-path shapes.
+     * {@link Prefix}, {@link Suffix}, and {@link Contains} carry one unescaped
+     * literal segment; {@link Affix} carries prefix, middle, and suffix
+     * (any of which may be empty); {@link General} is the fall-through.
      */
-    public sealed interface Shape permits Shape.Prefix, Shape.Suffix, Shape.Contains, Shape.General {
+    public sealed interface Shape permits Shape.Prefix, Shape.Suffix, Shape.Contains, Shape.Affix, Shape.General {
         /** {@code literal*} — pattern matches values that start with {@code literal}. */
         record Prefix(String literal) implements Shape {}
 
@@ -201,8 +224,17 @@ public class WildcardPattern extends AbstractStringPattern implements Writeable 
         record Contains(String literal) implements Shape {}
 
         /**
-         * Anything that does not match {@link Prefix}, {@link Suffix}, or
-         * {@link Contains}. Callers should dispatch to the automaton path.
+         * {@code prefix*middle*suffix} and the two-star degenerates
+         * ({@code prefix*suffix}, {@code prefix*middle*}, {@code *middle*suffix}).
+         * Empty strings mark a missing component. Simple pinned shapes are
+         * classified as {@link Prefix}/{@link Suffix}/{@link Contains} instead.
+         */
+        record Affix(String prefix, String middle, String suffix) implements Shape {}
+
+        /**
+         * Anything that does not match {@link Prefix}, {@link Suffix},
+         * {@link Contains}, or {@link Affix}. Callers should dispatch to the
+         * automaton path.
          */
         enum General implements Shape {
             INSTANCE

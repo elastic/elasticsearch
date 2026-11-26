@@ -53,7 +53,7 @@ public class EscfDocumentHandlerTests extends ESTestCase {
     private static byte[] encodeItemsArrayViaHandler(String objectJson) throws IOException {
         EscfBatchBuilder backend = newBackend();
         EscfRowBuffer row = backend.beginRow();
-        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false);
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false, new StringBuilder());
 
         handler.startArray("items");
         handler.arrayElemStartObject();
@@ -80,7 +80,7 @@ public class EscfDocumentHandlerTests extends ESTestCase {
         byte[] bytes = doc.getBytes(StandardCharsets.UTF_8);
         EscfBatchBuilder backend = newBackend();
         EscfRowBuffer row = backend.beginRow();
-        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false);
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false, new StringBuilder());
 
         JsonDocumentParser docParser = SimdJsonParserPool.getDefault().forCurrentThread();
         docParser.parseDocument(bytes, 0, bytes.length, handler);
@@ -203,10 +203,36 @@ public class EscfDocumentHandlerTests extends ESTestCase {
         assertArrayEquals(expectedObjectKv(inner), encodeItemsArrayViaHandler(inner));
     }
 
+    /**
+     * The simdjson walk hands the handler the bytes of every floating-point token, and the handler keeps them as the
+     * value's spelling only when they are not the canonical rendering of the value. The walk is driven directly, so
+     * no other walk can stand in for it, and with one buffer for every document, as the encoder has.
+     */
+    public void testSpellingIsKeptOnlyWhenNotCanonical() {
+        assumeTrue("simdjson ESCF encoding required", EscfEncoder.isSimdEnabled());
+        JsonDocumentParser docParser = SimdJsonParserPool.getDefault().forCurrentThread();
+        EscfBatchBuilder backend = newBackend();
+        StringBuilder doubleBuffer = new StringBuilder(SourceBatchEncodeHelper.MAX_DOUBLE_RENDERING_LENGTH);
+        for (String token : EscfEncoderTests.floatingPointTokens(between(50, 200))) {
+            byte[] doc = ("{\"d\":" + token + "}").getBytes(StandardCharsets.UTF_8);
+            EscfRowBuffer row = backend.beginRow();
+            docParser.parseDocument(doc, 0, doc.length, new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false, doubleBuffer));
+
+            XContentString.UTF8Bytes spelling = (XContentString.UTF8Bytes) row.scratchVar(0);
+            if (token.equals(Double.toString(Double.parseDouble(token)))) {
+                assertNull(token, spelling);
+            } else {
+                assertEquals(token, new String(spelling.bytes(), spelling.offset(), spelling.length(), StandardCharsets.UTF_8));
+            }
+        }
+        docParser.publishFieldNames();
+        assertEquals(SourceBatchEncodeHelper.MAX_DOUBLE_RENDERING_LENGTH, doubleBuffer.capacity());
+    }
+
     public void testRootScalarsGoToRowBuffer() {
         EscfBatchBuilder backend = newBackend();
         EscfRowBuffer row = backend.beginRow();
-        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false);
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false, new StringBuilder());
 
         byte[] hello = "hello".getBytes(StandardCharsets.UTF_8);
         handler.longField("n", 42, true, new byte[] { '4', '2' }, 0, 2);
@@ -239,7 +265,7 @@ public class EscfDocumentHandlerTests extends ESTestCase {
             }
         };
 
-        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, true);
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, true, new StringBuilder());
         handler.longField("n", 99, true, new byte[] { '9', '9' }, 0, 2);
         handler.booleanField("b", true, new byte[] { 't', 'r', 'u', 'e' }, 0, 4);
         row.finishRow();
@@ -266,7 +292,7 @@ public class EscfDocumentHandlerTests extends ESTestCase {
                 arrayEvents.incrementAndGet();
             }
         };
-        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, false);
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, false, new StringBuilder());
 
         byte[] tag = "a".getBytes(StandardCharsets.UTF_8);
         handler.startArray("tags");

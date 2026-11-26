@@ -715,7 +715,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                 // call this before we close the store, so we can release resources for it
                                 listener.afterIndexShardClosed(sId, indexShard, indexSettings);
                             } catch (Exception e) {
-                                logger.warn(() -> format("[%s] failed to run afterIndexShardClosed (reason: [%s])", shardId, reason), e);
+                                // CompositeIndexEventListener has already logged this at WARN
+                                logger.debug(() -> format("[%s] failed to run afterIndexShardClosed (reason: [%s])", shardId, reason), e);
                             } finally {
                                 try {
                                     if (hasStoreRef) {

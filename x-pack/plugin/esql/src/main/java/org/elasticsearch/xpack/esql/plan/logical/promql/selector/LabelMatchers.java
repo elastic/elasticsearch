@@ -17,20 +17,15 @@ import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -132,13 +127,13 @@ public class LabelMatchers implements NodeStringRenderable {
             if (exact != null) {
                 condition = new Equals(source, field, Literal.keyword(source, exact));
             } else {
-                // the value of = and != is a literal, not a regex
-                var fragments = matcher.matcher().isRegex()
-                    ? AutomatonUtils.extractFragments(matcher.getFirstValue())
-                    : List.of(new AutomatonUtils.PatternFragment(AutomatonUtils.PatternFragment.Type.EXACT, matcher.getFirstValue()));
-                condition = fragments != null && fragments.isEmpty() == false
-                    ? operatorFn(source, field, fragments)
-                    // fallback: an RE2 regex match over the full pattern, anchored per PromQL semantics
+                // the value of = and != is a literal, not a regex; a regex of literal alternatives, as in a|b, matches as a set
+                var values = matcher.matcher().isRegex()
+                    ? AutomatonUtils.literalAlternatives(matcher.getFirstValue())
+                    : List.of(matcher.getFirstValue());
+                condition = values != null
+                    ? new In(source, field, values.stream().<Expression>map(v -> Literal.keyword(source, v)).toList())
+                    // any other regex is an RE2 match over the full pattern, anchored per PromQL semantics
                     : new Re2Like(source, field, new Re2Pattern(matcher.getFirstValue()));
                 if (matcher.isNegation()) {
                     condition = new Not(source, condition);
@@ -151,28 +146,6 @@ public class LabelMatchers implements NodeStringRenderable {
             condition = Predicates.combineOr(List.of(new IsNull(source, field), condition));
         }
         return condition;
-    }
-
-    /** Disjoint fragments sort EXACT -> PREFIX -> SUFFIX -> REGEX (most selective first); an all-EXACT set lowers to IN. */
-    private static Expression operatorFn(Source source, Expression field, List<AutomatonUtils.PatternFragment> fragments) {
-        var sorted = fragments.stream().sorted(Comparator.comparingInt(f -> f.type().ordinal())).toList();
-        if (sorted.stream().allMatch(f -> f.type() == AutomatonUtils.PatternFragment.Type.EXACT)) {
-            return new In(source, field, sorted.stream().<Expression>map(f -> Literal.keyword(source, f.value())).toList());
-        }
-
-        var expr = sorted.stream().map(f -> {
-            Literal value = Literal.keyword(source, f.value());
-            return switch (f.type()) {
-                case EXACT -> new Equals(source, field, value);
-                case PREFIX -> new StartsWith(source, field, value);
-                case PROPER_PREFIX -> new And(source, new NotEquals(source, field, value), new StartsWith(source, field, value));
-                case SUFFIX -> new EndsWith(source, field, value);
-                case PROPER_SUFFIX -> new And(source, new NotEquals(source, field, value), new EndsWith(source, field, value));
-                case REGEX -> new Re2Like(source, field, new Re2Pattern(f.value()));
-            };
-        }).toList();
-
-        return Predicates.combineOr(expr);
     }
 
     @Override

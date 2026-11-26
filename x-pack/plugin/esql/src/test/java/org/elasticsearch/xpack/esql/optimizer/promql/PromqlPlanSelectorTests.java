@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -136,20 +135,15 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(in.list().stream().map(Expression::toString).toList(), containsInAnyOrder("host-0", "host-1", "host-2"));
     }
 
+    /** A regex with a metacharacter in any alternative, a prefix included, is matched as a whole, as Prometheus parses it. */
     public void testLabelSelectorPrefix() {
-        var plan = planPromql("""
-            PROMQL index=k8s step=1m avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-.*"}[5m]))
-            """);
-        assertTrue(anyFilterContains(plan, StartsWith.class));
-        assertFalse(anyFilterContains(plan, NotEquals.class));
-    }
-
-    public void testLabelSelectorProperPrefix() {
-        var plan = planPromql("""
-            PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~"host-.+"}[1h]))
-            """);
-        assertTrue(anyFilterContains(plan, StartsWith.class));
-        assertTrue(anyFilterContains(plan, NotEquals.class));
+        for (String regex : List.of("host-.*", "host-.+", "host-.*|web")) {
+            var plan = planPromql("PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~\"" + regex + "\"}[1h]))");
+            var re2Like = collectInnermostSelectorFilter(plan, Re2Like.class);
+            assertThat(as(re2Like.field(), FieldAttribute.class).name(), equalTo("pod"));
+            assertThat(re2Like.pattern().pattern(), equalTo(regex));
+            assertFalse(regex, anyFilterContains(plan, StartsWith.class));
+        }
     }
 
     public void testLabelSelectorRegex() {
@@ -218,7 +212,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\",cluster=~\"bar|baz\",region!~\"us-.*\"})");
         assertTrue(anyFilterContains(plan, Not.class));
         assertTrue(anyFilterContains(plan, In.class));
-        assertTrue(anyFilterContains(plan, StartsWith.class));
+        assertTrue(anyFilterContains(plan, Re2Like.class));
     }
 
     /**

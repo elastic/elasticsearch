@@ -87,7 +87,7 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
     public void testStoreNone() throws Exception {
         int docCount = indexDocs();
 
-        List<String> lines = executeStream("FROM " + SOURCE_INDEX + " | LIMIT " + docCount, StreamOptions.Store.NONE);
+        List<String> lines = executeStream("FROM " + SOURCE_INDEX + " | LIMIT " + docCount, unlimited(StreamOptions.Store.NONE));
 
         assertThat(lines, hasSize(docCount + 2));// + header and footer
         assertThat(parseJson(lines.getFirst()), not(hasKey(STREAM_ID_FIELD)));
@@ -97,7 +97,7 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
     public void testStoreAll() throws Exception {
         int docCount = indexDocs();
 
-        List<String> lines = executeStream("FROM " + SOURCE_INDEX + " | LIMIT " + docCount, StreamOptions.Store.ALL);
+        List<String> lines = executeStream("FROM " + SOURCE_INDEX + " | LIMIT " + docCount, unlimited(StreamOptions.Store.ALL));
 
         assertThat(lines, hasSize(docCount + 2));// + header and footer
         String streamId = (String) parseJson(lines.getFirst()).get(STREAM_ID_FIELD);
@@ -187,9 +187,11 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
 
     public void testStoreWhenQueryReturnsNoRows() throws Exception {
         indexDocs();
-        StreamOptions.Store store = randomFrom(StreamOptions.Store.OVERFLOW, StreamOptions.Store.ALL);
 
-        List<String> lines = executeStream("FROM " + SOURCE_INDEX + " | WHERE value < 0", store);
+        List<String> lines = executeStream(
+            "FROM " + SOURCE_INDEX + " | WHERE value < 0",
+            unlimited(randomFrom(StreamOptions.Store.OVERFLOW, StreamOptions.Store.ALL))
+        );
 
         assertThat(lines, hasSize(2));// header and footer
         Map<String, Object> footer = parseJson(lines.getLast());
@@ -266,16 +268,12 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
         return docCount;
     }
 
-    private List<String> executeStream(String query, StreamOptions.Store store) throws IOException {
-        return executeStream(query, new StreamOptions(store, StreamOptions.NO_LIMIT, StreamOptions.NO_LIMIT));
+    private static StreamOptions unlimited(StreamOptions.Store store) {
+        return new StreamOptions(store, StreamOptions.NO_LIMIT, StreamOptions.NO_LIMIT);
     }
 
     private List<String> executeStream(String query, StreamOptions options) throws IOException {
-        return executeStream(client(), query, options);
-    }
-
-    private List<String> executeStream(Client storeClient, String query, StreamOptions options) throws IOException {
-        return executeStream(storeClient, internalCluster().getInstance(EscfBulkService.class), query, options);
+        return executeStream(client(), internalCluster().getInstance(EscfBulkService.class), query, options);
     }
 
     private List<String> executeStream(Client storeClient, EscfBulkService bulks, String query, StreamOptions options) throws IOException {

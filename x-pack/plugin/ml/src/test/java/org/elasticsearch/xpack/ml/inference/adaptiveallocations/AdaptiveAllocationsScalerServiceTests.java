@@ -12,6 +12,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -42,16 +43,21 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -68,14 +74,56 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
     private static final AtomicLong SIXTY_SECONDS = new AtomicLong(60);
     private static final AtomicLong TWO_THOUSAND_MILLISECONDS = new AtomicLong(2_000);
     private static final AtomicLong SIXTY_THOUSAND_MILLISECONDS = new AtomicLong(60_000);
+
+    /**
+     * Runs the stats cycles of the scaler service one at a time, so that a test can verify each cycle
+     * without racing the scheduler. The stub of the stats request calls {@link #answer}. The test calls
+     * {@link #run} for each cycle, and {@link #continueScheduler} when it is done with that cycle.
+     */
+    private static class StatsCycles {
+        private final BlockingQueue<Supplier<GetDeploymentStatsAction.Response>> responses = new LinkedBlockingQueue<>();
+        private final Semaphore cycleDone = new Semaphore(0);
+        private final Semaphore schedulerContinued = new Semaphore(0);
+
+        /**
+         * Answers the stats request with the response of the current cycle, which is created now, so that its timestamps
+         * are current. Afterwards, it doesn't return until {@link #continueScheduler}. This pauses the scheduler, because
+         * it schedules the next cycle only after this one returns.
+         */
+        void answer(ActionListener<GetDeploymentStatsAction.Response> listener) throws InterruptedException {
+            listener.onResponse(responses.take().get()); // waits for run()
+            cycleDone.release(); // lets run() return
+            schedulerContinued.acquire(); // waits for continueScheduler()
+        }
+
+        /**
+         * Runs the next cycle with the given stats response, and waits until it is done.
+         */
+        void run(Supplier<GetDeploymentStatsAction.Response> response) {
+            responses.add(response); // lets answer() respond
+            safeAcquire(cycleDone); // waits for answer() to finish the cycle
+        }
+
+        /**
+         * Lets the scheduler continue after a cycle, so that it schedules the next one.
+         */
+        void continueScheduler() {
+            schedulerContinued.release(); // lets answer() return
+        }
+    }
+
     private TestThreadPool threadPool;
     private ClusterService clusterService;
     private Client client;
     private InferenceAuditor inferenceAuditor;
     private MeterRegistry meterRegistry;
+    // The node in the deployment stats. It must be the same in all stats of a test, because the
+    // recent stats are computed per node from the difference with the previous stats.
+    private DiscoveryNode statsNode;
+    private StatsCycles statsCycles;
 
     @Before
-    public void initAdaptiveAllocationsTestDeps() throws Exception {
+    public void setup() throws Exception {
         threadPool = createThreadPool(
             new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
         );
@@ -85,10 +133,29 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         client = mock(Client.class);
         inferenceAuditor = mock(InferenceAuditor.class);
         meterRegistry = mock(MeterRegistry.class);
+        statsNode = randomBoolean() ? DiscoveryNodeUtils.create("node_1") : null;
+
+        // By default, the stats requests are answered by the stats cycles, and updates succeed.
+        statsCycles = new StatsCycles();
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
+            statsCycles.answer(listener);
+            return Void.TYPE;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<CreateTrainedModelAssignmentAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return Void.TYPE;
+        }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
     }
 
     @After
     public void closeThreadPool() throws Exception {
+        // Let the scheduler finish the last cycle; the test has stopped the service, so no next cycle is scheduled.
+        statsCycles.continueScheduler();
         this.threadPool.close();
     }
 
@@ -172,7 +239,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
                         ? List.of()
                         : List.of(
                             AssignmentStats.NodeStats.forStartedState(
-                                randomBoolean() ? DiscoveryNodeUtils.create("node_1") : null,
+                                statsNode,
                                 inferenceCount,
                                 latency,
                                 latency,
@@ -216,43 +283,24 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             SIXTY_SECONDS,
             SIXTY_THOUSAND_MILLISECONDS
         );
-        // First cycle: 1 inference request, so no need for scaling.
-        when(client.threadPool()).thenReturn(threadPool);
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(1, 1, 11.0, false, AssignmentState.STARTED));
-            return Void.TYPE;
-        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
+
         service.start();
 
         verify(clusterService).state();
         verify(clusterService).addListener(same(service));
         verifyNoMoreInteractions(client, clusterService);
 
-        safeSleep(1500);
+        // First cycle: 1 inference request, so no need for scaling.
+        statsCycles.run(() -> getDeploymentStatsResponse(1, 1, 11.0, false, AssignmentState.STARTED));
 
         verify(client, times(1)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
         verifyNoMoreInteractions(client, clusterService);
-        reset(client, clusterService);
+        clearInvocations(client, clusterService);
+        statsCycles.continueScheduler();
 
         // Second cycle: 150 inference request with a latency of 10ms, so scale up to 2 allocations.
-        when(client.threadPool()).thenReturn(threadPool);
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(1, 150, 10.0, false, AssignmentState.STARTED));
-            return Void.TYPE;
-        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<CreateTrainedModelAssignmentAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(null);
-            return Void.TYPE;
-        }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
-
-        safeSleep(1000);
+        statsCycles.run(() -> getDeploymentStatsResponse(1, 150, 10.0, false, AssignmentState.STARTED));
 
         verify(client, times(2)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
@@ -261,29 +309,16 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.ADAPTIVE_ALLOCATIONS);
         verify(client, times(1)).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any());
         verifyNoMoreInteractions(client, clusterService);
-        reset(client, clusterService);
+        clearInvocations(client, clusterService);
 
         clusterState = getClusterState(2, AssignmentState.STARTED);
         ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         service.clusterChanged(clusterChangedEvent);
+        statsCycles.continueScheduler();
 
         // Third cycle: 0 inference requests, but keep 2 allocations, because of cooldown.
-        when(client.threadPool()).thenReturn(threadPool);
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(2, 0, 9.0, false, AssignmentState.STARTED));
-            return Void.TYPE;
-        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<CreateTrainedModelAssignmentAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(null);
-            return Void.TYPE;
-        }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
-
-        safeSleep(1000);
+        statsCycles.run(() -> getDeploymentStatsResponse(2, 0, 9.0, false, AssignmentState.STARTED));
 
         verify(client, times(1)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());

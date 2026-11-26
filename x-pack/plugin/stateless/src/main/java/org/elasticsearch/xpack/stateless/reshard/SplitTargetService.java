@@ -643,7 +643,7 @@ public class SplitTargetService {
 
                 // It's possible we are already in `HandoffReceived` due to retries that the source shard performs during handoff.
                 // If that is the case it means that we previously failed to perform the state transition, retry it.
-                advance(new State.HandoffReceived(handoffReceived.activeSourceShard, handoffReceived.handoffRpcListener));
+                advance(new State.HandoffReceived(handoffReceived.activeSourceShard, handoffRpcListener));
             } else {
                 throw new IllegalStateException("Received unexpected handoff request from the source shard in state " + currentState);
             }

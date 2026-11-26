@@ -13,12 +13,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.diskbbq.TrialLicenseStateDiskBBQPlugin;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -29,6 +32,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
@@ -52,7 +56,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     }
 
     public static final Set<String> ALL_DENSE_VECTOR_INDEX_TYPES = Arrays.stream(DenseVectorFieldMapper.VectorIndexType.values())
-        .filter(t -> t != DenseVectorFieldMapper.VectorIndexType.BBQ_DISK)
         .map(v -> v.getName().toLowerCase(Locale.ROOT))
         .collect(Collectors.toSet());
 
@@ -101,6 +104,11 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         this.similarity = similarity;
         this.index = index;
         this.sourceOptions = sourceOptions;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TrialLicenseStateDiskBBQPlugin.class);
     }
 
     private final Map<Integer, List<Number>> indexedVectors = new HashMap<>();

@@ -29,9 +29,12 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -232,7 +235,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                         });
                         return newAgg.toAttribute();
                     }
-                    return withoutInlineFilter(af);
+                    return withLossySummation(withoutInlineFilter(af));
                 });
                 secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
             } else if (agg instanceof Alias alias && alias.child() instanceof Literal) {
@@ -453,6 +456,31 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             }
         });
         return secondPassAgg.withFilter(Literal.TRUE);
+    }
+
+    /**
+     * Use lossy summation for time-series aggregations
+     */
+    private static AggregateFunction withLossySummation(AggregateFunction secondPassAgg) {
+        return switch (secondPassAgg) {
+            case Sum sum when sum.field().dataType() == DataType.DOUBLE -> new Sum(
+                sum.source(),
+                sum.field(),
+                sum.filter(),
+                sum.window(),
+                SummationMode.LOSSY_LITERAL,
+                sum.longOverflowMode()
+            );
+            case Avg avg when avg.field().dataType() == DataType.DOUBLE -> new Avg(
+                avg.source(),
+                avg.field(),
+                avg.filter(),
+                avg.window(),
+                SummationMode.LOSSY_LITERAL,
+                avg.allowNonFinite()
+            );
+            default -> secondPassAgg;
+        };
     }
 
     private static Bucket histogramBucketForSecondPass(Bucket bucket, List<NamedExpression> firstPassAggs) {

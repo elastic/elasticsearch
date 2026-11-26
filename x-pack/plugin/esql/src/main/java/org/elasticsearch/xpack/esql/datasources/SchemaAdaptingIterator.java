@@ -16,8 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.spi.ChildRelationPages;
-import org.elasticsearch.xpack.esql.datasources.spi.ChildWindows;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
@@ -26,10 +24,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -62,7 +58,7 @@ import java.util.function.Consumer;
  * iterator when the factory has already arranged for {@code _rowPosition} (and therefore a
  * producer-capable delegate) on the read path.
  */
-final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExtractorProducer, ChildRelationPages {
+final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
 
     private final CloseableIterator<Page> delegate;
     private final ColumnMapping mapping;
@@ -136,13 +132,6 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
      */
     @Nullable
     private String[] pendingAbsentColumnNames;
-    /**
-     * The file-page rows the last page kept when a {@code skip_row} drop removed some, or {@code null} when it kept them
-     * all; the delegate's elements are narrowed to them on first request, once per page and collection.
-     */
-    @Nullable
-    private int[] lastSurvivors;
-    private final Set<String> childRelationsNarrowed = new HashSet<>();
 
     private SkipWarnings castWarnings() {
         if (castWarnings == null) {
@@ -295,8 +284,6 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
     }
 
     private Page adaptPage(Page filePage) {
-        lastSurvivors = null;
-        childRelationsNarrowed.clear();
         // Fast path: identity mapping with no row-position channel to append — the file page is
         // already in the correct shape. Validate types in-place and return without mapPage's
         // per-block incRef/alloc overhead (O(columns) atomics saved per page on wide schemas).
@@ -355,7 +342,6 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
                         schemaAdapted.releaseBlocks();
                         schemaReleased = true;
                         filtered = dropHelper.filterBlocks(filtered, blockFactory);
-                        lastSurvivors = dropHelper.survivorPositions();
                         dropHelper.addToTotals(originalPositions, dropped);
                         dropHelper.checkBudget();
                         return new Page(originalPositions - dropped, filtered);
@@ -408,16 +394,6 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         } finally {
             filePage.releaseBlocks();
         }
-    }
-
-    /** The delegate's elements, renumbered to the rows this page kept when a dropped row removed some. */
-    @Override
-    public ChildWindows children(String path) {
-        ChildWindows windows = ChildRelationPages.forward(delegate, path);
-        if (lastSurvivors != null && childRelationsNarrowed.add(path)) {
-            windows.retainParents(lastSurvivors);
-        }
-        return windows;
     }
 
     private void emitAbsentColumnWarningsOnce() {

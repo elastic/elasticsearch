@@ -53,7 +53,8 @@ public final class RangeReadContext {
     @Nullable
     private Object fileContext;
     private Map<String, List<CollectionSchema.Leaf>> collections = Map.of();
-    private List<ChildRelationRead> childRelations = List.of();
+    @Nullable
+    private ExpandRead expandRead;
 
     public RangeReadContext(
         List<String> projectedColumns,
@@ -237,13 +238,21 @@ public final class RangeReadContext {
         this.collections = Map.copyOf(collections);
     }
 
-    /** As {@link FormatReadContext#childRelations()}. */
-    public List<ChildRelationRead> childRelations() {
-        return childRelations;
+    /**
+     * As {@link FormatReadContext#expandRead()}: the collection to read at element grain, or {@code null}. With one,
+     * {@link #rowLimit()} counts the file's rows (the parents) before they are expanded. A range read harvests no
+     * statistics, so only the row-position refusal applies here.
+     */
+    @Nullable
+    public ExpandRead expandRead() {
+        return expandRead;
     }
 
-    public void setChildRelations(List<ChildRelationRead> childRelations) {
-        this.childRelations = List.copyOf(childRelations);
+    public void setExpandRead(@Nullable ExpandRead expandRead) {
+        if (expandRead != null) {
+            FormatReadContext.requireNoRowPositions(expandRead, projectedColumns);
+        }
+        this.expandRead = expandRead;
     }
 
     public void setFileContext(@Nullable Object fileContext) {

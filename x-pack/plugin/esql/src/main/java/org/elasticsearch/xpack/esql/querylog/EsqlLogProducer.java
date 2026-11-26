@@ -32,8 +32,8 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlCaptureContext> 
     public static final String PROFILE_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.profile.";
     /**
      * The bounds of the {@code @timestamp} range the query asks for, through its request filter and the filters in the query itself,
-     * with relative bounds resolved against the query's now. Each is absent if the query does not bound that end. Logged as dates rather than as a length so that
-     * the length, the age of the data, or whether the range is in the past can all be derived.
+     * with relative bounds resolved against the query's now. Each is absent if the query does not bound that end. Logged as dates rather
+     * than as a length so that the length, the age of the data, or whether the range is in the past can all be derived.
      */
     public static final String TIME_RANGE_FILTER_FROM_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "time_range_filter.from";
     public static final String TIME_RANGE_FILTER_TO_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "time_range_filter.to";

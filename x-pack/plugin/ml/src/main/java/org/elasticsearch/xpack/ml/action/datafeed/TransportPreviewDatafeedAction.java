@@ -22,6 +22,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -35,6 +36,10 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -53,17 +58,14 @@ import org.elasticsearch.xpack.ml.MachineLearningExtensionHolder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
-import java.io.BufferedReader;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
@@ -246,8 +248,20 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     ) {
         final long start = request.getStartTime().orElse(0);
         final long end = resolvePreviewEndTime(request, isDateNanos, datafeed);
+        if (isEmptyEsqlPreviewWindow(datafeed, start, end)) {
+            listener.onResponse(new PreviewDatafeedAction.Response(new BytesArray("[]")));
+            return;
+        }
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, listener));
+    }
+
+    /**
+     * Whether the date_nanos cap in {@link #resolvePreviewEndTime} left an ES|QL window that ends before it starts, which
+     * the extractor factory rejects. Visible for testing.
+     */
+    static boolean isEmptyEsqlPreviewWindow(DatafeedConfig datafeed, long start, long end) {
+        return datafeed.getEsqlQuery() != null && start > end;
     }
 
     /**
@@ -259,10 +273,11 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             return cap;
         }
         long end = request.getEndTime().getAsLong();
-        if (datafeed.getEsqlQuery() == null) {
-            return end;
+        if (EsqlDataExtractor.emitsBucketTimes(datafeed.getEsqlQuery()) == false) {
+            // Raw ES|QL still needs the date_nanos cap; DSL keeps the requested end.
+            return datafeed.getEsqlQuery() != null ? Math.min(end, cap) : end;
         }
-        // An ES|QL datafeed emits one row per grouping-interval bucket, stamped with the bucket start, and the
+        // An aggregating ES|QL datafeed emits one row per grouping-interval bucket, stamped with the bucket start, and the
         // extractor factory floors the window end so an open bucket is never extracted. A preview is a
         // diagnostic view of the requested range, so round the end up to keep the bucket containing it
         // (otherwise a range that ends or sits inside a single bucket previews as empty even though it has data).
@@ -360,22 +375,24 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             // An extractor over a window with nothing to extract reports hasNext() == false and next() would throw
             // NoSuchElementException (a 500); an empty window previews as an empty array.
             Optional<InputStream> inputStream = dataExtractor.hasNext() ? dataExtractor.next().data() : Optional.empty();
-            // DataExtractor returns single-line JSON but without newline characters between objects.
-            // Instead, it has a space between objects due to how JSON XContentBuilder works.
-            // In order to return a proper JSON array from preview, we surround with square brackets and
-            // we stick in a comma between objects.
-            // Also, the stream is expected to be a single line but in case it is not, we join lines
-            // using space to ensure the comma insertion works correctly.
-            StringBuilder responseBuilder = new StringBuilder("[");
-            if (inputStream.isPresent()) {
-                try (BufferedReader buffer = new BufferedReader(new InputStreamReader(inputStream.get(), StandardCharsets.UTF_8))) {
-                    responseBuilder.append(buffer.lines().collect(Collectors.joining(" ")).replace("} {", "},{"));
+            // Extractors write JSON objects separated only by whitespace; preview returns them as one array.
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.startArray();
+                if (inputStream.isPresent()) {
+                    try (
+                        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream.get())
+                    ) {
+                        while (parser.nextToken() != null) {
+                            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                                throw new IllegalStateException("expected a JSON object but found [" + parser.currentToken() + "]");
+                            }
+                            builder.copyCurrentStructure(parser);
+                        }
+                    }
                 }
+                builder.endArray();
+                listener.onResponse(new PreviewDatafeedAction.Response(BytesReference.bytes(builder)));
             }
-            responseBuilder.append("]");
-            listener.onResponse(
-                new PreviewDatafeedAction.Response(new BytesArray(responseBuilder.toString().getBytes(StandardCharsets.UTF_8)))
-            );
         } catch (Exception e) {
             listener.onFailure(e);
         } finally {

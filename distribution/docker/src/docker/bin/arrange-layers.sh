@@ -14,24 +14,6 @@ set -eu
 # So that a failing find or sha256sum in the pipelines below fails the script, rather than only the last command of each
 set -o pipefail
 
-# Many modules and plugins bundle identical copies of the same jar. Replace them with hard links, i.e. several
-# paths to a single file, so that the file is stored only once in the image.
-#
-# `ln -f` keys on content only, so the linked paths take the mode and owner of the first file. That is only safe
-# because the Dockerfile resets the permissions of all files before running this script, which leaves every jar
-# with the same mode and owner.
-dedupe_jars() {
-    previous_sum=
-    find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do
-        if [ "$sum" = "$previous_sum" ]; then
-            ln -f "$first_path" "$path"
-        else
-            previous_sum=$sum
-            first_path=$path
-        fi
-    done
-}
-
 # Moves the paths read from the standard input, one per line, to the given layer. An empty layer is a mistake, such
 # as a path that does not exist any more, so it fails.
 move_to_layer() {
@@ -75,7 +57,6 @@ check_no_jar_is_split() {
     fi
 }
 
-dedupe_jars
 mkdir /layers
 
 layer_number=0

@@ -145,6 +145,40 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         );
     }
 
+    public void testMinimumIntervalYear() throws IOException {
+        Map<String, Integer> expectedDocCount = new TreeMap<>();
+        expectedDocCount.put("2010-01-01T00:00:00.000Z", 2);
+        expectedDocCount.put("2011-01-01T00:00:00.000Z", 0);
+        expectedDocCount.put("2012-01-01T00:00:00.000Z", 1);
+        expectedDocCount.put("2013-01-01T00:00:00.000Z", 2);
+        expectedDocCount.put("2014-01-01T00:00:00.000Z", 0);
+        expectedDocCount.put("2015-01-01T00:00:00.000Z", 3);
+        expectedDocCount.put("2016-01-01T00:00:00.000Z", 1);
+        expectedDocCount.put("2017-01-01T00:00:00.000Z", 1);
+        testSearchCase(
+            DEFAULT_QUERY,
+            DATES_WITH_TIME,
+            aggregation -> aggregation.setNumBuckets(8).setMinimumIntervalExpression("year").field(DATE_FIELD),
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
+        );
+    }
+
+    public void testMinimumIntervalYearSingleYear() throws IOException {
+        List<ZonedDateTime> dates = Arrays.asList(
+            ZonedDateTime.of(2020, 1, 15, 1, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2020, 6, 20, 12, 30, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2020, 11, 30, 23, 59, 0, 0, ZoneOffset.UTC)
+        );
+        Map<String, Integer> expectedDocCount = new TreeMap<>();
+        expectedDocCount.put("2020-01-01T00:00:00.000Z", 3);
+        testSearchCase(
+            DEFAULT_QUERY,
+            dates,
+            aggregation -> aggregation.setNumBuckets(8).setMinimumIntervalExpression("year").field(DATE_FIELD),
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
+        );
+    }
+
     public void testSubAggregations() throws IOException {
         testSearchCase(
             DEFAULT_QUERY,

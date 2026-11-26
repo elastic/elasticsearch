@@ -52,7 +52,9 @@ import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.Before;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,6 +69,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * Mostly copied from Lucene
  */
+@RunWith(ESRandomizedRunner.class)
 public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase<V> extends LuceneTestCase {
 
     protected TestIvfQueryConfigResolver testResolver() {

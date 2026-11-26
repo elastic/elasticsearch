@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.OutputStreamDataOutput;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -20,7 +21,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
@@ -38,6 +42,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitT
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomTimestampFieldValueRange;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCase<StatelessCompoundCommit> {
 
@@ -298,10 +303,10 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             StreamOutput positionTracking = new OutputStreamStreamOutput(output);
 
             Map<String, BlobLocation> referencedCommitBlobsWithoutBlobLength = StatelessCompoundCommitTestUtils.randomCommitFiles();
-            List<StatelessCompoundCommit.InternalFile> internalFiles = new ArrayList<>();
+            List<InternalFile> internalFiles = new ArrayList<>();
             int internalFileCount = randomIntBetween(1, 10);
             for (int i = 0; i < internalFileCount; i++) {
-                internalFiles.add(new StatelessCompoundCommit.InternalFile("internal_file_" + i, randomLongBetween(100, 1000)));
+                internalFiles.add(new InternalFile("internal_file_" + i, randomLongBetween(100, 1000)));
             }
 
             writeBwcHeader(
@@ -316,10 +321,10 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             );
 
             var headerOffset = positionTracking.position();
-            var totalSize = headerOffset + internalFiles.stream().mapToLong(StatelessCompoundCommit.InternalFile::length).sum();
+            var totalSize = headerOffset + internalFiles.stream().mapToLong(InternalFile::length).sum();
             var expectedCommitFiles = StatelessCompoundCommit.combineCommitFiles(
                 new BccBlob(
-                    BatchedCompoundCommit.blobNameFromGeneration(testInstance.generation()),
+                    BccBlob.blobNameFromGeneration(testInstance.generation()),
                     new PrimaryTermAndGeneration(testInstance.primaryTerm(), testInstance.generation())
                 ),
                 InternalFilesReplicatedRanges.EMPTY,
@@ -338,7 +343,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 testInstance.nodeEphemeralId(),
                 expectedCommitFiles.commitFiles(),
                 totalSize,
-                internalFiles.stream().map(StatelessCompoundCommit.InternalFile::name).collect(Collectors.toSet()),
+                internalFiles.stream().map(InternalFile::name).collect(Collectors.toSet()),
                 headerOffset,
                 InternalFilesReplicatedRanges.EMPTY,
                 Map.of(),
@@ -360,7 +365,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         long primaryTerm,
         String nodeEphemeralId,
         Map<String, BlobLocation> referencedBlobFiles,
-        List<StatelessCompoundCommit.InternalFile> internalFiles,
+        List<InternalFile> internalFiles,
         int version
     ) throws IOException {
         assert version < StatelessCompoundCommit.VERSION_WITH_XCONTENT_ENCODING;
@@ -428,6 +433,25 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         }
     }
 
+    public void testTimestampFieldValueRangeXContent() throws IOException {
+        final var range = randomTimestampFieldValueRange();
+
+        // what the header of a compound commit has always written for the range, which is persisted
+        final var inline = new BytesStreamOutput();
+        try (var builder = new XContentBuilder(XContentType.SMILE.xContent(), inline)) {
+            builder.startObject().field("min_millis", range.minMillis()).field("max_millis", range.maxMillis()).endObject();
+        }
+        final var shared = new BytesStreamOutput();
+        try (var builder = new XContentBuilder(XContentType.SMILE.xContent(), shared)) {
+            range.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+        assertThat(shared.bytes(), equalTo(inline.bytes()));
+
+        try (var parser = XContentType.SMILE.xContent().createParser(XContentParserConfiguration.EMPTY, shared.bytes().streamInput())) {
+            assertThat(TimestampFieldValueRange.TIMESTAMP_FIELD_VALUE_RANGE_PARSER.parse(parser, null), equalTo(range));
+        }
+    }
+
     public void testShouldReadHeaderRegardlessFeatureFlagState() throws IOException {
         StatelessCompoundCommit testInstance = createTestInstance();
         var writerFeatureFlag = randomBoolean();
@@ -469,10 +493,10 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         PrimaryTermAndGeneration previousGeneration = new PrimaryTermAndGeneration(4L, 4L);
         PrimaryTermAndGeneration currentGeneration = new PrimaryTermAndGeneration(5L, 5L);
 
-        BlobLocation previousMin = new BlobLocation(new BccBlob(BatchedCompoundCommit.PREFIX + "4", previousGeneration), 50L, 25L);
-        BlobLocation previousMax = new BlobLocation(new BccBlob(BatchedCompoundCommit.PREFIX + "4", previousGeneration), 400L, 25L);
-        BlobLocation currentMin = new BlobLocation(new BccBlob(BatchedCompoundCommit.PREFIX + "5", currentGeneration), 100L, 50L);
-        BlobLocation currentMax = new BlobLocation(new BccBlob(BatchedCompoundCommit.PREFIX + "5", currentGeneration), 300L, 50L);
+        BlobLocation previousMin = new BlobLocation(new BccBlob(BccBlob.PREFIX + "4", previousGeneration), 50L, 25L);
+        BlobLocation previousMax = new BlobLocation(new BccBlob(BccBlob.PREFIX + "4", previousGeneration), 400L, 25L);
+        BlobLocation currentMin = new BlobLocation(new BccBlob(BccBlob.PREFIX + "5", currentGeneration), 100L, 50L);
+        BlobLocation currentMax = new BlobLocation(new BccBlob(BccBlob.PREFIX + "5", currentGeneration), 300L, 50L);
 
         Map<String, BlobLocation> commitFiles = Map.of(
             "previousMin",
@@ -482,7 +506,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             "currentMin",
             currentMin,
             "inBetween",
-            new BlobLocation(new BccBlob(BatchedCompoundCommit.PREFIX + "5", currentGeneration), 200L, 50L),
+            new BlobLocation(new BccBlob(BccBlob.PREFIX + "5", currentGeneration), 200L, 50L),
             "currentMax",
             currentMax
         );
@@ -503,5 +527,88 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
 
         assertThat(commit.getMaxInternalFilesOffsetInCurrentGeneration(), equalTo(currentMax));
         assertThat(commit.getMinInternalFilesOffsetInCurrentGeneration(), equalTo(currentMin));
+    }
+
+    /// Commit headers written before xcontent are read from the store as locations in a [BccBlob], with or without a blob length.
+    public void testReadBlobLocationFromStoreLegacyFormat() throws IOException {
+        var blob = new BccBlob(BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000)), randomLongBetween(1, 10));
+        var expected = new BlobLocation(blob, randomLongBetween(0, 100), randomLongBetween(1, 1000));
+        for (boolean includesBlobLength : new boolean[] { true, false }) {
+            var out = new BytesStreamOutput();
+            out.writeVLong(expected.primaryTerm());
+            out.writeString(expected.blobName());
+            if (includesBlobLength) {
+                out.writeVLong(randomNonNegativeLong());
+            }
+            out.writeVLong(expected.offset());
+            out.writeVLong(expected.fileLength());
+
+            var read = StatelessCompoundCommit.readLegacyBlobLocationFromStore(out.bytes().streamInput(), includesBlobLength);
+            assertThat(read, equalTo(expected));
+            assertThat(read.blob(), instanceOf(BccBlob.class));
+        }
+    }
+
+    /// The legacy format predates merge blobs: a merge blob name is rejected rather than read as a [BccBlob].
+    public void testReadBlobLocationFromStoreLegacyFormatRejectsMergeBlobName() throws IOException {
+        var mergeBlob = new MergeBlob(MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH)), randomLongBetween(1, 10));
+        var out = new BytesStreamOutput();
+        out.writeVLong(mergeBlob.primaryTerm());
+        out.writeString(mergeBlob.blobName());
+        out.writeVLong(0L);
+        out.writeVLong(1L);
+
+        var exception = expectThrows(
+            IOException.class,
+            () -> StatelessCompoundCommit.readLegacyBlobLocationFromStore(out.bytes().streamInput(), false)
+        );
+        assertThat(exception.getMessage(), containsString("malformed blob name [" + mergeBlob.blobName() + ']'));
+    }
+
+    /// Commit headers written with xcontent encoding keep the type of the referenced blobs: locations in a [BccBlob] and in a [MergeBlob]
+    /// are read back as such from the store.
+    public void testWriteAndReadXContentHeaderWithBccAndMergeBlobLocations() throws IOException {
+        var bccLocation = new BlobLocation(
+            new BccBlob(BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000)), randomLongBetween(1, 10)),
+            randomLongBetween(0, 100),
+            randomLongBetween(1, 1000)
+        );
+        var mergeLocation = new BlobLocation(
+            new MergeBlob(MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH)), randomLongBetween(1, 10)),
+            randomLongBetween(0, 100),
+            randomLongBetween(1, 1000)
+        );
+        var commitFiles = Map.of("bcc_file", bccLocation, "merge_file", mergeLocation);
+        var shardId = randomShardId();
+        long generation = randomNonZeroPositiveLong();
+        long primaryTerm = randomNonZeroPositiveLong();
+        var nodeEphemeralId = randomNodeEphemeralId();
+
+        byte[] bytes;
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            StatelessCompoundCommit.writeXContentHeader(
+                shardId,
+                generation,
+                primaryTerm,
+                nodeEphemeralId,
+                0,
+                randomTimestampFieldValueRange(),
+                commitFiles,
+                List.of(),
+                InternalFilesReplicatedRanges.EMPTY,
+                new OutputStreamStreamOutput(output),
+                randomBoolean(),
+                List.of()
+            );
+            bytes = BytesReference.toBytes(output.bytes());
+        }
+
+        try (StreamInput in = new ByteArrayStreamInput(bytes)) {
+            var copy = StatelessCompoundCommit.readFromStore(in);
+
+            assertThat(copy.commitFiles(), equalTo(commitFiles));
+            assertThat(copy.commitFiles().get("bcc_file").blob(), instanceOf(BccBlob.class));
+            assertThat(copy.commitFiles().get("merge_file").blob(), instanceOf(MergeBlob.class));
+        }
     }
 }

@@ -45,7 +45,7 @@ def separateLayers = [
 FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:f4301352b900a11399dfc5f3541e0cf0f45c641a5059db78e0e968aa8df7620f AS builder
 
 # Install required packages to extract the Elasticsearch distribution
-RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
+RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl util-linux-misc") %>
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -81,8 +81,11 @@ COPY --chmod=0555 ${bin_dir}/arrange-layers.sh /tmp/arrange-layers.sh
 #  8. Make some directories writable. `bin` must be writable because
 #     plugins can install their own CLI utilities.
 #  9. Make some files writable
-# 10. Replace the duplicated jars with hard links, and move the paths that are copied in layers of their own out
-#     of the way, keeping their paths, into a directory per layer
+# 10. Replace the identical jars that many modules and plugins bundle with hard links, so that each one is
+#     stored only once in the image layer. `hardlink` only links files that also have the same mode and
+#     owner, so no jar's permissions change
+# 11. Move the paths that are copied in layers of their own out of the way, keeping their paths, into a
+#     directory per layer
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
@@ -92,6 +95,7 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find . -type f ! -perm /111 -exec chmod 0444 {} + && \\
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} + && \\
+    hardlink --ignore-time --include '\\.jar\$' lib modules plugins && \\
     /tmp/arrange-layers.sh <%= separateLayers.collect { '"' + it + '"' }.join(' ') %>
 
 ################################################################################
@@ -128,7 +132,8 @@ ENV GLIBC_TUNABLES=glibc.malloc.hugetlb=0
 
 WORKDIR /usr/share/elasticsearch
 
-<% separateLayers.indices.each { i -> %>
+<% separateLayers.eachWithIndex { path, i -> %>
+# Layer of its own: ${path}
 COPY --from=builder --chown=0:0 /layers/${i} /usr/share/elasticsearch
 <% } %>
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch

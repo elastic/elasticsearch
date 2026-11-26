@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -16,22 +18,27 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.read.FetchDocsSourceOperator;
+import org.elasticsearch.compute.lucene.read.FetchSliceQueue;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverExecutor;
+import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
-import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -43,6 +50,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -52,8 +60,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
@@ -61,7 +71,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -78,16 +87,26 @@ import java.util.stream.IntStream;
  * <p>
  * For each shard of a request it finds the reader context the query phase kept open and builds a search context on it,
  * on the thread that received the request, so the searcher applies the document and field level security of that request.
- * Then one driver loads the documents of every shard, in request order. A request that fails for one shard fails as a
- * whole, like a fetch request of {@code _search}.
+ * Then it cuts the documents into slices of a {@link FetchSliceQueue}, and at most {@code task_concurrency} drivers take
+ * the slices as they go, like the drivers of the query phase take theirs. So the node loads its shards, and the segments
+ * of one shard, in parallel. Without the pragma, the processors of this node set that number. A request starts no more
+ * drivers than it has full slices of documents, so a small fetch runs on one driver. The response holds the rows in
+ * request order. A request that fails for one shard fails as a whole, like a fetch request of {@code _search}.
  * <p>
  * The request holds the first reference on the context of each shard, and the pages take their own while they load. It
  * drops its references once the response is sent, because dropping the last reference to a reader can block. Before that
  * it frees the contexts the request reads for the last time, like the fetch phase of {@code _search} frees the context it
  * read.
+ * <p>
+ * On the coordinator of a query, it builds the fetch operators that send these requests, see {@link #operatorProvider}.
  */
 public final class FetchService {
     private static final Logger logger = LogManager.getLogger(FetchService.class);
+
+    /**
+     * A jumbo size no page reaches, so {@link ValuesSourceReaderOperator} loads each slice as one page.
+     */
+    private static final ByteSizeValue NO_JUMBO_SIZE = ByteSizeValue.ofBytes(Long.MAX_VALUE);
 
     /**
      * Loads documents on the node that holds them. Its requests carry the index expressions of the query, which security
@@ -147,6 +166,23 @@ public final class FetchService {
      * serialization, through the same handler and the same authorization.
      */
     public void sendFetch(DiscoveryNode target, FetchRequest request, Task parentTask, ActionListener<FetchResponse> listener) {
+        sendFetch(transportService, blockFactory, target, request, parentTask, listener);
+    }
+
+    /**
+     * {@link #sendFetch(DiscoveryNode, FetchRequest, Task, ActionListener)} without the rest of the service, so the tests of
+     * the fetch operator send their requests the same way.
+     *
+     * @param blockFactory reads the blocks of the response
+     */
+    static void sendFetch(
+        TransportService transportService,
+        BlockFactory blockFactory,
+        DiscoveryNode target,
+        FetchRequest request,
+        Task parentTask,
+        ActionListener<FetchResponse> listener
+    ) {
         transportService.sendChildRequest(
             target,
             FETCH_ACTION_NAME,
@@ -155,17 +191,50 @@ public final class FetchService {
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(
                 listener,
-                this::readResponse,
+                in -> readResponse(in, blockFactory, transportService.getThreadPool().getThreadContext()),
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
             )
         );
     }
 
-    private FetchResponse readResponse(StreamInput in) throws IOException {
+    private static FetchResponse readResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
         // the stream keeps a reference to the last block of nulls it read, which closing it releases
         try (BlockStreamInput blocks = new BlockStreamInput(in, blockFactory)) {
-            return new FetchResponse(blocks, transportService.getThreadPool().getThreadContext());
+            return new FetchResponse(blocks, threadContext);
         }
+    }
+
+    /**
+     * The fetch operators of the query that {@code scope} describes, on its coordinator. Each sends its requests through
+     * this service to the nodes of the local cluster, with the index expressions of its {@link FetchExec} and the indices
+     * options of the query's data node requests.
+     */
+    public FetchOperatorProvider operatorProvider(QueryFetchScope scope) {
+        return new FetchOperatorProvider() {
+            @Override
+            public Operator.OperatorFactory fetchOperator(FetchExec exec, int docChannel) {
+                OriginalIndices indices = new OriginalIndices(
+                    exec.originalIndices().toArray(String[]::new),
+                    SearchRequest.DEFAULT_INDICES_OPTIONS
+                );
+                return FetchOperator.Factory.forExec(
+                    exec,
+                    docChannel,
+                    new QueryFetchClient(
+                        FetchService.this::sendFetch,
+                        clusterService.threadPool().getThreadContext(),
+                        () -> clusterService.state().nodes(),
+                        scope,
+                        indices
+                    )
+                );
+            }
+
+            @Override
+            public boolean receivesDetachedDocuments() {
+                return true;
+            }
+        };
     }
 
     /**
@@ -217,43 +286,56 @@ public final class FetchService {
         }
 
         void start() {
-            // the driver adds its pages on its own thread, and the response reads them once it finished
-            List<Page> pages = Collections.synchronizedList(new ArrayList<>());
-            Driver driver;
+            // the rows of each slice, in slice order. Only the driver that took a slice adds to its list, and the response
+            // reads them once every driver finished.
+            List<List<Page>> pagesBySlice;
+            List<Driver> drivers;
             try {
                 task.ensureNotCancelled();
                 ensureTheIndicesHoldEveryShard();
                 Set<String> unmappedFieldNames = unmappedFieldNames(request.attributes());
+                List<FetchDocsSourceOperator.ShardDocs> docs = new ArrayList<>(request.shards().size());
                 for (int position = 0; position < request.shards().size(); position++) {
-                    contexts.add(openShard(position, request.shards().get(position), unmappedFieldNames));
+                    FetchRequest.ShardDocs shard = request.shards().get(position);
+                    contexts.add(openShard(position, shard, unmappedFieldNames));
+                    docs.add(new FetchDocsSourceOperator.ShardDocs(position, shard.segments(), shard.docs()));
                 }
-                driver = createDriver(pages);
+                FetchSliceQueue slices = FetchSliceQueue.create(docs);
+                pagesBySlice = new ArrayList<>(slices.sliceCount());
+                for (int s = 0; s < slices.sliceCount(); s++) {
+                    pagesBySlice.add(new ArrayList<>(1));
+                }
+                drivers = createDrivers(slices, pagesBySlice);
             } catch (Exception e) {
                 fail(e);
                 return;
             }
             long setupNanos = System.nanoTime() - startNanos;
-            // runs at once when the task is already cancelled, and the driver fails on its first iteration
-            task.addListener(() -> driver.cancel(Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled")));
-            // not ActionListener#wrap: when respond throws, wrap would fail the request again and release the pages twice
-            Driver.start(
-                transportService.getThreadPool().getThreadContext(),
-                driverExecutor,
-                driver,
-                Driver.DEFAULT_MAX_ITERATIONS,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void ignored) {
-                        respond(pages, driver, setupNanos);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        Releasables.closeExpectNoException(pages);
-                        fail(e);
-                    }
+            // runs at once when the task is already cancelled, and the drivers fail on their first iteration
+            task.addListener(() -> {
+                String reason = Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled");
+                drivers.forEach(driver -> driver.cancel(reason));
+            });
+            ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+            // a driver that fails cancels the others, and the request fails once all of them ended
+            new DriverRunner(threadContext) {
+                @Override
+                protected void start(Driver driver, ActionListener<Void> driverListener) {
+                    Driver.start(threadContext, driverExecutor, driver, Driver.DEFAULT_MAX_ITERATIONS, driverListener);
                 }
-            );
+            }.runToCompletion(drivers, new ActionListener<>() {
+                // not ActionListener#wrap: when respond throws, wrap would fail the request again and release the pages twice
+                @Override
+                public void onResponse(Void ignored) {
+                    respond(concat(pagesBySlice), drivers, setupNanos);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    Releasables.closeExpectNoException(concat(pagesBySlice));
+                    fail(e);
+                }
+            });
         }
 
         /**
@@ -314,25 +396,54 @@ public final class FetchService {
         }
 
         /**
-         * One driver that emits the documents of every shard in request order, loads the attributes of the request for them
-         * and drops the {@code _doc} column.
+         * The drivers that load the documents. They share {@code slices} and take them as they go, at most
+         * {@code task_concurrency} drivers, and never more drivers than full slices of documents.
          */
-        private Driver createDriver(List<Page> pages) {
+        private List<Driver> createDrivers(FetchSliceQueue slices, List<List<Page>> pagesBySlice) {
             IndexedByShardIdFromList<DefaultShardContext> shardContexts = new IndexedByShardIdFromList<>(contexts);
-            List<FetchDocsSourceOperator.ShardDocs> docs = new ArrayList<>(request.shards().size());
-            for (int position = 0; position < request.shards().size(); position++) {
-                FetchRequest.ShardDocs shard = request.shards().get(position);
-                docs.add(new FetchDocsSourceOperator.ShardDocs(position, shard.segments(), shard.docs()));
-            }
             EsPhysicalOperationProviders operationProviders = new EsPhysicalOperationProviders(
                 request.configuration().newFoldContext(),
                 request.configuration(),
                 shardContexts,
                 searchService.getIndicesService().getAnalysis(),
-                plannerSettings.get(),
+                // a slice already bounds its documents, so the reader never cuts its page, and each slice is one page
+                plannerSettings.get().valuesLoadingJumboSize(NO_JUMBO_SIZE),
                 searchService.getIndicesService()::currentStoreBytesRead,
                 QueryWarnings.EMIT
             );
+            ValuesSourceReaderOperator.Factory reader = operationProviders.valuesSourceReader(request.attributes(), 0);
+            int taskConcurrency = request.configuration().pragmas().taskConcurrency(clusterService.getSettings());
+            // A driver gets at least about one full slice of documents, also when the documents lie in many small slices.
+            // A slice holds at most SLICE_DOCS documents, so this never starts more drivers than slices.
+            int fullSlices = Math.ceilDiv(slices.docCount(), FetchSliceQueue.SLICE_DOCS);
+            int driverCount = Math.max(1, Math.min(taskConcurrency, fullSlices));
+            List<Driver> drivers = new ArrayList<>(driverCount);
+            boolean success = false;
+            try {
+                for (int d = 0; d < driverCount; d++) {
+                    drivers.add(createDriver(shardContexts, reader, slices, pagesBySlice));
+                }
+                success = true;
+                return drivers;
+            } finally {
+                if (success == false) {
+                    // no driver started, so nothing else closes them
+                    Releasables.closeExpectNoException(drivers);
+                }
+            }
+        }
+
+        /**
+         * A driver that takes slices from {@code slices} and loads the attributes of the request for their documents. It
+         * adds the rows of each slice, without the {@code _doc} column and the position of the slice, to the list of that
+         * slice in {@code pagesBySlice}.
+         */
+        private Driver createDriver(
+            IndexedByShardIdFromList<DefaultShardContext> shardContexts,
+            ValuesSourceReaderOperator.Factory readerFactory,
+            FetchSliceQueue slices,
+            List<List<Page>> pagesBySlice
+        ) {
             LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
                 blockFactory.breaker(),
                 localBreakerSettings.overReservedBytes(),
@@ -348,16 +459,23 @@ public final class FetchService {
                     localBreakerSettings,
                     DESCRIPTION
                 );
-                FetchDocsSourceOperator source = new FetchDocsSourceOperator(driverContext.blockFactory(), shardContexts, docs);
+                FetchDocsSourceOperator source = new FetchDocsSourceOperator(driverContext.blockFactory(), shardContexts, slices);
                 built.add(source);
-                Operator reader = operationProviders.valuesSourceReader(request.attributes(), 0).get(driverContext);
+                Operator reader = readerFactory.get(driverContext);
                 built.add(reader);
-                Operator dropDocs = new ProjectOperator(IntStream.rangeClosed(1, request.attributes().size()).boxed().toList());
-                built.add(dropDocs);
+                // the source emits the _doc column and the position of the slice, and the reader adds the attributes
+                int[] attributes = IntStream.rangeClosed(2, request.attributes().size() + 1).toArray();
                 OutputOperator output = new OutputOperator(List.of(), Function.identity(), page -> {
-                    // the response releases the page on another thread
-                    page.allowPassingToDifferentDriver();
-                    pages.add(page);
+                    try {
+                        int slice = page.<IntBlock>getBlock(1).getInt(0);
+                        Page rows = page.projectBlocks(attributes);
+                        // the response releases the rows on another thread
+                        rows.allowPassingToDifferentDriver();
+                        pagesBySlice.get(slice).add(rows);
+                    } finally {
+                        // releases the _doc column and with it the references of the page on its shard
+                        page.releaseBlocks();
+                    }
                 });
                 Driver driver = new Driver(
                     new TaskId(clusterService.localNode().getId(), task.getId()).toString(),
@@ -369,7 +487,7 @@ public final class FetchService {
                     driverContext,
                     request::getDescription,
                     source,
-                    List.of(reader, dropDocs),
+                    List.of(reader),
                     output,
                     request.configuration().pragmas().statusInterval(),
                     localBreaker
@@ -384,23 +502,24 @@ public final class FetchService {
             }
         }
 
-        private void respond(List<Page> pages, Driver driver, long setupNanos) {
+        private void respond(List<Page> pages, List<Driver> drivers, long setupNanos) {
             FetchResponse response;
             try {
-                response = new FetchResponse(pages, completionInfo(driver), System.nanoTime() - startNanos, setupNanos);
+                response = new FetchResponse(pages, completionInfo(drivers), System.nanoTime() - startNanos, setupNanos);
             } catch (Exception e) {
                 Releasables.closeExpectNoException(pages);
                 fail(e);
                 return;
             }
-            // the coordinator checks that every document has a row
+            // the coordinator places the rows of the response by their position, so every document needs one row
             assert response.rows() == request.totalDocs()
                 : "fetched [" + response.rows() + "] rows for [" + request.totalDocs() + "] documents";
             logger.debug(
-                "fetch [{}] loaded [{}] rows from [{}] shards in [{}]",
+                "fetch [{}] loaded [{}] rows from [{}] shards on [{}] drivers in [{}]",
                 request.sessionId(),
                 response.rows(),
                 request.shards().size(),
+                drivers.size(),
                 TimeValue.timeValueNanos(response.tookNanos())
             );
             try {
@@ -411,12 +530,12 @@ public final class FetchService {
         }
 
         /**
-         * The counters of the driver, and its profile when the query is profiled.
+         * The counters of the drivers, and their profiles when the query is profiled.
          */
-        private DriverCompletionInfo completionInfo(Driver driver) {
+        private DriverCompletionInfo completionInfo(List<Driver> drivers) {
             if (request.configuration().profile()) {
                 return DriverCompletionInfo.includingProfiles(
-                    List.of(driver),
+                    drivers,
                     DESCRIPTION,
                     clusterService.getClusterName().value(),
                     clusterService.getNodeName(),
@@ -424,12 +543,13 @@ public final class FetchService {
                     null,
                     new PlanTimeProfile(),
                     0L,
+                    new QueryLoad(),
                     false,
                     null,
                     null
                 );
             }
-            return DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);
+            return DriverCompletionInfo.excludingProfiles(drivers, 0L, new QueryLoad(), false);
         }
 
         private void fail(Exception e) {
@@ -473,6 +593,14 @@ public final class FetchService {
                 }
             });
         }
+    }
+
+    private static List<Page> concat(List<List<Page>> pagesBySlice) {
+        List<Page> pages = new ArrayList<>();
+        for (List<Page> slicePages : pagesBySlice) {
+            pages.addAll(slicePages);
+        }
+        return pages;
     }
 
     /**

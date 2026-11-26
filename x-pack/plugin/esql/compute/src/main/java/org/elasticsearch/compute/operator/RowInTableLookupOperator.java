@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -24,7 +25,7 @@ import java.util.List;
 
 /**
  * Looks up each row of an input {@link Page} in a pre-built table and appends
- * the matching row index as a new {@link IntBlock}.
+ * the matching row indices as a new {@link IntBlock}.
  * <p>
  *     The table is supplied at construction time as an array of {@link Key}s,
  *     each holding one key column. Input pages may have more columns than just
@@ -82,6 +83,12 @@ import java.util.List;
  */
 public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOperator {
     /**
+     * The warning for a multivalued key on either side of a repeated-key join, which matches nothing. It names no join
+     * command, because the warning's first line already quotes the join's own text.
+     */
+    private static final String MULTIVALUED_KEY_WARNING = "JOIN encountered multi-value";
+
+    /**
      * A single key column of the lookup table: its field name and the block
      * of values (one value per table row).
      */
@@ -111,6 +118,17 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
     public static final class Factory implements Operator.OperatorFactory {
         private final Key[] keys;
         private final int[] blockMapping;
+        private final boolean repeatedKeys;
+        private final WarningSourceLocation warningSource;
+        /**
+         * Whether a repeated-key table has a multivalued build key. The table skips such rows, and every operator warns
+         * once, even if no probe key would have matched them. This deliberately differs from {@code LOOKUP JOIN}, which
+         * warns only on a match because its Lucene index can find one. Finding one here would need an index of those rows'
+         * values: hashing them adds an entry per combination of values, exponential in the multivalued key columns, and
+         * indexing each column on its own still copies every value. Either costs the most when most rows are multivalued,
+         * only to warn.
+         */
+        private final boolean multivaluedBuildKeys;
         /**
          * The table shared by the operators this factory created, or {@code null} when no operator holds one.
          * Guarded by {@code this}.
@@ -118,22 +136,39 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         private SharedLookup shared;
 
         public Factory(Key[] keys, int[] blockMapping) {
+            this(keys, blockMapping, false, null);
+        }
+
+        /**
+         * Opt in to returning all build-side matches and reporting multivalued keys, on either side, at the join's source.
+         */
+        public Factory(Key[] keys, int[] blockMapping, boolean repeatedKeys, @Nullable WarningSourceLocation warningSource) {
             if (keys.length < 1) {
                 throw new IllegalArgumentException("expected [keys] to be non-empty");
             }
+            if (repeatedKeys && warningSource == null) {
+                throw new IllegalArgumentException("expected [warningSource] when [repeatedKeys] is true");
+            }
             this.keys = keys;
             this.blockMapping = blockMapping;
+            this.repeatedKeys = repeatedKeys;
+            this.warningSource = warningSource;
+            this.multivaluedBuildKeys = repeatedKeys && Arrays.stream(keys).anyMatch(key -> key.block.doesHaveMultivaluedFields());
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
+            Warnings warnings = repeatedKeys ? driverContext.createWarnings(warningSource) : Warnings.NOOP_WARNINGS;
+            if (multivaluedBuildKeys) {
+                warnings.registerException(IllegalArgumentException.class, MULTIVALUED_KEY_WARNING);
+            }
             /*
              * Build with the node-wide parent factory, which charges the request breaker, rather than this driver's:
              * the table outlives any single driver and is released from whichever driver closes last, so it must not
              * be charged to a driver-local breaker.
              */
             SharedLookup lookup = acquire(driverContext.blockFactory().parent());
-            return new RowInTableLookupOperator(driverContext.blockFactory(), keyNames(keys), lookup, blockMapping);
+            return new RowInTableLookupOperator(driverContext.blockFactory(), keyNames(keys), lookup, blockMapping, warnings);
         }
 
         /**
@@ -142,7 +177,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         private synchronized SharedLookup acquire(BlockFactory blockFactory) {
             // A released table stays here until its forget call gets the lock, so check it is still live.
             if (shared == null || shared.tryIncRef() == false) {
-                shared = new SharedLookup(buildLookup(blockFactory, keys), this);
+                shared = new SharedLookup(buildLookup(blockFactory, keys, repeatedKeys), this);
             }
             return shared;
         }
@@ -188,12 +223,12 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
      * concurrently planned plans can share these blocks. Whoever publishes a key page into a plan must call
      * {@link Block#allowPassingToDifferentDriver} on it first so those ref counts are thread-safe.
      */
-    static RowInTableLookup buildLookup(BlockFactory blockFactory, Key[] keys) {
+    static RowInTableLookup buildLookup(BlockFactory blockFactory, Key[] keys, boolean repeatedKeys) {
         Block[] blocks = new Block[keys.length];
         for (int k = 0; k < keys.length; k++) {
             blocks[k] = keys[k].block;
         }
-        return RowInTableLookup.build(blockFactory, blocks);
+        return RowInTableLookup.build(blockFactory, blocks, repeatedKeys);
     }
 
     private static List<String> keyNames(Key[] keys) {
@@ -212,26 +247,51 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
     private final SharedLookup shared;
     private final Releasable releaseShared;
     private final int[] blockMapping;
+    private final Warnings warnings;
 
     /**
      * Takes ownership of one reference to {@code shared}.
      */
-    private RowInTableLookupOperator(BlockFactory blockFactory, List<String> keys, SharedLookup shared, int[] blockMapping) {
+    private RowInTableLookupOperator(
+        BlockFactory blockFactory,
+        List<String> keys,
+        SharedLookup shared,
+        int[] blockMapping,
+        Warnings warnings
+    ) {
         this.blockFactory = blockFactory;
         this.keys = keys;
         this.shared = shared;
         this.releaseShared = Releasables.releaseOnce(shared::decRef);
         this.blockMapping = blockMapping;
+        this.warnings = warnings;
     }
 
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
         Page mapped = page.projectBlocks(blockMapping);
         try {
+            warnOnMultivaluedKeys(mapped);
             // lookup increments any references we need to keep for the iterator
             return appendBlocks(page, shared.table.lookup(mapped, blockFactory, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE));
         } finally {
             mapped.releaseBlocks();
+        }
+    }
+
+    /**
+     * A repeated-key table returns a miss for a multivalued key, so warn once for each page that has one, whatever the
+     * table holds. Only repeated-key operators get real {@link Warnings}, which spares the other operators the scan.
+     */
+    private void warnOnMultivaluedKeys(Page keys) {
+        if (warnings == Warnings.NOOP_WARNINGS) {
+            return;
+        }
+        for (int k = 0; k < keys.getBlockCount(); k++) {
+            if (keys.getBlock(k).doesHaveMultivaluedFields()) {
+                warnings.registerException(IllegalArgumentException.class, MULTIVALUED_KEY_WARNING);
+                return;
+            }
         }
     }
 

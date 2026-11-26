@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.HashSet;
@@ -1594,8 +1595,9 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS,
 
         /**
-         * A FORK may follow a subquery, a view or a LET binding that itself contains a FORK. Each of them is its own FORK scope, so the
-         * two FORKs are not consecutive on one pipeline. Two FORKs the user wrote on the same pipeline are still rejected while parsing.
+         * A FORK may follow a subquery, a view or a LET named subquery that itself contains a FORK. Each of them is its own FORK
+         * scope, so the two FORKs are not consecutive on one pipeline. Two FORKs the user wrote on the same pipeline are still
+         * rejected while parsing.
          */
         ALLOW_FORK_ACROSS_SUBQUERY_VIEW_LET_BOUNDARY,
 
@@ -1642,7 +1644,7 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_TS,
 
         /**
-         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractSubqueryJoin} nodes when their left side is an empty
+         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractInSubqueryJoin} nodes when their left side is an empty
          * {@code LocalRelation}. Without the fix, a {@code WHERE false} followed by a {@code WHERE … OR field IN (subquery) AND match(…)}
          * caused the server to hang or error out because the {@code LuceneQueryExpressionEvaluator} found no Lucene shard contexts.
          */
@@ -3189,6 +3191,18 @@ public class EsqlCapabilities {
         EQL_COMMAND_LOOKUP_JOIN(Build.current().isSnapshot()),
 
         /**
+         * The EQL source command takes its number of matches only from {@code WITH {"size"}} (EQL's default of 10, with a warning when
+         * used) and {@code LIMIT} only trims rows. Snapshot-only, gated together with {@link #EQL_COMMAND}. Added in #165563.
+         */
+        EQL_COMMAND_SIZE_INDEPENDENT_OF_LIMIT(Build.current().isSnapshot()),
+
+        /**
+         * EQL source command errors give positions in both queries, a view named as its target is rejected pointing to {@code FROM},
+         * and its synthetic columns shadow mapped fields of the same name, with a warning. Part of #165570.
+         */
+        EQL_COMMAND_ERRORS_AND_SHADOWED_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,
@@ -3855,6 +3869,33 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, only {@code KEEP} and {@code DROP} decide which keys {@code _unmapped_fields} holds.
+         * A column is a name of its own and leaves the keys as they are, whether it is a mapped field, a field that the query names, or
+         * a column that a command adds or shadows (an {@code EVAL} or {@code RENAME} target, a {@code LOOKUP JOIN} or {@code ENRICH}
+         * field, a {@code GROK} output). Those used to take the key of the same name out of it. {@code DROP} removes what it matches
+         * everywhere, columns and keys, and an exact name as well as a wildcard.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST} is available. See
+         * <a href="https://github.com/elastic/esql-planning/issues/2536">esql-planning#2536</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_ONLY_KEEP_AND_DROP_REACH_KEYS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * {@code unmapped_fields="LOAD_ALL"} works with the {@code TS} source command, and with {@code METRICS_INFO} and {@code TS_INFO}.
+         * A time-series aggregation drops the {@code _unmapped_fields} column like any {@code STATS}, and a {@code TS} query without
+         * one returns it like a {@code FROM} does. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/157190">#157190</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_TS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, {@code DEDUP} compares the {@code _unmapped_fields} column like any other, so two
+         * rows that differ only in unmapped fields are not duplicates. It used to leave the column out of the comparison, and returned
+         * the value of an arbitrary row of each group. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/165558">#165558</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_DEDUP_COMPARES_UNMAPPED_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}
@@ -4335,6 +4376,18 @@ public class EsqlCapabilities {
         PROMQL_COUNT_VALUES(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for the PromQL {@code absent} function, which returns {@code 1} at every evaluation step where its instant
+         * vector argument has no element.
+         */
+        PROMQL_ABSENT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Fix PromQL {@code count_values} over a metric the index does not map: like Prometheus, it gives no element rather than
+         * failing to plan.
+         */
+        FIX_PROMQL_COUNT_VALUES_ABSENT_METRIC(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,
          * and {@code count} over a group without a valued series: like Prometheus, they emit no element rather than
          * {@code 0}. {@code absent_over_time} likewise emits no element for a series with a sample, nor for a series its
@@ -4499,6 +4552,13 @@ public class EsqlCapabilities {
         FILLNULL_INLINE_STATS_PASS_THROUGH(FILLNULL.isEnabled()),
 
         /**
+         * {@code FILLNULL ... ON *} leaves a column with a metadata name, such as {@code _index}, alone after a union of subqueries, where
+         * it filled it once the union had turned the metadata column into a plain one.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/165855">#165855</a>.
+         */
+        FILLNULL_ALL_COLUMNS_SKIPS_METADATA_AFTER_UNION(FILLNULL.isEnabled()),
+
+        /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
          * field-caps request, so the coordinator never plans nested subfields. Shard extraction
          * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of
@@ -4654,19 +4714,18 @@ public class EsqlCapabilities {
          * A {@code LET} clause binds a subquery plan to a name that can be referenced
          * in the main query as a relation or as an {@code IN} operand.
          */
-        NAMED_SUBQUERY_LET(Build.current().isSnapshot()),
+        NAMED_SUBQUERY_LET,
 
         /**
-         * {@code METADATA _class, _name} on a {@code LET} binding referenced in {@code FROM} answers {@code subquery} and the
-         * binding name, instead of {@code null} for both.
+         * {@code METADATA _class, _name} on a {@code LET} named subquery referenced in {@code FROM} answers {@code subquery} and the
+         * subquery name, instead of {@code null} for both.
          */
-        NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME(Build.current().isSnapshot()),
+        NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME,
 
         /**
-         * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,
-         * and {@code column_metadata} reports the same field semantics as {@code _meta.field}.
+         * {@code DESCRIBE} returns one row per input column with its role, origin, metric type and unit.
          */
-        DESCRIBE_COMMAND(Build.current().isSnapshot()),
+        DESCRIBE_COMMAND,
 
         /**
          * Does the usage information for ESQL contain the datasource failure-reason counters
@@ -4928,25 +4987,25 @@ public class EsqlCapabilities {
          * {@code DESCRIBE} and {@code column_metadata} keep the field semantics and units that merged branches agree on,
          * for views next to indices, {@code FORK} and subqueries.
          */
-        COLUMN_METADATA_MERGED_BRANCHES(Build.current().isSnapshot()),
+        COLUMN_METADATA_MERGED_BRANCHES,
 
         /**
          * {@code DESCRIBE} and {@code column_metadata} report every unit and description of a column whose indices or merged
          * branches disagree on them as a multi-value, and merge the field semantics of branches that read the same field as
          * they merge indices.
          */
-        COLUMN_METADATA_LISTED_UNITS(Build.current().isSnapshot()),
+        COLUMN_METADATA_LISTED_UNITS,
 
         /**
          * {@code DESCRIBE} reports {@code role: time} for the {@code @timestamp} column of a dataset and for a time column
          * that is rounded or converted to another date type.
          */
-        DESCRIBE_TIME_COLUMNS(Build.current().isSnapshot()),
+        DESCRIBE_TIME_COLUMNS,
 
         /**
          * {@code DESCRIBE} reports the {@code interval} and {@code time_zone} of the date buckets with a constant interval.
          */
-        DESCRIBE_INTERVAL(Build.current().isSnapshot()),
+        DESCRIBE_INTERVAL,
 
         /**
          * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
@@ -4980,16 +5039,24 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
-         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
-         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
-         * for a request without the header. Before this, every query was counted as {@code rest}.
+         * Support for {@code ROW} under {@code unmapped_fields="LOAD_ALL"}, alone or as a branch of a subquery next to an index. A
+         * {@code ROW} has no {@code _source}, so it adds no unmapped fields and its rows have a null {@code _unmapped_fields}. Only
+         * meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
-        USAGE_QUERIES_BY_CLIENT,
+        OPTIONAL_FIELDS_LOAD_ALL_ROW(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.
+         * Snapshot-only until the command is advertised.
+         */
+        NESTED_EXPAND(Build.current().isSnapshot()),
 
         /**
          * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
          * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
          * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.
+         * Also covers the body fields {@code max_rows} and {@code max_bytes}, which end the response early, and
+         * {@code store}, of which only {@code none} is accepted.
          * Snapshot-only while the streaming protocol is still changing.
          */
         STREAMING_V2(Build.current().isSnapshot()),
@@ -5001,6 +5068,48 @@ public class EsqlCapabilities {
          * of scoring, as it does for a single source.
          */
         FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE,
+
+        /**
+         * A filter with should clauses still requires one of them when other filters are pushed next to it.
+         */
+        FIX_DISJUNCTION_COMBINED_WITH_PUSHED_FILTER,
+
+        /**
+         * Makes {@code FIRST}, {@code LAST}, {@code EARLIEST} and {@code LATEST} in {@code TS} queries return a real sample of a
+         * time series, like outside of {@code TS}. {@code EARLIEST} returned the last value of the time series whose last sample
+         * was the earliest. {@code LAST} and {@code LATEST} on histogram fields returned all histograms of the series merged.
+         */
+        FIX_TS_FIRST_LAST_SAMPLES,
+
+        /**
+         * A {@code LOOKUP JOIN} with an {@code ON} expression, after a {@code RENAME} of an unmapped field, under
+         * {@code unmapped_fields} {@code "nullify"}, {@code "load"} or {@code "load_all"}, no longer fails with "Found ambiguous
+         * reference", whether or not a key of the join is the unmapped field. The rename makes the join resolve inside the rule that
+         * handles the unmapped fields, while it still has the parser's left fields, which hold both operands of every comparison, so the
+         * operand that the lookup index has was loaded onto the left side as an unmapped field. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/165755">#165755</a>.
+         */
+        LOOKUP_JOIN_EXPRESSION_ON_UNMAPPED_LEFT_KEY,
+
+        /**
+         * The {@code unmapped_fields} setting is accepted in the request body, under {@code settings.unmapped_fields}, as well as
+         * with {@code SET}. See <a href="https://github.com/elastic/elasticsearch/issues/164668">#164668</a>.
+         */
+        UNMAPPED_FIELDS_IN_REQUEST_BODY,
+
+        /**
+         * The fetch phase for {@code TopN}: with the {@code fetch_phase} pragma or the {@code esql.query.fetch_phase.enabled}
+         * setting, a query loads the columns it only needs after its {@code TopN} for the rows that survive it. The setting
+         * is on by default in builds with the feature flag.
+         */
+        FETCH_PHASE(EsqlFlags.FETCH_PHASE_FEATURE_FLAG),
+
+        /**
+         * A time-series {@code STATS} grouped by the same dimension twice (e.g. {@code BY cluster, c2 = cluster}) reads
+         * the dimension once instead of failing local planning with a duplicate output attribute.
+         * https://github.com/elastic/elasticsearch/issues/166793
+         */
+        FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

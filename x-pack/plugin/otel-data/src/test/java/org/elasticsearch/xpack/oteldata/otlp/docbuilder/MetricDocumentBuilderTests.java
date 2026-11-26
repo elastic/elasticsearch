@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MetricDocumentBuilderTests extends MetricDocumentTestCase {
@@ -29,14 +31,23 @@ public class MetricDocumentBuilderTests extends MetricDocumentTestCase {
     }
 
     @Override
-    protected Document buildDocument(MappingHints defaultMappingHints, DataPointGroupingContext.DataPointGroup dataPointGroup)
-        throws IOException {
-        Map<String, String> dynamicTemplates = new HashMap<>();
-        Map<String, Map<String, String>> dynamicTemplateParams = new HashMap<>();
+    protected List<Document> buildDocuments(MappingHints defaultMappingHints, DataPointGroupingContext context) throws IOException {
         MetricDocumentBuilder documentBuilder = new MetricDocumentBuilder(new BufferedByteStringAccessor(), defaultMappingHints);
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        BytesRef tsid = documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, dynamicTemplateParams, tsidLayout);
-        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        return new Document(doc, dynamicTemplates, dynamicTemplateParams, tsid);
+        List<Document> documents = new ArrayList<>();
+        context.forEachGroup(dataPointGroup -> {
+            Map<String, String> dynamicTemplates = new HashMap<>();
+            Map<String, Map<String, String>> dynamicTemplateParams = new HashMap<>();
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            BytesRef tsid = documentBuilder.buildMetricDocument(
+                builder,
+                dataPointGroup,
+                dynamicTemplates,
+                dynamicTemplateParams,
+                tsidLayout
+            );
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+            documents.add(new Document(doc, dynamicTemplates, dynamicTemplateParams, tsid));
+        });
+        return documents;
     }
 }

@@ -1046,7 +1046,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                     + DATA_STREAM_NAME
                     + "] in logsdb mode and with [index."
                     + "logsdb.route_on_sort_fields] index setting has mismatching sort "
-                    + "and routing fields, [index.routing_path:[host, message, foo]], [index.sort.fields:[host, message]]"
+                    + "and routing fields, [index.routing_path:[host, message, foo]], [index.sort.field:[host, message]]"
             )
         );
     }
@@ -1114,6 +1114,19 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertFalse(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertFalse(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(0, newMapperServiceCounter.get());
+    }
+
+    /**
+     * An empty {@code index.sort} is treated as not set, like in {@code IndexSortConfig}, so the logsdb default sort still applies.
+     */
+    public void testSortAndHostNameWithEmptySortExpression() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "")
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
+        assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
     }
 
     public void testSortAndHostNoHost() throws Exception {

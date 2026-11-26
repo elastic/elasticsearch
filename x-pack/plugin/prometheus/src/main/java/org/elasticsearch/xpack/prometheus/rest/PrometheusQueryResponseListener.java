@@ -121,9 +121,9 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // TODO: the whole body is still buffered, next to the pages it is built from, and the circuit breaker does not see
         // it. Send it as a chunked response instead, serializing each page into chunks and releasing the page once it is
         // written, so the JSON never exceeds a chunk and memory goes down while the body is sent.
-        XContentBuilder builder;
+        RestResponse response;
         try {
-            builder = convertToPrometheusJson(
+            XContentBuilder builder = convertToPrometheusJson(
                 XContentFactory.jsonBuilder(Streams.flushOnCloseStream(channel.bytesOutput())),
                 queryResponse.pages(),
                 queryResponse.columns(),
@@ -132,6 +132,8 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 mode,
                 limit
             );
+            // Building the response closes the builder, which flushes the rest of the body and can hit the limit too.
+            response = new RestResponse(RestStatus.OK, builder);
         } catch (Exception e) {
             // The partial body is never sent: free its pages now rather than when the error response is written.
             channel.releaseOutputBuffer();
@@ -146,7 +148,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             );
             return;
         }
-        channel.sendResponse(new RestResponse(RestStatus.OK, builder));
+        channel.sendResponse(response);
     }
 
     @Override

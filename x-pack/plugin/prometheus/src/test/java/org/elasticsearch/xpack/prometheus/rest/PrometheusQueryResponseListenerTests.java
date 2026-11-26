@@ -785,18 +785,30 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
 
     /**
      * A query whose result is valid but does not fit in the channel output gets a server error, not the {@code 400} that the
-     * output's {@link IllegalArgumentException} would map to: the client sent nothing wrong.
+     * output's {@link IllegalArgumentException} would map to: the client sent nothing wrong. The limit is hit while the
+     * samples are written.
      */
     public void testOnResponseReportsResponseTooLargeAsServerError() throws IOException {
+        assertResponseTooLargeIsServerError(4 * 1024, PageCacheRecycler.BYTE_PAGE_SIZE);
+    }
+
+    /**
+     * Like {@link #testOnResponseReportsResponseTooLargeAsServerError}, but the body is small enough to stay in the JSON
+     * generator's buffer until the builder is closed, so the limit is hit by the final flush.
+     */
+    public void testOnResponseReportsResponseTooLargeOnFinalFlushAsServerError() throws IOException {
+        assertResponseTooLargeIsServerError(2, 16);
+    }
+
+    private static void assertResponseTooLargeIsServerError(int points, long maxBytes) throws IOException {
         List<ColumnInfoImpl> columns = List.of(col("value", "double"), col("__name__", "keyword"), col("step", "long"));
-        int points = 4 * 1024;
         List<Object> values = new ArrayList<>(points);
         List<Object> steps = new ArrayList<>(points);
         for (int i = 0; i < points; i++) {
             values.add((double) i);
             steps.add(1735689600000L + i * 1000L);
         }
-        RecyclingRestChannel channel = new RecyclingRestChannel(new FakeRestRequest(), PageCacheRecycler.BYTE_PAGE_SIZE);
+        RecyclingRestChannel channel = new RecyclingRestChannel(new FakeRestRequest(), maxBytes);
         EsqlQueryResponse response = new EsqlQueryResponse(
             columns,
             pagesOf(List.of(List.of(values, "up", steps))),

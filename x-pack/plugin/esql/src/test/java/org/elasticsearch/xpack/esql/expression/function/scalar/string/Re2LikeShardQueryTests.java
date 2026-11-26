@@ -160,6 +160,15 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         context.releaseQueryConstructionMemory();
         assertThat(breaker.held.keySet(), equalTo(Set.of("regexp[RE2_LIKE:label]")));
         assertThat(breaker.held.values(), everyItem(equalTo(0L)));
+
+        // a build that grows past the program's reservation, and trips, refunds what the automaton held as well
+        LabelTrackingCircuitBreaker tripped = new LabelTrackingCircuitBreaker();
+        SearchExecutionContext limited = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), tripped);
+        expectThrows(CircuitBreakingException.class, () -> query("\\pL{100}", limited));
+        assertThat("past the program's reservation", tripped.peak(), greaterThan(100 * Re2RegExp.BYTES_PER_INSTRUCTION));
+        limited.releaseQueryConstructionMemory();
+        assertThat(tripped.held.keySet(), equalTo(Set.of("regexp[RE2_LIKE:label]")));
+        assertThat(tripped.held.values(), everyItem(equalTo(0L)));
     }
 
     /** A field that can't build the query fails after the automaton is built, and nothing stays reserved for it. */

@@ -162,7 +162,7 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
             indexSegment(dir, dims, 4_000);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 Search search = new Search(getOnlyLeafReader(reader), randomVector(dims), null, 1f, null);
-                List<AbstractMaxScoreKnnCollector> collectors = search.collectors(new IVFSegmentScan(), 4);
+                List<AbstractMaxScoreKnnCollector> collectors = search.collectors(new IVFSegmentScan(4), 4);
                 // submitted first, with dozens of posting lists to take: it does collect
                 ((DelayingCollector) collectors.get(0)).failsOnFirstCollect = true;
                 Exception e = expectThrows(ExecutionException.class, () -> search.run(collectors));
@@ -179,7 +179,7 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 LeafReader leaf = getOnlyLeafReader(reader);
                 for (int q = 0; q < 10; q++) {
-                    IVFSegmentScan scan = new IVFSegmentScan();
+                    IVFSegmentScan scan = new IVFSegmentScan(4);
                     SharedMinCompetitiveScore cutoff = new SharedMinCompetitiveScore();
                     AtomicBoolean usedAfterItsHitsWereTaken = new AtomicBoolean();
                     List<StallingCollector> collectors = new ArrayList<>();
@@ -196,8 +196,8 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         }
     }
 
-    /** Reading further ahead per part would reach past the budget (on serverless, each posting list a possible download). */
-    public void testPartsPrefetchWhatASearchOnItsOwnPrefetches() throws Exception {
+    /** Parts prefetch one posting list each ahead: on serverless a list is a possible download, so no more than that. */
+    public void testPartsPrefetchAtMostAListEachPastASearchOnItsOwn() throws Exception {
         int dims = randomIntBetween(8, 64);
         Set<String> prefetched = ConcurrentHashMap.newKeySet();
         try (Directory dir = newDirectory()) {
@@ -212,10 +212,59 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
                     int parts = randomIntBetween(1, 8);
                     Set<String> alone = prefetches(prefetched, search::alone);
                     assertFalse("the search prefetches posting lists", alone.isEmpty());
-                    assertEquals(parts + " parts", alone, prefetches(prefetched, () -> search.inParts(parts)));
+                    Set<String> inParts = prefetches(prefetched, () -> search.inParts(parts));
+                    assertTrue(parts + " parts prefetch what a search on its own does", inParts.containsAll(alone));
+                    // a search on its own is one list ahead when it stops, the parts one each
+                    int more = inParts.size() - alone.size();
+                    assertTrue(parts + " parts prefetched " + more + " lists more", more <= parts - 1);
                 }
             }
         }
+    }
+
+    /** A scan lists every posting list its budget can reach, so its parts stay one list each ahead up to the last they take. */
+    public void testPartsPrefetchAListEachAheadToTheEndOfTheBudget() throws Exception {
+        int dims = randomIntBetween(8, 64);
+        Set<String> prefetched = ConcurrentHashMap.newKeySet();
+        try (Directory dir = newDirectory()) {
+            indexSegment(dir, dims, randomIntBetween(4_000, 8_000));
+            try (DirectoryReader reader = DirectoryReader.open(new PrefetchRecordingDirectory(dir, prefetched))) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                warmUp(leaf, dims); // near-equal centroids are then ordered the same in every search
+                for (int q = 0; q < 10; q++) {
+                    // no filter, so the search stops at its budget: over a dozen posting lists, with as many again past them
+                    Search search = new Search(leaf, randomVector(dims), null, randomFloatBetween(0.25f, 0.4f, true), null);
+                    int parts = randomIntBetween(2, 8);
+                    Set<String> alone = prefetches(prefetched, search::alone);
+                    Set<String> inParts = prefetches(prefetched, () -> search.preparedThenInParts(parts));
+                    assertTrue(parts + " parts prefetch what a search on its own does", inParts.containsAll(alone));
+                    // a search on its own is one list ahead when it stops, the parts one each
+                    assertEquals(parts + " parts", parts - 1, inParts.size() - alone.size());
+                }
+            }
+        }
+    }
+
+    /** Before its parts start a scan has asked for one posting list per part, not for its whole budget. */
+    public void testAScanPrefetchesAListPerPartBeforeItsPartsStart() throws Exception {
+        int dims = randomIntBetween(8, 64);
+        Set<String> prefetched = ConcurrentHashMap.newKeySet();
+        try (Directory dir = newDirectory()) {
+            indexSegment(dir, dims, randomIntBetween(4_000, 8_000));
+            try (DirectoryReader reader = DirectoryReader.open(new PrefetchRecordingDirectory(dir, prefetched))) {
+                // half the segment: a budget of dozens of posting lists
+                Search search = new Search(getOnlyLeafReader(reader), randomVector(dims), null, 0.5f, null);
+                int parts = randomIntBetween(2, 8);
+                // whatever else planning prefetches is the same for one part
+                int morePerPart = prefetchesWhilePreparing(prefetched, search, parts) - prefetchesWhilePreparing(prefetched, search, 1);
+                assertEquals(parts + " parts", parts - 1, morePerPart);
+            }
+        }
+    }
+
+    private static int prefetchesWhilePreparing(Set<String> prefetched, Search search, int parts) throws Exception {
+        IVFSegmentScan scan = new IVFSegmentScan(parts);
+        return prefetches(prefetched, () -> scan.prepare(() -> search.run(search.collectors(scan, 1)))).size();
     }
 
     private record Result(long visited, List<Integer> docs, List<Float> scores) {}
@@ -230,14 +279,14 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         }
 
         Result inParts(int parts) throws Exception {
-            IVFSegmentScan scan = new IVFSegmentScan();
+            IVFSegmentScan scan = new IVFSegmentScan(parts);
             run(collectors(scan, parts));
             return result(scan);
         }
 
         /** As IVFParallelScan does: a first search prepares the scan, visiting nothing, then the parts run. */
         IVFSegmentScan preparedThenInParts(int parts) throws Exception {
-            IVFSegmentScan scan = new IVFSegmentScan();
+            IVFSegmentScan scan = new IVFSegmentScan(parts);
             scan.prepare(() -> run(collectors(scan, 1)));
             run(collectors(scan, parts));
             return scan;

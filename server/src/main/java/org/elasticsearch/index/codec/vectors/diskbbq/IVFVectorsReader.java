@@ -466,31 +466,26 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         final IVFSegmentScan scan = sharedScan(knnCollector);
         if (scan == null) {
             // a search on its own starts from zero
-            IVFSegmentScan.Plan plan = planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, values);
+            IVFSegmentScan.Plan plan = planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, values, null);
             if (plan == null) {
                 return; // no vectors in this segment / slice
             }
             PostingVisitor visitor = postingVisitor(fieldInfo, entry, queryTarget, values, plan.acceptBits(), esAcceptDocs);
-            IVFSegmentScan.searchFrom(plan, visitor, knnCollector, 0, 0);
+            IVFSegmentScan.searchFrom(plan.rest(), plan, visitor, knnCollector, 0, 0);
             return;
         }
-        try {
-            // the plan gets vector values of its own: other parts than the one that built it advance its posting order
-            boolean hasWork = scan.planOnce(
-                () -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, vectorValues(fieldInfo))
-            );
-            if (hasWork == false) {
-                return; // no vectors in this segment / slice
-            }
-            // own live docs per part (Lucene's test readers check that the acquiring thread reads them); a filter's are shared
-            Bits visitorBits = acceptDocs instanceof ESAcceptDocs.BitsAcceptDocs ? acceptDocs.bits() : scan.acceptBits();
-            PostingVisitor visitor = postingVisitor(fieldInfo, entry, queryTarget, values, visitorBits, esAcceptDocs);
-            visitor.shareQuantizedQueries(scan.quantizedQueries());
-            scan.search(visitor, knnCollector);
-        } catch (Throwable t) {
-            scan.fail(); // the other parts stop taking posting lists
-            throw t;
+        // the plan gets vector values of its own: another part than the one that built it may go on along its centroid order
+        IVFSegmentScan.Plan plan = scan.plan(
+            () -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, vectorValues(fieldInfo), scan)
+        );
+        if (plan == null) {
+            return; // no vectors in this segment / slice
         }
+        // own live docs per part (Lucene's test readers check that the acquiring thread reads them); a filter's are shared
+        Bits visitorBits = acceptDocs instanceof ESAcceptDocs.BitsAcceptDocs ? acceptDocs.bits() : plan.acceptBits();
+        PostingVisitor visitor = postingVisitor(fieldInfo, entry, queryTarget, values, visitorBits, esAcceptDocs);
+        visitor.shareQuantizedQueries(scan.quantizedQueries());
+        scan.search(visitor, entry.postingListSlice(ivfClusters), knnCollector);
     }
 
     private PostingVisitor postingVisitor(
@@ -523,7 +518,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         return knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfStrategy ? ivfStrategy.getSegmentScan() : null;
     }
 
-    /** What a search needs before visiting postings. Null if the segment (or slice) has no vectors. */
+    /**
+     * What a search needs before visiting postings. Null if the segment (or slice) has no vectors.
+     * @param scan the scan the search's parts share, which take their posting lists from an order listed here. Null for a
+     *             search on its own.
+     */
     private IVFSegmentScan.Plan planScan(
         FieldInfo fieldInfo,
         E entry,
@@ -531,7 +530,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         KnnCollector knnCollector,
         AcceptDocs acceptDocs,
         ESAcceptDocs esAcceptDocs,
-        KnnVectorValues values
+        KnnVectorValues values,
+        IVFSegmentScan scan
     ) throws IOException {
         final IndexInput centroids = entry.centroidSlice(ivfCentroids);
         final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
@@ -567,17 +567,36 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             values,
             visitRatio
         );
-        // One posting list ahead, however many parts: a scan lists its budget through this iterator, so deeper would only
-        // reach past the budget.
-        // TODO we may want to prefetch more, with a limit so we don't prefetch many lists we won't end up scoring
-        CentroidIterator postings = new PrefetchingCentroidIterator(centroidOrder, entry.postingListSlice(ivfClusters));
-        return new IVFSegmentScan.Plan(
-            postings,
-            maxVectorsToVisit(entry, visitRatio, numVectors),
-            numVectors,
-            percentFiltered,
-            acceptDocs.bits()
-        );
+        long budget = maxVectorsToVisit(entry, visitRatio, numVectors);
+        IndexInput postingLists = entry.postingListSlice(ivfClusters);
+        if (scan == null) {
+            // A search on its own advances the centroid order as it goes, and prefetches one posting list ahead of the one it
+            // scores. TODO we may want to prefetch more, with a limit so we don't prefetch many lists we won't end up scoring
+            CentroidIterator postings = new PrefetchingCentroidIterator(centroidOrder, postingLists);
+            return new IVFSegmentScan.Plan(new PostingMetadata[0], postings, budget, numVectors, percentFiltered, acceptDocs.bits());
+        }
+        // Only one thread can advance the centroid order. So that no part of a scan waits for another, the lists they take are
+        // listed here, and the first of them prefetched: one per part, each part's next list being on its way while it scores.
+        PostingMetadata[] order = postingOrder(centroidOrder, budget, (double) entry.postingListLength / values.size());
+        for (int i = 0; i < Math.min(scan.parts(), order.length); i++) {
+            postingLists.prefetch(order[i].offset(), order[i].length());
+        }
+        return new IVFSegmentScan.Plan(order, centroidOrder, budget, numVectors, percentFiltered, acceptDocs.bits());
+    }
+
+    /**
+     * The posting lists a budget of entries can reach, best first. How many entries a list holds is only known once it is
+     * read, so this goes by bytes: an entry takes no more of them than a vector does, every vector being in at least one list.
+     */
+    private static PostingMetadata[] postingOrder(CentroidIterator centroidOrder, long budget, double bytesPerVector) throws IOException {
+        List<PostingMetadata> order = new ArrayList<>();
+        double bytes = budget * bytesPerVector;
+        for (long listed = 0; listed < bytes && centroidOrder.hasNext();) {
+            PostingMetadata posting = centroidOrder.nextPosting();
+            order.add(posting);
+            listed += posting.length();
+        }
+        return order.toArray(PostingMetadata[]::new);
     }
 
     /**

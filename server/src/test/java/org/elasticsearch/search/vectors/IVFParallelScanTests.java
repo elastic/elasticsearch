@@ -84,14 +84,15 @@ public class IVFParallelScanTests extends ESTestCase {
         IVFParallelScan.minVectorsToSplit = minVectorsToSplit;
     }
 
-    public void testALeafUnderAMillionVectorsIsNotSplit() throws IOException {
+    public void testALeafWithTooFewVectorsIsNotSplit() throws IOException {
         int dims = randomIntBetween(8, 32);
+        int vectors = vectorsToSplit(0.5f);
+        assertTrue(vectors + " vectors are fewer than a leaf needs to be split", vectors < minVectorsToSplit);
         try (Directory dir = newDirectory()) {
-            indexLeaves(dir, dims, vectorsToSplit(0.5f));
+            indexLeaves(dir, dims, vectors);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 IVFKnnFloatVectorQuery query = query(randomVector(dims), 10, null, 0.5f);
                 assertTrue(splitsALeaf(reader, query));
-                assertEquals(1_000_000, minVectorsToSplit);
                 IVFParallelScan.minVectorsToSplit = minVectorsToSplit;
                 try {
                     assertFalse(splitsALeaf(reader, query));

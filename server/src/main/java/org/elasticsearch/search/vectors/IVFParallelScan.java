@@ -45,7 +45,7 @@ final class IVFParallelScan {
     static final long MIN_PART_WORK = 10_000;
 
     /** A leaf with fewer vectors is never split: its scan is too short for a split to pay. Not final, so tests can lower it. */
-    static int minVectorsToSplit = 1_000_000;
+    static int minVectorsToSplit = 100_000;
 
     private final AbstractIVFKnnVectorQuery query;
     private final Weight filterWeight;
@@ -98,7 +98,7 @@ final class IVFParallelScan {
         return results;
     }
 
-    /** Plans each split leaf and lists its budget before its parts start, so that they find their work waiting. */
+    /** Plans each split leaf before its parts start, so that they find its posting lists ready to take. */
     private void prepareSplitLeaves(TaskExecutor executor) throws IOException {
         List<Callable<Void>> preparations = new ArrayList<>();
         for (Leaf leaf : leaves) {
@@ -112,8 +112,9 @@ final class IVFParallelScan {
         executor.invokeAll(preparations);
     }
 
-    /** Searches the leaf as a part would, while its scan prepares: nothing is visited. */
+    /** Works out how to search a part of the leaf, then searches it as a part would while its scan prepares: nothing is visited. */
     private void prepareSplitLeaf(Leaf leaf) throws IOException {
+        leaf.partSearch = query.partSearch(leaf.input.ctx(), filterWeight, leaf.input.usePrecondition());
         leaf.scan.prepare(() -> searchPart(leaf));
     }
 
@@ -217,7 +218,7 @@ final class IVFParallelScan {
     private void searchPart(Leaf leaf) throws IOException {
         // no ThreadConfinedArena, unlike the whole-leaf search: other parts' threads read what this part allocates
         LeafInput input = leaf.input;
-        AbstractIVFKnnVectorQuery.PartSearch partSearch = leaf.partSearch(query, filterWeight);
+        AbstractIVFKnnVectorQuery.PartSearch partSearch = leaf.partSearch;
         IVFKnnSearchStrategy strategy = input.collectorManager()
             .newPartSearchStrategy(visitRatio, query.numCands, query.k, partSearch.searchesQueryVector(), leaf.scan);
         AbstractMaxScoreKnnCollector collector = input.collectorManager().newCollector(Integer.MAX_VALUE, strategy, input.ctx());
@@ -233,23 +234,14 @@ final class IVFParallelScan {
         private final long work;
         private final int parts;
         private final IVFSegmentScan scan; // shared by the leaf's parts; null unless the leaf is split
-        private AbstractIVFKnnVectorQuery.PartSearch partSearch;
+        private volatile AbstractIVFKnnVectorQuery.PartSearch partSearch; // how to search a part; set before the parts start
         private volatile TopDocs wholeLeafHits;
 
         Leaf(LeafInput input, long work, int parts) {
             this.input = input;
             this.work = work;
             this.parts = parts;
-            this.scan = parts > 1 ? new IVFSegmentScan() : null;
-        }
-
-        /** How to search a part, prepared once and shared by the parts. */
-        synchronized AbstractIVFKnnVectorQuery.PartSearch partSearch(AbstractIVFKnnVectorQuery query, Weight filterWeight)
-            throws IOException {
-            if (partSearch == null) {
-                partSearch = query.partSearch(input.ctx(), filterWeight, input.usePrecondition());
-            }
-            return partSearch;
+            this.scan = parts > 1 ? new IVFSegmentScan(parts) : null;
         }
 
         /** The leaf's hits, with shard-wide doc ids and each doc once. A split leaf's are those its scan gathered. */

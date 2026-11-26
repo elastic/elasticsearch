@@ -20,6 +20,7 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -49,32 +50,14 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
 
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
-        if (LOGGER.isDebugEnabled()) {
-            if (result.getResultType() == Engine.Result.Type.FAILURE) {
-                postIndex(shardId, index, result.getFailure());
-            }
+        if (result.getResultType() == Engine.Result.Type.FAILURE && (LOGGER.isDebugEnabled() || warnLimiter.mayHavePermit())) {
+            postIndex(shardId, index, result.getFailure());
         }
     }
 
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug(
-                () -> format(
-                    "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s] "
-                        + "index [%s] index-mode [%s]",
-                    index.id(),
-                    index.seqNo(),
-                    indexShard.routingEntry().allocationId(),
-                    index.primaryTerm(),
-                    indexShard.getOperationPrimaryTerm(),
-                    index.origin(),
-                    indexShard.indexSettings().getIndex().getName(),
-                    indexShard.indexSettings().getMode()
-                ),
-                ex
-            );
-        }
+        logFailure(ex, prefix -> getMessageSupplier(prefix, index.id(), index.seqNo(), index.primaryTerm(), index.origin()));
     }
 
     @Override
@@ -93,7 +76,11 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
             for (int i = 0; i < results.size(); i++) {
                 Engine.IndexResult result = results.get(i);
                 if (result.getResultType() == Engine.Result.Type.FAILURE) {
-                    logBatchOpFailure(batch, i, result.getFailure());
+                    int docIndex = i;
+                    logFailure(
+                        result.getFailure(),
+                        prefix -> getMessageSupplier(prefix, batch.id(docIndex), batch.seqNo(docIndex), batch.primaryTerm(), batch.origin())
+                    );
                 }
             }
         }
@@ -106,28 +93,34 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
         }
     }
 
-    private void logBatchOpFailure(IndexOperationBatch batch, int i, Exception ex) {
+    private void logFailure(Exception ex, Function<String, Supplier<Object>> messageSupplierForPrefix) {
         if (isUserError(ex)) {
             if (LOGGER.isTraceEnabled()) {
-                LOGGER.trace(getMessageSupplier("index-fail", batch, i), ex);
+                LOGGER.trace(messageSupplierForPrefix.apply("index-fail"), ex);
             }
         } else if (warnLimiter.tryAcquirePermit()) {
-            LOGGER.warn(getMessageSupplier("real-index-fail", batch, i), ex);
+            LOGGER.warn(messageSupplierForPrefix.apply("real-index-fail"), ex);
         } else if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug(getMessageSupplier("real-index-fail", batch, i), ex);
+            LOGGER.debug(messageSupplierForPrefix.apply("real-index-fail"), ex);
         }
     }
 
-    private Supplier<Object> getMessageSupplier(String messagePrefix, IndexOperationBatch batch, int i) {
+    private Supplier<Object> getMessageSupplier(
+        String messagePrefix,
+        String id,
+        long seqNo,
+        long primaryTerm,
+        Engine.Operation.Origin origin
+    ) {
         return () -> format(
             "%s [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s] index [%s] index-mode [%s]",
             messagePrefix,
-            batch.id(i),
-            batch.seqNo(i),
+            id,
+            seqNo,
             indexShard.routingEntry().allocationId(),
-            batch.primaryTerm(),
+            primaryTerm,
             indexShard.getOperationPrimaryTerm(),
-            batch.origin(),
+            origin,
             indexShard.indexSettings().getIndex().getName(),
             indexShard.indexSettings().getMode()
         );

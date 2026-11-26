@@ -1694,11 +1694,7 @@ public class ComputeService {
                         cancelQueryOnFailure,
                         closingFetchContexts(computeListener.acquireCompute(), fetchContexts).delegateFailure((l, completionInfo) -> {
                             boolean mainPlanSearchedLocal = localConcreteIndices != null && localConcreteIndices.indices().length > 0;
-                            finalizeLocalClusterAfterDistributedPlan(
-                                execInfo,
-                                mainPlanSearchedLocal,
-                                localClusterWasInterrupted.get()
-                            );
+                            finalizeLocalClusterAfterDistributedPlan(execInfo, mainPlanSearchedLocal, localClusterWasInterrupted.get());
                             l.onResponse(completionInfo);
                         }),
                         execInfo::addFailedWork

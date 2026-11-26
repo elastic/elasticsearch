@@ -267,6 +267,41 @@ public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
         }
     }
 
+    public void testRealErrorsLoggedAtWarnInEachWindowWhenDebugDisabled() {
+        var previousLevel = testLogger1.getLevel();
+        try {
+            Loggers.setLevel(testLogger1, randomFrom(Level.INFO, Level.WARN));
+            var clock = new AtomicLong(randomWindowIndex() * WINDOW_NANOS);
+            var listener = listenerWithClock(clock);
+            var shardId = ShardId.fromString("[index][123]");
+            var failure = failedResult(new RuntimeException("test exception"));
+            var success = mock(Engine.IndexResult.class);
+            when(success.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
+
+            int windows = randomIntBetween(2, 5);
+            for (int w = 0; w < windows; w++) {
+                int successfulBatches = randomIntBetween(0, 10);
+                for (int i = 0; i < successfulBatches; i++) {
+                    listener.postIndexBatch(shardId, primaryBatch(1), List.of(success));
+                }
+                int failures = MAX_WARNINGS_PER_WINDOW + randomIntBetween(1, 10);
+                for (int i = 0; i < failures; i++) {
+                    appender.getLastEventAndReset();
+                    listener.postIndexBatch(shardId, primaryBatch(1), List.of(failure));
+                    LogEvent event = appender.getLastEventAndReset();
+                    if (i < MAX_WARNINGS_PER_WINDOW) {
+                        assertThat("window " + w + " failure " + i, event.getLevel(), equalTo(Level.WARN));
+                    } else {
+                        assertThat("window " + w + " failure " + i, event, nullValue());
+                    }
+                }
+                clock.addAndGet(WINDOW_NANOS * randomLongBetween(1, 100));
+            }
+        } finally {
+            Loggers.setLevel(testLogger1, previousLevel);
+        }
+    }
+
     public void testPermitsResetInEachNewWindow() {
         var clock = new AtomicLong();
         var listener = listenerWithClock(clock);

@@ -89,7 +89,7 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
      */
     @Override
     public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
-        if (LOGGER.isDebugEnabled()) {
+        if (LOGGER.isDebugEnabled() || mayHavePermit()) {
             for (int i = 0; i < results.size(); i++) {
                 Engine.IndexResult result = results.get(i);
                 if (result.getResultType() == Engine.Result.Type.FAILURE) {
@@ -108,19 +108,31 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
 
     private void logBatchOpFailure(IndexOperationBatch batch, int i, Exception ex) {
         if (isUserError(ex)) {
-            LOGGER.trace(getMessageSupplier("index-fail", batch, i), ex);
-        } else {
-            Supplier<Object> messageSupplier = getMessageSupplier("real-index-fail", batch, i);
-            if (withinRateLimit()) {
-                LOGGER.warn(messageSupplier, ex);
-            } else {
-                LOGGER.debug(messageSupplier, ex);
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.trace(getMessageSupplier("index-fail", batch, i), ex);
             }
+        } else if (withinRateLimit()) {
+            LOGGER.warn(getMessageSupplier("real-index-fail", batch, i), ex);
+        } else if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug(getMessageSupplier("real-index-fail", batch, i), ex);
         }
     }
 
+    private int currentWindow() {
+        return (int) Math.floorDiv(nanoTimeSupplier.getAsLong(), RATE_LIMIT_WINDOW_NANOS);
+    }
+
+    /**
+     * Cheap read-only check that lets the batch path skip its loop once the permits are used. It must compare the window,
+     * because the counter is only reset by {@link #withinRateLimit()}, which this check guards.
+     */
+    private boolean mayHavePermit() {
+        long state = windowAndPermitsUsed.get();
+        return (int) (state >> 32) != currentWindow() || (int) state < MAX_WARNINGS_PER_WINDOW;
+    }
+
     boolean withinRateLimit() {
-        int window = (int) Math.floorDiv(nanoTimeSupplier.getAsLong(), RATE_LIMIT_WINDOW_NANOS);
+        int window = currentWindow();
         while (true) {
             long state = windowAndPermitsUsed.get();
             int permitsUsed = (int) (state >> 32) == window ? (int) state : 0;

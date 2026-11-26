@@ -26,9 +26,10 @@ import java.util.List;
  * {@link WildcardPattern#shape()}, the routed predicate the production switch lands on
  * ({@code Arrays.equals} on leading bytes for {@link Shape.Prefix}, {@code Arrays.equals}
  * on trailing bytes for {@link Shape.Suffix}, {@link ByteMatchers#containsLiteral} for
- * {@link Shape.Contains}, automaton for {@link Shape.General}) must agree with the
- * automaton compiled from the same Lucene wildcard string on every input — a silent
- * disagreement would change query results.
+ * {@link Shape.Contains}, {@link ByteMatchers#affixContains} for {@link Shape.Affix},
+ * automaton for {@link Shape.General}) must agree with the automaton compiled from the
+ * same Lucene wildcard string on every input — a silent disagreement would change query
+ * results.
  *
  * <p>Classification correctness of {@code WildcardPattern#shape()} itself
  * (which pattern maps to which {@code Shape} record) lives in {@code StringPatternTests};
@@ -106,7 +107,23 @@ public class WildcardPatternShapeEquivalenceTests extends ESTestCase {
             new Case("*foo\\*bar*", "see foo*bar end"),  // contains literal "*"
             new Case("*foo\\*bar*", "see foo bar end"),  // miss — no literal "*"
             new Case("foo\\?bar*", "foo?bar123"),        // prefix carrying literal "?"
-            new Case("foo\\?bar*", "fooXbar123")         // miss — '?' is literal, not wildcard
+            new Case("foo\\?bar*", "fooXbar123"),        // miss — '?' is literal, not wildcard
+
+            // Affix shape — prefix*suffix / prefix*middle* / *middle*suffix / prefix*middle*suffix.
+            new Case("foo*bar", "foobar"),               // hit, empty middle
+            new Case("foo*bar", "fooXbar"),              // hit, non-empty middle
+            new Case("foo*bar", "foXbar"),               // miss — prefix
+            new Case("foo*bar", "fooXbaz"),              // miss — suffix
+            new Case("foo*x*", "fooxyz"),                // prefix*middle*
+            new Case("foo*x*", "foo"),                   // miss — middle missing
+            new Case("*x*bar", "xxbar"),                 // *middle*suffix
+            new Case("*x*bar", "bar"),                   // miss — middle missing
+            new Case("foo*x*bar", "fooxbar"),            // full affix, middle adjacent to both
+            new Case("foo*x*bar", "fooZxZbar"),          // full affix, middle strictly between
+            new Case("foo*x*bar", "fooZbar"),            // miss — no middle
+            new Case("foo**bar", "fooZbar"),             // collapsed adjacent stars → prefix*suffix
+            new Case("café*lait", "café-au-lait"),       // multi-byte UTF-8 affix
+            new Case("foo*bar\\*baz", "fooXbar*baz")     // escaped '*' is a literal suffix byte
         );
         for (Case c : cases) {
             assertAgrees(c.pattern, c.value);
@@ -116,7 +133,26 @@ public class WildcardPatternShapeEquivalenceTests extends ESTestCase {
     public void testFastPathEquivalentToAutomatonRandomized() {
         int iterations = 10_000;
         for (int i = 0; i < iterations; i++) {
-            String shape = randomFrom("prefix", "suffix", "contains");
+            String shape = randomFrom("prefix", "suffix", "contains", "affix", "affix3");
+            if (shape.equals("affix") || shape.equals("affix3")) {
+                String prefixLit = randomLiteral();
+                String suffixLit = randomLiteral();
+                String pattern;
+                String value;
+                if (shape.equals("affix3")) {
+                    // prefix*middle*suffix — middle is scanned in the slice between the affixes.
+                    String middleLit = randomLiteral();
+                    pattern = escapeWildcardChars(prefixLit) + "*" + escapeWildcardChars(middleLit) + "*" + escapeWildcardChars(suffixLit);
+                    value = randomBoolean()
+                        ? prefixLit + randomAsciiBody() + middleLit + randomAsciiBody() + suffixLit
+                        : randomValue(prefixLit, "contains");
+                } else {
+                    pattern = escapeWildcardChars(prefixLit) + "*" + escapeWildcardChars(suffixLit);
+                    value = randomBoolean() ? prefixLit + randomAsciiBody() + suffixLit : randomValue(prefixLit, "contains");
+                }
+                assertAgrees(pattern, value);
+                continue;
+            }
             String literal = randomLiteral();
             String value = randomValue(literal, shape);
             String pattern = switch (shape) {
@@ -208,6 +244,12 @@ public class WildcardPatternShapeEquivalenceTests extends ESTestCase {
             case Shape.Prefix(String prefix) -> startsWithBytes(valueRef, new BytesRef(prefix));
             case Shape.Suffix(String suffix) -> endsWithBytes(valueRef, new BytesRef(suffix));
             case Shape.Contains(String literal) -> ByteMatchers.containsLiteral(valueRef, new BytesRef(literal));
+            case Shape.Affix(String prefix, String middle, String suffix) -> ByteMatchers.affixContains(
+                valueRef,
+                new BytesRef(prefix),
+                new BytesRef(middle),
+                new BytesRef(suffix)
+            );
             case Shape.General ignored -> fromAutomaton;  // production path is identical here.
         };
         assertEquals(
@@ -301,6 +343,15 @@ public class WildcardPatternShapeEquivalenceTests extends ESTestCase {
             }
             default -> throw new AssertionError(shape);
         };
+    }
+
+    private String randomAsciiBody() {
+        int bodyLen = randomIntBetween(0, 16);
+        StringBuilder body = new StringBuilder(bodyLen);
+        for (int i = 0; i < bodyLen; i++) {
+            body.append((char) ('a' + randomInt(25)));
+        }
+        return body.toString();
     }
 
     /**

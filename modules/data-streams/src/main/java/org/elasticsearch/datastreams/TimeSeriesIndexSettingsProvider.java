@@ -10,8 +10,8 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -253,18 +253,8 @@ public class TimeSeriesIndexSettingsProvider implements IndexSettingProvider {
     ) {
         var tmpIndexMetadata = IndexMetadata.builder(indexName);
 
-        int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(allSettings);
-        int dummyShards = allSettings.getAsInt(
-            IndexMetadata.SETTING_NUMBER_OF_SHARDS,
-            dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1
-        );
-        int shardReplicas = allSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
         var finalResolvedSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(allSettings)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(MetadataIndexTemplateService.temporaryIndexSettings(allSettings))
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             // Avoid failing because index.routing_path is missing
             .putList(INDEX_ROUTING_PATH.getKey(), List.of("path"))

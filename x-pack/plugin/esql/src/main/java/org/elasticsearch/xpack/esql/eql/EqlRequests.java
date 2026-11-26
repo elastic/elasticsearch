@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.RequestDefaults;
+import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -20,7 +21,9 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.ql.QlClientException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -80,8 +83,7 @@ public final class EqlRequests {
         // result_position is the one string option with a closed value set; validate it at parse time (the others are
         // free-form field names) so a miscased "TAIL" fails loud here rather than as a late engine-worded error.
         stringOption(options, RESULT_POSITION_OPTION, Set.of(RESULT_POSITION_HEAD, RESULT_POSITION_TAIL), EqlSearchRequest::resultPosition);
-        // The one EQL knob ESQL has no equivalent for: whether a sequence that spanned a failed shard may be
-        // returned. Defaulted false in build() (fail-safe) and opted into here.
+        // The one EQL knob ESQL has no equivalent for: whether a sequence that spanned a failed shard may be returned.
         options.put(
             "allow_partial_sequence_results",
             new Option(Boolean.class, "boolean", 0, Set.of(), (request, value) -> request.allowPartialSequenceResults((Boolean) value))
@@ -109,6 +111,26 @@ public final class EqlRequests {
         BiConsumer<EqlSearchRequest, String> apply
     ) {
         options.put(name, new Option(String.class, "string", 0, allowedValues, (request, value) -> apply.accept(request, (String) value)));
+    }
+
+    public record QueryShape(EqlRelation.Mode mode, boolean hasExplicitLimit) {}
+
+    public static QueryShape inspectQuery(Source source, String query) {
+        EqlQueryIntrospection.Shape shape;
+        try {
+            shape = EqlQueryIntrospection.inspect(query);
+        } catch (org.elasticsearch.xpack.eql.parser.ParsingException e) {
+            String position = e.getLineNumber() > 0 ? "line " + e.getLineNumber() + ":" + e.getColumnNumber() + " of the EQL query: " : "";
+            throw new ParsingException(source, "cannot parse EQL query [{}]: {}{}", query, position, e.getErrorMessage());
+        } catch (QlClientException e) {
+            throw new ParsingException(source, "cannot parse EQL query [{}]: {}", query, e.getMessage());
+        }
+        EqlRelation.Mode mode = switch (shape.mode()) {
+            case EVENT -> EqlRelation.Mode.EVENT;
+            case SEQUENCE -> EqlRelation.Mode.SEQUENCE;
+            case SAMPLE -> EqlRelation.Mode.SAMPLE;
+        };
+        return new QueryShape(mode, shape.hasExplicitLimit());
     }
 
     /**
@@ -204,11 +226,8 @@ public final class EqlRequests {
         request.indicesOptions(IndexResolver.DEFAULT_OPTIONS);
         request.query(query);
         // Honor the enclosing ES|QL query's own partial-results contract: an event source then behaves exactly like a
-        // FROM source under a shard failure. Sequences are a separate axis, defaulted fail-safe just below.
+        // FROM source under a shard failure. Sequences are a separate axis, left to the EQL cluster default unless WITH sets it.
         request.allowPartialSearchResults(enclosing.allowPartialSearchResults());
-        // Fail-safe default: a sequence that lost a stage on a failed shard is a corrupt match, not a shorter one.
-        // A WITH {"allow_partial_sequence_results": true} option opts into resilience over completeness.
-        request.allowPartialSequenceResults(false);
         if (enclosing.projectRouting() != null) {
             request.projectRouting(enclosing.projectRouting());
         }

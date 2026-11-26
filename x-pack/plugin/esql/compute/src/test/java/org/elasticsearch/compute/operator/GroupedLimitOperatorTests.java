@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
@@ -108,13 +108,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
     public void testLimitPerGroupSinglePage() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (
-            GroupedLimitOperator op = new GroupedLimitOperator(
-                2,
-                groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
-                blockFactory
-            )
-        ) {
+        try (GroupedLimitOperator op = new GroupedLimitOperator(2, new int[] { 0 }, List.of(ElementType.LONG), blockFactory)) {
             Page p = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 1L, 1L, 2L)));
             op.addInput(p);
             Page output = op.getOutput();
@@ -138,13 +132,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
     public void testLimitPerGroupAcrossPages() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (
-            GroupedLimitOperator op = new GroupedLimitOperator(
-                2,
-                groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
-                blockFactory
-            )
-        ) {
+        try (GroupedLimitOperator op = new GroupedLimitOperator(2, new int[] { 0 }, List.of(ElementType.LONG), blockFactory)) {
             Page p1 = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 1L, 2L)));
             op.addInput(p1);
             Page out1 = op.getOutput();
@@ -174,13 +162,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
     public void testEntirePageFiltered() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (
-            GroupedLimitOperator op = new GroupedLimitOperator(
-                1,
-                groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
-                blockFactory
-            )
-        ) {
+        try (GroupedLimitOperator op = new GroupedLimitOperator(1, new int[] { 0 }, List.of(ElementType.LONG), blockFactory)) {
             Page p1 = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L)));
             op.addInput(p1);
             Page out1 = op.getOutput();
@@ -200,11 +182,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         try (
-            GroupedLimitOperator op = new GroupedLimitOperator(
-                10,
-                groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
-                blockFactory
-            );
+            GroupedLimitOperator op = new GroupedLimitOperator(10, new int[] { 0 }, List.of(ElementType.LONG), blockFactory);
             Page p = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 3L)));
         ) {
             op.addInput(p.shallowCopy());
@@ -223,13 +201,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
     public void testLimitPerGroupZero() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (
-            GroupedLimitOperator op = new GroupedLimitOperator(
-                0,
-                groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
-                blockFactory
-            )
-        ) {
+        try (GroupedLimitOperator op = new GroupedLimitOperator(0, new int[] { 0 }, List.of(ElementType.LONG), blockFactory)) {
             Page p1 = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 3L)));
             op.addInput(p1);
             assertThat(op.getOutput(), nullValue());
@@ -256,7 +228,8 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 1,
-                groupKeyEncoder(blockFactory, new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.LONG)),
+                new int[] { 0, 1 },
+                List.of(ElementType.LONG, ElementType.LONG),
                 blockFactory
             )
         ) {
@@ -360,11 +333,106 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 1,
-                groupKeyEncoder(blockFactory, new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.LONG)),
+                new int[] { 0, 1 },
+                List.of(ElementType.LONG, ElementType.LONG),
                 blockFactory
             )
         ) {
             op.addInput(p);
+            Page output = op.getOutput();
+            try {
+                assertThat(output.getPositionCount(), equalTo(3));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * A key is counted in the same group whether its page holds multivalues or not: the first page is a vector,
+     * the second has a multivalue next to the same single value.
+     */
+    public void testSameKeyAcrossPagesWithAndWithoutMultivalues() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (GroupedLimitOperator op = new GroupedLimitOperator(1, new int[] { 0 }, List.of(ElementType.LONG), blockFactory)) {
+            op.addInput(new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L))));
+            Page first = op.getOutput();
+            try {
+                assertThat(first.getPositionCount(), equalTo(2));
+            } finally {
+                first.releaseBlocks();
+            }
+            op.addInput(new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(List.of(1L, 2L), 1L, 3L, 2L))));
+            Page second = op.getOutput();
+            try {
+                LongBlock keys = second.getBlock(0);
+                assertThat(second.getPositionCount(), equalTo(2));
+                assertThat(keys.getValueCount(0), equalTo(2));
+                assertThat(keys.getLong(keys.getFirstValueIndex(1)), equalTo(3L));
+            } finally {
+                second.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Keyword keys follow the same rules as long keys, with nulls and multivalues in a composite key.
+     */
+    public void testBytesRefCompositeKeyWithNullsAndMultivalues() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        Page p = new Page(
+            BlockTestUtils.asBlock(
+                blockFactory,
+                ElementType.BYTES_REF,
+                Arrays.asList(
+                    new BytesRef("a"),
+                    new BytesRef("a"),
+                    null,
+                    null,
+                    List.of(new BytesRef("a"), new BytesRef("b")),
+                    List.of(new BytesRef("a"), new BytesRef("b")),
+                    List.of(new BytesRef("b"), new BytesRef("a"))
+                )
+            ),
+            BlockTestUtils.asBlock(blockFactory, ElementType.LONG, Arrays.asList(1L, 1L, 1L, null, 1L, 1L, 1L))
+        );
+        try (
+            GroupedLimitOperator op = new GroupedLimitOperator(
+                1,
+                new int[] { 0, 1 },
+                List.of(ElementType.BYTES_REF, ElementType.LONG),
+                blockFactory
+            )
+        ) {
+            op.addInput(p);
+            Page output = op.getOutput();
+            try {
+                // ("a", 1), (null, 1), (null, null), (["a", "b"], 1), (["b", "a"], 1)
+                assertThat(output.getPositionCount(), equalTo(5));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Float keys, as read for {@code dense_vector}, are whole lists too.
+     */
+    public void testFloatMultivalueKeys() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (GroupedLimitOperator op = new GroupedLimitOperator(1, new int[] { 0 }, List.of(ElementType.FLOAT), blockFactory)) {
+            op.addInput(
+                new Page(
+                    BlockTestUtils.asBlock(
+                        blockFactory,
+                        ElementType.FLOAT,
+                        List.of(List.of(1f, 2f), List.of(1f, 2f), List.of(2f, 1f), List.of(1f), 1f)
+                    )
+                )
+            );
             Page output = op.getOutput();
             try {
                 assertThat(output.getPositionCount(), equalTo(3));
@@ -390,13 +458,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
     private void assertDistinctGroups(int expectedGroups, Object... values) {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (
-            GroupedLimitOperator op = new GroupedLimitOperator(
-                1,
-                groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
-                blockFactory
-            )
-        ) {
+        try (GroupedLimitOperator op = new GroupedLimitOperator(1, new int[] { 0 }, List.of(ElementType.LONG), blockFactory)) {
             op.addInput(new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, Arrays.asList(values))));
             Page output = op.getOutput();
             try {
@@ -405,14 +467,6 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
                 output.releaseBlocks();
             }
         }
-    }
-
-    private static GroupKeyEncoder groupKeyEncoder(BlockFactory blockFactory, int[] groupChannels, List<ElementType> elementTypes) {
-        return new GroupKeyEncoder(
-            groupChannels,
-            elementTypes,
-            new PagedBytesBuilder(blockFactory.bigArrays().recycler(), blockFactory.breaker(), "group-key-encoder", 64)
-        );
     }
 
     @Override

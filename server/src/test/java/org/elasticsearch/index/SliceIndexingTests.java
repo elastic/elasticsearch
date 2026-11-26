@@ -36,13 +36,9 @@ public class SliceIndexingTests extends ESTestCase {
         SliceIndexing.validateUserSliceValue("SOME_SLICE");
     }
 
-    public void testValidateUserSliceValueRejectsReservedValue() {
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> SliceIndexing.validateUserSliceValue(SliceIndexing.SLICE_ALL)
-        );
-        assertThat(ex.getMessage(), containsString("invalid [_slice] value"));
-        assertThat(ex.getMessage(), containsString("reserved"));
+    public void testValidateUserSliceValueRejectsLeadingUnderscore() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SliceIndexing.validateUserSliceValue("_all"));
+        assertThat(ex.getMessage(), containsString("invalid [_slice] value [_all]"));
     }
 
     public void testValidateUserSliceValueRejectsIllegalCharacters() {
@@ -112,13 +108,7 @@ public class SliceIndexingTests extends ESTestCase {
         assertNull(SliceIndexing.toSearchSlice("r1", false));
         assertNull(SliceIndexing.toSearchSlice(null, false));
         assertThat(SliceIndexing.toSearchSlice("s1", true), equalTo("s1"));
-        assertThat(SliceIndexing.toSearchSlice(null, true), equalTo(SliceIndexing.SLICE_ALL));
-    }
-
-    public void testSliceToRouting() {
-        assertThat(SliceIndexing.sliceToRouting("s1"), equalTo("s1"));
-        assertThat(SliceIndexing.sliceToRouting("s1,s2"), equalTo("s1,s2"));
-        assertNull(SliceIndexing.sliceToRouting(SliceIndexing.SLICE_ALL));
+        assertNull(SliceIndexing.toSearchSlice(null, true));
     }
 
     public void testParseSearchRoutingFromPathSlice() {
@@ -141,14 +131,22 @@ public class SliceIndexingTests extends ESTestCase {
         assertThat(parsed.fromSlice(), equalTo(true));
     }
 
-    public void testParseSearchRoutingFromPathSliceAll() {
+    /**
+     * The path slice of a search, count or by-query request must be validated, or an invalid slice would reach the shards, where a
+     * slice that is not one is no restriction at all.
+     */
+    public void testParseSearchRoutingRejectsInvalidPathSlice() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/_all/_search")
-            .withParams(Map.of("index", "my-index", "_slice", SliceIndexing.SLICE_ALL))
-            .build();
-        SliceIndexing.ParsedRouting parsed = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, true);
-        assertNull(parsed.routing());
-        assertThat(parsed.fromSlice(), equalTo(true));
+        for (String slice : new String[] { "_all", "_reserved", "tenant a", "tenant-a,_all" }) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/" + slice + "/_search")
+                .withParams(Map.of("index", "my-index", "_slice", slice))
+                .build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, true)
+            );
+            assertThat(e.getMessage(), containsString("invalid [_slice] value ["));
+        }
     }
 
     public void testParseSearchRoutingFromPathSliceWithMultiIndex() {

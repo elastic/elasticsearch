@@ -18,6 +18,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -44,7 +45,13 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSubtractExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
 
-public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible, AnyNullIsNull, NonFiniteSupport, UnitAware {
+public class Sub extends DateTimeArithmeticOperation
+    implements
+        BinaryComparisonInversible,
+        AnyNullIsNull,
+        NonFiniteSupport,
+        UnitAware,
+        Reproducible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sub", Sub::new);
     public static final String OP_NAME = "Sub";
 

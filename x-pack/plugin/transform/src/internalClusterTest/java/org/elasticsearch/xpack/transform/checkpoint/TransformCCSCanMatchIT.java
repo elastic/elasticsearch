@@ -293,6 +293,20 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         );
     }
 
+    /**
+     * A source whose only expressions are cluster wildcards matching no registered remote must not checkpoint local indices.
+     * {@code RemoteClusterService.groupIndices} returns an empty local group for such input, which means local {@code _all}.
+     */
+    public void testGetCheckpointAction_UnmatchedRemoteClusterWildcardDoesNotCheckpointLocalIndices() throws InterruptedException {
+        testGetCheckpointAction(
+            client().threadPool().getThreadContext(),
+            null,
+            new String[] { "no_such_cluster*:remote_*" },
+            QueryBuilders.matchAllQuery(),
+            Set.of()
+        );
+    }
+
     private void testGetCheckpointAction(
         ThreadContext threadContext,
         String cluster,

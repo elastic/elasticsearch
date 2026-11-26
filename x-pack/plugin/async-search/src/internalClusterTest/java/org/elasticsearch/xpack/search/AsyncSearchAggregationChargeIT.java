@@ -10,12 +10,10 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -55,7 +53,7 @@ public class AsyncSearchAggregationChargeIT extends AsyncSearchIntegTestCase {
         try {
             assertNull("the response is not stored", response.getId());
             assertFalse(response.isRunning());
-            assertThat(requestBreakerUsed(), greaterThan(0L));
+            assertThat(getRequestBreakerUsed(), greaterThan(0L));
         } finally {
             response.decRef();
         }
@@ -114,15 +112,6 @@ public class AsyncSearchAggregationChargeIT extends AsyncSearchIntegTestCase {
     }
 
     private static void assertRequestBreakersReleased() throws Exception {
-        assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
-    }
-
-    /** The bytes the request breakers of all nodes hold. */
-    private static long requestBreakerUsed() {
-        long used = 0;
-        for (String node : internalCluster().getNodeNames()) {
-            used += internalCluster().getInstance(CircuitBreakerService.class, node).getBreaker(CircuitBreaker.REQUEST).getUsed();
-        }
-        return used;
+        assertBusy(() -> assertThat(getRequestBreakerUsed(), equalTo(0L)));
     }
 }

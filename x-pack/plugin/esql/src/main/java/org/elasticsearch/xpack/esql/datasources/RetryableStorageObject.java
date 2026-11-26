@@ -74,6 +74,8 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     private final RetryScheduler retryScheduler;
     @Nullable
     private final ThreadContext threadContext;
+    /** Set by {@link #close()}; first {@link #newStream} and resume must not issue another GET. */
+    private volatile boolean aborted;
     /**
      * Local counter for retries observed at this decorator boundary, merged into {@link #metrics()}
      * via {@link StorageObjectMetrics#add}.
@@ -218,14 +220,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         // otherwise treat as a hard error. Local file reads surface plain IOExceptions and are intentionally NOT
         // typed: a local-disk read fault is a genuine hard error, not a transient transport drop. In production
         // the decompressor sits ABOVE this layer, so a resume re-opens the (length-bearing) compressed bytes.
-        InputStream initial = retryPolicy.execute(
-            delegate::newStream,
-            "newStream",
-            delegate.path(),
-            retryCounters::addRetry,
-            storageTelemetry
-        );
-        return new ResumingInputStream(initial, 0, READ_TO_END);
+        return new ResumingInputStream(openWithRetry(this::openOrAbort, "newStream"), 0, READ_TO_END);
     }
 
     @Override
@@ -234,14 +229,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         // re-opens the remaining byte range and resumes — byte-exact, governed by the same RetryPolicy.
         // This is the path text segments and parquet row-groups/footers read through, so closing the
         // mid-read gap here makes every format resilient without per-format code.
-        InputStream initial = retryPolicy.execute(
-            () -> delegate.newStream(position, length),
-            "newStream(range)",
-            delegate.path(),
-            retryCounters::addRetry,
-            storageTelemetry
-        );
-        return new ResumingInputStream(initial, position, length);
+        return new ResumingInputStream(openWithRetry(() -> openOrAbort(position, length), "newStream(range)"), position, length);
     }
 
     @Override
@@ -329,20 +317,44 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     }
 
     @Override
-    public void abortStream(InputStream stream) throws IOException {
-        // No retry on abort: the underlying provider's abortStream is a best-effort
-        // connection-discard (e.g. S3 ResponseInputStream.abort()). If we silently fall back to
-        // the SPI default stream.close() here, providers like S3 drain the entire response body
-        // before returning, defeating the purpose of abortStream on partial-read paths.
-        //
-        // A ResumingInputStream is our own wrapper; abort the live underlying stream so the provider's
-        // Abortable fast-path applies to the real instance, not the wrapper (which the provider can't cast).
-        if (stream instanceof ResumingInputStream resuming) {
-            resuming.aborted = true;
-            delegate.abortStream(resuming.currentStream());
-        } else {
-            delegate.abortStream(stream);
+    public void close() throws IOException {
+        aborted = true;
+        delegate.close();
+    }
+
+    /**
+     * Runs the open-retry loop with {@link #aborted} composed into the ambient cancel signal so
+     * {@link RetryPolicy#execute} backoff (up to 30s throttle) wakes on {@link #close()} the same
+     * way {@link ResumingInputStream} already does. Query cancel still surfaces as
+     * {@link TaskCancelledException}; object close maps to {@code read aborted}.
+     */
+    private InputStream openWithRetry(RetryPolicy.IOSupplier<InputStream> open, String operationName) throws IOException {
+        BooleanSupplier previous = StorageRetryCancellation.current();
+        try {
+            return StorageRetryCancellation.callWithCancellation(
+                () -> aborted || (previous != null && previous.getAsBoolean()),
+                () -> retryPolicy.execute(open, operationName, delegate.path(), retryCounters::addRetry, storageTelemetry)
+            );
+        } catch (TaskCancelledException tce) {
+            if (aborted) {
+                throw new IOException("read aborted", tce);
+            }
+            throw tce;
         }
+    }
+
+    private InputStream openOrAbort() throws IOException {
+        if (aborted) {
+            throw new IOException("read aborted");
+        }
+        return delegate.newStream();
+    }
+
+    private InputStream openOrAbort(long position, long length) throws IOException {
+        if (aborted) {
+            throw new IOException("read aborted");
+        }
+        return delegate.newStream(position, length);
     }
 
     /**
@@ -730,18 +742,22 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
      * bytes, a failure here is almost always transport (parsing happens above this stream); a rare
      * data-integrity error misclassified as transient simply re-trips and fails within the bounded budget.
      * <p>
-     * Single-threaded by contract: one consumer reads one stream. Not {@code Abortable}; the enclosing
-     * {@link #abortStream} sets {@link #aborted} then unwraps to abort the live underlying stream so a
-     * typed transient abort cannot re-open a new GET.
+     * Single-threaded by contract: one consumer reads one stream. {@link #close()} sets {@link #aborted}
+     * then closes the live underlying stream so a typed transient abort cannot re-open a new GET.
      */
     private final class ResumingInputStream extends InputStream {
         private final long position;
         private final long length;
-        // Volatile: the reader thread re-assigns this on resume while {@link #abortStream} reads it (via
-        // currentStream()) from the operator/cancel thread, so the abort must see the live stream, not a stale ref.
+        // Volatile: the reader thread re-assigns this on resume while {@link #close()} reads it (via
+        // currentStream()) from the operator/cancel thread, so close must see the live stream, not a stale ref.
         private volatile InputStream current;
-        /** Set by {@link #abortStream} before the inner abort; {@link #reopenOrThrow} must not {@code newStream}. */
+        /** Set by {@link #close()} before the inner close; {@link #reopenOrThrow} must not {@code newStream}. */
         private volatile boolean aborted;
+
+        private boolean isAborted() {
+            return aborted || RetryableStorageObject.this.aborted;
+        }
+
         private long delivered = 0;
         /**
          * The provider's generation pin ({@link StorageObject#contentGeneration()}) as of the first open.
@@ -802,7 +818,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
             while (true) {
-                if (aborted) {
+                if (isAborted()) {
                     throw new IOException("read aborted");
                 }
                 final int n;
@@ -814,7 +830,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                     reopenOrThrow(e);
                     continue;
                 }
-                if (aborted) {
+                if (isAborted()) {
                     throw new IOException("read aborted");
                 }
                 if (n > 0) {
@@ -1013,13 +1029,13 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
          */
         private InputStream openResumeOnce(long resumeFrom, long resumeLength, long deadlineNanos) throws IOException {
             while (true) {
-                if (aborted) {
+                if (isAborted()) {
                     throw new UncheckedIOException(new IOException("read aborted"));
                 }
                 try {
                     return StoragePermitBarge.call(() -> delegate.newStream(resumeFrom, resumeLength));
                 } catch (ConcurrencyLimiter.PermitMissException miss) {
-                    if (aborted) {
+                    if (isAborted()) {
                         throw new UncheckedIOException(new IOException("read aborted"));
                     }
                     if (System.nanoTime() >= deadlineNanos) {
@@ -1041,7 +1057,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                             )
                         );
                     }
-                    if (aborted) {
+                    if (isAborted()) {
                         throw new UncheckedIOException(new IOException("read aborted"));
                     }
                 }
@@ -1050,14 +1066,14 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
 
         private void adoptResume(InputStream opened) throws IOException {
             current = opened;
-            if (aborted) {
-                delegate.abortStream(current);
+            if (isAborted()) {
+                current.close();
                 throw new IOException("read aborted");
             }
         }
 
         private void throwIfAborted(Exception cause) throws IOException {
-            if (aborted) {
+            if (isAborted()) {
                 throw rethrow(cause);
             }
         }
@@ -1121,6 +1137,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
 
         @Override
         public void close() throws IOException {
+            aborted = true;
             current.close();
         }
 

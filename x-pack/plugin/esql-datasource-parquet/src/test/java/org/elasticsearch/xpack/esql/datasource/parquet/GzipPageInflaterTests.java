@@ -104,6 +104,17 @@ public class GzipPageInflaterTests extends ESTestCase {
         assertFastMatchesInputStreamFailure(Arrays.copyOf(gz, cut), destLen);
     }
 
+    /**
+     * Member 2 produces every dest byte but never sees BFINAL. Old {@code completedMember}
+     * treated that extra-probe {@code needsInput} as EOS; GZIPInputStream rejects it.
+     */
+    public void testUnfinishedSecondMemberAfterDestFilledFails() throws IOException {
+        byte[] first = compressibleBytes(between(8, 64));
+        byte[] second = compressibleBytes(between(32, 256));
+        byte[] gz = concat(gzip(first), gzipUnfinishedMember(second));
+        assertFastMatchesInputStreamFailure(gz, first.length + second.length);
+    }
+
     public void testTruncation() throws IOException {
         byte[] data = compressibleBytes(between(64, 4096));
         byte[] gz = gzip(data);
@@ -274,6 +285,26 @@ public class GzipPageInflaterTests extends ESTestCase {
         byte[] dest = destLen == 0 ? new byte[0] : new byte[destLen];
         GzipPageInflater.decompressWithInputStream(BytesInput.from(gz), dest, destLen);
         return dest;
+    }
+
+    /** Gzip header plus nowrap DEFLATE of {@code data} with SYNC_FLUSH; no BFINAL, no trailer. */
+    private static byte[] gzipUnfinishedMember(byte[] data) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.writeBytes(new byte[] { 0x1f, (byte) 0x8b, 8, 0, 0, 0, 0, 0, 0, (byte) 0xff });
+        Deflater deflater = new Deflater(Deflater.DEFAULT_COMPRESSION, true);
+        try {
+            deflater.setInput(data);
+            byte[] chunk = new byte[Math.max(64, data.length * 2 + 32)];
+            while (deflater.needsInput() == false) {
+                int n = deflater.deflate(chunk, 0, chunk.length, Deflater.SYNC_FLUSH);
+                out.write(chunk, 0, n);
+            }
+            int n = deflater.deflate(chunk, 0, chunk.length, Deflater.SYNC_FLUSH);
+            out.write(chunk, 0, n);
+        } finally {
+            deflater.end();
+        }
+        return out.toByteArray();
     }
 
     private static byte[] gzip(byte[] data) throws IOException {

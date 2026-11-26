@@ -9,11 +9,13 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.MatchBoolPrefixQueryBuilder;
@@ -91,8 +93,12 @@ public class MatchOnlyTextNoTermsSearchTests extends MapperServiceTestCase {
         );
         final List<List<Integer>> perQuery = new ArrayList<>();
         withLuceneIndex(mapperService, iw -> {
-            for (String doc : DOCS) {
-                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
+            for (int id = 0; id < DOCS.size(); id++) {
+                final String doc = DOCS.get(id);
+                final LuceneDocument document = mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc();
+                // The writer may order documents differently on each side, so a hit is identified by this, not by its doc id.
+                document.add(new StoredField("test_id", id));
+                iw.addDocument(document);
             }
         }, reader -> {
             final SearchExecutionContext context = createSearchExecutionContext(mapperService);
@@ -100,7 +106,7 @@ public class MatchOnlyTextNoTermsSearchTests extends MapperServiceTestCase {
             for (QueryBuilder query : queries) {
                 final List<Integer> hits = new ArrayList<>();
                 for (ScoreDoc hit : searcher.search(query.toQuery(context), 10).scoreDocs) {
-                    hits.add(hit.doc);
+                    hits.add(searcher.storedFields().document(hit.doc).getField("test_id").numericValue().intValue());
                 }
                 hits.sort(null);
                 perQuery.add(hits);

@@ -850,11 +850,6 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testSnapshotPrimaryRelocations
   issue: https://github.com/elastic/elasticsearch/issues/167626
-- class: org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactoryTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testFilteredLimitRampStaysParkedOnDenseFirstPage
-  issue: https://github.com/elastic/elasticsearch/issues/167649
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

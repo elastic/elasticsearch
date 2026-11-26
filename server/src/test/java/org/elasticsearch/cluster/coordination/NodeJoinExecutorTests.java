@@ -745,6 +745,72 @@ public class NodeJoinExecutorTests extends ESTestCase {
         assertSame(acceptedState, validatedState.get());
     }
 
+    /** An unexpected exception from a validator rejects only that node, so it can't fail an election. */
+    public void testUnexpectedJoinAttributesValidatorExceptionRejectsOnlyThatNode() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode acceptedNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode rejectedNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()))
+            .build();
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(
+            allocationService,
+            rerouteService,
+            createFeatureService(),
+            Function.identity(),
+            List.of((node, joinAttributes, state) -> {
+                if (node.equals(rejectedNode)) {
+                    throw new NullPointerException("unexpected");
+                }
+            })
+        );
+
+        AtomicReference<Exception> rejection = new AtomicReference<>();
+        ClusterState resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.completingElection(
+                    Stream.of(
+                        new JoinTask.NodeJoinTask(
+                            masterNode,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            NO_FAILURE_LISTENER
+                        ),
+                        new JoinTask.NodeJoinTask(
+                            acceptedNode,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            NO_FAILURE_LISTENER
+                        ),
+                        new JoinTask.NodeJoinTask(
+                            rejectedNode,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            ActionListener.wrap(o -> fail("should have failed"), rejection::set)
+                        )
+                    ),
+                    1L
+                )
+            )
+        );
+
+        assertEquals(masterNode.getId(), resultingState.nodes().getMasterNodeId());
+        assertTrue(resultingState.nodes().nodeExists(acceptedNode));
+        assertFalse(resultingState.nodes().nodeExists(rejectedNode));
+        assertThat(rejection.get(), instanceOf(IllegalStateException.class));
+        assertThat(rejection.get().getCause(), instanceOf(NullPointerException.class));
+    }
+
     private static JoinTask joinTask(DiscoveryNode node, Map<String, String> joinAttributes, ActionListener<Void> listener) {
         return JoinTask.singleNode(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinAttributes, TEST_REASON, listener, 0L);
     }

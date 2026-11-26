@@ -45,8 +45,8 @@ public interface ClusterCoordinationPlugin {
 
     /**
      * Returns attributes of this node to send with each join request, for the validator from {@link #getJoinAttributesValidator()} on the
-     * elected master. Called under the coordinator's mutex for every join request, so it must be cheap and must not throw. Keys must be
-     * unique across plugins.
+     * elected master. Called for every join request, possibly concurrently and sometimes under the coordinator's mutex, so it must be
+     * cheap, thread-safe and must not throw. Keys must be unique across plugins.
      */
     default Map<String, String> getJoinAttributes() {
         return Map.of();

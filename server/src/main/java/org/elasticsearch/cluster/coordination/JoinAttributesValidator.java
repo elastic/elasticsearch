@@ -22,8 +22,8 @@ import java.util.Map;
 public interface JoinAttributesValidator {
 
     /**
-     * Throws an {@link IllegalStateException} if {@code node} must not join a cluster with {@code state}; any other exception fails every
-     * join in the batch, including an election. {@code joinAttributes} is empty if the node is on a version that doesn't send them.
+     * Throws an {@link IllegalStateException} if {@code node} must not join a cluster with {@code state}. Any exception rejects only this
+     * node, and an unexpected one is also logged. {@code joinAttributes} is empty if the node is on a version that doesn't send them.
      */
     void validate(DiscoveryNode node, Map<String, String> joinAttributes, ClusterState state);
 }

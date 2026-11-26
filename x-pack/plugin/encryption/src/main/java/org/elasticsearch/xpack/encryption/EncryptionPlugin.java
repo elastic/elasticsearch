@@ -73,7 +73,7 @@ public class EncryptionPlugin extends Plugin
     private final boolean stateless;
     private final boolean persistsClusterState;
     private volatile Settings pekSettings;
-    // cached so join requests, sent under the coordinator's mutex, never wait for a key derivation
+    // cached so join requests, which can be sent under the coordinator's mutex, never wait for a key derivation
     private volatile boolean canPersistKey;
 
     private final PasswordPekEncryption pekEncryption = new PasswordPekEncryption(() -> this.pekSettings);

@@ -19,6 +19,9 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -26,10 +29,22 @@ public class IndexingFailuresDebugListener implements IndexingOperationListener 
 
     private static final Logger LOGGER = LogManager.getLogger(IndexingFailuresDebugListener.class);
 
+    private static final int MAX_WARNINGS_PER_WINDOW = 5;
+    private static final long RATE_LIMIT_WINDOW_NANOS = TimeUnit.HOURS.toNanos(1);
+
     private final IndexShard indexShard;
+    private final LongSupplier nanoTimeSupplier;
+    // High 32 bits: index of the current rate limit window. Low 32 bits: permits used in that window.
+    private final AtomicLong windowAndPermitsUsed = new AtomicLong();
 
     public IndexingFailuresDebugListener(IndexShard indexShard) {
+        this(indexShard, System::nanoTime);
+    }
+
+    // Visible for testing
+    IndexingFailuresDebugListener(IndexShard indexShard, LongSupplier nanoTimeSupplier) {
         this.indexShard = indexShard;
+        this.nanoTimeSupplier = nanoTimeSupplier;
     }
 
     @Override
@@ -95,7 +110,27 @@ public class IndexingFailuresDebugListener implements IndexingOperationListener 
         if (isUserError(ex)) {
             LOGGER.trace(getMessageSupplier("index-fail", batch, i), ex);
         } else {
-            LOGGER.debug(getMessageSupplier("real-index-fail", batch, i), ex);
+            Supplier<Object> messageSupplier = getMessageSupplier("real-index-fail", batch, i);
+            if (withinRateLimit()) {
+                LOGGER.warn(messageSupplier, ex);
+            } else {
+                LOGGER.debug(messageSupplier, ex);
+            }
+        }
+    }
+
+    boolean withinRateLimit() {
+        int window = (int) Math.floorDiv(nanoTimeSupplier.getAsLong(), RATE_LIMIT_WINDOW_NANOS);
+        while (true) {
+            long state = windowAndPermitsUsed.get();
+            int permitsUsed = (int) (state >> 32) == window ? (int) state : 0;
+            if (permitsUsed >= MAX_WARNINGS_PER_WINDOW) {
+                return false;
+            }
+            long newState = ((long) window << 32) | (permitsUsed + 1);
+            if (windowAndPermitsUsed.compareAndSet(state, newState)) {
+                return true;
+            }
         }
     }
 

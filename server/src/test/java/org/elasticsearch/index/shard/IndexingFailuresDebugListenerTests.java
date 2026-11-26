@@ -37,6 +37,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -45,6 +48,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class IndexingFailuresDebugListenerTests extends ESTestCase {
+
+    private static final long WINDOW_NANOS = TimeUnit.HOURS.toNanos(1);
+    private static final int MAX_WARNINGS_PER_WINDOW = 5;
 
     static MockAppender appender;
     static Logger testLogger1 = LogManager.getLogger(IndexingFailuresDebugListener.class);
@@ -235,15 +241,104 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         assertThat(postIndexBatchFailure(Level.DEBUG, randomUserError()), nullValue());
     }
 
-    public void testPostIndexBatchRealErrorLoggedAtDebug() {
+    public void testPostIndexBatchRealErrorLoggedAtWarnWhenWithinRateLimit() {
         Exception realError = randomFrom(
             new RuntimeException("test exception"),
             new IllegalArgumentException("other message"),
             new IllegalArgumentException()
         );
         LogEvent event = postIndexBatchFailure(Level.TRACE, realError);
-        assertThat(event.getLevel(), equalTo(Level.DEBUG));
+        assertThat(event.getLevel(), equalTo(Level.WARN));
         assertThat(event.getMessage().getFormattedMessage(), startsWith("real-index-fail [doc-0]"));
+    }
+
+    public void testRealErrorsLoggedAtWarnUpToLimitThenDebugWithinWindow() {
+        var clock = new AtomicLong(randomWindowIndex() * WINDOW_NANOS + randomLongBetween(0, WINDOW_NANOS - 1));
+        var listener = listenerWithClock(clock);
+        var shardId = ShardId.fromString("[index][123]");
+        var result = failedResult(new RuntimeException("test exception"));
+
+        int failures = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 50);
+        for (int i = 0; i < failures; i++) {
+            appender.getLastEventAndReset();
+            listener.postIndexBatch(shardId, primaryBatch(1), List.of(result));
+            Level expected = i < MAX_WARNINGS_PER_WINDOW ? Level.WARN : Level.DEBUG;
+            assertThat("failure " + i, appender.getLastEventAndReset().getLevel(), equalTo(expected));
+        }
+    }
+
+    public void testPermitsResetInEachNewWindow() {
+        var clock = new AtomicLong();
+        var listener = listenerWithClock(clock);
+        long windowIndex = randomWindowIndex();
+
+        int windows = randomIntBetween(2, 5);
+        for (int w = 0; w < windows; w++) {
+            clock.set(windowIndex * WINDOW_NANOS + randomLongBetween(0, WINDOW_NANOS - 1));
+            for (int i = 0; i < MAX_WARNINGS_PER_WINDOW; i++) {
+                assertTrue("window " + w + " permit " + i, listener.withinRateLimit());
+            }
+            int extraCalls = randomIntBetween(1, 20);
+            for (int i = 0; i < extraCalls; i++) {
+                assertFalse("window " + w + " extra call " + i, listener.withinRateLimit());
+            }
+            windowIndex += randomLongBetween(1, 100);
+        }
+    }
+
+    public void testWindowBoundaryIsExact() {
+        long windowStart = randomWindowIndex() * WINDOW_NANOS;
+        var clock = new AtomicLong(windowStart);
+        var listener = listenerWithClock(clock);
+        for (int i = 0; i < MAX_WARNINGS_PER_WINDOW; i++) {
+            assertTrue(listener.withinRateLimit());
+        }
+
+        clock.set(windowStart + WINDOW_NANOS - 1);
+        assertFalse(listener.withinRateLimit());
+
+        clock.set(windowStart + WINDOW_NANOS);
+        assertTrue(listener.withinRateLimit());
+    }
+
+    public void testConcurrentCallsGrantExactlyOneWindowOfPermits() {
+        var listener = listenerWithClock(new AtomicLong(randomWindowIndex() * WINDOW_NANOS));
+        var granted = new AtomicInteger();
+        int callsPerThread = randomIntBetween(10, 200);
+
+        startInParallel(randomIntBetween(2, 8), thread -> {
+            for (int i = 0; i < callsPerThread; i++) {
+                if (listener.withinRateLimit()) {
+                    granted.incrementAndGet();
+                }
+            }
+        });
+
+        assertThat(granted.get(), equalTo(MAX_WARNINGS_PER_WINDOW));
+    }
+
+    private static long randomWindowIndex() {
+        return randomLongBetween(-1000, 1000);
+    }
+
+    private static Engine.IndexResult failedResult(Exception failure) {
+        Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
+        when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+        when(indexResult.getFailure()).thenReturn(failure);
+        return indexResult;
+    }
+
+    /**
+     * The shard is mocked because a real {@link IndexShard} needs a full node environment, and the listener only reads
+     * its routing entry, primary term and index settings.
+     */
+    private static IndexingFailuresDebugListener listenerWithClock(AtomicLong clock) {
+        var shardId = ShardId.fromString("[index][123]");
+        var mockShard = mock(IndexShard.class);
+        when(mockShard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED));
+        when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
+        return new IndexingFailuresDebugListener(mockShard, clock::get);
     }
 
     private static Exception randomUserError() {

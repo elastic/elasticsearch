@@ -34,8 +34,7 @@ import org.elasticsearch.xpack.ml.MachineLearningTests;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -44,7 +43,6 @@ import java.util.stream.DoubleStream;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -236,24 +234,14 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDistributionChange() throws IOException {
-        NormalDistribution first = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
-        NormalDistribution second = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 5);
-        // About 0.8% of single series are classified as something else, e.g. a step change when the noisier
-        // half's mean is offset by chance. So test many series and require most to be a distribution change.
-        // With 100 series and at least 80 distribution changes, a false failure has probability ~1e-23.
-        Map<String, Integer> changeTypeCounts = new TreeMap<>();
-        for (int i = 0; i < 100; i++) {
-            double[] bucketValues = DoubleStream.concat(
-                DoubleStream.generate(first::sample).limit(50),
-                DoubleStream.generate(second::sample).limit(50)
-            ).toArray();
-            testChangeType(bucketValues, (changeType, msg) -> changeTypeCounts.merge(changeType.getName(), 1, Integer::sum));
-        }
-        assertThat(
-            changeTypeCounts.toString(),
-            changeTypeCounts.getOrDefault(ChangeType.DistributionChange.NAME, 0),
-            greaterThanOrEqualTo(80)
-        );
+        // Fixed data: about 0.8% of random series like this are classified as something else, which is tested
+        // statistically in EventDetectorTests#testReportsMostVarianceIncreasesAsADistributionChange.
+        Random random = new Random(42);
+        double[] bucketValues = DoubleStream.concat(
+            DoubleStream.generate(random::nextGaussian).limit(50),
+            DoubleStream.generate(() -> 5 * random.nextGaussian()).limit(50)
+        ).toArray();
+        testChangeType(bucketValues, (changeType, msg) -> assertThat(msg, changeType, instanceOf(ChangeType.DistributionChange.class)));
     }
 
     public void testZeroDeviation() throws IOException {

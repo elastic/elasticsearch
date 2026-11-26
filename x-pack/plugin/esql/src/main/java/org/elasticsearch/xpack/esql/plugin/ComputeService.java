@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -154,6 +155,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -220,6 +222,38 @@ public class ComputeService {
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
     public static final String CLUSTER_ACTION_NAME = EsqlQueryAction.NAME + "/cluster";
     static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+
+    /**
+     * Inner load of an external data compute, keyed by project and dataset like shards are keyed
+     * by shard. Charge is a no-op until datasets have their own stats; time still reaches the query
+     * report through {@link QueryLoad.Charging}.
+     */
+    record DatasetLoad(ProjectId projectId, Set<String> datasets) implements TaskLoadAttribution.Target {
+        DatasetLoad {
+            datasets = Set.copyOf(datasets);
+        }
+
+        @Override
+        public void charge(long nanos, long cpuNanos, long finishNanos) {}
+    }
+
+    /**
+     * Collects the named datasets of {@code plan} (physical sources and logical relations in fragments).
+     */
+    static DatasetLoad datasetLoad(ProjectId projectId, PhysicalPlan plan) {
+        Set<String> datasets = new HashSet<>();
+        plan.forEachDown(ExternalSourceExec.class, exec -> {
+            if (exec.datasetName() != null) {
+                datasets.add(exec.datasetName());
+            }
+        });
+        plan.forEachDown(FragmentExec.class, fragment -> fragment.fragment().forEachDown(ExternalRelation.class, rel -> {
+            if (rel.datasetName() != null) {
+                datasets.add(rel.datasetName());
+            }
+        }));
+        return new DatasetLoad(projectId, datasets);
+    }
 
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
@@ -2156,9 +2190,20 @@ public class ComputeService {
             singleValueQueryWarnings
         );
         // the time its sources do not attribute to a shard goes to the shards of the compute, or to its load
+        boolean hasExternalSource = plan.anyMatch(
+            p -> p instanceof ExternalSourceExec
+                || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
+        );
         TaskLoadAttribution.Target computeLoad = context.description().equals(DATA_DESCRIPTION)
             ? shardsLoad(shardContexts)
             : context.load();
+        if (computeLoad == null && context.description().equals(DATA_DESCRIPTION)) {
+            // empty-shard DATA is the external path, which supplies a no-shard target
+            computeLoad = context.load();
+            // Stats pushdown can replace ExternalSourceExec with LocalSourceExec, so do not key
+            // this on plan shape. The external handler is the only caller that passes DatasetLoad.
+            assert computeLoad instanceof DatasetLoad : "empty-shard DATA compute without a dataset load";
+        }
         assert context.description().equals(REDUCE_DESCRIPTION) == false || computeLoad != null : "node reduce without a load target";
         QueryLoad queryLoad = context.queryLoad();
         // the tasks of the compute outside its drivers, which report what they charged through the query's load
@@ -2184,7 +2229,9 @@ public class ComputeService {
             // snapshots cannot disagree on anything that is read.
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
             DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
-            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(context.queryId(), outsideDrivers, null);
+            // DF producer/I/O reach QueryLoad only through this target; passing raw computeLoad
+            // would charge the shard/no-shard inner target and omit the time from the query report.
+            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(context.queryId(), outsideDrivers, outsideDrivers);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
@@ -2219,10 +2266,6 @@ public class ComputeService {
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
-            boolean hasExternalSource = plan.anyMatch(
-                p -> p instanceof ExternalSourceExec
-                    || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
-            );
             PhysicalPlan localPlan;
             final String logicalPlanString;
             final String logicalPlanJson;

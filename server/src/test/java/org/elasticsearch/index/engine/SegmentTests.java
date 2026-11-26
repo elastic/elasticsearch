@@ -18,6 +18,7 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.ComputedKeySortField;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
@@ -28,6 +29,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SegmentTests extends ESTestCase {
     static SortField randomSortField() {
@@ -125,6 +128,40 @@ public class SegmentTests extends ESTestCase {
 
         Segment deserialized = new Segment(columnarOutput.bytes().streamInput());
         assertEquals(new Sort(sortedNumeric), deserialized.segmentSort);
+    }
+
+    public void testSerializationOfComputedKeySortField() throws IOException {
+        Segment segment = randomSegment();
+        ComputedKeySortField sortField = new ComputedKeySortField("DATE_TRUNC(1 hour, @timestamp)", randomBoolean(), randomBoolean());
+        segment.segmentSort = new Sort(sortField);
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        segment.writeTo(output);
+        Segment deserialized = new Segment(output.bytes().streamInput());
+
+        assertEquals(new Sort(sortField), deserialized.segmentSort);
+    }
+
+    /** Nodes that don't know computed keys read one as a long sort on its text. */
+    public void testSerializationOfComputedKeySortFieldOldVersion() throws IOException {
+        Segment segment = randomSegment();
+        boolean reverse = randomBoolean();
+        ComputedKeySortField sortField = new ComputedKeySortField("DATE_TRUNC(1 hour, @timestamp)", reverse, randomBoolean());
+        segment.segmentSort = new Sort(sortField);
+
+        var oldVersion = TransportVersionUtils.randomVersionNotSupporting(Segment.SEGMENT_COMPUTED_SORT_KEY);
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(oldVersion);
+        segment.writeTo(output);
+        StreamInput input = output.bytes().streamInput();
+        input.setTransportVersion(oldVersion);
+        Segment deserialized = new Segment(input);
+
+        SortField field = deserialized.segmentSort.getSort()[0];
+        assertThat(field, instanceOf(SortedNumericSortField.class));
+        assertEquals("DATE_TRUNC(1 hour, @timestamp)", field.getField());
+        assertEquals(reverse, field.getReverse());
+        assertEquals(sortField.getMissingValue(), field.getMissingValue());
     }
 
     public void testSerializationWithAutoCalibration() throws IOException {

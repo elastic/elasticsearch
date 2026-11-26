@@ -236,7 +236,11 @@ final class RequestXContent {
             () -> syncEsqlQueryRequest(null)
         );
         objectParserCommon(parser);
-        parser.declareField((p, request, options) -> options.store(p.text()), STORE_FIELD, ObjectParser.ValueType.STRING);
+        parser.declareField(
+            (p, request, options) -> options.store(StreamOptions.Store.fromString(p.text())),
+            STORE_FIELD,
+            ObjectParser.ValueType.STRING
+        );
         parser.declareField((p, request, options) -> options.maxRows(p.longValue(false)), MAX_ROWS_FIELD, ObjectParser.ValueType.LONG);
         parser.declareField((p, request, options) -> options.maxBytes(parseMaxBytes(p)), MAX_BYTES_FIELD, ObjectParser.ValueType.VALUE);
         return parser;

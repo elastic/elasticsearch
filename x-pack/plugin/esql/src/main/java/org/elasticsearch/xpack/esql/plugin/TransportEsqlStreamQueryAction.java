@@ -35,6 +35,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -315,6 +316,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             columns,
                             nullColumns,
                             QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()),
+                            new TaskId(clusterService.localNode().getId(), task.getId()),
                             executionInfo::isPartial
                         );
                         if (startFailure != null) {
@@ -421,6 +423,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         columns,
                         request.dropNullColumns() ? new boolean[columns.size()] : null,
                         QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
+                        new TaskId(clusterService.localNode().getId(), task.getId()),
                         executionInfo::isPartial
                     );
                     if (startFailure != null) {
@@ -519,10 +522,11 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         List<ColumnInfoImpl> columns,
         boolean[] nullColumns,
         ZoneId zoneId,
+        TaskId taskId,
         BooleanSupplier isPartial
     ) {
         request.resultStreamListener()
-            .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, isPartial));
+            .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, taskId, isPartial));
         Exception startFailure = publisher.failure();
         if (startFailure != null) {
             return startFailure;

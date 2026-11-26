@@ -1894,9 +1894,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                                 differentNameResponse -> client().admin()
                                                     .cluster()
                                                     .createSnapshot(
-                                                        new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, nameBeforeMidnight)
-                                                            .uuid(uuid)
-                                                            .waitForCompletion(false),
+                                                        new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, nameBeforeMidnight).uuid(
+                                                            uuid
+                                                        ).waitForCompletion(false),
                                                         ActionListener.wrap(sameUuidResponse -> {
                                                             sequencer.releaseBlock(nameBeforeMidnight, index);
                                                             doneListener.onResponse(null);

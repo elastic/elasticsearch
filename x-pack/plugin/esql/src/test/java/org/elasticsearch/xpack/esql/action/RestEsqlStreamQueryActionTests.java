@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -172,6 +173,14 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         );
         assertThat(parsed.request().query(), equalTo("FROM idx"));
         assertThat(parsed.options(), equalTo(new StreamOptions(StreamOptions.Store.NONE, 10, 1024)));
+    }
+
+    public void testKeepAliveIsParsed() throws IOException {
+        assertThat(
+            parseStream("{\"query\": \"FROM idx\", \"keep_alive\": \"2h\"}").request().keepAlive(),
+            equalTo(TimeValue.timeValueHours(2))
+        );
+        assertNull(parseStream("{\"query\": \"FROM idx\"}").request().keepAlive());
     }
 
     public void testStoreIsKeptInTheOptions() throws IOException {

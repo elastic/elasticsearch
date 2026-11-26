@@ -936,7 +936,16 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     }
 
     private static EsqlStreamResponseListener newResponseListener(RestChannel channel, ThreadContext threadContext) {
-        return new EsqlStreamResponseListener(channel, threadContext, null, null, null, null, StreamOptions.NONE);
+        return new EsqlStreamResponseListener(
+            channel,
+            threadContext,
+            null,
+            null,
+            null,
+            null,
+            StreamOptions.NONE,
+            EsqlQueryRequest.DEFAULT_KEEP_ALIVE
+        );
     }
 
     private Subscribed subscribe(StreamOptions options, ThreadContext threadContext) {
@@ -954,7 +963,16 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         PageStreamPublisher publisher = new PageStreamPublisher();
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, threadContext, null, null, null, null, options);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(
+            channel,
+            threadContext,
+            null,
+            null,
+            null,
+            null,
+            options,
+            EsqlQueryRequest.DEFAULT_KEEP_ALIVE
+        );
         listener.resultStreamListener()
             .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, null, isPartial));
         return new Subscribed(publisher, producer, channel, listener);

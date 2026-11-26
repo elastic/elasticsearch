@@ -293,7 +293,8 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
             ProjectId.DEFAULT,
             bulks,
             internalCluster().getInstance(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST),
-            options
+            options,
+            EsqlQueryRequest.DEFAULT_KEEP_ALIVE
         );
         client().execute(
             EsqlStreamQueryAction.INSTANCE,

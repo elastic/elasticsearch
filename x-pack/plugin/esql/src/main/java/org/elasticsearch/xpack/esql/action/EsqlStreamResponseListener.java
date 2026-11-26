@@ -28,6 +28,7 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.streaming.SystemIndexStreamWriter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.List;
@@ -118,6 +120,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private final EscfBulkService escfBulkService;
     private final CircuitBreaker breaker;
     private final StreamOptions options;
+    private final TimeValue keepAlive;
 
     private final long startNanos = System.nanoTime();
     private final AtomicBoolean terminalEmitted = new AtomicBoolean(false);
@@ -157,7 +160,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         ProjectId projectId,
         EscfBulkService escfBulkService,
         CircuitBreaker breaker,
-        StreamOptions options
+        StreamOptions options,
+        TimeValue keepAlive
     ) {
         this.channel = channel;
         this.threadContext = threadContext;
@@ -166,6 +170,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         this.escfBulkService = escfBulkService;
         this.breaker = breaker;
         this.options = options;
+        this.keepAlive = keepAlive;
     }
 
     /** Whether the rows and bytes written so far already fill {@code max_rows} or {@code max_bytes}. */
@@ -311,7 +316,13 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 TransportVersion.current(),
                 this::onStoreFailure
             );
-            streamId = writer.createStarted(resultStream.taskId(), null, List.copyOf(columns), Map.of(), List.of());
+            streamId = writer.createStarted(
+                resultStream.taskId(),
+                Instant.ofEpochMilli(client.threadPool().absoluteTimeInMillis() + keepAlive.millis()),
+                List.copyOf(columns),
+                Map.of(),
+                List.of()
+            );
         }
         resultStream.publisher().subscribe(subscriber);
         subscribed = true;

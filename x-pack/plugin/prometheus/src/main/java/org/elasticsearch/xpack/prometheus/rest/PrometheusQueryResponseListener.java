@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.prometheus.rest;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -113,14 +114,16 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // and crash the node. Reading its pages/blocks directly (without incRef/decRef/close) is safe: the
         // response holds a live reference for the duration of this synchronous callback, same as the
         // generic EsqlResponse.rows()/ResponseValueUtils path this class used to go through.
-        // The channel's builder writes to recycled pages and fails with an exception near 2 GB instead of growing a single
-        // byte array until the node runs out of memory.
+        // The body goes into the channel's output, which writes to recycled pages and fails with an exception near 2 GB
+        // instead of growing a single byte array until the node runs out of memory. A plain JSON builder keeps the
+        // response media type independent of the request's Accept header.
         // TODO: the whole body is still buffered, next to the pages it is built from, and the circuit breaker does not see
         // it. Send it as a chunked response instead, serializing each page into chunks and releasing the page once it is
         // written, so the JSON never exceeds a chunk and memory goes down while the body is sent.
+        XContentBuilder builder;
         try {
-            XContentBuilder builder = convertToPrometheusJson(
-                channel.newBuilder(null, XContentType.JSON, false),
+            builder = convertToPrometheusJson(
+                XContentFactory.jsonBuilder(Streams.flushOnCloseStream(channel.bytesOutput())),
                 queryResponse.pages(),
                 queryResponse.columns(),
                 queryResponse.zoneId(),
@@ -128,10 +131,13 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 mode,
                 limit
             );
-            channel.sendResponse(new RestResponse(RestStatus.OK, builder));
         } catch (Exception e) {
+            // The partial body is never sent: free its pages now rather than when the error response is written.
+            channel.releaseOutputBuffer();
             sendErrorResponse(e);
+            return;
         }
+        channel.sendResponse(new RestResponse(RestStatus.OK, builder));
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
@@ -187,7 +189,9 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         var order = (Order) buildEsqlFunction(table.value(), promqlContext);
         // Prometheus converts k with an integer cast: `topk(1.5, v)` keeps one series, and a k below one keeps none.
         Expression k = new ToInteger(source(), new Floor(source(), parameters().getFirst()));
-        return new TopNBy(source(), grouping.plan(), order != null ? List.of(order) : List.of(), k, grouping.groupings());
+        LogicalPlan ranked = new TopNBy(source(), grouping.plan(), order != null ? List.of(order) : List.of(), k, grouping.groupings());
+        // a partition defined only to rank by leaves with the ranking: the table keeps its one label container
+        return grouping.plan() == table.plan() ? ranked : new Project(source(), ranked, table.plan().output());
     }
 
     /**
@@ -270,11 +274,14 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             // The packing of every label but the listed ones, plus each label column the packing may not hold: one a
             // relabel derived. A label column the packing holds too adds nothing to the partition.
             Set<String> skip = partitioning.finestSkip();
-            Attribute packing = table.packed(skip);
+            NamedExpression packing = context.packing(table, skip);
             if (packing == null) {
                 throw new IllegalStateException("packing " + skip + " must be carried by the reduced table");
             }
-            groupings.add(packing);
+            if (packing instanceof Alias derived) {
+                plan = new Eval(context.cmd().source(), plan, List.of(derived));
+            }
+            groupings.add(packing.toAttribute());
             for (String label : table.schema().labels()) {
                 Attribute carrier = table.label(label);
                 if (skip.contains(label) == false && carrier != null) {

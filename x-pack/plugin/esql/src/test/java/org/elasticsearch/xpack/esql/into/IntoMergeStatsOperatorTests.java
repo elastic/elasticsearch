@@ -171,8 +171,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
                         + DEST
                         + "] failed after [4] documents were written, so they may not be searchable yet: "
                         + "action [indices:admin/refresh] is unauthorized"
-                        + " (INTO includes an index refresh that requires the [maintenance] privilege; use \"refresh\": false in future"
-                        + " INTO queries to skip it, since re-running this one writes the documents again)"
+                        + " (INTO includes an index refresh that requires the [maintenance] privilege; use \"refresh\": false to skip it)"
                 )
             )
         );

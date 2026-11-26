@@ -475,53 +475,73 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
 
     public void testIntrospectTimeRange() {
         long nowInMillis = System.currentTimeMillis();
+        // An age up to the tolerance past a threshold still lands in the bucket named after the threshold.
+        long tolerance = TimeRangeBucket.TELEMETRY_THRESHOLD_TOLERANCE.millis();
         assertEquals("15_minutes", SearchRequestAttributesExtractor.introspectTimeRange(nowInMillis, nowInMillis));
 
         long fifteenMinutesAgo = nowInMillis - (15 * 60 * 1000);
         assertEquals(
             "15_minutes",
-            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(fifteenMinutesAgo, nowInMillis), nowInMillis)
+            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(fifteenMinutesAgo - tolerance, nowInMillis), nowInMillis)
         );
 
         long oneHourAgo = nowInMillis - (60 * 60 * 1000);
         assertEquals(
             "1_hour",
-            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(oneHourAgo, fifteenMinutesAgo), nowInMillis)
+            SearchRequestAttributesExtractor.introspectTimeRange(
+                randomLongBetween(oneHourAgo - tolerance, fifteenMinutesAgo - tolerance - 1),
+                nowInMillis
+            )
         );
 
         long twelveHoursAgo = nowInMillis - (12 * 60 * 60 * 1000);
         assertEquals(
             "12_hours",
-            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(twelveHoursAgo, oneHourAgo), nowInMillis)
+            SearchRequestAttributesExtractor.introspectTimeRange(
+                randomLongBetween(twelveHoursAgo - tolerance, oneHourAgo - tolerance - 1),
+                nowInMillis
+            )
         );
 
         long oneDayAgo = nowInMillis - (24 * 60 * 60 * 1000);
         assertEquals(
             "1_day",
-            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(oneDayAgo, twelveHoursAgo), nowInMillis)
+            SearchRequestAttributesExtractor.introspectTimeRange(
+                randomLongBetween(oneDayAgo - tolerance, twelveHoursAgo - tolerance - 1),
+                nowInMillis
+            )
         );
 
         long threeDaysAgo = nowInMillis - (3 * 24 * 60 * 60 * 1000);
         assertEquals(
             "3_days",
-            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(threeDaysAgo, oneDayAgo), nowInMillis)
+            SearchRequestAttributesExtractor.introspectTimeRange(
+                randomLongBetween(threeDaysAgo - tolerance, oneDayAgo - tolerance - 1),
+                nowInMillis
+            )
         );
 
         long sevenDaysAgo = nowInMillis - (7 * 24 * 60 * 60 * 1000);
         assertEquals(
             "7_days",
-            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(sevenDaysAgo, threeDaysAgo), nowInMillis)
+            SearchRequestAttributesExtractor.introspectTimeRange(
+                randomLongBetween(sevenDaysAgo - tolerance, threeDaysAgo - tolerance - 1),
+                nowInMillis
+            )
         );
 
         long fourteenDaysAgo = nowInMillis - (14 * 24 * 60 * 60 * 1000);
         assertEquals(
             "14_days",
-            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(fourteenDaysAgo, sevenDaysAgo), nowInMillis)
+            SearchRequestAttributesExtractor.introspectTimeRange(
+                randomLongBetween(fourteenDaysAgo - tolerance, sevenDaysAgo - tolerance - 1),
+                nowInMillis
+            )
         );
 
         assertEquals(
             "older_than_14_days",
-            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(0, fourteenDaysAgo), nowInMillis)
+            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(0, fourteenDaysAgo - tolerance - 1), nowInMillis)
         );
 
         // Future "from" timestamps have a negative age and share the first bucket with 15 minutes.

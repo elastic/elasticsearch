@@ -58,6 +58,7 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
     private static final long YEAR_2024 = Instant.parse("2024-01-01T00:00:00Z").toEpochMilli();
     private static final long YEAR_2025 = Instant.parse("2025-01-01T00:00:00Z").toEpochMilli();
     private static final long JUNE_2024 = Instant.parse("2024-06-01T00:00:00Z").toEpochMilli();
+    private static final long YEAR_2026 = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli();
 
     public void testDateExtractDatetimeLiteral() {
         Literal folded = foldLiteral("DATE_EXTRACT", List.of(keyword("YEAR"), datetime(JULY_13_2026_UTC)), utc());
@@ -376,6 +377,26 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
         long nextNanos = DateUtils.toNanoSeconds(YEAR_2025);
         Expression rewritten = invert(eq(trunc(yearInterval(), ts, utc()), new Literal(SRC, startNanos, DataType.DATE_NANOS)));
         assertGteLt(asAnd(rewritten), ts, startNanos, nextNanos, DataType.DATE_NANOS);
+    }
+
+    /**
+     * The week of 1970-01-01 starts in 1969, so the first {@code date_nanos} values truncate to null, which no range on the field
+     * keeps: comparisons on such buckets are left alone.
+     */
+    public void testDateTruncNanosBucketsBeforeEpochUnchanged() {
+        FieldAttribute ts = nanosField();
+        Literal week = new Literal(SRC, Period.ofWeeks(1), DataType.DATE_PERIOD);
+        Configuration cfg = utc();
+        Literal literal = new Literal(SRC, DateUtils.toNanoSeconds(JULY_13_2026_UTC), DataType.DATE_NANOS);
+        assertNull(invert(eq(trunc(week, ts, cfg), literal)));
+        assertNull(invert(neq(trunc(week, ts, cfg), literal)));
+        assertNull(invert(gt(trunc(week, ts, cfg), literal)));
+        assertNull(invert(gte(trunc(week, ts, cfg), literal)));
+        assertNull(invert(lt(trunc(week, ts, cfg), literal)));
+        assertNull(invert(lte(trunc(week, ts, cfg), literal)));
+        // A year starts on 1970-01-01, so no value truncates to null
+        Literal year = new Literal(SRC, DateUtils.toNanoSeconds(YEAR_2026), DataType.DATE_NANOS);
+        assertLt(invert(lt(trunc(yearInterval(), ts, cfg), year)), ts, DateUtils.toNanoSeconds(YEAR_2026), DataType.DATE_NANOS);
     }
 
     public void testDateTruncEvalAliasInverts() {

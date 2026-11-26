@@ -138,6 +138,7 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSortParser;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.FlushMetrics;
@@ -161,6 +162,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -300,6 +302,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -770,6 +773,8 @@ class NodeConstruction {
         modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
         TemplateDecoratorProvider.initOnce(pluginsService.loadServiceProviders(TemplateDecoratorProvider.class));
+        // A plugin's providers can be found again through the plugins that extend it
+        pluginsService.loadServiceProviders(IndexSortParser.class).forEach(IndexSortParser::init);
 
         RootObjectMapperNamespaceValidator namespaceValidator = pluginsService.loadSingletonServiceProvider(
             RootObjectMapperNamespaceValidator.class,
@@ -1429,6 +1434,7 @@ class NodeConstruction {
             )
         );
 
+        final SetOnce<IndicesClusterStateService> indicesClusterStateServiceRef = new SetOnce<>();
         modules.add(
             loadPluginShutdownService(clusterService),
             loadDiagnosticServices(
@@ -1441,7 +1447,7 @@ class NodeConstruction {
                 repositoriesService,
                 fileSettingsHealthTracker,
                 projectResolver,
-                indicesService
+                indicesClusterStateServiceRef::get
             )
         );
 
@@ -1579,6 +1585,7 @@ class NodeConstruction {
         }
 
         injector = modules.createInjector();
+        indicesClusterStateServiceRef.set(injector.getInstance(IndicesClusterStateService.class));
 
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
     }
@@ -1677,7 +1684,7 @@ class NodeConstruction {
         RepositoriesService repositoriesService,
         FileSettingsHealthTracker fileSettingsHealthTracker,
         ProjectResolver projectResolver,
-        IndicesService indicesService
+        Supplier<IndicesClusterStateService> indicesClusterStateService
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1715,7 +1722,7 @@ class NodeConstruction {
             new DiskHealthTracker(nodeService, clusterService),
             new RepositoriesHealthTracker(repositoriesService, projectResolver),
             fileSettingsHealthTracker,
-            new LocalRecoveryRetriesHealthTracker(indicesService)
+            new LocalRecoveryRetriesHealthTracker(clusterService, indicesClusterStateService)
         );
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, threadPool, client, healthTrackers);
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);

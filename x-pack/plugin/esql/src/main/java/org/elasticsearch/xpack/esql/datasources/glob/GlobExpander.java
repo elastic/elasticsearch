@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.TemplateSegment;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.WalkLayout;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
@@ -1005,7 +1006,10 @@ public final class GlobExpander {
         String retryPattern = rewriteFallbackPattern(pattern, effective, partitionConfig);
         // A bound-only retry never spliced, so it must not claim the partition filter is what changed.
         String retryDetail = rewriteFallbackRetryDetail(rewritten, retryPattern.equals(pattern));
-        logger.debug(() -> "Narrowed listing of [" + pattern + "] yielded no files; " + retryDetail, narrowedFailure);
+        logger.debug(
+            () -> "Narrowed listing of [" + ExternalFailures.redactHttpUrl(pattern) + "] yielded no files; " + retryDetail,
+            narrowedFailure
+        );
         leftover = remainingDirectoryListings(provider, maxDirectoryListings);
         if (provider instanceof DirectoryListingCounter && leftover <= 0) {
             return narrowed != null ? narrowed : FileList.EMPTY;
@@ -1555,7 +1559,8 @@ public final class GlobExpander {
             folderRange,
             maxDirectoryListings,
             null,
-            false
+            false,
+            null
         );
     }
 
@@ -1577,6 +1582,48 @@ public final class GlobExpander {
         int maxDirectoryListings,
         @Nullable PartitionPruningWalk.WalkResult precomputedWalk,
         boolean walkComputed
+    ) throws IOException {
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            extents,
+            memory,
+            cancelled,
+            allowRewrite,
+            folderRange,
+            maxDirectoryListings,
+            precomputedWalk,
+            walkComputed,
+            null
+        );
+    }
+
+    static FileList doExpandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        boolean allowRewrite,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings,
+        @Nullable PartitionPruningWalk.WalkResult precomputedWalk,
+        boolean walkComputed,
+        @Nullable WalkDiagnostics precomputedWalkDiagnostics
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -1653,12 +1700,14 @@ public final class GlobExpander {
         // A rejected walk (type mismatch, stray file) must re-list the superset. Re-applying the value filter
         // would prune again and undo the rejection.
         boolean suppressValueFilter = false;
+        WalkDiagnostics walkDiagnostics = precomputedWalkDiagnostics;
         if (walkComputed || wouldWalk(prefix, glob, hints, partitionConfig, folderRange)) {
             List<PartitionFilterHint> partitionHints = partitionPruningHints(hints);
             PartitionPruningWalk.WalkResult walk;
             if (walkComputed) {
                 walk = precomputedWalk;
             } else {
+                AtomicReference<WalkDiagnostics> diagnosticsOut = new AtomicReference<>();
                 try {
                     walk = PartitionPruningWalk.tryWalk(
                         provider,
@@ -1673,7 +1722,8 @@ public final class GlobExpander {
                         maxListedObjects,
                         maxDirectoryListings,
                         cancelled,
-                        walkPathTemplate(partitionConfig)
+                        walkPathTemplate(partitionConfig),
+                        diagnosticsOut
                     );
                 } catch (DiscoveredFilesLimitException e) {
                     // Walk cannot stop at the file-set bound: the collector throws once matched.size()
@@ -1683,6 +1733,15 @@ public final class GlobExpander {
                         throw e;
                     }
                     walk = null;
+                }
+                walkDiagnostics = diagnosticsOut.get();
+            }
+            if (walk == null && (walkDiagnostics == null || walkDiagnostics.stopReason() != WalkDiagnostics.StopReason.FINISHED)) {
+                if (walkDiagnostics != null) {
+                    WalkDiagnostics withdrawn = walkDiagnostics;
+                    logger.debug(() -> "Walk of [" + ExternalFailures.redactHttpUrl(pattern) + "] withdrew: " + withdrawn.describe());
+                } else {
+                    logger.debug("Walk of [{}] withdrew", ExternalFailures.redactHttpUrl(pattern));
                 }
             }
             // An all-pruned walk keeps one inference-anchor file from a pruned folder. The row filter still
@@ -1777,17 +1836,23 @@ public final class GlobExpander {
                         }
                         return new GenericFileList(walked, pattern, walkedMetadata, walkNotices, truncated);
                     }
-                    logger.debug("Walked listing of [{}] would narrow the type of partition column(s); re-listing flat", pattern);
+                    logger.debug(
+                        "Walked listing of [{}] would narrow the type of partition column(s); re-listing flat",
+                        ExternalFailures.redactHttpUrl(pattern)
+                    );
                     suppressValueFilter = true;
                 } else {
                     logger.debug(
                         "Walked listing of [{}] does not detect the pruned-on partition columns {}; re-listing flat",
-                        pattern,
+                        ExternalFailures.redactHttpUrl(pattern),
                         walk.prunedColumns()
                     );
                     suppressValueFilter = true;
                 }
             }
+        }
+        if (suppressValueFilter && walkDiagnostics != null) {
+            walkDiagnostics = walkDiagnostics.withoutPrunedClaim();
         }
 
         // Value-filter before the discovery cap. A brace used to hide non-matching folders from this loop; without
@@ -1837,7 +1902,7 @@ public final class GlobExpander {
             while (cancelled.getAsBoolean() == false && globKeptCount < extents.maxFiles() && iterator.hasNext()) {
                 StorageEntry entry = iterator.next();
                 listed++;
-                checkListedObjectsLimit(listed, maxListedObjects);
+                checkListedObjectsLimit(listed, maxListedObjects, walkDiagnostics);
                 String entryPath = entry.path().toString();
                 String relativePath;
                 if (entryPath.startsWith(prefixStr)) {
@@ -1870,7 +1935,7 @@ public final class GlobExpander {
                             continue;
                         }
                         globKeptCount++;
-                        fileHintAnchor = addOrStashAnchor(entry, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
+                        fileHintAnchor = addOrStashAnchor(entry, fileHints, matched, fileHintAnchor, maxDiscoveredFiles, walkDiagnostics);
                     } else {
                         // Matched what the user asked for and was dropped anyway. Keep the first one so the notice
                         // can name a concrete file and the entry responsible; "some files were excluded" on its own
@@ -1905,7 +1970,8 @@ public final class GlobExpander {
             maxDiscoveredFiles,
             fileOrder,
             memory,
-            cancelled
+            cancelled,
+            walkDiagnostics
         );
     }
 
@@ -1935,7 +2001,8 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         FileOrderConfig fileOrder,
         PlanningMemory memory,
-        BooleanSupplier cancelled
+        BooleanSupplier cancelled,
+        @Nullable WalkDiagnostics walk
     ) {
         // The exclusion notice rides the listing only when this segment lists nothing, where the resolver's
         // "matched no files" error names it as the reason. A segment with files logs it and carries nothing.
@@ -1957,12 +2024,13 @@ public final class GlobExpander {
             if (prunedColumns.isEmpty() == false && valueFilterTrusted(matched, valueExcluded, partitionConfig, prunedColumns) == false) {
                 logger.debug(
                     "Value-filtered listing of [{}] does not prove partition column(s) {}; keeping the filtered-out files",
-                    pattern,
+                    ExternalFailures.redactHttpUrl(pattern),
                     prunedColumns
                 );
                 restoredUntrusted = true;
+                walk = walk == null ? null : walk.withoutPrunedClaim();
                 for (StorageEntry excluded : valueExcluded) {
-                    fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
+                    fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles, walk);
                 }
             }
         } else if (matched.isEmpty()
@@ -1979,7 +2047,7 @@ public final class GlobExpander {
                     List<StorageEntry> kept = new ArrayList<>(1);
                     StorageEntry stash = null;
                     for (StorageEntry candidate : valueExcluded) {
-                        stash = addOrStashAnchor(candidate, fileHints, kept, stash, maxDiscoveredFiles);
+                        stash = addOrStashAnchor(candidate, fileHints, kept, stash, maxDiscoveredFiles, walk);
                         if (kept.isEmpty() == false) {
                             break;
                         }
@@ -1997,12 +2065,13 @@ public final class GlobExpander {
                 } else {
                     logger.debug(
                         "Value-filtered listing of [{}] does not prove partition column(s) {}; keeping the filtered-out files",
-                        pattern,
+                        ExternalFailures.redactHttpUrl(pattern),
                         prunedColumns
                     );
                     restoredUntrusted = true;
+                    walk = walk == null ? null : walk.withoutPrunedClaim();
                     for (StorageEntry excluded : valueExcluded) {
-                        fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
+                        fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles, walk);
                     }
                 }
             }
@@ -2167,7 +2236,7 @@ public final class GlobExpander {
                 }
                 logger.debug(
                     () -> "Narrowed listing of ["
-                        + pattern
+                        + ExternalFailures.redactHttpUrl(pattern)
                         + "] yielded no files; "
                         + rewriteFallbackRetryDetail(finalRewritten, retryPattern.equals(pattern))
                 );
@@ -2229,7 +2298,9 @@ public final class GlobExpander {
                     return;
                 }
                 logger.debug(
-                    () -> "Narrowed listing of [" + pattern + "] failed; re-listing without the narrowing that produced it",
+                    () -> "Narrowed listing of ["
+                        + ExternalFailures.redactHttpUrl(pattern)
+                        + "] failed; re-listing without the narrowing that produced it",
                     narrowFailure
                 );
                 int retryLeftover = remainingDirectoryListings(provider, maxDirectoryListings);
@@ -2322,6 +2393,7 @@ public final class GlobExpander {
             if (walkMatcher.enumerateKeys(maxGlobExpansion) == null
                 && wouldWalk(storagePath.patternPrefix(), storagePath.globPart(), hints, partitionConfig, folderRange)) {
                 FileMetadataFilter walkFileHints = FileMetadataFilter.resolve(hints);
+                AtomicReference<WalkDiagnostics> diagnosticsOut = new AtomicReference<>();
                 PartitionPruningWalk.tryWalkAsync(
                     provider,
                     storagePath.patternPrefix(),
@@ -2359,7 +2431,8 @@ public final class GlobExpander {
                                     folderRange,
                                     maxDirectoryListings,
                                     walk,
-                                    true
+                                    true,
+                                    diagnosticsOut.get()
                                 )
                             );
                         }
@@ -2386,7 +2459,8 @@ public final class GlobExpander {
                                         folderRange,
                                         maxDirectoryListings,
                                         null,
-                                        true
+                                        true,
+                                        diagnosticsOut.get()
                                     )
                                 );
                                 return;
@@ -2394,7 +2468,8 @@ public final class GlobExpander {
                             listener.onFailure(e);
                         }
                     },
-                    walkPathTemplate(partitionConfig)
+                    walkPathTemplate(partitionConfig),
+                    diagnosticsOut
                 );
                 return;
             }
@@ -2496,7 +2571,11 @@ public final class GlobExpander {
                 slots = buildSlots(provider, prefix, matcher, FAN_OUT_SLOT_BUDGET, sharedListedCount);
             }
         } catch (IOException e) {
-            logger.debug("Prefix fan-out for [{}] could not build slots; falling back to flat listing", pattern, e);
+            logger.debug(
+                "Prefix fan-out for [{}] could not build slots; falling back to flat listing",
+                ExternalFailures.redactHttpUrl(pattern),
+                e
+            );
         }
 
         // buildSlots yields either no folder slots (files only: the slots are the whole listing, so reuse them rather
@@ -3012,7 +3091,8 @@ public final class GlobExpander {
                         maxDiscoveredFiles,
                         fileOrder,
                         memory,
-                        isCancelled
+                        isCancelled,
+                        null
                     )
                 );
             } catch (Exception finishFailure) {
@@ -3152,9 +3232,20 @@ public final class GlobExpander {
         @Nullable StorageEntry anchor,
         int maxDiscoveredFiles
     ) {
+        return addOrStashAnchor(entry, fileHints, matched, anchor, maxDiscoveredFiles, null);
+    }
+
+    private static StorageEntry addOrStashAnchor(
+        StorageEntry entry,
+        FileMetadataFilter fileHints,
+        List<StorageEntry> matched,
+        @Nullable StorageEntry anchor,
+        int maxDiscoveredFiles,
+        @Nullable WalkDiagnostics walk
+    ) {
         if (fileHints.isEmpty() || fileHints.matches(entry)) {
             matched.add(entry);
-            checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+            checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles, walk);
             return anchor;
         }
         return anchor != null ? anchor : entry;
@@ -3598,14 +3689,22 @@ public final class GlobExpander {
      * listing can be re-checked after a live cap drop without expanding again.
      */
     public static void checkDiscoveredFilesLimit(int discoveredCount, int maxDiscoveredFiles) {
+        checkDiscoveredFilesLimit(discoveredCount, maxDiscoveredFiles, null);
+    }
+
+    static void checkDiscoveredFilesLimit(int discoveredCount, int maxDiscoveredFiles, @Nullable WalkDiagnostics walk) {
         if (discoveredCount > maxDiscoveredFiles) {
-            throw new DiscoveredFilesLimitException(discoveredCount, maxDiscoveredFiles);
+            throw new DiscoveredFilesLimitException(discoveredCount, maxDiscoveredFiles, walk);
         }
     }
 
     static void checkListedObjectsLimit(int listedCount, int maxListedObjects) {
+        checkListedObjectsLimit(listedCount, maxListedObjects, null);
+    }
+
+    static void checkListedObjectsLimit(int listedCount, int maxListedObjects, @Nullable WalkDiagnostics walk) {
         if (listedCount > maxListedObjects) {
-            throw new ListedObjectsLimitException(listedCount, maxListedObjects);
+            throw new ListedObjectsLimitException(listedCount, maxListedObjects, walk);
         }
     }
 

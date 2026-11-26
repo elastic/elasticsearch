@@ -1520,6 +1520,36 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertFalse(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "18", "hour", "0")));
     }
 
+    /**
+     * Offset-less quoted {@code LocalDateTime} windows. Without the local-date-time check,
+     * extract would emit a lexical hull; RANGE-only keeps both UTC hours and the gap.
+     */
+    public void testQuotedOffsetlessWindowsSkipHullAndKeepBothFolders() {
+        Expression condition = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("ts"), keywordLiteral("2026-11-17T22:00:00")),
+                new LessThan(SRC, unresolved("ts"), keywordLiteral("2026-11-18T00:00:00"))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("ts"), keywordLiteral("2026-11-19T04:00:00")),
+                new LessThan(SRC, unresolved("ts"), keywordLiteral("2026-11-19T06:00:00"))
+            )
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(1, hints.size());
+        assertEquals("ts", hints.get(0).columnName());
+        assertEquals(Operator.RANGE, hints.get(0).operator());
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        assertTrue(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "17", "hour", "22")));
+        assertTrue(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "19", "hour", "4")));
+        assertFalse(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "18", "hour", "3")));
+    }
+
     public void testResolvedOrOfTwoPrefixesEmitsNothing() {
         // Walking OR would AND two GTE/LT ranges in matchesAllFileHints and drop every file.
         Expression filter = new Or(

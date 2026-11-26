@@ -940,12 +940,13 @@ public class PartitionSpecProjectorTests extends ESTestCase {
 
     /**
      * Exclusive {@code >} at an exact millisecond keeps that millisecond so AND of two DATE_NANOS
-     * windows that only overlap inside it is not empty.
+     * windows that only overlap inside it is not empty. Upper is {@code exactMs + 2ns} so
+     * {@code exactMs + 1ns} is a real matching row, not an empty 1ns exclusive interval.
      */
     public void testExclusiveLowerAtExactMillisKeepsNanosWindow() {
         PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
         Instant exactMs = Instant.parse("2026-11-17T22:00:00Z");
-        Instant insideMs = Instant.parse("2026-11-17T22:00:00.000000001Z");
+        Instant insideMs = Instant.parse("2026-11-17T22:00:00.000000002Z");
         List<PartitionFilterHint> hints = List.of(
             new PartitionFilterHint("ts", Operator.RANGE, List.of(new BoundRange(exactMs, false, insideMs, false))),
             new PartitionFilterHint("ts", Operator.RANGE, List.of(new BoundRange(exactMs, true, insideMs, false)))
@@ -955,6 +956,20 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertTrue(predicate.mayContain(hourBinding(2026, 11, 17, 22)));
         assertFalse(predicate.mayContain(hourBinding(2026, 11, 17, 21)));
         assertFalse(predicate.mayContain(hourBinding(2026, 11, 17, 23)));
+    }
+
+    /**
+     * Integral epoch-millis {@code >} the last millisecond of an hour drops that hour.
+     * Keeping the bound millisecond would list {@code hour=21} though no DATETIME row matches.
+     */
+    public void testNumericExclusiveLowerAtLastMillisOfHourDropsThatHour() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        long lastMillisOfHour21 = Instant.parse("2026-11-17T21:59:59.999Z").toEpochMilli();
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN, lastMillisOfHour21));
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        assertFalse(predicate.mayContain(hourBinding(2026, 11, 17, 21)));
+        assertTrue(predicate.mayContain(hourBinding(2026, 11, 17, 22)));
     }
 
     /**

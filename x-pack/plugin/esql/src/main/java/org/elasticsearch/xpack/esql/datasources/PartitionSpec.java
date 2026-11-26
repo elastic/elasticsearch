@@ -1940,21 +1940,33 @@ public final class PartitionSpec {
     }
 
     /**
-     * AND of two ORs: every pair of intervals, dropping empty clips. Unioning would keep
-     * folders each conjunct already excludes and can trip {@code max_discovered_files}.
-     * Overlapping clips are merged so a later AND cannot grow the cartesian product.
+     * AND of two ORs. Both inputs are sorted and non-overlapping ({@link #mergeOverlapping}
+     * on each RANGE hint), so a two-pointer sweep emits the same normalized clips without
+     * an all-pairs scan or a second merge. Unioning would keep folders each conjunct already
+     * excludes and can trip {@code max_discovered_files}.
      */
     private static List<InstantRange> intersectDisjuncts(List<InstantRange> left, List<InstantRange> right) {
         List<InstantRange> out = new ArrayList<>();
-        for (InstantRange a : left) {
-            for (InstantRange b : right) {
-                InstantRange clipped = a.intersect(b);
-                if (clipped.isEmpty() == false) {
-                    out.add(clipped);
-                }
+        int i = 0;
+        int j = 0;
+        while (i < left.size() && j < right.size()) {
+            InstantRange a = left.get(i);
+            InstantRange b = right.get(j);
+            InstantRange clipped = a.intersect(b);
+            if (clipped.isEmpty() == false) {
+                out.add(clipped);
+            }
+            if (endKey(a) <= endKey(b)) {
+                i++;
+            } else {
+                j++;
             }
         }
-        return mergeOverlapping(out);
+        return out;
+    }
+
+    private static long endKey(InstantRange range) {
+        return range.endExclusiveMillis() != null ? range.endExclusiveMillis() : Long.MAX_VALUE;
     }
 
     /**
@@ -2444,14 +2456,18 @@ public final class PartitionSpec {
     }
 
     /**
-     * Exclusive {@code >} as an inclusive start. {@link Instant#toEpochMilli()} floors,
-     * so keep the containing millisecond: DATE_NANOS rows after an exact-ms bound still
-     * live in that millisecond, and AND of two such windows must not become empty.
-     * One extra DATETIME millisecond does not add a grain folder.
+     * Exclusive {@code >} as an inclusive start. Numeric epoch bounds are millisecond
+     * (or coarser) already, so start at the next millisecond: {@code ts >} the last
+     * millis of hour 21 must drop that hour. Instant and quoted bounds keep the
+     * containing millisecond so DATE_NANOS rows after an exact-ms Instant still match.
      */
     @Nullable
     private static Long exclusiveLowerStartMillis(Object raw, Unit unit) {
-        return toUtcMillisForProjection(raw, unit);
+        Long millis = toUtcMillisForProjection(raw, unit);
+        if (millis == null) {
+            return null;
+        }
+        return isNumericLiteral(raw) ? increment(millis) : millis;
     }
 
     /**

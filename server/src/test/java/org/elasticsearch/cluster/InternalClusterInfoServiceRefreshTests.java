@@ -308,9 +308,8 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
     public void testSearchLoadMetricsCollectorSuccessAndFailure() {
         try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
-            final ClusterInfo.NodeAndShard nodeAndShard = new ClusterInfo.NodeAndShard("node-id", new ShardId("index", "uuid", 0));
-            final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = Map.of(nodeAndShard, new SearchCopyDemand(1.25d, 3.0d));
-            final Map<String, NodeSearchCapacity> capacities = Map.of("node-id", new NodeSearchCapacity(4.0d, 8.0d));
+            final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = searchCopyDemands();
+            final Map<String, NodeSearchCapacity> capacities = nodeSearchCapacities();
             final SearchLoadMetrics searchLoadMetrics = new SearchLoadMetrics(demands, capacities);
             final AtomicBoolean failSearchLoadMetrics = new AtomicBoolean();
             final SearchLoadMetricsCollector searchLoadMetricsCollector = mock(SearchLoadMetricsCollector.class);
@@ -324,14 +323,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 return null;
             }).when(searchLoadMetricsCollector).collectSearchLoadMetrics(any(), any());
 
-            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
-                nodeStatsClient(context.threadPool()),
-                EstimatedHeapUsageCollector.EMPTY,
-                CacheSizesAndCommitmentCollector.EMPTY,
-                PartitionSizeCollector.EMPTY,
-                SearchLaneRequirementsCollector.EMPTY,
-                searchLoadMetricsCollector
-            );
+            final InternalClusterInfoService clusterInfoService = searchLoadClusterInfoService(context, searchLoadMetricsCollector);
 
             // Success populates both ClusterInfo maps from the one snapshot.
             ClusterInfo clusterInfo = refresh(clusterInfoService);
@@ -351,22 +343,14 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
     public void testSearchLoadMetricsCollectorReleasesRefreshAfterThrow() {
         try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
-            final ClusterInfo.NodeAndShard nodeAndShard = new ClusterInfo.NodeAndShard("node-id", new ShardId("index", "uuid", 0));
-            final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = Map.of(nodeAndShard, new SearchCopyDemand(1.25d, 3.0d));
-            final Map<String, NodeSearchCapacity> capacities = Map.of("node-id", new NodeSearchCapacity(4.0d, 8.0d));
+            final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = searchCopyDemands();
+            final Map<String, NodeSearchCapacity> capacities = nodeSearchCapacities();
             final SearchLoadMetricsCollector searchLoadMetricsCollector = mock(SearchLoadMetricsCollector.class);
             doAnswer(invocation -> { throw new IllegalStateException("simulated search load metrics failure"); }).when(
                 searchLoadMetricsCollector
             ).collectSearchLoadMetrics(any(), any());
 
-            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
-                nodeStatsClient(context.threadPool()),
-                EstimatedHeapUsageCollector.EMPTY,
-                CacheSizesAndCommitmentCollector.EMPTY,
-                PartitionSizeCollector.EMPTY,
-                SearchLaneRequirementsCollector.EMPTY,
-                searchLoadMetricsCollector
-            );
+            final InternalClusterInfoService clusterInfoService = searchLoadClusterInfoService(context, searchLoadMetricsCollector);
 
             // A throw before the listener still finishes this refresh with empty maps.
             ClusterInfo clusterInfo = refresh(clusterInfoService);
@@ -387,9 +371,8 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
     public void testSearchLoadMetricsCollectorErrorReleasesRefresh() {
         try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
-            final ClusterInfo.NodeAndShard nodeAndShard = new ClusterInfo.NodeAndShard("node-id", new ShardId("index", "uuid", 0));
-            final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = Map.of(nodeAndShard, new SearchCopyDemand(1.25d, 3.0d));
-            final Map<String, NodeSearchCapacity> capacities = Map.of("node-id", new NodeSearchCapacity(4.0d, 8.0d));
+            final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = searchCopyDemands();
+            final Map<String, NodeSearchCapacity> capacities = nodeSearchCapacities();
             final AtomicBoolean throwError = new AtomicBoolean(true);
             final SearchLoadMetricsCollector searchLoadMetricsCollector = mock(SearchLoadMetricsCollector.class);
             doAnswer(invocation -> {
@@ -401,14 +384,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 return null;
             }).when(searchLoadMetricsCollector).collectSearchLoadMetrics(any(), any());
 
-            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
-                nodeStatsClient(context.threadPool()),
-                EstimatedHeapUsageCollector.EMPTY,
-                CacheSizesAndCommitmentCollector.EMPTY,
-                PartitionSizeCollector.EMPTY,
-                SearchLaneRequirementsCollector.EMPTY,
-                searchLoadMetricsCollector
-            );
+            final InternalClusterInfoService clusterInfoService = searchLoadClusterInfoService(context, searchLoadMetricsCollector);
 
             // AssertionError is an Error, so ActionListener.run does not forward it. The refresh ref must still be released.
             final AssertionError error = expectThrows(AssertionError.class, () -> refresh(clusterInfoService));
@@ -447,14 +423,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 return null;
             }).when(searchLoadMetricsCollector).collectSearchLoadMetrics(any(), any());
 
-            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
-                nodeStatsClient(context.threadPool()),
-                EstimatedHeapUsageCollector.EMPTY,
-                CacheSizesAndCommitmentCollector.EMPTY,
-                PartitionSizeCollector.EMPTY,
-                SearchLaneRequirementsCollector.EMPTY,
-                searchLoadMetricsCollector
-            );
+            final InternalClusterInfoService clusterInfoService = searchLoadClusterInfoService(context, searchLoadMetricsCollector);
 
             final PlainActionFuture<ClusterInfo> future = new PlainActionFuture<>();
             final AtomicReference<Throwable> refreshFailure = new AtomicReference<>();
@@ -484,6 +453,31 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 refreshThread.join(10_000);
             }
         }
+    }
+
+    private static Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands() {
+        return Map.of(
+            new ClusterInfo.NodeAndShard("node-id", new ShardId("index", "uuid", 0)),
+            new SearchCopyDemand(1.25d, 3.0d)
+        );
+    }
+
+    private static Map<String, NodeSearchCapacity> nodeSearchCapacities() {
+        return Map.of("node-id", new NodeSearchCapacity(4.0d, 8.0d));
+    }
+
+    private static InternalClusterInfoService searchLoadClusterInfoService(
+        RefreshTestContext context,
+        SearchLoadMetricsCollector searchLoadMetricsCollector
+    ) {
+        return context.createClusterInfoService(
+            nodeStatsClient(context.threadPool()),
+            EstimatedHeapUsageCollector.EMPTY,
+            CacheSizesAndCommitmentCollector.EMPTY,
+            PartitionSizeCollector.EMPTY,
+            SearchLaneRequirementsCollector.EMPTY,
+            searchLoadMetricsCollector
+        );
     }
 
     private static Settings baseSettings() {

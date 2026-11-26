@@ -57,7 +57,9 @@ import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -109,6 +111,8 @@ public class NodeJoinTests extends ESTestCase {
         masterService.close();
         coordinator.close();
     }
+
+    private JoinAttributes joinAttributes = JoinAttributes.NONE;
 
     private static ClusterState initialState(DiscoveryNode localNode, long term, long version, VotingConfiguration config) {
         return ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
@@ -235,7 +239,7 @@ public class NodeJoinTests extends ESTestCase {
             r -> emptyList(),
             new NoOpClusterApplier(),
             Collections.emptyList(),
-            JoinAttributes.NONE,
+            joinAttributes,
             random,
             (s, p, r) -> {},
             ElectionStrategy.DEFAULT_INSTANCE,
@@ -342,6 +346,61 @@ public class NodeJoinTests extends ESTestCase {
         assertTrue(fut.isDone());
         assertTrue(isLocalNodeElectedMaster());
         assertTrue(coordinator.getStateForMasterService().nodes().isLocalNodeElectedMaster());
+    }
+
+    /** A join the validator rejects in an election, from a node outside the voting configuration, doesn't stop the election. */
+    public void testElectionWithJoinRejectedByJoinAttributesValidator() {
+        DiscoveryNode node0 = newNode(0, true);
+        DiscoveryNode node1 = newNode(1, true);
+        DiscoveryNode node2 = newNode(2, true);
+        long initialTerm = randomLongBetween(1, 10);
+        long initialVersion = randomLongBetween(1, 10);
+        Map<DiscoveryNode, Map<String, String>> validated = new HashMap<>();
+        joinAttributes = new JoinAttributes(Map::of, List.of((node, attributes, state) -> {
+            validated.put(node, attributes);
+            if ("false".equals(attributes.get("test.can_join"))) {
+                throw new IllegalStateException("node cannot join");
+            }
+        }));
+        setupFakeMasterServiceAndCoordinator(
+            initialTerm,
+            initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0, node1)),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
+        long newTerm = initialTerm + randomLongBetween(1, 10);
+
+        // the rejected join arrives before the vote that wins the election, so the election handles it
+        Future<Void> rejectedJoin = joinNodeAsync(
+            new JoinRequest(
+                node2,
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
+                newTerm,
+                Optional.of(new Join(node2, node0, newTerm, initialTerm, initialVersion)),
+                Map.of("test.can_join", "false")
+            )
+        );
+        assertEquals(Coordinator.Mode.CANDIDATE, coordinator.getMode());
+        Future<Void> admittedJoin = joinNodeAsync(
+            new JoinRequest(
+                node1,
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
+                newTerm,
+                Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)),
+                Map.of("test.can_join", "true")
+            )
+        );
+        assertEquals(Coordinator.Mode.LEADER, coordinator.getMode());
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertEquals(Map.of(node1, Map.of("test.can_join", "true"), node2, Map.of("test.can_join", "false")), validated);
+        assertTrue(isLocalNodeElectedMaster());
+        assertEquals(newTerm, coordinator.getStateForMasterService().term());
+        FutureUtils.get(admittedJoin);
+        assertTrue(clusterStateHasNode(node1));
+        assertThat(expectThrows(Exception.class, () -> FutureUtils.get(rejectedJoin)).getMessage(), containsString("node cannot join"));
+        assertFalse(clusterStateHasNode(node2));
     }
 
     public void testJoinWithHigherTermButBetterStateGetsRejected() {

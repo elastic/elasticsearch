@@ -136,6 +136,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         final boolean electing = currentNodes.getMasterNode() == null && isBecomingMaster;
         // the state the joining nodes are added to
         ClusterState baseState = initialState;
+        // in an election, validated before trimming conflicting nodes, so that a rejected join can't remove an existing node
+        final Map<DiscoveryNode, RuntimeException> electionJoinRejections = new HashMap<>();
 
         if (electing) {
             assert initialState.term() < term : "there should be at most one become master task per election (= by term)";
@@ -145,7 +147,19 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 // suppress deprecation warnings e.g. from reroute()
                 baseState = latestStateForElection(initialState, joinTaskContexts);
-                newState = becomeMasterAndTrimConflictingNodes(baseState, joinTaskContexts, term);
+                for (final var joinTaskContext : joinTaskContexts) {
+                    for (final JoinTask.NodeJoinTask nodeJoinTask : joinTaskContext.getTask().nodeJoinTasks()) {
+                        final DiscoveryNode node = nodeJoinTask.node();
+                        if (currentNodes.nodeExistsWithSameRoles(node) == false) {
+                            try {
+                                validateJoinAttributes(node, nodeJoinTask.joinAttributes(), baseState, true);
+                            } catch (IllegalArgumentException | IllegalStateException e) {
+                                electionJoinRejections.put(node, e);
+                            }
+                        }
+                    }
+                }
+                newState = becomeMasterAndTrimConflictingNodes(baseState, joinTaskContexts, term, electionJoinRejections.keySet());
             }
             nodesChanged = true;
         } else if (currentNodes.isLocalNodeElectedMaster()) {
@@ -210,7 +224,14 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                             node.getMaxIndexVersion(),
                             initialState.getMetadata()
                         );
-                        validateJoinAttributes(node, nodeJoinTask.joinAttributes(), baseState, electing);
+                        if (electing) {
+                            final RuntimeException rejection = electionJoinRejections.get(node);
+                            if (rejection != null) {
+                                throw rejection;
+                            }
+                        } else {
+                            validateJoinAttributes(node, nodeJoinTask.joinAttributes(), baseState, false);
+                        }
 
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
@@ -344,7 +365,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
         ClusterState currentState,
         List<? extends TaskContext<JoinTask>> taskContexts,
-        long term
+        long term,
+        Set<DiscoveryNode> rejectedNodes
     ) {
         assert currentState.nodes().getMasterNodeId() == null : currentState;
         assert currentState.term() < term : term + " vs " + currentState;
@@ -360,6 +382,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
         for (final var taskContext : taskContexts) {
             for (final var joiningNode : taskContext.getTask().nodes()) {
+                if (rejectedNodes.contains(joiningNode)) {
+                    continue;
+                }
                 final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
                 if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
                     logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);

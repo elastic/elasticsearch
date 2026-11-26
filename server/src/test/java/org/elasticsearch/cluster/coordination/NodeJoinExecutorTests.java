@@ -873,6 +873,69 @@ public class NodeJoinExecutorTests extends ESTestCase {
         }
     }
 
+    /** A join rejected in an election doesn't remove the existing node it conflicts with. */
+    public void testJoinRejectedInElectionDoesNotRemoveConflictingNode() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        when(allocationService.disassociateDeadNodes(any(), anyBoolean(), any())).then(
+            invocationOnMock -> invocationOnMock.getArguments()[0]
+        );
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode existingNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode restartedNode = DiscoveryNodeUtils.builder(existingNode.getId())
+            .name(existingNode.getName())
+            .address(existingNode.getAddress())
+            .roles(existingNode.getRoles())
+            .build();
+        assertNotEquals(existingNode, restartedNode);
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).add(existingNode).localNodeId(masterNode.getId()))
+            .build();
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(
+            allocationService,
+            rerouteService,
+            createFeatureService(),
+            Function.identity(),
+            List.of((node, joinAttributes, state) -> {
+                if (node.equals(restartedNode)) {
+                    throw new IllegalStateException("node cannot join");
+                }
+            })
+        );
+
+        ClusterState resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.completingElection(
+                    Stream.of(
+                        new JoinTask.NodeJoinTask(
+                            masterNode,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            NO_FAILURE_LISTENER
+                        ),
+                        new JoinTask.NodeJoinTask(
+                            restartedNode,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            ActionListener.wrap(o -> fail("should have failed"), e -> {})
+                        )
+                    ),
+                    1L
+                )
+            )
+        );
+
+        assertEquals(masterNode.getId(), resultingState.nodes().getMasterNodeId());
+        assertSame(existingNode, resultingState.nodes().get(existingNode.getId()));
+    }
+
     private static JoinTask joinTask(DiscoveryNode node, Map<String, String> joinAttributes, ActionListener<Void> listener) {
         return JoinTask.singleNode(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinAttributes, TEST_REASON, listener, 0L);
     }

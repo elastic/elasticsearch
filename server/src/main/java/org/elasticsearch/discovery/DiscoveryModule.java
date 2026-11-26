@@ -57,6 +57,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -143,8 +144,9 @@ public class DiscoveryModule extends AbstractModule {
                 }
             });
         }
-        // fails at startup, not on every join, if two plugins set the same join attribute
-        collectJoinAttributes(clusterCoordinationPlugins);
+        collectJoinAttributes(clusterCoordinationPlugins, key -> {
+            throw new IllegalStateException("join attribute [" + key + "] is set by more than one plugin");
+        });
 
         List<String> seedProviderNames = DISCOVERY_SEED_PROVIDERS_SETTING.get(settings);
         // for bwc purposes, add settings provider even if not explicitly specified
@@ -196,7 +198,13 @@ public class DiscoveryModule extends AbstractModule {
                 seedHostsProvider,
                 clusterApplier,
                 joinValidators,
-                new JoinAttributes(() -> collectJoinAttributes(clusterCoordinationPlugins), joinAttributesValidators),
+                new JoinAttributes(
+                    () -> collectJoinAttributes(
+                        clusterCoordinationPlugins,
+                        key -> logger.warn("join attribute [{}] is set by more than one plugin, so it is not sent", key)
+                    ),
+                    joinAttributesValidators
+                ),
                 new Random(Randomness.get().nextLong()),
                 rerouteService,
                 electionStrategy,
@@ -238,15 +246,24 @@ public class DiscoveryModule extends AbstractModule {
         return new Reconfigurator(settings, clusterSettings);
     }
 
+    /** Collects the plugins' join attributes, leaving out each key set by more than one plugin, after passing it to onDuplicateKey. */
     // visible for testing
-    static Map<String, String> collectJoinAttributes(List<ClusterCoordinationPlugin> clusterCoordinationPlugins) {
+    static Map<String, String> collectJoinAttributes(
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins,
+        Consumer<String> onDuplicateKey
+    ) {
         Map<String, String> attributes = new HashMap<>();
+        Set<String> duplicateKeys = new HashSet<>();
         for (ClusterCoordinationPlugin plugin : clusterCoordinationPlugins) {
             plugin.getJoinAttributes().forEach((key, value) -> {
                 if (attributes.putIfAbsent(key, value) != null) {
-                    throw new IllegalStateException("join attribute [" + key + "] is set by more than one plugin");
+                    duplicateKeys.add(key);
                 }
             });
+        }
+        for (String key : duplicateKeys) {
+            onDuplicateKey.accept(key);
+            attributes.remove(key);
         }
         return Map.copyOf(attributes);
     }

@@ -206,10 +206,11 @@ public abstract class AbstractInSubqueryJoin extends Join
     /**
      * The number of distinct values up to which this join keeps the subquery result as an IN list rather than a hash join.
      * <p>
-     * A {@code configuredThreshold} of zero or more was chosen by someone and is used as is. A negative one picks by cost. An IN list
-     * evaluated per row costs more with every value, so it stays at {@link #DEFAULT_FILTER_PATH_MAX_VALUES}. Pushed to an index as a
-     * {@code terms} query it reads only the matching rows, where the hash join reads all of them, so it can grow to the limit the
-     * indices accept, even when that is below the default, as a shard rejects a longer query.
+     * A {@code configuredThreshold} of zero or more was chosen by someone and is used as is, except that it never exceeds a known
+     * limit below {@link #DEFAULT_FILTER_PATH_MAX_VALUES} of an index the IN list is pushed to, as a shard rejects a longer
+     * {@code terms} query. A negative one picks by cost. An IN list evaluated per row costs more with every value, so it stays at
+     * {@link #DEFAULT_FILTER_PATH_MAX_VALUES}. Pushed to an index as a {@code terms} query it reads only the matching rows, where the
+     * hash join reads all of them, so it can grow to the limit the indices accept, even when that is below the default.
      *
      * @param maxIndexedValues the most values a {@code terms} query may hold on every index of a relation, {@code 0} when unknown
      */
@@ -218,14 +219,11 @@ public abstract class AbstractInSubqueryJoin extends Join
         int configuredThreshold,
         ToIntFunction<EsRelation> maxIndexedValues
     ) {
-        if (configuredThreshold >= 0) {
-            return configuredThreshold;
-        }
         EsRelation source = join.indexedFilterSource();
-        if (source == null) {
-            return DEFAULT_FILTER_PATH_MAX_VALUES;
+        int known = source == null ? 0 : maxIndexedValues.applyAsInt(source);
+        if (configuredThreshold >= 0) {
+            return known > 0 && known < DEFAULT_FILTER_PATH_MAX_VALUES ? Math.min(configuredThreshold, known) : configuredThreshold;
         }
-        int known = maxIndexedValues.applyAsInt(source);
         return known > 0 ? known : DEFAULT_FILTER_PATH_MAX_VALUES;
     }
 

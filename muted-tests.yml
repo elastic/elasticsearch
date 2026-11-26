@@ -622,11 +622,6 @@ tests:
   - :x-pack:plugin:vector-tile:test
   method: testDegeneratedPolygon
   issue: https://github.com/elastic/elasticsearch/issues/165844
-- class: org.elasticsearch.xpack.downsample.DownsampleResilienceIT
-  tasks:
-  - :x-pack:plugin:downsample:internalClusterTest
-  method: testConcurrentRequestsForDifferentTargets
-  issue: https://github.com/elastic/elasticsearch/issues/165848
 - class: org.elasticsearch.snapshots.DedicatedClusterSnapshotRestoreIT
   tasks:
   - :server:internalClusterTest
@@ -750,11 +745,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripDropsClusterWithPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/167022
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testSourceRelocationCancelsClone
-  issue: https://github.com/elastic/elasticsearch/issues/167032
 - class: org.elasticsearch.xpack.esql.action.FetchContextsIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -789,123 +779,16 @@ tests:
   - :x-pack:qa:runtime-fields:core-with-mapped:yamlRestTest
   method: test {yaml=aggregations/terms_include_exclude_regex/a build predicted to exceed the request breaker is refused, and the reservation is released}
   issue: https://github.com/elastic/elasticsearch/issues/167319
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  tasks:
-  - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
-  method: test {yaml=search/640_regexp_circuit_breaker/a regexp query whose build is predicted to exceed the request breaker is refused, and the reservation is
-    released}
-  issue: https://github.com/elastic/elasticsearch/issues/167330
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateBlockWithoutNulls {TestCase=<date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>, <null>, <date_nanos>,
-    <date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>}
-  issue: https://github.com/elastic/elasticsearch/issues/167364
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
   tasks:
   - :modules:repository-gcs:test
   method: testResumableWrite
   issue: https://github.com/elastic/elasticsearch/issues/156513
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluate {TestCase=<double, 12 ints> null in 5}
-  issue: https://github.com/elastic/elasticsearch/issues/167370
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testSerializationOfSimple {TestCase=<double, 7 ints> null in 2}
-  issue: https://github.com/elastic/elasticsearch/issues/167372
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateInManyThreads {TestCase=<integer>, <long>, <long>, <long>, <long>, <null>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>,
-    <long>, <long>}
-  issue: https://github.com/elastic/elasticsearch/issues/167374
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluatorToString {TestCase=<long>, <integer>, <null>, <integer>, <integer>, <integer>, <integer>, <integer>, <integer>, <integer>, <integer>,
-    <integer>, <integer>, <integer>, <integer>}
-  issue: https://github.com/elastic/elasticsearch/issues/167376
 - class: org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExecSerializationTests
   tasks:
   - :x-pack:plugin:esql:test
   method: testDeeplyNestedFields
   issue: https://github.com/elastic/elasticsearch/issues/167380
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testAnyNullIsNull {TestCase=<long, 2 longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/167392
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testFactoryToString {TestCase=<integer>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <null>, <long>, <long>,
-    <long>, <long>, <long>}
-  issue: https://github.com/elastic/elasticsearch/issues/167394
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateBlockWithNulls {TestCase=<date, 16 dates> null in 14}
-  issue: https://github.com/elastic/elasticsearch/issues/167397
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateBlockWithNulls {TestCase=<long, 19 longs> null in 8}
-  issue: https://github.com/elastic/elasticsearch/issues/167399
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testSerializationOfSimple {TestCase=<int, 6 doubles> null in 2}
-  issue: https://github.com/elastic/elasticsearch/issues/167403
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateBlockWithNulls {TestCase=<date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>,
-    <null>, <date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>}
-  issue: https://github.com/elastic/elasticsearch/issues/167416
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluate {TestCase=<long, 5 longs> null in 4}
-  issue: https://github.com/elastic/elasticsearch/issues/167418
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<integer>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <null>, <long>, <long>, <long>,
-    <long>, <long>, <long>, <long>, <long>, <long>}
-  issue: https://github.com/elastic/elasticsearch/issues/167426
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testAnyNullIsNull {TestCase=<long>, <null>, <double>}
-  issue: https://github.com/elastic/elasticsearch/issues/167430
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testSerializationOfSimple {TestCase=<long, 10 doubles> null in 1}
-  issue: https://github.com/elastic/elasticsearch/issues/167432
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateInManyThreads {TestCase=<date, 11 fixed-interval dates, 300000 ms> null in 6}
-  issue: https://github.com/elastic/elasticsearch/issues/167435
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testFactoryToString {TestCase=<long, 17 doubles> null in 2}
-  issue: https://github.com/elastic/elasticsearch/issues/167437
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateBlockWithNulls {TestCase=<integer>, <double>, <double>, <double>, <null>, <double>, <double>, <double>, <double>, <double>, <double>}
-  issue: https://github.com/elastic/elasticsearch/issues/167439
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testSerializationOfSimple {TestCase=<double, 17 ints> null in 7}
-  issue: https://github.com/elastic/elasticsearch/issues/167446
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -941,143 +824,69 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
   method: test {yaml=esql/317_unmapped_fields_mapped_later/the same holds with synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/167562
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testFold {TestCase=<datetime>, <datetime>, <datetime>, <datetime>, <datetime>, <datetime>, <datetime>, <datetime>, <datetime>, <datetime>, <datetime>,
-    <datetime>, <null>, <datetime>, <datetime>, <datetime>}
-  issue: https://github.com/elastic/elasticsearch/issues/167582
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testFold {TestCase=<date, 8 dates> null in 5}
-  issue: https://github.com/elastic/elasticsearch/issues/167584
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testCrankyEvaluateBlockWithNulls {TestCase=<int, 15 longs> null in 2}
-  issue: https://github.com/elastic/elasticsearch/issues/167588
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluatorToString {TestCase=<date, 13 dates>}
-  issue: https://github.com/elastic/elasticsearch/issues/167590
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testFoldAnyNullIsNullWithoutFoldNull {TestCase=<long, 7 ints> null in 4}
-  issue: https://github.com/elastic/elasticsearch/issues/167592
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluate {TestCase=<double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>,
-    <double>, <double>, <null>, <double>, <double>}
-  issue: https://github.com/elastic/elasticsearch/issues/167597
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<date, 19 dates> null in 16}
-  issue: https://github.com/elastic/elasticsearch/issues/167600
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateBlockWithoutNulls {TestCase=<date_nanos, 13 date_nanos> null in 10}
-  issue: https://github.com/elastic/elasticsearch/issues/167603
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testSerializationOfSimple {TestCase=<long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <null>, <long>, <long>, <long>, <long>, <long>, <long>}
-  issue: https://github.com/elastic/elasticsearch/issues/167607
 - class: org.elasticsearch.datastreams.TSDBPassthroughIndexingIT
   tasks:
   - :modules:data-streams:internalClusterTest
   method: testIndexingGettingAndSearching
   issue: https://github.com/elastic/elasticsearch/issues/167611
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateInManyThreads {TestCase=<long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>,
-    <long>, <long>, <long>, <long>, <null>}
-  issue: https://github.com/elastic/elasticsearch/issues/167613
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double>, <double>, <double>, <double>, <double>, <null>, <double>, <double>, <double>, <double>,
-    <double>, <double>}
-  issue: https://github.com/elastic/elasticsearch/issues/167615
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyTests
   tasks:
   - :x-pack:plugin:stateless:test
   method: testSnapshotPrimaryRelocations
   issue: https://github.com/elastic/elasticsearch/issues/167619
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testTypeResolved {TestCase=<long, 18 doubles> null in 5}
-  issue: https://github.com/elastic/elasticsearch/issues/167622
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithReadFromObjectStoreTests
   tasks:
   - :x-pack:plugin:stateless:test
   method: testSnapshotPrimaryRelocations
   issue: https://github.com/elastic/elasticsearch/issues/167626
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateBlockWithNulls {TestCase=<long, 17 longs> null in 15}
-  issue: https://github.com/elastic/elasticsearch/issues/167630
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateInManyThreads {TestCase=<int, 8 ints> null in 3}
-  issue: https://github.com/elastic/elasticsearch/issues/167632
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testFactoryToString {TestCase=<null>, <long>, <long>, <long>, <long>, <long>}
-  issue: https://github.com/elastic/elasticsearch/issues/167634
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testFold {TestCase=<date_nanos, 14 date_nanos> null in 8}
-  issue: https://github.com/elastic/elasticsearch/issues/167637
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateBlockWithNulls {TestCase=<datetime>, <null>, <datetime>, <datetime>, <datetime>, <datetime>}
-  issue: https://github.com/elastic/elasticsearch/issues/167639
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double, 11 longs> null in 3}
-  issue: https://github.com/elastic/elasticsearch/issues/167643
-- class: org.elasticsearch.xpack.esql.session.EsqlSessionQueryTimeFilterTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testView
-  issue: https://github.com/elastic/elasticsearch/issues/167647
-- class: org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactoryTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testFilteredLimitRampStaysParkedOnDenseFirstPage
-  issue: https://github.com/elastic/elasticsearch/issues/167649
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/166620
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+- class: org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactoryTests
   tasks:
   - :x-pack:plugin:esql:test
-  method: testSerializationOfSimple {TestCase=<integer>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <null>, <long>,
-    <long>, <long>, <long>, <long>, <long>, <long>}
-  issue: https://github.com/elastic/elasticsearch/issues/167652
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testFilteredLimitRampStaysParkedOnDenseFirstPageWithK1
+  issue: https://github.com/elastic/elasticsearch/issues/167690
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchFailuresIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testStopFetchesTheRowsSelectedSoFar
+  issue: https://github.com/elastic/elasticsearch/issues/167692
+- class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactoryTests
   tasks:
   - :x-pack:plugin:esql:test
-  method: testEvaluateBlockWithoutNulls {TestCase=<long, 18 ints> null in 11}
-  issue: https://github.com/elastic/elasticsearch/issues/167654
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testFilteredLimitRampSkipsParkedWhenRemainingHitsZero
+  issue: https://github.com/elastic/elasticsearch/issues/167700
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchCancellationIT
   tasks:
-  - :qa:rolling-upgrade:bcUpgradeTest
-  method: testIndexSortForNumericTypes {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/167667
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testCancelWhileAShardStillSearches
+  issue: https://github.com/elastic/elasticsearch/issues/167733
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchCancellationIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testCancelAtARandomMoment
+  issue: https://github.com/elastic/elasticsearch/issues/167735
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchCancellationIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testCancelBetweenTheQueryPhaseAndTheFetch
+  issue: https://github.com/elastic/elasticsearch/issues/167737
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchCancellationIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testCancelWhileANodeLoadsTheWinners
+  issue: https://github.com/elastic/elasticsearch/issues/167739
+- class: org.elasticsearch.xpack.stateless.commits.UploadQueueControllerServiceIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testDisableThrottlingUsingTheSetting
+  issue: https://github.com/elastic/elasticsearch/issues/163114
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v9.5.8#yamlRestTest
+  method: "test {yaml=mapping/90_columnar_ignore_dynamic_beyond_limit/columnar: dynamic field beyond the limit is dropped and recorded in _ignored with
+    ignore_dynamic_beyond_limit}"
+  issue: https://github.com/elastic/elasticsearch/issues/167785

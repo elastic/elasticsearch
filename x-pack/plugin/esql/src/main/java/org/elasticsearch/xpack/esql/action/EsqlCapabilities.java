@@ -4373,7 +4373,7 @@ public class EsqlCapabilities {
          * {@code count_values}), {@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio}, and {@code scalar()} x
          * labeled (step-broadcast). Gates csv-spec coverage of those shapes.
          */
-        PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled()),
 
         /**
          * PromQL vector matching no longer needs both operands to name their labels: {@code on(...)} and {@code ignoring(...)}

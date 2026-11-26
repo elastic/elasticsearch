@@ -23,7 +23,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
@@ -32,12 +34,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * How a test indexes its documents. {@link #DOCUMENT} adds each parsed document with {@code IndexWriter#addDocuments}. {@link #BATCH}
- * maps whole columns and adds them with {@code IndexWriter#addBatch}, the way the engine does, and falls back to document indexing when
- * the mappers refuse the batch, as production does. The {@link Outcome} says which one executed, so that a fallback is never taken
- * for batch coverage.
+ * maps whole columns and adds them with {@code IndexWriter#addBatch}, the way the engine does, and falls back to adding the parsed rows
+ * of the batch as documents when the mappers refuse it, as the shard does. The {@link Outcome} says which one executed, so that a
+ * fallback is never taken for batch coverage.
  */
 public enum IndexingStrategy {
     DOCUMENT {
@@ -46,10 +49,7 @@ public enum IndexingStrategy {
             throws IOException {
             for (int i = 0; i < sources.size(); i++) {
                 final SourceToParse source = new SourceToParse("d" + (firstSeqNo + i), new BytesArray(sources.get(i)), XContentType.JSON);
-                final ParsedDocument parsed = mapperService.documentMapper().parse(source);
-                parsed.updateSeqID(firstSeqNo + i, 1);
-                parsed.version().setLongValue(1);
-                indexWriter.addDocuments(parsed.docs());
+                addDocument(mapperService, indexWriter, source, firstSeqNo + i);
             }
             return new Outcome(false, null);
         }
@@ -58,12 +58,7 @@ public enum IndexingStrategy {
         @Override
         public Outcome index(MapperService mapperService, IndexWriter indexWriter, List<String> sources, int firstSeqNo)
             throws IOException {
-            final String fallbackReason = indexAsBatch(mapperService, indexWriter, sources, firstSeqNo);
-            if (fallbackReason == null) {
-                return new Outcome(true, null);
-            }
-            DOCUMENT.index(mapperService, indexWriter, sources, firstSeqNo);
-            return new Outcome(false, fallbackReason);
+            return indexAsBatch(mapperService, indexWriter, sources, firstSeqNo);
         }
     };
 
@@ -83,9 +78,9 @@ public enum IndexingStrategy {
     // NOTE: runs ShardBatchMapper#mapColumnBatch itself, so that the metadata mappers, the required field check and the chunk context
     // are the ones the engine uses. It falls back to document indexing on any Exception and only logs it. A refused resolution and the
     // UnsupportedOperationException that mappers throw to ask for the fallback fall back here too. The logged exception of any other
-    // failure, which is a mapper bug, fails the test instead of being hidden by document indexing. Returns why the batch was refused,
-    // or null when it was indexed.
-    private static String indexAsBatch(MapperService mapperService, IndexWriter indexWriter, List<String> sources, int firstSeqNo)
+    // failure, which is a mapper bug, fails the test instead of being hidden by document indexing. A fallback parses the rows of the
+    // encoded batch, as the shard does, and not the original JSON, so that it also covers what the row parser does with a null.
+    private static Outcome indexAsBatch(MapperService mapperService, IndexWriter indexWriter, List<String> sources, int firstSeqNo)
         throws IOException {
         final int count = sources.size();
         final BytesReference[] bytes = new BytesReference[count];
@@ -99,7 +94,7 @@ public enum IndexingStrategy {
         try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(bytes), XContentType.JSON)) {
             final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(escfBatch, lookup, indexSettings);
             if (resolution == null) {
-                return "resolveMappers refused the batch";
+                return indexRows(mapperService, indexWriter, escfBatch, firstSeqNo, "resolveMappers refused the batch");
             }
             final FailureRecorder failure = new FailureRecorder();
             final EngineBatch engineBatch;
@@ -120,7 +115,7 @@ public enum IndexingStrategy {
             }
             if (engineBatch == null) {
                 if (failure.thrown instanceof UnsupportedOperationException) {
-                    return String.valueOf(failure.thrown.getMessage());
+                    return indexRows(mapperService, indexWriter, escfBatch, firstSeqNo, String.valueOf(failure.thrown.getMessage()));
                 }
                 throw new AssertionError("the mappers failed to map a batch, which is not a request to fall back", failure.thrown);
             }
@@ -133,8 +128,39 @@ public enum IndexingStrategy {
                 }
                 indexWriter.addBatch(columns.toColumnBatch());
             }
-            return null;
+            return new Outcome(true, null);
         }
+    }
+
+    private static Outcome indexRows(
+        MapperService mapperService,
+        IndexWriter indexWriter,
+        EscfBatch escfBatch,
+        int firstSeqNo,
+        String reason
+    ) throws IOException {
+        final SourceRowXContentParser.SchemaNode schemaTree = SourceRowXContentParser.buildSchemaTree(escfBatch.schema());
+        for (int i = 0; i < escfBatch.docCount(); i++) {
+            final SourceToParse source = new SourceToParse(
+                "d" + (firstSeqNo + i),
+                new RowSource(schemaTree, escfBatch.row(i), XContentType.JSON),
+                null,
+                Map.of(),
+                Map.of(),
+                XContentMeteringParserDecorator.NOOP,
+                null
+            );
+            addDocument(mapperService, indexWriter, source, firstSeqNo + i);
+        }
+        return new Outcome(false, reason);
+    }
+
+    private static void addDocument(MapperService mapperService, IndexWriter indexWriter, SourceToParse source, int seqNo)
+        throws IOException {
+        final ParsedDocument parsed = mapperService.documentMapper().parse(source);
+        parsed.updateSeqID(seqNo, 1);
+        parsed.version().setLongValue(1);
+        indexWriter.addDocuments(parsed.docs());
     }
 
     private static final class FailureRecorder implements MockLog.LoggingExpectation {

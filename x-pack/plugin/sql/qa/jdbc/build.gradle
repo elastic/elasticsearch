@@ -49,7 +49,9 @@ dependencies {
 
 // Configure a task for each compatible JDBC driver version.
 // These tests use older JDBC drivers to communicate with the current version of Elasticsearch.
-buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
+// Compatibility testing for JDBC driver started with version 7.9.0. Earlier drivers also bundle
+// non-relocated copies of classes such as sql-proto, which causes jar hell on the test classpath.
+buildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString("7.9.0")) }) { bwcVersion, baseName ->
     UnreleasedVersionInfo unreleasedVersion = buildParams.bwcVersions.unreleasedInfo(bwcVersion)
     Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}") {
       // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433

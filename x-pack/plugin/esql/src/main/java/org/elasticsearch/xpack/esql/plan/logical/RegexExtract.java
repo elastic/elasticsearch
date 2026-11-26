@@ -28,7 +28,7 @@ public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<R
     protected final Expression input;
     protected final List<Attribute> extractedFields;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     protected RegexExtract(Source source, LogicalPlan child, Expression input, List<Attribute> extracted) {
         super(source, child);

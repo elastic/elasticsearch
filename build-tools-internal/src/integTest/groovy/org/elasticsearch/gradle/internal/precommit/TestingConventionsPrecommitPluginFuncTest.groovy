@@ -110,6 +110,13 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
                > Following test classes do not extend any supported base class:
                  \torg.acme.InvalidTests""".stripIndent()
         )
+
+        and: "problems report contains testing-conventions violations"
+        assertProblemsReportContains("Testing Conventions")
+        assertProblemsReportContainsProblem("Missing test base class")
+        assertProblemsReportSeverity("Missing test base class", "ERROR")
+        def diagnostics = problemsReportDiagnostics()
+        diagnostics.any { it.contextualLabel?.contains("org.acme.InvalidTests") }
     }
 
     def "checks naming convention"() {
@@ -146,6 +153,10 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
                > Following test classes do not match naming convention to use suffix 'UnitTest':
                  \torg.acme.valid.SomeNameMissmatchingTest""".stripIndent()
         )
+
+        and: "problems report contains invalid-suffix violations"
+        assertProblemsReportContains("Testing Conventions")
+        assertProblemsReportContainsProblem("Invalid test class suffix")
     }
 
     def "provided base classes do not need match naming convention"() {

@@ -83,6 +83,66 @@ public class ForbiddenPatternsTaskTests {
         checkAndAssertTaskSuccessful(task);
     }
 
+    @Test
+    public void testExceptionMessageContainsPerViolationDetail() throws Exception {
+        Project project = createProject();
+        ForbiddenPatternsTask task = createTask(project);
+
+        writeSourceFile(project, "src/main/java/Bar.java", "\tpublic void bar() {}");
+        try {
+            task.checkInvalidPatterns();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            // Verify the exception message lists each violation with rule, line, and file
+            assertTrue("Expected per-violation detail in message, got: " + e.getMessage(),
+                e.getMessage().startsWith("Found invalid patterns:\n"));
+            assertTrue("Expected tab rule reference, got: " + e.getMessage(),
+                e.getMessage().contains("tab on line"));
+            assertTrue("Expected file path reference, got: " + e.getMessage(),
+                e.getMessage().contains("Bar.java"));
+        }
+    }
+
+    @Test
+    public void testMultipleViolationsCollectedInSingleException() throws Exception {
+        Project project = createProject();
+        ForbiddenPatternsTask task = createTask(project);
+
+        // Two files with tabs - should produce multiple violations collected into one exception
+        writeSourceFile(project, "src/main/java/File1.java", "\tfoo");
+        writeSourceFile(project, "src/main/java/File2.java", "\tbar");
+        try {
+            task.checkInvalidPatterns();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            // Should collect all violations (at least 2) rather than failing on the first one
+            String msg = e.getMessage();
+            assertTrue("Expected per-violation detail, got: " + msg, msg.startsWith("Found invalid patterns:\n"));
+            // Count the "- " prefixed lines
+            long violationCount = msg.lines().filter(l -> l.startsWith("- ")).count();
+            assertTrue("Expected at least 2 violations, found " + violationCount, violationCount >= 2);
+        }
+    }
+
+    @Test
+    public void testMultipleRuleViolationsInSameFile() throws Exception {
+        Project project = createProject();
+        ForbiddenPatternsTask task = createTask(project);
+
+        // A file with both a tab and a nocommit marker
+        writeSourceFile(project, "src/main/java/Bad.java", "\t// nocommit: fix this");
+        try {
+            task.checkInvalidPatterns();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            // Should detect both tab and nocommit violations
+            String msg = e.getMessage();
+            assertTrue("Expected per-violation detail, got: " + msg, msg.startsWith("Found invalid patterns:\n"));
+            long violationCount = msg.lines().filter(l -> l.startsWith("- ")).count();
+            assertTrue("Expected at least 2 violations from different rules, found " + violationCount, violationCount >= 2);
+        }
+    }
+
     private Project createProject() {
         Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply(JavaPlugin.class);
@@ -127,7 +187,8 @@ public class ForbiddenPatternsTaskTests {
             task.checkInvalidPatterns();
             fail("GradleException was expected to be thrown in this case!");
         } catch (GradleException e) {
-            assertTrue(e.getMessage().startsWith("Found invalid patterns"));
+            assertTrue("Expected message about invalid patterns, got: " + e.getMessage(),
+                e.getMessage().startsWith("Found invalid patterns:\n"));
         }
     }
 

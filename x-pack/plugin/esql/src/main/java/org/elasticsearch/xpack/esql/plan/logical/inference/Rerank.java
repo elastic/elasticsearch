@@ -46,7 +46,7 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
     private final Attribute scoreAttribute;
     private final Expression queryText;
     private final List<Alias> rerankFields;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public Rerank(Source source, LogicalPlan child, Expression queryText, List<Alias> rerankFields) {
         this(

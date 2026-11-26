@@ -274,6 +274,7 @@ null
 
 foldCastCaseWithoutMatchArgument
 required_capability: fix_fold_null_arguments
+required_capability: spatial_grid
 
 ROW x = ST_GEOHASH(TO_GEOPOINT("POINT(1 2)"), CASE(false, 1)::integer)
 ;
@@ -308,6 +309,7 @@ null     |null
 
 foldNullArgumentsInManyFunctions
 required_capability: fix_fold_null_arguments
+required_capability: spatial_grid
 
 ROW n = COALESCE(null), nk = null::keyword, ni = null::integer, nd = null::double, d = TO_DATETIME("2024-01-01")
 | EVAL

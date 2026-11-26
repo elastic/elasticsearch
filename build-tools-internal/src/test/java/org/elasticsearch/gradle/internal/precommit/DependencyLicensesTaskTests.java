@@ -219,6 +219,48 @@ public class DependencyLicensesTaskTests {
         task.get().checkDependencies();
     }
 
+    @Test
+    public void givenProjectWithMultipleMissingFilesThenShouldCollectAllProblems() throws Exception {
+        // With the Problems API integration, the task collects all problems before throwing
+        // (instead of failing on the first missing file)
+        project.getDependencies().add("implementation", dependency);
+
+        File licensesDir = getLicensesDir(project);
+        // Create licenses dir but no LICENSE or NOTICE files - should report problems for both
+        licensesDir.mkdir();
+        try {
+            task.get().checkDependencies();
+            throw new AssertionError("Expected GradleException to be thrown");
+        } catch (GradleException e) {
+            // Should report multiple problems (missing LICENSE + missing NOTICE for each dependency)
+            assertTrue("Expected problem count in message, got: " + e.getMessage(),
+                e.getMessage().contains("license check failed"));
+            // Verify it says more than 1 problem
+            assertTrue("Expected multiple problems, got: " + e.getMessage(),
+                e.getMessage().matches(".*\\d+ problems"));
+        }
+    }
+
+    @Test
+    public void givenProjectWithUnusedFilesCollectsAllProblems() throws Exception {
+        project.getDependencies().add("implementation", dependency);
+
+        File licensesDir = getLicensesDir(project);
+        createAllDefaultDependencyFiles(licensesDir, "groovy");
+        // Add two unused files
+        createFileIn(licensesDir, "unused1-LICENSE.txt", "");
+        createFileIn(licensesDir, "unused2-NOTICE.txt", "");
+
+        try {
+            task.get().checkDependencies();
+            throw new AssertionError("Expected GradleException to be thrown");
+        } catch (GradleException e) {
+            // Should collect both unused file problems
+            assertTrue("Expected problem count in message, got: " + e.getMessage(),
+                e.getMessage().contains("license check failed"));
+        }
+    }
+
     private Project createProject() {
         Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply(JavaPlugin.class);

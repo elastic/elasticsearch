@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 167085
+summary: "[8.19] [ML] Fix adaptive allocations stuck at 0 with min >= 1"
+type: bug

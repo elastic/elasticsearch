@@ -9,5 +9,10 @@ dependencies {
 
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution()
-  systemProperty 'test.literalUsername', buildParams.random.map{r -> r.nextBoolean()}.get()
+  // ProfileIT builds one of two cluster configurations from this. It is an input so that each one has its own build
+  // cache entry, and a cached result of one never stands in for the other. The input and the system property both
+  // read it lazily, when the task runs, so the test seed it comes from does not become a configuration cache input.
+  def literalUsername = buildParams.random.map { r -> r.nextBoolean() }
+  inputs.property('literalUsername', literalUsername)
+  nonInputProperties.systemProperty 'test.literalUsername', literalUsername
 }

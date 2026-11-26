@@ -106,7 +106,7 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
         )
         def locationFromManifest = Map.of(
             "module", "junit",
-            "representative_class", 'junit/textui/TestRunner.class'
+            "representative_class", 'junit/extensions/ActiveTestSuite.class'
         )
         def locationFromJarFileName = Map.of(
             "module", "hamcrest.core",

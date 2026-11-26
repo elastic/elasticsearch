@@ -50,6 +50,13 @@ import static org.junit.Assume.assumeTrue;
 
 public class ArchiveTests extends PackagingTestCase {
 
+    /**
+     * Tests that configure a node which can't form a cluster on its own would otherwise wait out the default 30s
+     * before the node reports started. They only check auto-configuration, so the wait buys nothing.
+     */
+    private static final String INITIAL_STATE_TIMEOUT = "discovery.initial_state_timeout";
+    private static final String SHORT_INITIAL_STATE_TIMEOUT = "1s";
+
     @BeforeClass
     public static void filterDistros() {
         assumeTrue("only archives", distribution.isArchive());
@@ -116,10 +123,12 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         ServerUtils.addSettingToExistingConfiguration(installation, "discovery.seed_hosts", "[\"127.0.0.1:9300\"]");
+        ServerUtils.addSettingToExistingConfiguration(installation, INITIAL_STATE_TIMEOUT, SHORT_INITIAL_STATE_TIMEOUT);
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "discovery.seed_hosts");
+        ServerUtils.removeSettingFromExistingConfiguration(installation, INITIAL_STATE_TIMEOUT);
         Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
@@ -128,10 +137,12 @@ public class ArchiveTests extends PackagingTestCase {
         // auto-config requires that the archive owner and the process user be the same
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"voting_only\", \"master\"]");
+        ServerUtils.addSettingToExistingConfiguration(installation, INITIAL_STATE_TIMEOUT, SHORT_INITIAL_STATE_TIMEOUT);
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
+        ServerUtils.removeSettingFromExistingConfiguration(installation, INITIAL_STATE_TIMEOUT);
         Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
@@ -140,10 +151,12 @@ public class ArchiveTests extends PackagingTestCase {
         // auto-config requires that the archive owner and the process user be the same
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"ingest\"]");
+        ServerUtils.addSettingToExistingConfiguration(installation, INITIAL_STATE_TIMEOUT, SHORT_INITIAL_STATE_TIMEOUT);
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
+        ServerUtils.removeSettingFromExistingConfiguration(installation, INITIAL_STATE_TIMEOUT);
         Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }

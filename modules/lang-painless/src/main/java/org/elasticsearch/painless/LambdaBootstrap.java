@@ -269,6 +269,8 @@ public final class LambdaBootstrap {
         int modifiers = ACC_PUBLIC | ACC_SUPER | ACC_FINAL | ACC_SYNTHETIC;
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+        // Painless makes its own bytecode, so turn off the ASM work limits.
+        cw.setComputeLimits(Integer.MAX_VALUE, Long.MAX_VALUE);
         cw.visit(CLASS_VERSION, modifiers, lambdaClassName, null, baseClass, new String[] { Type.getInternalName(lambdaInterface) });
 
         return cw;

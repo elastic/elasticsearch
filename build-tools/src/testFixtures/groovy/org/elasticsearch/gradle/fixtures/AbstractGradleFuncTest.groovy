@@ -392,6 +392,76 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
             '''
     }
 
+    /**
+     * Parses the Gradle Problems API report and returns the diagnostics as a list of maps.
+     * Each diagnostic has: problemId (list of {name, displayName}), severity, contextualLabel, solutions, locations.
+     *
+     * <p>Since Gradle 9.9 the HTML report embeds the diagnostics as a JSON array inside a
+     * {@code <script type="application/json" id="diagnostics">} element. Earlier versions wrapped the
+     * JSON object between {@code // begin-report-data} / {@code // end-report-data} comment markers, so
+     * we fall back to that layout for compatibility with older Gradle versions.
+     */
+    List<Map> problemsReportDiagnostics() {
+        def reportFile = new File(projectDir, "build/reports/problems/problems-report.html")
+        if (!reportFile.exists()) {
+            return []
+        }
+        def content = reportFile.text
+        def scriptMatcher = content =~ /(?s)<script type="application\/json" id="diagnostics">\s*(.*?)\s*<\/script>/
+        if (scriptMatcher.find()) {
+            def json = new groovy.json.JsonSlurper().parseText(scriptMatcher.group(1))
+            return (json instanceof List) ? json : (json.diagnostics ?: [])
+        }
+        def legacyMatcher = content =~ /\/\/ begin-report-data\n(.*)\n\/\/ end-report-data/
+        if (!legacyMatcher.find()) {
+            return []
+        }
+        def json = new groovy.json.JsonSlurper().parseText(legacyMatcher.group(1))
+        return json.diagnostics ?: []
+    }
+
+    /**
+     * Asserts that problems were reported with the given group name in the problem ID hierarchy.
+     */
+    def assertProblemsReportContains(String groupName) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.any { diag ->
+            diag.problemId.any { id -> id.name == groupName }
+        } : "Expected problems report to contain group '${groupName}', but found: ${diagnostics.collect { it.problemId*.name }.flatten().unique()}"
+        true
+    }
+
+    /**
+     * Asserts that problems were reported with the given problem name (leaf ID) in the report.
+     */
+    def assertProblemsReportContainsProblem(String problemName) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.any { diag ->
+            diag.problemId.last().name == problemName
+        } : "Expected problems report to contain problem '${problemName}', but found: ${diagnostics.collect { it.problemId.last().name }.unique()}"
+        true
+    }
+
+    /**
+     * Asserts that the problems report contains at least the expected number of diagnostics.
+     */
+    def assertProblemsReportHasAtLeast(int expectedCount) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.size() >= expectedCount : "Expected at least ${expectedCount} problems, but found ${diagnostics.size()}"
+        true
+    }
+
+    /**
+     * Asserts that problems have the expected severity.
+     */
+    def assertProblemsReportSeverity(String problemName, String expectedSeverity) {
+        def diagnostics = problemsReportDiagnostics()
+        def matching = diagnostics.findAll { diag -> diag.problemId.last().name == problemName }
+        assert matching.every { it.severity == expectedSeverity } : \
+            "Expected severity '${expectedSeverity}' for problem '${problemName}', but found: ${matching.collect { it.severity }.unique()}"
+        true
+    }
+
     boolean featureFailed() {
         specificationContext.currentSpec.listeners
             .findAll { it instanceof TestResultExtension.ErrorListener }

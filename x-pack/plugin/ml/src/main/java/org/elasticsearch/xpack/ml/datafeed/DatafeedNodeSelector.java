@@ -136,8 +136,15 @@ public class DatafeedNodeSelector {
     @Nullable
     private AssignmentFailure checkAssignment() {
         PriorityFailureCollector priorityFailureCollector = new PriorityFailureCollector();
-        priorityFailureCollector.add(verifyIndicesActive());
 
+        // Perform the cheap job-state checks first. If the job is not open (or its task state is
+        // stale) the datafeed cannot be assigned regardless of the state of its indices, so there
+        // is no point paying the cost of resolving the datafeed's index patterns against the full
+        // cluster state in verifyIndicesActive(). This matters during mass reassignment events
+        // (for example when ML upgrade mode is disabled, or when ML nodes leave and rejoin the
+        // cluster) where every unassigned datafeed is re-evaluated on every cluster-state update:
+        // skipping the index resolution for datafeeds whose jobs are not yet (re)opened avoids a
+        // large amount of redundant work on the master's cluster-state applier thread.
         JobTaskState jobTaskState = null;
         JobState jobState = JobState.CLOSED;
         if (jobTask != null) {
@@ -164,6 +171,14 @@ public class DatafeedNodeSelector {
             priorityFailureCollector.add(new AssignmentFailure(reason, true));
         }
 
+        // Only resolve and verify the datafeed's indices if the job is in a state where the
+        // datafeed could actually be assigned. The job-state checks above only ever produce
+        // critical failures, so if one fired we already have our answer and can skip the
+        // expensive index resolution.
+        if (priorityFailureCollector.get() == null) {
+            priorityFailureCollector.add(verifyIndicesActive());
+        }
+
         return priorityFailureCollector.get();
     }
 
@@ -174,6 +189,12 @@ public class DatafeedNodeSelector {
             // We cannot verify remote indices
             .filter(i -> RemoteClusterLicenseChecker.isRemoteIndex(i) == false)
             .toArray(String[]::new);
+        // Nothing local to verify: ES|QL datafeeds use an empty index list (sources are resolved at query time, #160858)
+        // and remote-only datafeeds have every pattern filtered out above. Resolving an empty expression list would expand
+        // to every local index, which is expensive on the master and ties assignment to unrelated local shards.
+        if (index.length == 0) {
+            return null;
+        }
 
         final String[] concreteIndices;
 

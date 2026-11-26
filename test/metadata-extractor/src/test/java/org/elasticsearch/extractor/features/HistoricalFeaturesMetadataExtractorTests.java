@@ -23,13 +23,16 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentParserConfiguration.EMPTY;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
@@ -65,6 +68,29 @@ public class HistoricalFeaturesMetadataExtractorTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             Collection<String> featureNamesList = (Collection<String>) (parsedMap.get("feature_names"));
             assertThat(featureNamesList, containsInAnyOrder(featureNamesSet.toArray()));
+        }
+    }
+
+    /**
+     * The metadata file is an input of every REST/BWC test task that uses it. It must therefore be byte-for-byte reproducible:
+     * feature sets and historical feature maps are typically {@code Set.of(...)} / {@code Map.of(...)}, whose iteration order
+     * changes with every JVM, so entries must be written sorted rather than in collection iteration order. Otherwise concurrent
+     * builds push differently ordered files under the same build cache key, which changes the cache keys of all downstream tests.
+     */
+    public void testMetadataFileIsSorted() throws IOException {
+        HistoricalFeaturesMetadataExtractor extractor = new HistoricalFeaturesMetadataExtractor(this.getClass().getClassLoader());
+        Path outputFile = temporaryFolder.newFile().toPath();
+        extractor.generateMetadataFile(outputFile);
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(EMPTY, Files.newInputStream(outputFile))) {
+            Map<String, Object> parsedMap = parser.mapOrdered();
+            @SuppressWarnings("unchecked")
+            List<String> featureNamesList = (List<String>) parsedMap.get("feature_names");
+            assertThat(featureNamesList.size(), greaterThan(1));
+            assertThat(featureNamesList, contains(featureNamesList.stream().sorted().toArray()));
+            @SuppressWarnings("unchecked")
+            List<String> historicalFeatureIds = List.copyOf(((Map<String, Object>) parsedMap.get("historical_features")).keySet());
+            assertThat(historicalFeatureIds.size(), greaterThan(1));
+            assertThat(historicalFeatureIds, contains(historicalFeatureIds.stream().sorted().toArray()));
         }
     }
 }

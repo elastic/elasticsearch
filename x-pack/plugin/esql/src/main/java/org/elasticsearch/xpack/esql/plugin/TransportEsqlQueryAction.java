@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -32,6 +33,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -255,6 +257,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             planRunner,
             services,
             ActionListener.wrap(result -> {
+                failIfCancelled(task, result);
                 // Replay driver warnings (from new-style DriverContext accumulation) to response headers.
                 // Old-style warnings (from old data nodes via Warning: response headers) are already
                 // propagated by ResponseHeadersCollector in ComputeListener.
@@ -344,6 +347,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
         return new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias), request.includeCCSMetadata());
+    }
+
+    /** Releases the pages here because the caller's {@link ActionListener#wrap} swallows the throw before any release path sees it. */
+    static void failIfCancelled(Task task, Result result) {
+        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
+            result.pages().forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
+            throw new TaskCancelledException(cancellableTask.getReasonCancelled());
+        }
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {

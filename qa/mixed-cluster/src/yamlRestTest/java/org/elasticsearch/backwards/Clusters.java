@@ -83,6 +83,9 @@ public final class Clusters {
             .setting("path.repo", () -> REPO_DIR.toString())
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            // Test-only node features gate tests on the behaviour of the version that declares them. A BWC node advertising
+            // one would un-gate tests that assert current-version behaviour, so keep test features off on every node.
+            .systemProperty("tests.testfeatures.enabled", "false")
             .feature(FeatureFlag.TIME_SERIES_MODE);
 
         // There is a chance we have more master changes than "normal", so to avoid this test from failing we increase the

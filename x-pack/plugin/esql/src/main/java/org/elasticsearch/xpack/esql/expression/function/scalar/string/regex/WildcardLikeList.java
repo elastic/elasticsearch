@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
@@ -37,36 +38,19 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.WildcardQueryBuilder.expressionTransportSupported;
 
-public class WildcardLikeList extends RegexMatch<WildcardPatternList> implements AnyNullIsNull {
+public final class WildcardLikeList extends RegexMatch<WildcardPatternList> implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "WildcardLikeList",
         WildcardLikeList::new
     );
 
-    Supplier<Automaton> automatonSupplier = new Supplier<>() {
-        Automaton cached;
+    // Thread-safe memoization: the query built from these can be used by every thread that holds the plan.
+    final Supplier<Automaton> automatonSupplier = CachedSupplier.wrap(() -> pattern().createAutomaton(caseInsensitive()));
 
-        @Override
-        public Automaton get() {
-            if (cached == null) {
-                cached = pattern().createAutomaton(caseInsensitive());
-            }
-            return cached;
-        }
-    };
-
-    Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier = new Supplier<>() {
-        CharacterRunAutomaton cached;
-
-        @Override
-        public CharacterRunAutomaton get() {
-            if (cached == null) {
-                cached = new CharacterRunAutomaton(automatonSupplier.get());
-            }
-            return cached;
-        }
-    };
+    final Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier = CachedSupplier.wrap(
+        () -> new CharacterRunAutomaton(automatonSupplier.get())
+    );
 
     /**
      * The documentation for this function is in WildcardLike, and shown to the users `LIKE` in the docs.

@@ -80,7 +80,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public Aggregate(
         Source source,

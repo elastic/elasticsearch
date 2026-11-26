@@ -142,6 +142,20 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(empty.output()), contains("first_name"));
     }
 
+    public void testLocalPropagateEmptyRelationThroughPlanDeeperThanRuleExecutionLimit() {
+        // emp_no is missing only in data-node stats, so the empty relation appears during local optimization.
+        StringBuilder query = new StringBuilder("FROM test | WHERE emp_no > 10");
+        for (int i = 0; i < 150; i++) {
+            query.append(" | MV_EXPAND languages");
+        }
+        query.append(" | KEEP first_name");
+
+        var localPlan = localPlan(plan(query.toString()), statsForMissingField("emp_no"));
+
+        var empty = asEmptyRelation(localPlan);
+        assertThat(Expressions.names(empty.output()), contains("first_name"));
+    }
+
     /**
      * Expects
      * Project[[last_name{r}#7]]

@@ -253,7 +253,13 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                 List.of(scalar(values.get()), absent(), scalar(values.get())),
                 List.of(array(values.get()), array()),
                 List.of(scalar(values.get()), bareNull()),
-                List.of(array((Object) null), array(values.get(), null), array(null, values.get()))
+                List.of(
+                    array((Object) null),
+                    array(null, null),
+                    array(values.get(), null),
+                    array(null, values.get()),
+                    array(null, values.get(), null)
+                )
             );
         }
         final Object repeated = values.get();

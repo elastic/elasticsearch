@@ -562,12 +562,15 @@ public class CacheBlobReaderTests extends ESTestCase {
         }
     }
 
-    private static byte[] readRange(CacheBlobReader reader, long position, int length) throws IOException {
-        final var future = new PlainActionFuture<InputStream>();
-        reader.getRangeInputStream(position, length, future);
-        try (var in = future.actionGet(30, TimeUnit.SECONDS)) {
-            return in.readNBytes(length);
-        }
+    private static byte[] readRange(CacheBlobReader reader, long position, int length) {
+        final var future = new PlainActionFuture<byte[]>();
+        // the stream is read and closed in the callback so that a late response can never leak it
+        reader.getRangeInputStream(position, length, ActionListener.wrap(in -> {
+            try (in) {
+                future.onResponse(in.readNBytes(length));
+            }
+        }, future::onFailure));
+        return safeGet(future);
     }
 
     public void testCacheBlobReaderFetchFromIndexingAndSwitchToBlobStore() throws Exception {

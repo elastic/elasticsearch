@@ -78,9 +78,9 @@ public class CacheBlobReaderService {
     }
 
     /**
-     * Returns a {@link CacheBlobReader} for the given shard and the blob specified by the given {@link BlobLocation}.
+     * Returns a {@link CacheBlobReader} for the given shard and blob.
      *
-     * @param shardId                       the shard id
+     * @param shardId                       the shard id to use when reading chunks from the indexing shard
      * @param blobContainer                 the blob container where the blob can be read from
      * @param blob                          the blob file. A {@link BccBlob} may not be uploaded yet, in which case it can be read from the
      *                                      indexing shard. A {@link MergeBlob} is uploaded on its own, so it is always read from the

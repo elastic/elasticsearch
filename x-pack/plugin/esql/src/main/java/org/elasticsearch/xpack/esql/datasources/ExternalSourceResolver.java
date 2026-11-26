@@ -1356,11 +1356,8 @@ public class ExternalSourceResolver {
         String first = files != null && files.fileCount() > 0 ? files.path(0).toString() : path;
         for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
             if (factory.canHandle(first, config)) {
-                try {
-                    return resolved.withCollections(factory.resolveCollections(first, config));
-                } catch (Exception e) {
-                    LOGGER.debug("Factory [{}] could not describe the collections of [{}]: {}", factory.type(), first, e.getMessage());
-                }
+                // A failure to read the description is the query's failure: swallowed, it would read as a missing column
+                return resolved.withCollections(factory.resolveCollections(first, config));
             }
         }
         return resolved;

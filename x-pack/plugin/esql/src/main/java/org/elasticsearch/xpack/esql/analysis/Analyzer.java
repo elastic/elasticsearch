@@ -1045,7 +1045,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Attribute> output = new ArrayList<>();
             for (Attribute attribute : relation.output()) {
-                if (isNestedScope(attribute) || leaves.containsKey(attribute.name()) && attribute.synthetic() == false) {
+                if (isNestedScope(attribute)) {
                     continue;
                 }
                 output.add(attribute);
@@ -1054,7 +1054,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 String path = collection.getKey();
                 String name = path.substring(path.lastIndexOf('.') + 1);
                 EsField field = new EsField(name, DataType.SOURCE, collection.getValue(), false, EsField.TimeSeriesFieldType.NONE);
-                FieldAttribute carrier = new FieldAttribute(relation.source(), null, null, path, field, true);
+                FieldAttribute carrier = new FieldAttribute(relation.source(), null, null, CollectionSchema.carrierName(path), field, true);
                 carriers.put(path, carrier);
                 output.add(carrier);
             }

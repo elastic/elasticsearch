@@ -210,10 +210,14 @@ final class ParquetCollections {
          * {@code null} when the schema holds no readable collection there. A named leaf this file lacks reads as null.
          */
         @Nullable
-        static Decoder of(MessageType schema, String path, List<String> leafNames) {
+        static Decoder of(MessageType schema, String path, List<CollectionSchema.Leaf> wanted) {
             CollectionSchema collection = describe(schema).stream().filter(c -> c.path().equals(path)).findFirst().orElse(null);
-            if (collection == null || collection.unsupported() != null) {
+            if (collection == null) {
+                // A file without the collection has no elements for it, as a file without a column has nulls for it
                 return null;
+            }
+            if (collection.unsupported() != null) {
+                throw new IllegalArgumentException(collection.unsupported());
             }
             String[] parts = path.split("\\.");
             Type node = schema;
@@ -233,11 +237,25 @@ final class ParquetCollections {
                 elementPath[repeatedPath.length] = element.getName();
                 elementDef = schema.getMaxDefinitionLevel(elementPath);
             }
-            Leaf[] leaves = new Leaf[leafNames.size()];
+            Leaf[] leaves = new Leaf[wanted.size()];
             for (int l = 0; l < leaves.length; l++) {
-                String name = leafNames.get(l);
+                String name = wanted.get(l).name();
                 CollectionSchema.Leaf leaf = collection.leaves().stream().filter(c -> c.name().equals(name)).findFirst().orElse(null);
                 if (leaf != null) {
+                    // The carrier holds each leaf in the dataset's type, which the operators decode it as
+                    if (leaf.type() != wanted.get(l).type()) {
+                        throw new IllegalArgumentException(
+                            "["
+                                + path
+                                + "."
+                                + name
+                                + "] is ["
+                                + leaf.type().typeName()
+                                + "] in this file but ["
+                                + wanted.get(l).type().typeName()
+                                + "] in the dataset, and an element's fields cannot be converted yet"
+                        );
+                    }
                     leaves[l] = new Leaf(leaf.type(), descriptor(schema, elementPath, name), collectionRep, existsDef, elementDef);
                 }
             }

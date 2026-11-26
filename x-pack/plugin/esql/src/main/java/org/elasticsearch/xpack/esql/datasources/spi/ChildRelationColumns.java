@@ -220,13 +220,23 @@ public final class ChildRelationColumns {
             reset();
         }
 
+        /** Starts a page; a breaker trip part way releases the builders already taken. */
         private void reset() {
-            parents = blockFactory.newIntBlockBuilder(pageSize);
+            parents = null;
             leaves = new Block.Builder[wanted.length];
-            for (int w = 0; w < wanted.length; w++) {
-                leaves[w] = leafTypes[wanted[w]].newBlockBuilder(pageSize, blockFactory);
-            }
             rows = 0;
+            boolean started = false;
+            try {
+                parents = blockFactory.newIntBlockBuilder(pageSize);
+                for (int w = 0; w < wanted.length; w++) {
+                    leaves[w] = leafTypes[wanted[w]].newBlockBuilder(pageSize, blockFactory);
+                }
+                started = true;
+            } finally {
+                if (started == false) {
+                    close();
+                }
+            }
         }
 
         void startRow(int parent) {
@@ -256,11 +266,10 @@ public final class ChildRelationColumns {
                 if (blocks != null) {
                     Releasables.closeExpectNoException(blocks);
                 }
-                Releasables.closeExpectNoException(parents);
-                Releasables.closeExpectNoException(leaves);
-                reset();
+                close();
             }
             try {
+                reset();
                 consumer.accept(page);
             } finally {
                 page.releaseBlocks();
@@ -270,6 +279,8 @@ public final class ChildRelationColumns {
         void close() {
             Releasables.closeExpectNoException(parents);
             Releasables.closeExpectNoException(leaves);
+            parents = null;
+            leaves = new Block.Builder[0];
         }
     }
 

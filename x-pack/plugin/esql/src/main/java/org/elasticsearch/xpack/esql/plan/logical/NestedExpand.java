@@ -20,7 +20,10 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
 import java.io.IOException;
@@ -90,9 +93,20 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
         }
     }
 
+    /**
+     * As {@link #checkVersion}, and a dataset's collection, read from a carrier in {@code child}'s output, needs the peer to
+     * know carriers. The output is only asked for when the peer is that old.
+     */
+    public static void checkVersion(StreamOutput out, QueryPlan<?> child, String path) throws IOException {
+        checkVersion(out);
+        if (out.getTransportVersion().supports(NestedPredicate.DATASET_VERSION) == false && carrier(child.output(), path) != null) {
+            throw new IOException("NESTED_EXPAND over a dataset requires nested dataset collection transport support");
+        }
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        checkVersion(out);
+        checkVersion(out, child(), path);
         if (bound() == false) {
             throw new IllegalStateException("NESTED_EXPAND must be bound before serialization");
         }
@@ -154,7 +168,9 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
             return null;
         }
         for (Attribute attribute : attributes) {
-            if (attribute.dataType() == DataType.SOURCE && attribute.synthetic() && attribute.name().equals(path)) {
+            if (attribute.dataType() == DataType.SOURCE
+                && attribute.synthetic()
+                && attribute.name().equals(CollectionSchema.carrierName(path))) {
                 return attribute;
             }
         }

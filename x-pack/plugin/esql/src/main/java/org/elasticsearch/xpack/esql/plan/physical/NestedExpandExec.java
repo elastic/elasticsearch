@@ -56,7 +56,7 @@ public final class NestedExpandExec extends UnaryExec {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        NestedExpand.checkVersion(out);
+        NestedExpand.checkVersion(out, child(), path);
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeString(path);

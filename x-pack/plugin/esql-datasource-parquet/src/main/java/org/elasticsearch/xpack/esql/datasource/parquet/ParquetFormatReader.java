@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
@@ -2795,7 +2796,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         @Nullable Consumer<String> warningSink,
         @Nullable SharedErrorBudget sharedErrorBudget,
         @Nullable ParquetReaderCounters counters,
-        Map<String, List<String>> collections
+        Map<String, List<CollectionSchema.Leaf>> collections
     ) throws IOException {
         if (counters != null) {
             counters.setLateMaterializationEnabled(true);
@@ -2850,7 +2851,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             }
             List<Attribute> projectedAttributes = buildProjectedAttributes(projectedColumns, attributes);
 
-            MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
+            MessageType projectedSchema = buildProjectedSchema(parquetSchema, withCarriedColumns(projectedAttributes, collections));
             String createdBy = fileMetaData.getCreatedBy();
             boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
             recordPerColumnMaterialization(projectedAttributes, useOptimized, counters);
@@ -3645,6 +3646,22 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return result;
     }
 
+    /**
+     * {@code projectedAttributes} with the columns of the collections that {@code carriers} carry, which the query names
+     * only through their carriers, so that the projected schema reads them.
+     */
+    private static List<Attribute> withCarriedColumns(List<Attribute> projectedAttributes, Map<String, ?> carriers) {
+        if (carriers.isEmpty()) {
+            return projectedAttributes;
+        }
+        List<Attribute> withCarried = new ArrayList<>(projectedAttributes);
+        for (String carrier : carriers.keySet()) {
+            String path = CollectionSchema.carriedPath(carrier);
+            withCarried.add(new ReferenceAttribute(Source.EMPTY, null, path, DataType.NULL, Nullability.TRUE, null, false));
+        }
+        return withCarried;
+    }
+
     private static MessageType buildProjectedSchema(MessageType fullSchema, List<Attribute> projectedAttributes) {
         // Resolve each attribute to a path of segments. Exact top-level match wins over
         // dotted-path traversal so that literal-dot top-level field names keep resolving to
@@ -4414,15 +4431,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ErrorPolicy errorPolicy,
             @Nullable Consumer<String> warningSink,
             @Nullable SharedErrorBudget sharedErrorBudget,
-            Map<String, List<String>> collections
+            Map<String, List<CollectionSchema.Leaf>> collections
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
             this.collections = new ParquetCollections.Decoder[attributes.size()];
             for (int i = 0; i < attributes.size(); i++) {
-                List<String> leaves = collections.get(attributes.get(i).name());
+                List<CollectionSchema.Leaf> leaves = collections.get(attributes.get(i).name());
                 if (leaves != null) {
-                    this.collections[i] = ParquetCollections.Decoder.of(projectedSchema, attributes.get(i).name(), leaves);
+                    String path = CollectionSchema.carriedPath(attributes.get(i).name());
+                    this.collections[i] = ParquetCollections.Decoder.of(projectedSchema, path, leaves);
                 }
             }
             this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(

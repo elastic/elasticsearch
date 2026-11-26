@@ -24,8 +24,30 @@ import java.util.List;
  */
 public record CollectionSchema(String path, @Nullable String keyLeaf, List<Leaf> leaves, @Nullable String unsupported) {
 
+    /**
+     * The prefix of the plan column that carries a collection's elements to a collection operator. The carrier cannot take
+     * the collection's own name, which the dataset's column already holds, and a plan's columns are unique by name.
+     */
+    public static final String CARRIER_PREFIX = "$$collection.";
+
     public CollectionSchema {
         leaves = List.copyOf(leaves);
+    }
+
+    /** The name of the plan column that carries the collection at {@code path}. */
+    public static String carrierName(String path) {
+        return CARRIER_PREFIX + path;
+    }
+
+    /** Whether {@code column}, a scan's projected column, is the carrier of a collection rather than a column of the file. */
+    public static boolean isCarrier(String column) {
+        return column.startsWith(CARRIER_PREFIX);
+    }
+
+    /** The path of the collection the carrier column {@code column} carries. */
+    public static String carriedPath(String column) {
+        assert isCarrier(column) : column;
+        return column.substring(CARRIER_PREFIX.length());
     }
 
     /**

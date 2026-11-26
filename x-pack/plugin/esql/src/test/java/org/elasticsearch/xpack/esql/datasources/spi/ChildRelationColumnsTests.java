@@ -7,8 +7,12 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -69,6 +73,47 @@ public class ChildRelationColumnsTests extends ESTestCase {
             );
             // A parent that needs no more children stops being read
             assertThat(decode(carrier, new int[] { 0 }, 1, p -> p != 0), equalTo(List.of(List.of(2, 10L))));
+        } finally {
+            Releasables.closeExpectNoException(leaves);
+        }
+    }
+
+    /** A breaker that trips anywhere in the decode, starting a page or building one, leaves nothing charged to it. */
+    public void testBreakerTripReleasesEverything() {
+        int parents = 50;
+        int[] offsets = new int[parents + 1];
+        Block[] leaves = new Block[1];
+        try (LongBlock.Builder ttl = blockFactory.newLongBlockBuilder(parents * 3)) {
+            for (int p = 0; p < parents; p++) {
+                offsets[p + 1] = offsets[p] + 3;
+                for (int e = 0; e < 3; e++) {
+                    ttl.appendLong(p * 3 + e);
+                }
+            }
+            leaves[0] = ttl.build();
+        }
+        try (BytesRefBlock carrier = ChildRelationColumns.encode(blockFactory, parents, offsets, leaves)) {
+            boolean tripped = false;
+            for (long limit = 64; limit < 64 * 1024; limit *= 2) {
+                CircuitBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(limit));
+                BlockFactory limited = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+                try {
+                    ChildRelationColumns.decode(
+                        carrier,
+                        new ElementType[] { ElementType.LONG },
+                        new int[] { 0 },
+                        p -> true,
+                        p -> true,
+                        limited,
+                        16,
+                        page -> {}
+                    );
+                } catch (CircuitBreakingException e) {
+                    tripped = true;
+                }
+                assertThat("limit " + limit, breaker.getUsed(), equalTo(0L));
+            }
+            assertTrue("the smallest limit must trip, or this test checks nothing", tripped);
         } finally {
             Releasables.closeExpectNoException(leaves);
         }

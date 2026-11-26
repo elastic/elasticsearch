@@ -9447,7 +9447,16 @@ public class ParquetFormatReaderTests extends ESTestCase {
         FormatReadContext context = FormatReadContext.builder()
             .projectedColumns(List.of("id", "answers"))
             .batchSize(100)
-            .collections(Map.of("answers", List.of("tags", "ttl", "type")))
+            .collections(
+                Map.of(
+                    "answers",
+                    List.of(
+                        new CollectionSchema.Leaf("tags", DataType.KEYWORD),
+                        new CollectionSchema.Leaf("ttl", DataType.LONG),
+                        new CollectionSchema.Leaf("type", DataType.KEYWORD)
+                    )
+                )
+            )
             .build();
         List<List<Object>> children = new ArrayList<>();
         int parents = 0;

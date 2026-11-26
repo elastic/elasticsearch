@@ -272,6 +272,112 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
             | KEEP span_id""", spans), row("s1"));
     }
 
+    /** A collection operator with no KEEP after it returns the dataset's own columns, the collection unreadable as before. */
+    public void testNestedAnyWithoutKeep() throws Exception {
+        String dns = registerDataset("dns_nokeep", StoragePath.fileUri(write("dns", DNS, List.of(g -> {
+            g.add("question", "www.example.com");
+            answer(g.addGroup("answers"), "www.example.com", "CNAME", 30L, "lb.example.net");
+        }, g -> {
+            g.add("question", "api.example.com");
+            answer(g.addGroup("answers"), "api.example.com", "A", 60L, "93.184.1.2");
+        }))), Map.of());
+        assertRows("FROM " + dns + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\")", row("www.example.com", null));
+        assertRows(
+            "FROM " + dns + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\") | KEEP question, answers",
+            row("www.example.com", null)
+        );
+        assertRows(
+            "FROM " + dns + " | NESTED_EXPAND answers | KEEP question, answers.type | SORT question",
+            row("api.example.com", "A"),
+            row("www.example.com", "CNAME")
+        );
+    }
+
+    /** A sort and limit after the operator, over a dataset wide enough that the scan may defer the columns the sort does not read. */
+    public void testCollectionBeforeTopN() throws Exception {
+        MessageType wide = MessageTypeParser.parseMessageType("""
+            message wide {
+              required binary question (UTF8);
+              optional binary c1 (UTF8);
+              optional binary c2 (UTF8);
+              optional binary c3 (UTF8);
+              optional group answers (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary type (UTF8);
+                    optional int64 ttl;
+                  }
+                }
+              }
+            }
+            """);
+        List<Consumer<Group>> rows = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            int n = i;
+            rows.add(g -> {
+                g.add("question", "q" + (char) ('a' + n));
+                g.add("c1", "x");
+                g.add("c2", "y");
+                g.add("c3", "z");
+                Group element = g.addGroup("answers").addGroup("list").addGroup("element");
+                element.append("type", n % 2 == 0 ? "A" : "CNAME").append("ttl", (long) n);
+            });
+        }
+        String dataset = registerDataset("wide", StoragePath.fileUri(write("wide", wide, rows)), Map.of());
+        assertRows(
+            "FROM " + dataset + " | NESTED_EXPAND answers | SORT question | LIMIT 3 | KEEP question, c1, answers.type, answers.ttl",
+            row("qa", "x", "A", 0L),
+            row("qb", "x", "CNAME", 1L),
+            row("qc", "x", "A", 2L)
+        );
+        assertRows(
+            "FROM " + dataset + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\") | SORT question | LIMIT 2 | KEEP question, c1",
+            row("qb", "x"),
+            row("qd", "x")
+        );
+    }
+
+    /** A later file whose element field has another type is refused rather than read as the first file's type. */
+    public void testElementTypeDiffersBetweenFiles() throws Exception {
+        MessageType asDouble = MessageTypeParser.parseMessageType("""
+            message spans {
+              required binary span_id (UTF8);
+              optional group metrics (MAP) {
+                repeated group key_value {
+                  required binary key (UTF8);
+                  optional double value;
+                }
+              }
+            }
+            """);
+        MessageType asLong = MessageTypeParser.parseMessageType("""
+            message spans {
+              required binary span_id (UTF8);
+              optional group metrics (MAP) {
+                repeated group key_value {
+                  required binary key (UTF8);
+                  optional int64 value;
+                }
+              }
+            }
+            """);
+        Path dir = createTempDir();
+        write(dir, "a", asDouble, List.of(g -> {
+            g.add("span_id", "s1");
+            g.addGroup("metrics").addGroup("key_value").append("key", "latency").append("value", 1.5);
+        }));
+        write(dir, "b", asLong, List.of(g -> {
+            g.add("span_id", "s2");
+            g.addGroup("metrics").addGroup("key_value").append("key", "latency").append("value", 500L);
+        }));
+        String dataset = registerDataset("mixed", StoragePath.fileUri(dir) + "/*.parquet", Map.of());
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE NESTED_ANY(metrics, metrics.value >= 500) | KEEP span_id")).close()
+        );
+        assertThat(e.getMessage(), containsString("[metrics.value]"));
+    }
+
     public void testCollectionInsideElementIsRefused() throws Exception {
         MessageType schema = MessageTypeParser.parseMessageType("""
             message nested {
@@ -355,6 +461,10 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
     }
 
     private Path write(String name, MessageType schema, List<Consumer<Group>> rows) throws IOException {
+        return write(createTempDir(), name, schema, rows);
+    }
+
+    private Path write(Path dir, String name, MessageType schema, List<Consumer<Group>> rows) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         OutputFile outputFile = createOutputFile(baos);
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
@@ -371,7 +481,7 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
                 writer.write(g);
             }
         }
-        Path file = createTempDir().resolve(name + ".parquet");
+        Path file = dir.resolve(name + ".parquet");
         Files.write(file, baos.toByteArray());
         return file;
     }

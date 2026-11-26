@@ -131,7 +131,7 @@ public record FormatReadContext(
     @Nullable CircuitBreaker breaker,
     @Nullable SharedErrorBudget sharedErrorBudget,
     @Nullable FormatReadCounters readCounters,
-    Map<String, List<String>> collections
+    Map<String, List<CollectionSchema.Leaf>> collections
 ) {
 
     public FormatReadContext {
@@ -280,7 +280,7 @@ public record FormatReadContext(
         private SharedErrorBudget sharedErrorBudget = null;
         @Nullable
         private FormatReadCounters readCounters = null;
-        private Map<String, List<String>> collections = Map.of();
+        private Map<String, List<CollectionSchema.Leaf>> collections = Map.of();
 
         private Builder() {}
 
@@ -417,7 +417,7 @@ public record FormatReadContext(
          * {@link ChildRelationColumns} carrier rather than as the column it would otherwise be, and a null leaf for a
          * leaf its file lacks.
          */
-        public Builder collections(Map<String, List<String>> collections) {
+        public Builder collections(Map<String, List<CollectionSchema.Leaf>> collections) {
             this.collections = collections;
             return this;
         }

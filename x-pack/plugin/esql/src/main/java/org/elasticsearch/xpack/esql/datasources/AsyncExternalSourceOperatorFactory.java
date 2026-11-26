@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
@@ -83,6 +84,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -1122,6 +1124,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
+     * The carrier columns of the projection, each with the leaves of its collection in the carrier's order and the type the
+     * plan reads them as. Only a carrier has the {@link DataType#SOURCE} type in a dataset's output.
+     */
+    private Map<String, List<CollectionSchema.Leaf>> collectionColumns() {
+        Map<String, List<CollectionSchema.Leaf>> carriers = new HashMap<>();
+        for (Attribute attr : attributes) {
+            if (attr.dataType() == DataType.SOURCE && attr instanceof FieldAttribute field) {
+                carriers.put(
+                    attr.name(),
+                    new TreeMap<>(field.field().getProperties()).entrySet()
+                        .stream()
+                        .map(leaf -> new CollectionSchema.Leaf(leaf.getKey(), leaf.getValue().getDataType()))
+                        .toList()
+                );
+            }
+        }
+        return carriers;
+    }
+
+    /**
      * Returns the projected-column names the format reader should produce: real data columns plus
      * the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} when deferred extraction is on.
      * Both Hive-style partition columns and {@code _file.*} virtual columns are stripped because
@@ -1132,20 +1154,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * {@link ColumnExtractor#ROW_POSITION_COLUMN}, which the deferred-extraction handshake
      * needs to find back in the projected channel layout (see {@link #rowPositionChannelIndex}).
      */
-    /**
-     * The projected columns that are collections a collection operator reads, which the reader emits as carriers. Only such a
-     * column has the {@link DataType#SOURCE} type in a dataset's output.
-     */
-    private Map<String, List<String>> collectionColumns() {
-        Map<String, List<String>> carriers = new HashMap<>();
-        for (Attribute attr : attributes) {
-            if (attr.dataType() == DataType.SOURCE && attr instanceof FieldAttribute field) {
-                carriers.put(attr.name(), field.field().getProperties().keySet().stream().sorted().toList());
-            }
-        }
-        return carriers;
-    }
-
     private List<String> dataProjectedColumns() {
         List<String> cols = new ArrayList<>(attributes.size());
         for (Attribute attr : attributes) {
@@ -1395,6 +1403,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // is optimizer-inserted and resolved at read time by the format reader). Preserve it at the
         // tail of the per-file projection so the reader's _rowPosition emission path fires for
         // every file, regardless of how many of the user's data columns the file is missing.
+        // A collection's carrier is no column of the file either: the format reader builds it from the collection's columns
+        for (String column : queryProjection) {
+            if (CollectionSchema.isCarrier(column) && result.contains(column) == false) {
+                result.add(column);
+            }
+        }
         if (wanted.contains(ColumnExtractor.ROW_POSITION_COLUMN)) {
             // Defensive: only append once. If a future caller decides _rowPosition should also be
             // present in perFileReadSchema, the loop above would already have added it and we

@@ -1,0 +1,6 @@
+area: Data streams
+issues:
+ - 165096
+pr: 167697
+summary: Stop no-op ILM step-info updates for indices on a missing policy from publishing unchanged cluster states and keeping the master queue busy
+type: bug

@@ -3659,7 +3659,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 handler.messageReceived(request, channel, task);
             });
 
-        var targetNode = startIndexNode();
+        // The split target's recovery waits on the held copy, so the source's relocation must not queue behind it
+        var targetNode = startIndexNode(unthrottledIncomingRecoveryNodeSettings());
         ensureStableCluster(3);
 
         updateClusterSettings(
@@ -3686,7 +3687,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         logger.info("starting reshard");
         safeGet(client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)));
 
-        // once copy has started, relocate source shard. This should cause the split task to be cancelled and unblock relocation
+        // once copy has started, relocate source shard. The source shard closes once handoff completes, which cancels the split task and
+        // unblocks the copy
         safeAwait(copyStarted);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
 

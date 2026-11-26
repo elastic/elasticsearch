@@ -629,7 +629,7 @@ public class ExchangeServiceTests extends ESTestCase {
      * The page callback of a remote sink sees every page that arrives, before the buffer takes it. That includes the pages
      * that the buffer discards because the source already finished, which no driver reads.
      */
-    public void testOnPageFetchedSeesEveryArrivingPage() {
+    public void testOnPageFetchedSeesEveryArrivingPage() throws Exception {
         ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(100, threadPool.generic());
         ExchangeSource exchangeSource = sourceHandler.createExchangeSource();
         BlockFactory blockFactory = blockFactory();
@@ -656,18 +656,20 @@ public class ExchangeServiceTests extends ESTestCase {
 
         assertThat(seen, equalTo(IntStream.range(0, sent.get()).boxed().toList()));
         List<Integer> read = new ArrayList<>();
-        Page page;
-        while ((page = exchangeSource.pollPage()) != null) {
-            read.add(page.<IntBlock>getBlock(0).getInt(0));
-            page.releaseBlocks();
-        }
+        assertBusy(() -> {
+            Page polled;
+            while ((polled = exchangeSource.pollPage()) != null) {
+                read.add(polled.<IntBlock>getBlock(0).getInt(0));
+                polled.releaseBlocks();
+            }
+            assertTrue(exchangeSource.isFinished());
+        });
         if (sourceFinishes) {
             assertThat(read, empty());
         } else {
             assertThat(sent.get(), equalTo(pages));
             assertThat(read, equalTo(seen));
         }
-        assertTrue(exchangeSource.isFinished());
         exchangeSource.finish();
     }
 

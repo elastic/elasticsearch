@@ -12,11 +12,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.xpack.esql.action.RequestedTimeRange;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
@@ -46,6 +48,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.DateTimeException;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 import java.util.HashMap;
@@ -86,6 +89,19 @@ final class QueryTimeRangeExtractor {
      */
     record TimeRange(@Nullable Long from, @Nullable Long to) {
         static final TimeRange UNBOUNDED = new TimeRange(null, null);
+
+        /** The range of a request filter, with a date beyond the epoch millisecond range clamped to the furthest millisecond. */
+        static TimeRange of(TimestampBounds bounds) {
+            return new TimeRange(saturatedEpochMilli(bounds.start()), saturatedEpochMilli(bounds.end()));
+        }
+
+        private static long saturatedEpochMilli(Instant instant) {
+            try {
+                return instant.toEpochMilli();
+            } catch (ArithmeticException e) {
+                return instant.isBefore(Instant.EPOCH) ? Long.MIN_VALUE : Long.MAX_VALUE;
+            }
+        }
 
         boolean isUnbounded() {
             return from == null && to == null;
@@ -135,6 +151,37 @@ final class QueryTimeRangeExtractor {
             }
         }
         return filters;
+    }
+
+    /**
+     * The {@code @timestamp} range the query asks for, for observability: the bounds of the request filter, narrowed by the range the
+     * query itself restricts its relations to, the widest one if it reads several. {@code null} if neither bounds {@code @timestamp}.
+     * <p>
+     * The range of a {@code PROMQL} command is the one it reads, so it includes the lookback before its {@code start}.
+     */
+    @Nullable
+    static RequestedTimeRange requestedTimeRange(
+        LogicalPlan parsed,
+        @Nullable TimestampBounds filterBounds,
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry
+    ) {
+        TimeRange range = ranges(parsed, configuration, functionRegistry).values()
+            .stream()
+            .reduce(TimeRange::cover)
+            .orElse(TimeRange.UNBOUNDED);
+        if (filterBounds != null) {
+            range = range.intersect(TimeRange.of(filterBounds));
+        }
+        if (range.isUnbounded()) {
+            return null;
+        }
+        // The millisecond now that date math and NOW() were resolved against, rather than the configuration's finer-grained now().
+        return new RequestedTimeRange(
+            range.from() == null ? null : Instant.ofEpochMilli(range.from()),
+            range.to() == null ? null : Instant.ofEpochMilli(range.to()),
+            Instant.ofEpochMilli(configuration.absoluteStartedTimeInMillis())
+        );
     }
 
     /**

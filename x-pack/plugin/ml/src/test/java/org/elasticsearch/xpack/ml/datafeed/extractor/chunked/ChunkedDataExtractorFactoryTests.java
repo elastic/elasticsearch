@@ -63,6 +63,16 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.getContext().end(), equalTo(9000L));
     }
 
+    public void testDslWindowInsideSingleHistogramBucketShouldBeEmpty() {
+        ChunkedDataExtractorFactory factory = createFactory(1000L);
+
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(2500, 2700);
+
+        assertThat(dataExtractor.getContext().start(), equalTo(3000L));
+        assertThat(dataExtractor.getContext().end(), equalTo(2000L));
+        assertThat(dataExtractor.hasNext(), is(false));
+    }
+
     public void testIntervalTimeAligner() {
         ChunkedDataExtractorContext.TimeAligner timeAligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(100L);
         assertThat(timeAligner.alignToFloor(300L), equalTo(300L));
@@ -107,6 +117,24 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.getContext().end(), equalTo(Duration.ofHours(10).toMillis()));
     }
 
+    public void testEsqlResumeFromEndStampedRecordShouldStartAtNextBucketBoundary() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1));
+        long hour = Duration.ofHours(1).toMillis();
+
+        // Last emitted row is end-stamped (bucket 09:00 stamped 09:59:59.999). DatafeedJobBuilder turns it into
+        // lastEnd = record + interval - 1, and DatafeedJob resumes at lastEnd + 1.
+        long endStampedResume = (10 * hour - 1) + hour - 1 + 1;
+        // Last emitted row is bucket-start stamped (bucket 09:00 stamped 09:00).
+        long bucketStartResume = (9 * hour) + hour - 1 + 1;
+
+        long windowEnd = 12 * hour;
+        ChunkedDataExtractor endStamped = (ChunkedDataExtractor) factory.newExtractor(endStampedResume, windowEnd);
+        ChunkedDataExtractor bucketStart = (ChunkedDataExtractor) factory.newExtractor(bucketStartResume, windowEnd);
+
+        assertThat(endStamped.getContext().start(), equalTo(10 * hour));
+        assertThat(bucketStart.getContext().start(), equalTo(10 * hour));
+    }
+
     public void testEsqlWindowInsideSingleBucketShouldBeEmptyRatherThanInverted() {
         ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1));
 
@@ -127,6 +155,30 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
 
         assertThat(dataExtractor.getContext().start(), equalTo(3_600_000L));
         assertThat(dataExtractor.getContext().end(), equalTo(7_200_000L));
+    }
+
+    public void testEsqlRawQueryShouldKeepUnalignedStartSoAlreadyPostedRowsAreNotReread() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1), RAW_ESQL_QUERY);
+
+        // resume at latest_record_time + 1 (09:14:53.001): rows between 09:00 and 09:14:53 were already posted
+        long start = Duration.ofHours(9).plusMinutes(14).plusSeconds(53).plusMillis(1).toMillis();
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(start, Duration.ofHours(12).toMillis());
+
+        assertThat(dataExtractor.getContext().start(), equalTo(start));
+        assertThat(dataExtractor.getContext().end(), equalTo(Duration.ofHours(12).toMillis()));
+    }
+
+    public void testEsqlRawWindowInsideSingleBucketShouldBeKeptUnaligned() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1), RAW_ESQL_QUERY);
+
+        long windowStart = Duration.ofHours(9).plusMinutes(14).toMillis();
+        long windowEnd = Duration.ofHours(9).plusMinutes(29).toMillis();
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(windowStart, windowEnd);
+
+        // raw rows keep source timestamps, so neither edge is moved to the grouping grid
+        assertThat(dataExtractor.getContext().start(), equalTo(windowStart));
+        assertThat(dataExtractor.getContext().end(), equalTo(windowEnd));
+        assertThat(dataExtractor.hasNext(), is(true));
     }
 
     public void testEsqlQueryWithoutOuterLimitShouldInjectRowLimit() {
@@ -154,8 +206,11 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.getContext().injectsEsqlRowLimit(), is(false));
     }
 
+    private static final String RAW_ESQL_QUERY = "FROM logs";
+    private static final String AGGREGATING_ESQL_QUERY = "FROM logs | STATS c = COUNT(*) BY bucket = BUCKET(@timestamp, 1 hour)";
+
     private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval) {
-        return createEsqlFactory(groupingInterval, "FROM logs");
+        return createEsqlFactory(groupingInterval, AGGREGATING_ESQL_QUERY);
     }
 
     private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval, String esqlQuery) {

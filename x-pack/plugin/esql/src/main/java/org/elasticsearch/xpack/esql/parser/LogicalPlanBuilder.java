@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -60,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -606,7 +609,47 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 destination
             );
         }
-        return input -> new Into(source, input, destination);
+        IntoOptions options = intoOptions(source, visitCommandNamedParameters(ctx.commandNamedParameters()));
+        return input -> new Into(source, input, destination, options);
+    }
+
+    /** Option names are case-insensitive, so they are lowercased before lookup. */
+    private static IntoOptions intoOptions(Source source, @Nullable MapExpression optionsExpression) {
+        if (optionsExpression == null) {
+            return IntoOptions.DEFAULT;
+        }
+        Map<String, Expression> optionExpressionsByName = new LinkedHashMap<>();
+        // The entries, not the folded map: it keeps only the last value of a name, which would hide an invalid one before it
+        for (EntryExpression entry : optionsExpression.entryExpressions()) {
+            if (entry.key() instanceof Literal key) {
+                String name = BytesRefs.toString(key.value()).toLowerCase(Locale.ROOT);
+                if (optionExpressionsByName.put(name, entry.value()) != null) {
+                    throw new ParsingException(entry.value().source(), "Duplicate option [{}] in INTO", name);
+                }
+            } else {
+                throw new ParsingException(entry.key().source(), "Option names must be literals in INTO");
+            }
+        }
+
+        boolean refresh = IntoOptions.DEFAULT.refresh();
+        Expression refreshExpr = optionExpressionsByName.remove("refresh");
+        if (refreshExpr != null) {
+            if (refreshExpr instanceof Literal lit && lit.value() instanceof Boolean value) {
+                refresh = value;
+            } else {
+                throw new ParsingException(refreshExpr.source(), "Option [refresh] must be a boolean literal");
+            }
+        }
+
+        if (optionExpressionsByName.isEmpty() == false) {
+            throw new ParsingException(
+                source,
+                "Invalid option{} {} in INTO, expected one of [refresh]",
+                optionExpressionsByName.size() > 1 ? "s" : "",
+                optionExpressionsByName.keySet()
+            );
+        }
+        return new IntoOptions(refresh);
     }
 
     @Override

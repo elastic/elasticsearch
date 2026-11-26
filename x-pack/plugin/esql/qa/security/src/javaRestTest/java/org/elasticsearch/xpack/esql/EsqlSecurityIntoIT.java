@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -22,7 +23,7 @@ import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -31,32 +32,42 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Authorization of the destination of {@code INTO}. It has a cluster of its own because it needs batch indexing, which the other
- * security suites do not.
+ * {@code INTO} under real security. Writing the rows needs the {@code write} index privilege, but refreshing the destination
+ * afterwards needs {@code maintenance}, which a user who may only write does not have. The destination turns its own refresh off,
+ * so the rows can be searched only if {@code INTO} refreshed it.
+ * <p>
+ * A ROW source needs no index privilege, so the destination is authorized by {@code INTO} itself, before anything about it is
+ * reported: a caller who may not write gets the same 403 whether or not the destination exists.
  */
 public class EsqlSecurityIntoIT extends ESRestTestCase {
-    public static final String USER = "into_read_only_user";
-    public static final String EXISTING = "into-existing";
+    private static final String DESTINATION = "into-dest";
+    private static final String PASSWORD = "x-pack-test-password";
+    private static final String EXISTING = "into-existing";
+    private static final String READ_ONLY_USER = "into_read_only_user";
+    private static final String CREATE_DOC_USER = "into_create_doc_user";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        // Test clusters randomly start with indices.batch_indexing off, which INTO rejects. The flag has to be on for the setting to
+        // be accepted at all, which a release build does not do on its own.
         .feature(FeatureFlag.BATCH_INDEXING)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("indices.batch_indexing", "true")
-        .rolesFile(Resource.fromClasspath("into-roles.yml"))
-        .user("test-admin", "x-pack-test-password", "test-admin", true)
-        .user(USER, "x-pack-test-password", "into_read_only", false)
-        .user("into_writer_user", "x-pack-test-password", "into_writer", false)
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("test-admin", PASSWORD, "test-admin", true)
+        .user("into_writer", PASSWORD, "into_write_only", false)
+        .user("into_maintainer", PASSWORD, "into_write_and_maintenance", false)
+        .user("into_maintainer_elsewhere", PASSWORD, "into_write_and_maintenance_elsewhere", false)
+        .user(READ_ONLY_USER, PASSWORD, "into_read_only", false)
+        .user(CREATE_DOC_USER, PASSWORD, "into_create_doc_only", false)
         .build();
-
-    @Before
-    public void requiresIntoCommand() {
-        assumeTrue("INTO command required", hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.INTO_COMMAND.capabilityName())));
-    }
 
     @Override
     protected String getTestRestCluster() {
@@ -65,26 +76,92 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("test-admin", new SecureString("x-pack-test-password".toCharArray()));
+        String token = basicAuthHeaderValue("test-admin", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @Before
+    public void createDestination() throws IOException {
+        assumeTrue("INTO is only available in snapshot builds", hasCapabilities(adminClient(), List.of("into_command")));
+        createIndex(
+            DESTINATION,
+            Settings.builder().put("index.refresh_interval", -1).build(),
+            "\"properties\": { \"k\": { \"type\": \"keyword\" } }"
+        );
+    }
+
     /**
-     * A ROW source needs no index privilege, so INTO authorizes the destination itself: a read-only caller gets a 403 that is the
-     * same for an existing and a missing destination.
+     * The rows are stored, so the query succeeds. A failure would invite a retry that stores them again, so the refresh that the
+     * caller may not do is a warning, which says that the rows were written and only the refresh failed.
+     */
+    public void testWriterWithoutMaintenanceKeepsTheRowsAndWarnsThatTheRefreshFailed() throws IOException {
+        Response response = runInto("into_writer", "");
+        assertSummary(response);
+        assertThat(
+            warning(response),
+            containsString(
+                "index refresh for INTO [into-dest] failed after [2] documents were written, so they may not be searchable yet: "
+                    + "action [indices:admin/refresh] is unauthorized"
+            )
+        );
+        assertThat(warning(response), containsString("INTO includes an index refresh that requires the [maintenance] privilege"));
+        // The header escapes the quotes of the option, so only what follows it is matched
+        assertThat(warning(response), containsString(": false in future INTO queries to skip it"));
+        assertThat(warning(response), containsString("re-running this one writes the documents again"));
+
+        assertThat("the refresh did not happen", countDestination(), equalTo(0L));
+        refreshDestination();
+        assertThat(countDestination(), equalTo(2L));
+    }
+
+    /**
+     * The refresh action is allowed for this user, on an index that is not the destination, so the action-level check passes. The
+     * destination must then be refused, not silently dropped from the refresh with the rows left unsearchable and no warning.
+     */
+    public void testMaintenanceOnAnotherIndexDoesNotRefreshTheDestination() throws IOException {
+        Response response = runInto("into_maintainer_elsewhere", "");
+        assertSummary(response);
+        assertThat(warning(response), containsString("index refresh for INTO [into-dest] failed after [2] documents were written"));
+
+        assertThat("the refresh did not happen", countDestination(), equalTo(0L));
+        refreshDestination();
+        assertThat(countDestination(), equalTo(2L));
+    }
+
+    public void testWriterWithoutMaintenanceCanSkipTheRefresh() throws IOException {
+        Response response = runInto("into_writer", " WITH {\"refresh\": false}");
+        assertSummary(response);
+        assertThat("skipping the refresh is not a failure to warn about", response.getWarnings(), empty());
+
+        assertThat("not searchable until something refreshes the destination", countDestination(), equalTo(0L));
+        refreshDestination();
+        assertThat(countDestination(), equalTo(2L));
+    }
+
+    public void testWriterWithMaintenanceSeesTheRowsWhenTheQueryReturns() throws IOException {
+        Response response = runInto("into_maintainer", "");
+        assertSummary(response);
+        assertThat(response.getWarnings(), empty());
+
+        assertThat("INTO refreshed the destination", countDestination(), equalTo(2L));
+    }
+
+    /**
+     * A read-only caller gets a 403 that is the same for an existing and a missing destination, and is told nothing about the
+     * existing one: its ingest pipeline is not reported.
      */
     public void testDestinationDeniedWithoutWriteAccess() throws IOException {
         createDestinationWithPipeline();
 
-        ResponseException existing = expectThrows(ResponseException.class, () -> into(USER, EXISTING));
-        ResponseException missing = expectThrows(ResponseException.class, () -> into(USER, "into-missing"));
+        ResponseException existing = expectThrows(ResponseException.class, () -> intoDestination(READ_ONLY_USER, EXISTING));
+        ResponseException missing = expectThrows(ResponseException.class, () -> intoDestination(READ_ONLY_USER, "into-missing"));
         String existingBody = EntityUtils.toString(existing.getResponse().getEntity());
         String missingBody = EntityUtils.toString(missing.getResponse().getEntity());
         assertThat(existingBody, existing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
         assertThat(missingBody, missing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
         String format = "action [indices:data/write/index:op_type/create] is unauthorized for user [%s] on indices [%s]";
-        assertThat(existingBody, containsString(Strings.format(format, USER, EXISTING)));
-        assertThat(missingBody, containsString(Strings.format(format, USER, "into-missing")));
+        assertThat(existingBody, containsString(Strings.format(format, READ_ONLY_USER, EXISTING)));
+        assertThat(missingBody, containsString(Strings.format(format, READ_ONLY_USER, "into-missing")));
     }
 
     /**
@@ -95,12 +172,12 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     public void testWriterWithoutReadAccessIsAuthorized() throws IOException {
         createDestinationWithPipeline();
 
-        ResponseException refusal = expectThrows(ResponseException.class, () -> into("into_writer_user", EXISTING));
+        ResponseException refusal = expectThrows(ResponseException.class, () -> intoDestination(CREATE_DOC_USER, EXISTING));
         String body = EntityUtils.toString(refusal.getResponse().getEntity());
         assertThat(body, refusal.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
         assertThat(body, containsString("does not support ingest pipelines"));
 
-        ResponseException missing = expectThrows(ResponseException.class, () -> into("into_writer_user", "into-missing"));
+        ResponseException missing = expectThrows(ResponseException.class, () -> intoDestination(CREATE_DOC_USER, "into-missing"));
         assertThat(missing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_NOT_FOUND));
         assertThat(
             EntityUtils.toString(missing.getResponse().getEntity()),
@@ -113,24 +190,54 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
             Settings.builder().put("index.batch_indexing", true).build(),
             "\"properties\": {\"x\": {\"type\": \"long\"}}"
         );
-        assertThat(into("into_writer_user", "into-plain").getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_OK));
+        assertThat(intoDestination(CREATE_DOC_USER, "into-plain").getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_OK));
         assertOK(adminClient().performRequest(new Request("POST", "into-plain/_refresh")));
         Response count = adminClient().performRequest(new Request("GET", "into-plain/_count"));
         assertThat(entityAsMap(count).get("count"), equalTo(1));
     }
 
-    private void createDestinationWithPipeline() throws IOException {
+    private static Response runInto(String user, String options) throws IOException {
+        String query = "ROW k = [\"a\", \"b\"] | MV_EXPAND k | INTO " + DESTINATION + options;
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("query", query).endObject()));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(WarningsHandler.PERMISSIVE)
+        );
+        return client().performRequest(request);
+    }
+
+    private static void createDestinationWithPipeline() throws IOException {
         Request pipeline = new Request("PUT", "_ingest/pipeline/into-pipeline");
         pipeline.setJsonEntity("{\"processors\": []}");
         assertOK(adminClient().performRequest(pipeline));
         createIndex(adminClient(), EXISTING, Settings.builder().put("index.default_pipeline", "into-pipeline").build());
     }
 
-    private Response into(String user, String destination) throws IOException {
+    /** Writes one row into the given destination as the given user. A user without {@code maintenance} also gets a refresh warning. */
+    private static Response intoDestination(String user, String destination) throws IOException {
         Request request = new Request("POST", "_query");
         request.setJsonEntity("{\"query\": \"ROW x = 1 | INTO " + destination + "\"}");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
-        request.addParameter("error_trace", "true");
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(WarningsHandler.PERMISSIVE)
+        );
         return client().performRequest(request);
+    }
+
+    private static void assertSummary(Response response) throws IOException {
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(entityAsMap(response).get("values"), equalTo(List.of(List.of(2, 2))));
+    }
+
+    private static String warning(Response response) {
+        assertThat(response.getWarnings(), hasSize(1));
+        return response.getWarnings().getFirst();
+    }
+
+    private static void refreshDestination() throws IOException {
+        client().performRequest(new Request("POST", DESTINATION + "/_refresh"));
+    }
+
+    private static long countDestination() throws IOException {
+        return ((Number) entityAsMap(client().performRequest(new Request("GET", DESTINATION + "/_count"))).get("count")).longValue();
     }
 }

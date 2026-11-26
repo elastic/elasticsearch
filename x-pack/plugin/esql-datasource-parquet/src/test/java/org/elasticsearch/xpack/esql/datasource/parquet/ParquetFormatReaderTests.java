@@ -9445,11 +9445,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(r0, r1, r2, r3);
         });
         FormatReadContext context = FormatReadContext.builder()
-            .projectedColumns(List.of("id", "answers"))
+            .projectedColumns(List.of("id", CollectionSchema.carrierName("answers")))
             .batchSize(100)
             .collections(
                 Map.of(
-                    "answers",
+                    CollectionSchema.carrierName("answers"),
                     List.of(
                         new CollectionSchema.Leaf("tags", DataType.KEYWORD),
                         new CollectionSchema.Leaf("ttl", DataType.LONG),

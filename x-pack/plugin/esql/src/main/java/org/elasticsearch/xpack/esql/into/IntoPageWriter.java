@@ -221,11 +221,7 @@ public final class IntoPageWriter {
             try {
                 requireEligibleDestination(project, target);
             } catch (ElasticsearchStatusException e) {
-                throw new ElasticsearchStatusException(
-                    "INTO [{}] can no longer write to the destination",
-                    RestStatus.CONFLICT,
-                    target
-                );
+                throw new ElasticsearchStatusException("INTO [{}] can no longer write to the destination", RestStatus.CONFLICT, target);
             }
         }
 

@@ -132,7 +132,7 @@ public class DatafeedJobBuilder {
             jobResultsPersister::persistDatafeedTimingStats
         );
 
-        if (failListenerOnPreflightValidation(datafeedConfig, job, listener)) {
+        if (failListenerOnPreflightValidation(task, datafeedConfig, job, listener)) {
             return;
         }
 
@@ -209,7 +209,7 @@ public class DatafeedJobBuilder {
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
         );
-        if (failListenerOnPreflightValidation(datafeedConfig, job, listener)) {
+        if (failListenerOnPreflightValidation(task, datafeedConfig, job, listener)) {
             return;
         }
         var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(crossProjectModeDecider, null);
@@ -292,9 +292,14 @@ public class DatafeedJobBuilder {
         listener.onResponse(datafeedJob);
     }
 
-    private boolean failListenerOnPreflightValidation(DatafeedConfig datafeedConfig, Job job, ActionListener<DatafeedJob> listener) {
+    private boolean failListenerOnPreflightValidation(
+        TransportStartDatafeedAction.DatafeedTask task,
+        DatafeedConfig datafeedConfig,
+        Job job,
+        ActionListener<DatafeedJob> listener
+    ) {
         try {
-            checkRemoteIndicesAreAvailable(datafeedConfig);
+            checkRemoteIndicesAreAvailable(task, datafeedConfig);
             DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
@@ -304,13 +309,15 @@ public class DatafeedJobBuilder {
     }
 
     // visible for testing
-    void checkRemoteIndicesAreAvailable(DatafeedConfig datafeedConfig) {
+    void checkRemoteIndicesAreAvailable(TransportStartDatafeedAction.DatafeedTask task, DatafeedConfig datafeedConfig) {
         if (remoteClusterClient == false) {
-            // ES|QL sources are in esql_query, not indices; remote checks live in EsqlDatafeedQueryValidator (#160858).
-            if (datafeedConfig.getIndices() == null) {
+            // ES|QL sources are not in the config: the master stores the probed remote sources in the start parameters. A DSL datafeed
+            // keeps its loaded config, because an update that races the start may have changed the indices after the master read them.
+            List<String> sources = datafeedConfig.getEsqlQuery() != null ? task.getDatafeedIndices() : datafeedConfig.getIndices();
+            if (sources == null) {
                 return;
             }
-            List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(datafeedConfig.getIndices());
+            List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(sources);
             if (remoteIndices.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(

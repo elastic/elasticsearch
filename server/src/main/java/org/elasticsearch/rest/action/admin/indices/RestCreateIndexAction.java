@@ -97,7 +97,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return CreateIndexCapabilities.CAPABILITIES;
+        return CreateIndexCapabilities.capabilities();
     }
 
     @Override

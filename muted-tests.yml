@@ -1076,3 +1076,8 @@ tests:
   - :qa:rolling-upgrade:bcUpgradeTest
   method: testIndexSortForNumericTypes {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/167674
+- class: org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactoryTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFilteredLimitRampStaysParkedOnDenseFirstPageWithK1
+  issue: https://github.com/elastic/elasticsearch/issues/167690

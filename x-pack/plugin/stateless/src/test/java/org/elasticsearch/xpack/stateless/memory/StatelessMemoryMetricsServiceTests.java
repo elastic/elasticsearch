@@ -1210,7 +1210,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final long operationSize = 1_000L;
         final long precomputedHeap = 1_000_000L;
         final StatelessMemoryMetricsService statelessMemoryMetricsService = new StatelessMemoryMetricsService(now::get, clusterService);
-        publish(statelessMemoryMetricsService, new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(precomputedHeap, operationSize));
+        publish(
+            statelessMemoryMetricsService,
+            new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(precomputedHeap, operationSize)
+        );
         assertThat(statelessMemoryMetricsService.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(precomputedHeap));
         assertThat(statelessMemoryMetricsService.largestRecentIndexingOpSize(), equalTo(operationSize));
     }

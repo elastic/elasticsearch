@@ -487,19 +487,12 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         );
 
         Instant oneDayAgo = Instant.now().minus(1, ChronoUnit.DAYS);
-        when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
             listener.onResponse(getDeploymentStatsResponse(1, 10, 10.0, oneDayAgo, oneDayAgo, AssignmentState.STARTED));
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<CreateTrainedModelAssignmentAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(null);
-            return Void.TYPE;
-        }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
         service.start();
 
         // Scale down to zero on the first evaluation, without waiting for the scale-to-zero time again.
@@ -532,7 +525,6 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         Instant lastActivity = Instant.now();
         AtomicInteger statsRequestCount = new AtomicInteger();
         AtomicLong idleMillisAtFirstScaleDown = new AtomicLong(-1);
-        when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
             statsRequestCount.incrementAndGet();
             @SuppressWarnings("unchecked")
@@ -582,19 +574,12 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             SIXTY_SECONDS,
             SIXTY_THOUSAND_MILLISECONDS
         );
-        when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
             listener.onResponse(getDeploymentStatsResponse(0, 0, 10.0, false, AssignmentState.STARTED));
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<CreateTrainedModelAssignmentAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(null);
-            return Void.TYPE;
-        }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
         service.start();
 
         var updateRequest = new UpdateTrainedModelDeploymentAction.Request("test-deployment");
@@ -617,8 +602,6 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             SIXTY_SECONDS,
             TWO_THOUSAND_MILLISECONDS
         );
-
-        when(client.threadPool()).thenReturn(threadPool);
 
         // will not start when adaptive allocations are not enabled
         assertFalse(service.maybeStartAllocation(TrainedModelAssignment.Builder.empty(taskParams(1), null).build()));
@@ -663,8 +646,6 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             TWO_THOUSAND_MILLISECONDS
         );
 
-        when(client.threadPool()).thenReturn(threadPool);
-
         // Allocations are requested, but not started yet. The request should wait for them,
         // also when the minimum has changed in the meantime, and the allocations should not be changed.
         assertTrue(
@@ -702,7 +683,6 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         var latch = new CountDownLatch(1);
         var scalingUpRequestSent = new AtomicBoolean();
 
-        when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<CreateTrainedModelAssignmentAction.Response>) invocationOnMock.getArguments()[2];

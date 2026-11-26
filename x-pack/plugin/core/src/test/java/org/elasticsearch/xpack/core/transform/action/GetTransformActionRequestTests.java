@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Request;
 
@@ -28,7 +29,30 @@ public class GetTransformActionRequestTests extends AbstractBWCWireSerialization
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        if (Metadata.ALL.equals(instance.getId())) {
+            return new Request(
+                randomAlphaOfLengthBetween(1, 20),
+                instance.checkForDanglingTasks(),
+                instance.timeout()
+            );
+        }
+        return switch (between(0, 2)) {
+            case 0 -> new Request(
+                randomValueOtherThan(instance.getId(), () -> randomAlphaOfLengthBetween(1, 20)),
+                instance.checkForDanglingTasks(),
+                instance.timeout()
+            );
+            case 1 -> new Request(
+                instance.getId(),
+                randomValueOtherThan(instance.checkForDanglingTasks(), ESTestCase::randomBoolean),
+                instance.timeout()
+            );
+            default -> new Request(
+                instance.getId(),
+                instance.checkForDanglingTasks(),
+                randomValueOtherThan(instance.timeout(), ESTestCase::randomPositiveTimeValue)
+            );
+        };
     }
 
     @Override

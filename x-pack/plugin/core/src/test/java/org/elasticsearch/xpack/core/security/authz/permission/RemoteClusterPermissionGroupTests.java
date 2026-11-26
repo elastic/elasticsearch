@@ -126,11 +126,17 @@ public class RemoteClusterPermissionGroupTests extends AbstractXContentSerializi
 
     @Override
     protected RemoteClusterPermissionGroup mutateInstance(RemoteClusterPermissionGroup instance) throws IOException {
+        String[] privileges = instance.clusterPrivileges();
+        String[] clusters = instance.remoteClusterAliases();
         if (randomBoolean()) {
-            return new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "foo", "bar" });
+            privileges = randomArrayOtherThan(
+                privileges,
+                () -> new String[] { "monitor_enrich", randomAlphaOfLengthBetween(3, 8) }
+            );
         } else {
-            return new RemoteClusterPermissionGroup(new String[] { "foobar" }, new String[] { "*" });
+            clusters = randomArrayOtherThan(clusters, () -> new String[] { randomAlphaOfLengthBetween(3, 8) });
         }
+        return new RemoteClusterPermissionGroup(privileges, clusters);
     }
 
     @Override

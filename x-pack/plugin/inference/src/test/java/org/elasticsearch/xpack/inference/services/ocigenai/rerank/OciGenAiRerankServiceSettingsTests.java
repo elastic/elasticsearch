@@ -8,17 +8,20 @@
 package org.elasticsearch.xpack.inference.services.ocigenai.rerank;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields;
+import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils;
 import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -107,7 +110,34 @@ public class OciGenAiRerankServiceSettingsTests extends AbstractBWCWireSerializa
 
     @Override
     protected OciGenAiRerankServiceSettings mutateInstance(OciGenAiRerankServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, OciGenAiRerankServiceSettingsTests::createRandom);
+        var common = instance.common();
+        String region = common.region();
+        String compartmentId = common.compartmentId();
+        String modelId = common.modelId();
+        String endpointId = common.endpointId();
+        URI uri = common.uri();
+        String apiVersion = common.apiVersion();
+        RateLimitSettings rateLimitSettings = common.rateLimitSettings();
+
+        switch (between(0, 5)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
+            case 1 -> compartmentId = randomValueOtherThan(compartmentId, () -> randomAlphaOfLength(10));
+            case 2 -> endpointId = randomValueOtherThan(endpointId, () -> randomBoolean() ? randomAlphaOfLength(10) : null);
+            case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> Strings.format("%08d", randomIntBetween(20200101, 20301231)));
+            case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 5 -> {
+                if (region != null) {
+                    region = randomValueOtherThan(region, () -> randomAlphaOfLength(8));
+                } else {
+                    uri = randomValueOtherThan(uri, () -> URI.create("https://" + randomAlphaOfLength(8) + ".example.com"));
+                }
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new OciGenAiRerankServiceSettings(
+            new OciGenAiServiceSettings.CommonSettings(region, compartmentId, modelId, endpointId, uri, apiVersion, rateLimitSettings)
+        );
     }
 
     @Override

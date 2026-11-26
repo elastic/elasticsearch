@@ -24,9 +24,9 @@ public class MvAppendSerializationTests extends AbstractExpressionSerializationT
 
     @Override
     protected MvAppend mutateInstance(MvAppend instance) throws IOException {
-        Source source = randomSource();
-        Expression field1 = randomChild();
-        Expression field2 = randomChild();
+        Source source = instance.source();
+        Expression field1 = instance.children().get(0);
+        Expression field2 = instance.children().get(1);
         if (randomBoolean()) {
             field1 = randomValueOtherThan(field1, AbstractExpressionSerializationTests::randomChild);
         } else {

@@ -9,7 +9,10 @@
 
 package org.elasticsearch.action.synonyms;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -30,6 +33,21 @@ public class GetSynonymRuleActionResponseSerializingTests extends AbstractWireSe
 
     @Override
     protected GetSynonymRuleAction.Response mutateInstance(GetSynonymRuleAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        SynonymRule rule;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            instance.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                rule = new SynonymRule(in);
+            }
+        }
+        if (randomBoolean()) {
+            rule = new SynonymRule(
+                randomValueOtherThan(rule.id(), () -> randomAlphaOfLengthBetween(1, 10)),
+                rule.synonyms()
+            );
+        } else {
+            rule = new SynonymRule(rule.id(), randomValueOtherThan(rule.synonyms(), () -> randomAlphaOfLengthBetween(1, 20)));
+        }
+        return new GetSynonymRuleAction.Response(rule);
     }
 }

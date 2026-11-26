@@ -40,7 +40,41 @@ public class FollowParametersTests extends AbstractXContentSerializingTestCase<F
 
     @Override
     protected FollowParameters mutateInstance(FollowParameters instance) {
-        return randomInstance();
+        FollowParameters mutated = new FollowParameters(instance);
+        switch (between(0, 9)) {
+            case 0 -> mutated.setMaxOutstandingReadRequests(
+                randomValueOtherThan(instance.getMaxOutstandingReadRequests(), () -> randomIntBetween(0, Integer.MAX_VALUE))
+            );
+            case 1 -> mutated.setMaxOutstandingWriteRequests(
+                randomValueOtherThan(instance.getMaxOutstandingWriteRequests(), () -> randomIntBetween(0, Integer.MAX_VALUE))
+            );
+            case 2 -> mutated.setMaxReadRequestOperationCount(
+                randomValueOtherThan(instance.getMaxReadRequestOperationCount(), () -> randomIntBetween(0, Integer.MAX_VALUE))
+            );
+            case 3 -> mutated.setMaxWriteRequestOperationCount(
+                randomValueOtherThan(instance.getMaxWriteRequestOperationCount(), () -> randomIntBetween(0, Integer.MAX_VALUE))
+            );
+            case 4 -> mutated.setMaxReadRequestSize(
+                randomValueOtherThan(instance.getMaxReadRequestSize(), () -> ByteSizeValue.ofBytes(randomNonNegativeLong()))
+            );
+            case 5 -> mutated.setMaxWriteRequestSize(
+                randomValueOtherThan(instance.getMaxWriteRequestSize(), () -> ByteSizeValue.ofBytes(randomNonNegativeLong()))
+            );
+            case 6 -> mutated.setMaxWriteBufferCount(
+                randomValueOtherThan(instance.getMaxWriteBufferCount(), () -> randomIntBetween(0, Integer.MAX_VALUE))
+            );
+            case 7 -> mutated.setMaxWriteBufferSize(
+                randomValueOtherThan(instance.getMaxWriteBufferSize(), () -> ByteSizeValue.ofBytes(randomNonNegativeLong()))
+            );
+            case 8 -> mutated.setMaxRetryDelay(
+                randomValueOtherThan(instance.getMaxRetryDelay(), () -> new TimeValue(randomNonNegativeLong()))
+            );
+            case 9 -> mutated.setReadPollTimeout(
+                randomValueOtherThan(instance.getReadPollTimeout(), () -> new TimeValue(randomNonNegativeLong()))
+            );
+            default -> throw new AssertionError("failure, got illegal switch case");
+        }
+        return mutated;
     }
 
     static FollowParameters randomInstance() {

@@ -14,6 +14,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -164,6 +165,25 @@ public class SageMakerElasticTextEmbeddingServiceSettingsTests extends Inference
     @Override
     protected ElasticTextEmbeddingPayload.ApiServiceSettings createTestInstance() {
         return randomInstance();
+    }
+
+    @Override
+    protected ElasticTextEmbeddingPayload.ApiServiceSettings mutateInstance(ElasticTextEmbeddingPayload.ApiServiceSettings instance)
+        throws IOException {
+        Integer dimensions = instance.dimensions();
+        Boolean dimensionsSetByUser = instance.dimensionsSetByUser();
+        SimilarityMeasure similarity = instance.similarity();
+        DenseVectorFieldMapper.ElementType elementType = instance.elementType();
+
+        switch (between(0, 3)) {
+            case 0 -> dimensions = randomValueOtherThan(dimensions, () -> randomIntBetween(1, 100));
+            case 1 -> dimensionsSetByUser = randomValueOtherThan(dimensionsSetByUser, () -> randomBoolean());
+            case 2 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
+            case 3 -> elementType = randomValueOtherThan(elementType, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new ElasticTextEmbeddingPayload.ApiServiceSettings(dimensions, dimensionsSetByUser, similarity, elementType);
     }
 
     static ElasticTextEmbeddingPayload.ApiServiceSettings randomInstance() {

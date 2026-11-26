@@ -18,6 +18,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -61,7 +62,30 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
 
     @Override
     protected SortValue mutateInstance(SortValue instance) {
-        return randomValueOtherThanMany(mut -> instance.getKey().equals(mut.getKey()), this::createTestInstance);
+        return switch (instance.getWriteableName()) {
+            case "double" -> SortValue.from(randomValueOtherThan((Double) instance.getKey(), ESTestCase::randomDouble));
+            case "long" -> SortValue.from(randomValueOtherThan((Long) instance.getKey(), ESTestCase::randomLong));
+            case "bytes" -> {
+                BytesRef key = (BytesRef) instance.getKey();
+                yield SortValue.from(
+                    new BytesRef(
+                        randomValueOtherThan(
+                            key.utf8ToString(),
+                            () -> randomAlphaOfLength(Math.max(1, key.length) + 1)
+                        )
+                    )
+                );
+            }
+            case "empty" -> randomValueOtherThan(
+                instance,
+                () -> switch (between(0, 2)) {
+                    case 0 -> SortValue.from(randomDouble());
+                    case 1 -> SortValue.from(randomLong());
+                    default -> SortValue.from(new BytesRef(randomAlphaOfLength(5)));
+                }
+            );
+            default -> throw new AssertionError("unexpected sort value type " + instance.getWriteableName());
+        };
     }
 
     public void testFormatDouble() {

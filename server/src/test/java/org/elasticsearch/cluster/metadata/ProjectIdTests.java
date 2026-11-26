@@ -72,7 +72,16 @@ public class ProjectIdTests extends AbstractWireSerializingTestCase<ProjectId> {
 
     @Override
     protected ProjectId mutateInstance(ProjectId instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return ProjectId.fromId(randomValueOtherThan(instance.id(), this::randomValidProjectId));
+    }
+
+    private String randomValidProjectId() {
+        return switch (randomIntBetween(1, 4)) {
+            case 1 -> randomUniqueProjectId().id();
+            case 2 -> randomAlphaOfLengthBetween(1, 30);
+            case 3 -> Long.toString(randomLongBetween(1, Long.MAX_VALUE));
+            default -> Long.toString(randomLongBetween(1, Long.MAX_VALUE), Character.MAX_RADIX);
+        };
     }
 
     public void testToString() {

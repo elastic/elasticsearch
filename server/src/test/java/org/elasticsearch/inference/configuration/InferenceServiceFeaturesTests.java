@@ -93,7 +93,41 @@ public class InferenceServiceFeaturesTests extends AbstractBWCSerializationTestC
 
     @Override
     protected InferenceServiceFeatures mutateInstance(InferenceServiceFeatures instance) {
-        return randomValueOtherThan(instance, InferenceServiceFeaturesTests::randomInstance);
+        var features = new java.util.LinkedHashMap<>(instance.getFeatures());
+        var builder = new InferenceServiceFeatures.Builder();
+        return switch (between(0, 2)) {
+            case 0 -> {
+                if (features.isEmpty()) {
+                    builder.add(NonStreamingChatFeatureTests.randomInstance());
+                } else {
+                    String key = randomFrom(features.keySet().toArray(String[]::new));
+                    features.put(key, randomValueOtherThan(features.get(key), NonStreamingChatFeatureTests::randomInstance));
+                    features.values().forEach(builder::add);
+                }
+                yield builder.build();
+            }
+            case 1 -> {
+                if (features.isEmpty()) {
+                    builder.add(NonStreamingChatFeatureTests.randomInstance());
+                } else {
+                    features.remove(randomFrom(features.keySet().toArray(String[]::new)));
+                    features.values().forEach(builder::add);
+                }
+                yield builder.build();
+            }
+            default -> {
+                if (features.containsKey(NonStreamingChatFeature.NAME)) {
+                    features.put(
+                        NonStreamingChatFeature.NAME,
+                        randomValueOtherThan(features.get(NonStreamingChatFeature.NAME), NonStreamingChatFeatureTests::randomInstance)
+                    );
+                } else {
+                    features.put(NonStreamingChatFeature.NAME, NonStreamingChatFeatureTests.randomInstance());
+                }
+                features.values().forEach(builder::add);
+                yield builder.build();
+            }
+        };
     }
 
     @Override

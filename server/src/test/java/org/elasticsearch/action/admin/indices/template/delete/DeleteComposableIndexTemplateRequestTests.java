@@ -28,6 +28,8 @@ public class DeleteComposableIndexTemplateRequestTests extends AbstractWireSeria
     protected TransportDeleteComposableIndexTemplateAction.Request mutateInstance(
         TransportDeleteComposableIndexTemplateAction.Request instance
     ) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new TransportDeleteComposableIndexTemplateAction.Request(
+            randomValueOtherThan(instance.names()[0], () -> randomAlphaOfLength(5))
+        );
     }
 }

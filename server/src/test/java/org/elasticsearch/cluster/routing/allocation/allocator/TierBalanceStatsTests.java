@@ -47,7 +47,44 @@ public class TierBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
 
     @Override
     protected ClusterBalanceStats.TierBalanceStats mutateInstance(ClusterBalanceStats.TierBalanceStats instance) throws IOException {
-        return createTestInstance();
+        return switch (between(0, 4)) {
+            case 0 -> new ClusterBalanceStats.TierBalanceStats(
+                randomValueOtherThan(instance.shardCount(), MetricStatsTests::createRandomMetricStats),
+                instance.undesiredShardAllocations(),
+                instance.forecastWriteLoad(),
+                instance.forecastShardSize(),
+                instance.actualShardSize()
+            );
+            case 1 -> new ClusterBalanceStats.TierBalanceStats(
+                instance.shardCount(),
+                randomValueOtherThan(instance.undesiredShardAllocations(), MetricStatsTests::createRandomMetricStats),
+                instance.forecastWriteLoad(),
+                instance.forecastShardSize(),
+                instance.actualShardSize()
+            );
+            case 2 -> new ClusterBalanceStats.TierBalanceStats(
+                instance.shardCount(),
+                instance.undesiredShardAllocations(),
+                randomValueOtherThan(instance.forecastWriteLoad(), MetricStatsTests::createRandomMetricStats),
+                instance.forecastShardSize(),
+                instance.actualShardSize()
+            );
+            case 3 -> new ClusterBalanceStats.TierBalanceStats(
+                instance.shardCount(),
+                instance.undesiredShardAllocations(),
+                instance.forecastWriteLoad(),
+                randomValueOtherThan(instance.forecastShardSize(), MetricStatsTests::createRandomMetricStats),
+                instance.actualShardSize()
+            );
+            case 4 -> new ClusterBalanceStats.TierBalanceStats(
+                instance.shardCount(),
+                instance.undesiredShardAllocations(),
+                instance.forecastWriteLoad(),
+                instance.forecastShardSize(),
+                randomValueOtherThan(instance.actualShardSize(), MetricStatsTests::createRandomMetricStats)
+            );
+            default -> throw new AssertionError("failure, got illegal switch case");
+        };
     }
 
     @SuppressWarnings("unchecked")

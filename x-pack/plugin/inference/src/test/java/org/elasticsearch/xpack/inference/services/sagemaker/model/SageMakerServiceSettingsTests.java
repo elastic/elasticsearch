@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSche
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemasTests;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -74,6 +75,45 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
             randomOptionalString(),
             randomBoolean() ? randomIntBetween(1, 1000) : null,
             SageMakerStoredServiceSchema.NO_OP
+        );
+    }
+
+    @Override
+    protected SageMakerServiceSettings mutateInstance(SageMakerServiceSettings instance) throws IOException {
+        String endpointName = instance.endpointName();
+        String region = instance.region();
+        String api = instance.api();
+        String targetModel = instance.targetModel();
+        String targetContainerHostname = instance.targetContainerHostname();
+        String inferenceComponentName = instance.inferenceComponentName();
+        Integer batchSize = instance.batchSize();
+
+        switch (between(0, 6)) {
+            case 0 -> endpointName = randomValueOtherThan(endpointName, () -> randomAlphaOfLength(8));
+            case 1 -> region = randomValueOtherThan(region, () -> randomAlphaOfLength(8));
+            case 2 -> api = randomValueOtherThan(api, () -> randomAlphaOfLength(8));
+            case 3 -> targetModel = randomValueOtherThan(targetModel, InferenceSettingsTestCase::randomOptionalString);
+            case 4 -> targetContainerHostname = randomValueOtherThan(
+                targetContainerHostname,
+                InferenceSettingsTestCase::randomOptionalString
+            );
+            case 5 -> inferenceComponentName = randomValueOtherThan(
+                inferenceComponentName,
+                InferenceSettingsTestCase::randomOptionalString
+            );
+            case 6 -> batchSize = randomValueOtherThan(batchSize, () -> randomBoolean() ? randomIntBetween(1, 1000) : null);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new SageMakerServiceSettings(
+            endpointName,
+            region,
+            api,
+            targetModel,
+            targetContainerHostname,
+            inferenceComponentName,
+            batchSize,
+            instance.apiServiceSettings()
         );
     }
 

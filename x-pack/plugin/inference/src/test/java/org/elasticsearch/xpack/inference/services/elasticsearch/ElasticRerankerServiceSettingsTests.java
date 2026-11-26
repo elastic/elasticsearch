@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationSettingsTests;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -320,7 +321,37 @@ public class ElasticRerankerServiceSettingsTests extends AbstractElasticsearchIn
 
     @Override
     protected ElasticRerankerServiceSettings mutateInstance(ElasticRerankerServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, ElasticRerankerServiceSettingsTests::createRandom);
+        Integer numAllocations = instance.getNumAllocations();
+        int numThreads = instance.getNumThreads();
+        String modelId = instance.modelId();
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings = instance.getAdaptiveAllocationsSettings();
+        ElasticRerankerServiceSettings.LongDocumentStrategy longDocumentStrategy = instance.getLongDocumentStrategy();
+        Integer maxChunksPerDoc = instance.getMaxChunksPerDoc();
+
+        switch (between(0, 5)) {
+            case 0 -> numAllocations = randomValueOtherThan(numAllocations, () -> randomFrom(randomIntBetween(1, 10), null));
+            case 1 -> numThreads = randomValueOtherThan(numThreads, () -> randomIntBetween(1, 10));
+            case 2 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 3 -> adaptiveAllocationsSettings = randomValueOtherThan(
+                adaptiveAllocationsSettings,
+                () -> randomFrom(AdaptiveAllocationSettingsTests.testInstance(), null)
+            );
+            case 4 -> longDocumentStrategy = randomValueOtherThan(
+                longDocumentStrategy,
+                () -> randomBoolean() ? randomFrom(ElasticRerankerServiceSettings.LongDocumentStrategy.values()) : null
+            );
+            case 5 -> maxChunksPerDoc = randomValueOtherThan(maxChunksPerDoc, () -> randomBoolean() ? randomIntBetween(1, 10) : null);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new ElasticRerankerServiceSettings(
+            numAllocations,
+            numThreads,
+            modelId,
+            adaptiveAllocationsSettings,
+            longDocumentStrategy,
+            maxChunksPerDoc
+        );
     }
 
     @Override

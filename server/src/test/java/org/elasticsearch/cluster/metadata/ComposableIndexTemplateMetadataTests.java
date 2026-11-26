@@ -31,7 +31,30 @@ public class ComposableIndexTemplateMetadataTests extends AbstractNamedWriteable
 
     @Override
     protected ComposableIndexTemplateMetadata mutateInstance(ComposableIndexTemplateMetadata instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        Map<String, ComposableIndexTemplate> templates = new HashMap<>(instance.indexTemplates());
+        return switch (between(0, 2)) {
+            case 0 -> {
+                templates.put(randomAlphaOfLength(5), ComposableIndexTemplateTests.randomInstance());
+                yield new ComposableIndexTemplateMetadata(templates);
+            }
+            case 1 -> {
+                if (templates.isEmpty()) {
+                    templates.put(randomAlphaOfLength(5), ComposableIndexTemplateTests.randomInstance());
+                } else {
+                    templates.remove(randomFrom(templates.keySet().toArray(String[]::new)));
+                }
+                yield new ComposableIndexTemplateMetadata(templates);
+            }
+            default -> {
+                if (templates.isEmpty()) {
+                    templates.put(randomAlphaOfLength(5), ComposableIndexTemplateTests.randomInstance());
+                } else {
+                    String key = randomFrom(templates.keySet().toArray(String[]::new));
+                    templates.put(key, randomValueOtherThan(templates.get(key), ComposableIndexTemplateTests::randomInstance));
+                }
+                yield new ComposableIndexTemplateMetadata(templates);
+            }
+        };
     }
 
     @Override

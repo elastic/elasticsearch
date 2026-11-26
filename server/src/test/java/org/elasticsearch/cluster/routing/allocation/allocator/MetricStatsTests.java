@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -40,7 +41,44 @@ public class MetricStatsTests extends AbstractWireSerializingTestCase<ClusterBal
 
     @Override
     protected ClusterBalanceStats.MetricStats mutateInstance(ClusterBalanceStats.MetricStats instance) throws IOException {
-        return createTestInstance();
+        return switch (between(0, 4)) {
+            case 0 -> new ClusterBalanceStats.MetricStats(
+                randomValueOtherThan(instance.total(), ESTestCase::randomDouble),
+                instance.min(),
+                instance.max(),
+                instance.average(),
+                instance.stdDev()
+            );
+            case 1 -> new ClusterBalanceStats.MetricStats(
+                instance.total(),
+                randomValueOtherThan(instance.min(), ESTestCase::randomDouble),
+                instance.max(),
+                instance.average(),
+                instance.stdDev()
+            );
+            case 2 -> new ClusterBalanceStats.MetricStats(
+                instance.total(),
+                instance.min(),
+                randomValueOtherThan(instance.max(), ESTestCase::randomDouble),
+                instance.average(),
+                instance.stdDev()
+            );
+            case 3 -> new ClusterBalanceStats.MetricStats(
+                instance.total(),
+                instance.min(),
+                instance.max(),
+                randomValueOtherThan(instance.average(), ESTestCase::randomDouble),
+                instance.stdDev()
+            );
+            case 4 -> new ClusterBalanceStats.MetricStats(
+                instance.total(),
+                instance.min(),
+                instance.max(),
+                instance.average(),
+                randomValueOtherThan(instance.stdDev(), ESTestCase::randomDouble)
+            );
+            default -> throw new AssertionError("failure, got illegal switch case");
+        };
     }
 
     public void testToXContent() throws IOException {

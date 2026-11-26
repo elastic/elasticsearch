@@ -47,7 +47,7 @@ public class WaitForSnapshotActionTests extends AbstractActionTestCase<WaitForSn
 
     @Override
     protected WaitForSnapshotAction mutateInstance(WaitForSnapshotAction instance) {
-        return randomInstance();
+        return new WaitForSnapshotAction(randomValueOtherThan(instance.getPolicy(), () -> randomAlphaOfLengthBetween(5, 10)));
     }
 
     static WaitForSnapshotAction randomInstance() {

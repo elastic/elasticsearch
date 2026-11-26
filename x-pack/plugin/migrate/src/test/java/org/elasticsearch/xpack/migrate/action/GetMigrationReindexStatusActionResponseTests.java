@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.migrate.action.GetMigrationReindexStatusAction.Response;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamEnrichedStatus;
 
@@ -32,7 +33,42 @@ public class GetMigrationReindexStatusActionResponseTests extends AbstractWireSe
 
     @Override
     protected Response mutateInstance(Response instance) throws IOException {
-        return createTestInstance(); // There's only one field
+        return new Response(mutateEnrichedStatus(instance.getEnrichedStatus()));
+    }
+
+    private ReindexDataStreamEnrichedStatus mutateEnrichedStatus(ReindexDataStreamEnrichedStatus instance) {
+        long startTime = instance.persistentTaskStartTime();
+        int totalIndices = instance.totalIndices();
+        int totalIndicesToBeUpgraded = instance.totalIndicesToBeUpgraded();
+        boolean complete = instance.complete();
+        Exception exception = instance.exception();
+        Map<String, Tuple<Long, Long>> inProgress = instance.inProgress();
+        int pending = instance.pending();
+        List<Tuple<String, Exception>> errors = instance.errors();
+        // exception is always null (see testException) so it cannot be mutated here
+        switch (randomIntBetween(0, 6)) {
+            case 0 -> startTime = randomValueOtherThan(startTime, ESTestCase::randomLong);
+            case 1 -> totalIndices = randomValueOtherThan(totalIndices, ESTestCase::randomNegativeInt);
+            case 2 -> totalIndicesToBeUpgraded = randomValueOtherThan(totalIndicesToBeUpgraded, ESTestCase::randomNegativeInt);
+            case 3 -> complete = randomValueOtherThan(complete, ESTestCase::randomBoolean);
+            case 4 -> inProgress = randomValueOtherThan(inProgress, this::randomInProgressMap);
+            case 5 -> pending = randomValueOtherThan(pending, ESTestCase::randomNegativeInt);
+            case 6 -> {
+                final List<Tuple<String, Exception>> currentErrors = errors;
+                errors = randomValueOtherThan(currentErrors, () -> randomErrorList(currentErrors.size() + 1));
+            }
+            default -> throw new AssertionError("failure, got illegal switch case");
+        }
+        return new ReindexDataStreamEnrichedStatus(
+            startTime,
+            totalIndices,
+            totalIndicesToBeUpgraded,
+            complete,
+            exception,
+            inProgress,
+            pending,
+            errors
+        );
     }
 
     private ReindexDataStreamEnrichedStatus getRandomStatus() {

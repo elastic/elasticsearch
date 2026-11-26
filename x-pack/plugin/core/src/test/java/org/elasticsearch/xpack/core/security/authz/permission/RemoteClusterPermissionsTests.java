@@ -305,9 +305,57 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
 
     @Override
     protected RemoteClusterPermissions mutateInstance(RemoteClusterPermissions instance) throws IOException {
-        return new RemoteClusterPermissions().addGroup(
-            new RemoteClusterPermissionGroup(new String[] { "monitor_enrich", "monitor_stats" }, new String[] { "*" })
-        ).addGroup(new RemoteClusterPermissionGroup(new String[] { "foobar" }, new String[] { "*" }));
+        List<RemoteClusterPermissionGroup> groups = new ArrayList<>(instance.groups());
+        return switch (between(0, 2)) {
+            case 0 -> {
+                groups.add(new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { randomAlphaOfLength(5) }));
+                RemoteClusterPermissions permissions = new RemoteClusterPermissions();
+                groups.forEach(permissions::addGroup);
+                yield permissions;
+            }
+            case 1 -> {
+                if (groups.size() > 1) {
+                    groups.remove(between(0, groups.size() - 1));
+                } else {
+                    groups.add(new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "extra" }));
+                }
+                RemoteClusterPermissions permissions = new RemoteClusterPermissions();
+                groups.forEach(permissions::addGroup);
+                yield permissions;
+            }
+            case 2 -> {
+                int index = between(0, groups.size() - 1);
+                RemoteClusterPermissionGroup group = groups.get(index);
+                if (randomBoolean()) {
+                    // createTestInstance can already be exactly ["monitor_enrich"], so a constant
+                    // supplier would make randomArrayOtherThan retry forever. A longer array never matches.
+                    final String[] currentPrivileges = group.clusterPrivileges();
+                    groups.set(
+                        index,
+                        new RemoteClusterPermissionGroup(
+                            randomArrayOtherThan(currentPrivileges, () -> {
+                                String[] longer = Arrays.copyOf(currentPrivileges, currentPrivileges.length + 1);
+                                longer[currentPrivileges.length] = randomAlphaOfLength(5);
+                                return longer;
+                            }),
+                            group.remoteClusterAliases()
+                        )
+                    );
+                } else {
+                    groups.set(
+                        index,
+                        new RemoteClusterPermissionGroup(
+                            group.clusterPrivileges(),
+                            randomArrayOtherThan(group.remoteClusterAliases(), () -> new String[] { randomAlphaOfLength(5) })
+                        )
+                    );
+                }
+                RemoteClusterPermissions permissions = new RemoteClusterPermissions();
+                groups.forEach(permissions::addGroup);
+                yield permissions;
+            }
+            default -> throw new AssertionError("illegal mutate branch");
+        };
     }
 
     @Override

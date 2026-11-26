@@ -104,7 +104,91 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
 
     @Override
     protected ClusterInfo mutateInstance(ClusterInfo instance) {
-        return randomClusterInfo();
+        ClusterInfo.Builder builder = builderFrom(instance);
+        return switch (between(0, 17)) {
+            case 0 -> builder.leastAvailableSpaceUsage(
+                randomValueOtherThan(instance.getNodeLeastAvailableDiskUsages(), ClusterInfoTests::randomDiskUsage)
+            ).build();
+            case 1 -> builder.mostAvailableSpaceUsage(
+                randomValueOtherThan(instance.getNodeMostAvailableDiskUsages(), ClusterInfoTests::randomDiskUsage)
+            ).build();
+            case 2 -> builder.shardSizes(randomValueOtherThan(instance.shardSizes, ClusterInfoTests::randomShardSizes)).build();
+            case 3 -> builder.shardDataSetSizes(
+                randomValueOtherThan(instance.shardDataSetSizes, ClusterInfoTests::randomDataSetSizes)
+            ).build();
+            case 4 -> builder.dataPath(randomValueOtherThan(instance.dataPath, ClusterInfoTests::randomRoutingToDataPath)).build();
+            case 5 -> builder.reservedSpace(
+                randomValueOtherThan(instance.reservedSpace, ClusterInfoTests::randomReservedSpace)
+            ).build();
+            case 6 -> builder.nodeHeapMetrics(
+                randomValueOtherThan(instance.nodeHeapMetrics, ClusterInfoTests::randomNodeHeapUsage)
+            ).build();
+            case 7 -> builder.estimatedShardHeapUsages(
+                randomValueOtherThan(instance.estimatedShardHeapUsages, ClusterInfoTests::randomShardHeapUsages)
+            ).build();
+            case 8 -> builder.defaultShardHeapUsageForShardsWithoutMetrics(
+                randomValueOtherThan(
+                    instance.getDefaultShardHeapUsageForShardsWithoutMetrics(),
+                    ClusterInfoTests::randomShardAndIndexHeapUsage
+                )
+            ).build();
+            case 9 -> builder.nodeUsageStatsForThreadPools(
+                randomValueOtherThan(instance.nodeUsageStatsForThreadPools, ClusterInfoTests::randomNodeUsageStatsForThreadPools)
+            ).build();
+            case 10 -> builder.shardWriteLoads(
+                randomValueOtherThan(instance.shardWriteLoads, ClusterInfoTests::randomPerShardDoubles)
+            ).build();
+            case 11 -> builder.maxHeapSizePerNode(
+                randomValueOtherThan(instance.getMaxHeapSizePerNode(), ClusterInfoTests::randomMaxHeapSizes)
+            ).build();
+            case 12 -> builder.nodeIdsWriteLoadHotspotting(
+                randomValueOtherThan(instance.nodeIdsWriteLoadHotspotting, ClusterInfoTests::randomNodeIdsWriteLoadHotspottingSet)
+            ).build();
+            case 13 -> builder.nodeCacheSizeAndCommitments(
+                randomValueOtherThan(
+                    instance.getNodeCacheSizeAndCommitments(),
+                    ClusterInfoTests::randomNodeCacheSizeAndCommitmentsMap
+                )
+            ).build();
+            case 14 -> builder.shardCacheRequirements(
+                randomValueOtherThan(instance.getShardCacheRequirements(), ClusterInfoTests::randomShardCacheRequirements)
+            ).build();
+            case 15 -> builder.hostedShardsPartitionSizeByNodeId(
+                randomValueOtherThan(
+                    instance.getHostedShardsPartitionSizeByNodeId(),
+                    ClusterInfoTests::randomHostedShardsPartitionSizes
+                )
+            ).build();
+            case 16 -> builder.shardSearchLaneRequirements(
+                randomValueOtherThan(instance.shardSearchLaneRequirements, ClusterInfoTests::randomPerShardDoubles)
+            ).build();
+            case 17 -> builder.shardSearchLoads(
+                randomValueOtherThan(instance.shardSearchLoads, ClusterInfoTests::randomPerShardDoubles)
+            ).build();
+            default -> throw new AssertionError("illegal mutate branch");
+        };
+    }
+
+    private static ClusterInfo.Builder builderFrom(ClusterInfo instance) {
+        return ClusterInfo.builder()
+            .leastAvailableSpaceUsage(instance.getNodeLeastAvailableDiskUsages())
+            .mostAvailableSpaceUsage(instance.getNodeMostAvailableDiskUsages())
+            .shardSizes(instance.shardSizes)
+            .shardDataSetSizes(instance.shardDataSetSizes)
+            .dataPath(instance.dataPath)
+            .reservedSpace(instance.reservedSpace)
+            .nodeHeapMetrics(instance.nodeHeapMetrics)
+            .estimatedShardHeapUsages(instance.estimatedShardHeapUsages)
+            .defaultShardHeapUsageForShardsWithoutMetrics(instance.getDefaultShardHeapUsageForShardsWithoutMetrics())
+            .nodeUsageStatsForThreadPools(instance.nodeUsageStatsForThreadPools)
+            .shardWriteLoads(instance.shardWriteLoads)
+            .maxHeapSizePerNode(instance.getMaxHeapSizePerNode())
+            .nodeIdsWriteLoadHotspotting(instance.nodeIdsWriteLoadHotspotting)
+            .nodeCacheSizeAndCommitments(instance.getNodeCacheSizeAndCommitments())
+            .shardCacheRequirements(instance.getShardCacheRequirements())
+            .hostedShardsPartitionSizeByNodeId(instance.getHostedShardsPartitionSizeByNodeId())
+            .shardSearchLaneRequirements(instance.shardSearchLaneRequirements)
+            .shardSearchLoads(instance.shardSearchLoads);
     }
 
     public static ClusterInfo randomClusterInfo() {

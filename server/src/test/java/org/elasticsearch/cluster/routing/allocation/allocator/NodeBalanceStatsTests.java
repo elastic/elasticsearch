@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -55,7 +56,89 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
 
     @Override
     protected ClusterBalanceStats.NodeBalanceStats mutateInstance(ClusterBalanceStats.NodeBalanceStats instance) throws IOException {
-        return createTestInstance();
+        return switch (between(0, 7)) {
+            case 0 -> new ClusterBalanceStats.NodeBalanceStats(
+                randomValueOtherThan(instance.nodeId(), ESTestCase::randomIdentifier),
+                instance.roles(),
+                instance.shards(),
+                instance.undesiredShardAllocations(),
+                instance.forecastWriteLoad(),
+                instance.forecastShardSize(),
+                instance.actualShardSize(),
+                instance.nodeWeight()
+            );
+            case 1 -> new ClusterBalanceStats.NodeBalanceStats(
+                instance.nodeId(),
+                randomValueOtherThan(instance.roles(), () -> randomNonEmptySubsetOf(List.of("ingest", "data", "master", "ml"))),
+                instance.shards(),
+                instance.undesiredShardAllocations(),
+                instance.forecastWriteLoad(),
+                instance.forecastShardSize(),
+                instance.actualShardSize(),
+                instance.nodeWeight()
+            );
+            case 2 -> new ClusterBalanceStats.NodeBalanceStats(
+                instance.nodeId(),
+                instance.roles(),
+                randomValueOtherThan(instance.shards(), ESTestCase::randomInt),
+                instance.undesiredShardAllocations(),
+                instance.forecastWriteLoad(),
+                instance.forecastShardSize(),
+                instance.actualShardSize(),
+                instance.nodeWeight()
+            );
+            case 3 -> new ClusterBalanceStats.NodeBalanceStats(
+                instance.nodeId(),
+                instance.roles(),
+                instance.shards(),
+                randomValueOtherThan(instance.undesiredShardAllocations(), ESTestCase::randomInt),
+                instance.forecastWriteLoad(),
+                instance.forecastShardSize(),
+                instance.actualShardSize(),
+                instance.nodeWeight()
+            );
+            case 4 -> new ClusterBalanceStats.NodeBalanceStats(
+                instance.nodeId(),
+                instance.roles(),
+                instance.shards(),
+                instance.undesiredShardAllocations(),
+                randomValueOtherThan(instance.forecastWriteLoad(), ESTestCase::randomDouble),
+                instance.forecastShardSize(),
+                instance.actualShardSize(),
+                instance.nodeWeight()
+            );
+            case 5 -> new ClusterBalanceStats.NodeBalanceStats(
+                instance.nodeId(),
+                instance.roles(),
+                instance.shards(),
+                instance.undesiredShardAllocations(),
+                instance.forecastWriteLoad(),
+                randomValueOtherThan(instance.forecastShardSize(), ESTestCase::randomLong),
+                instance.actualShardSize(),
+                instance.nodeWeight()
+            );
+            case 6 -> new ClusterBalanceStats.NodeBalanceStats(
+                instance.nodeId(),
+                instance.roles(),
+                instance.shards(),
+                instance.undesiredShardAllocations(),
+                instance.forecastWriteLoad(),
+                instance.forecastShardSize(),
+                randomValueOtherThan(instance.actualShardSize(), ESTestCase::randomLong),
+                instance.nodeWeight()
+            );
+            case 7 -> new ClusterBalanceStats.NodeBalanceStats(
+                instance.nodeId(),
+                instance.roles(),
+                instance.shards(),
+                instance.undesiredShardAllocations(),
+                instance.forecastWriteLoad(),
+                instance.forecastShardSize(),
+                instance.actualShardSize(),
+                randomValueOtherThan(instance.nodeWeight(), ESTestCase::randomOptionalDouble)
+            );
+            default -> throw new AssertionError("failure, got illegal switch case");
+        };
     }
 
     public void testSerializationWithTransportVersionNodeWeightsAddedToNodeBalanceStats() throws IOException {

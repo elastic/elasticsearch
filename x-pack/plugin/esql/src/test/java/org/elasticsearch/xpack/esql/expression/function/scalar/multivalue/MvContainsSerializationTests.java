@@ -24,14 +24,14 @@ public class MvContainsSerializationTests extends AbstractExpressionSerializatio
 
     @Override
     protected MvContains mutateInstance(MvContains instance) throws IOException {
-        Source source = randomSource();
-        Expression field1 = randomChild();
-        Expression field2 = randomChild();
+        Source source = instance.source();
+        Expression left = instance.left();
+        Expression right = instance.right();
         if (randomBoolean()) {
-            field1 = randomValueOtherThan(field1, AbstractExpressionSerializationTests::randomChild);
+            left = randomValueOtherThan(left, AbstractExpressionSerializationTests::randomChild);
         } else {
-            field2 = randomValueOtherThan(field2, AbstractExpressionSerializationTests::randomChild);
+            right = randomValueOtherThan(right, AbstractExpressionSerializationTests::randomChild);
         }
-        return new MvContains(source, field1, field2);
+        return new MvContains(source, left, right);
     }
 }

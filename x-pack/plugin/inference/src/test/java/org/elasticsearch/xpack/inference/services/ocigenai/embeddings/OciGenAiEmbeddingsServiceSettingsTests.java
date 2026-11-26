@@ -391,7 +391,46 @@ public class OciGenAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
 
     @Override
     protected OciGenAiEmbeddingsServiceSettings mutateInstance(OciGenAiEmbeddingsServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, OciGenAiEmbeddingsServiceSettingsTests::createRandom);
+        var common = instance.common();
+        String region = common.region();
+        String compartmentId = common.compartmentId();
+        String modelId = common.modelId();
+        String endpointId = common.endpointId();
+        URI uri = common.uri();
+        String apiVersion = common.apiVersion();
+        RateLimitSettings rateLimitSettings = common.rateLimitSettings();
+        Boolean dimensionsSetByUser = instance.dimensionsSetByUser();
+        Integer dimensions = instance.dimensions();
+        Integer maxInputTokens = instance.maxInputTokens();
+        SimilarityMeasure similarity = instance.similarity();
+
+        switch (between(0, 9)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
+            case 1 -> compartmentId = randomValueOtherThan(compartmentId, () -> randomAlphaOfLength(10));
+            case 2 -> endpointId = randomValueOtherThan(endpointId, () -> randomBoolean() ? randomAlphaOfLength(10) : null);
+            case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> Strings.format("%08d", randomIntBetween(20200101, 20301231)));
+            case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 5 -> {
+                if (region != null) {
+                    region = randomValueOtherThan(region, () -> randomAlphaOfLength(8));
+                } else {
+                    uri = randomValueOtherThan(uri, () -> URI.create("https://" + randomAlphaOfLength(8) + ".example.com"));
+                }
+            }
+            case 6 -> dimensionsSetByUser = randomValueOtherThan(dimensionsSetByUser, () -> randomBoolean());
+            case 7 -> dimensions = randomValueOtherThan(dimensions, () -> randomBoolean() ? randomIntBetween(1, 1024) : null);
+            case 8 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomBoolean() ? randomIntBetween(1, 512) : null);
+            case 9 -> similarity = randomValueOtherThan(similarity, () -> randomBoolean() ? randomFrom(SimilarityMeasure.values()) : null);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new OciGenAiEmbeddingsServiceSettings(
+            new OciGenAiServiceSettings.CommonSettings(region, compartmentId, modelId, endpointId, uri, apiVersion, rateLimitSettings),
+            dimensionsSetByUser,
+            dimensions,
+            maxInputTokens,
+            similarity
+        );
     }
 
     @Override

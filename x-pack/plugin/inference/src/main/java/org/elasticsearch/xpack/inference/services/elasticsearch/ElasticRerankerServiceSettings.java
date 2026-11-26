@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
@@ -130,6 +131,27 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
 
     public Integer getMaxChunksPerDoc() {
         return maxChunksPerDoc;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
+        ElasticRerankerServiceSettings that = (ElasticRerankerServiceSettings) o;
+        return Objects.equals(longDocumentStrategy, that.longDocumentStrategy)
+            && Objects.equals(maxChunksPerDoc, that.maxChunksPerDoc);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), longDocumentStrategy, maxChunksPerDoc);
     }
 
     @Override

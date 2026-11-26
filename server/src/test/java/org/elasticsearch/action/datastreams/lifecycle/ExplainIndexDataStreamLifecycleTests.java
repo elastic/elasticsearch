@@ -446,7 +446,133 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
 
     @Override
     protected ExplainIndexDataStreamLifecycle mutateInstance(ExplainIndexDataStreamLifecycle instance) throws IOException {
-        return randomManagedIndexDataStreamLifecycleExplanation();
+        if (instance.isManagedByLifecycle() == false) {
+            return switch (between(0, 1)) {
+                case 0 -> ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+                    randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(10, 30)),
+                    instance.getUnmanagedReason()
+                );
+                case 1 -> ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+                    instance.getIndex(),
+                    randomValueOtherThan(instance.getUnmanagedReason(), () -> randomAlphaOfLengthBetween(10, 50))
+                );
+                default -> throw new AssertionError("illegal mutate branch");
+            };
+        }
+        // generationDateMillis is not part of equals/hashCode; pass null so copies stay stable.
+        final TimeValue generationDate = null;
+        return switch (between(0, 7)) {
+            case 0 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(10, 30)),
+                false,
+                instance.getIndexCreationDate(),
+                instance.getRolloverDate(),
+                generationDate,
+                instance.getLifecycle(),
+                instance.getError(),
+                instance.getFrozenTransitionStatus(),
+                instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 1 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                false,
+                instance.getIndexCreationDate(),
+                instance.getRolloverDate(),
+                generationDate,
+                instance.getLifecycle(),
+                instance.getError(),
+                instance.getFrozenTransitionStatus(),
+                !instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 2 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                false,
+                randomValueOtherThan(instance.getIndexCreationDate(), () -> randomNonNegativeLong()),
+                instance.getRolloverDate(),
+                generationDate,
+                instance.getLifecycle(),
+                instance.getError(),
+                instance.getFrozenTransitionStatus(),
+                instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 3 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                false,
+                instance.getIndexCreationDate(),
+                randomValueOtherThan(instance.getRolloverDate(), () -> randomNonNegativeLong()),
+                generationDate,
+                instance.getLifecycle(),
+                instance.getError(),
+                instance.getFrozenTransitionStatus(),
+                instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 4 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                false,
+                instance.getIndexCreationDate(),
+                instance.getRolloverDate(),
+                generationDate,
+                // Flip between null and DEFAULT — a supplier that always returns DEFAULT hangs when
+                // the instance already has DEFAULT_DATA_LIFECYCLE.
+                instance.getLifecycle() == null ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null,
+                instance.getError(),
+                instance.getFrozenTransitionStatus(),
+                instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 5 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                false,
+                instance.getIndexCreationDate(),
+                instance.getRolloverDate(),
+                generationDate,
+                instance.getLifecycle(),
+                instance.getError(),
+                randomValueOtherThan(
+                    instance.getFrozenTransitionStatus(),
+                    ExplainIndexDataStreamLifecycleTests::randomFrozenTransitionStatusOrNull
+                ),
+                instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 6 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                false,
+                instance.getIndexCreationDate(),
+                instance.getRolloverDate(),
+                generationDate,
+                instance.getLifecycle(),
+                randomValueOtherThan(
+                    instance.getError(),
+                    () -> new ErrorEntry(
+                        randomNonNegativeLong(),
+                        randomAlphaOfLengthBetween(5, 20),
+                        randomNonNegativeLong(),
+                        randomIntBetween(0, 30)
+                    )
+                ),
+                instance.getFrozenTransitionStatus(),
+                instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 7 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                false,
+                instance.getIndexCreationDate(),
+                instance.getRolloverDate(),
+                generationDate,
+                instance.getLifecycle(),
+                instance.getError(),
+                instance.getFrozenTransitionStatus(),
+                instance.isMinimumLifecycleEnabled(),
+                randomValueOtherThan(instance.getTailMergeDate(), () -> randomNonNegativeLong())
+            );
+            default -> throw new AssertionError("illegal mutate branch");
+        };
     }
 
     private static ExplainIndexDataStreamLifecycle randomManagedIndexDataStreamLifecycleExplanation() {

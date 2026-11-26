@@ -318,7 +318,57 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
 
     @Override
     protected Response mutateInstance(Response instance) {
-        return randomResponse();
+        return switch (between(0, 3)) {
+            case 0 -> new Response(
+                randomValueOtherThan(
+                    instance.getIndices(),
+                    () -> List.of(
+                        createRandomIndexDataStreamLifecycleExplanation(
+                            System.nanoTime(),
+                            randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null
+                        )
+                    )
+                ),
+                instance.getRolloverConfiguration(),
+                instance.getDataGlobalRetention(),
+                instance.getFailuresGlobalRetention()
+            );
+            case 1 -> new Response(
+                instance.getIndices(),
+                randomValueOtherThan(
+                    instance.getRolloverConfiguration(),
+                    () -> new RolloverConfiguration(
+                        new RolloverConditions(
+                            Map.of(
+                                MaxPrimaryShardDocsCondition.NAME,
+                                new MaxPrimaryShardDocsCondition(randomLongBetween(1000, 199_999_000))
+                            )
+                        )
+                    )
+                ),
+                instance.getDataGlobalRetention(),
+                instance.getFailuresGlobalRetention()
+            );
+            case 2 -> new Response(
+                instance.getIndices(),
+                instance.getRolloverConfiguration(),
+                randomValueOtherThan(
+                    instance.getDataGlobalRetention(),
+                    () -> DataStreamGlobalRetention.create(TimeValue.timeValueDays(randomIntBetween(1, 10)), null)
+                ),
+                instance.getFailuresGlobalRetention()
+            );
+            case 3 -> new Response(
+                instance.getIndices(),
+                instance.getRolloverConfiguration(),
+                instance.getDataGlobalRetention(),
+                randomValueOtherThan(
+                    instance.getFailuresGlobalRetention(),
+                    () -> DataStreamGlobalRetention.create(TimeValue.timeValueDays(randomIntBetween(1, 10)), null)
+                )
+            );
+            default -> throw new AssertionError("illegal mutate branch");
+        };
     }
 
     private Response randomResponse() {

@@ -24,14 +24,14 @@ public class MvIntersectsSerializationTests extends AbstractExpressionSerializat
 
     @Override
     protected MvIntersects mutateInstance(MvIntersects instance) throws IOException {
-        Source source = randomSource();
-        Expression field1 = randomChild();
-        Expression field2 = randomChild();
+        Source source = instance.source();
+        Expression left = instance.left();
+        Expression right = instance.right();
         if (randomBoolean()) {
-            field1 = randomValueOtherThan(field1, AbstractExpressionSerializationTests::randomChild);
+            left = randomValueOtherThan(left, AbstractExpressionSerializationTests::randomChild);
         } else {
-            field2 = randomValueOtherThan(field2, AbstractExpressionSerializationTests::randomChild);
+            right = randomValueOtherThan(right, AbstractExpressionSerializationTests::randomChild);
         }
-        return new MvIntersects(source, field1, field2);
+        return new MvIntersects(source, left, right);
     }
 }

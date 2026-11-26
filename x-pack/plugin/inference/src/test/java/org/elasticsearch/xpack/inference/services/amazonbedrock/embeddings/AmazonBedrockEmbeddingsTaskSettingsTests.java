@@ -21,8 +21,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
-
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TRUNCATE_FIELD;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,10 +38,11 @@ public class AmazonBedrockEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
     }
 
     public static AmazonBedrockEmbeddingsTaskSettings mutateTaskSettings(AmazonBedrockEmbeddingsTaskSettings instance) {
-        return randomValueOtherThanMany(
-            v -> Objects.equals(instance, v) || (instance.truncation() != null && v.truncation() == null),
-            AmazonBedrockEmbeddingsTaskSettingsTests::randomTaskSettings
+        Truncation truncation = randomValueOtherThan(
+            instance.truncation(),
+            () -> randomBoolean() ? randomFrom(Truncation.values()) : null
         );
+        return new AmazonBedrockEmbeddingsTaskSettings(truncation);
     }
 
     @Override

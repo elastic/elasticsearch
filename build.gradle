@@ -236,6 +236,9 @@ tasks.register("updateCIBwcVersions") {
 }
 
 tasks.register("verifyVersions") {
+  // The BWC versions and development branches are derived from the remote branches.json, which Gradle does not track as a
+  // configuration input. Never reuse a cached configuration so this check always validates against the latest branches.json.
+  notCompatibleWithConfigurationCache("Must always validate against the latest remote branches.json")
   // Capture everything needed at execution time during configuration to stay compatible with the configuration cache
   boolean offline = gradle.startParameter.offline
   // BwcVersions does not serialize its full version list, so only capture the plain data we need
@@ -598,7 +601,7 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
     ],
     // Measured on main ff3ed1ce5a62. Counts are direct model references, not action counts.
     'execution-closure-project-reference': [
-      'build.gradle::6',
+      'build.gradle::2',
       'modules/lang-painless/build.gradle::4',
       'qa/vector/build.gradle::1',
     ],

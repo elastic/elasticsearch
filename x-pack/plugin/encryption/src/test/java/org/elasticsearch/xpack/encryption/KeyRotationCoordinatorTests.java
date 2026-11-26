@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
@@ -357,26 +358,28 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * With passwords from cluster secrets, the master checks its own password before submitting the install, and again when it runs,
-     * since cluster secrets can change in between.
+     * The master checks its own password again when the install runs, since its settings can change after the readiness check, such as
+     * when it applies cluster secrets. Whether or not it asked the other nodes.
      */
-    public void testInstallDroppedWhenMasterCanNoLongerUsePasswordFromClusterSecrets() throws IOException {
+    public void testInstallDroppedWhenMasterCanNoLongerPersistTheKey() throws IOException {
         ClusterState state = PasswordPekEncryptionTests.withClusterSecrets(
             clusterStateWith(null, true),
             ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY
         );
-        KeyRotationCoordinator.InstallKeyTask task = new KeyRotationCoordinator.InstallKeyTask(
-            "k1",
-            new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES],
-            PASSWORD_ID,
-            0L,
-            null
-        );
+        for (Set<String> readyNodeIds : Arrays.asList(null, Set.of("local-ephemeral", "other-ephemeral"))) {
+            KeyRotationCoordinator.InstallKeyTask task = new KeyRotationCoordinator.InstallKeyTask(
+                "k1",
+                new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES],
+                PASSWORD_ID,
+                0L,
+                readyNodeIds
+            );
 
-        var canUsePassword = new KeyRotationCoordinator.KeyRotationExecutor(DefaultProjectResolver.INSTANCE, NO_OP_ENCRYPTION, true);
-        assertNotSame(state, canUsePassword.executeTask(task, state).v1());
-        var cannotUsePassword = new KeyRotationCoordinator.KeyRotationExecutor(DefaultProjectResolver.INSTANCE, passwordTooShort(), true);
-        assertSame(state, cannotUsePassword.executeTask(task, state).v1());
+            var canPersist = new KeyRotationCoordinator.KeyRotationExecutor(DefaultProjectResolver.INSTANCE, NO_OP_ENCRYPTION, true);
+            assertNotSame(state, canPersist.executeTask(task, state).v1());
+            var cannotPersist = new KeyRotationCoordinator.KeyRotationExecutor(DefaultProjectResolver.INSTANCE, passwordTooShort(), true);
+            assertSame(state, cannotPersist.executeTask(task, state).v1());
+        }
     }
 
     /** A node that persists cluster state restarting, here with a password, ends the wait for the retry. */

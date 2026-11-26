@@ -160,7 +160,15 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         String passwordId,
         Map<String, KeyEntry> wrappedKeys,
         Map<String, String> handlerKeyIds
-    ) {}
+    ) {
+        /**
+         * Without the handlers' re-encryption progress, which can come from a state that was never committed, while the handlers' data
+         * comes from the elected master's state. Handlers without progress are re-encrypted, and no key retires until they are.
+         */
+        GatewayCopy withoutHandlerProgress() {
+            return new GatewayCopy(activeKeyId, passwordId, wrappedKeys, Map.of());
+        }
+    }
 
     /**
      * The wrapped keys in the cluster state this node last read from or wrote to its disk. While the elected master holds no key, this
@@ -334,7 +342,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     @Nullable
     static ProjectEncryptionKeyMetadata unwrapGatewayKeys(String activeKeyId, PekEncryption pekEncryption) {
         GatewayCopy copy = pekEncryption.gatewayKeys().copyFor(activeKeyId);
-        return copy == null ? null : unwrap(copy, pekEncryption);
+        return copy == null ? null : unwrap(copy.withoutHandlerProgress(), pekEncryption);
     }
 
     static String generateKeyId() {
@@ -456,7 +464,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
                 setGatewayCopy(null);
                 return emptyGatewayChunk();
             }
-            return gatewayChunk(copy);
+            return gatewayChunk(copy.withoutHandlerProgress());
         }
 
         GatewayBytes gw = getOrComputeWrappedKeys();

@@ -480,7 +480,10 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         assertThat("peer without local blob writes empty keys", peerBlob, containsString("\"keys\":{}"));
     }
 
-    /** A peer keeps writing, and can still read, the copy it last wrote for the key-less master's active key. */
+    /**
+     * A peer keeps writing, and can still read, the copy it last wrote for the key-less master's active key, but not the handlers'
+     * re-encryption progress, which may come from a state that was never committed.
+     */
     public void testPeerKeepsItsCopyOfDegradedMastersActiveKey() throws IOException {
         GatewayKeys peerKeys = new GatewayKeys();
         PekEncryption peer = TestPekEncryption.onNode(NO_OP_ENCRYPTION, peerKeys);
@@ -507,11 +510,12 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         assertTrue(received.isUnwrapFailed());
         String persistedBlob = chunkedToXContent(received, getToXContentParams());
         assertThat(persistedBlob, containsString(Base64.getEncoder().encodeToString(k2)));
-        assertThat("peer blob retains handler_key_ids", persistedBlob, containsString("\"myhandler\""));
+        assertThat("peer blob drops handler_key_ids", persistedBlob, not(containsString("\"myhandler\"")));
 
         ProjectEncryptionKeyMetadata readBack = ProjectEncryptionKeyMetadata.unwrapGatewayKeys("k2", peer);
         assertEquals(Set.of("k1", "k2"), readBack.getKeys().keySet());
         assertArrayEquals(k2, readBack.getKeys().get("k2").bytes());
+        assertEquals("a restore re-encrypts every handler", Map.of(), readBack.getHandlerKeyIds());
         assertNull("no copy of another active key", ProjectEncryptionKeyMetadata.unwrapGatewayKeys("k1", peer));
     }
 

@@ -561,6 +561,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
 
         Instant lastActivity = Instant.now();
         AtomicInteger statsRequestCount = new AtomicInteger();
+        AtomicLong idleMillisAtFirstScaleDown = new AtomicLong(-1);
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
             statsRequestCount.incrementAndGet();
@@ -572,6 +573,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<CreateTrainedModelAssignmentAction.Response>) invocationOnMock.getArguments()[2];
+            idleMillisAtFirstScaleDown.compareAndSet(-1, System.currentTimeMillis() - lastActivity.toEpochMilli());
             listener.onResponse(null);
             return Void.TYPE;
         }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
@@ -584,18 +586,13 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         // Simulate some time not being the master node.
         safeSleep(2_000);
 
-        // After re-election, the deployment has been idle for about 4 seconds at the first stats collection and
-        // about 5 seconds at the second one, so it should not scale down to zero yet.
-        int statsRequestCountBeforeReelection = statsRequestCount.get();
+        // After re-election, it scales down to zero once the deployment has been idle for more than 6 seconds.
         service.start();
-        assertBusy(() -> assertThat(statsRequestCount.get(), greaterThanOrEqualTo(statsRequestCountBeforeReelection + 2)));
-        verify(client, never()).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
-
-        // Once the deployment has been idle for more than 6 seconds, it scales down to zero.
         var updateRequest = new UpdateTrainedModelDeploymentAction.Request("test-deployment");
         updateRequest.setNumberOfAllocations(0);
         updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.ADAPTIVE_ALLOCATIONS);
-        assertBusy(() -> verify(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any()));
+        assertBusy(() -> verify(client, atLeastOnce()).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any()));
+        assertThat(idleMillisAtFirstScaleDown.get(), greaterThanOrEqualTo(6_000L));
         service.stop();
     }
 

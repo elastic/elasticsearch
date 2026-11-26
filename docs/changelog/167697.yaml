@@ -1,0 +1,7 @@
+area: Data streams
+issues:
+ - 165096
+pr: 167697
+summary: "[CI] `DataStreamsClientYamlTestSuiteIT` test {yaml=data_stream/240_data_stream_settings/Test\
+  \ dry run} failing [#165096]"
+type: bug

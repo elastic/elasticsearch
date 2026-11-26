@@ -44,6 +44,10 @@ import java.util.Arrays;
  * able to send the bulk that {@code INTO} writes with, and is told what a planning error tells a writer, about a destination that it may
  * create documents in. It cannot use {@code INTO}. Checking the bulk actions as well would mean copying the gates of bulk here, which
  * would drift from it.
+ * <p>
+ * The name is a copy of {@code AuthorizationService.IMPLIED_CREATE_ACTION}, which is private to the security plugin, which this one does
+ * not depend on. Both are built from {@link TransportIndexAction#NAME}. {@code EsqlIntoDestinationActionTests} pins the name, and
+ * {@code EsqlSecurityIntoIT} checks the behavior against a real security filter.
  */
 public class EsqlIntoDestinationAction extends TransportAction<EsqlIntoDestinationAction.Request, EsqlIntoDestinationAction.Response> {
     // The name that AuthorizationService gives to the creation of a document by a bulk

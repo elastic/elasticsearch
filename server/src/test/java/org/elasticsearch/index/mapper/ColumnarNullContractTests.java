@@ -50,8 +50,8 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         && configuration.mode() == IndexMode.VECTORDB_COLUMNAR;
 
     private static final List<String> NUMBERS = List.of("long", "integer", "short", "byte", "double", "float", "half_float");
-    // NOTE: a binary field is never resolved for batch indexing, so it is tested with document indexing only.
-    private static final List<String> BATCHABLE_WITHOUT_NULL_ELEMENTS_BUG = List.of(
+    private static final List<String> STRINGS = List.of("keyword", "text");
+    private static final List<String> PLAIN_TYPES = List.of(
         "long",
         "integer",
         "short",
@@ -62,14 +62,10 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         "date",
         "date_nanos",
         "boolean",
-        "ip"
+        "ip",
+        "binary"
     );
-    private static final List<String> STRINGS = List.of("keyword", "text");
-    private static final List<String> DOCUMENT_TYPES = Stream.concat(BATCHABLE_WITHOUT_NULL_ELEMENTS_BUG.stream(), Stream.of("binary"))
-        .toList();
-    private static final List<String> ORDERED_DOCUMENT_TYPES = Stream.concat(STRINGS.stream(), DOCUMENT_TYPES.stream()).toList();
-    private static final List<String> ORDERED_BATCH_TYPES = Stream.concat(STRINGS.stream(), BATCHABLE_WITHOUT_NULL_ELEMENTS_BUG.stream())
-        .toList();
+    private static final List<String> ORDERED_TYPES = Stream.concat(STRINGS.stream(), PLAIN_TYPES.stream()).toList();
     private static final Map<String, Object> NULL_VALUES = Map.ofEntries(
         Map.entry("keyword", "NA"),
         Map.entry("long", 7),
@@ -107,7 +103,8 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
 
     // NOTE: the column shapes below are the ones the mappers batch map today (doSupportsColumnarParse and doMapColumnBatch). A number
     // takes a column without a null, a date and a boolean take a column of scalars, a keyword, a text and an ip without an index take
-    // every shape, and a binary field takes none. A shape that is not listed may fall back to document indexing.
+    // every shape, and a binary field takes none. A shape that is not listed may fall back to the rows of the batch, and the BATCH tests
+    // never require that fallback: they exercise batch indexing as soon as a mapper accepts the shape.
     private static Scenario plain(String type) {
         final Scenario scenario = scenario(type, values(type));
         return switch (type) {
@@ -128,8 +125,9 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         return plain(type).withNullValue(NULL_VALUES.get(type));
     }
 
-    // NOTE: valid and malformed values alternate so that every column mixes them. Batch indexing refuses such a column and falls back to
-    // document indexing, so this scenario is only tested with document indexing. A column of only valid numbers would execute as a batch,
+    // NOTE: valid and malformed values alternate so that every column mixes them. Batch indexing refuses such a column today and falls
+    // back to the rows, so the scenario lists no batched shape and the BATCH tests are not required to execute as a batch. They still
+    // run, and they exercise batch indexing as soon as it maps such a column. A column of only valid numbers would execute as a batch,
     // and which one a test reaches must not depend on the random values.
     private static Scenario longIgnoreMalformed() {
         final int[] calls = new int[1];
@@ -239,11 +237,15 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         assertSourceDropsNullElements(scenario, IndexingStrategy.DOCUMENT);
     }
 
+    // NOTE: a geo_point with a null_value is refused for batch indexing today, so the scenario lists no batched shape.
+    public void testGeoPointNullValueReplacesNullBatch() throws IOException {
+        final Scenario scenario = geoPoint().withNullValue("10.5,20.5").batchedGroups((configuration, shape) -> false);
+        assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.BATCH);
+        assertSourceDropsNullElements(scenario, IndexingStrategy.BATCH);
+    }
+
     private void assertNullValueSubstitution(IndexingStrategy strategy) throws IOException {
         for (final String type : NULL_VALUES.keySet()) {
-            if (strategy == IndexingStrategy.BATCH && type.equals("binary")) {
-                continue;
-            }
             final Scenario scenario = withNullValue(type);
             assertExistsMatchesOnlyDocumentsWithValue(scenario, strategy);
             assertSourceDropsNullElements(scenario, strategy);
@@ -252,25 +254,25 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
     }
 
     public void testExistsMatchesOnlyDocumentsWithValueDocument() throws IOException {
-        for (final String type : DOCUMENT_TYPES) {
+        for (final String type : PLAIN_TYPES) {
             assertExistsMatchesOnlyDocumentsWithValue(plain(type), IndexingStrategy.DOCUMENT);
         }
     }
 
     public void testExistsMatchesOnlyDocumentsWithValueBatch() throws IOException {
-        for (final String type : BATCHABLE_WITHOUT_NULL_ELEMENTS_BUG) {
+        for (final String type : PLAIN_TYPES) {
             assertExistsMatchesOnlyDocumentsWithValue(plain(type), IndexingStrategy.BATCH);
         }
     }
 
     public void testExistsCountAgreesWithHitsDocument() throws IOException {
-        for (final String type : DOCUMENT_TYPES) {
+        for (final String type : PLAIN_TYPES) {
             assertExistsCountAgreesWithHits(plain(type), IndexingStrategy.DOCUMENT);
         }
     }
 
     public void testExistsCountAgreesWithHitsBatch() throws IOException {
-        for (final String type : BATCHABLE_WITHOUT_NULL_ELEMENTS_BUG) {
+        for (final String type : PLAIN_TYPES) {
             assertExistsCountAgreesWithHits(plain(type), IndexingStrategy.BATCH);
         }
     }
@@ -287,14 +289,18 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         assertSourceDropsNullElements(plain("binary"), IndexingStrategy.DOCUMENT);
     }
 
+    public void testBinarySourceDropsNullElementsBatch() throws IOException {
+        assertSourceDropsNullElements(plain("binary"), IndexingStrategy.BATCH);
+    }
+
     public void testRemainingValuesKeepTheirOrderDocument() throws IOException {
-        for (final String type : ORDERED_DOCUMENT_TYPES) {
+        for (final String type : ORDERED_TYPES) {
             assertSourceKeepsTheOrderOfTheRemainingValues(plain(type), IndexingStrategy.DOCUMENT);
         }
     }
 
     public void testRemainingValuesKeepTheirOrderBatch() throws IOException {
-        for (final String type : ORDERED_BATCH_TYPES) {
+        for (final String type : ORDERED_TYPES) {
             assertSourceKeepsTheOrderOfTheRemainingValues(plain(type), IndexingStrategy.BATCH);
         }
     }
@@ -312,6 +318,11 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testLongIgnoreMalformedSourceDocument() throws IOException {
         assertSourceDropsNullElements(longIgnoreMalformed(), IndexingStrategy.DOCUMENT);
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
+    public void testLongIgnoreMalformedSourceBatch() throws IOException {
+        assertSourceDropsNullElements(longIgnoreMalformed(), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)

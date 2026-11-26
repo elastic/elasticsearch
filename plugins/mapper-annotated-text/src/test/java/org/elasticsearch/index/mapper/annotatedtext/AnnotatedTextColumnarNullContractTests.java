@@ -24,6 +24,8 @@ public class AnnotatedTextColumnarNullContractTests extends AbstractColumnarNull
         return Collections.singletonList(new AnnotatedTextPlugin());
     }
 
+    // NOTE: annotated_text does not implement batch indexing today, so the scenario lists no batched shape and the BATCH tests are not
+    // required to execute as a batch. They exercise batch indexing as soon as the mapper accepts a column.
     private static Scenario annotatedText() {
         return scenario("annotated_text", () -> randomAlphaOfLengthBetween(1, 8)).withoutIndex();
     }
@@ -32,11 +34,23 @@ public class AnnotatedTextColumnarNullContractTests extends AbstractColumnarNull
         assertExistsMatchesOnlyDocumentsWithValue(annotatedText(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testAnnotatedTextExistsBatch() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(annotatedText(), IndexingStrategy.BATCH);
+    }
+
     public void testAnnotatedTextSourceDocument() throws IOException {
         assertSourceDropsNullElements(annotatedText(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testAnnotatedTextSourceBatch() throws IOException {
+        assertSourceDropsNullElements(annotatedText(), IndexingStrategy.BATCH);
+    }
+
     public void testAnnotatedTextRemainingValuesKeepTheirOrderDocument() throws IOException {
         assertSourceKeepsTheOrderOfTheRemainingValues(annotatedText(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testAnnotatedTextRemainingValuesKeepTheirOrderBatch() throws IOException {
+        assertSourceKeepsTheOrderOfTheRemainingValues(annotatedText(), IndexingStrategy.BATCH);
     }
 }

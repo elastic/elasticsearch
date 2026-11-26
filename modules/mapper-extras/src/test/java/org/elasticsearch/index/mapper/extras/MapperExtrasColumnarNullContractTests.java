@@ -35,6 +35,8 @@ public class MapperExtrasColumnarNullContractTests extends AbstractColumnarNullC
             .batchedGroups((configuration, shape) -> true);
     }
 
+    // NOTE: scaled_float does not implement batch indexing today, so the scenario lists no batched shape and the BATCH tests are not
+    // required to execute as a batch. They exercise batch indexing as soon as the mapper accepts a column.
     private static Scenario scaledFloat() {
         return scenario("scaled_float", () -> randomIntBetween(0, 1000) / 4.0).withParameters(Map.of("scaling_factor", 100));
     }
@@ -81,13 +83,26 @@ public class MapperExtrasColumnarNullContractTests extends AbstractColumnarNullC
         assertExistsMatchesOnlyDocumentsWithValue(scaledFloat(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testScaledFloatExistsMatchesOnlyDocumentsWithValueBatch() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(scaledFloat(), IndexingStrategy.BATCH);
+    }
+
     public void testScaledFloatExistsCountAgreesWithHitsDocument() throws IOException {
         assertExistsCountAgreesWithHits(scaledFloat(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testScaledFloatExistsCountAgreesWithHitsBatch() throws IOException {
+        assertExistsCountAgreesWithHits(scaledFloat(), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testScaledFloatSourceDocument() throws IOException {
         assertSourceDropsNullElements(scaledFloat(), IndexingStrategy.DOCUMENT);
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
+    public void testScaledFloatSourceBatch() throws IOException {
+        assertSourceDropsNullElements(scaledFloat(), IndexingStrategy.BATCH);
     }
 
     public void testScaledFloatNullValueReplacesNullDocument() throws IOException {
@@ -97,7 +112,18 @@ public class MapperExtrasColumnarNullContractTests extends AbstractColumnarNullC
         assertSourceKeepsTheOrderOfTheRemainingValues(scenario, IndexingStrategy.DOCUMENT);
     }
 
+    public void testScaledFloatNullValueReplacesNullBatch() throws IOException {
+        final Scenario scenario = scaledFloat().withNullValue(0.5);
+        assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.BATCH);
+        assertSourceDropsNullElements(scenario, IndexingStrategy.BATCH);
+        assertSourceKeepsTheOrderOfTheRemainingValues(scenario, IndexingStrategy.BATCH);
+    }
+
     public void testScaledFloatRemainingValuesKeepTheirOrderDocument() throws IOException {
         assertSourceKeepsTheOrderOfTheRemainingValues(scaledFloat(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testScaledFloatRemainingValuesKeepTheirOrderBatch() throws IOException {
+        assertSourceKeepsTheOrderOfTheRemainingValues(scaledFloat(), IndexingStrategy.BATCH);
     }
 }

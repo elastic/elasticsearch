@@ -26,6 +26,8 @@ public class UnsignedLongColumnarNullContractTests extends AbstractColumnarNullC
         return List.of(new UnsignedLongMapperPlugin());
     }
 
+    // NOTE: unsigned_long does not implement batch indexing today, so the scenario lists no batched shape and the BATCH tests are not
+    // required to execute as a batch. They exercise batch indexing as soon as the mapper accepts a column.
     private static Scenario unsignedLong() {
         return scenario("unsigned_long", () -> randomLongBetween(0, Long.MAX_VALUE));
     }
@@ -34,13 +36,26 @@ public class UnsignedLongColumnarNullContractTests extends AbstractColumnarNullC
         assertExistsMatchesOnlyDocumentsWithValue(unsignedLong(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testUnsignedLongExistsBatch() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(unsignedLong(), IndexingStrategy.BATCH);
+    }
+
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testUnsignedLongSourceDocument() throws IOException {
         assertSourceDropsNullElements(unsignedLong(), IndexingStrategy.DOCUMENT);
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
+    public void testUnsignedLongSourceBatch() throws IOException {
+        assertSourceDropsNullElements(unsignedLong(), IndexingStrategy.BATCH);
+    }
+
     public void testUnsignedLongRemainingValuesKeepTheirOrderDocument() throws IOException {
         assertSourceKeepsTheOrderOfTheRemainingValues(unsignedLong(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testUnsignedLongRemainingValuesKeepTheirOrderBatch() throws IOException {
+        assertSourceKeepsTheOrderOfTheRemainingValues(unsignedLong(), IndexingStrategy.BATCH);
     }
 
     public void testUnsignedLongNullValueReplacesNullDocument() throws IOException {
@@ -48,5 +63,12 @@ public class UnsignedLongColumnarNullContractTests extends AbstractColumnarNullC
         assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.DOCUMENT);
         assertSourceDropsNullElements(scenario, IndexingStrategy.DOCUMENT);
         assertSourceKeepsTheOrderOfTheRemainingValues(scenario, IndexingStrategy.DOCUMENT);
+    }
+
+    public void testUnsignedLongNullValueReplacesNullBatch() throws IOException {
+        final Scenario scenario = unsignedLong().withNullValue(9);
+        assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.BATCH);
+        assertSourceDropsNullElements(scenario, IndexingStrategy.BATCH);
+        assertSourceKeepsTheOrderOfTheRemainingValues(scenario, IndexingStrategy.BATCH);
     }
 }

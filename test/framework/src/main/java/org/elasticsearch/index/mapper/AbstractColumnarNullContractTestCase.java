@@ -56,7 +56,8 @@ import java.util.function.Supplier;
  * dropped after {@code null_value}, a field with no remaining value is absent from {@code exists} and from the reconstructed
  * {@code _source}, and a single remaining value is reconstructed as a scalar.
  *
- * <p>Each helper indexes the same documents with an {@link IndexingStrategy}, in each strict mode. Batch indexing is the path
+ * <p>Each helper indexes the same documents with an {@link IndexingStrategy}, in each strict mode and with the synthetic and the
+ * {@code columnar_stored} source. Batch indexing is the path
  * {@code InternalEngine} takes. Any exception from the mappers makes the chunk fall back to document indexing, as it does in
  * production, so a scenario states which column shapes it expects to execute as a batch today ({@link Scenario#batchedGroups}) and a
  * helper fails when one of them falls back. A shape that is not listed may execute either way, which keeps the tests valid when batch
@@ -80,6 +81,12 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
 
     protected static final Predicate<Configuration> ALL = configuration -> true;
 
+    private static final String SOURCE_MODE = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey();
+
+    protected static final Predicate<Configuration> SYNTHETIC_SOURCE = configuration -> SourceFieldMapper.Mode.SYNTHETIC.toString()
+        .equals(configuration.settings().get(SOURCE_MODE));
+    protected static final Predicate<Configuration> COLUMNAR_STORED_SOURCE = SYNTHETIC_SOURCE.negate();
+
     private enum Kind {
         ABSENT,
         BARE_NULL,
@@ -88,9 +95,14 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
     }
 
     /**
-     * @param indexed the value of the {@code index} parameter, which is always {@code true} for a type that has no such parameter
+     * @param indexed  the value of the {@code index} parameter, which is always {@code true} for a type that has no such parameter
+     * @param settings further index settings of the configuration
      */
-    protected record Configuration(IndexMode mode, boolean indexed) {}
+    protected record Configuration(IndexMode mode, boolean indexed, Settings settings) {
+        public Configuration(IndexMode mode, boolean indexed) {
+            this(mode, indexed, Settings.EMPTY);
+        }
+    }
 
     protected record TestDocument(Kind kind, List<Object> slots) {
         String json() throws IOException {
@@ -252,21 +264,31 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         );
     }
 
-    private static List<Configuration> configurations(Scenario scenario) {
+    /**
+     * The configurations that every check runs in: each strict mode, with and without {@code index} where the type has it, and with
+     * the {@code _source} reconstructed from doc values and stored by {@code columnar_stored}.
+     */
+    protected List<Configuration> configurations(Scenario scenario) {
         final List<Configuration> configurations = new ArrayList<>();
         for (final IndexMode mode : scenario.modes()) {
-            configurations.add(new Configuration(mode, true));
-            if (scenario.hasIndex()) {
-                configurations.add(new Configuration(mode, false));
+            for (final SourceFieldMapper.Mode sourceMode : List.of(
+                SourceFieldMapper.Mode.SYNTHETIC,
+                SourceFieldMapper.Mode.COLUMNAR_STORED
+            )) {
+                final Settings settings = Settings.builder().put(SOURCE_MODE, sourceMode.toString()).build();
+                configurations.add(new Configuration(mode, true, settings));
+                if (scenario.hasIndex()) {
+                    configurations.add(new Configuration(mode, false, settings));
+                }
             }
         }
         return configurations;
     }
 
-    private MapperService createMapperService(Scenario scenario, Configuration configuration) throws IOException {
+    protected MapperService createMapperService(Scenario scenario, Configuration configuration) throws IOException {
         return createMapperService(
             IndexVersion.current(),
-            Settings.builder().put(IndexSettings.MODE.getKey(), configuration.mode().getName()).build(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), configuration.mode().getName()).put(configuration.settings()).build(),
             mapping(b -> {
                 b.startObject("@timestamp").field("type", "date").endObject();
                 b.startObject(FIELD).field("type", scenario.type());

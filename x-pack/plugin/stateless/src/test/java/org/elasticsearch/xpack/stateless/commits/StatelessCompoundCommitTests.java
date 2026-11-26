@@ -11,6 +11,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -665,9 +666,10 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
     /// Locations that reference the same blob share a single [Blob] instance once read from the store, whatever the header format.
     public void testReadFromStoreDeduplicatesBlobs() throws IOException {
         var shardId = randomShardId();
-        long generation = randomLongBetween(1, 1000);
-        // the generation of the BCC containing the commit differs from the commit generation when the commit is not the last of the batch
-        long bccGeneration = generation + randomLongBetween(1, 10);
+        // a BCC is named after its first commit: a later commit of the batch has a higher generation and starts at a non-zero offset
+        long bccGeneration = randomLongBetween(1, 1000);
+        long generation = bccGeneration + randomLongBetween(1, 10);
+        long offset = randomLongBetween(1, 10) * SharedBytes.PAGE_SIZE;
         long term = randomLongBetween(1, 10);
         var blobName = BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000));
         var containingBlobName = BccBlob.blobNameFromGeneration(bccGeneration);
@@ -721,7 +723,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 }
 
                 try (StreamInput in = output.bytes().streamInput()) {
-                    var copy = StatelessCompoundCommit.readFromStoreAtOffset(in, 0, commitGeneration -> {
+                    var copy = StatelessCompoundCommit.readFromStoreAtOffset(in, offset, commitGeneration -> {
                         assertThat(commitGeneration, equalTo(generation));
                         return bccGeneration;
                     });

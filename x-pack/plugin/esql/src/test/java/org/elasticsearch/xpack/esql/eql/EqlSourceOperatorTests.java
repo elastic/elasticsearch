@@ -27,6 +27,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
@@ -36,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.eql.EqlClientException;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
@@ -824,6 +826,134 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
     }
 
+    public void testResponseWithoutClusterShardsLeavesCountsAndTookUnset() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        pullEventPage(executionInfo, eqlRequestOn("logs"), 42L, List.of());
+        EsqlExecutionInfo.Cluster local = executionInfo.getCluster(LOCAL);
+        assertThat(local.getTotalShards(), nullValue());
+        assertThat(local.getTook(), nullValue());
+        assertFalse(executionInfo.clusterReportsSearchTook(LOCAL));
+    }
+
+    public void testAllFailedShardCountsAreRecorded() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        pullEventPage(
+            executionInfo,
+            eqlRequestOn("logs"),
+            8L,
+            List.of(new EqlClusterShards(LOCAL, 2, 0, 0, 2)),
+            shardFailure(new IllegalStateException("lost"), 0, "n1", null)
+        );
+        EsqlExecutionInfo.Cluster local = executionInfo.getCluster(LOCAL);
+        assertThat(local.getTotalShards(), equalTo(2));
+        assertThat(local.getSuccessfulShards(), equalTo(0));
+        assertThat(local.getFailedShards(), equalTo(2));
+        assertThat(local.getTook(), equalTo(TimeValue.timeValueMillis(8)));
+        assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
+    public void testFailedCountsWithoutShardFailuresUseACountedReason() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        pullEventPage(executionInfo, eqlRequestOn("logs"), 8L, List.of(new EqlClusterShards(LOCAL, 3, 2, 0, 1)));
+        EsqlExecutionInfo.Cluster local = executionInfo.getCluster(LOCAL);
+        assertThat(local.getFailedShards(), equalTo(1));
+        assertThat(local.getFailures().size(), equalTo(1));
+        assertThat(local.getFailures().get(0).reason(), containsString("[1] shards failed"));
+        assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
+    public void testShardCountsAndTookAreAppliedToTheSearchedCluster() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        pullEventPage(executionInfo, eqlRequestOn("logs"), 42L, List.of(new EqlClusterShards(LOCAL, 3, 2, 1, 0)));
+        EsqlExecutionInfo.Cluster local = executionInfo.getCluster(LOCAL);
+        assertThat(local.getTotalShards(), equalTo(3));
+        assertThat(local.getSuccessfulShards(), equalTo(2));
+        assertThat(local.getSkippedShards(), equalTo(1));
+        assertThat(local.getFailedShards(), equalTo(0));
+        assertThat(local.getTook(), equalTo(TimeValue.timeValueMillis(42)));
+        assertTrue(executionInfo.clusterReportsSearchTook(LOCAL));
+    }
+
+    public void testUnmarkedTookIsReplacedByTheEqlSearchTook() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        executionInfo.swapCluster(
+            LOCAL,
+            (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(TimeValue.timeValueMillis(10_000)).build()
+        );
+        pullEventPage(executionInfo, eqlRequestOn("logs"), 5L, List.of(new EqlClusterShards(LOCAL, 1, 1, 0, 0)));
+        assertThat(executionInfo.getCluster(LOCAL).getTook(), equalTo(TimeValue.timeValueMillis(5)));
+    }
+
+    public void testInlineStatsSubplanDoesNotRecordShardCounts() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        executionInfo.startSubPlans(false);
+        pullEventPage(executionInfo, eqlRequestOn("logs"), 5L, List.of(new EqlClusterShards(LOCAL, 2, 2, 0, 0)));
+        assertThat(executionInfo.getCluster(LOCAL).getTotalShards(), nullValue());
+        assertThat(executionInfo.getCluster(LOCAL).getTook(), equalTo(TimeValue.timeValueMillis(5)));
+    }
+
+    public void testShardCountsAndTookAccumulateAcrossBranches() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        executionInfo.swapCluster(
+            LOCAL,
+            (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(1)
+                .setSuccessfulShards(1)
+                .setSkippedShards(0)
+                .setFailedShards(0)
+                .setTook(TimeValue.timeValueMillis(10))
+                .build()
+        );
+        executionInfo.markClusterSearchTook(LOCAL);
+        pullEventPage(
+            executionInfo,
+            eqlRequestOn("logs"),
+            5L,
+            List.of(new EqlClusterShards(LOCAL, 2, 1, 0, 1)),
+            shardFailure(new IllegalStateException("lost"), 0, "n1", null)
+        );
+        EsqlExecutionInfo.Cluster local = executionInfo.getCluster(LOCAL);
+        assertThat(local.getTotalShards(), equalTo(3));
+        assertThat(local.getSuccessfulShards(), equalTo(2));
+        assertThat(local.getSkippedShards(), equalTo(0));
+        assertThat(local.getFailedShards(), equalTo(1));
+        assertThat(local.getTook(), equalTo(TimeValue.timeValueMillis(15)));
+        assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
+    public void testForwardedSingleClusterCountsAreAppliedToTheSearchedCluster() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote1");
+        pullEventPage(
+            executionInfo,
+            eqlRequestOn("remote1:logs"),
+            7L,
+            List.of(new EqlClusterShards(LOCAL, 4, 3, 0, 1)),
+            shardFailure(new IllegalStateException("lost"), 0, "n1", null)
+        );
+        assertThat(executionInfo.getCluster(LOCAL), nullValue());
+        EsqlExecutionInfo.Cluster remote = executionInfo.getCluster("remote1");
+        assertThat(remote.getTotalShards(), equalTo(4));
+        assertThat(remote.getSuccessfulShards(), equalTo(3));
+        assertThat(remote.getFailedShards(), equalTo(1));
+        assertThat(remote.getTook(), equalTo(TimeValue.timeValueMillis(7)));
+        assertThat(remote.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
+    public void testPerClusterCountsStayOnTheirClusters() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL, "remote1");
+        pullEventPage(
+            executionInfo,
+            eqlRequestOn("logs", "remote1:logs"),
+            9L,
+            List.of(new EqlClusterShards(LOCAL, 2, 2, 0, 0), new EqlClusterShards("remote1", 5, 4, 1, 0))
+        );
+        assertThat(executionInfo.getCluster(LOCAL).getTotalShards(), equalTo(2));
+        assertThat(executionInfo.getCluster(LOCAL).getTook(), equalTo(TimeValue.timeValueMillis(9)));
+        assertThat(executionInfo.getCluster("remote1").getTotalShards(), equalTo(5));
+        assertThat(executionInfo.getCluster("remote1").getSuccessfulShards(), equalTo(4));
+        assertThat(executionInfo.getCluster("remote1").getSkippedShards(), equalTo(1));
+        assertThat(executionInfo.getCluster("remote1").getTook(), equalTo(TimeValue.timeValueMillis(9)));
+    }
+
     public void testLostShardOfAnUnlistedClusterOnlyMarksTheResultPartial() {
         EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
         pullEventPage(executionInfo, eqlRequestOn("logs"), false, shardFailure(new IllegalStateException("x"), 0, "n1", "remote9"));
@@ -935,10 +1065,31 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         boolean timedOut,
         ShardSearchFailure... failures
     ) {
+        return pullEventPage(executionInfo, request, 1L, List.of(), timedOut, failures);
+    }
+
+    private DriverContext pullEventPage(
+        EsqlExecutionInfo executionInfo,
+        EqlSearchRequest request,
+        long tookInMillis,
+        List<EqlClusterShards> clusterShards,
+        ShardSearchFailure... failures
+    ) {
+        return pullEventPage(executionInfo, request, tookInMillis, clusterShards, false, failures);
+    }
+
+    private DriverContext pullEventPage(
+        EsqlExecutionInfo executionInfo,
+        EqlSearchRequest request,
+        long tookInMillis,
+        List<EqlClusterShards> clusterShards,
+        boolean timedOut,
+        ShardSearchFailure... failures
+    ) {
         CapturingEqlClient client = new CapturingEqlClient(threadPool);
         DriverContext driverContext = driverContext();
         Hits hits = new Hits(List.of(fieldEvent("a")), null, new TotalHits(1, TotalHits.Relation.EQUAL_TO));
-        EqlSearchResponse response = new EqlSearchResponse(hits, 1, timedOut, List.of(failures));
+        EqlSearchResponse response = new EqlSearchResponse(hits, tookInMillis, timedOut, List.of(failures), clusterShards);
         SourceOperator operator = operator(
             client,
             driverContext,

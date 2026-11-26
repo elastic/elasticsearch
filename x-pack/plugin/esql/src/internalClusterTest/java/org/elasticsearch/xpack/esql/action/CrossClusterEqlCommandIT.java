@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -98,6 +99,10 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
             assertThat(getValuesList(resp), equalTo(List.of(List.of("cmd.exe"))));
             EsqlExecutionInfo.Cluster remoteCluster = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(remoteCluster.getTotalShards(), equalTo(1));
+            assertThat(remoteCluster.getSuccessfulShards(), equalTo(1));
+            assertThat(remoteCluster.getFailedShards(), equalTo(0));
+            assertThat(remoteCluster.getTook(), notNullValue());
         }
     }
 
@@ -119,8 +124,36 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
         try (EsqlQueryResponse resp = runQuery(partialRequest(REMOTE_CLUSTER_1 + ":" + PARTIAL_PATTERN))) {
             assertThat(getValuesList(resp), equalTo(List.of(List.of("ok1"))));
             assertTrue(resp.isPartial());
-            assertLostShard(resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1), "eql_partial_fail");
+            EsqlExecutionInfo.Cluster remote = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+            assertLostShard(remote, "eql_partial_fail");
+            assertThat(remote.getTotalShards(), equalTo(2));
+            assertThat(remote.getSuccessfulShards(), equalTo(1));
+            assertThat(remote.getFailedShards(), equalTo(1));
+            assertThat(remote.getTook(), notNullValue());
             assertThat(resp.getExecutionInfo().getCluster(LOCAL_CLUSTER), nullValue());
+        }
+    }
+
+    public void testRemoteSequenceCountsAShardOnceWhenLaterStagesSeeItAgain() throws Exception {
+        setupRemoteEvents();
+        setupFailingShardIndices(client(REMOTE_CLUSTER_1));
+        String eql = "sequence [process where value == 1 or fail_me == 1] [process where value == 3 or fail_me == 1]";
+        String query = "EQL "
+            + REMOTE_CLUSTER_1
+            + ":"
+            + PARTIAL_PATTERN
+            + " \""
+            + eql
+            + "\" METADATA _id WITH {\"allow_partial_sequence_results\": true} | KEEP _id";
+        try (EsqlQueryResponse resp = runQuery(EsqlQueryRequest.syncEsqlQueryRequest(query).allowPartialResults(true))) {
+            assertTrue(resp.isPartial());
+            EsqlExecutionInfo.Cluster remote = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+            assertLostShard(remote, "eql_partial_fail");
+            assertThat(remote.getTotalShards(), equalTo(2));
+            assertThat(remote.getSuccessfulShards(), equalTo(1));
+            assertThat(remote.getSkippedShards(), equalTo(0));
+            assertThat(remote.getFailedShards(), equalTo(1));
+            assertThat(remote.getTook(), notNullValue());
         }
     }
 
@@ -131,7 +164,13 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
         try (EsqlQueryResponse resp = runQuery(partialRequest(wildcardCluster + ":" + PARTIAL_PATTERN))) {
             assertThat(getValuesList(resp), equalTo(List.of(List.of("ok1"))));
             assertTrue(resp.isPartial());
-            assertLostShard(resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1), "eql_partial_fail");
+            EsqlExecutionInfo.Cluster remote = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+            assertLostShard(remote, "eql_partial_fail");
+            assertThat(remote.getTotalShards(), equalTo(2));
+            assertThat(remote.getSuccessfulShards(), equalTo(1));
+            assertThat(remote.getFailedShards(), equalTo(1));
+            assertThat(remote.getTook(), notNullValue());
+            assertThat(resp.getExecutionInfo().getCluster(LOCAL_CLUSTER), nullValue());
         }
     }
 
@@ -142,8 +181,16 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
         try (EsqlQueryResponse resp = runQuery(partialRequest(PARTIAL_PATTERN + "," + REMOTE_CLUSTER_1 + ":" + PARTIAL_PATTERN))) {
             assertThat(getValuesList(resp), equalTo(List.of(List.of("ok1"), List.of("ok1"))));
             assertTrue(resp.isPartial());
-            assertLostShard(resp.getExecutionInfo().getCluster(LOCAL_CLUSTER), "eql_partial_fail");
-            assertLostShard(resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1), REMOTE_CLUSTER_1 + ":eql_partial_fail");
+            EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
+            EsqlExecutionInfo.Cluster remote = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+            assertLostShard(local, "eql_partial_fail");
+            assertLostShard(remote, REMOTE_CLUSTER_1 + ":eql_partial_fail");
+            assertThat(local.getTotalShards(), equalTo(2));
+            assertThat(local.getFailedShards(), equalTo(1));
+            assertThat(remote.getTotalShards(), equalTo(2));
+            assertThat(remote.getFailedShards(), equalTo(1));
+            assertThat(local.getTook(), notNullValue());
+            assertThat(remote.getTook(), notNullValue());
         }
     }
 

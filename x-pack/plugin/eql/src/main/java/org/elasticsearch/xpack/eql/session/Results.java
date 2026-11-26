@@ -12,6 +12,7 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
@@ -26,6 +27,7 @@ public class Results {
     private final TimeValue tookTime;
     private final Type type;
     private final List<ShardSearchFailure> shardFailures;
+    private final List<EqlClusterShards> clusterShards;
     private final DirectoryMetrics directoryMetrics;
 
     public static Results fromPayload(Payload payload) {
@@ -41,6 +43,7 @@ public class Results {
             values,
             payload.resultType(),
             payload.shardFailures(),
+            payload.clusterShards(),
             directoryMetrics
         );
     }
@@ -52,6 +55,7 @@ public class Results {
         List<?> results,
         Type type,
         List<ShardSearchFailure> shardFailures,
+        List<EqlClusterShards> clusterShards,
         DirectoryMetrics directoryMetrics
     ) {
         this.totalHits = totalHits;
@@ -60,6 +64,7 @@ public class Results {
         this.results = results;
         this.type = type;
         this.shardFailures = shardFailures;
+        this.clusterShards = List.copyOf(clusterShards);
         this.directoryMetrics = directoryMetrics;
     }
 
@@ -79,6 +84,10 @@ public class Results {
 
     public List<ShardSearchFailure> shardFailures() {
         return shardFailures;
+    }
+
+    public List<EqlClusterShards> clusterShards() {
+        return clusterShards;
     }
 
     public DirectoryMetrics directoryMetrics() {

@@ -11,6 +11,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.SearchHit;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
@@ -25,5 +27,19 @@ public final class SearchHitUtils {
         for (ShardSearchFailure shardFailure : r.getShardFailures()) {
             shardFailures.put(shardFailure.toString(), shardFailure);
         }
+    }
+
+    public static List<ShardSearchFailure> mergeShardFailures(
+        Map<String, ShardSearchFailure> shardFailures,
+        List<ShardSearchFailure> fetched
+    ) {
+        if (fetched.isEmpty()) {
+            return List.copyOf(shardFailures.values());
+        }
+        Map<String, ShardSearchFailure> merged = new HashMap<>(shardFailures);
+        for (ShardSearchFailure failure : fetched) {
+            merged.putIfAbsent(failure.toString(), failure);
+        }
+        return List.copyOf(merged.values());
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.eql.execution.payload;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 
 import java.util.ArrayList;
@@ -20,7 +21,7 @@ public class EventPayload extends AbstractPayload {
     private final List<Event> values;
 
     public EventPayload(SearchResponse response) {
-        super(response.isTimedOut(), response.getTook(), response.getShardFailures());
+        super(response.isTimedOut(), response.getTook(), response.getShardFailures(), EqlClusterShards.from(response));
 
         SearchHits hits = response.getHits();
         values = new ArrayList<>(hits.getHits().length);

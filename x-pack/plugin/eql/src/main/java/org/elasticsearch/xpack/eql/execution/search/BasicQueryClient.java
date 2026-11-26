@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -40,6 +41,7 @@ import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.multiSearchLogListener;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareRequest;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchLogListener;
+import static org.elasticsearch.xpack.eql.util.SearchHitUtils.addShardFailures;
 
 public class BasicQueryClient implements QueryClient {
 
@@ -51,6 +53,7 @@ public class BasicQueryClient implements QueryClient {
     final String[] indices;
     final List<FieldAndFormat> fetchFields;
     private final boolean allowPartialSearchResults;
+    private final Map<String, ShardSearchFailure> fetchedShardFailures = new HashMap<>();
 
     public BasicQueryClient(EqlSession eqlSession) {
         this.directoryMetricsConsumer = eqlSession::accumulateDirectoryMetrics;
@@ -180,9 +183,11 @@ public class BasicQueryClient implements QueryClient {
                         delegate.onFailure(item.getFailure());
                         return;
                     }
+                    SearchResponse response = item.getResponse();
+                    addShardFailures(fetchedShardFailures, response);
                     // otherwise proceed
                     // for each doc, find its reference and its position inside the matrix
-                    for (SearchHit doc : item.getResponse().getHits()) {
+                    for (SearchHit doc : response.getHits()) {
                         HitReference docRef = new HitReference(doc);
                         List<Integer> positions = referenceToPosition.get(docRef);
                         for (int pos : positions) {
@@ -217,6 +222,11 @@ public class BasicQueryClient implements QueryClient {
             multiSearchBuilder.add(request);
         }
         search(multiSearchBuilder.request(), allowPartialSearchResults, listener);
+    }
+
+    @Override
+    public List<ShardSearchFailure> fetchedShardFailures() {
+        return List.copyOf(fetchedShardFailures.values());
     }
 
     protected boolean usingPit() {

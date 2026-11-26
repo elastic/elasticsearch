@@ -151,6 +151,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // the first one is added, which is never for most queries.
     private final transient AtomicReference<DriverCompletionInfo.AtomicAccumulator> failedWork = new AtomicReference<>();
 
+    private final transient Set<String> clustersWithSearchTook = ConcurrentHashMap.newKeySet();
+
     private final EsqlQueryProfile queryProfile;
 
     /**
@@ -381,6 +383,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         });
     }
 
+    public void markClusterSearchTook(String clusterAlias) {
+        clustersWithSearchTook.add(clusterAlias);
+    }
+
+    public boolean clusterReportsSearchTook(String clusterAlias) {
+        return clustersWithSearchTook.contains(clusterAlias);
+    }
+
     /**
      * Utility to swap a Cluster object. Guidelines for the remapping function:
      * <ul>
@@ -408,6 +418,37 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             }
             return newCluster;
         });
+    }
+
+    /**
+     * Adds {@code incoming} shard counts onto {@code existing} when {@code accumulate} is true (FORK / UNION ALL / FROM-subquery branches
+     * sharing one {@link EsqlExecutionInfo}); otherwise replaces them. Merge branches must add so the query-wide
+     * {@link org.elasticsearch.xpack.esql.plugin.ComputeService#failIfAllShardsFailed} sees every branch's targets, not the last writer.
+     */
+    public static void applyShardCounts(
+        Cluster.Builder builder,
+        Cluster existing,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        int failedShards,
+        boolean accumulate
+    ) {
+        if (accumulate) {
+            builder.setTotalShards(zeroIfNull(existing.getTotalShards()) + totalShards)
+                .setSuccessfulShards(zeroIfNull(existing.getSuccessfulShards()) + successfulShards)
+                .setSkippedShards(zeroIfNull(existing.getSkippedShards()) + skippedShards)
+                .setFailedShards(zeroIfNull(existing.getFailedShards()) + failedShards);
+        } else {
+            builder.setTotalShards(totalShards)
+                .setSuccessfulShards(successfulShards)
+                .setSkippedShards(skippedShards)
+                .setFailedShards(failedShards);
+        }
+    }
+
+    private static int zeroIfNull(Integer value) {
+        return value == null ? 0 : value;
     }
 
     @Override

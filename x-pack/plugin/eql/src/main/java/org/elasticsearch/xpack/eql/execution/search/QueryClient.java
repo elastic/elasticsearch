@@ -11,9 +11,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Infrastructure interface used to decouple listener consumers from the stateful classes holding client-references and co.
@@ -21,6 +25,18 @@ import java.util.List;
 public interface QueryClient {
 
     void query(QueryRequest request, ActionListener<SearchResponse> listener);
+
+    default List<EqlClusterShards> clusterShards() {
+        return List.of();
+    }
+
+    default Map<String, Set<String>> pitUnavailableShards() {
+        return Map.of();
+    }
+
+    default List<ShardSearchFailure> fetchedShardFailures() {
+        return List.of();
+    }
 
     default void close(ActionListener<Boolean> closed) {}
 

@@ -24,6 +24,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
 import org.elasticsearch.xpack.eql.execution.assembler.Executable;
 import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
@@ -55,6 +56,7 @@ import static org.elasticsearch.action.ActionListener.runAfter;
 import static org.elasticsearch.xpack.eql.execution.ExecutionUtils.copySource;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.combineFilters;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.addShardFailures;
+import static org.elasticsearch.xpack.eql.util.SearchHitUtils.mergeShardFailures;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
 /**
@@ -564,6 +566,7 @@ public class TumblingWindow implements Executable {
         log.trace("Querying until stage {}", request);
 
         client.query(request, listener.delegateFailureAndWrap((delegate, r) -> {
+            addShardFailures(shardFailures, r);
             List<SearchHit> hits = Arrays.asList(r.getHits().getHits());
 
             log.trace("Found [{}] hits", hits.size());
@@ -595,6 +598,7 @@ public class TumblingWindow implements Executable {
         log.trace("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
         client.query(request, listener.delegateFailureAndWrap((delegate, r) -> {
+            addShardFailures(shardFailures, r);
             List<SearchHit> hits = Arrays.asList(r.getHits().getHits());
 
             // filter hits that are escaping the window (same timestamp but different tiebreaker)
@@ -760,7 +764,15 @@ public class TumblingWindow implements Executable {
         log.trace("Sending payload for [{}] sequences", completed.size());
 
         if (completed.isEmpty() || (allowPartialSequenceResults == false && shardFailures.isEmpty() == false)) {
-            listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook(), List.copyOf(shardFailures.values())));
+            List<ShardSearchFailure> failures = mergeShardFailures(shardFailures, client.fetchedShardFailures());
+            listener.onResponse(
+                new EmptyPayload(
+                    Type.SEQUENCE,
+                    timeTook(),
+                    failures,
+                    EqlClusterShards.withSearchFailures(client.clusterShards(), failures, client.pitUnavailableShards())
+                )
+            );
             return;
         }
 
@@ -769,14 +781,35 @@ public class TumblingWindow implements Executable {
             if (criteria.get(matcher.firstPositiveStage).descending()) {
                 Collections.reverse(completed);
             }
+            List<ShardSearchFailure> failures = mergeShardFailures(shardFailures, client.fetchedShardFailures());
+            if (allowPartialSequenceResults == false && failures.isEmpty() == false) {
+                releaseFetchedHits(listOfHits);
+                return new EmptyPayload(
+                    Type.SEQUENCE,
+                    timeTook(),
+                    failures,
+                    EqlClusterShards.withSearchFailures(client.clusterShards(), failures, client.pitUnavailableShards())
+                );
+            }
             return new SequencePayload(
                 completed,
                 addMissingEventPlaceholders(listOfHits),
                 false,
                 timeTook(),
-                List.copyOf(shardFailures.values())
+                failures,
+                EqlClusterShards.withSearchFailures(client.clusterShards(), failures, client.pitUnavailableShards())
             );
         }));
+    }
+
+    private static void releaseFetchedHits(List<List<SearchHit>> hits) {
+        for (List<SearchHit> row : hits) {
+            for (SearchHit hit : row) {
+                if (hit != null) {
+                    hit.decRef();
+                }
+            }
+        }
     }
 
     private List<List<SearchHit>> addMissingEventPlaceholders(List<List<SearchHit>> hitLists) {

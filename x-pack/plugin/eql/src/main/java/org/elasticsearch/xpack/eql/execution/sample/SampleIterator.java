@@ -21,6 +21,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 import org.elasticsearch.xpack.eql.execution.assembler.Executable;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleCriterion;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest;
@@ -47,6 +48,7 @@ import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest.COMPOSITE_AGG_NAME;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareRequest;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.addShardFailures;
+import static org.elasticsearch.xpack.eql.util.SearchHitUtils.mergeShardFailures;
 
 public class SampleIterator implements Executable {
 
@@ -293,18 +295,30 @@ public class SampleIterator implements Executable {
         log.trace("Sending payload for [{}] samples", samples.size());
 
         if (samples.isEmpty()) {
-            listener.onResponse(new EmptyPayload(Type.SAMPLE, timeTook(), List.copyOf(shardFailures.values())));
+            List<ShardSearchFailure> failures = mergeShardFailures(shardFailures, client.fetchedShardFailures());
+            listener.onResponse(
+                new EmptyPayload(
+                    Type.SAMPLE,
+                    timeTook(),
+                    failures,
+                    EqlClusterShards.withSearchFailures(client.clusterShards(), failures, client.pitUnavailableShards())
+                )
+            );
             return;
         }
 
         // get results through search (to keep using PIT)
-        client.fetchHits(
-            hits(samples),
-            ActionListeners.map(
-                listener,
-                listOfHits -> new SamplePayload(samples, listOfHits, false, timeTook(), List.copyOf(shardFailures.values()))
-            )
-        );
+        client.fetchHits(hits(samples), ActionListeners.map(listener, listOfHits -> {
+            List<ShardSearchFailure> failures = mergeShardFailures(shardFailures, client.fetchedShardFailures());
+            return new SamplePayload(
+                samples,
+                listOfHits,
+                false,
+                timeTook(),
+                failures,
+                EqlClusterShards.withSearchFailures(client.clusterShards(), failures, client.pitUnavailableShards())
+            );
+        }));
     }
 
     Iterable<List<HitReference>> hits(List<Sample> samples) {

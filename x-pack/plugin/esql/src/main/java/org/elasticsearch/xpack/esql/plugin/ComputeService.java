@@ -1614,6 +1614,9 @@ public class ComputeService {
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
                 updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo, exchangeSinkSupplier == null);
+                if (exchangeSinkSupplier == null) {
+                    failIfAllShardsFailedUnlessStreamed(execInfo, collectedPages, streamPublisher);
+                }
                 return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo, null);
             }), execInfo::addFailedWork)) {
                 runCompute(
@@ -1690,23 +1693,8 @@ public class ComputeService {
                     var localListener = new ComputeListener(
                         cancelQueryOnFailure,
                         closingFetchContexts(computeListener.acquireCompute(), fetchContexts).delegateFailure((l, completionInfo) -> {
-                            if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
-                                execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
-                                    var tookTime = execInfo.queryProfile().total().timeSinceStarted();
-                                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
-                                    if (execInfo.isMainPlan()) {
-                                        // Later merge branches can add failures after an earlier leaf set SUCCESSFUL; promote to PARTIAL
-                                        // and never demote PARTIAL. receivedResults is false: this is coordinator finalization, not a
-                                        // data-node/remote compute report. Passing true would promote a planning-time SKIPPED (no local
-                                        // indices to search) to PARTIAL.
-                                        boolean failed = localClusterWasInterrupted.get()
-                                            || (v.getFailedShards() != null && v.getFailedShards() > 0)
-                                            || v.getFailures().isEmpty() == false;
-                                        applyClusterStatusAfterBranch(builder, v, failed, false);
-                                    }
-                                    return builder.build();
-                                });
-                            }
+                            boolean mainPlanSearchedLocal = localConcreteIndices != null && localConcreteIndices.indices().length > 0;
+                            finalizeLocalClusterAfterDistributedPlan(execInfo, mainPlanSearchedLocal, localClusterWasInterrupted.get());
                             l.onResponse(completionInfo);
                         }),
                         execInfo::addFailedWork
@@ -1768,7 +1756,7 @@ public class ComputeService {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v);
-                                    applyShardCounts(
+                                    EsqlExecutionInfo.applyShardCounts(
                                         builder,
                                         v,
                                         r.getTotalShards(),
@@ -1942,9 +1930,36 @@ public class ComputeService {
         }
     }
 
+    static void finalizeLocalClusterAfterDistributedPlan(
+        EsqlExecutionInfo execInfo,
+        boolean mainPlanSearchedLocal,
+        boolean localClusterWasInterrupted
+    ) {
+        if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER) == false) {
+            return;
+        }
+        execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
+            var builder = new EsqlExecutionInfo.Cluster.Builder(v);
+            if (mainPlanSearchedLocal || execInfo.clusterReportsSearchTook(k) == false) {
+                builder.setTook(execInfo.queryProfile().total().timeSinceStarted());
+            }
+            if (execInfo.isMainPlan()) {
+                // Later merge branches can add failures after an earlier leaf set SUCCESSFUL; promote to PARTIAL
+                // and never demote PARTIAL. receivedResults is false: this is coordinator finalization, not a
+                // data-node/remote compute report. Passing true would promote a planning-time SKIPPED (no local
+                // indices to search) to PARTIAL.
+                boolean failed = localClusterWasInterrupted
+                    || (v.getFailedShards() != null && v.getFailedShards() > 0)
+                    || v.getFailures().isEmpty() == false;
+                applyClusterStatusAfterBranch(builder, v, failed, false);
+            }
+            return builder.build();
+        });
+    }
+
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries).
     // Merge leaves share one EsqlExecutionInfo; only the root (or a standalone plan) should stop query timers.
-    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo, boolean finalizeQuery) {
+    static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo, boolean finalizeQuery) {
         if (finalizeQuery) {
             execInfo.markEndQuery();
         }
@@ -1954,10 +1969,12 @@ public class ComputeService {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(clusterAlias, (k, v) -> {
                     var builder = new EsqlExecutionInfo.Cluster.Builder(v);
-                    if (finalizeQuery) {
-                        builder.setTook(execInfo.overallTook());
-                    } else if (v.getTook() == null) {
-                        builder.setTook(execInfo.queryProfile().total().timeSinceStarted());
+                    if (execInfo.clusterReportsSearchTook(k) == false) {
+                        if (finalizeQuery) {
+                            builder.setTook(execInfo.overallTook());
+                        } else if (v.getTook() == null) {
+                            builder.setTook(execInfo.queryProfile().total().timeSinceStarted());
+                        }
                     }
                     if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                         boolean failed = zeroIfNull(v.getFailedShards()) > 0 || v.getFailures().isEmpty() == false;
@@ -1966,33 +1983,6 @@ public class ComputeService {
                     return builder.build();
                 });
             }
-        }
-    }
-
-    /**
-     * Adds {@code incoming} shard counts onto {@code existing} when {@code accumulate} is true (FORK / UNION ALL / FROM-subquery branches
-     * sharing one {@link EsqlExecutionInfo}); otherwise replaces them. Merge branches must add so the query-wide
-     * {@link #failIfAllShardsFailed} sees every branch's targets, not the last writer.
-     */
-    static void applyShardCounts(
-        EsqlExecutionInfo.Cluster.Builder builder,
-        EsqlExecutionInfo.Cluster existing,
-        int totalShards,
-        int successfulShards,
-        int skippedShards,
-        int failedShards,
-        boolean accumulate
-    ) {
-        if (accumulate) {
-            builder.setTotalShards(zeroIfNull(existing.getTotalShards()) + totalShards)
-                .setSuccessfulShards(zeroIfNull(existing.getSuccessfulShards()) + successfulShards)
-                .setSkippedShards(zeroIfNull(existing.getSkippedShards()) + skippedShards)
-                .setFailedShards(zeroIfNull(existing.getFailedShards()) + failedShards);
-        } else {
-            builder.setTotalShards(totalShards)
-                .setSuccessfulShards(successfulShards)
-                .setSkippedShards(skippedShards)
-                .setFailedShards(failedShards);
         }
     }
 

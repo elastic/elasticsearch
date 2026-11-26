@@ -26,6 +26,8 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -146,6 +148,38 @@ public final class SearchContextId {
 
     private static void readShardsMapEntry(StreamInput in, Map<ShardId, SearchContextIdForNode> shards) throws IOException {
         shards.put(new ShardId(in), new SearchContextIdForNode(in));
+    }
+
+    public static Map<String, Set<String>> unavailableShardIds(BytesReference id) {
+        try (var in = id.streamInput()) {
+            final TransportVersion version = TransportVersion.readVersion(in);
+            if (version.isKnown() == false) {
+                throw new IllegalArgumentException("unknown transport version [" + version + "] reading search context id");
+            }
+            in.setTransportVersion(version);
+            final int size = in.readVInt();
+            Map<String, Set<String>> unavailable = new HashMap<>();
+            for (int i = 0; i < size; i++) {
+                ShardId shardId = new ShardId(in);
+                SearchContextIdForNode perNode = new SearchContextIdForNode(in);
+                if (perNode.getNode() == null) {
+                    String alias = perNode.getClusterAlias() == null
+                        ? RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
+                        : perNode.getClusterAlias();
+                    unavailable.computeIfAbsent(alias, ignored -> new HashSet<>()).add(shardId.toString());
+                }
+            }
+            if (unavailable.isEmpty()) {
+                return Map.of();
+            }
+            Map<String, Set<String>> frozen = new HashMap<>();
+            for (Map.Entry<String, Set<String>> entry : unavailable.entrySet()) {
+                frozen.put(entry.getKey(), Set.copyOf(entry.getValue()));
+            }
+            return Map.copyOf(frozen);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("invalid search context id", e);
+        }
     }
 
     public String[] getActualIndices() {

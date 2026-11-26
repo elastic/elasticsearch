@@ -25,6 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -36,6 +37,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -319,5 +321,20 @@ public class SearchContextIdTests extends ESTestCase {
 
         final BytesReference data = corruptedId;
         expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, data));
+    }
+
+    public void testUnavailableShardIdsReadsNullNodeEntries() {
+        ShardId open = new ShardId("logs", "_na_", 0);
+        ShardId lost = new ShardId("logs", "_na_", 1);
+        Map<ShardId, SearchContextIdForNode> opened = Map.of(
+            open,
+            new SearchContextIdForNode(null, "n1", new ShardSearchContextId("s", 1))
+        );
+        ShardSearchFailure failure = new ShardSearchFailure(
+            new NoShardAvailableActionException(lost),
+            new SearchShardTarget(null, lost, "remote")
+        );
+        BytesReference id = SearchContextId.encode(opened, Map.of(), TransportVersion.current(), List.of(failure));
+        assertThat(SearchContextId.unavailableShardIds(id), equalTo(Map.of("remote", Set.of(lost.toString()))));
     }
 }

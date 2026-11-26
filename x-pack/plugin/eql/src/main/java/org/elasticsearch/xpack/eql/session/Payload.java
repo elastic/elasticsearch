@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 
 import java.util.List;
 
@@ -32,4 +33,8 @@ public interface Payload {
     List<?> values();
 
     List<ShardSearchFailure> shardFailures();
+
+    default List<EqlClusterShards> clusterShards() {
+        return List.of();
+    }
 }

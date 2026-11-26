@@ -782,6 +782,15 @@ public class TumblingWindow implements Executable {
                 Collections.reverse(completed);
             }
             List<ShardSearchFailure> failures = mergeShardFailures(shardFailures, client.fetchedShardFailures());
+            if (allowPartialSequenceResults == false && failures.isEmpty() == false) {
+                releaseFetchedHits(listOfHits);
+                return new EmptyPayload(
+                    Type.SEQUENCE,
+                    timeTook(),
+                    failures,
+                    EqlClusterShards.withSearchFailures(client.clusterShards(), failures, client.pitUnavailableShards())
+                );
+            }
             return new SequencePayload(
                 completed,
                 addMissingEventPlaceholders(listOfHits),
@@ -791,6 +800,16 @@ public class TumblingWindow implements Executable {
                 EqlClusterShards.withSearchFailures(client.clusterShards(), failures, client.pitUnavailableShards())
             );
         }));
+    }
+
+    private static void releaseFetchedHits(List<List<SearchHit>> hits) {
+        for (List<SearchHit> row : hits) {
+            for (SearchHit hit : row) {
+                if (hit != null) {
+                    hit.decRef();
+                }
+            }
+        }
     }
 
     private List<List<SearchHit>> addMissingEventPlaceholders(List<List<SearchHit>> hitLists) {

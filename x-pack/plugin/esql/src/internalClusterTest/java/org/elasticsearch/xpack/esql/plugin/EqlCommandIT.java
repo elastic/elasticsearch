@@ -420,8 +420,21 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
 
     public void testSampleQueryReportsALostShard() throws Exception {
         setupFailingShardIndices();
-        assertPartialResults(partialQuery(PARTIAL_SAMPLE), PARTIAL_MATCH_IDS);
+        CapturedQuery result = assertPartialResults(partialQuery(PARTIAL_SAMPLE), PARTIAL_MATCH_IDS);
+        assertShardCounts(result.localCluster(), 2, 1, 0, 1);
         assertThat(eqlSearchIds(partialSearch(PARTIAL_SAMPLE)), equalTo(PARTIAL_MATCH_IDS));
+    }
+
+    public void testSequenceCountsAShardOnceWhenLaterStagesSeeItAgain() throws Exception {
+        setupFailingShardIndices();
+        String eql = "sequence [process where value == 1 or fail_me == 1] [process where value == 3 or fail_me == 1]";
+        updateClusterSettings(Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getKey(), true));
+        try {
+            CapturedQuery result = assertPartialResults(partialQuery(eql), PARTIAL_MATCH_IDS);
+            assertShardCounts(result.localCluster(), 2, 1, 0, 1);
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getKey()));
+        }
     }
 
     public void testForkBranchesReportALostShard() throws Exception {
@@ -642,7 +655,7 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
             .get();
     }
 
-    private void assertPartialResults(String query, List<String> expectedIds) throws Exception {
+    private CapturedQuery assertPartialResults(String query, List<String> expectedIds) throws Exception {
         CapturedQuery result = runCapturingWarnings(syncEsqlQueryRequest(query).allowPartialResults(true));
         assertThat(ids(result), equalTo(expectedIds));
         assertTrue("a lost shard must mark the response partial", result.partial());
@@ -655,6 +668,14 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         assertThat(lost.index(), equalTo("eql_partial_fail"));
         assertThat(lost.shardId(), equalTo(0));
         assertThat(lost.reason(), containsString("Accessing failing field"));
+        return result;
+    }
+
+    private static void assertShardCounts(EsqlExecutionInfo.Cluster cluster, int total, int successful, int skipped, int failed) {
+        assertThat(cluster.getTotalShards(), equalTo(total));
+        assertThat(cluster.getSuccessfulShards(), equalTo(successful));
+        assertThat(cluster.getSkippedShards(), equalTo(skipped));
+        assertThat(cluster.getFailedShards(), equalTo(failed));
     }
 
     private static List<String> ids(CapturedQuery result) {

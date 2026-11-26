@@ -1693,23 +1693,12 @@ public class ComputeService {
                     var localListener = new ComputeListener(
                         cancelQueryOnFailure,
                         closingFetchContexts(computeListener.acquireCompute(), fetchContexts).delegateFailure((l, completionInfo) -> {
-                            if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
-                                execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
-                                    var tookTime = execInfo.queryProfile().total().timeSinceStarted();
-                                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
-                                    if (execInfo.isMainPlan()) {
-                                        // Later merge branches can add failures after an earlier leaf set SUCCESSFUL; promote to PARTIAL
-                                        // and never demote PARTIAL. receivedResults is false: this is coordinator finalization, not a
-                                        // data-node/remote compute report. Passing true would promote a planning-time SKIPPED (no local
-                                        // indices to search) to PARTIAL.
-                                        boolean failed = localClusterWasInterrupted.get()
-                                            || (v.getFailedShards() != null && v.getFailedShards() > 0)
-                                            || v.getFailures().isEmpty() == false;
-                                        applyClusterStatusAfterBranch(builder, v, failed, false);
-                                    }
-                                    return builder.build();
-                                });
-                            }
+                            boolean mainPlanSearchedLocal = localConcreteIndices != null && localConcreteIndices.indices().length > 0;
+                            finalizeLocalClusterAfterDistributedPlan(
+                                execInfo,
+                                mainPlanSearchedLocal,
+                                localClusterWasInterrupted.get()
+                            );
                             l.onResponse(completionInfo);
                         }),
                         execInfo::addFailedWork
@@ -1943,6 +1932,33 @@ public class ComputeService {
                 );
             }
         }
+    }
+
+    static void finalizeLocalClusterAfterDistributedPlan(
+        EsqlExecutionInfo execInfo,
+        boolean mainPlanSearchedLocal,
+        boolean localClusterWasInterrupted
+    ) {
+        if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER) == false) {
+            return;
+        }
+        execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
+            var builder = new EsqlExecutionInfo.Cluster.Builder(v);
+            if (mainPlanSearchedLocal || execInfo.clusterReportsSearchTook(k) == false) {
+                builder.setTook(execInfo.queryProfile().total().timeSinceStarted());
+            }
+            if (execInfo.isMainPlan()) {
+                // Later merge branches can add failures after an earlier leaf set SUCCESSFUL; promote to PARTIAL
+                // and never demote PARTIAL. receivedResults is false: this is coordinator finalization, not a
+                // data-node/remote compute report. Passing true would promote a planning-time SKIPPED (no local
+                // indices to search) to PARTIAL.
+                boolean failed = localClusterWasInterrupted
+                    || (v.getFailedShards() != null && v.getFailedShards() > 0)
+                    || v.getFailures().isEmpty() == false;
+                applyClusterStatusAfterBranch(builder, v, failed, false);
+            }
+            return builder.build();
+        });
     }
 
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries).

@@ -134,6 +134,29 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
         }
     }
 
+    public void testRemoteSequenceCountsAShardOnceWhenLaterStagesSeeItAgain() throws Exception {
+        setupRemoteEvents();
+        setupFailingShardIndices(client(REMOTE_CLUSTER_1));
+        String eql = "sequence [process where value == 1 or fail_me == 1] [process where value == 3 or fail_me == 1]";
+        String query = "EQL "
+            + REMOTE_CLUSTER_1
+            + ":"
+            + PARTIAL_PATTERN
+            + " \""
+            + eql
+            + "\" METADATA _id WITH {\"allow_partial_sequence_results\": true} | KEEP _id";
+        try (EsqlQueryResponse resp = runQuery(EsqlQueryRequest.syncEsqlQueryRequest(query).allowPartialResults(true))) {
+            assertTrue(resp.isPartial());
+            EsqlExecutionInfo.Cluster remote = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+            assertLostShard(remote, "eql_partial_fail");
+            assertThat(remote.getTotalShards(), equalTo(2));
+            assertThat(remote.getSuccessfulShards(), equalTo(1));
+            assertThat(remote.getSkippedShards(), equalTo(0));
+            assertThat(remote.getFailedShards(), equalTo(1));
+            assertThat(remote.getTook(), notNullValue());
+        }
+    }
+
     public void testLostShardOfAWildcardRemoteClusterSearchIsListedOnThatCluster() throws Exception {
         setupRemoteEvents();
         setupFailingShardIndices(client(REMOTE_CLUSTER_1));

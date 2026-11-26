@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.sample;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -15,13 +16,13 @@ import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
+import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -278,7 +279,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
     private class ESMockClient extends NoOpClient {
         protected final CircuitBreaker circuitBreaker;
-        private final BytesReference pitId = new BytesArray("test_pit_id");
+        private final BytesReference pitId = SearchContextId.encode(List.of(), Map.of(), TransportVersion.current(), List.of());
 
         ESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker) {
             super(threadPool);

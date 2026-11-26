@@ -1,0 +1,14 @@
+FROM employees
+| KEEP emp_no, languages, salary
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang
+| WHERE salary > 40000
+| EVAL language_code = languages - 1
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_one
+| LIMIT 100
+| EVAL language_code = languages - 2
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_two
+| DROP language_code

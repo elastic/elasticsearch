@@ -34,3 +34,11 @@ template:
       exemplar_labels:
         type: passthrough
         priority: 30
+    dynamic_templates:
+      # Exemplar labels (e.g. trace_id, span_id) are plain keywords. Without this template
+      # they would fall back to the default dynamic string mapping (text with a .keyword multi-field).
+      - exemplar_labels:
+          path_match: exemplar_labels.*
+          mapping:
+            type: keyword
+            ignore_above: 1024

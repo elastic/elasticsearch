@@ -17,9 +17,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -27,7 +30,9 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 public class RamUsageEstimatesTests extends ESTestCase {
 
@@ -102,11 +107,71 @@ public class RamUsageEstimatesTests extends ESTestCase {
         assertThat(shallow, greaterThan(0L));
     }
 
+    public void testMapNodeSizesMatchLiveEntries() {
+        HashMap<Integer, Integer> hashMap = new HashMap<>();
+        hashMap.put(0, 0);
+        assertThat(RamUsageEstimates.HASH_MAP_NODE_SIZE, equalTo(RamUsageEstimator.shallowSizeOf(hashMap.entrySet().iterator().next())));
+
+        LinkedHashMap<Integer, Integer> linkedHashMap = new LinkedHashMap<>();
+        linkedHashMap.put(0, 0);
+        assertThat(
+            RamUsageEstimates.LINKED_HASH_MAP_NODE_SIZE,
+            equalTo(RamUsageEstimator.shallowSizeOf(linkedHashMap.entrySet().iterator().next()))
+        );
+
+        TreeMap<Integer, Integer> treeMap = new TreeMap<>();
+        treeMap.put(0, 0);
+        assertThat(RamUsageEstimates.TREE_MAP_NODE_SIZE, equalTo(RamUsageEstimator.shallowSizeOf(treeMap.entrySet().iterator().next())));
+    }
+
+    public void testUnmodifiableViewSizesMatchLiveViews() {
+        assertThat(
+            RamUsageEstimates.UNMODIFIABLE_MAP_SHALLOW_SIZE,
+            equalTo(RamUsageEstimator.shallowSizeOf(Collections.unmodifiableMap(new HashMap<>())))
+        );
+        // random access lists get a different view class than other lists, with the same fields
+        assertThat(
+            RamUsageEstimates.UNMODIFIABLE_LIST_SHALLOW_SIZE,
+            equalTo(RamUsageEstimator.shallowSizeOf(Collections.unmodifiableList(new ArrayList<>())))
+        );
+        assertThat(
+            RamUsageEstimates.UNMODIFIABLE_LIST_SHALLOW_SIZE,
+            equalTo(RamUsageEstimator.shallowSizeOf(Collections.unmodifiableList(new LinkedList<>())))
+        );
+    }
+
+    public void testHashTableSlots() {
+        assertThat(RamUsageEstimates.hashTableSlots(0), equalTo(1L));
+        assertThat(RamUsageEstimates.hashTableSlots(1), equalTo(2L));
+        assertThat(RamUsageEstimates.hashTableSlots(2), equalTo(4L));
+        assertThat(RamUsageEstimates.hashTableSlots(3), equalTo(4L));
+        assertThat(RamUsageEstimates.hashTableSlots(4), equalTo(8L));
+        assertThat(RamUsageEstimates.hashTableSlots(12), equalTo(16L));
+        assertThat(RamUsageEstimates.hashTableSlots(13), equalTo(32L));
+        // the smallest power of two that holds the entries at the default load factor
+        int entries = between(1, 1_000_000);
+        long slots = RamUsageEstimates.hashTableSlots(entries);
+        long minSlots = (long) Math.ceil(entries / 0.75);
+        assertThat(Long.bitCount(slots), equalTo(1));
+        assertThat(slots, greaterThanOrEqualTo(minSlots));
+        assertThat(slots / 2, lessThan(minSlots));
+    }
+
     public void testCollectionShallowSizesMatchRamUsageEstimator() {
         assertThat(RamUsageEstimates.HASH_MAP_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(HashMap.class)));
         assertThat(RamUsageEstimates.HASH_SET_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(HashSet.class)));
         assertThat(RamUsageEstimates.LINKED_HASH_MAP_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(LinkedHashMap.class)));
         assertThat(RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(ArrayList.class)));
         assertThat(RamUsageEstimates.TREE_MAP_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(TreeMap.class)));
+    }
+
+    public void testShallowSizeOfMatchesRamUsageEstimator() {
+        assertThat(RamUsageEstimates.shallowSizeOf(null), is(0L));
+        for (Object o : new Object[] { new HashMap<>(), new ArrayList<>(), 1L, 1.0d, "abc", new Object[3], new long[5], List.of(1, 2) }) {
+            // Twice, so the second call is served from the cache.
+            for (int i = 0; i < 2; i++) {
+                assertThat(RamUsageEstimates.shallowSizeOf(o), equalTo(RamUsageEstimator.shallowSizeOf(o)));
+            }
+        }
     }
 }

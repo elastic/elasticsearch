@@ -150,8 +150,7 @@ public class JsonString extends EsqlScalarFunction {
 
     @Override
     public Nullability nullable() {
-        // JSON_STRING can produce a non-null output when a value argument is null: {"key":null}
-        return Nullability.UNKNOWN;
+        return Nullability.TRUE;
     }
 
     @Override

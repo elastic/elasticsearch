@@ -1,0 +1,94 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, warnings ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_name_collision_warning ]
+      reason: A query with a column named _unmapped_fields warns that the unmapped fields are not returned in it, on newer nodes only.
+
+  # _unmapped_fields is not a reserved name: the documents hold a source field called that, next to an ordinary unmapped one.
+  - do:
+      indices.create:
+        index: la_name
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_name", "_id": "1" } }
+          - { "id": 1, "_unmapped_fields": "src", "other": "o" }
+          - { "index": { "_index": "la_name", "_id": "2" } }
+          - { "id": 2, "other": "p" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_name
+        ignore_unavailable: true
+
+---
+'referencing _unmapped_fields reads the source field of that name, not the discovered fields':
+  - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_name | WHERE _unmapped_fields == "src" | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0: [ 1, "src" ] }
+
+---
+'a reference to _unmapped_fields that is not kept still wins over the discovered fields':
+  - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_name | WHERE _unmapped_fields == "src" | KEEP id | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: id }
+  - match: { values: [ [ 1 ] ] }
+
+---
+'a column named _unmapped_fields by EVAL replaces the discovered fields':
+  - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_name | EVAL _unmapped_fields = "mine" | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ 1, "mine" ] }
+  - match: { values.1: [ 2, "mine" ] }
+
+---
+'a column named _unmapped_fields by RENAME replaces the discovered fields':
+  - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_name | EVAL x = TO_STRING(id) | RENAME x AS _unmapped_fields | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ 1, "1" ] }
+  - match: { values.1: [ 2, "2" ] }

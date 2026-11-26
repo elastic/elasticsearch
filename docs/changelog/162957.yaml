@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 162957
+summary: Avoid shared-segment liveness CAS operations (acquire0/release0) on native scorers to boost multithread performance
+type: enhancement

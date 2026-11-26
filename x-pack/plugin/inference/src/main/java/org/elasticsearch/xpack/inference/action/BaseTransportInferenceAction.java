@@ -14,12 +14,12 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -100,12 +100,9 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     protected void doExecute(Task task, Request request, ActionListener<InferenceAction.Response> listener) {
         var timer = InferenceTimer.start();
 
-        putIfAbsent(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, request.getContext().productUseCase());
-        putIfAbsent(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, request.getContext().productSolution());
-        putIfAbsent(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, request.getContext().productFeature());
-        putIfAbsent(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, request.getContext().interactionId());
+        request.getContext().metadata().forEachPresent((field, value) -> putIfAbsent(field.httpHeader(), value));
 
-        var productContext = InferenceProductContext.create(threadPool.getThreadContext());
+        var attribution = InferenceRequestMetadata.capture(threadPool.getThreadContext()::getHeader);
         var taskId = new TaskId(transportService.getLocalNode().getId(), task.getId());
 
         var getModelListener = ActionListener.wrap((Model model) -> {
@@ -122,17 +119,17 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 inferenceStats.inferenceDuration()
                     .withModel(model)
                     .withThrowable(unwrapCause(e))
-                    .withProductContext(productContext)
+                    .withRequestMetadata(attribution)
                     .record(timer.elapsedMillis());
                 listener.onFailure(e);
                 return;
             }
 
             var service = serviceRegistry.getService(serviceName).get();
-            inferOnServiceWithMetrics(model, request, service, taskId, timer, productContext, listener);
+            inferOnServiceWithMetrics(model, request, service, taskId, timer, attribution, listener);
 
         }, e -> {
-            inferenceStats.inferenceDuration().withThrowable(e).withProductContext(productContext).record(timer.elapsedMillis());
+            inferenceStats.inferenceDuration().withThrowable(e).withRequestMetadata(attribution).record(timer.elapsedMillis());
             listener.onFailure(e);
         });
 
@@ -175,13 +172,13 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         InferenceService service,
         TaskId taskId,
         InferenceTimer timer,
-        InferenceProductContext productContext,
+        InferenceRequestMetadata attribution,
         ActionListener<InferenceAction.Response> listener
     ) {
         // Record request count metric before executing the inference to ensure it's captured
         // even if there are exceptions during inference execution
         // This won't include a status code attribute since the outcome is not yet known
-        inferenceStats.requestCount().withModel(model).withProductContext(productContext).incrementBy(1);
+        inferenceStats.requestCount().withModel(model).withRequestMetadata(attribution).incrementBy(1);
         inferOnService(model, request, service, taskId, ActionListener.wrap(inferenceResults -> {
             if (request.isStreaming()) {
                 var taskProcessor = streamingTaskManager.<InferenceServiceResults.Result>create(
@@ -190,7 +187,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 );
                 inferenceResults.publisher().subscribe(taskProcessor);
 
-                var instrumentedStream = publisherWithMetrics(timer, model, productContext, taskProcessor);
+                var instrumentedStream = publisherWithMetrics(timer, model, attribution, taskProcessor);
 
                 var streamErrorHandler = streamErrorHandler(instrumentedStream);
 
@@ -199,7 +196,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 inferenceStats.inferenceDuration()
                     .withModel(model)
                     .withSuccess()
-                    .withProductContext(productContext)
+                    .withRequestMetadata(attribution)
                     .record(timer.elapsedMillis());
                 listener.onResponse(new InferenceAction.Response(inferenceResults));
             }
@@ -207,7 +204,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             inferenceStats.inferenceDuration()
                 .withModel(model)
                 .withThrowable(unwrapCause(e))
-                .withProductContext(productContext)
+                .withRequestMetadata(attribution)
                 .record(timer.elapsedMillis());
             listener.onFailure(e);
         }));
@@ -216,7 +213,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     private <T> Flow.Publisher<T> publisherWithMetrics(
         InferenceTimer timer,
         Model model,
-        InferenceProductContext productContext,
+        InferenceRequestMetadata attribution,
         Flow.Processor<T, T> upstream
     ) {
         return downstream -> {
@@ -234,7 +231,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                             inferenceStats.inferenceDuration()
                                 .withModel(model)
                                 .withSuccess()
-                                .withProductContext(productContext)
+                                .withRequestMetadata(attribution)
                                 .record(timer.elapsedMillis());
                             subscription.cancel();
                         }
@@ -251,7 +248,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                     inferenceStats.inferenceDuration()
                         .withModel(model)
                         .withThrowable(unwrapCause(throwable))
-                        .withProductContext(productContext)
+                        .withRequestMetadata(attribution)
                         .record(timer.elapsedMillis());
                     downstream.onError(throwable);
                 }
@@ -261,7 +258,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                     inferenceStats.inferenceDuration()
                         .withModel(model)
                         .withSuccess()
-                        .withProductContext(productContext)
+                        .withRequestMetadata(attribution)
                         .record(timer.elapsedMillis());
                     downstream.onComplete();
                 }

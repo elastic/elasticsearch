@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import com.github.luben.zstd.ZstdOutputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
@@ -34,7 +35,11 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -361,6 +366,167 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     }
 
     /**
+     * Parse close must abort the raw GET without closing the decoder.
+     * {@link DecompressingStorageObject#abortStream} still closes the decoder; {@code abortTransport}
+     * does not claim that CAS so a later close on the owner thread still runs.
+     */
+    public void testAbortTransportAbortsRawWithoutClosingDecoder() throws IOException {
+        byte[] original = "id,name\n1,a\n2,b\n".getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = gzip(original);
+        AtomicInteger decoderCloses = new AtomicInteger();
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        DecompressionCodec codec = new GzipDecompressionCodec() {
+            @Override
+            public InputStream decompress(InputStream raw, CircuitBreaker breaker) throws IOException {
+                return new FilterInputStream(super.decompress(raw, breaker)) {
+                    @Override
+                    public void close() throws IOException {
+                        decoderCloses.incrementAndGet();
+                        super.close();
+                    }
+                };
+            }
+        };
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(
+            DrainSimulatingStorageObject.create(compressed, tracking),
+            codec
+        );
+        InputStream stream = decompressing.newStream();
+        int n = stream.read(new byte[8]);
+        assertThat(n, Matchers.greaterThan(0));
+        decompressing.abortTransport(stream);
+        assertEquals("abortTransport must abort the raw GET", 1, tracking.abortCalls.get());
+        assertEquals("abortTransport must not close the decoder", 0, decoderCloses.get());
+        decompressing.abortStream(stream);
+        assertEquals("owner-thread abortStream must close the decoder", 1, decoderCloses.get());
+        assertThat(tracking.abortCalls.get(), Matchers.greaterThanOrEqualTo(1));
+    }
+
+    /**
+     * After the leaf GET returns, {@code codec.decompress} reads the gzip header from the body.
+     * That read can stall while {@code decompressedStream} is still null, so {@code abortTransport}
+     * is a no-op. {@link DecompressingStorageObject#close()} must close {@code inFlightRaw} and
+     * unblock {@code newStream} without closing a decoder that does not exist yet.
+     */
+    public void testCloseUnblocksGzipHeaderRead() throws Exception {
+        assertCloseUnblocksGzipHeaderRead(false);
+    }
+
+    /**
+     * Production wraps {@code RetryableStorageObject(DecompressingStorageObject(leaf))}. Closing
+     * the Retryable is what the coordinator's {@code cancelStorageOpen()} does; if Retryable
+     * swallows {@code delegate.close()}, the gzip header hang still waits the 60s backstop.
+     */
+    public void testRetryableCloseUnblocksGzipHeaderRead() throws Exception {
+        assertCloseUnblocksGzipHeaderRead(true);
+    }
+
+    /**
+     * gzip header parked in {@code raw.read()} with a leftover that Apache would drain. Stream
+     * {@code close()} hangs until {@link StorageObject#close()} aborts. {@code DecompressingStorageObject.close()}
+     * must abort the delegate first; closing the raw body first never reaches the abort.
+     */
+    public void testCloseAbortsDelegateBeforeRawDrainHang() throws Exception {
+        DrainHangUntilAbortStorageObject leaf = new DrainHangUntilAbortStorageObject();
+        AtomicInteger decoderClosesOnCloser = new AtomicInteger();
+        AtomicReference<Thread> closer = new AtomicReference<>();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(leaf, countingGzip(decoderClosesOnCloser, closer));
+
+        AtomicReference<Exception> openerError = new AtomicReference<>();
+        CountDownLatch openerDone = new CountDownLatch(1);
+        Thread opener = new Thread(() -> {
+            try {
+                decompressing.newStream();
+            } catch (Exception e) {
+                openerError.set(e);
+            } finally {
+                openerDone.countDown();
+            }
+        }, "gzip-header-drain-hang-opener");
+        opener.start();
+        try {
+            assertTrue("newStream must enter codec.decompress (header read parked)", leaf.inHeaderRead.await(5, TimeUnit.SECONDS));
+            closer.set(Thread.currentThread());
+            long startNanos = System.nanoTime();
+            decompressing.close();
+            assertTrue("delegate abort must unblock gzip header and raw close()", openerDone.await(5, TimeUnit.SECONDS));
+            assertThat(System.nanoTime() - startNanos, Matchers.lessThan(TimeUnit.SECONDS.toNanos(5)));
+            assertThat(openerError.get(), Matchers.instanceOf(IOException.class));
+            assertEquals("closer must abort the GET once", 1, leaf.objectCloses.get());
+            assertEquals("closer must still close the raw GET once abort unparks it", 1, leaf.streamCloses.get());
+            assertEquals("closer must not close a decoder that does not exist yet", 0, decoderClosesOnCloser.get());
+        } finally {
+            leaf.aborted.countDown();
+            opener.join(TimeUnit.SECONDS.toMillis(5));
+        }
+    }
+
+    private void assertCloseUnblocksGzipHeaderRead(boolean closeRetryable) throws Exception {
+        HeaderParkStorageObject leaf = new HeaderParkStorageObject();
+        AtomicInteger decoderClosesOnCloser = new AtomicInteger();
+        AtomicReference<Thread> closer = new AtomicReference<>();
+        DecompressionCodec codec = countingGzip(decoderClosesOnCloser, closer);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(leaf, codec);
+        RetryableStorageObject retryable = new RetryableStorageObject(decompressing, RetryPolicy.NONE);
+        StorageObject toOpen = closeRetryable ? retryable : decompressing;
+        StorageObject toClose = closeRetryable ? retryable : decompressing;
+
+        AtomicReference<Exception> openerError = new AtomicReference<>();
+        CountDownLatch openerDone = new CountDownLatch(1);
+        Thread opener = new Thread(() -> {
+            try {
+                toOpen.newStream();
+            } catch (Exception e) {
+                openerError.set(e);
+            } finally {
+                openerDone.countDown();
+            }
+        }, "gzip-header-opener");
+        opener.start();
+        try {
+            assertTrue("newStream must enter codec.decompress (header read parked)", leaf.inHeaderRead.await(5, TimeUnit.SECONDS));
+            closer.set(Thread.currentThread());
+            long startNanos = System.nanoTime();
+            toClose.close();
+            assertTrue("close() must unblock codec.decompress", openerDone.await(5, TimeUnit.SECONDS));
+            assertThat(System.nanoTime() - startNanos, Matchers.lessThan(TimeUnit.SECONDS.toNanos(5)));
+            assertThat(openerError.get(), Matchers.instanceOf(IOException.class));
+            assertEquals("closer must not close a decoder that does not exist yet", 0, decoderClosesOnCloser.get());
+            assertEquals("closer must close the raw GET once", 1, leaf.rawCloses.get());
+        } finally {
+            leaf.release.countDown();
+            opener.join(TimeUnit.SECONDS.toMillis(5));
+        }
+    }
+
+    static GzipDecompressionCodec countingGzip(AtomicInteger decoderClosesOnCloser, AtomicReference<Thread> closer) {
+        return new GzipDecompressionCodec() {
+            @Override
+            public InputStream decompress(InputStream raw) throws IOException {
+                return countDecoderClose(super.decompress(raw), decoderClosesOnCloser, closer);
+            }
+
+            @Override
+            public InputStream decompress(InputStream raw, CircuitBreaker breaker) throws IOException {
+                return countDecoderClose(super.decompress(raw, breaker), decoderClosesOnCloser, closer);
+            }
+        };
+    }
+
+    static InputStream countDecoderClose(InputStream decoder, AtomicInteger decoderClosesOnCloser, AtomicReference<Thread> closer) {
+        return new FilterInputStream(decoder) {
+            @Override
+            public void close() throws IOException {
+                Thread closerThread = closer.get();
+                if (closerThread != null && Thread.currentThread() == closerThread) {
+                    decoderClosesOnCloser.incrementAndGet();
+                }
+                super.close();
+            }
+        };
+    }
+
+    /**
      * Public LIMIT / cancel path: callers close the decompressed stream (try-with-resources,
      * iterator teardown) rather than calling {@code abortStream}. That close must abort the
      * raw GET instead of draining it.
@@ -418,9 +584,9 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         byte[] prefix = new byte[1024];
         assertThat(stream.read(prefix), Matchers.greaterThan(0));
         stream.close();
+        int afterFirst = tracking.abortCalls.get();
         stream.close();
-
-        assertEquals("second close must not abort again", 1, tracking.abortCalls.get());
+        assertEquals("second close must not abort again", afterFirst, tracking.abortCalls.get());
     }
 
     /**
@@ -480,30 +646,31 @@ public class DecompressingStorageObjectTests extends ESTestCase {
             assertArrayEquals(original, stream.readAllBytes());
         }
 
-        assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
-        assertTrue("a fully decoded body must reach end-of-body before the abort", tracking.endOfBodyReadBeforeAbort.get());
+        assertEquals("a fully decoded body must not drop the connection", 0, tracking.abortCalls.get());
+        assertTrue("a fully decoded body must reach end-of-body before close", tracking.endOfBodyReadBeforeAbort.get());
         assertEquals(compressed.length, tracking.bytesConsumed.get());
     }
 
     /**
-     * Bytes after the decoder's end-of-stream (trailing padding, or gzip members the decoder did not detect) are read
-     * to the end of the body when they fit in {@link DecompressingStorageObject#MAX_TRAILING_DRAIN_BYTES}, so the
-     * connection is still pooled.
+     * Bytes left after a decoder that stops before the end of the raw body are read to the end of the body when
+     * they fit in {@link DecompressingStorageObject#MAX_TRAILING_DRAIN_BYTES}, so the connection is still pooled.
+     * Uses {@link StopsBeforeRawEndCodec} because the gzip decoder consumes its own zero tail before returning
+     * {@code -1}, which would make this pass even without the release-time drain.
      */
     public void testTrailingBytesWithinCapAreReadToEndOfBodyBeforeAbort() throws IOException {
         byte[] original = ndjsonLines(between(1, 10_000));
-        byte[] compressed = withTrailingZeros(gzip(original), between(1, DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES));
+        byte[] compressed = withTrailingZeros(original, between(1, DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES));
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(
             DrainSimulatingStorageObject.create(compressed, tracking),
-            new GzipDecompressionCodec()
+            new StopsBeforeRawEndCodec(original.length)
         );
 
         try (InputStream stream = decompressing.newStream()) {
             assertArrayEquals(original, stream.readAllBytes());
         }
 
-        assertEquals(1, tracking.abortCalls.get());
+        assertEquals(0, tracking.abortCalls.get());
         assertTrue(tracking.endOfBodyReadBeforeAbort.get());
         assertEquals(compressed.length, tracking.bytesConsumed.get());
     }
@@ -511,12 +678,11 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     /** A tail larger than the cap is not transferred: the release gives up and aborts, as for an early stop. */
     public void testTrailingBytesBeyondCapAreAborted() throws IOException {
         byte[] original = ndjsonLines(between(1, 10_000));
-        byte[] gzipped = gzip(original);
-        byte[] compressed = withTrailingZeros(gzipped, DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES * between(4, 16));
+        byte[] raw = withTrailingZeros(original, DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES * between(4, 16));
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(
-            DrainSimulatingStorageObject.create(compressed, tracking),
-            new GzipDecompressionCodec()
+            DrainSimulatingStorageObject.create(raw, tracking),
+            new StopsBeforeRawEndCodec(original.length)
         );
 
         try (InputStream stream = decompressing.newStream()) {
@@ -525,25 +691,169 @@ public class DecompressingStorageObjectTests extends ESTestCase {
 
         assertEquals(1, tracking.abortCalls.get());
         assertFalse(tracking.endOfBodyReadBeforeAbort.get());
-        // What the decoder read ahead into its raw buffer (GzipDecompressionCodec's 64 KiB), plus the cap and the one
-        // byte past it that tells a longer tail apart.
-        long gzipRawBufferBytes = 64 * 1024;
+        // The decoder reads exactly its payload; the release adds the cap and the one byte past it that tells a longer tail apart.
         assertThat(
             tracking.bytesConsumed.get(),
-            Matchers.lessThanOrEqualTo(gzipped.length + gzipRawBufferBytes + DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES + 1)
+            Matchers.lessThanOrEqualTo(original.length + (long) DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES + 1)
         );
+    }
+
+    /**
+     * Gzip rejects bytes after its last member itself, so a read that ends in an error still aborts the raw stream
+     * exactly once and surfaces the decoder's error.
+     */
+    public void testGzipTrailingGarbageFailsReadAndAborts() throws IOException {
+        byte[] original = ndjsonLines(between(1, 1_000));
+        byte[] compressed = gzip(original);
+        byte[] withGarbage = Arrays.copyOf(compressed, compressed.length + 4);
+        withGarbage[compressed.length] = 'x';
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(
+            DrainSimulatingStorageObject.create(withGarbage, tracking),
+            new GzipDecompressionCodec()
+        );
+
+        InputStream stream = decompressing.newStream();
+        IOException e = expectThrows(IOException.class, stream::readAllBytes);
+        assertThat(e.getMessage(), Matchers.containsString("Trailing garbage"));
+        stream.close();
+        assertTrue("trailing-garbage close must still release the raw GET", tracking.closed.get());
+    }
+
+    /** Multi-member gzip read through a raw stream that reports nothing available and never crosses a member boundary. */
+    public void testMultiMemberGzipOverStreamReportingNothingAvailable() throws IOException {
+        int members = between(2, 20);
+        ByteArrayOutputStream expected = new ByteArrayOutputStream();
+        ByteArrayOutputStream compressed = new ByteArrayOutputStream();
+        int[] boundaries = new int[members];
+        for (int i = 0; i < members; i++) {
+            byte[] member = ndjsonLines(between(1, 5_000));
+            expected.writeBytes(member);
+            compressed.writeBytes(gzip(member));
+            boundaries[i] = compressed.size();
+        }
+        byte[] all = compressed.toByteArray();
+        AtomicInteger abortCalls = new AtomicInteger();
+        StorageObject raw = new BytesStorageObject(all, StoragePath.of("s3://bucket/test.ndjson.gz")) {
+            @Override
+            public InputStream newStream() {
+                return new FilterInputStream(boundaryAlignedStream(all, boundaries)) {
+                    @Override
+                    public void close() throws IOException {
+                        abortCalls.incrementAndGet();
+                        super.close();
+                    }
+                };
+            }
+        };
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+
+        try (InputStream stream = decompressing.newStream()) {
+            assertArrayEquals(expected.toByteArray(), stream.readAllBytes());
+        }
+        assertEquals(1, abortCalls.get());
+    }
+
+    /**
+     * Test double for a decoder with the old JDK gzip habit of reporting end-of-stream without reading its input to
+     * {@code -1}: it passes through exactly {@code payloadLength} raw bytes and then stops, leaving the rest of the raw
+     * stream unread. Needed because gzip now reads to the end itself, and the generic drain in
+     * {@link DecompressingStorageObject} must stay covered for the other codecs.
+     */
+    private static final class StopsBeforeRawEndCodec implements DecompressionCodec {
+        private final int payloadLength;
+
+        StopsBeforeRawEndCodec(int payloadLength) {
+            this.payloadLength = payloadLength;
+        }
+
+        @Override
+        public String name() {
+            return "stops-before-raw-end";
+        }
+
+        @Override
+        public java.util.List<String> extensions() {
+            return java.util.List.of(".test");
+        }
+
+        @Override
+        public InputStream decompress(InputStream raw) {
+            return new InputStream() {
+                private int remaining = payloadLength;
+
+                @Override
+                public int read() throws IOException {
+                    if (remaining == 0) {
+                        return -1;
+                    }
+                    int b = raw.read();
+                    if (b >= 0) {
+                        remaining--;
+                    }
+                    return b;
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    if (remaining == 0) {
+                        return -1;
+                    }
+                    int n = raw.read(b, off, Math.min(len, remaining));
+                    if (n > 0) {
+                        remaining -= n;
+                    }
+                    return n;
+                }
+            };
+        }
+    }
+
+    /** Raw stream with {@code available() == 0} whose bulk reads stop at member boundaries, like a network read can. */
+    private static InputStream boundaryAlignedStream(byte[] all, int[] boundaries) {
+        return new InputStream() {
+            private int pos = 0;
+
+            @Override
+            public int read() {
+                return pos < all.length ? all[pos++] & 0xff : -1;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) {
+                if (pos >= all.length) {
+                    return -1;
+                }
+                int limit = all.length;
+                for (int boundary : boundaries) {
+                    if (boundary > pos) {
+                        limit = boundary;
+                        break;
+                    }
+                }
+                int n = Math.min(len, limit - pos);
+                System.arraycopy(all, pos, b, off, n);
+                pos += n;
+                return n;
+            }
+
+            @Override
+            public int available() {
+                return 0;
+            }
+        };
     }
 
     /** The logical read already succeeded, so a failing end-of-body read must not fail close() or skip the abort. */
     public void testTrailingReadFailureStillAborts() throws IOException {
         byte[] original = ndjsonLines(between(1, 1_000));
-        byte[] gzipped = gzip(original);
+        byte[] payload = original;
         AtomicInteger abortCalls = new AtomicInteger();
-        StorageObject raw = new BytesStorageObject(gzipped, StoragePath.of("s3://bucket/test.ndjson.gz")) {
+        StorageObject raw = new BytesStorageObject(payload, StoragePath.of("s3://bucket/test.ndjson.gz")) {
             @Override
             public InputStream newStream() {
-                // Delivers the gzip bytes, then fails instead of returning -1, like a connection reset at end of body.
-                return new FilterInputStream(new ByteArrayInputStream(gzipped)) {
+                // Delivers the payload, then fails instead of returning -1, like a connection reset at end of body.
+                return new FilterInputStream(new ByteArrayInputStream(payload)) {
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         int n = super.read(b, off, len);
@@ -552,15 +862,16 @@ public class DecompressingStorageObjectTests extends ESTestCase {
                         }
                         return n;
                     }
+
+                    @Override
+                    public void close() throws IOException {
+                        abortCalls.incrementAndGet();
+                        super.close();
+                    }
                 };
             }
-
-            @Override
-            public void abortStream(InputStream stream) {
-                abortCalls.incrementAndGet();
-            }
         };
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new StopsBeforeRawEndCodec(original.length));
 
         try (InputStream stream = decompressing.newStream()) {
             assertArrayEquals(original, stream.readAllBytes());
@@ -572,13 +883,13 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     /** An {@link Error} from the end-of-body read is not swallowed, but it still must not skip the abort. */
     public void testTrailingReadErrorStillAborts() throws IOException {
         byte[] original = ndjsonLines(between(1, 1_000));
-        byte[] gzipped = gzip(original);
+        byte[] payload = original;
         AtomicInteger abortCalls = new AtomicInteger();
-        StorageObject raw = new BytesStorageObject(gzipped, StoragePath.of("s3://bucket/test.ndjson.gz")) {
+        StorageObject raw = new BytesStorageObject(payload, StoragePath.of("s3://bucket/test.ndjson.gz")) {
             @Override
             public InputStream newStream() {
-                // Delivers the gzip bytes, then throws an Error instead of returning -1.
-                return new FilterInputStream(new ByteArrayInputStream(gzipped)) {
+                // Delivers the payload, then throws an Error instead of returning -1.
+                return new FilterInputStream(new ByteArrayInputStream(payload)) {
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         int n = super.read(b, off, len);
@@ -587,15 +898,16 @@ public class DecompressingStorageObjectTests extends ESTestCase {
                         }
                         return n;
                     }
+
+                    @Override
+                    public void close() throws IOException {
+                        abortCalls.incrementAndGet();
+                        super.close();
+                    }
                 };
             }
-
-            @Override
-            public void abortStream(InputStream stream) {
-                abortCalls.incrementAndGet();
-            }
         };
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new StopsBeforeRawEndCodec(original.length));
 
         InputStream stream = decompressing.newStream();
         assertArrayEquals(original, stream.readAllBytes());
@@ -643,6 +955,178 @@ public class DecompressingStorageObjectTests extends ESTestCase {
             zstdOut.write(input);
         }
         return baos.toByteArray();
+    }
+
+    /**
+     * Leaf GET that returns immediately (HTTP headers already done) whose body {@code read()} parks
+     * until {@link InputStream#close()}. {@link StorageObject#close()} must not unpark: that is the
+     * {@code inFlightRaw} contract. A side-channel latch other than stream close would let a
+     * regression that drops {@code inFlightRaw} still pass.
+     */
+    static final class HeaderParkStorageObject extends AbstractTestStorageObject {
+        final CountDownLatch inHeaderRead = new CountDownLatch(1);
+        final CountDownLatch release = new CountDownLatch(1);
+        final AtomicInteger rawCloses = new AtomicInteger();
+        private final AtomicBoolean streamClosed = new AtomicBoolean();
+
+        @Override
+        public InputStream newStream() {
+            return parkedBody();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return parkedBody();
+        }
+
+        private InputStream parkedBody() {
+            return new FilterInputStream(InputStream.nullInputStream()) {
+                @Override
+                public int read() throws IOException {
+                    parkUntilStreamClose();
+                    throw new IOException("stream closed");
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    parkUntilStreamClose();
+                    throw new IOException("stream closed");
+                }
+
+                @Override
+                public void close() throws IOException {
+                    if (streamClosed.compareAndSet(false, true)) {
+                        rawCloses.incrementAndGet();
+                        release.countDown();
+                    }
+                    super.close();
+                }
+            };
+        }
+
+        private void parkUntilStreamClose() throws IOException {
+            inHeaderRead.countDown();
+            try {
+                if (release.await(15, TimeUnit.SECONDS) == false) {
+                    throw new IOException("header read was not unblocked by stream close");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("header read interrupted", e);
+            }
+        }
+
+        @Override
+        public void close() {
+            // Object-level close must not unpark the parked GET body. Only stream.close() does.
+        }
+
+        @Override
+        public long length() {
+            return 1024;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("s3://bucket/parked.gz");
+        }
+    }
+
+    /**
+     * Leaf GET whose body {@code read()} and {@code close()} both park until
+     * {@link StorageObject#close()}. Models Apache draining a stalled leftover of at most 64 KiB:
+     * closing the raw stream first never reaches the abort that unparks it.
+     */
+    static final class DrainHangUntilAbortStorageObject extends AbstractTestStorageObject {
+        final CountDownLatch inHeaderRead = new CountDownLatch(1);
+        final CountDownLatch aborted = new CountDownLatch(1);
+        final AtomicInteger objectCloses = new AtomicInteger();
+        final AtomicInteger streamCloses = new AtomicInteger();
+        private final AtomicBoolean streamClosed = new AtomicBoolean();
+
+        @Override
+        public InputStream newStream() {
+            return parkedBody();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return parkedBody();
+        }
+
+        private InputStream parkedBody() {
+            return new FilterInputStream(InputStream.nullInputStream()) {
+                @Override
+                public int read() throws IOException {
+                    inHeaderRead.countDown();
+                    parkUntilAbort("header read");
+                    throw new IOException("GET aborted");
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    inHeaderRead.countDown();
+                    parkUntilAbort("header read");
+                    throw new IOException("GET aborted");
+                }
+
+                @Override
+                public void close() throws IOException {
+                    parkUntilAbort("raw close drain");
+                    if (streamClosed.compareAndSet(false, true)) {
+                        streamCloses.incrementAndGet();
+                    }
+                    super.close();
+                }
+            };
+        }
+
+        private void parkUntilAbort(String what) throws IOException {
+            try {
+                if (aborted.await(15, TimeUnit.SECONDS) == false) {
+                    throw new IOException(what + " was not unblocked by StorageObject.close()");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException(what + " interrupted", e);
+            }
+        }
+
+        @Override
+        public void close() {
+            objectCloses.incrementAndGet();
+            aborted.countDown();
+        }
+
+        @Override
+        public long length() {
+            return 1024;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("s3://bucket/drain-hang.gz");
+        }
     }
 
     private static class BytesStorageObject extends AbstractTestStorageObject {

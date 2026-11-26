@@ -42,13 +42,14 @@ The direction, the decisions that constrain it, and the build order. Update as d
   in full at open, the only part on the heap). Content is split by how it is read: values in `.cnd`,
   per-document addressing in `.cna`, a plain column's lengths in `.cnl`, per-block and per-chunk
   navigation in `.cnn` (fetched up front, so it stays coarse and small), the skip index in `.cns`.
-  Every table streams into its file; nothing is staged but a dictionary's ordinals and escapes.
+  Every table streams into its file; nothing is staged but a dictionary's escapes.
   See `AGENTS.md`.
 
 ## Done
 
 - Binary surface: `addBinaryField`/`getBinary` only; typed shapes throw; no delegate.
-- `ColumnarFieldType` tag + generic field framing (fieldNumber, type id, metadata); dispatch on type.
+- `ColumnarFieldType` tag + generic field framing (fieldNumber, type id, metadata, plus a payload or raw
+  value byte for a string column); dispatch on type.
 - Numeric long column: adaptive `NumericBlockEncoder` (delta/offset/GCD/`ForUtil`), single + multi in
   one store, off-heap `DirectMonotonic` tables, presence (dense / `IndexedDISI` sparse).
 - `NumericBinaryPayload` seam (payload ↔ longs); `binaryValue()` re-emit.

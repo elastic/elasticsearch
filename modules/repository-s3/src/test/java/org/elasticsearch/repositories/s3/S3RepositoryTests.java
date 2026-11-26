@@ -182,6 +182,24 @@ public class S3RepositoryTests extends ESTestCase {
         }
     }
 
+    public void testDeprecatedCooldownPeriod() {
+        try (
+            var repo = createS3Repo(
+                getRepositoryMetadata(
+                    Settings.builder()
+                        .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                        .put(S3Repository.COOLDOWN_PERIOD.getKey(), randomFrom("0s", "3m", "1h"))
+                        .build()
+                )
+            )
+        ) {
+            assertThat(repo, not(nullValue()));
+        }
+        assertWarnings("""
+            [cooldown_period] setting was deprecated in Elasticsearch and will be removed in a future release. \
+            See the breaking changes documentation for the next major version.""");
+    }
+
     public void testInvalidChunkBufferSizeSettings() {
         // chunk < buffer should fail
         final Settings s1 = bufferAndChunkSettings(10, 5);

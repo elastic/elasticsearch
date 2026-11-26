@@ -149,10 +149,17 @@ public record Configured<T>(T value, Set<String> consumedKeys, String identity, 
     /**
      * The identity of the declared-secret settings this config carries, as a digest.
      * <p>
-     * Separate from {@link #identity} because the two are consumed by different keys for opposite reasons. A
-     * schema or file-metadata entry describes what a file *contains*, which does not depend on who read it, so a
-     * credential must not fragment those addresses. A listing describes what a principal can *see*, which does,
-     * so the listing key carries this.
+     * Separate from {@link #identity} because the two say different things: a listing describes what a principal
+     * can *see*, which depends on who asked, while a schema or a row count describes what a file *contains*,
+     * which does not.
+     * <p>
+     * The listing key carries it for that reason, and so does {@code DatasetIdentity}, which folds this digest so
+     * that two data sources differing only in their credentials address different records. The file-metadata key
+     * does not. Folding it into an address that describes content is a second layer of defence
+     * rather than the authorization control - it cannot see a principal who may list but not read within one data
+     * source, a revoked credential, which digests to the value it had while valid, or a federated token, which
+     * arrives at read time and belongs to no definition - and it costs sharing that is legitimately correct,
+     * since object storage authorizes per object. That trade was taken deliberately.
      * <p>
      * Digested rather than rendered, which is the one place this class departs from {@link #identityOf}: a cache
      * key outlives the data source and is printed by {@code toString}, so the value that distinguishes two

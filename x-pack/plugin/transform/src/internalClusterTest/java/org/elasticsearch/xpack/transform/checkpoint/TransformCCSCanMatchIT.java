@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -288,6 +289,20 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             REMOTE_CLUSTER,
             new String[] { REMOTE_CLUSTER + ":remote_*" },
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),
+            Set.of()
+        );
+    }
+
+    /**
+     * A source whose only expressions are cluster wildcards matching no registered remote must not checkpoint local indices.
+     * {@code RemoteClusterService.groupIndices} returns an empty local group for such input, which means local {@code _all}.
+     */
+    public void testGetCheckpointAction_UnmatchedRemoteClusterWildcardDoesNotCheckpointLocalIndices() throws InterruptedException {
+        testGetCheckpointAction(
+            client().threadPool().getThreadContext(),
+            null,
+            new String[] { "no_such_cluster*:remote_*" },
+            QueryBuilders.matchAllQuery(),
             Set.of()
         );
     }
@@ -608,7 +623,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
 
         @Override
         public ShardLongFieldRange getRawFieldRange(String field) {
-            try (Searcher searcher = acquireSearcher("test")) {
+            try (Searcher searcher = acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 final DirectoryReader directoryReader = searcher.getDirectoryReader();
 
                 final byte[] minPackedValue = PointValues.getMinPackedValue(directoryReader, field);

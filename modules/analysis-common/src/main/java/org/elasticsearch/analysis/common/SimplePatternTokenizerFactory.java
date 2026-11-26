@@ -11,10 +11,16 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.pattern.SimplePatternTokenizer;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
+
+import java.util.function.Supplier;
 
 public class SimplePatternTokenizerFactory extends AbstractTokenizerFactory {
 
@@ -22,16 +28,23 @@ public class SimplePatternTokenizerFactory extends AbstractTokenizerFactory {
 
     private final Object sharingKey;
 
+    // Lucene 10's SimplePatternTokenizer(String) no longer determinizes the automaton, so we do it ourselves.
+    // This is lazy so that tokenizers which are defined but not used by any analyzer are never compiled.
+    private final Supplier<Automaton> dfa;
+
     public SimplePatternTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
 
         pattern = settings.get("pattern", "");
         this.sharingKey = new Key(pattern);
+        this.dfa = CachedSupplier.wrap(
+            () -> Operations.determinize(new RegExp(pattern).toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+        );
     }
 
     @Override
     public Tokenizer create() {
-        return new SimplePatternTokenizer(pattern);
+        return new SimplePatternTokenizer(dfa.get());
     }
 
     @Override

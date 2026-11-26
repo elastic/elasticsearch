@@ -39,7 +39,7 @@ public class RLikeListErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return RLikeTests.buildRLike(logger, source, args);
+        return RLikeListTests.buildRLikeList(logger, source, args);
     }
 
     @Override

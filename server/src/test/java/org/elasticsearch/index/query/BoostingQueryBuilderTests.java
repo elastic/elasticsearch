@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -33,13 +34,22 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
 
     @Override
     protected BoostingQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
-        if (randomBoolean()) {
-            return new BoostingQueryBuilder(queryBuilder, queryBuilder).negativeBoost(1f);
-        }
-        if (randomBoolean()) {
-            return new BoostingQueryBuilder(new MatchAllQueryBuilder(), queryBuilder).negativeBoost(1f);
-        }
-        return new BoostingQueryBuilder(queryBuilder, new MatchAllQueryBuilder()).negativeBoost(1f);
+        QueryBuilder other = RandomQueryBuilder.createQuery(random());
+        BoostingQueryBuilder boosting = randomBoolean()
+            ? new BoostingQueryBuilder(queryBuilder, other)
+            : new BoostingQueryBuilder(other, queryBuilder);
+        return boosting.negativeBoost(1f);
+    }
+
+    @Override
+    protected QueryBuilder createInnerQuery() {
+        return RandomQueryBuilder.createQuery(random());
+    }
+
+    @Override
+    protected List<QueryBuilder> subQueriesHiddenFromVisit(QueryBuilder builder) {
+        // FunctionScoreQuery doesn't visit the negative query
+        return builder instanceof BoostingQueryBuilder boosting ? List.of(boosting.negativeQuery()) : List.of();
     }
 
     @Override

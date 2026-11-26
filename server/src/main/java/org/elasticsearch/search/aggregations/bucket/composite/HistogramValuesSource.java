@@ -41,7 +41,7 @@ class HistogramValuesSource extends ValuesSource.Numeric {
         final SortedNumericDoubleValues values = vs.doubleValues(context);
         final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
         if (singleton != null) {
-            return org.elasticsearch.index.fielddata.FieldData.singleton(doubleSingleValues(singleton));
+            return SortedNumericDoubleValues.singleton(doubleSingleValues(singleton), values.docIdIterator());
         } else {
             return doubleMultiValues(values);
         }

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -40,7 +41,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  * Function returning the first non-null value. {@code COALESCE} runs as though
  * it were lazily evaluating each position in each incoming {@link Block}.
  */
-public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
+public class Coalesce extends EsqlScalarFunction implements OptionalArgument, Reproducible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Coalesce", Coalesce::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Coalesce.class)
         .unaryVariadic(Coalesce::new)
@@ -163,9 +164,15 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
+        DataType cached = dataType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #dataType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        resolveType();
         return dataType;
     }
 
@@ -175,22 +182,27 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
+        // Compute in a local and publish only the final type: this field is shared by every thread that holds the plan.
+        DataType type = null;
         for (int position = 0; position < children().size(); position++) {
-            if (dataType == null || dataType == NULL) {
-                dataType = children().get(position).dataType().noText();
+            if (type == null || type == NULL) {
+                type = children().get(position).dataType().noText();
                 continue;
             }
+            DataType expected = type;
             TypeResolution resolution = TypeResolutions.isType(
                 children().get(position),
-                t -> t.noText() == dataType,
+                t -> t.noText() == expected,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                dataType.typeName()
+                expected.typeName()
             );
             if (resolution.unresolved()) {
+                dataType = type;
                 return resolution;
             }
         }
+        dataType = type;
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -202,12 +214,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 return Nullability.FALSE;
             }
         }
-        /*
-         * Otherwise let’s call this one "unknown". If we returned TRUE here
-         * an optimizer rule would replace this with null if any of our children
-         * fold to null. We don’t want that at all.
-         */
-        return Nullability.UNKNOWN;
+        return Nullability.TRUE;
     }
 
     @Override
@@ -235,8 +242,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 toEvaluator,
                 children()
             );
-            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, FLATTENED, HISTOGRAM, GEO_POINT, GEO_SHAPE, IP, VERSION ->
-                CoalesceBytesRefEvaluator.toEvaluator(toEvaluator, children());
+            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, FLATTENED, HISTOGRAM, GEO_POINT, GEO_SHAPE, IP, VERSION,
+                TIME_SERIES_METADATA_DATA_TYPE -> CoalesceBytesRefEvaluator.toEvaluator(toEvaluator, children());
             case EXPONENTIAL_HISTOGRAM -> CoalesceExponentialHistogramEvaluator.toEvaluator(toEvaluator, children());
             case TDIGEST -> CoalesceTDigestEvaluator.toEvaluator(toEvaluator, children());
             case DENSE_VECTOR -> CoalesceFloatEvaluator.toEvaluator(toEvaluator, children());

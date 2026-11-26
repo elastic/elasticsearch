@@ -40,6 +40,7 @@ import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -68,19 +69,23 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
 
     public void testRecoveryMetricPublicationOnIndexingShardRelocation() throws Exception {
         startMasterOnlyNode();
-        var indexingNode1 = startIndexNode();
-        var indexingNode2 = startIndexNode();
+        // transferring the hollow commit metadata skips the object store reads on the target, which delayRecovery relies on
+        final var indexingNodeSettings = Settings.builder()
+            .put(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), false)
+            .build();
+        var indexingNode1 = startIndexNode(indexingNodeSettings);
+        var indexingNode2 = startIndexNode(indexingNodeSettings);
 
         var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-
-        // ensure that index shard is allocated on `indexingNode1` and not on `indexingNode2`
-        assertAcked(
-            admin().indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode2))
+        // Keep the relocation target's cache cold by allocating the shard on indexingNode1 from the start.
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(indexSettings(1, 0).build())
+                .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode2)
+                .build()
         );
+        ensureGreen(indexName);
 
         int numDocs = randomIntBetween(100, 1000);
         indexDocs(indexName, numDocs);
@@ -286,7 +291,11 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
 
         final var hollowSettings = randomHollowIndexNodeSettings();
         final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowSettings);
-        final var indexingNodeSettings = Settings.builder().put(cacheSettings).put(hollowSettings).build();
+        final var indexingNodeSettings = Settings.builder()
+            .put(cacheSettings)
+            .put(hollowSettings)
+            .put(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), true)
+            .build();
 
         var indexingNode1 = startIndexNode(indexingNodeSettings);
         var indexingNode2 = startIndexNode(indexingNodeSettings);
@@ -337,7 +346,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
 
         // Wait until the IndexShardCacheWarmer warms the commit to ensure that it reads some bytes (otherwise it could race with
         // recovery getting bytes into the cache first).
-        // Note: we don't do warming for to-be-hollowed shards. Hence, we skip waiting and don't expect warming metrics.
+        // Note: we don't do warming for hollow shards. Hence, we skip waiting for the IndexShardCacheWarmer.
         if (hollowEnabled == false) {
             assertBusy(
                 () -> assertThat(
@@ -369,19 +378,19 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
         );
         assertRecoveryMetricAttributes(readFromObjectStoreMetric, true);
 
-        assertThat(
-            "No bytes read or warmed from object store",
-            warmedFromObjectStoreMetric.getLong() + readFromObjectStoreMetric.getLong(),
-            greaterThan(0L)
-        );
-
         final List<Measurement> measurements = plugin.getLongCounterMeasurement(
             SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC
         );
         if (hollowEnabled) {
-            // We don't warm for to-be-hollowed shards. This is a weak assertion as there is no wait.
-            assertThat(measurements.size(), equalTo(0));
+            // The hollow commit is transferred on handoff, so nothing is read or warmed from the object store.
+            assertThat(warmedFromObjectStoreMetric.getLong() + readFromObjectStoreMetric.getLong(), equalTo(0L));
+            assertThat(measurements, empty());
         } else {
+            assertThat(
+                "No bytes read or warmed from object store",
+                warmedFromObjectStoreMetric.getLong() + readFromObjectStoreMetric.getLong(),
+                greaterThan(0L)
+            );
             // One from IndexShardCacheWarmer, one for the region 0 pre-warming
             // and the other from StatelessIndexNodeRecoveryListener (which we may need to wait for it to appear)
             assertBusy(() -> assertThat(measurements.size(), equalTo(3)));

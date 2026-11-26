@@ -79,6 +79,8 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     private volatile Boolean cachedExists;
     /** Generation the readers are pinned to via {@code generationMatch}; {@link #contentGeneration()}. */
     private final AtomicReference<Long> cachedGeneration = new AtomicReference<>();
+    /** Generation the last metadata probe saw, reported by {@link #probedVersion()}. It never becomes the pin. */
+    private volatile String probedGeneration;
 
     // TODO: GCS retries are managed inside RetryHelper at the Storage client layer; intercepting
     // them here would require wrapping the Storage instance. Not counted in this PR.
@@ -528,6 +530,12 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         return pinned == null ? null : Long.toString(pinned);
     }
 
+    /** The generation the metadata probe saw. Reads are not conditional on it until a pin is seeded from it. */
+    @Override
+    public String probedVersion() {
+        return probedGeneration;
+    }
+
     private ReadChannel openReader() {
         pinGenerationIfNeeded();
         BlobId id = BlobId.of(bucket, objectName);
@@ -567,6 +575,21 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
+     * Seeds the generation pin with the generation a listing reported, so the reader opens with {@code generationMatch}
+     * from its first request. A version that is not a generation number leaves the object unpinned.
+     */
+    void seedVersion(String version) {
+        if (version == null) {
+            return;
+        }
+        try {
+            cachedGeneration.compareAndSet(null, Long.parseLong(version));
+        } catch (NumberFormatException e) {
+            // Not a generation number: the object stays unpinned, and so unversioned for the footer cache.
+        }
+    }
+
+    /**
      * Adopts the generation of a metadata GET issued on the read path as the pin, and refreshes the
      * cached size from it. Never overwrites an existing pin, and refreshes the size only from the
      * pinned generation — a newer generation's size is not what the pinned readers will deliver.
@@ -598,6 +621,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             ExternalPlanningIo.addMetadataGet(0);
             if (blob != null) {
                 cachedExists = true;
+                probedGeneration = blob.getGeneration() == null ? null : Long.toString(blob.getGeneration());
                 // exists()/length()/lastModified() must not establish or move the read pin, and must not
                 // report a newer generation's size as the size the pinned readers will deliver.
                 Long pinned = cachedGeneration.get();

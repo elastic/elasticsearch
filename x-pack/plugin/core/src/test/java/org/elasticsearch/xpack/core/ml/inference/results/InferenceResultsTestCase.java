@@ -112,7 +112,7 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
                         builder.field(key, value.toString());
                     }
                 }
-                Map<String, Object> source = CollectionUtils.deepCopy(document.getSourceAndMetadata());
+                Map<String, Object> source = CollectionUtils.deepCopy(document.getSource());
                 metadata.keySet().forEach(source::remove);
                 builder.field("_source", source);
                 builder.field("_ingest", document.getIngestMetadata());

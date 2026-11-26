@@ -41,8 +41,12 @@ public record DatasetDiscovery(FileList schemaListing, FileList scanFileSet) {
         return new DatasetDiscovery(listing, listing);
     }
 
-    /** Whether the schema's listing is the whole of what the pattern matches, and so usable as a file set. */
+    /**
+     * Whether the schema's listing is the whole of what the pattern matches, and so usable as a file set.
+     * An inference-anchor listing is one leftover file after every folder was pruned, not the glob; Phase 2
+     * skips the scan rather than re-listing it.
+     */
     public boolean schemaListingIsComplete() {
-        return schemaListing.isTruncated() == false;
+        return schemaListing.isTruncated() == false && schemaListing.isInferenceAnchor() == false;
     }
 }

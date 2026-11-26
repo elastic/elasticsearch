@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161149
+summary: Give each kind of cached external-dataset fact its own address and byte budget
+type: enhancement

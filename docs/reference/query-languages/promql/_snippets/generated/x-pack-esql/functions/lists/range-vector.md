@@ -6,6 +6,9 @@
 :::{include} ../avg_over_time.md
 :::
 
+:::{include} ../changes.md
+:::
+
 :::{include} ../count_over_time.md
 :::
 
@@ -34,6 +37,9 @@
 :::
 
 :::{include} ../min_over_time.md
+:::
+
+:::{include} ../predict_linear.md
 :::
 
 :::{include} ../present_over_time.md

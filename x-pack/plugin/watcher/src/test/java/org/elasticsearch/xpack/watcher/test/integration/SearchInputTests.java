@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.test.integration;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
@@ -50,6 +49,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -98,15 +98,7 @@ public class SearchInputTests extends ESTestCase {
     public void testExecute() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
-        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
-            "",
-            1,
-            1,
-            0,
-            1234,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits("", 1, 1, 0, 1234, List.of(), SearchResponse.Clusters.EMPTY);
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
@@ -138,15 +130,7 @@ public class SearchInputTests extends ESTestCase {
     public void testDifferentSearchType() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
-        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
-            "",
-            1,
-            1,
-            0,
-            1234,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits("", 1, 1, 0, 1234, List.of(), SearchResponse.Clusters.EMPTY);
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
@@ -192,15 +176,7 @@ public class SearchInputTests extends ESTestCase {
     public void testThatEmptyRequestBodyWorks() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
-        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
-            "",
-            1,
-            1,
-            0,
-            1234,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits("", 1, 1, 0, 1234, List.of(), SearchResponse.Clusters.EMPTY);
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 

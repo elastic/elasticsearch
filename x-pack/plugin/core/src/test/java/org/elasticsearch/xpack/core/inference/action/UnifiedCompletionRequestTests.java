@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import java.io.IOException;
 import java.util.Collection;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_TEMPLATE_ADDED;
 import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionRequest> {
@@ -40,13 +40,14 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     }
 
     /**
-     * Versions before {@link UnifiedCompletionUtils#MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED} throw an exception when serializing
-     * non-text content, so we filter those out of the bwc versions to avoid test failures.
-     * The logic is tested directly by {@link UnifiedCompletionRequestBodyTests#testMultimodalContentIsNotBackwardsCompatible}
+     * Versions before {@link UnifiedCompletionUtils#MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED} refuse to serialize non-text content
+     * and versions before {@link UnifiedCompletionUtils#CHAT_COMPLETION_TEMPLATE_ADDED} refuse to serialize a template, so the
+     * generic BWC test only covers versions that accept every random instance. The refusals and the older versions are covered by
+     * {@link UnifiedCompletionRequestBodyTests#testUnsupportedFieldsAreNotBackwardsCompatible}.
      */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
-        return super.bwcVersions().stream().filter(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)).toList();
+        return super.bwcVersions().stream().filter(version -> version.supports(CHAT_COMPLETION_TEMPLATE_ADDED)).toList();
     }
 
     /**

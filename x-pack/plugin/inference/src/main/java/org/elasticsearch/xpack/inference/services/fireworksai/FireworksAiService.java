@@ -228,7 +228,7 @@ public class FireworksAiService extends SenderService<FireworksAiModel> {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
             // FireworksAI embeddings use cosine similarity by default
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
+            var similarityToUse = SimilarityMeasure.similarityOrDefault(similarityFromModel);
 
             var updatedServiceSettings = new FireworksAiEmbeddingsServiceSettings(
                 serviceSettings.modelId(),

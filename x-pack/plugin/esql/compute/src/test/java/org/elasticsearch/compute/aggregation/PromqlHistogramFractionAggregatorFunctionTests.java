@@ -69,7 +69,7 @@ public class PromqlHistogramFractionAggregatorFunctionTests extends AggregatorFu
 
     static void assertFractionResult(DoubleBlock result, int position, double expected) {
         if (Double.isNaN(expected)) {
-            assertTrue(result.isNull(position));
+            assertTrue(Double.isNaN(result.getDouble(position)));
         } else {
             assertThat(result.getDouble(position), equalTo(expected));
         }

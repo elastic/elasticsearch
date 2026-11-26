@@ -106,6 +106,51 @@ describe("deriveOutcome", () => {
     });
   });
 
+  test("rc 124 with a heap dump is an oom infra fail that keeps timedOut", () => {
+    // The test JVM got stuck after the OOM and the job only ended at the wrapper's timeout.
+    expect(deriveOutcome({ rc: 124, durationSec: 3480, realFailures: 0, totalCases: 0, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "infra_fail",
+      timedOut: true,
+      infraSubtype: "oom",
+    });
+  });
+
+  test("rc 137 at/after the inner timeout with a heap dump is an oom infra fail that keeps timedOut", () => {
+    expect(deriveOutcome({ rc: 137, durationSec: 4000, realFailures: 0, totalCases: 5, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "infra_fail",
+      timedOut: true,
+      infraSubtype: "oom",
+    });
+  });
+
+  test("rc 137 boundary with a heap dump: at the threshold is an oom timeout, one second before is an OOM-kill", () => {
+    expect(deriveOutcome({ rc: 137, durationSec: THRESHOLD, realFailures: 0, totalCases: 5, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "infra_fail",
+      timedOut: true,
+      infraSubtype: "oom",
+    });
+    expect(deriveOutcome({ rc: 137, durationSec: THRESHOLD - 1, realFailures: 0, totalCases: 5, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "infra_fail",
+      timedOut: false,
+      infraSubtype: "oom_killed",
+    });
+  });
+
+  test("a short rc 137 stays an OOM-kill even with a heap dump", () => {
+    expect(deriveOutcome({ rc: 137, durationSec: 20, realFailures: 0, totalCases: 5, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "infra_fail",
+      timedOut: false,
+      infraSubtype: "oom_killed",
+    });
+  });
+
+  test("a real failure still wins over a timed-out run with a heap dump", () => {
+    expect(deriveOutcome({ rc: 124, durationSec: 3480, realFailures: 1, totalCases: 5, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "flaky_detected",
+      timedOut: true,
+    });
+  });
+
   test("rc 0 with no recorded cases is a hang", () => {
     expect(deriveOutcome({ rc: 0, durationSec: 30, realFailures: 0, totalCases: 0, timeoutThresholdSec: THRESHOLD })).toEqual({
       outcome: "hang",

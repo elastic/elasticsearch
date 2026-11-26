@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 164034
+summary: Only `ABORT` recovery if the recovering shard is closed
+type: bug

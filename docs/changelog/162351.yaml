@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162338
+pr: 162351
+summary: "Fix full-text functions in `STATS ... WHERE` undercounting when grouped by a date bucket. Previously, a `MATCH`, `MATCH_PHRASE` or `:` filter in queries like `STATS COUNT(*) WHERE MATCH(message, \"error\") BY BUCKET(@timestamp, 1 hour)` could count too few matches, and some buckets returned 0."
+type: bug

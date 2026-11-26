@@ -21,11 +21,15 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
+import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeRequest;
+import org.elasticsearch.xpack.esql.datasources.DataSourceAuditUtils;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
@@ -36,11 +40,30 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
     public static final PutDataSourceAction INSTANCE = new PutDataSourceAction();
     public static final String NAME = EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME;
 
+    private static final Set<String> AUDITABLE_SETTINGS = Set.of(
+        "addressing_style",
+        "auth",
+        "account",
+        "client_id",
+        "endpoint",
+        "jwt_audience",
+        "project_id",
+        "region",
+        "role_arn",
+        "role_session_name",
+        "service_account_impersonation_url",
+        "sts_audience",
+        "sts_endpoint",
+        "sts_region",
+        "tenant_id",
+        "token_uri"
+    );
+
     private PutDataSourceAction() {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements DataSourceRequestInfo {
+    public static class Request extends AcknowledgedRequest<Request> implements DataSourceRequestInfo, SecurityConfigChangeRequest {
         private static final ParseField TYPE = new ParseField("type");
         private static final ParseField DESCRIPTION = new ParseField("description");
         private static final ParseField SETTINGS = new ParseField("settings");
@@ -174,6 +197,18 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
 
         public Map<String, Object> rawSettings() {
             return rawSettings;
+        }
+
+        @Override
+        public Map<String, Object> auditFields() {
+            var fields = new HashMap<String, Object>();
+            fields.put("type", type);
+            fields.put("name", name);
+            if (description != null) {
+                fields.put("description", description);
+            }
+            fields.putAll(DataSourceAuditUtils.auditSettings(rawSettings, AUDITABLE_SETTINGS));
+            return fields;
         }
 
         @Override

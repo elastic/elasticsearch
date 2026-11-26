@@ -79,9 +79,10 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
     public Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
         WorkloadIdentitySources sources = initWorkloadIdentitySources(services);
         // Size the async client's connection pool from the single external-read concurrency knob
-        // (esql.external.max_concurrent_requests), so the SDK pool matches the per-scheme permit ceiling.
+        // (esql.external.max_concurrent_requests). No extra setting. Pool is N+1 so abort/resume
+        // has a spare slot; 0 (unlimited permits) uses the default pool, not a 1-connection pool.
         // services.settings() is the node Settings threaded through the SPI — the path that reaches the client build.
-        int maxConnections = ExternalSourceSettings.blobStoreConcurrency(services.settings());
+        final int maxConnections = ExternalSourceSettings.sdkConnectionPoolSize(services.settings());
         CharacterRunAutomaton allowedByOperator = buildAllowlistAutomaton(services.settings());
         StorageProviderFactory s3Base = StorageProviderFactory.of(
             () -> new S3StorageProvider(null, sources.webIdentity(), sources.containerCredentials(), maxConnections),
@@ -89,7 +90,8 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
             cfg -> {
                 checkEndpointAgainstCurrentAllowlist(cfg, allowedByOperator);
                 return new S3StorageProvider(cfg, sources.webIdentity(), sources.containerCredentials(), maxConnections);
-            }
+            },
+            services.credentialPolicy()
         );
         StorageProviderFactory s3Factory = StorageProviderFactory.withTestConnection(s3Base, config -> {
             S3Configuration cfg = S3Configuration.fromQueryConfig(config).value();

@@ -8,13 +8,21 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.AutomataMatch;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The one comparison of a storage value against a filter literal, shared by the layers that prune by it:
@@ -88,8 +96,9 @@ public final class PartitionValueMatcher {
      * literal whose kind differs from the value's) means the caller must not prune. The kind guard is what keeps a
      * raw string hint from disagreeing with the read layer's implicitly-cast literal: {@code WHERE flag IN ("True",
      * "false")} reaches the walk as text against a boolean-typed folder value, and text-vs-boolean must be "cannot
-     * decide", not {@code "true".equals("True")}. The listing walk calls this for {@code _file.*} too, after reading
-     * the entry's own field. Mirrors {@link FileSplitProvider#evaluateFilter} for the kinds it can decide.
+     * decide", not {@code "true".equals("True")}. {@code LIKE} is undecidable here so the folder walk does not
+     * recompile an automaton per value; listing uses {@link #matchesLike} with a once-compiled run. Mirrors
+     * {@link FileSplitProvider#evaluateFilter} for the kinds it can decide.
      */
     @Nullable
     public static Boolean matches(@Nullable Object partitionValue, PartitionFilterHint hint) {
@@ -127,8 +136,55 @@ public final class PartitionValueMatcher {
             case GREATER_THAN_OR_EQUAL -> compareValues(partitionValue, literal) >= 0;
             case LESS_THAN -> compareValues(partitionValue, literal) < 0;
             case LESS_THAN_OR_EQUAL -> compareValues(partitionValue, literal) <= 0;
+            // File listing compiles LIKE once in FileMetadataFilter. Folder walk must not recompile per value.
+            case LIKE -> null;
             case IN -> null; // handled above
         };
+    }
+
+    /**
+     * Case-sensitive {@code LIKE} against {@code partitionValue}, using the same automaton as the row
+     * filter. {@code compiled} is the listing-scoped automaton when the caller compiled once; {@code null}
+     * compiles here. A pattern that cannot be compiled is undecidable — keep — never a silent drop.
+     */
+    @Nullable
+    public static Boolean matchesLike(Object partitionValue, Object patternLiteral, @Nullable ByteRunAutomaton compiled) {
+        if (partitionValue == null || patternLiteral == null) {
+            return null;
+        }
+        if (kindOf(partitionValue) != Kind.TEXT || kindOf(patternLiteral) != Kind.TEXT) {
+            return null;
+        }
+        ByteRunAutomaton run = compiled != null ? compiled : compileLike(patternLiteral);
+        if (run == null) {
+            return null;
+        }
+        BytesRef input = partitionValue instanceof BytesRef bytesRef ? bytesRef : new BytesRef(stringOf(partitionValue));
+        return AutomataMatch.matches(input, run);
+    }
+
+    /**
+     * UTF-8 automaton for a {@link Operator#LIKE} hint, or {@code null} when the pattern cannot be
+     * compiled. The listing compiles once per hint and reuses the result for every file.
+     */
+    @Nullable
+    public static ByteRunAutomaton compileLike(PartitionFilterHint hint) {
+        if (hint.operator() != Operator.LIKE || hint.values().isEmpty() || hint.values().get(0) == null) {
+            return null;
+        }
+        return compileLike(hint.values().get(0));
+    }
+
+    @Nullable
+    private static ByteRunAutomaton compileLike(Object patternLiteral) {
+        if (kindOf(patternLiteral) != Kind.TEXT) {
+            return null;
+        }
+        try {
+            return AutomataMatch.compile(new WildcardPattern(stringOf(patternLiteral)).createAutomaton(false));
+        } catch (InvalidArgumentException | IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /** The comparison classes a folder value or hint literal can belong to; only equal kinds are comparable. */
@@ -172,6 +228,23 @@ public final class PartitionValueMatcher {
         return HivePartitionDetector.segmentValue(folderName);
     }
 
+    /**
+     * First-wins {@code key=value} bindings of directory segments. Same skip-if-already-bound fill as
+     * {@link HivePartitionDetector#fillPartitions}; keys use {@link #folderKey}, including reserved-name
+     * surfacing. Never binds a deeper repeated key.
+     */
+    public static Map<String, String> pathBindings(String path) {
+        LinkedHashMap<String, String> into = new LinkedHashMap<>();
+        for (String segment : HivePartitionDetector.directorySegments(path)) {
+            String key = folderKey(segment);
+            if (key == null || into.containsKey(key)) {
+                continue;
+            }
+            into.put(key, folderValue(segment));
+        }
+        return into;
+    }
+
     /** The hints naming {@code column}. */
     public static List<PartitionFilterHint> hintsFor(String column, List<PartitionFilterHint> hints) {
         List<PartitionFilterHint> matching = new ArrayList<>();
@@ -202,6 +275,38 @@ public final class PartitionValueMatcher {
             return compareNumbers(na, nb) == 0;
         }
         return stringOf(a).equals(stringOf(b));
+    }
+
+    /**
+     * Three-valued equality for the split matcher. A kind mismatch or {@link Kind#OTHER} (an
+     * {@link java.time.Instant} from a date column) is unknown — keep — rather than string-comparing
+     * {@code Instant.toString()} to a keyword folder. {@link #compareEquals} stays two-valued;
+     * {@link #matches} kind-guards before calling it.
+     */
+    @Nullable
+    static Boolean equalIfComparable(Object a, Object b) {
+        Kind ka = kindOf(a);
+        Kind kb = kindOf(b);
+        if (ka != kb || ka == Kind.OTHER) {
+            return null;
+        }
+        return compareEquals(a, b);
+    }
+
+    /**
+     * Ordered comparison for the split matcher. A kind mismatch or {@link Kind#OTHER} (an {@link java.time.Instant}
+     * from a date column, for example) is undecidable — keep the file — rather than ordering {@code Instant.toString()}
+     * against a keyword folder. {@link #compareValues} itself still coerces number-vs-text for callers that already
+     * know both sides are comparable.
+     */
+    @Nullable
+    static Integer orderedCompare(Object a, Object b) {
+        Kind ka = kindOf(a);
+        Kind kb = kindOf(b);
+        if (ka != kb || ka == Kind.OTHER) {
+            return null;
+        }
+        return compareValues(a, b);
     }
 
     static int compareValues(Object a, Object b) {
@@ -254,6 +359,9 @@ public final class PartitionValueMatcher {
 
     /** The text parsed as a number, or {@code null} if it is not numeric. */
     private static Number parseNumber(String text) {
+        if (DeclaredTypeCoercions.isPlainNumberText(text) == false) {
+            return null;
+        }
         try {
             return Long.valueOf(text);
         } catch (NumberFormatException notALong) {

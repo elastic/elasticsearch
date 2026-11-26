@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
-import org.apache.http.HttpStatus;
+import org.apache.hc.core5.http.HttpStatus;
 import org.elasticsearch.xpack.esql.datasources.KnownLengthBodyFill;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 163311
+summary: Charge decoded terms query values to the request breaker
+type: enhancement

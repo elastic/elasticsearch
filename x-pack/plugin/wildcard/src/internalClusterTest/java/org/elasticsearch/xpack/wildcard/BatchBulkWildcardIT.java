@@ -97,6 +97,7 @@ public class BatchBulkWildcardIT extends ESIntegTestCase {
             prepareCreate(index).setSettings(
                 Settings.builder()
                     .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                    .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
             ).setMapping(mapping)

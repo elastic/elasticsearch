@@ -28,6 +28,24 @@ public class RestTestUtil {
     private RestTestUtil() {}
 
     /**
+     * Registers a plain {@link Test} task with the given name, wired to the provided source set, as a REST
+     * integ test in the {@code restTests} extension so that {@link RestTestBasePlugin} applies standard
+     * REST integ-test configuration (distribution wiring, system properties, caching, etc.).
+     * <p>
+     * Prefer this factory over the typed {@link #registerTestTask(Project, SourceSet, String, Class)}
+     * overload when no Gradle test-cluster functionality is required.
+     */
+    public static TaskProvider<Test> registerPlainRestTestTask(Project project, SourceSet sourceSet, String taskName) {
+        return project.getExtensions().getByType(RestIntegTestsExtension.class).register(taskName, testTask -> {
+            testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
+            testTask.setDescription("Runs the REST tests against an external cluster");
+            project.getPlugins().withType(JavaPlugin.class, t -> testTask.mustRunAfter(project.getTasks().named("test")));
+            testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
+            testTask.setClasspath(sourceSet.getRuntimeClasspath());
+        });
+    }
+
+    /**
      * Creates a {@link RestIntegTestTask} task with the source set of the same name
      */
     public static Provider<RestIntegTestTask> registerTestTask(Project project, SourceSet sourceSet) {

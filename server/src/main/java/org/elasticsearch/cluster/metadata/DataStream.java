@@ -42,7 +42,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
@@ -480,11 +482,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * templates in the matching composable template.
      * @param projectMetadata
      * @param indicesService  Used in the logic that merges all mappings together into one mapping
+     * @param indexSettingProviders Used to resolve the index mode of the next write index, as on rollover
      * @return A JSON CompressedXContent representation of the effective mappings of this data stream
      * @throws IOException
      */
-    public CompressedXContent getEffectiveMappings(ProjectMetadata projectMetadata, IndicesService indicesService) throws IOException {
-        return getEffectiveMappings(projectMetadata, getMatchingIndexTemplate(projectMetadata), mappings, getWriteIndex(), indicesService);
+    public CompressedXContent getEffectiveMappings(
+        ProjectMetadata projectMetadata,
+        IndicesService indicesService,
+        IndexSettingProviders indexSettingProviders
+    ) throws IOException {
+        return getEffectiveMappings(
+            projectMetadata,
+            getMatchingIndexTemplate(projectMetadata),
+            mappings,
+            this,
+            indicesService,
+            indexSettingProviders
+        );
     }
 
     /**
@@ -494,11 +508,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @param projectMetadata
      * @param composableTemplate The composable template that matches the data stream's name
      * @param mappingsOverrides  The mapping overrides to be applied
-     * @param writeIndex The write index of the data stream whose effective mappings are to be returned. This is used only to determine
-     *                   whether data stream mappings ought to be added when calling collectV2Mappings, and to create an IndexService
-     *                   object. The mappings that will be used come from templateWithMergedMappings and from the component templates, not
-     *                   from this writeIndex.
+     * @param dataStream The data stream whose effective mappings are to be returned. Its write index is used only to determine
+     *                   whether data stream mappings ought to be added when calling collectV2Mappings, and to name the temporary index.
+     *                   The mappings that will be used come from templateWithMergedMappings and from the component templates, and the
+     *                   settings are the ones the next write index gets on rollover, not the write index's settings.
      * @param indicesService
+     * @param indexSettingProviders Used to resolve the index mode of the next write index, as on rollover
      * @return A JSON CompressedXContent representation of the effective mappings for the composableTemplate plus mappingsOverrides
      * @throws IOException
      */
@@ -507,9 +522,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         ProjectMetadata projectMetadata,
         ComposableIndexTemplate composableTemplate,
         CompressedXContent mappingsOverrides,
-        Index writeIndex,
-        IndicesService indicesService
+        DataStream dataStream,
+        IndicesService indicesService,
+        IndexSettingProviders indexSettingProviders
     ) throws IOException {
+        Index writeIndex = dataStream.getWriteIndex();
         ComposableIndexTemplate mergedTemplate = composableTemplate.mergeMappings(mappingsOverrides);
         final String requestMappings = null; // We are not using any request mappings
         final NamedXContentRegistry xContentRegistry = null; // This is only used to parse requestMappings if they are not null
@@ -520,42 +537,47 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             xContentRegistry,
             writeIndex.getName()
         );
-        return indicesService.withTempIndexService(projectMetadata.index(writeIndex), indexService -> {
+
+        // Mapping validation depends on the index settings, ex. the index mode, so the temp index gets the settings the next write index
+        // gets on rollover: the template's, the data stream's, and the index mode from the index setting providers. The write index's
+        // settings are not reused, because the template may have changed since it was created, and index setting providers derived some of
+        // them from the old template (ex. index.routing_path or a source mode), which the new mappings can reject.
+        Settings settings = MetadataIndexTemplateService.resolveSettings(mergedTemplate, projectMetadata.componentTemplates())
+            .merge(dataStream.getSettings());
+
+        // Only the providers that set the mode run, ex. the logsdb provider for logs-*-* data streams whose template has no mode.
+        // The validation index name makes them skip work that only index creation needs, ex. the mapper service of the logsdb provider.
+        Settings nextIndexSettings = IndexSettingProviders.collectAdditionalSettings(
+            indexSettingProviders.getIndexSettingProviders(),
+            MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
+            dataStream.getName(),
+            projectMetadata.retrieveIndexModeFromTemplate(mergedTemplate),
+            mergedTemplate.isRegistryInstalled(),
+            projectMetadata,
+            Instant.now(),
+            settings,
+            mappings,
+            IndexVersion.current(),
+            Set.of(IndexSettings.MODE.getKey())
+        ).applyTo(settings);
+
+        Settings.Builder tempIndexSettings = Settings.builder().put(nextIndexSettings);
+
+        // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
+        String indexModeName = nextIndexSettings.get(IndexSettings.MODE.getKey());
+        if (IndexMode.isTsdbName(indexModeName) && IndexMetadata.INDEX_ROUTING_PATH.exists(nextIndexSettings) == false) {
+            // The time_series index setting provider computes the routing path or dimensions. Use the same placeholder as the provider.
+            tempIndexSettings.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("path"));
+        }
+
+        IndexMetadata tempIndexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(MetadataIndexTemplateService.temporaryIndexSettings(tempIndexSettings.build()))
+            .build();
+
+        return indicesService.withTempIndexService(tempIndexMetadata, indexService -> {
             MapperService mapperService = indexService.mapperService();
             if (mapperService == null) {
                 return CompressedXContent.fromJSON("{}");
-            }
-            Settings templateSettings = mergedTemplate.template().settings();
-            String indexModeSettingName = IndexSettings.MODE.getKey();
-            if (templateSettings != null
-                && Objects.equals(
-                    mapperService.getIndexSettings().getMode().getName(),
-                    templateSettings.get(indexModeSettingName)
-                ) == false) {
-                /*
-                 * It is possible that someone has changed the index mode in the template, but the data stream has not been rolled over yet.
-                 * This mapperService is for the write index, which still has the old index mode in its index settings. This only matters
-                 * for validation. To avoid failing index-mode-specific mapping validation due to using the old index mode with the new
-                 * mapping, we make sure to correct the index mode and index routing path here.
-                 */
-                IndexMetadata oldIndexMetadata = indexService.getMetadata();
-
-                Settings oldIndexSettings = oldIndexMetadata.getSettings();
-                String indexRoutingPathSettingName = IndexMetadata.INDEX_ROUTING_PATH.getKey();
-                if (Objects.equals(
-                    templateSettings.get(indexRoutingPathSettingName),
-                    oldIndexSettings.get(indexRoutingPathSettingName)
-                ) == false) {
-                    /*
-                     * If the routing_path has changed, we need to make sure to update it so that validation does not fail when we merge
-                     * mappings.
-                     */
-                    Settings.Builder settingsBuilder = Settings.builder().put(oldIndexSettings);
-                    settingsBuilder.put(indexModeSettingName, templateSettings.get(indexModeSettingName));
-                    settingsBuilder.put(indexRoutingPathSettingName, templateSettings.get(indexRoutingPathSettingName));
-                    IndexMetadata newIndexMetadata = new IndexMetadata.Builder(oldIndexMetadata).settings(settingsBuilder.build()).build();
-                    mapperService.getIndexSettings().updateIndexMetadata(newIndexMetadata);
-                }
             }
             CompressedXContent mergedMapping = mapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
@@ -829,11 +851,38 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Retrieves the lifecycle configuration meant for the backing indices.
+     * Retrieves the explicit lifecycle configuration as persisted on the data stream's state.
+     * This may differ from the effective lifecycle that can be retrieved by
+     * {@link #getEffectiveDataLifecycle(boolean)}
      */
     @Nullable
     public DataStreamLifecycle getDataLifecycle() {
         return lifecycle;
+    }
+
+    /**
+     * Retrieves the <b>effective</b> lifecycle configuration meant for the backing indices.
+     */
+    @Nullable
+    public DataStreamLifecycle getEffectiveDataLifecycle(boolean minimumLifecycleEnabled) {
+        if (isMinimumLifecycleApplicable(minimumLifecycleEnabled)) {
+            return DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
+        }
+        return lifecycle;
+    }
+
+    /**
+     * Returns true if the minimum lifecycle is applicable for this data stream.
+     */
+    public boolean isMinimumLifecycleApplicable(boolean minimumLifecycleEnabled) {
+        return lifecycle == null && minimumLifecycleEnabled && indexMode == IndexMode.TIME_SERIES;
+    }
+
+    /**
+     * Returns true if the minimum lifecycle is applicable for this index.
+     */
+    public boolean isMinimumLifecycleApplicable(String index, boolean minimumLifecycleEnabled) {
+        return backingIndices.containsIndex(index) && isMinimumLifecycleApplicable(minimumLifecycleEnabled);
     }
 
     /**
@@ -869,8 +918,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     @Nullable
     public DataStreamLifecycle getDataLifecycleForIndex(Index index) {
+        return getEffectiveLifecycleForIndex(index, false);
+    }
+
+    /**
+     * Retrieves the correct lifecycle for the provided index. Returns null if the index does not belong to this data stream
+     */
+    @Nullable
+    public DataStreamLifecycle getEffectiveLifecycleForIndex(Index index, boolean minimumLifecycleEnabled) {
         if (backingIndices.containsIndex(index.getName())) {
-            return getDataLifecycle();
+            return getEffectiveDataLifecycle(minimumLifecycleEnabled);
         }
         if (failureIndices.containsIndex(index.getName())) {
             return getFailuresLifecycle();
@@ -914,7 +971,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
         ensureNotReplicated();
-
+        ensureSafeMigrationToTimeSeries(indexModeFromTemplate);
         return unsafeRollover(writeIndex, generation, indexModeFromTemplate, autoShardingEvent);
     }
 
@@ -929,8 +986,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         IndexMode dsIndexMode = this.indexMode;
         if (dsIndexMode != indexModeFromTemplate) {
-            if (IndexMode.isTsdb(indexModeFromTemplate) && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.LOGSDB_COLUMNAR)) {
-                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+            if (IndexMode.isTsdb(indexModeFromTemplate) && (dsIndexMode != null && dsIndexMode != IndexMode.STANDARD)) {
+                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, dsIndexMode, indexModeFromTemplate);
             }
             dsIndexMode = indexModeFromTemplate;
         }
@@ -992,6 +1049,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private void ensureNotReplicated() {
         if (replicated) {
             throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, because it is a replicated data stream");
+        }
+    }
+
+    private void ensureSafeMigrationToTimeSeries(IndexMode indexModeFromTemplate) {
+        IndexMode dsIndexMode = this.indexMode == null ? IndexMode.STANDARD : this.indexMode;
+        if (IndexMode.isTsdb(indexModeFromTemplate) && IndexMode.isTsdb(dsIndexMode) == false && dsIndexMode != IndexMode.STANDARD) {
+            throw new IllegalArgumentException(
+                "data stream ["
+                    + name
+                    + "] cannot be rolled over, because migrating from ["
+                    + dsIndexMode.getName()
+                    + "] to ["
+                    + indexModeFromTemplate.getName()
+                    + "] is not supported, please first change the [index.mode] in the template to ["
+                    + IndexMode.STANDARD.getName()
+                    + "], roll over, and try again."
+            );
         }
     }
 
@@ -1349,7 +1423,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indices,
             effectiveRetention,
             indexMetadataSupplier,
-            this::isIndexManagedByDataStreamLifecycle,
+            indexMetadata -> isIndexManagedByDataStreamLifecycle(indexMetadata, false),
             nowSupplier
         );
     }
@@ -1437,11 +1511,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Checks if the provided backing index is managed by the data stream lifecycle as part of this data stream.
+     * Checks if the provided backing index is effectively managed by the data stream lifecycle as part of this data stream.
      * If the index is not a backing index or a failure store index of this data stream, or we cannot supply its metadata
      * we return false.
      */
-    public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
+    public boolean isIndexManagedByDataStreamLifecycle(
+        Index index,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        boolean minimumLifecycleEnabled
+    ) {
         if (containsIndex(index.getName()) == false) {
             return false;
         }
@@ -1450,20 +1528,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // the index was deleted
             return false;
         }
-        return isIndexManagedByDataStreamLifecycle(indexMetadata);
+        return isIndexManagedByDataStreamLifecycle(indexMetadata, minimumLifecycleEnabled);
     }
 
     /**
-     * This is the raw definition of an index being managed by the data stream lifecycle. An index is managed by the data stream lifecycle
-     * if it's part of a data stream that has a data stream lifecycle configured and enabled and depending on the value of
-     * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING} having an ILM policy configured will play into the decision.
-     * This method also skips any validation to make sure the index is part of this data stream, hence the private
-     * access method.
+     * Checks if the provided backing index is effectively managed by the data stream lifecycle as part of this data stream.
+     * If the index is not a backing index or a failure store index of this data stream we return false.
      */
-    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata, boolean minimumLifecycleEnabled) {
         Settings settings = indexMetadata.getSettings();
         IndexMode indexMode = indexMetadata.getIndexMode();
-        var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
+        var lifecycle = getEffectiveLifecycleForIndex(indexMetadata.getIndex(), minimumLifecycleEnabled);
         return lifecycleManagedBy(indexMetadata.getLifecyclePolicyName(), lifecycle, settings, indexMode) == LifecycleManagedBy.DLM;
     }
 
@@ -1484,6 +1559,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexMode == IndexMode.LOOKUP) {
             return LifecycleManagedBy.UNMANAGED;
         }
+        assert ilmPolicy == null || Strings.hasText(ilmPolicy);
         boolean lifecycleEnabled = dataStreamLifecycle != null && dataStreamLifecycle.enabled();
         if (ilmPolicy != null && lifecycleEnabled) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index

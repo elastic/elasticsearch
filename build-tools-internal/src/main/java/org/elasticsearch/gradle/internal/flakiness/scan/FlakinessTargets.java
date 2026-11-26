@@ -84,7 +84,8 @@ public final class FlakinessTargets {
     }
 
     /**
-     * Collapse targets that address the same (project, kind, identity).
+     * Collapse targets that address the same (project, kind, identity), preserving the union of runnable task
+     * paths when several refs named the same target with different task scopes.
      */
     private static List<BaseTarget> dedupe(List<BaseTarget> targets) {
         Map<String, BaseTarget> seen = new LinkedHashMap<>();
@@ -93,9 +94,57 @@ public final class FlakinessTargets {
                 : t.fqcn() != null ? t.fqcn()
                 : t.suitePath() != null ? t.suitePath()
                 : "";
-            seen.putIfAbsent(t.gradleProject() + "|" + t.kind() + "|" + identity, t);
+            String key = t.gradleProject() + "|" + t.kind() + "|" + identity;
+            seen.merge(key, t, FlakinessTargets::mergeTargets);
         }
         return new ArrayList<>(seen.values());
+    }
+
+    private static BaseTarget mergeTargets(BaseTarget left, BaseTarget right) {
+        if (left.equals(right)) {
+            return left;
+        }
+        List<String> candidateTaskPaths = unionTasks(left.candidateTaskPaths(), right.candidateTaskPaths());
+        if (left.runnable() == false) {
+            return right.runnable()
+                ? targetWith(right, right.runnableTasks(), candidateTaskPaths, null)
+                : targetWith(left, List.of(), candidateTaskPaths, left.skipReason());
+        }
+        if (right.runnable() == false) {
+            return targetWith(left, left.runnableTasks(), candidateTaskPaths, null);
+        }
+        List<String> runnableTasks = unionTasks(left.runnableTasks(), right.runnableTasks());
+        return targetWith(left, runnableTasks, candidateTaskPaths, null);
+    }
+
+    private static BaseTarget targetWith(
+        BaseTarget target,
+        List<String> runnableTasks,
+        List<String> candidateTaskPaths,
+        String skipReason
+    ) {
+        return new BaseTarget(
+            target.gradleProject(),
+            target.sourceSet(),
+            target.kind(),
+            target.fqcn(),
+            target.suitePath(),
+            target.yamlTest(),
+            runnableTasks,
+            candidateTaskPaths,
+            skipReason
+        );
+    }
+
+    private static List<String> unionTasks(List<String> left, List<String> right) {
+        TreeSet<String> tasks = new TreeSet<>();
+        if (left != null) {
+            tasks.addAll(left);
+        }
+        if (right != null) {
+            tasks.addAll(right);
+        }
+        return new ArrayList<>(tasks);
     }
 
     /**

@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class FailProcessorFactoryTests extends ESTestCase {
 
@@ -35,7 +36,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         FailProcessor failProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(failProcessor.getTag(), equalTo(processorTag));
-        assertThat(failProcessor.getMessage().newInstance(Map.of()).execute(), equalTo("error"));
+        assertThat(failProcessor.getMessage(), hasToString("error"));
     }
 
     public void testCreateMissingMessageField() throws Exception {

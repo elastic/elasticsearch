@@ -33,11 +33,13 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -144,14 +146,112 @@ public class ReindexValidatorTests extends ESTestCase {
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
-        assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is required in [dest]"));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is required in [dest]"));
+    }
+
+    public void testAllowOmittedSliceInSliceEnabledDestinationWhenSourceIsSliceMode() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+        // Reading in slice mode lets an omitted destination [slice] preserve the source slice on each document.
+        request.getSearchRequest().searchSlice("tenant-a");
+
+        validator.initialValidation(request);
+    }
+
+    public void testAllowOmittedSliceInSliceEnabledDestinationWhenSourceIsSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithSliceEnabledSourceAndDestination());
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+
+        // Reading a slice-enabled source without a slice reads every slice, and each document keeps its own.
+        validator.initialValidation(request);
+    }
+
+    public void testRequireSliceInSliceEnabledDestinationWhenSourceMixesSliceEnabledAndOtherIndices() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithMixedSourceIndices(true));
+        // the documents of the index without slices have no slice to keep, and the pattern is what finds that index
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index", "plain-*").setDestIndex("dest-index");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is required in [dest]"));
+        assertThat(e.getMessage(), containsString("the source also targets indices without slices, whose documents have no slice to keep"));
+        // a source expression is expanded before the source search is authorized, so the message must not name what it matched
+        assertThat(e.getMessage(), not(containsString("plain-index")));
+        assertThat(e.getMessage(), not(containsString("source-index")));
+    }
+
+    public void testAllowMixedSourceIntoSliceEnabledDestinationWhenAnotherMechanismSuppliesTheSlice() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithMixedSourceIndices(true));
+
+        // a destination slice
+        ReindexRequest withDestSlice = new ReindexRequest().setSourceIndices("source-index", "plain-index").setDestIndex("dest-index");
+        withDestSlice.getDestination().routing("tenant-a").setRoutingFromSlice(true);
+        validator.initialValidation(withDestSlice);
+
+        // a script that may assign the slice
+        ReindexRequest withScript = new ReindexRequest().setSourceIndices("source-index", "plain-index").setDestIndex("dest-index");
+        withScript.setScript(new Script("ctx._slice = ctx._source.tenant"));
+        validator.initialValidation(withScript);
+
+        // a source slice, which skips the indices without slices
+        ReindexRequest withSourceSlice = new ReindexRequest().setSourceIndices("source-index", "plain-index").setDestIndex("dest-index");
+        withSourceSlice.getSearchRequest().searchSlice("tenant-a");
+        validator.initialValidation(withSourceSlice);
+    }
+
+    public void testAllowMixedSourceIntoDestinationWithoutSlices() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithMixedSourceIndices(false));
+        // the slices of the slice-enabled index are dropped and the others keep their routing, so nothing is left without a slice
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index", "plain-index").setDestIndex("dest-index");
+
+        validator.initialValidation(request);
+    }
+
+    public void testRemoteSourceIsNotReadInSliceMode() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:9200").build();
+        ReindexValidator validator = validatorWithProject(projectMetadataWithSliceEnabledSourceAndDestination(), settings);
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+        // The remote cluster cannot be resolved here, so a local index with the same name must not make the source slice-enabled.
+        request.setRemoteInfo(
+            new RemoteInfo(
+                "http",
+                "127.0.0.1",
+                9200,
+                null,
+                new BytesArray("{\"match_all\":{}}"),
+                null,
+                null,
+                Map.of(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is required in [dest]"));
+    }
+
+    public void testAllowOmittedSliceInSliceEnabledDestinationWhenScriptPresent() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+        // A script may assign ctx._slice per document, so a static destination [_slice] is not required. Documents the script leaves
+        // without a slice are rejected at index time by the slice-enabled destination.
+        request.setScript(new Script("ctx._slice = ctx._source.tenant"));
+
+        validator.initialValidation(request);
     }
 
     public void testAllowSliceInSliceEnabledDestination() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
-        request.getDestination().routing("keep").setRoutingFromSlice(true);
+        request.getDestination().routing("s1").setRoutingFromSlice(true);
 
         validator.initialValidation(request);
     }
@@ -160,10 +260,10 @@ public class ReindexValidatorTests extends ESTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(false));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
-        request.getDestination().routing("keep").setRoutingFromSlice(true);
+        request.getDestination().routing("s1").setRoutingFromSlice(true);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
-        assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is not allowed in [dest]"));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is not allowed in [dest]"));
     }
 
     public void testRequireSliceInSliceEnabledDestinationFromV1Template() {
@@ -172,22 +272,47 @@ public class ReindexValidatorTests extends ESTestCase {
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-auto");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
-        assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is required in [dest]"));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is required in [dest]"));
     }
 
     public void testRejectSliceInSliceDisabledDestinationFromV1Template() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationV1TemplateSetting(false));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-auto");
-        request.getDestination().routing("keep").setRoutingFromSlice(true);
+        request.getDestination().routing("s1").setRoutingFromSlice(true);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
-        assertThat(e.getMessage(), containsString("[" + SliceIndexing.PARAM_NAME + "] is not allowed in [dest]"));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is not allowed in [dest]"));
+    }
+
+    public void testRejectReindexFromRoutingRequiredSourceIntoDestinationSlice() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        // A non-slice source that requires routing must not be reindexed into a slice destination.
+        ReindexValidator validator = validatorWithProject(projectMetadataWithRoutingRequired(true, false));
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+        request.getDestination().routing("tenant-a").setRoutingFromSlice(true);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
+        assertThat(e.getMessage(), containsString("reindex from an index that requires [routing] is not supported"));
+    }
+
+    public void testRejectReindexFromSourceSliceIntoRoutingRequiredDestination() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        // A slice source must not be reindexed into a non-slice destination that requires routing.
+        ReindexValidator validator = validatorWithProject(projectMetadataWithRoutingRequired(false, true));
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+        request.getSearchRequest().searchSlice("tenant-a");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
+        assertThat(e.getMessage(), containsString("reindex into destination [dest-index] that requires [routing] is not supported"));
     }
 
     private ReindexValidator validatorWithProject(ProjectMetadata projectMetadata) {
+        return validatorWithProject(projectMetadata, Settings.EMPTY);
+    }
+
+    private ReindexValidator validatorWithProject(ProjectMetadata projectMetadata, Settings settings) {
         IndexNameExpressionResolver indexResolver = TestIndexNameExpressionResolver.newInstance();
-        Settings settings = Settings.EMPTY;
         AutoCreateIndex autoCreateIndex = new AutoCreateIndex(
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -208,6 +333,41 @@ public class ReindexValidatorTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
         when(clusterService.state()).thenReturn(clusterState);
         return clusterService;
+    }
+
+    private ProjectMetadata projectMetadataWithSliceEnabledSourceAndDestination() {
+        ProjectMetadata.Builder project = ProjectMetadata.builder(randomUniqueProjectId());
+        for (String name : new String[] { "source-index", "dest-index" }) {
+            project.put(
+                IndexMetadata.builder(name)
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SLICE_ENABLED.getKey(), true).build())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(),
+                true
+            );
+        }
+        return project.build();
+    }
+
+    /**
+     * A slice-enabled {@code source-index}, an index without slices {@code plain-index} and a {@code dest-index}.
+     */
+    private ProjectMetadata projectMetadataWithMixedSourceIndices(boolean destinationSliceEnabled) {
+        ProjectMetadata.Builder project = ProjectMetadata.builder(randomUniqueProjectId());
+        for (var index : Map.of("source-index", true, "plain-index", false, "dest-index", destinationSliceEnabled).entrySet()) {
+            project.put(
+                IndexMetadata.builder(index.getKey())
+                    .settings(
+                        indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SLICE_ENABLED.getKey(), index.getValue()).build()
+                    )
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(),
+                true
+            );
+        }
+        return project.build();
     }
 
     private ProjectMetadata projectMetadataWithDestinationSliceSetting(boolean destinationSliceEnabled) {
@@ -232,6 +392,38 @@ public class ReindexValidatorTests extends ESTestCase {
                 true
             )
             .build();
+    }
+
+    /**
+     * Builds a project with a slice-enabled index on one side and a non-slice index that requires {@code routing} on the other, to
+     * exercise the rule that slices and required-routing indices must not be mixed.
+     *
+     * @param sourceRequiresRouting when {@code true} the source is a non-slice index that requires routing and the destination is
+     *                              slice-enabled; when {@code false} the source is slice-enabled and the destination is a non-slice index
+     *                              that requires routing.
+     */
+    private ProjectMetadata projectMetadataWithRoutingRequired(boolean sourceRequiresRouting, boolean destRequiresRouting) {
+        final String routingRequiredMapping = "{\"_routing\":{\"required\":true}}";
+        IndexMetadata.Builder source = IndexMetadata.builder("source-index")
+            .settings(
+                indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SLICE_ENABLED.getKey(), sourceRequiresRouting == false)
+                    .build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        if (sourceRequiresRouting) {
+            source.putMapping(routingRequiredMapping);
+        }
+        IndexMetadata.Builder dest = IndexMetadata.builder("dest-index")
+            .settings(
+                indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SLICE_ENABLED.getKey(), destRequiresRouting == false).build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        if (destRequiresRouting) {
+            dest.putMapping(routingRequiredMapping);
+        }
+        return ProjectMetadata.builder(randomUniqueProjectId()).put(source.build(), true).put(dest.build(), true).build();
     }
 
     private ProjectMetadata projectMetadataWithDestinationV1TemplateSetting(boolean destinationSliceEnabled) {

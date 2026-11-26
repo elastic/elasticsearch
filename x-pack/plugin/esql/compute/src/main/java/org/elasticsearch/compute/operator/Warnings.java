@@ -7,9 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
@@ -31,6 +28,11 @@ public class Warnings {
 
         @Override
         public void registerWarning(String message) {
+            // this space intentionally left blank
+        }
+
+        @Override
+        public void registerWarningWithoutSourceText(String message) {
             // this space intentionally left blank
         }
     };
@@ -83,7 +85,6 @@ public class Warnings {
     private final String location;
     private final String firstExceptionWarning;
     private final String nonExceptionWarningPrefix;
-    private final Set<String> emittedNonExceptionWarnings = new HashSet<>();
 
     private int addedWarnings;
     private boolean exceptionWarningEmitted = false;
@@ -119,6 +120,8 @@ public class Warnings {
 
     /**
      * Register an exception to be included in the warnings.
+     * Repeated failures with the same exception class and message are emitted once and count once
+     * towards the {@link #MAX_ADDED_WARNINGS} limit.
      * <p>
      *     This overload avoids the need to instantiate the exception, which can be expensive.
      *     Instead, it asks only the required pieces to build the warning.
@@ -131,8 +134,7 @@ public class Warnings {
                 driverContext.addWarning(firstExceptionWarning);
             }
             // location needs to be added to the exception too, since the headers are deduplicated
-            driverContext.addWarning(location + exceptionClass.getName() + ": " + message);
-            addedWarnings++;
+            addDistinct(location + exceptionClass.getName() + ": " + message);
         }
     }
 
@@ -142,9 +144,23 @@ public class Warnings {
      * This method therefore caches the emitted message and should not be called with non-constant messages!
      */
     public void registerWarning(String message) {
-        if (addedWarnings < MAX_ADDED_WARNINGS && !emittedNonExceptionWarnings.contains(message)) {
-            emittedNonExceptionWarnings.add(message);
-            driverContext.addWarning(nonExceptionWarningPrefix + message);
+        if (addedWarnings < MAX_ADDED_WARNINGS) {
+            addDistinct(nonExceptionWarningPrefix + message);
+        }
+    }
+
+    // A view's source text is its stored definition, which the caller may not be allowed to read, so this prefix omits it.
+    public void registerWarningWithoutSourceText(String message) {
+        if (addedWarnings < MAX_ADDED_WARNINGS) {
+            addDistinct(location + message);
+        }
+    }
+
+    /**
+     * The sink deduplicates warnings, so only distinct ones may consume the limit.
+     */
+    private void addDistinct(String warning) {
+        if (driverContext.addWarning(warning)) {
             addedWarnings++;
         }
     }

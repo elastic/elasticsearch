@@ -16,8 +16,8 @@ import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexService;
@@ -59,7 +59,8 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
         IndexShard indexShard = indexService.getShard(shardId.id());
         assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
         assert multiGetShardRequest.realtime();
-        ActionListener.completeWith(listener, () -> {
+        final var reservation = new SourceBytesReservation(indicesService.getCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
+        ActionListener.completeWith(ActionListener.releaseAfter(listener, reservation), () -> {
             // Allows to keep the same engine instance for getFromTranslog and getLastUnsafeSegmentGenerationForGets
             return indexShard.withEngineException(engine -> {
                 var multiGetShardResponse = new MultiGetShardResponse();
@@ -78,13 +79,14 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
                                 item.versionType(),
                                 item.fetchSourceContext(),
                                 multiGetShardRequest.isForceSyntheticSource(),
-                                SplitShardCountSummary.UNSET,
+                                multiGetShardRequest.getSplitShardCountSummary(),
                                 multiGetShardRequest.refresh()
                             );
                         GetResponse getResponse = null;
                         if (result == null) {
                             someItemsNotFoundInTranslog = true;
                         } else {
+                            reservation.add(result);
                             getResponse = new GetResponse(result);
                         }
                         multiGetShardResponse.add(multiGetShardRequest.locations.get(i), getResponse);

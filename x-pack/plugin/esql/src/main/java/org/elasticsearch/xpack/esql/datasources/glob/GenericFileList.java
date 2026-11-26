@@ -30,6 +30,8 @@ final class GenericFileList implements FileList {
     private final FileSetFingerprint fileSetFingerprint;
     private final List<String> listingWarnings;
     private final boolean truncated;
+    private final boolean inferenceAnchor;
+    private final long estimatedBytes;
 
     GenericFileList(List<StorageEntry> files, String originalPattern) {
         this(files, originalPattern, null);
@@ -51,8 +53,8 @@ final class GenericFileList implements FileList {
     /**
      * @param truncated whether listing stopped at a bound before the end of the glob, so {@code files} is a
      *                  prefix of what the pattern matches. See {@link FileList#isTruncated()} for the
-     *                  invariant that keeps such a list out of the listing cache, and what a reading query
-     *                  handed one owes it.
+     *                  invariant that keeps such a list from being served to a query that asked to list
+     *                  further, and what a reading query handed one owes it.
      */
     GenericFileList(
         List<StorageEntry> files,
@@ -61,9 +63,26 @@ final class GenericFileList implements FileList {
         List<String> listingWarnings,
         boolean truncated
     ) {
+        this(files, originalPattern, partitionMetadata, listingWarnings, truncated, false);
+    }
+
+    /**
+     * @param inferenceAnchor whether {@code files} is a one-file schema-inference stash after partition hints
+     *                        pruned every folder. Mutually exclusive with {@code truncated}.
+     */
+    GenericFileList(
+        List<StorageEntry> files,
+        String originalPattern,
+        @Nullable PartitionMetadata partitionMetadata,
+        List<String> listingWarnings,
+        boolean truncated,
+        boolean inferenceAnchor
+    ) {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
         }
+        assert truncated == false || inferenceAnchor == false : "a truncated listing cannot be an inference anchor";
+        assert inferenceAnchor == false || files.size() == 1 : "an inference-anchor listing is exactly one file";
         assert partitionMetadata == null || partitionMetadata.coversFileCount(files.size())
             : "partition metadata covers [" + partitionMetadata.fileCount() + "] files but the listing has [" + files.size() + "]";
         this.files = files;
@@ -87,7 +106,9 @@ final class GenericFileList implements FileList {
         // be silently wrong. Absent is correct-or-miss; present-and-partial is not.
         this.fileSetFingerprint = truncated == false && files.size() >= 2 ? FileSetFingerprints.compute(files) : null;
         this.truncated = truncated;
+        this.inferenceAnchor = inferenceAnchor;
         this.listingWarnings = listingWarnings == null || listingWarnings.isEmpty() ? List.of() : List.copyOf(listingWarnings);
+        this.estimatedBytes = computeEstimatedBytes();
     }
 
     List<StorageEntry> files() {
@@ -130,7 +151,23 @@ final class GenericFileList implements FileList {
     }
 
     @Override
+    @Nullable
+    public String version(int i) {
+        return files.get(i).version();
+    }
+
+    /**
+     * Computed once at construction, for the reason the sibling implementations give: the shared {@code Cache}
+     * runs its weigher twice on every hit that is not already at the LRU head. The per-entry term is O(1), but
+     * {@link FileList#listingWarningBytes()} walks the warnings, so this was not a constant either. A listing is
+     * immutable, so one computation is exact.
+     */
+    @Override
     public long estimatedBytes() {
+        return estimatedBytes;
+    }
+
+    private long computeEstimatedBytes() {
         // 64B object header + ~700B per StorageEntry (path String + Instant + long)
         return 64 + files.size() * FileList.LISTING_BYTES_PER_ENTRY + listingWarningBytes();
     }
@@ -143,6 +180,11 @@ final class GenericFileList implements FileList {
     @Override
     public boolean isTruncated() {
         return truncated;
+    }
+
+    @Override
+    public boolean isInferenceAnchor() {
+        return inferenceAnchor;
     }
 
     @Override
@@ -171,6 +213,7 @@ final class GenericFileList implements FileList {
         }
         GenericFileList other = (GenericFileList) o;
         return truncated == other.truncated
+            && inferenceAnchor == other.inferenceAnchor
             && Objects.equals(files, other.files)
             && Objects.equals(originalPattern, other.originalPattern)
             && Objects.equals(partitionMetadata, other.partitionMetadata)
@@ -179,7 +222,7 @@ final class GenericFileList implements FileList {
 
     @Override
     public int hashCode() {
-        return Objects.hash(files, originalPattern, partitionMetadata, listingWarnings, truncated);
+        return Objects.hash(files, originalPattern, partitionMetadata, listingWarnings, truncated, inferenceAnchor);
     }
 
     @Override

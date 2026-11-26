@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.toolchain;
 
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.Jdk;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainDownload;
 import org.gradle.jvm.toolchain.JavaToolchainRequest;
@@ -23,7 +24,6 @@ import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
@@ -58,10 +58,6 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         }
     }
 
-    private static final Pattern VERSION_PATTERN = Pattern.compile(
-        "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
-    );
-
     private static final List<OperatingSystem> supportedOperatingSystems = List.of(
         OperatingSystem.MAC_OS,
         OperatingSystem.LINUX,
@@ -75,7 +71,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
 
     static JdkBuild getBundledJdkBuild(String bundledJdkVersion, String bundledJkdMajorVersionString) {
         JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(bundledJkdMajorVersionString);
-        Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
+        Matcher jdkVersionMatcher = Jdk.VERSION_PATTERN.matcher(bundledJdkVersion);
         if (jdkVersionMatcher.matches() == false) {
             throw new IllegalStateException("Unable to parse bundled JDK version " + bundledJdkVersion);
         }

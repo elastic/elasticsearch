@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.LocalExchange;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
@@ -29,7 +32,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -106,6 +108,10 @@ final class SubPlansExecutor {
     private final PlanTimeProfile rootPlanTimeProfile;
     private final ExecutionMerge rootExecution;
 
+    /**
+     * @param maxResultSize limit on the root's collected result pages, or {@code null} for no limit, see
+     *                      {@link BoundedPageCollector}
+     */
     SubPlansExecutor(
         ComputeService computeService,
         ExchangeService exchangeService,
@@ -119,6 +125,7 @@ final class SubPlansExecutor {
         Runnable warnIndexCoordinatorOnce,
         PlanTimeProfile planTimeProfile,
         SubPlan.Merge rootPlan,
+        @Nullable ByteSizeValue maxResultSize,
         ActionListener<Result> listener
     ) {
         this.computeService = computeService;
@@ -134,8 +141,16 @@ final class SubPlansExecutor {
         this.executionPermits = new AtomicInteger(queryPragmas.branchParallelDegree());
         this.cancelOnFailure = new RunOnce(computeService.cancelQueryOnFailure(rootTask));
         this.rootPlanTimeProfile = planTimeProfile;
-        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        final BoundedPageCollector pageCollector = new BoundedPageCollector(maxResultSize);
+        final List<Page> collectedPages = pageCollector.pages();
+        final PageStreamPublisher streamPublisher = rootPlan.plan() instanceof StreamingOutputExec streaming
+            ? streaming.pageStream()
+            : null;
         final ActionListener<DriverCompletionInfo> outerListener = ActionListener.wrap(info -> {
+            // For a plan with merge branches this must run only after the root merge has combined every branch's shard accounting, not at
+            // the end of each branch (executePlan), which shares the same EsqlExecutionInfo, and would otherwise treat the first all-failed
+            // leaf as "all query targets failed". Streaming roots never fill collectedPages; skip the check if rows already went out.
+            ComputeService.failIfAllShardsFailedUnlessStreamed(execInfo, collectedPages, streamPublisher);
             execInfo.markEndQuery();
             listener.onResponse(new Result(rootPlan.plan().output(), collectedPages, null, configuration, info, execInfo, null));
         }, e -> {
@@ -145,7 +160,7 @@ final class SubPlansExecutor {
         this.rootExecution = new ExecutionMerge(
             null,
             rootPlan,
-            rootPlan.plan() instanceof StreamingOutputExec ? rootPlan.plan() : new OutputExec(rootPlan.plan(), collectedPages::add),
+            rootPlan.plan() instanceof StreamingOutputExec ? rootPlan.plan() : new OutputExec(rootPlan.plan(), pageCollector),
             "main.final",
             rootPlanTimeProfile,
             null,
@@ -241,7 +256,12 @@ final class SubPlansExecutor {
             this.description = description;
             this.planTimeProfile = planTimeProfile;
             this.exchange = new LocalExchange(queryPragmas.exchangeBufferSize());
-            this.computeListener = new ComputeListener(cancelOnFailure, ActionListener.runBefore(listener, blocked::close));
+            this.computeListener = new ComputeListener(
+                cancelOnFailure,
+                ActionListener.runBefore(listener, blocked::close),
+                // what the branches that succeeded did is lost with the failure of the query unless it is reported here
+                execInfo::addFailedWork
+            );
             List<SubPlan> children = merge.children();
             final MergeExec.Kind mergeKind = merge.kind();
             final int childCount = children.size();
@@ -311,6 +331,7 @@ final class SubPlansExecutor {
                     rootTask,
                     new ComputeContext(
                         childSessionId,
+                        computeService.queryId(rootTask),
                         description,
                         LOCAL_CLUSTER,
                         flags,
@@ -319,7 +340,6 @@ final class SubPlansExecutor {
                         foldContext,
                         exchange::exchangeSource,
                         parent == null ? null : () -> parent.exchange.exchangeSink(() -> {}),
-                        false,
                         false
                     ),
                     plan,
@@ -405,7 +425,8 @@ final class SubPlansExecutor {
                     initialClusterStatuses,
                     configuration.profile() ? new PlanTimeProfile() : null,
                     warnIndexCoordinatorOnce,
-                    SiblingPlacement.forMerge(mergeKind, siblingIndex, siblingCount)
+                    SiblingPlacement.forMerge(mergeKind, siblingIndex, siblingCount),
+                    null
                 );
             } catch (Exception e) {
                 resultListener.onFailure(e);

@@ -1,0 +1,64 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard ]
+      reason: The single _unmapped_fields column of type _source only exists on nodes with the single-column layout.
+
+  - do:
+      indices.create:
+        index: la_fmt
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_fmt", "_id": "1" } }
+          - { "id": "1", "f1": "a", "n": { "x": 1 } }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_fmt
+        ignore_unavailable: true
+
+---
+# The value is only checked loosely: how the _source type renders in text formats is shared with METADATA _source, not specific to
+# LOAD_ALL.
+'csv carries the column and its leaves':
+  - do:
+      esql.query:
+        format: csv
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fmt | LIMIT 10'
+  - match: { $body: '/^id,_unmapped_fields\r?\n1,.*f1.*n\.x.*$/' }
+
+---
+'tsv carries the column and its leaves':
+  - do:
+      esql.query:
+        format: tsv
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fmt | LIMIT 10'
+  - match: { $body: '/^id\t_unmapped_fields\r?\n1\t.*f1.*n\.x.*$/' }
+
+---
+'txt carries the column and its leaves':
+  - do:
+      esql.query:
+        format: txt
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fmt | LIMIT 10'
+  - match: { $body: '/^\s*id\s*\|\s*_unmapped_fields\s*\n-+\+-+\n1\s*\|.*f1.*n\.x.*$/' }
+

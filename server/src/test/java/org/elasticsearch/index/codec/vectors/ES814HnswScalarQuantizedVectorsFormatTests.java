@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
@@ -22,12 +23,24 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.search.vectors.DenseVectorQuery;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -210,6 +223,70 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedKnn
                     assertThat(offHeap, hasEntry(equalTo("veq"), greaterThan(0L)));
                     assertThat(offHeap, hasEntry("vec", (long) vector.length * Float.BYTES));
                 }
+            }
+        }
+    }
+
+    /**
+     * Regression test for <a href="https://github.com/elastic/elasticsearch/issues/163972">#163972</a>: exact-knn
+     * ({@link DenseVectorQuery}) scorers over segments written with this (pre-9.2 {@code int8_hnsw}) format must be
+     * unpositioned when handed out, so they can be combined with other clauses in a conjunction.
+     *
+     * <p>The legacy Lucene99 scalar-quantized reader relies on the default {@code VectorScorer#bulk}, which advances the
+     * scorer's iterator as a side effect. Building the bulk scorer eagerly therefore left the {@link DenseVectorQuery}
+     * iterator on its first document, and conjunctions such as the one built for knn {@code inner_hits} (the exact-knn
+     * query as a {@code MUST} clause plus the knn filter as a {@code FILTER} clause) failed with
+     * {@code Sub-iterators of ConjunctionDISI are not on the same document!}.
+     */
+    public void testExactKnnConjunctionOnLegacySegments() throws IOException {
+        int numDocs = TestUtil.nextInt(random(), 10, 100);
+        int expectedMatches = 0;
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig().setCodec(getCodec()))) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    doc.add(new KnnFloatVectorField("field", new float[] { 1f, i + 1f, 2f, 3f }, VectorSimilarityFunction.COSINE));
+                    // The first document does not match the filter, so the vector and filter iterators diverge from the start
+                    boolean match = i % 2 == 1;
+                    doc.add(new StringField("tag", match ? "match" : "other", Field.Store.NO));
+                    if (match) {
+                        expectedMatches++;
+                    }
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                searcher.setQueryCache(null);
+                float[] queryVector = new float[] { 1f, 2f, 3f, 4f };
+                Query filter = new TermQuery(new Term("tag", "match"));
+                Query knnQuery = random().nextBoolean()
+                    ? DenseVectorQuery.Floats.codecScored(queryVector, "field")
+                    : DenseVectorQuery.Floats.codecScored(queryVector, "field").filteredBy(filter);
+                Query conjunction = new BooleanQuery.Builder().add(knnQuery, BooleanClause.Occur.MUST)
+                    .add(filter, BooleanClause.Occur.FILTER)
+                    .build();
+
+                Weight knnWeight = searcher.createWeight(searcher.rewrite(knnQuery), ScoreMode.COMPLETE, 1f);
+                Weight conjunctionWeight = searcher.createWeight(searcher.rewrite(conjunction), ScoreMode.COMPLETE, 1f);
+                int matches = 0;
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    // Mirrors InnerHitsContext#intersect, which requests the scorer with a lead cost of 0
+                    ScorerSupplier conjunctionScorerSupplier = conjunctionWeight.scorerSupplier(ctx);
+                    if (conjunctionScorerSupplier != null) {
+                        Scorer scorer = conjunctionScorerSupplier.get(0);
+                        for (int doc = scorer.iterator().nextDoc(); doc != NO_MORE_DOCS; doc = scorer.iterator().nextDoc()) {
+                            assertThat(scorer.score(), greaterThan(0f));
+                            matches++;
+                        }
+                    }
+                    ScorerSupplier knnScorerSupplier = knnWeight.scorerSupplier(ctx);
+                    if (knnScorerSupplier != null) {
+                        assertEquals(-1, knnScorerSupplier.get(0).iterator().docID());
+                    }
+                }
+                assertEquals(expectedMatches, matches);
+                assertEquals(expectedMatches, searcher.count(conjunction));
             }
         }
     }

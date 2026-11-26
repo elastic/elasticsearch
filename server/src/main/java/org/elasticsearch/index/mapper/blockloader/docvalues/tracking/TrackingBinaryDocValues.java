@@ -27,7 +27,7 @@ public record TrackingBinaryDocValues(CircuitBreaker breaker, BinaryDocValues do
      * Circuit breaker space reserved for each reader. Measured in heap dumps
      * around from 1.5kb. This is an intentional overestimate.
      */
-    private static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(3).getBytes();
+    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(3).getBytes();
 
     public static TrackingBinaryDocValues get(CircuitBreaker breaker, LeafReaderContext context, String fieldName) throws IOException {
         return get(breaker, context, ctx -> ctx.reader().getBinaryDocValues(fieldName));

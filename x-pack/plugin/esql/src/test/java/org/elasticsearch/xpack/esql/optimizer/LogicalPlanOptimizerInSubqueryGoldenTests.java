@@ -1033,9 +1033,9 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // -- EVAL IN subquery: name-collision flush --
+    // -- EVAL IN subquery: name-collision --
 
-    public void testInSubqueryInEvalNameCollisionFlushesInterveningAlias() {
+    public void testInSubqueryInEvalNameCollisionInterveningAlias() {
         assumeTrue("Requires IN subquery in EVAL support", EsqlCapabilities.Cap.EVAL_IN_SUBQUERY.isEnabled());
         runGoldenTest("""
             FROM employees
@@ -1501,5 +1501,397 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             FROM employees
             | INLINE STATS c = COUNT(*) WHERE (emp_no IN (ROW a = 1 | KEEP a)) IS NOT NULL
             """, STAGES);
+    }
+
+    public void testForkMarkJoinUnmappedEvalNullifyDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees
+            | FORK
+                (WHERE emp_no IN (FROM employees | KEEP emp_no) OR false)
+                (WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testForkMarkJoinUnmappedEvalLoadDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM employees
+            | FORK
+                (WHERE emp_no IN (FROM employees | KEEP emp_no) OR false)
+                (WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testUnionAllMarkJoinUnmappedEvalNullifyDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) OR false),
+                 (FROM employees | WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testUnionAllMarkJoinUnmappedEvalLoadDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) OR false),
+                 (FROM employees | WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testForkFoldableLhsUnmappedEvalNullifyDoesNotLeakConst() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees
+            | FORK
+                (WHERE 10001 IN (ROW x = 10001) OR false)
+                (WHERE "Georgi" IN (ROW x = "Georgi") OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    // -- FORK inside an IN subquery, with a FORK in the host query before or after it: separate FORK scopes --
+
+    public void testForkInsideInSubqueryInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees
+                               | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                               | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testForkBeforeInSubqueryWithForkInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | WHERE emp_no IN (FROM employees
+                               | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                               | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryWithForkInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)
+            | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)
+            """, STAGES);
+    }
+
+    public void testForkBranchWithInSubqueryWithForkInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no IN (FROM employees
+                                     | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                                     | KEEP emp_no)) (WHERE true)
+            """, STAGES);
+    }
+
+    public void testForkInsideInSubqueryNotInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testForkBeforeInSubqueryWithForkNotInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | WHERE emp_no NOT IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryWithForkNotInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)
+            | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)
+            """, STAGES);
+    }
+
+    public void testForkBranchWithInSubqueryWithForkNotInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no NOT IN (FROM employees
+                                         | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                                         | KEEP emp_no))
+                   (WHERE true)
+            """, STAGES);
+    }
+
+    public void testForkInsideInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
+    public void testForkBeforeInSubqueryWithForkInEval() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | EVAL m = emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryWithForkInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)
+            """, STAGES);
+    }
+
+    public void testForkBranchWithInSubqueryWithForkInEval() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (EVAL m = emp_no IN (FROM employees
+                                        | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                                        | KEEP emp_no))
+                   (WHERE true)
+            """, STAGES);
+    }
+
+    public void testForkInsideInSubqueryInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS c = COUNT(*) WHERE emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
+    public void testForkBeforeInSubqueryWithForkInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | STATS c = COUNT(*) WHERE emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryWithForkInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS c = COUNT(*) WHERE emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            | FORK (WHERE c > 0) (WHERE c <= 0)
+            """, STAGES);
+    }
+
+    public void testForkBranchWithInSubqueryWithForkInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (STATS c = COUNT(*) WHERE emp_no IN (FROM employees
+                                                        | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                                                        | KEEP emp_no))
+                   (WHERE true)
+            """, STAGES);
+    }
+
+    public void testForkInsideInSubqueryInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
+    public void testForkBeforeInSubqueryWithForkInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | INLINE STATS c = COUNT(*) WHERE emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryWithForkInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)
+            """, STAGES);
+    }
+
+    public void testForkBranchWithInSubqueryWithForkInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (INLINE STATS c = COUNT(*) WHERE emp_no IN (FROM employees
+                                                               | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                                                               | KEEP emp_no))
+                   (WHERE true)
+            """, STAGES);
+    }
+
+    public void testForkInsideInSubqueryInMultiColumnWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no, salary
+            )
+            """, STAGES);
+    }
+
+    public void testForkBeforeInSubqueryWithForkInMultiColumnWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | WHERE (emp_no, salary) IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no, salary
+            )
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryWithForkInMultiColumnWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no, salary
+            )
+            | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)
+            """, STAGES);
+    }
+
+    public void testForkBranchWithInSubqueryWithForkInMultiColumnWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE (emp_no, salary) IN (FROM employees
+                                               | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                                               | KEEP emp_no, salary))
+                   (WHERE true)
+            """, STAGES);
+    }
+
+    // -- views and LET named subqueries that contain a FORK, read from or around an IN subquery --
+
+    public void testForkAfterViewWithInSubqueryContainingFork() {
+        runGoldenTest(
+            "FROM in_fork_view | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)",
+            STAGES,
+            Map.of(
+                "in_fork_view",
+                "FROM employees | WHERE emp_no IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)"
+            )
+        );
+    }
+
+    public void testForkAfterInSubqueryOverViewWithFork() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM fork_view | KEEP emp_no)
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000)"));
+    }
+
+    public void testForkOverViewWithForkInsideInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM fork_view | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000) | KEEP emp_no)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000)"));
+    }
+
+    public void testForkOverViewWithForkInsideInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (FROM fork_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5) | KEEP emp_no)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)"));
+    }
+
+    public void testForkOverViewWithForkInsideInSubqueryInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS c = COUNT(*) WHERE emp_no IN (FROM fork_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5) | KEEP emp_no)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)"));
+    }
+
+    public void testForkOverViewWithForkInsideInSubqueryInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE emp_no IN (FROM fork_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5) | KEEP emp_no)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)"));
+    }
+
+    public void testForkViewReadingInSubqueryWithForkOverViewFork() {
+        runGoldenTest("""
+            FROM fork_view
+            | WHERE emp_no IN (FROM fork_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5) | KEEP emp_no)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)"));
+    }
+
+    public void testForkAfterLetWithInSubqueryContainingFork() {
+        runGoldenTest("""
+            LET q = (
+                FROM employees
+                | WHERE emp_no IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)
+            );
+            FROM q
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryOverLetWithFork() {
+        runGoldenTest("""
+            LET q = (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000));
+            FROM employees
+            | WHERE emp_no IN (FROM q | KEEP emp_no)
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            """, STAGES);
+    }
+
+    public void testForkOverLetWithForkInsideInSubquery() {
+        runGoldenTest("""
+            LET q = (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000));
+            FROM employees
+            | WHERE emp_no IN (FROM q | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000) | KEEP emp_no)
+            """, STAGES);
+    }
+
+    // a time series subquery with a FORK, in an IN subquery
+
+    public void testForkInsideTimeSeriesInSubqueryInWhere() {
+        builder("""
+            TS k8s
+            | STATS m = MAX(network.bytes_in) BY cluster
+            | WHERE cluster IN (TS k8s | STATS m = MAX(network.bytes_in) BY cluster | FORK (WHERE m > 0) (WHERE m <= 0) | KEEP cluster)
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testForkAfterTimeSeriesInSubqueryWithForkInWhere() {
+        builder("""
+            TS k8s
+            | STATS m = MAX(network.bytes_in) BY cluster
+            | WHERE cluster IN (TS k8s | STATS m = MAX(network.bytes_in) BY cluster | FORK (WHERE m > 0) (WHERE m <= 0) | KEEP cluster)
+            | FORK (WHERE m > 5) (WHERE m <= 5)
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testForkInsideTimeSeriesInSubqueryInStatsWhere() {
+        builder("""
+            TS k8s
+            | STATS m = MAX(network.bytes_in) BY cluster
+            | STATS c = COUNT(*) WHERE cluster IN (TS k8s
+                                                   | STATS m = MAX(network.bytes_in) BY cluster
+                                                   | FORK (WHERE m > 0) (WHERE m <= 0)
+                                                   | KEEP cluster)
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 }

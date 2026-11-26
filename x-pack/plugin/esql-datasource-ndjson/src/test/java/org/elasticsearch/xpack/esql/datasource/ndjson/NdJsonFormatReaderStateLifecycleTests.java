@@ -40,7 +40,7 @@ import java.util.TreeSet;
 public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("noop"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     /**
@@ -53,6 +53,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         "settings",
         "resolvedSchema",
         "schemaSampleSize",
+        "schemaSampleBytes",
         "schemaMaxFields",
         "segmentSizeBytes",
         "datetimeFormatter",
@@ -78,23 +79,19 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         IDENTITY_NO_COPY
     }
 
-    private static final Map<String, WitherLifecycle> WITHER_LIFECYCLE = Map.of(
-        "withConfig",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withConfigTrackingConsumedKeys",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withSchema",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withDeclaredDateFormats",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withReadConfig",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withPushedFilter",
-        WitherLifecycle.IDENTITY_NO_COPY,
-        "withDeclaredTypeColumns",
-        WitherLifecycle.IDENTITY_NO_COPY,
-        "withDeclaredProvenanceBinding",
-        WitherLifecycle.IDENTITY_NO_COPY
+    private static final Map<String, WitherLifecycle> WITHER_LIFECYCLE = Map.ofEntries(
+        Map.entry("withConfig", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withSchema", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withDeclaredDateFormats", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withReadConfig", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withBlockFactory", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withSchemaSampleShare", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withSchemaSampleBytes", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withPushedFilter", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withDeclaredTypeColumns", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY)
     );
 
     /** Every declared instance field must be classified: immutable/config, or shared-mutable. */
@@ -195,6 +192,13 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
                             fieldOf(product, field)
                         );
                     }
+                    if (m.getName().equals("withBlockFactory")) {
+                        assertNotSame(
+                            "withBlockFactory must copy onto the distinct factory, not keep the node's",
+                            fieldOf(receiver, "blockFactory"),
+                            fieldOf(product, "blockFactory")
+                        );
+                    }
                 }
             }
         }
@@ -245,9 +249,14 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
             case "withSchema" -> new Object[] { List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG)) };
             case "withDeclaredDateFormats" -> new Object[] { Map.of("b", "yyyy-MM-dd") };
             case "withReadConfig" -> new Object[] { "0123456789abcdef0123456789abcdef" };
+            case "withBlockFactory" -> new Object[] {
+                BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build() };
+            case "withSchemaSampleShare" -> new Object[] { 8 };
+            case "withSchemaSampleBytes" -> new Object[] { 4096L };
             case "withPushedFilter" -> new Object[] { new Object() };
             case "withDeclaredTypeColumns" -> new Object[] { Set.of("a") };
             case "withDeclaredProvenanceBinding" -> new Object[] { true };
+            case "withHeaderBindingByProvenance" -> new Object[] { true };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };
     }

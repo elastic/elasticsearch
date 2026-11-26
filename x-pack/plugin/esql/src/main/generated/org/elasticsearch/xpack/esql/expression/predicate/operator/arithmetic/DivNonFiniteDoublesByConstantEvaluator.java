@@ -72,7 +72,7 @@ public abstract class DivNonFiniteDoublesByConstantEvaluator implements Expressi
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p)) {
           result.appendNull();
@@ -94,7 +94,7 @@ public abstract class DivNonFiniteDoublesByConstantEvaluator implements Expressi
   }
 
   public DoubleVector eval(int positionCount, DoubleVector lhsVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         double lhs = lhsVector.getDouble(p);
         result.appendDouble(p, Div.processNonFiniteDoublesByConstant(lhs, rhs()));

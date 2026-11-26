@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic;
 
-import org.apache.http.Header;
-import org.apache.http.HeaderElement;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -75,10 +73,8 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
 
     public void testBuildFailureStatusCodeException_ReturnsFor429_ShouldRetry_RetrievesFieldsFromHeaders() {
         int statusCode = 429;
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
         var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
+        when(response.getCode()).thenReturn(statusCode);
         var httpResult = new HttpResult(response, new byte[] {});
 
         when(response.getFirstHeader(AnthropicResponseHandler.REQUESTS_LIMIT)).thenReturn(
@@ -144,13 +140,9 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
     }
 
     private static RetryException callHandleFailureStatusCode(int statusCode, String inferenceEntityId) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(statusCode);
         var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
 
         var mockRequest = mock(OutboundRequest.class);

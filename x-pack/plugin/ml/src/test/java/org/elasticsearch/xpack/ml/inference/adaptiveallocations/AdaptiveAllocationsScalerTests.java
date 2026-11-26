@@ -162,14 +162,6 @@ public class AdaptiveAllocationsScalerTests extends ESTestCase {
         assertThat(adaptiveAllocationsScaler.scale(), equalTo(77));
     }
 
-    public void testAutoscaling_noMemoryCapLeavesFirstScaleUpUnaffected() {
-        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, SIXTY_SECONDS);
-        // No memory cap set (null) - e.g. before any runtime memory has been observed - so scaling is only bounded by
-        // the safeguard, exactly as it was before the memory cap existed.
-        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(1_000_000, 10_000_000, 1, 0.05), 10, 1);
-        assertThat(adaptiveAllocationsScaler.scale(), equalTo(32));
-    }
-
     public void testAutoscaling_scaleDownToZeroAllocations() {
         AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, FIFTEEN_MINUTES);
         // 1 hour with 1 request per 1 seconds, so don't scale.
@@ -222,6 +214,38 @@ public class AdaptiveAllocationsScalerTests extends ESTestCase {
         // another second with no requests, so scale to zero allocations.
         adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.05), 1, 1);
         assertThat(adaptiveAllocationsScaler.scale(), equalTo(0));
+    }
+
+    public void testAutoscaling_maybeInitTimeWithoutRequestsSeconds() {
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, FIFTEEN_MINUTES);
+
+        // The deployment has been without requests for 14 minutes and 50 seconds before the scaler was created,
+        // e.g. on a newly elected master. Initializing it again has no effect.
+        adaptiveAllocationsScaler.maybeInitTimeWithoutRequestsSeconds(890);
+        adaptiveAllocationsScaler.maybeInitTimeWithoutRequestsSeconds(0);
+
+        // another 5 seconds with no requests, so don't scale.
+        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.05), 5, 1);
+        assertThat(adaptiveAllocationsScaler.scale(), nullValue());
+
+        // another 10 seconds with no requests, so scale to zero allocations.
+        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.05), 10, 1);
+        assertThat(adaptiveAllocationsScaler.scale(), equalTo(0));
+    }
+
+    public void testAutoscaling_maybeInitTimeWithoutRequestsSeconds_hasNoEffectAfterProcessingStats() {
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, FIFTEEN_MINUTES);
+
+        // 10 seconds with a request, so don't scale.
+        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(1, 0, 0, 0.05), 10, 1);
+        assertThat(adaptiveAllocationsScaler.scale(), nullValue());
+
+        // The scaler already tracks the time without requests, so initializing it has no effect.
+        adaptiveAllocationsScaler.maybeInitTimeWithoutRequestsSeconds(1000);
+
+        // 10 seconds with no requests, so don't scale.
+        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.05), 10, 1);
+        assertThat(adaptiveAllocationsScaler.scale(), nullValue());
     }
 
     public void testAutoscaling_dontScaleDownToZeroAllocationsWhenMinAllocationsIsSet() {

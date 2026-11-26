@@ -82,6 +82,11 @@ import java.util.function.Consumer;
  *                         {@link StripeColumnScope#PROJECTED} (back-compat for call sites that predate the
  *                         setting); the compact constructor collapses {@code null} to that default so
  *                         readers do one check.
+ * @param statsStripeSink  where this chunk hands its pieces of the stripes it overlapped, so the pieces of one
+ *                         stripe become a single contribution instead of one per chunk (see
+ *                         {@link StripeStatsSink}). {@code null} — a reader driven outside a parallel read, in a
+ *                         test or a benchmark — makes each chunk publish its own pieces directly. Ignored when
+ *                         {@code statsStripeSize <= 0}, which disables stripe addressing altogether.
  * @param informationalWarningSink optional relay for client-visible lenient-policy warnings (see
  *                         {@link SkipWarnings}) raised while reading. {@code null} means the reader
  *                         leaves sink-only informational warnings disabled; {@link SkipWarnings}-based
@@ -90,12 +95,13 @@ import java.util.function.Consumer;
  *                         Driver-associated production reads must provide an explicit structured or buffered
  *                         sink; merely running on the driver thread is insufficient because ES|QL transports
  *                         compute warnings through {@code DriverCompletionInfo.warnings}.
- * @param fileHeaderColumns the file's own column names, in file order, read from its leading bytes.
- *                         {@code null} for every read that owns the file's start, and for formats that do
- *                         not name their columns in a header. Set only for a read that cannot see the
- *                         header but still has to know what the columns are called — a chunk after the
- *                         first of a header-bearing file whose declared schema binds by name. Binding such
- *                         a chunk by position instead would shift every column silently.
+ * @param fileHeaderColumns the file's own column names, in file order ({@link FormatReader#fileHeaderColumns}).
+ *                         Set for a read of a headered text file bound against a pinned schema: it names the
+ *                         columns and bounds how wide a row may be. A read that does not own the file's first line
+ *                         needs it; one that does reads its own header and ignores these. Binding a headered read by
+ *                         position instead would shift every column silently.
+ *                         An empty list states that the file has no columns (nothing to read); {@code null} states
+ *                         that none were supplied, which a text read that needs them rejects.
  * @param sharedErrorBudget per-read error budget shared between the columnar reader and
  *                         {@code SchemaAdaptingIterator}. When non-{@code null}, both the reader and the
  *                         adapter reference the same instance so that a single {@code max_errors} /
@@ -118,6 +124,7 @@ public record FormatReadContext(
     long statsStripeSize,
     boolean statsFileFinal,
     StripeColumnScope statsColumnScope,
+    @Nullable StripeStatsSink statsStripeSink,
     @Nullable Consumer<String> informationalWarningSink,
     @Nullable List<String> fileHeaderColumns,
     @Nullable CircuitBreaker breaker,
@@ -167,6 +174,7 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
+            statsStripeSink,
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
@@ -194,6 +202,7 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
+            statsStripeSink,
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
@@ -221,6 +230,7 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
+            statsStripeSink,
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
@@ -254,6 +264,8 @@ public record FormatReadContext(
         private List<String> fileHeaderColumns = null;
         private boolean statsFileFinal = false;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
+        @Nullable
+        private StripeStatsSink statsStripeSink = null;
         @Nullable
         private Consumer<String> informationalWarningSink = null;
         @Nullable
@@ -345,6 +357,16 @@ public record FormatReadContext(
         }
 
         /**
+         * Where this chunk hands its pieces of the stripes it overlapped (see
+         * {@link FormatReadContext#statsStripeSink()}). {@code null} makes the chunk publish them itself, one per
+         * stripe it touched. Orthogonal to {@link #stats}, which decides the grid.
+         */
+        public Builder statsStripeSink(@Nullable StripeStatsSink statsStripeSink) {
+            this.statsStripeSink = statsStripeSink;
+            return this;
+        }
+
+        /**
          * See {@link FormatReadContext#informationalWarningSink()}; {@code null} disables sink-only
          * warnings and retains legacy direct-header behavior for {@link SkipWarnings}-based paths.
          */
@@ -356,10 +378,10 @@ public record FormatReadContext(
         /**
          * The file's own column names, in file order, read from its leading bytes.
          * <p>
-         * Only set for a read that does NOT own the file's start but still needs to know what its columns
-         * are called — a chunk after the first of a header-bearing file whose declared schema binds by name.
-         * Such a chunk cannot see the header itself, and binding by position instead would silently shift
-         * every column. The component that cut the file into chunks reads the header once and states it here.
+         * Needed by a read of a header-bearing file that does not own the file's start but must know what its
+         * columns are called. The component that cut the file up reads the header
+         * ({@link FormatReader#fileHeaderColumns}) once and states it here for every split; a read that owns the
+         * file's first line reads its own header and ignores these.
          */
         public Builder fileHeaderColumns(@Nullable List<String> fileHeaderColumns) {
             this.fileHeaderColumns = fileHeaderColumns;
@@ -406,6 +428,7 @@ public record FormatReadContext(
                 statsStripeSize,
                 statsFileFinal,
                 statsColumnScope,
+                statsStripeSink,
                 informationalWarningSink,
                 fileHeaderColumns,
                 breaker,

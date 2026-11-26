@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
@@ -106,7 +105,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.native_memory.limit.size",
                 "ML native memory limit on this node.",
                 "bytes",
-                () -> new LongWithAttributes(nativeMemLimit, Map.of())
+                () -> nativeMemLimit
             )
         );
         metrics.add(
@@ -114,7 +113,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.native_memory.anomaly_detectors.usage",
                 "ML native memory used by anomaly detection jobs on this node.",
                 "bytes",
-                () -> new LongWithAttributes(nativeMemAdUsage, Map.of())
+                () -> nativeMemAdUsage
             )
         );
         metrics.add(
@@ -122,7 +121,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.native_memory.data_frame_analytics.usage",
                 "ML native memory used by data frame analytics jobs on this node.",
                 "bytes",
-                () -> new LongWithAttributes(nativeMemDfaUsage, Map.of())
+                () -> nativeMemDfaUsage
             )
         );
         metrics.add(
@@ -130,7 +129,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.native_memory.trained_models.usage",
                 "ML native memory used by trained models on this node.",
                 "bytes",
-                () -> new LongWithAttributes(nativeMemTrainedModelUsage, Map.of())
+                () -> nativeMemTrainedModelUsage
             )
         );
         metrics.add(
@@ -138,7 +137,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.native_memory.free.size",
                 "Free ML native memory on this node.",
                 "bytes",
-                () -> new LongWithAttributes(nativeMemFree, Map.of())
+                () -> nativeMemFree
             )
         );
     }
@@ -149,7 +148,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.anomaly_detectors.opening.current",
                 "Count of anomaly detection jobs in the opening state cluster-wide.",
                 "jobs",
-                () -> new LongWithAttributes(mlTaskStatusCounts.adOpeningCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.adOpeningCount, isMasterMap)
             )
         );
         metrics.add(
@@ -157,7 +156,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.anomaly_detectors.opened.current",
                 "Count of anomaly detection jobs in the opened state cluster-wide.",
                 "jobs",
-                () -> new LongWithAttributes(mlTaskStatusCounts.adOpenedCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.adOpenedCount, isMasterMap)
             )
         );
         metrics.add(
@@ -165,7 +164,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.anomaly_detectors.closing.current",
                 "Count of anomaly detection jobs in the closing state cluster-wide.",
                 "jobs",
-                () -> new LongWithAttributes(mlTaskStatusCounts.adClosingCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.adClosingCount, isMasterMap)
             )
         );
         metrics.add(
@@ -173,7 +172,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.anomaly_detectors.failed.current",
                 "Count of anomaly detection jobs in the failed state cluster-wide.",
                 "jobs",
-                () -> new LongWithAttributes(mlTaskStatusCounts.adFailedCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.adFailedCount, isMasterMap)
             )
         );
         metrics.add(
@@ -181,7 +180,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.datafeeds.starting.current",
                 "Count of datafeeds in the starting state cluster-wide.",
                 "datafeeds",
-                () -> new LongWithAttributes(mlTaskStatusCounts.datafeedStartingCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.datafeedStartingCount, isMasterMap)
             )
         );
         metrics.add(
@@ -189,7 +188,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.datafeeds.started.current",
                 "Count of datafeeds in the started state cluster-wide.",
                 "datafeeds",
-                () -> new LongWithAttributes(mlTaskStatusCounts.datafeedStartedCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.datafeedStartedCount, isMasterMap)
             )
         );
         metrics.add(
@@ -197,7 +196,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.datafeeds.stopping.current",
                 "Count of datafeeds in the stopping state cluster-wide.",
                 "datafeeds",
-                () -> new LongWithAttributes(mlTaskStatusCounts.datafeedStoppingCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.datafeedStoppingCount, isMasterMap)
             )
         );
         metrics.add(
@@ -205,7 +204,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.data_frame_analytics.starting.current",
                 "Count of data frame analytics jobs in the starting state cluster-wide.",
                 "jobs",
-                () -> new LongWithAttributes(mlTaskStatusCounts.dfaStartingCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.dfaStartingCount, isMasterMap)
             )
         );
         metrics.add(
@@ -213,7 +212,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.data_frame_analytics.started.current",
                 "Count of data frame analytics jobs in the started state cluster-wide.",
                 "jobs",
-                () -> new LongWithAttributes(mlTaskStatusCounts.dfaStartedCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.dfaStartedCount, isMasterMap)
             )
         );
         metrics.add(
@@ -221,7 +220,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.data_frame_analytics.reindexing.current",
                 "Count of data frame analytics jobs in the reindexing state cluster-wide.",
                 "jobs",
-                () -> new LongWithAttributes(mlTaskStatusCounts.dfaReindexingCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.dfaReindexingCount, isMasterMap)
             )
         );
         metrics.add(
@@ -229,7 +228,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.data_frame_analytics.analyzing.current",
                 "Count of data frame analytics jobs in the analyzing state cluster-wide.",
                 "jobs",
-                () -> new LongWithAttributes(mlTaskStatusCounts.dfaAnalyzingCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.dfaAnalyzingCount, isMasterMap)
             )
         );
         metrics.add(
@@ -237,7 +236,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.data_frame_analytics.stopping.current",
                 "Count of data frame analytics jobs in the stopping state cluster-wide.",
                 "jobs",
-                () -> new LongWithAttributes(mlTaskStatusCounts.dfaStoppingCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.dfaStoppingCount, isMasterMap)
             )
         );
         metrics.add(
@@ -245,7 +244,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.data_frame_analytics.failed.current",
                 "Count of data frame analytics jobs in the failed state cluster-wide.",
                 "jobs",
-                () -> new LongWithAttributes(mlTaskStatusCounts.dfaFailedCount, isMasterMap)
+                measurement -> measurement.record(mlTaskStatusCounts.dfaFailedCount, isMasterMap)
             )
         );
         metrics.add(
@@ -253,7 +252,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.trained_models.deployment.target_allocations.current",
                 "Sum of target trained model allocations across all deployments cluster-wide.",
                 "allocations",
-                () -> new LongWithAttributes(trainedModelAllocationCounts.trainedModelsTargetAllocations, isMasterMap)
+                measurement -> measurement.record(trainedModelAllocationCounts.trainedModelsTargetAllocations, isMasterMap)
             )
         );
         metrics.add(
@@ -261,7 +260,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.trained_models.deployment.current_allocations.current",
                 "Sum of current trained model allocations across all deployments cluster-wide.",
                 "allocations",
-                () -> new LongWithAttributes(trainedModelAllocationCounts.trainedModelsCurrentAllocations, isMasterMap)
+                measurement -> measurement.record(trainedModelAllocationCounts.trainedModelsCurrentAllocations, isMasterMap)
             )
         );
         metrics.add(
@@ -269,7 +268,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.trained_models.deployment.failed_allocations.current",
                 "Sum of failed trained model allocations across all deployments cluster-wide.",
                 "allocations",
-                () -> new LongWithAttributes(trainedModelAllocationCounts.trainedModelsFailedAllocations, isMasterMap)
+                measurement -> measurement.record(trainedModelAllocationCounts.trainedModelsFailedAllocations, isMasterMap)
             )
         );
         metrics.add(
@@ -277,7 +276,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.trained_models.deployment.fixed_allocations.current",
                 "Sum of current trained model allocations that do not use adaptive allocations (either enabled or disabled)",
                 "allocations",
-                () -> new LongWithAttributes(trainedModelAllocationCounts.deploymentsWithFixedAllocations, isMasterMap)
+                measurement -> measurement.record(trainedModelAllocationCounts.deploymentsWithFixedAllocations, isMasterMap)
             )
         );
         /*
@@ -288,7 +287,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "es.ml.trained_models.deployment.disabled_adaptive_allocations.current",
                 "Sum of current trained model allocations that have adaptive allocations disabled",
                 "allocations",
-                () -> new LongWithAttributes(trainedModelAllocationCounts.deploymentsWithDisabledAdaptiveAllocations, isMasterMap)
+                measurement -> measurement.record(trainedModelAllocationCounts.deploymentsWithDisabledAdaptiveAllocations, isMasterMap)
             )
         );
     }

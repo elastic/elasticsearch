@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.IntArrayList;
 
+import org.elasticsearch.sourcebatch.SourceSchema;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,10 +26,12 @@ import java.util.List;
  * <p>Resolution walks the leaf's dotted ancestors most-specific first and stops at the first one with a
  * {@link Mapper}, yielding one of the three {@link ColumnGroupLookup} outcomes.
  *
- * <p>The walk uses the flattened dotted path rather than the {@link org.elasticsearch.sourcebatch.SourceSchema}
- * parent-pointer tree, because the row path wraps source in {@code DotExpandingXContentParser} and so cannot tell
- * {@code {"flat.k":"v"}} from {@code {"flat":{"k":"v"}}}. A tree walk would diverge: for {@code {"flat.k":"v"}} the
- * leaf's parent is root, so there is no boundary at {@code flat} and the group lookup would miss.
+ * <p>The walk uses the flattened dotted path, which is the same for {@code {"h.values":[1]}} and {@code {"h":{"values":[1]}}}.
+ * The row path does not treat the two alike, though: a mapper such as {@code histogram} parses one source object at its own
+ * path, and only the second spelling has one. With subobjects enabled, {@code DotExpandingXContentParser} expands each dotted
+ * key into a separate object; with subobjects disabled, {@code h.values} is a field name of its own. For a
+ * {@link FieldMapper.ColumnGroup#SINGLE_OBJECT} mapper, callers therefore also check {@link #isDirectlyInOwnerObject} and
+ * fall back when the group does not come from one object at the owner's path.
  *
  * <p>Two columns in one group can share a relative key ({@code {"flat":{"a.b":1}}} and {@code {"flat":{"a":{"b":2}}}}
  * both yield {@code a.b}), including within a single document. That is safe here because a group mapper receives all of
@@ -56,8 +60,8 @@ public final class ColumnGroupResolver {
 
         /**
          * The nearest mapped ancestor is a plain field mapper, i.e. the document nests values beneath a leaf field.
-         * The sequential path rejects this as a document parsing error, so callers must fall back to it rather than
-         * treat the leaf as unmapped — under a {@code dynamic: false} prefix that would silently drop the value.
+         * The sequential path rejects this as a document parsing error or, with subobjects disabled, flattens the object into
+         * dotted fields, so callers must fall back to it rather than treat the leaf as unmapped, which could silently drop the value.
          *
          * @param ownerPath the conflicting mapper's full dotted path
          */
@@ -91,13 +95,28 @@ public final class ColumnGroupResolver {
             final String ancestorPath = leafPath.substring(0, dot);
             final Mapper ancestor = lookup.getMapper(ancestorPath);
             if (ancestor instanceof FieldMapper fieldMapper) {
-                return fieldMapper.resolvesColumnGroup()
+                return fieldMapper.resolvesColumnGroup() != FieldMapper.ColumnGroup.NONE
                     ? new ColumnGroupLookup.Owned(fieldMapper, ancestorPath, leafPath.substring(dot + 1))
                     : new ColumnGroupLookup.Conflict(fieldMapper, ancestorPath);
             }
             dot = leafPath.lastIndexOf('.', dot - 1);
         }
         return ColumnGroupLookup.NOT_OWNED;
+    }
+
+    /**
+     * Whether {@code leaf} sits directly in an object at the group owner's path {@code ownerPath}. For an owner at {@code h},
+     * {@code {"h":{"values":[1]}}} does, but {@code {"h.values":[1]}} does not: its parent is the root. Dots above the owner
+     * are fine, so for an owner at {@code a.h} both {@code {"a.h":{"values":[1]}}} and {@code {"a":{"h":{"values":[1]}}}} do.
+     * The two are still different objects, which callers that need a single object must check themselves.
+     *
+     * @param leafPath  the leaf's full path, {@link SourceSchema#getFullPath}
+     * @param ownerPath the group owner's full path, a dotted prefix of {@code leafPath}
+     */
+    public static boolean isDirectlyInOwnerObject(SourceSchema schema, int leaf, String leafPath, String ownerPath) {
+        assert leafPath.startsWith(ownerPath + ".") : leafPath + " is not under " + ownerPath;
+        // The parent's full path is the prefix of leafPath before the leaf's own name.
+        return schema.getLeafParent(leaf) != 0 && leafPath.length() - schema.getLeafName(leaf).length() - 1 == ownerPath.length();
     }
 
     /**

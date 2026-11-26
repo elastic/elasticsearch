@@ -20,8 +20,10 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
 import org.elasticsearch.xpack.core.inference.results.CompletionResults;
+import org.elasticsearch.xpack.core.inference.results.DecisionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DocumentExtractionResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -79,7 +81,11 @@ import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddin
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalServiceSettings;
@@ -126,6 +132,13 @@ import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCo
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.rerank.OciGenAiRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.rerank.OciGenAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
@@ -190,6 +203,7 @@ public class InferenceNamedWriteablesProvider {
         addAzureAiStudioNamedWriteables(namedWriteables);
         addGoogleAiStudioNamedWritables(namedWriteables);
         addIbmWatsonxNamedWritables(namedWriteables);
+        addOciGenAiNamedWriteables(namedWriteables);
         addGoogleVertexAiNamedWriteables(namedWriteables);
         addMistralNamedWriteables(namedWriteables);
         addCustomElandWriteables(namedWriteables);
@@ -708,6 +722,42 @@ public class InferenceNamedWriteablesProvider {
         );
     }
 
+    private static void addOciGenAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(SecretSettings.class, OciGenAiSecretSettings.NAME, OciGenAiSecretSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OciGenAiEmbeddingsServiceSettings.NAME,
+                OciGenAiEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, OciGenAiEmbeddingsTaskSettings.NAME, OciGenAiEmbeddingsTaskSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OciGenAiChatCompletionServiceSettings.NAME,
+                OciGenAiChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                OciGenAiChatCompletionTaskSettings.NAME,
+                OciGenAiChatCompletionTaskSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, OciGenAiRerankServiceSettings.NAME, OciGenAiRerankServiceSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, OciGenAiRerankTaskSettings.NAME, OciGenAiRerankTaskSettings::new)
+        );
+    }
+
     private static void addGoogleVertexAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(SecretSettings.class, GoogleVertexAiSecretSettings.NAME, GoogleVertexAiSecretSettings::new)
@@ -851,6 +901,10 @@ public class InferenceNamedWriteablesProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, RankedDocsResults.NAME, RankedDocsResults::new)
+        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceServiceResults.class, DecisionResults.NAME, DecisionResults::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, DocumentExtractionResults.NAME, DocumentExtractionResults::new)
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
@@ -1050,12 +1104,44 @@ public class InferenceNamedWriteablesProvider {
             )
         );
 
+        // Document Extraction
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                ElasticInferenceServiceDocumentExtractionServiceSettings.NAME,
+                ElasticInferenceServiceDocumentExtractionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                ElasticInferenceServiceDocumentExtractionTaskSettings.NAME,
+                ElasticInferenceServiceDocumentExtractionTaskSettings::new
+            )
+        );
+
         // Dense Embeddings
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,
                 ElasticInferenceServiceDenseEmbeddingsServiceSettings.NAME,
                 ElasticInferenceServiceDenseEmbeddingsServiceSettings::new
+            )
+        );
+
+        // Decision
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                ElasticInferenceServiceDecisionServiceSettings.NAME,
+                ElasticInferenceServiceDecisionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                ElasticInferenceServiceDecisionTaskSettings.NAME,
+                ElasticInferenceServiceDecisionTaskSettings::new
             )
         );
     }

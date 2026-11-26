@@ -45,6 +45,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -1040,6 +1041,79 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.field("@timestamp", "2021-04-28T00:01:00Z");
             build.accept(b);
         });
+    }
+
+    private DocumentMapper createColumnarMapperWithFullFieldLimit(IndexMode indexMode, Boolean ignoreDynamicBeyondLimit)
+        throws IOException {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), indexMode.getName())
+            .put("index.mapping.total_fields.limit", 2);
+        if (ignoreDynamicBeyondLimit != null) {
+            settings.put("index.mapping.total_fields.ignore_dynamic_beyond_limit", ignoreDynamicBeyondLimit);
+        }
+        return createMapperService(settings.build(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("known").field("type", "keyword").endObject();
+        })).documentMapper();
+    }
+
+    private static List<String> ignoredFieldNames(ParsedDocument doc) {
+        return doc.rootDoc()
+            .getFields(IgnoredFieldMapper.NAME)
+            .stream()
+            .filter(f -> f.stringValue() != null)
+            .map(IndexableField::stringValue)
+            .toList();
+    }
+
+    public void testColumnarDynamicFieldBeyondLimitIsIgnored() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithFullFieldLimit(indexMode, true);
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("known", "value").field("beyond_limit", 42)));
+            assertFalse("mapped field must still be indexed", doc.rootDoc().getFields("known").isEmpty());
+            assertTrue("field beyond the limit must not be indexed", doc.rootDoc().getFields("beyond_limit").isEmpty());
+            assertNull("field beyond the limit must not be mapped", doc.dynamicMappingsUpdate());
+            assertNull("columnar modes must not keep the value in _ignored_source", doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
+            assertThat(ignoredFieldNames(doc), containsInAnyOrder("beyond_limit"));
+        }
+    }
+
+    public void testColumnarDynamicObjectsAndArraysBeyondLimitAreIgnored() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithFullFieldLimit(indexMode, true);
+            ParsedDocument doc = mapper.parse(columnarSource(b -> {
+                b.field("known", "value");
+                b.startObject("obj").field("a", 1).field("b", 2).endObject();
+                b.array("arr", 1, 2, 3);
+                b.startArray("obj_arr").startObject().field("c", 1).endObject().endArray();
+            }));
+            assertFalse("mapped field must still be indexed", doc.rootDoc().getFields("known").isEmpty());
+            assertNull("fields beyond the limit must not be mapped", doc.dynamicMappingsUpdate());
+            assertNull("columnar modes must not keep the value in _ignored_source", doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
+            assertThat(ignoredFieldNames(doc), containsInAnyOrder("obj.a", "obj.b", "arr", "obj_arr", "obj_arr.c"));
+        }
+    }
+
+    public void testLogsdbColumnarIgnoresDynamicFieldBeyondLimitByDefault() throws Exception {
+        DocumentMapper mapper = createColumnarMapperWithFullFieldLimit(IndexMode.LOGSDB_COLUMNAR, null);
+        ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("known", "value").field("beyond_limit", 42)));
+        assertTrue(doc.rootDoc().getFields("beyond_limit").isEmpty());
+        assertThat(ignoredFieldNames(doc), containsInAnyOrder("beyond_limit"));
+    }
+
+    public void testColumnarDynamicFieldBeyondLimitIsRejectedWithoutIgnoreSetting() throws Exception {
+        List<DocumentMapper> mappers = List.of(
+            createColumnarMapperWithFullFieldLimit(IndexMode.COLUMNAR, null),
+            createColumnarMapperWithFullFieldLimit(IndexMode.COLUMNAR, false),
+            createColumnarMapperWithFullFieldLimit(IndexMode.LOGSDB_COLUMNAR, false)
+        );
+        for (DocumentMapper mapper : mappers) {
+            DocumentParsingException e = expectThrows(
+                DocumentParsingException.class,
+                () -> mapper.parse(columnarSource(b -> b.field("known", "value").field("beyond_limit", 42)))
+            );
+            assertThat(e.getMessage(), containsString("Limit of total fields [2] has been exceeded"));
+        }
     }
 
     public void testColumnarPerPrefixDynamicFalseDropsLeafDottedNotation() throws Exception {
@@ -2410,6 +2484,32 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(doc.rootDoc().getField("service.test.other.dots"));
     }
 
+    /**
+     * Verifies that an array of objects is indexed correctly when subobjects:false and dynamic:false are combined.
+     * Previously, parseArrayDynamic skipped the entire array on dynamic:false without checking whether mapped dotted
+     * fields (e.g. "objarr.k") exist under the array field name, so documents like {"objarr": [{"k":"p"}]} produced
+     * no indexed values for "objarr.k" even though {"objarr": {"k":"p"}} worked fine.
+     */
+    public void testSubobjectsFalseRootDynamicFalseArrayOfObjects() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("subobjects", false).field("dynamic", "false");
+            b.startObject("properties");
+            b.startObject("objarr.j").field("type", "keyword").endObject();
+            b.startObject("objarr.k").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+
+        // plain object: must index objarr.k
+        ParsedDocument docPlain = mapper.parse(source("""
+            { "id": "66", "objarr": { "k": "p" } }"""));
+        assertNotNull(docPlain.rootDoc().getField("objarr.k"));
+
+        // array of objects: must also index objarr.k for each element
+        ParsedDocument docArray = mapper.parse(source("""
+            { "id": "6", "objarr": [ { "k": "p" }, { "k": "q" } ] }"""));
+        assertNotNull(docArray.rootDoc().getField("objarr.k"));
+    }
+
     public void testSubobjectsFalseStructuredPath() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
@@ -2428,6 +2528,47 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             """));
         assertNoSubobjects(doc);
+    }
+
+    public void testSubobjectsFalseRootDottedKeyIntoNestedStrictColumnar() throws Exception {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> {
+                b.startObject("n").field("type", "nested");
+                b.startObject("properties").startObject("k").field("type", "keyword").endObject().endObject();
+                b.endObject();
+            })
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
+        // object notation keeps working
+        ParsedDocument doc = mapper.parse(source("{\"n\": {\"k\": \"a\"}}"));
+        assertEquals(2, doc.docs().size());
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("{\"n.k\": \"a\"}")));
+        assertThat(e.getMessage(), containsString("field [n.k] can not be indexed as a leaf field"));
+    }
+
+    public void testSubobjectsFalseRootDottedKeyIntoNestedFlattenedStrictColumnar() throws Exception {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> {
+                b.startObject("n").field("type", "nested").startObject("properties");
+                b.startObject("f").field("type", "flattened").endObject();
+                b.endObject().endObject();
+            })
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
+        // object notation keeps working
+        ParsedDocument doc = mapper.parse(source("{\"n\": {\"f\": {\"key\": \"a\"}}}"));
+        assertEquals(2, doc.docs().size());
+        // the flattened value ends up in the nested document, not in the root document
+        assertNotNull(doc.docs().get(0).getField("n.f._keyed"));
+        assertNull(doc.rootDoc().getField("n.f._keyed"));
+
+        for (String json : List.of("{\"n.f.key\": \"a\"}", "{\"n.f\": {\"key\": \"a\"}}")) {
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(json)));
+            assertThat(json, e.getMessage(), containsString("field [n.f.key] can not be indexed as a leaf field"));
+        }
     }
 
     public void testSubobjectsFalseFlatPaths() throws Exception {
@@ -3139,6 +3280,57 @@ public class DocumentParserTests extends MapperServiceTestCase {
             { "host": { "name": "localhost" } }
             """));
         assertThat(doc.rootDoc().getField("host.name"), instanceOf(KeywordFieldMapper.KeywordField.class));
+    }
+
+    /**
+     * An array of objects under a mapped prefix must reach the mapped dotted leaf, like a single object does, rather than being skipped by
+     * dynamic:false or rejected by dynamic:strict. Covers an explicit subobjects:false root and the implicit one of a columnar index mode.
+     */
+    public void testSubobjectsFalseArrayOfObjectsUnderMappedPrefixNonDynamic() throws Exception {
+        String dynamic = randomFrom("false", "strict");
+        for (IndexMode indexMode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            DocumentMapper mapper = createMapperService(settings, topMapping(b -> {
+                b.field("dynamic", dynamic);
+                if (indexMode == IndexMode.STANDARD) {
+                    b.field("subobjects", false);
+                }
+                b.startObject("properties");
+                {
+                    // LOGSDB_COLUMNAR is a data-stream mode that requires @timestamp to be mapped.
+                    b.startObject("@timestamp").field("type", "date").endObject();
+                    b.startObject("o.k").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            })).documentMapper();
+
+            List<String> values = randomList(1, 5, () -> randomAlphaOfLength(8));
+            ParsedDocument doc = mapper.parse(columnarSource(b -> {
+                b.startArray("o");
+                for (String value : values) {
+                    b.startObject().field("k", value).endObject();
+                }
+                b.endArray();
+            }));
+
+            assertFalse(indexMode + " must index the mapped leaf [o.k]", doc.rootDoc().getFields("o.k").isEmpty());
+
+            if (indexMode == IndexMode.STANDARD) {
+                assertThat(
+                    doc.rootDoc().getFields("o.k").stream().map(f -> f.binaryValue().utf8ToString()).toList(),
+                    containsInAnyOrder(values.toArray())
+                );
+            }
+
+            // unmapped leaves inside the array elements still follow the dynamic setting
+            SourceToParse unmapped = columnarSource(b -> b.startArray("o").startObject().field("other", "x").endObject().endArray());
+            if (dynamic.equals("strict")) {
+                DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(unmapped));
+                assertThat(e.getMessage(), containsString("dynamic introduction of [o.other]"));
+            } else {
+                assertTrue(mapper.parse(unmapped).rootDoc().getFields("o.other").isEmpty());
+            }
+        }
     }
 
     public void testSubobjectsFalseWithStrictDynamicRejectsUnmappedPrefix() throws Exception {

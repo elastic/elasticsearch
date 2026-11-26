@@ -22,6 +22,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
     private static final String DIMENSION_VALUES = "dimension_values";
     private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
     private static final String PACK_DIMS_AGG = "pack_dims_agg";
+    private static final String ESQL_SUM_LONG_AS_DOUBLE = "esql_sum_long_as_double";
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -82,6 +83,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
         builder("PROMQL index=k8s step=1m bytes=(avg by (cluster) (network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(ESQL_SUM_LONG_AS_DOUBLE)
             .run();
     }
 
@@ -156,6 +158,33 @@ public class PromqlGoldenTests extends GoldenTestCase {
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
             .run();
+    }
+
+    public void testLimitRatio() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL limit_ratio support", EsqlCapabilities.Cap.PROMQL_LIMIT_RATIO.isEnabled());
+        builder("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
+    }
+
+    public void testLimitRatioByGrouping() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL limit_ratio support", EsqlCapabilities.Cap.PROMQL_LIMIT_RATIO.isEnabled());
+        builder("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in) by (pod))").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
+    }
+
+    /**
+     * Sampling over an aggregate uses both surviving grouping columns as the series identity.
+     */
+    public void testLimitRatioOverSumBy() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL limit_ratio support", EsqlCapabilities.Cap.PROMQL_LIMIT_RATIO.isEnabled());
+        builder("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod, cluster) (network.bytes_in)))").expectationChangesAt(
+            DIMENSION_VALUES
+        ).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     // Grouping on a derived label materializes it as a concrete column and pins where the relabel derivation sits relative

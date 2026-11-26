@@ -166,6 +166,10 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
         "signer_override",
         "test_signer",
         "disable_chunked_encoding",
+        "true",
+        "legacy_content_md5",
+        "true",
+        "unsafely_omit_request_body_checksums",
         "true"
     );
 

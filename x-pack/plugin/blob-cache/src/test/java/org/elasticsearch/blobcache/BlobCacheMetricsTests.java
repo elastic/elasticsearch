@@ -253,8 +253,6 @@ public class BlobCacheMetricsTests extends ESTestCase {
         long now = fakeNowMillis.get();
         long justOver14Days = TimeValue.timeValueDays(14).getMillis() + 1;
         long oneYear = TimeValue.timeValueDays(365).getMillis();
-        assertEquals(TimeRangeBucket.OlderThan14Days.label(), TimeRangeBucket.resolve(justOver14Days));
-        assertEquals(TimeRangeBucket.OlderThan14Days.label(), TimeRangeBucket.resolve(oneYear));
         assertTrue(justOver14Days > TimeRangeBucket.FourteenDays.millis());
         assertTrue(justOver14Days <= TimeRangeBucket.OlderThan14Days.millis());
         assertTrue(oneYear <= TimeRangeBucket.OlderThan14Days.millis());
@@ -271,12 +269,12 @@ public class BlobCacheMetricsTests extends ESTestCase {
         );
     }
 
-    public void testFutureDatedTimestampRecordsNegativeAge() {
+    public void testFutureDatedTimestampRecordsZeroAge() {
         long now = fakeNowMillis.get();
         metrics.recordRead(now + 1_000);
         List<Measurement> readAges = ageMeasurements(BLOB_CACHE_READ_AGE);
         assertThat(readAges, hasSize(1));
-        assertEquals(TimeRangeBucket.toHours(-1_000), readAges.getFirst().getDouble(), 0.0);
+        assertEquals(0.0, readAges.getFirst().getDouble(), 0.0);
     }
 
     public void testSentinelsOmittedFromHistogramsAndTotalsRemainUnattributed() {

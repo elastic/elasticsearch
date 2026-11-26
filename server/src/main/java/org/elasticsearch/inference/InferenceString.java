@@ -44,6 +44,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     public static final TransportVersion URL_INPUT_FORMAT_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_url_input_format_support"
     );
+    public static final TransportVersion HTML_INPUT_SUPPORT_ADDED = TransportVersion.fromName("inference_api_html_input_support");
 
     // Caps regex cost regardless of total input size; real MIME types are well under this.
     static final int MAX_DATA_URI_PREFIX_LENGTH = 256;
@@ -263,6 +264,13 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
             throw new ElasticsearchStatusException(
                 "Cannot send an inference request with audio, video or pdf inputs to an older node. "
                     + "Please wait until all nodes are upgraded before using audio, video or pdf inputs",
+                RestStatus.BAD_REQUEST
+            );
+        }
+        if (out.getTransportVersion().supports(HTML_INPUT_SUPPORT_ADDED) == false && dataType.equals(DataType.HTML)) {
+            throw new ElasticsearchStatusException(
+                "Cannot send an inference request with html inputs to an older node. "
+                    + "Please wait until all nodes are upgraded before using html inputs",
                 RestStatus.BAD_REQUEST
             );
         }

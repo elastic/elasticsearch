@@ -108,6 +108,12 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         return createKnnVectorQueryBuilder(VECTOR_FIELD, 1, 10, null, null, null).addFilterQuery(queryBuilder);
     }
 
+    @Override
+    protected List<QueryBuilder> subQueriesHiddenFromVisit(QueryBuilder builder) {
+        // the filters are built with the one-argument toQuery and are not visited by the knn query
+        return builder instanceof KnnVectorQueryBuilder knn ? knn.filterQueries() : List.of();
+    }
+
     protected boolean isQuantizedElementType() {
         return QUANTIZED_INDEX_TYPES.contains(indexType);
     }
@@ -607,6 +613,21 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         QueryBuilder deserializedQuery = copyNamedWriteable(newQuery, namedWriteableRegistry(), QueryBuilder.class, version);
         assertEquals(bwcQuery, deserializedQuery);
         assertEquals(bwcQuery.hashCode(), deserializedQuery.hashCode());
+    }
+
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/162295">#162295</a>: sibling knn queries wrapped in another query
+     * type in a bool must clause make each knn consume the other as a prefilter. The wrapped prefilter query prevents the recursion break
+     * in {@code applyAutoPrefilteringIfEnabled} from functioning, leading to infinite recursion on the knn query used as a prefilter.
+     */
+    public void testAutoPrefilteringWithWrappedKnnSiblingsInMustDoesNotRecurse() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        KnnVectorQueryBuilder knnA = createKnnVectorQueryBuilder(VECTOR_FIELD, 5, 10, null, null, null).setAutoPrefilteringEnabled(true);
+        KnnVectorQueryBuilder knnB = createKnnVectorQueryBuilder(VECTOR_FIELD, 5, 10, null, null, null).setAutoPrefilteringEnabled(true);
+        BoolQueryBuilder bool = QueryBuilders.boolQuery()
+            .must(QueryBuilders.constantScoreQuery(knnA))
+            .must(QueryBuilders.constantScoreQuery(knnB));
+        assertNotNull(bool.toQuery(context));
     }
 
     public void testRewriteForInnerHits() throws IOException {

@@ -38,7 +38,7 @@ public record NodeHeapMetrics(String nodeId, long totalBytes, NodeHeapEstimates 
             return new NodeHeapMetrics(nodeId, totalBytes, nodeHeapEstimate);
         } else {
             final long totalHeapUsage = in.readVLong();
-            return new NodeHeapMetrics(nodeId, totalBytes, new NodeHeapEstimates(totalHeapUsage, 0));
+            return new NodeHeapMetrics(nodeId, totalBytes, new NodeHeapEstimates(totalHeapUsage, 0L, 0L));
         }
     }
 

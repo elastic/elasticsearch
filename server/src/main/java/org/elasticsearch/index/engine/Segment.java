@@ -15,18 +15,25 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.ComputedKeySortField;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
+import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
 public class Segment implements Writeable {
+
+    static final TransportVersion SEGMENT_AUTO_CALIBRATION = TransportVersion.fromName("segment_auto_calibration");
+    static final TransportVersion SEGMENT_COMPUTED_SORT_KEY = TransportVersion.fromName("segment_computed_sort_key");
 
     private String name;
     private long generation;
@@ -40,6 +47,9 @@ public class Segment implements Writeable {
     public String mergeId;
     public Sort segmentSort;
     public Map<String, String> attributes;
+    public Map<String, SegmentCalibrationParameters> autoCalibrationParams;
+    public Map<String, Long> autoCalibrationVectorCounts;
+    public Map<String, Long> autoCalibrationSizeBytes;
 
     public Segment(StreamInput in) throws IOException {
         name = in.readString();
@@ -60,6 +70,17 @@ public class Segment implements Writeable {
             attributes = in.readMap(StreamInput::readString);
         } else {
             attributes = null;
+        }
+        if (in.getTransportVersion().supports(SEGMENT_AUTO_CALIBRATION)) {
+            if (in.readBoolean()) {
+                autoCalibrationParams = in.readMap(StreamInput::readString, SegmentCalibrationParameters::readFrom);
+            }
+            if (in.readBoolean()) {
+                autoCalibrationVectorCounts = in.readMap(StreamInput::readString, StreamInput::readVLong);
+            }
+            if (in.readBoolean()) {
+                autoCalibrationSizeBytes = in.readMap(StreamInput::readString, StreamInput::readVLong);
+            }
         }
     }
 
@@ -163,6 +184,26 @@ public class Segment implements Writeable {
         if (hasAttributes) {
             out.writeMap(attributes, StreamOutput::writeString);
         }
+        if (out.getTransportVersion().supports(SEGMENT_AUTO_CALIBRATION)) {
+            if (autoCalibrationParams != null) {
+                out.writeBoolean(true);
+                out.writeMap(autoCalibrationParams, StreamOutput::writeString, (o, p) -> p.writeTo(o));
+            } else {
+                out.writeBoolean(false);
+            }
+            if (autoCalibrationVectorCounts != null) {
+                out.writeBoolean(true);
+                out.writeMap(autoCalibrationVectorCounts, StreamOutput::writeString, StreamOutput::writeVLong);
+            } else {
+                out.writeBoolean(false);
+            }
+            if (autoCalibrationSizeBytes != null) {
+                out.writeBoolean(true);
+                out.writeMap(autoCalibrationSizeBytes, StreamOutput::writeString, StreamOutput::writeVLong);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     private static final byte SORT_STRING_SET = 0;
@@ -171,6 +212,7 @@ public class Segment implements Writeable {
     private static final byte SORT_DOUBLE = 3;
     private static final byte SORT_LONG = 4;
     private static final byte SORT_STRING_SINGLE = 5;
+    private static final byte SORT_COMPUTED_KEY = 6;
 
     private static Sort readSegmentSort(StreamInput in) throws IOException {
         int size = in.readVInt();
@@ -201,6 +243,10 @@ public class Segment implements Writeable {
                     : missingFirst ? SortedSetSortField.STRING_FIRST
                     : SortedSetSortField.STRING_LAST;
                 fields[i] = new SortField(field, SortField.Type.STRING, reverse, missingValue);
+            } else if (type == SORT_COMPUTED_KEY) {
+                boolean reverse = in.readBoolean();
+                boolean nullsFirst = in.readBoolean();
+                fields[i] = new ComputedKeySortField(field, reverse, nullsFirst);
             } else {
                 Object missing = in.readGenericValue();
                 boolean max = in.readBoolean();
@@ -237,24 +283,47 @@ public class Segment implements Writeable {
                 o.writeBoolean(((SortedSetSortField) field).getSelector() == SortedSetSelector.Type.MAX);
                 o.writeBoolean(field.getReverse());
             } else if (field instanceof SortedNumericSortField) {
-                switch (((SortedNumericSortField) field).getNumericType()) {
-                    case INT -> o.writeByte(SORT_INT);
-                    case FLOAT -> o.writeByte(SORT_FLOAT);
-                    case DOUBLE -> o.writeByte(SORT_DOUBLE);
-                    case LONG -> o.writeByte(SORT_LONG);
-                    default -> throw new IOException("invalid index sort field:" + field);
-                }
+                o.writeByte(numericSortType(((SortedNumericSortField) field).getNumericType(), field));
                 o.writeGenericValue(field.getMissingValue());
                 o.writeBoolean(((SortedNumericSortField) field).getSelector() == SortedNumericSelector.Type.MAX);
+                o.writeBoolean(field.getReverse());
+            } else if (field instanceof ColumnarNumericSortField columnar) {
+                // Written exactly like the SortedNumericSortField it describes, and read back as one: a segment's sort is only
+                // reported, never applied.
+                o.writeByte(numericSortType(field.getType(), field));
+                o.writeGenericValue(field.getMissingValue());
+                o.writeBoolean(columnar.maxMode());
                 o.writeBoolean(field.getReverse());
             } else if (field.getType().equals(SortField.Type.STRING)) {
                 o.writeByte(SORT_STRING_SINGLE);
                 o.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
                 o.writeBoolean(field.getReverse());
+            } else if (field instanceof ComputedKeySortField computedKey) {
+                if (o.getTransportVersion().supports(SEGMENT_COMPUTED_SORT_KEY)) {
+                    o.writeByte(SORT_COMPUTED_KEY);
+                    o.writeBoolean(field.getReverse());
+                    o.writeBoolean(computedKey.nullsFirst());
+                    return;
+                }
+                // Older nodes read it as a long sort on the key's text
+                o.writeByte(SORT_LONG);
+                o.writeGenericValue(field.getMissingValue());
+                o.writeBoolean(false);
+                o.writeBoolean(field.getReverse());
             } else {
                 throw new IOException("invalid index sort field:" + field);
             }
         }, sort.getSort());
+    }
+
+    private static byte numericSortType(SortField.Type type, SortField field) throws IOException {
+        return switch (type) {
+            case INT -> SORT_INT;
+            case FLOAT -> SORT_FLOAT;
+            case DOUBLE -> SORT_DOUBLE;
+            case LONG -> SORT_LONG;
+            default -> throw new IOException("invalid index sort field:" + field);
+        };
     }
 
     private static void readRamTree(StreamInput in) throws IOException {

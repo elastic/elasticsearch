@@ -20,7 +20,6 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.PresentDocIterator;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -47,25 +46,26 @@ public final class ColumnarTsidCalculator {
 
     /**
      * Resolved dimension column: leaf schema index, full dotted path, precomputed path hash, and the
-     * path's {@link TsidBuilder#prefixByteRank} (order-independent, so it is resolved up front).
+     * path's {@link TsidBuilder#prefixByteRank} and {@link TsidBuilder#isPrefixedDimension} (both
+     * order-independent, so they are resolved up front).
      */
-    private record DimColumn(int leafIdx, String path, long pathH1, long pathH2, int prefixRank) {}
+    private record DimColumn(int leafIdx, String path, long pathH1, long pathH2, int prefixRank, boolean prefixedDimension) {}
 
     /**
-     * @param batch           column-major document batch; must be an {@link EscfBatch}
-     * @param isDimension     returns {@code true} for dimension field full paths
-     * @param creationVersion selects the tsid layout
+     * @param batch       column-major document batch; must be an {@link EscfBatch}
+     * @param isDimension returns {@code true} for dimension field full paths
+     * @param layout      the tsid layout of the index
      * @return one {@link BytesRef} tsid per row
      * @throws UnsupportedOperationException if {@code batch} is not an {@link EscfBatch}
      * @throws IllegalArgumentException      if a dimension column has kind {@code BINARY}, or a row
      *                                       has no dimension values
      */
-    public static BytesRef[] computeTsids(SourceBatch batch, Predicate<String> isDimension, IndexVersion creationVersion) {
-        return computeTsids(batch, isDimension, creationVersion, null);
+    public static BytesRef[] computeTsids(SourceBatch batch, Predicate<String> isDimension, TsidLayout layout) {
+        return computeTsids(batch, isDimension, layout, null);
     }
 
     /**
-     * Variant of {@link #computeTsids(SourceBatch, Predicate, IndexVersion)} that computes tsids only
+     * Variant of {@link #computeTsids(SourceBatch, Predicate, TsidLayout)} that computes tsids only
      * for a subset of rows.
      *
      * <p>The full batch is still scanned column by column, but only the rows listed in {@code rows}
@@ -73,17 +73,12 @@ public final class ColumnarTsidCalculator {
      * has length {@code rows.length}, with {@code result[k]} being the tsid for {@code rows[k]}.
      *
      * <p>When {@code rows} is null the behaviour is identical to
-     * {@link #computeTsids(SourceBatch, Predicate, IndexVersion)}: every row contributes and the result
+     * {@link #computeTsids(SourceBatch, Predicate, TsidLayout)}: every row contributes and the result
      * has length {@code batch.docCount()}.
      *
      * @param rows batch row indices in the subset, or null for all rows
      */
-    public static BytesRef[] computeTsids(
-        SourceBatch batch,
-        Predicate<String> isDimension,
-        IndexVersion creationVersion,
-        @Nullable int[] rows
-    ) {
+    public static BytesRef[] computeTsids(SourceBatch batch, Predicate<String> isDimension, TsidLayout layout, @Nullable int[] rows) {
         if (batch instanceof EscfBatch == false) {
             throw new UnsupportedOperationException(
                 "ColumnarTsidCalculator requires an EscfBatch; got " + batch.getClass().getSimpleName()
@@ -91,12 +86,14 @@ public final class ColumnarTsidCalculator {
         }
         EscfBatch escfBatch = (EscfBatch) batch;
 
-        List<DimColumn> dimColumns = resolveDimColumns(escfBatch, isDimension);
         // Hoisted out of the scan: the layout is a property of the index, not of a row.
+        Predicate<String> isPrefixedDimension = layout.prefixedDimensionMatcher();
+        List<DimColumn> dimColumns = resolveDimColumns(escfBatch, isDimension, isPrefixedDimension);
         ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(
             batch.docCount(),
             rows,
-            TsidBuilder.useSingleBytePrefixLayout(creationVersion)
+            layout.singleBytePrefix(),
+            isPrefixedDimension != null
         );
 
         MurmurHash3.Hash128 valueHash = new MurmurHash3.Hash128();
@@ -115,7 +112,11 @@ public final class ColumnarTsidCalculator {
         return accumulator.build();
     }
 
-    private static List<DimColumn> resolveDimColumns(EscfBatch batch, Predicate<String> isDimension) {
+    private static List<DimColumn> resolveDimColumns(
+        EscfBatch batch,
+        Predicate<String> isDimension,
+        @Nullable Predicate<String> isPrefixedDimension
+    ) {
         SourceSchema schema = batch.schema();
         int leafCount = schema.leafCount();
         List<DimColumn> result = new ArrayList<>();
@@ -133,7 +134,16 @@ public final class ColumnarTsidCalculator {
                     );
                 }
                 MurmurHash3.Hash128 pathHash = TsidBuilder.hashPath(hasher, path);
-                result.add(new DimColumn(leafIdx, path, pathHash.h1, pathHash.h2, TsidBuilder.prefixByteRank(path)));
+                result.add(
+                    new DimColumn(
+                        leafIdx,
+                        path,
+                        pathHash.h1,
+                        pathHash.h2,
+                        TsidBuilder.prefixByteRank(path),
+                        TsidBuilder.isPrefixedDimension(path, isPrefixedDimension)
+                    )
+                );
             }
         }
         // Sort by path, tie-break by leafIdx, so each row's dimensions reach the accumulator in the
@@ -230,7 +240,7 @@ public final class ColumnarTsidCalculator {
     }
 
     private static void add(ColumnarTsidAccumulator accumulator, int row, DimColumn dc, int pathGroup, long valueH1, long valueH2) {
-        accumulator.add(row, dc.pathH1(), dc.pathH2(), valueH1, valueH2, pathGroup, dc.prefixRank());
+        accumulator.add(row, dc.pathH1(), dc.pathH2(), valueH1, valueH2, pathGroup, dc.prefixRank(), dc.prefixedDimension());
     }
 
     private static void addArrayElements(

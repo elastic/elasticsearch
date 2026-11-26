@@ -814,6 +814,37 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
     }
 
+    public void testTelemetryAgentSettings() {
+        Settings settings = Settings.builder()
+            .put("telemetry.agent.server_url", "http://apm-server:8200")
+            .put("telemetry.agent.global_labels.project_id", "abc123")
+            .put("telemetry.agent.span_compression_enabled", "true")
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Settings [telemetry.agent.global_labels.project_id, telemetry.agent.server_url, "
+                + "telemetry.agent.span_compression_enabled] are deprecated",
+            "https://ela.st/es-deprecation-9-telemetry-agent-settings",
+            "The Elastic APM Java agent has been removed; telemetry is exported by the OpenTelemetry SDK. "
+                + "Replace [telemetry.agent.server_url] with [telemetry.export.endpoint]. "
+                + "Move each [telemetry.agent.global_labels.<name>] setting to [telemetry.resource.<name>], "
+                + "which attaches it to every exported metric and span. "
+                + "The remaining settings [telemetry.agent.span_compression_enabled] configured the agent itself and have no "
+                + "direct replacement; remove them.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testTelemetryAgentSettingsNotSet() {
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues = getDeprecationIssues(Settings.EMPTY, pluginsAndModules);
+        assertThat(issues.stream().anyMatch(i -> i.getUrl().contains("telemetry-agent-settings")), equalTo(false));
+    }
+
     public void testEqlEnabledSetting() {
         Settings settings = Settings.builder().put("xpack.eql.enabled", randomBoolean()).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
@@ -989,7 +1020,34 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue.getDetails(), org.hamcrest.Matchers.containsString("[logger.org.elasticsearch.http.HttpTracer]"));
     }
 
+    public void testJavaVersionBelow25() {
+        DeprecationIssue issue = NodeDeprecationChecks.checkJavaVersion(Runtime.Version.parse("21.0.5+11"));
+        assertThat(
+            issue,
+            equalTo(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "Running Elasticsearch with Java 21-24 is deprecated",
+                    "https://www.elastic.co/support/matrix#matrix_jvm",
+                    "This node is running Java [21.0.5+11]. A future Elasticsearch 9.x release will require Java 25 or later.",
+                    false,
+                    null
+                )
+            )
+        );
+    }
+
+    public void testJavaVersion25OrLater() {
+        assertThat(NodeDeprecationChecks.checkJavaVersion(Runtime.Version.parse("25")), nullValue());
+        assertThat(NodeDeprecationChecks.checkJavaVersion(Runtime.Version.parse("27.0.1+2")), nullValue());
+    }
+
     static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {
-        return checks.stream().map(mapper).filter(Objects::nonNull).toList();
+        // the Java version check depends on the JVM running the tests, so exclude it when testing other checks
+        return checks.stream()
+            .map(mapper)
+            .filter(Objects::nonNull)
+            .filter(issue -> issue.equals(NodeDeprecationChecks.checkJavaVersion(Runtime.version())) == false)
+            .toList();
     }
 }

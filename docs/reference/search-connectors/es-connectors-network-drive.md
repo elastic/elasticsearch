@@ -91,6 +91,9 @@ The following configuration fields are required to set up the connector:
         user1;S-1;S-11,S-22
         ```
 
+`skip_extension_filter`
+:   Toggle labeled **Attempt extraction for all file types**. Disabled by default. When enabled, the connector skips the file extension check, so files with no extension or an unsupported extension are downloaded and extraction is attempted. The maximum file size limit still applies. This can significantly slow down syncs. Introduced in 9.5.8, 9.6.1, and 9.7.
+
 
 
 ### Deployment using Docker [es-connectors-network-drive-client-docker]
@@ -138,21 +141,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::
 
 
-::::{dropdown} Step 3: Run the Docker image
+:::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh subs=true
-docker run \
--v ~/connectors-config:/config \
---network "elastic" \
---tty \
---rm \
-docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
-/app/bin/elastic-ingest \
--c /config/config.yml
-```
+:::{include} _snippets/connectors-docker-run.md
+:::
 
-::::
+:::::
 
 
 Refer to [`DOCKER.md`](https://github.com/elastic/connectors/tree/main/docs/DOCKER.md) in the `elastic/connectors` repo for more details.

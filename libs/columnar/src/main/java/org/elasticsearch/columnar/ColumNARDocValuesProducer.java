@@ -25,6 +25,7 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
@@ -43,7 +44,7 @@ import java.util.Map;
 /**
  * Reads the columns written by {@link ColumNARDocValuesConsumer}, served at the {@code BINARY} surface
  * ({@link #getBinary}). Fields are framed generically ({@code fieldNumber}, {@link ColumnarFieldType} id,
- * metadata), so a new column type slots in by extending the read dispatch here.
+ * string framing, metadata), so a new column type slots in by extending the read dispatch here.
  */
 final class ColumNARDocValuesProducer extends DocValuesProducer {
 
@@ -57,8 +58,8 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     private final Map<Integer, Column> columns = new HashMap<>();
     private boolean closed = false;
 
-    /** A read-side column: its declared type and the metadata needed to open it. */
-    private record Column(ColumnarFieldType type, ColumnMetadata metadata) {}
+    /** A read-side column: its declared type, how a string column's blobs are framed, and the metadata needed to open it. */
+    private record Column(ColumnarFieldType type, boolean singleValued, ColumnMetadata metadata) {}
 
     ColumNARDocValuesProducer(SegmentReadState state) throws IOException {
         this.maxDoc = state.segmentInfo.maxDoc();
@@ -155,8 +156,20 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
     private Column readColumn(ColumnarFieldType type, ChecksumIndexInput meta, final FormatVersion formatVersion) throws IOException {
         return switch (type) {
-            case LONG, DOUBLE -> new Column(type, NumericColumnMetadata.readFrom(meta, maxDoc, formatVersion));
-            case STRING -> new Column(type, StringColumnMetadata.readFrom(meta, maxDoc, formatVersion));
+            case LONG, DOUBLE -> new Column(type, false, NumericColumnMetadata.readFrom(meta, maxDoc, formatVersion));
+            case STRING -> {
+                final boolean singleValued = readSingleValued(meta);
+                yield new Column(type, singleValued, StringColumnMetadata.readFrom(meta, maxDoc, formatVersion));
+            }
+        };
+    }
+
+    private static boolean readSingleValued(ChecksumIndexInput meta) throws IOException {
+        final byte framing = meta.readByte();
+        return switch (framing) {
+            case ColumNARDocValuesFormat.COLUMNAR_PAYLOAD -> false;
+            case ColumNARDocValuesFormat.PLAIN -> true;
+            default -> throw new CorruptIndexException("unknown string column framing [" + framing + "]", meta);
         };
     }
 
@@ -170,20 +183,26 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
         // interface is what lets a second column type arrive without another shape here.
         return switch (column.metadata()) {
             case NumericColumnMetadata numeric -> numericBinary(numeric);
-            case StringColumnMetadata string -> stringBinary(field, string);
+            case StringColumnMetadata string -> stringBinary(string, column.singleValued());
         };
     }
 
-    private BinaryDocValues stringBinary(FieldInfo field, StringColumnMetadata metadata) throws IOException {
-        final boolean singleValued = ColumNARDocValuesFormat.isSingleValued(field);
-        StringColumnReader reader = StringColumnReader.open(metadata, inputs);
-        return new ColumnarStringBinaryDocValues(reader, reader.iterator(), singleValued);
+    private BinaryDocValues stringBinary(StringColumnMetadata metadata, boolean singleValued) throws IOException {
+        StringColumnReader reader = StringColumnReader.open(metadata, inputs, skipIndex);
+        // A column with no value has nothing to prefetch.
+        IOSupplier<StringColumnReader> prefetchColumn = metadata.numDocsWithField() == 0
+            ? null
+            : () -> StringColumnReader.open(metadata, inputs.cloneInputs(), skipIndex);
+        return new ColumnarStringBinaryDocValues(reader, reader.iterator(), singleValued, prefetchColumn);
     }
 
     private BinaryDocValues numericBinary(NumericColumnMetadata metadata) throws IOException {
         NumericColumnReader reader = new NumericColumnReader(metadata, inputs);
         ColumnIterator iterator = reader.iterator();
-        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, metadata.skipper(), skipIndex);
+        IOSupplier<NumericColumnReader> prefetchColumn = metadata.numDocsWithField() == 0
+            ? null
+            : () -> new NumericColumnReader(metadata, inputs.cloneInputs());
+        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, metadata.skipper(), skipIndex, prefetchColumn);
     }
 
     @Override

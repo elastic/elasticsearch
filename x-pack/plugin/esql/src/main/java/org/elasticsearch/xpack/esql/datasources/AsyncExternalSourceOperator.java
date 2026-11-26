@@ -16,9 +16,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.ValueBytes;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -68,7 +70,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     /**
      * Factory hold released from {@link #close()} so a producer that finishes during pipeline
      * construction cannot drop the last {@code operatorRefCount} before later {@code get()} calls.
-     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory}.
+     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory} or
+     * {@link AsyncConnectorSourceOperatorFactory}.
      */
     private final Releasable onOperatorClose;
     /**
@@ -80,6 +83,15 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     @Nullable
     private final String datasetLabel;
     /**
+     * Optional hook fired from {@link #getOutput()} or {@link #isBlocked()} after a previous
+     * non-empty page has been returned, so LimitOperator can charge remaining before the ramp
+     * counts the page. {@link #isBlocked()} covers a paused reader whose next {@code getOutput}
+     * never runs because the driver skips blocked sources.
+     */
+    @Nullable
+    private final Runnable onPagePolled;
+    private boolean pendingPagePolled;
+    /**
      * Reference point for the time-to-first-row measurement, captured when this SCAN OPERATOR is constructed
      * (per driver, after planning and discovery) — NOT at query start. The measurement is therefore a per-scan
      * proxy: a query with several external-source scans records one observation per scan.
@@ -88,6 +100,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     private IsBlockedResult isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
     private long rowsEmitted;
+    private long bytesDecoded;
     private long processNanos;
 
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
@@ -124,6 +137,19 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         Releasable onOperatorClose,
         @Nullable String datasetLabel
     ) {
+        this(buffer, driverContext, externalSourceMetrics, scheme, format, onOperatorClose, datasetLabel, null);
+    }
+
+    public AsyncExternalSourceOperator(
+        AsyncExternalSourceBuffer buffer,
+        DriverContext driverContext,
+        ExternalSourceMetrics externalSourceMetrics,
+        String scheme,
+        String format,
+        Releasable onOperatorClose,
+        @Nullable String datasetLabel,
+        @Nullable Runnable onPagePolled
+    ) {
         this.buffer = Objects.requireNonNull(buffer, "buffer");
         this.driverContext = Objects.requireNonNull(driverContext, "driverContext");
         this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
@@ -131,12 +157,23 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         this.format = format;
         this.onOperatorClose = onOperatorClose == null ? () -> {} : onOperatorClose;
         this.datasetLabel = datasetLabel;
+        this.onPagePolled = onPagePolled;
+    }
+
+    private void notifyPendingPagePolled() {
+        if (pendingPagePolled) {
+            pendingPagePolled = false;
+            if (onPagePolled != null) {
+                onPagePolled.run();
+            }
+        }
     }
 
     @Override
     public Page getOutput() {
         long startNanos = System.nanoTime();
         try {
+            notifyPendingPagePolled();
             final var page = buffer.pollPage();
             if (page != null) {
                 if (pagesEmitted == 0) {
@@ -145,6 +182,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 }
                 pagesEmitted++;
                 rowsEmitted += page.getPositionCount();
+                // What the format reader decoded, measured as the page is handed on: the read that filled the
+                // buffer ran on another thread, so this is the first place on the driver's that sees it.
+                for (int channel = 0; channel < page.getBlockCount(); channel++) {
+                    bytesDecoded += ValueBytes.of(page.getBlock(channel));
+                }
+                if (onPagePolled != null && page.getPositionCount() > 0) {
+                    pendingPagePolled = true;
+                }
                 return page;
             }
             if (buffer.failure() != null) {
@@ -185,6 +230,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public IsBlockedResult isBlocked() {
+        // Driver checks isBlocked before getOutput. Count the last returned page here so a
+        // paused reader with an empty buffer still reports progress without waiting for page K+1.
+        notifyPendingPagePolled();
         if (isBlocked.listener().isDone()) {
             isBlocked = buffer.waitForReading();
             if (isBlocked.listener().isDone()) {
@@ -251,7 +299,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
      * {@code ThreadContext} response headers only reach the client when the driver happens to run on the coordinator.
      * {@code DriverCompletionInfo} ships this sink's contents back from whatever node ran the scan and the coordinator
      * re-emits them once, which is how every other ES|QL warning already travels. A read shipped to a data node
-     * (elastic/esql-planning#1837) otherwise returned the right values with no warning at all.
+    * otherwise returned the right values with no warning at all.
      */
     private void emitPendingWarnings() {
         String warning;
@@ -276,6 +324,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             buffer.size(),
             pagesEmitted,
             rowsEmitted,
+            bytesDecoded,
             buffer.bytesInBuffer(),
             statusFailure,
             processNanos,
@@ -299,6 +348,27 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             Status::new
         );
 
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, Status::toXContent)
+            .required("pages_waiting", ProfileSchema.integer())
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("bytes_decoded", ProfileSchema.integer())
+            .required("bytes_buffered", ProfileSchema.integer())
+            .required("process_nanos", ProfileSchema.integer())
+            .required("splits_processed", ProfileSchema.integer())
+            .required("splits_total", ProfileSchema.integer())
+            .required("current_split", ProfileSchema.integer())
+            .required("bytes_read", ProfileSchema.integer())
+            .required("request_count", ProfileSchema.integer())
+            .required("retry_count", ProfileSchema.integer())
+            .required("read_nanos", ProfileSchema.integer())
+            .required("read_cpu_nanos", ProfileSchema.integer())
+            .required("stripes_committed", ProfileSchema.integer())
+            .required("partial", ProfileSchema.bool())
+            .required("format_reader", ProfileSchema.dynamicObject(Map.of()))
+            .optional("failure", ProfileSchema.string())
+            .build();
+
         private static final TransportVersion ESQL_ASYNC_SOURCE_BYTES_BUFFERED = TransportVersion.fromName(
             "esql_async_source_bytes_buffered"
         );
@@ -311,9 +381,13 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
         private static final TransportVersion ESQL_EXTERNAL_SOURCE_REQUEST_COUNTS = TransportVersion.fromName("esql_external_planning_io");
 
+        private static final TransportVersion ESQL_BYTES_DECODED = TransportVersion.fromName("esql_bytes_decoded");
+
         private final int pagesWaiting;
         private final int pagesEmitted;
         private final long rowsEmitted;
+        /** The bytes the decoded values spell, against {@link #bytesRead} the bytes they were read from. */
+        private final long bytesDecoded;
         private final long bytesBuffered;
         private final Throwable failure;
         private final long processNanos;
@@ -332,6 +406,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             int pagesWaiting,
             int pagesEmitted,
             long rowsEmitted,
+            long bytesDecoded,
             long bytesBuffered,
             Throwable failure,
             long processNanos,
@@ -348,6 +423,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 pagesWaiting,
                 pagesEmitted,
                 rowsEmitted,
+                bytesDecoded,
                 bytesBuffered,
                 failure,
                 processNanos,
@@ -368,6 +444,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             int pagesWaiting,
             int pagesEmitted,
             long rowsEmitted,
+            long bytesDecoded,
             long bytesBuffered,
             Throwable failure,
             long processNanos,
@@ -385,6 +462,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             this.pagesWaiting = pagesWaiting;
             this.pagesEmitted = pagesEmitted;
             this.rowsEmitted = rowsEmitted;
+            this.bytesDecoded = bytesDecoded;
             this.bytesBuffered = bytesBuffered;
             this.failure = failure;
             this.processNanos = processNanos;
@@ -404,6 +482,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             pagesWaiting = in.readVInt();
             pagesEmitted = in.readVInt();
             rowsEmitted = in.readVLong();
+            bytesDecoded = in.getTransportVersion().supports(ESQL_BYTES_DECODED) ? in.readVLong() : 0;
             bytesBuffered = in.getTransportVersion().supports(ESQL_ASYNC_SOURCE_BYTES_BUFFERED) ? in.readVLong() : 0;
             failure = in.readException();
             long readNanos;
@@ -462,6 +541,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             out.writeVInt(pagesWaiting);
             out.writeVInt(pagesEmitted);
             out.writeVLong(rowsEmitted);
+            if (out.getTransportVersion().supports(ESQL_BYTES_DECODED)) {
+                out.writeVLong(bytesDecoded);
+            }
             if (out.getTransportVersion().supports(ESQL_ASYNC_SOURCE_BYTES_BUFFERED)) {
                 out.writeVLong(bytesBuffered);
             }
@@ -512,9 +594,10 @@ public class AsyncExternalSourceOperator extends SourceOperator {
          * Derived from {@link #capturedSourceMetadata} rather than carried as a separate wire field: a
          * stripe-addressed contribution is exactly one carrying {@link ExternalStats#STRIPE_ORDINAL_KEY}
          * (with {@link ExternalStats#STRIPE_SIZE_KEY}, which marks it cacheable). Counts every such
-         * fragment, including sibling fragments of the same stripe, since each is a committed unit of
-         * harvest work; this is a "did harvest happen, and how much" signal, not the deduped final
-         * stripe count.
+         * record. The chunks of one read contribute one record per stripe between them, because their
+         * pieces of a stripe are joined before they reach the sink; two reads that each cover part of a
+         * stripe contribute one record each, since neither can see the other's pieces. So this is a "did
+         * harvest happen, and how much" signal, not the deduped final stripe count.
          */
         public long stripesCommitted() {
             long count = 0;
@@ -550,6 +633,11 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         @Override
         public long rowsEmitted() {
             return rowsEmitted;
+        }
+
+        @Override
+        public long bytesDecoded() {
+            return bytesDecoded;
         }
 
         public long bytesBuffered() {
@@ -625,29 +713,34 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        private static XContentBuilder toXContent(XContentBuilder builder, Status status, Params params) throws IOException {
             builder.startObject();
-            builder.field("pages_waiting", pagesWaiting);
-            builder.field("pages_emitted", pagesEmitted);
-            builder.field("rows_emitted", rowsEmitted);
-            builder.field("bytes_buffered", bytesBuffered);
-            builder.field("process_nanos", processNanos);
-            builder.field("splits_processed", splitsProcessed);
-            builder.field("splits_total", splitsTotal);
-            builder.field("current_split", currentSplit);
-            builder.field("bytes_read", bytesRead);
-            builder.field("request_count", requestCount);
-            builder.field("retry_count", retryCount);
-            builder.field("read_nanos", readCounters.readNanos());
-            builder.field("read_cpu_nanos", readCounters.readCpuNanos());
-            builder.field("stripes_committed", stripesCommitted());
-            builder.field("partial", partial);
+            builder.field("pages_waiting", status.pagesWaiting);
+            builder.field("pages_emitted", status.pagesEmitted);
+            builder.field("rows_emitted", status.rowsEmitted);
+            builder.field("bytes_decoded", status.bytesDecoded);
+            builder.field("bytes_buffered", status.bytesBuffered);
+            builder.field("process_nanos", status.processNanos);
+            builder.field("splits_processed", status.splitsProcessed);
+            builder.field("splits_total", status.splitsTotal);
+            builder.field("current_split", status.currentSplit);
+            builder.field("bytes_read", status.bytesRead);
+            builder.field("request_count", status.requestCount);
+            builder.field("retry_count", status.retryCount);
+            builder.field("read_nanos", status.readCounters.readNanos());
+            builder.field("read_cpu_nanos", status.readCounters.readCpuNanos());
+            builder.field("stripes_committed", status.stripesCommitted());
+            builder.field("partial", status.partial);
             builder.startObject("format_reader");
-            if (formatReader != null) {
-                formatReader.toXContent(builder, params);
+            if (status.formatReader != null) {
+                status.formatReader.toXContent(builder, params);
             }
             builder.endObject();
-            if (failure != null) {
-                builder.field("failure", failure.getMessage());
+            if (status.failure != null) {
+                builder.field("failure", status.failure.getMessage());
             }
             return builder.endObject();
         }
@@ -666,6 +759,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return pagesWaiting == status.pagesWaiting
                 && pagesEmitted == status.pagesEmitted
                 && rowsEmitted == status.rowsEmitted
+                && bytesDecoded == status.bytesDecoded
                 && bytesBuffered == status.bytesBuffered
                 && processNanos == status.processNanos
                 && splitsProcessed == status.splitsProcessed
@@ -688,6 +782,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 pagesWaiting,
                 pagesEmitted,
                 rowsEmitted,
+                bytesDecoded,
                 bytesBuffered,
                 failure != null ? failure.getMessage() : null,
                 processNanos,

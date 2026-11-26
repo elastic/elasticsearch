@@ -10,7 +10,6 @@
 package org.elasticsearch.benchmark.xcontent;
 
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
-import org.elasticsearch.simdjson.JsonDocumentHandler;
 import org.elasticsearch.simdjson.JsonDocumentParser;
 import org.elasticsearch.simdjson.SimdJsonParserPool;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -25,7 +24,8 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
-import java.math.BigInteger;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +35,15 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 /**
  * Isolates {@link org.elasticsearch.simdjson.SimdJsonDirectWalker#walkObject} plus the vectorized
  * string-copy loop it drives in {@code StringParser.doParseString}.
+ *
+ * <p><strong>Shapes.</strong> {@code shape=analytics} (the default) generates wide analytics documents with
+ * a realistic field count, string mix and escape density, see {@link AnalyticsDocs}. {@code doParseString}
+ * only runs for strings that contain an escape, and in those documents they are mostly URLs with
+ * {@code \/} escapes a few bytes apart, so this is the shape to use when optimising it.
+ * {@code shape=synthetic} is an 11-field document where {@code escapePercent} of the strings carry a
+ * single {@code \n} in the middle; it mostly exercises the long clean runs of the vector loop.
+ * Set {@code dataFile} to a newline-delimited JSON file (for example a real sample) to replay real
+ * documents instead; it overrides {@code shape}.
  *
  * <p><strong>Running.</strong>
  * <pre>{@code
@@ -58,24 +67,40 @@ public class StringFieldParsingBenchmark {
     @Param({ "2000" })
     private int docCount;
 
+    /** {@code analytics} or {@code synthetic}; ignored when {@code dataFile} is set. */
+    @Param({ "analytics", "synthetic" })
+    private String shape;
+
+    /** Optional newline-delimited JSON file replayed instead of generated documents. */
+    @Param({ "" })
+    private String dataFile;
+
     @Param({ "42" })
     private long seed;
 
-    /** Percent of string field values that contain an escape, forcing the non-vectorized path. */
-    @Param({ "0", "10" })
+    /** For {@code shape=synthetic}: percent of string field values that contain an escape. */
+    @Param({ "10" })
     private int escapePercent;
 
     private byte[][] docs;
     private JsonDocumentParser docParser;
-    private final CountingHandler handler = new CountingHandler();
+    private final NoOpHandler handler = new NoOpHandler();
 
     @Setup
-    public void setUp() {
+    public void setUp() throws IOException {
         BenchmarkLogging.configure();
-        Random random = new Random(seed);
-        docs = new byte[docCount][];
-        for (int i = 0; i < docCount; i++) {
-            docs[i] = generateDoc(random, escapePercent).getBytes(UTF_8);
+        if (dataFile.isEmpty() == false) {
+            docs = AnalyticsDocs.load(Path.of(dataFile), docCount);
+        } else if (shape.equals("analytics")) {
+            docs = AnalyticsDocs.generate(docCount, seed);
+        } else if (shape.equals("synthetic")) {
+            Random random = new Random(seed);
+            docs = new byte[docCount][];
+            for (int i = 0; i < docCount; i++) {
+                docs[i] = generateDoc(random, escapePercent).getBytes(UTF_8);
+            }
+        } else {
+            throw new IllegalArgumentException("unknown shape [" + shape + "]");
         }
         int maxLen = 0;
         for (byte[] d : docs) {
@@ -137,95 +162,4 @@ public class StringFieldParsingBenchmark {
         return sb.toString();
     }
 
-    /**
-     * Records just enough to prevent dead-code elimination of the walk; every method is otherwise
-     * as cheap as possible so the benchmark measures {@code walkObject}/{@code StringParser}, not
-     * a handler implementation.
-     */
-    private static final class CountingHandler implements JsonDocumentHandler {
-        long checksum;
-
-        @Override
-        public void startObject(String fieldName) {}
-
-        @Override
-        public void endObject() {}
-
-        @Override
-        public void emptyObject(String fieldName) {}
-
-        @Override
-        public void stringField(String fieldName, byte[] buf, int off, int len) {
-            checksum ^= len;
-        }
-
-        @Override
-        public void longField(String fieldName, long value, boolean fitsInt, byte[] srcBuf, int srcOff, int srcLen) {
-            checksum ^= value;
-        }
-
-        @Override
-        public void bigIntegerField(String fieldName, BigInteger value, byte[] srcBuf, int srcOff, int srcLen) {
-            checksum ^= value.longValue();
-        }
-
-        @Override
-        public void doubleField(String fieldName, double value, boolean fitsFloat, byte[] srcBuf, int srcOff, int srcLen) {
-            checksum ^= Double.doubleToRawLongBits(value);
-        }
-
-        @Override
-        public void booleanField(String fieldName, boolean value, byte[] srcBuf, int srcOff, int srcLen) {
-            checksum ^= value ? 1 : 0;
-        }
-
-        @Override
-        public void nullField(String fieldName) {}
-
-        @Override
-        public void startArray(String fieldName) {}
-
-        @Override
-        public void endArray() {}
-
-        @Override
-        public void arrayElemString(byte[] buf, int off, int len) {
-            checksum ^= len;
-        }
-
-        @Override
-        public void arrayElemLong(long value, boolean fitsInt) {
-            checksum ^= value;
-        }
-
-        @Override
-        public void arrayElemBigInteger(BigInteger value, byte[] srcBuf, int srcOff, int srcLen) {
-            checksum ^= value.longValue();
-        }
-
-        @Override
-        public void arrayElemDouble(double value, boolean fitsFloat) {
-            checksum ^= Double.doubleToRawLongBits(value);
-        }
-
-        @Override
-        public void arrayElemBoolean(boolean value) {
-            checksum ^= value ? 1 : 0;
-        }
-
-        @Override
-        public void arrayElemNull() {}
-
-        @Override
-        public void arrayElemStartObject() {}
-
-        @Override
-        public void arrayElemEndObject() {}
-
-        @Override
-        public void arrayElemStartArray() {}
-
-        @Override
-        public void arrayElemEndArray() {}
-    }
 }

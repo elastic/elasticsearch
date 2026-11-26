@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
@@ -42,6 +43,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -55,6 +57,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -64,10 +67,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests the atomic delete-and-restore of an existing data stream: the destination data stream and its backing/failure-store
@@ -173,6 +178,193 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         indexDoc();
         refresh(DATA_STREAM_NAME);
         assertHitCount(prepareSearch(DATA_STREAM_NAME).setSize(0), docCount + 1);
+    }
+
+    public void testRestoreRequiringTemplatesRejectsADataStreamWithoutATemplate() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        // a template that a data stream matches cannot be removed, but it can once the data stream is gone
+        assertAcked(
+            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME))
+                .get()
+        );
+        assertAcked(
+            client().execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request(TEMPLATE_ID)
+            ).get()
+        );
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> rejected = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME),
+            UUIDs.randomBase64UUID(),
+            /* reportShardRestoring = */ false,
+            /* requireDataStreamTemplates = */ true,
+            rejected,
+            (state, builder) -> {}
+        );
+        final RestoreService.MissingDataStreamTemplateException e = expectThrows(
+            RestoreService.MissingDataStreamTemplateException.class,
+            () -> rejected.actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        assertThat(e.dataStream(), equalTo(DATA_STREAM_NAME));
+        assertThat(e.getMessage(), equalTo("no matching index template found for data stream [" + DATA_STREAM_NAME + "]"));
+        assertThat("nothing is restored", currentDataStream(), nullValue());
+        assertThat(restoresInProgress(), equalTo(false));
+
+        // without the requirement the data stream is restored, and only a warning says that nothing matches it
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> accepted = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME),
+            accepted
+        );
+        accepted.actionGet(TEST_REQUEST_TIMEOUT);
+        assertBusy(() -> assertThat(restoresInProgress(), equalTo(false)));
+        assertThat(currentDataStream(), notNullValue());
+    }
+
+    public void testRestoreRequiringTemplatesChecksTheTemplateOfTheNewName() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final Index originalBackingIndex = currentDataStream().getIndices().get(0);
+        final String renamed = "renamed-" + DATA_STREAM_NAME;
+        final Supplier<RestoreSnapshotRequest> renameRequest = () -> new RestoreSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            REPOSITORY_NAME,
+            SNAPSHOT_NAME
+        ).indices(DATA_STREAM_NAME).renamePattern("(.+)").renameReplacement("renamed-$1");
+
+        // the template of the data stream matches its name, but not the new one
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> rejected = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            renameRequest.get(),
+            UUIDs.randomBase64UUID(),
+            /* reportShardRestoring = */ false,
+            /* requireDataStreamTemplates = */ true,
+            rejected,
+            (state, builder) -> {}
+        );
+        final RestoreService.MissingDataStreamTemplateException e = expectThrows(
+            RestoreService.MissingDataStreamTemplateException.class,
+            () -> rejected.actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        // the name that counts is the one that the data stream is restored to
+        assertThat(e.dataStream(), equalTo(renamed));
+        assertThat(e.getMessage(), equalTo("no matching index template found for data stream [" + renamed + "]"));
+        assertThat("nothing is restored", currentDataStream(renamed), nullValue());
+        assertThat(restoresInProgress(), equalTo(false));
+        assertThat("what exists is untouched", currentDataStream().getIndices().get(0), equalTo(originalBackingIndex));
+
+        putDataStreamTemplate("renamed-template", renamed);
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> accepted = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            renameRequest.get(),
+            UUIDs.randomBase64UUID(),
+            /* reportShardRestoring = */ false,
+            /* requireDataStreamTemplates = */ true,
+            accepted,
+            (state, builder) -> {}
+        );
+        accepted.actionGet(TEST_REQUEST_TIMEOUT);
+        assertBusy(() -> assertThat(restoresInProgress(), equalTo(false)));
+        ensureGreen(renamed);
+        assertThat(currentDataStream(renamed), notNullValue());
+        assertThat("what exists is untouched", currentDataStream().getIndices().get(0), equalTo(originalBackingIndex));
+    }
+
+    public void testRestoreWithGlobalStateRequiringTemplatesUsesTheTemplatesOfTheSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        assertAcked(
+            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME))
+                .get()
+        );
+        assertAcked(
+            client().execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request(TEMPLATE_ID)
+            ).get()
+        );
+        assertThat("the cluster has no template", currentTemplates().keySet(), not(hasItem(TEMPLATE_ID)));
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME)
+                .includeGlobalState(true),
+            UUIDs.randomBase64UUID(),
+            /* reportShardRestoring = */ false,
+            /* requireDataStreamTemplates = */ true,
+            future,
+            (state, builder) -> {}
+        );
+        future.actionGet(TEST_REQUEST_TIMEOUT);
+        assertBusy(() -> assertThat(restoresInProgress(), equalTo(false)));
+        ensureGreen(DATA_STREAM_NAME);
+        assertThat(currentDataStream(), notNullValue());
+        assertThat("the template of the snapshot is restored", currentTemplates(), hasKey(TEMPLATE_ID));
+    }
+
+    public void testRestoreWithGlobalStateRequiringTemplatesIgnoresTheTemplatesThatItReplaces() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final String renamed = "renamed-" + DATA_STREAM_NAME;
+        // the snapshot does not have this template, and the restore would remove it
+        putDataStreamTemplate("renamed-template", renamed);
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> rejected = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME)
+                .renamePattern("(.+)")
+                .renameReplacement("renamed-$1")
+                .includeGlobalState(true),
+            UUIDs.randomBase64UUID(),
+            /* reportShardRestoring = */ false,
+            /* requireDataStreamTemplates = */ true,
+            rejected,
+            (state, builder) -> {}
+        );
+        final RestoreService.MissingDataStreamTemplateException e = expectThrows(
+            RestoreService.MissingDataStreamTemplateException.class,
+            () -> rejected.actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        assertThat(e.dataStream(), equalTo(renamed));
+        assertThat("nothing is restored", currentDataStream(renamed), nullValue());
+        assertThat(restoresInProgress(), equalTo(false));
+        assertThat("the global state is not restored", currentTemplates(), hasKey("renamed-template"));
+    }
+
+    private Map<String, ComposableIndexTemplate> currentTemplates() {
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        return state.metadata().getProject(ProjectId.DEFAULT).templatesV2();
+    }
+
+    private void putDataStreamTemplate(String templateId, String indexPattern) throws Exception {
+        final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(indexPattern))
+            .template(new Template(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0).build(), null, null))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        assertAcked(
+            client().execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request(templateId).indexTemplate(template)
+            ).get()
+        );
+    }
+
+    private boolean restoresInProgress() {
+        return RestoreInProgress.get(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState()).isEmpty() == false;
     }
 
     /**
@@ -366,6 +558,52 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         final DataStreamAlias restoredAlias = currentDataStreamAliases().get(aliasName);
         assertThat("the restored data stream must regain the alias it had when snapshotted", restoredAlias, notNullValue());
         assertThat(restoredAlias.getDataStreams(), contains(DATA_STREAM_NAME));
+    }
+
+    /**
+     * When the aliases of the snapshot are not restored, the aliases that exist are the ones in effect after the restore, like they are for
+     * an index that is restored over: the data stream that is restored over is put back in the aliases that it was in, with their filter
+     * and write flag, even though deleting it took it out of them, and the aliases that only the snapshot has do not come back.
+     */
+    public void testRestoreOverExistingDataStreamKeepsItsAliasesWhenTheAliasesOfTheSnapshotAreNotRestored() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String snapshotAlias = "snapshot-alias";
+        final String currentAlias = "current-alias";
+        createRepositoryAndSnapshottedDataStream(snapshotAlias);
+        // Move the aliases away from those of the snapshot
+        final IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        aliasesRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE).alias(snapshotAlias).index(DATA_STREAM_NAME));
+        aliasesRequest.addAliasAction(
+            new AliasActions(AliasActions.Type.ADD).alias(currentAlias)
+                .index(DATA_STREAM_NAME)
+                .filter("{\"term\":{\"field\":\"value\"}}")
+                .writeIndex(true)
+        );
+        assertAcked(indicesAdmin().aliases(aliasesRequest).actionGet());
+        final DataStreamAlias aliasBefore = currentDataStreamAliases().get(currentAlias);
+        assertThat(aliasBefore.getWriteDataStream(), equalTo(DATA_STREAM_NAME));
+        assertThat(aliasBefore.getFilter(DATA_STREAM_NAME), notNullValue());
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME)
+                .restoreOverExisting(true)
+                .includeAliases(false),
+            future
+        );
+        future.actionGet(TEST_REQUEST_TIMEOUT);
+        awaitRestoreCompleted();
+
+        final Map<String, DataStreamAlias> aliases = currentDataStreamAliases();
+        assertThat("the aliases of the snapshot must not come back", aliases, not(hasKey(snapshotAlias)));
+        final DataStreamAlias aliasAfter = aliases.get(currentAlias);
+        assertThat("the data stream must be back in the alias that it was in", aliasAfter, notNullValue());
+        assertThat(aliasAfter.getDataStreams(), contains(DATA_STREAM_NAME));
+        assertThat(aliasAfter.getWriteDataStream(), equalTo(DATA_STREAM_NAME));
+        assertThat(aliasAfter.getFilter(DATA_STREAM_NAME).string(), equalTo(aliasBefore.getFilter(DATA_STREAM_NAME).string()));
     }
 
     /**
@@ -656,6 +894,77 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             "a retry with the same restore UUID must not re-delete-and-restore",
             currentDataStream().getIndices().get(0),
             equalTo(firstRestoredIndex)
+        );
+    }
+
+    /**
+     * While the restore is held in flight, the restored data stream's backing index is reported with the UUID the caller passed, and
+     * nothing is reported once the restore is over.
+     */
+    public void testRestoreOverExistingDataStreamReportsTheRestoreWhileItIsInFlight() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+        final String restoreUuid = UUIDs.randomBase64UUID();
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            this::reportableRestoreException,
+            future -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                restoreUuid,
+                true,
+                List.of(restoreTarget.target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+
+        assertReportsShardRestoring(inFlight.exception(), currentDataStream().getIndices().get(0).getName(), restoreUuid);
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), true);
+        assertThat("nothing is reported once the restore is over", reportableRestoreException(), nullValue());
+    }
+
+    /**
+     * A restore keeps the generic shard-unavailable errors unless its caller explicitly asks for
+     * {@link org.elasticsearch.snapshots.ShardRestoringException}, so the {@code restoreOverExistingDataStreams} overload without the
+     * parameter never sets {@link RestoreInProgress.Entry#reportShardRestoring()} on the restore's entry, and the lookup reports nothing
+     * while the restore is in flight.
+     */
+    public void testRestoreOverExistingDataStreamDoesNotReportTheRestoreWhileItIsInFlightByDefault() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            this::reportableRestoreException,
+            future -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                List.of(restoreTarget.target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+
+        assertThat(inFlight.exception(), nullValue());
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), false);
+    }
+
+    private ShardRestoringException reportableRestoreException() {
+        return reportableRestoreExceptionOnMaster(
+            state -> state.metadata().getProject(ProjectId.DEFAULT).dataStreams().get(DATA_STREAM_NAME).getIndices().get(0)
         );
     }
 

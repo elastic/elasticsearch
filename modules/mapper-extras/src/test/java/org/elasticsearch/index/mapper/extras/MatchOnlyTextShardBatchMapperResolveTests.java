@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.AbstractShardBatchMapperResolveTestCase;
 import org.elasticsearch.index.mapper.MapperService;
@@ -19,6 +21,7 @@ import org.elasticsearch.plugins.Plugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Verifies that {@link ShardBatchMapper#resolveMappers} correctly recognizes {@link MatchOnlyTextFieldMapper}
@@ -46,7 +49,7 @@ public class MatchOnlyTextShardBatchMapperResolveTests extends AbstractShardBatc
     public void testMatchOnlyTextMultiValueFalseIsSupported() throws IOException {
         MapperService ms = columnarMapperService(mapping(b -> {
             b.startObject("f").field("type", "match_only_text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("f"), ms.mappingLookup(), indexSettings);
@@ -75,13 +78,17 @@ public class MatchOnlyTextShardBatchMapperResolveTests extends AbstractShardBatc
         );
         var rawMapper = ms.mappingLookup().getMapper("f");
         assertTrue(rawMapper instanceof MatchOnlyTextFieldMapper);
-        assertFalse(((MatchOnlyTextFieldMapper) rawMapper).supportsColumnarParse(ms.getIndexSettings()));
+        assertFalse(((MatchOnlyTextFieldMapper) rawMapper).supportsColumnarParse(ms.getIndexSettings(), Set.of()));
     }
 
     public void testMatchOnlyTextDocValuesDisabledFallsBack() throws IOException {
-        MapperService ms = columnarMapperService(mapping(b -> {
-            b.startObject("f").field("type", "match_only_text").field("doc_values", false).endObject();
-        }));
+        MapperService ms = createMapperService(
+            randomVersionBeforeDocValuesNoOp(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> {
+                b.startObject("f").field("type", "match_only_text").field("doc_values", false).endObject();
+            })
+        );
         assertNull(ShardBatchMapper.resolveMappers(schemaOf("f"), ms.mappingLookup(), indexSettings));
     }
 

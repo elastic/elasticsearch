@@ -185,6 +185,14 @@ multivalued keys:
 ---
 index named lookup still works:
   - do:
+      indices.create:
+        index: lookup
+        body:
+          mappings:
+            properties:
+              f:
+                type: long
+  - do:
       bulk:
         index: lookup
         refresh: true

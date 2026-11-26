@@ -508,7 +508,9 @@ public final class AzureStorageProvider implements StorageProvider {
     static TokenCredential buildClientAssertionCredential(AzureConfiguration config, ExecutorService executor) {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
-            throw new IllegalStateException(
+            // Operator misconfiguration, not a broken invariant: the data source asked for federated
+            // identity on a node where the feature is off.
+            throw new IllegalArgumentException(
                 "Azure federated authentication requires the workload-identity feature to be enabled on this node"
             );
         }
@@ -559,6 +561,28 @@ public final class AzureStorageProvider implements StorageProvider {
         BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
         BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
         return new AzureStorageObject(storageIdentity, blobClient, blobAsyncClient, parsed.container, parsed.blobName, path, length);
+    }
+
+    @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        validateAzureScheme(path);
+        ParsedPath parsed = parsePath(path);
+        String account = extractAccountFromHost(parsed.host);
+        Clients c = clients(account);
+        BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
+        BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
+        AzureStorageObject object = new AzureStorageObject(
+            storageIdentity,
+            blobClient,
+            blobAsyncClient,
+            parsed.container,
+            parsed.blobName,
+            path,
+            length,
+            lastModified
+        );
+        object.seedVersion(version);
+        return object;
     }
 
     @Override
@@ -668,7 +692,13 @@ public final class AzureStorageProvider implements StorageProvider {
         var props = item.getProperties();
         Instant lastModified = props != null && props.getLastModified() != null ? props.getLastModified().toInstant() : null;
         long size = props != null && props.getContentLength() != null ? props.getContentLength() : 0L;
-        return new StorageEntry(StoragePath.of(pathPrefix + item.getName()), size, lastModified);
+        String etag = AzureStorageObject.quotedEtag(props != null ? props.getETag() : null);
+        return new StorageEntry(StoragePath.of(pathPrefix + item.getName()), size, lastModified, etag);
+    }
+
+    @Override
+    public boolean listsInKeyOrder() {
+        return true;
     }
 
     @Override

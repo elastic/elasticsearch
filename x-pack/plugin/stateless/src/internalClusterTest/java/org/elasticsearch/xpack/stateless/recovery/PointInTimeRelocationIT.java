@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchContextId;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -32,6 +33,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.SelfAccountingIndexInput;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
@@ -48,6 +52,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -61,6 +66,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -91,6 +98,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.S
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction.START_HANDOFF_ACTION_NAME;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -102,6 +110,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCase {
+
     @Override
     protected boolean addMockFsRepository() {
         return false;
@@ -158,26 +167,37 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
             protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
                 final IndexInput delegate = super.doOpenInput(name, context, blobFileRanges);
                 openInputs.put(delegate, name);
-                return new FilterIndexInput("tracked(" + name + ")", delegate) {
-                    private final AtomicBoolean closed = new AtomicBoolean(false);
-
-                    @Override
-                    public void close() throws IOException {
-                        if (closed.compareAndSet(false, true)) {
-                            try {
-                                super.close();
-                            } finally {
-                                openInputs.remove(delegate);
-                            }
-                        }
-                    }
-                };
+                return new TrackedIndexInput(name, delegate);
             }
 
             @Override
             public void close() throws IOException {
                 super.close();
                 assert openInputs.isEmpty() : "open inputs " + openInputs.values() + " not closed";
+            }
+
+            private final class TrackedIndexInput extends FilterIndexInput implements SelfAccountingIndexInput {
+                private final AtomicBoolean closed = new AtomicBoolean(false);
+
+                TrackedIndexInput(String name, IndexInput delegate) {
+                    super("tracked(" + name + ")", delegate);
+                }
+
+                @Override
+                public void accountBytesReadTo(PluggableDirectoryMetricsHolder<StoreMetrics> holder) {
+                    asInstanceOf(SelfAccountingIndexInput.class, in).accountBytesReadTo(holder);
+                }
+
+                @Override
+                public void close() throws IOException {
+                    if (closed.compareAndSet(false, true)) {
+                        try {
+                            super.close();
+                        } finally {
+                            openInputs.remove(in);
+                        }
+                    }
+                }
             }
         }
     }
@@ -1289,7 +1309,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         // acquireSearcherForCommit while it is inside openIfChanged opening the PIT commit.
         var blobReadStarted = new CountDownLatch(1);
         var blobReadBlocked = new CountDownLatch(1);
-        var blobNameToBlock = BatchedCompoundCommit.blobNameFromGeneration(randomBoolean() ? pit1BccBlobGeneration : pit2BccBlobGeneration);
+        var blobNameToBlock = BccBlob.blobNameFromGeneration(randomBoolean() ? pit1BccBlobGeneration : pit2BccBlobGeneration);
         setNodeRepositoryStrategy(searchNodeNext, new StatelessMockRepositoryStrategy() {
             @Override
             public InputStream blobContainerReadBlob(
@@ -2047,5 +2067,87 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         } while (searchAfter.get() != null);
         assertEquals(expectedNumDocs, totalHits.get());
         return nextPitId.get();
+    }
+
+    /**
+     * With two search replicas, a PIT search for a relocated shard must be answered by the relocation target. After the old node answers
+     * with a shard-not-available failure, the coordinator tries the other searchable copies in random order, and the pre-existing replica
+     * cannot rebuild the handed-off context once its latest commit differs from the one of the PIT. Each PIT is affected with a
+     * probability of about one half, so several PITs on the same copy make the test fail reliably without a fix.
+     */
+    public void testPointInTimeSearchAfterRelocationWithTwoSearchReplicas() throws Exception {
+        var indexNode = startMasterAndIndexNode(nodeSettings);
+        for (int i = 0; i < 3; i++) {
+            startSearchNode(nodeSettings);
+        }
+        var indexNodeClient = client(indexNode);
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 2).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, 100);
+        flushAndRefresh(indexName);
+
+        // The PITs are spread over the two search copies, so at least half of them are on the same copy.
+        var pitKeepAlive = TimeValue.timeValueSeconds(30);
+        Map<String, List<BytesReference>> pitsByNodeId = new HashMap<>();
+        for (int i = 0; i < 8; i++) {
+            var pitId = indexNodeClient.execute(
+                TransportOpenPointInTimeAction.TYPE,
+                new OpenPointInTimeRequest(indexName).keepAlive(pitKeepAlive)
+            ).actionGet().getPointInTimeId();
+            var nodeId = new PointInTimeBuilder(pitId).getSearchContextId(writableRegistry()).shards().values().iterator().next().getNode();
+            pitsByNodeId.computeIfAbsent(nodeId, k -> new ArrayList<>()).add(pitId);
+        }
+        var source = Collections.max(pitsByNodeId.entrySet(), Map.Entry.comparingByValue(Comparator.comparingInt(List::size)));
+        var pitsOnSource = source.getValue();
+        var pitSearcherId = new PointInTimeBuilder(pitsOnSource.get(0)).getSearchContextId(writableRegistry())
+            .shards()
+            .values()
+            .iterator()
+            .next()
+            .getSearchContextId()
+            .getSearcherId();
+
+        // The latest commit of every copy must differ from the one of the PITs, otherwise a copy can rebuild the context lazily.
+        indexDocs(indexName, 100);
+        flushAndRefresh(indexName);
+        assertBusy(() -> {
+            var commitIds = Arrays.stream(indicesAdmin().prepareStats(indexName).get().getShards())
+                .filter(shardStats -> shardStats.getCommitStats() != null)
+                .map(shardStats -> shardStats.getCommitStats().getId())
+                .toList();
+            assertThat(commitIds, not(empty()));
+            assertThat(commitIds, not(hasItem(pitSearcherId)));
+        });
+
+        // Move the copy the PITs are on. The old node keeps running, but no longer has the shard.
+        var sourceNodeName = internalCluster().clusterService().state().nodes().get(source.getKey()).getName();
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceNodeName))
+        );
+        ensureGreen(indexName);
+
+        var failures = new ArrayList<String>();
+        var pitsToClose = new ArrayList<BytesReference>();
+        pitsByNodeId.values().stream().filter(pits -> pits != pitsOnSource).forEach(pitsToClose::addAll);
+        for (var pitId : pitsOnSource) {
+            try {
+                assertResponse(
+                    indexNodeClient.prepareSearch()
+                        .setPointInTime(new PointInTimeBuilder(pitId).setKeepAlive(pitKeepAlive))
+                        .setAllowPartialSearchResults(false)
+                        .setSize(1),
+                    response -> pitsToClose.add(response.pointInTimeId())
+                );
+            } catch (SearchPhaseExecutionException e) {
+                pitsToClose.add(pitId);
+                failures.add(e.getMessage());
+            }
+        }
+        pitsToClose.forEach(
+            pitId -> indexNodeClient.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet()
+        );
+        assertThat("PIT searches failed after relocation", failures, empty());
     }
 }

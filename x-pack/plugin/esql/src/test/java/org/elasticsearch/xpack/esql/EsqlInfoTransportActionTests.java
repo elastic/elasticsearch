@@ -91,6 +91,7 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
             Counters firstCounters = new Counters();
             firstCounters.inc("foo.foo", 1);
             firstCounters.inc("foo.bar.baz", 1);
+            firstCounters.inc("datasources.admission.bytes.used", 8);
             firstNode.setStats(firstCounters);
             nodes.add(firstNode);
 
@@ -130,6 +131,7 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
         assertThat(fooFoo, is(1L));
         assertThat(spam, is(1L));
         assertThat(esqlUsage.stats().keySet(), containsInAnyOrder("foo", "spam", "datasources"));
+        assertNull("live admission gauges must not pollute _xpack/usage", ObjectPath.eval("datasources.admission", esqlUsage.stats()));
     }
 
     @SuppressWarnings("unchecked")

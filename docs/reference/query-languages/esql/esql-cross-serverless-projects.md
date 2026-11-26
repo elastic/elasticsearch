@@ -400,6 +400,8 @@ FROM logs METADATA _project._alias        <2>
 
 Two [{{esql}} cross-cluster search limitations](/reference/query-languages/esql/esql-cross-clusters.md#ccq-limitations) also apply to cross-project search: [inference endpoints](/reference/query-languages/esql/esql-cross-clusters.md#ccq-inference-endpoints) and [relevance scores across clusters](/reference/query-languages/esql/esql-cross-clusters.md#ccq-scores). Inference endpoints for `RERANK`, `COMPLETION`, `TEXT_EMBEDDING`, and `EMBEDDING` must exist in the origin project. Querying a `semantic_text` field needs that field's `search_inference_id` endpoint in every project that holds the data being queried.
 
+{applies_to}`serverless: preview` This also applies to `DENSE_VECTOR`.
+
 ### LOOKUP JOIN across projects
 
 {{esql}} `LOOKUP JOIN` follows the same constraints as [{{esql}} cross-cluster `LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md#cross-cluster-support). By default, {{esql}} resolves the lookup index on every project in the query and each project joins against its own local index with that name. In this case, the lookup index must exist on every project being queried.
@@ -412,6 +414,17 @@ If the lookup index is missing from one or more linked projects, use [coordinato
 These queries will run in serverless just like a normal {{esql}} query. With some limitations:
 :::{include} _snippets/common/cps_view_limitations.md
 :::
+
+### Federated datasets across projects
+
+```{applies_to}
+serverless: preview
+```
+
+[Federated datasets](/reference/query-languages/esql/esql-data-federation-datasets.md) resolve only in the origin project:
+
+* Datasets in linked projects are invisible to the query, including through qualified expressions such as `FROM linked-project:dataset`.
+* An unqualified expression that matches a dataset in the origin project also matches indices with the same name in linked projects. CPS returns results from both.
 
 
 ## Related pages

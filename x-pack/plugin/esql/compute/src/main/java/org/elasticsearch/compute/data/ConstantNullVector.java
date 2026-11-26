@@ -50,6 +50,11 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        return 0;
+    }
+
+    @Override
     public ConstantNullVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");

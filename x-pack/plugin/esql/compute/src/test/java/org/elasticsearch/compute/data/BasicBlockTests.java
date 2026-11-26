@@ -84,6 +84,7 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.asVector(), nullValue());
                     assertThat(block.mayHaveNulls(), is(false));
                     assertThat(block.areAllValuesNull(), is(false));
+                    assertThat(block.nullValuesCount(), is(0));
                     assertThat(block.mayHaveMultivaluedFields(), is(false));
                     assertThat(block.doesHaveMultivaluedFields(), is(false));
                     for (int p = 0; p < 10; p++) {
@@ -142,12 +143,35 @@ public class BasicBlockTests extends ESTestCase {
         assertDeepCopy(initialBlock);
     }
 
+    /** Block types without a specialized implementation rely on the default one in {@link Block}, which counts null positions. */
+    public void testNullValuesCountAggregateMetricDouble() {
+        int positionCount = between(1, 100);
+        int expectedNulls = 0;
+        try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                if (randomBoolean()) {
+                    builder.appendNull();
+                    expectedNulls++;
+                } else {
+                    builder.min().appendDouble(i);
+                    builder.max().appendDouble(i + 1);
+                    builder.sum().appendDouble(i * 2);
+                    builder.count().appendInt(i);
+                }
+            }
+            try (AggregateMetricDoubleBlock block = builder.build()) {
+                assertThat(block.nullValuesCount(), is(expectedNulls));
+            }
+        }
+    }
+
     public void testConstantNullBlock() {
         for (int i = 0; i < 100; i++) {
             assertThat(breaker.getUsed(), is(0L));
             int positionCount = randomIntBetween(1, 16 * 1024);
             Block block = blockFactory.newConstantNullBlock(positionCount);
             assertTrue(block.areAllValuesNull());
+            assertThat(block.nullValuesCount(), is(positionCount));
             assertThat(block, instanceOf(BooleanBlock.class));
             assertThat(block, instanceOf(IntBlock.class));
             assertThat(block, instanceOf(LongBlock.class));
@@ -631,6 +655,61 @@ public class BasicBlockTests extends ESTestCase {
                 yield new LongBigArrayBlock(values, positionCount, null, new BitSet(), Block.MvOrdering.UNORDERED, blockFactory);
             }
         };
+    }
+
+    public void testLookupSplitsAtUsedBytes() {
+        try (LongBlock values = blockFactory.newLongArrayVector(new long[] { 1, 2 }, 2).asBlock()) {
+            try (IntBlock positions = blockFactory.newIntArrayVector(new int[200], 200).asBlock()) {
+                assertThat(lookupBlockSizes(values, positions, 80 * Long.BYTES), equalTo(List.of(80, 80, 40)));
+            }
+            try (IntBlock positions = blockFactory.newConstantIntBlockWith(5, 200)) {
+                // misses are nulls, which still take a value slot
+                assertThat(lookupBlockSizes(values, positions, 80 * Long.BYTES), equalTo(List.of(80, 80, 40)));
+            }
+            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(200)) {
+                for (int p = 0; p < 200; p++) {
+                    builder.beginPositionEntry().appendInt(0).appendInt(1).endPositionEntry();
+                }
+                try (IntBlock positions = builder.build()) {
+                    // two values plus a first value index per position
+                    long target = 40 * (2 * Long.BYTES + Integer.BYTES);
+                    assertThat(lookupBlockSizes(values, positions, target), equalTo(List.of(40, 40, 40, 40, 40)));
+                }
+            }
+            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(200)) {
+                builder.beginPositionEntry().appendInt(0).appendInt(1).endPositionEntry();
+                for (int p = 1; p < 200; p++) {
+                    builder.appendInt(0);
+                }
+                try (IntBlock positions = builder.build()) {
+                    // one multivalued position gives every position in its block a first value index
+                    long target = 80 * (Long.BYTES + Integer.BYTES) + Long.BYTES + Integer.BYTES;
+                    assertThat(lookupBlockSizes(values, positions, target), equalTo(List.of(80, 120)));
+                }
+            }
+        }
+        try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(2)) {
+            builder.appendBytesRef(new BytesRef("0123456789")).appendBytesRef(new BytesRef("abcdefghij"));
+            try (
+                BytesRefBlock values = builder.build().asBlock();
+                IntBlock positions = blockFactory.newIntArrayVector(new int[200], 200).asBlock()
+            ) {
+                // each 10-byte value also costs a 4-byte offset
+                assertThat(lookupBlockSizes(values, positions, 50 * 14), equalTo(List.of(50, 50, 50, 50)));
+            }
+        }
+    }
+
+    private static List<Integer> lookupBlockSizes(Block values, IntBlock positions, long targetBytes) {
+        List<Integer> sizes = new ArrayList<>();
+        try (ReleasableIterator<? extends Block> it = values.lookup(positions, ByteSizeValue.ofBytes(targetBytes))) {
+            while (it.hasNext()) {
+                try (Block b = it.next()) {
+                    sizes.add(b.getPositionCount());
+                }
+            }
+        }
+        return sizes;
     }
 
     static IntBlock positions(BlockFactory blockFactory, Object... positions) {

@@ -101,7 +101,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
 
     // ---- forced hash-join path correctness ----
     //
-    // These tests pin {@code in_subquery_hash_join_threshold=0} so AbstractSubqueryJoin.inlineData always
+    // These tests pin {@code in_subquery_hash_join_threshold=0} so AbstractInSubqueryJoin.inlineData always
     // routes through the hash-join branch (LEFT-join on sentinel + IS NOT NULL filter) once dedup
     // produces at least one key, instead of folding into Filter(IN(literals...)).
     // They cover the cases the default-threshold tests above cannot — small subquery results that
@@ -916,13 +916,13 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
     /**
      * Regression test: a request-level {@code filter} makes {@code EsqlSession.analyzeWithRetry}
      * re-run {@code Analyzer.analyze} on the same parsed plan after a {@code VerificationException},
-     * revisiting the {@code ViewUnionAll} built for the two unioned views -- whose
+     * revisiting the {@code BranchPlan} built for the two unioned views -- whose
      * {@code namedSubqueries} map {@code asSubqueryMap} already drained on the first pass (see
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAllTests#testReplaceChildrenDoesNotMutateOriginalInstance}).
+     * {@link org.elasticsearch.xpack.esql.plan.logical.BranchPlanTests#testReplaceChildrenDoesNotMutateOriginalInstance}).
      * <p>
      * Before we corrected a bug this was failing with {@link java.util.NoSuchElementException}.
      */
-    public void testTwoViewsUnionedInInSubqueryRetryDoesNotDrainViewUnionAll() {
+    public void testTwoViewsUnionedInInSubqueryRetryDoesNotDrainBranchPlan() {
         assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
         assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
         try {

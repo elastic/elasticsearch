@@ -49,10 +49,23 @@ public class FileListCompactorTests extends ESTestCase {
     }
 
     private static GenericFileList listOf(Consumer<String> warningSink, String pattern, String... keys) {
+        return listOfWithVersions(warningSink, pattern, null, keys);
+    }
+
+    /**
+     * As {@link #listOf(Consumer, String, String...)}, but every file carries its own version, as an object store's
+     * listing does: {@code etag-<index>} for the file at that index, so a lost or swapped version shows at once.
+     */
+    private static GenericFileList versionedListOf(String pattern, String... keys) {
+        return listOfWithVersions(WarningSinks.FAILING, pattern, "etag-", keys);
+    }
+
+    private static GenericFileList listOfWithVersions(Consumer<String> warningSink, String pattern, String versionPrefix, String... keys) {
         Instant mtime = Instant.ofEpochMilli(1_700_000_000_000L);
         List<StorageEntry> entries = new ArrayList<>(keys.length);
         for (int i = 0; i < keys.length; i++) {
-            entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), mtime));
+            String version = versionPrefix == null ? null : versionPrefix + i;
+            entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), mtime, version));
         }
         PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, warningSink);
         return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
@@ -66,6 +79,7 @@ public class FileListCompactorTests extends ESTestCase {
             assertEquals("path at " + i, raw.path(i).toString(), compact.path(i).toString());
             assertEquals("size at " + i, raw.size(i), compact.size(i));
             assertEquals("mtime at " + i, raw.lastModifiedMillis(i), compact.lastModifiedMillis(i));
+            assertEquals("version at " + i, raw.version(i), compact.version(i));
         }
         assertEquals("exclusion warnings", raw.listingWarnings(), compact.listingWarnings());
         PartitionMetadata rawPm = raw.partitionMetadata();
@@ -338,6 +352,57 @@ public class FileListCompactorTests extends ESTestCase {
         FileList compact = assertRoundTrip(base, listOf(base + "**/*.parquet", keys.toArray(new String[0])));
         assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
         assertEquals(compact.fileCount(), compact.partitionMetadata().rowCount());
+    }
+
+    /**
+     * Each file's object version survives the directory-grouped encoding: versions are unique per object, so grouping
+     * must keep one per file rather than one per directory, or a rewritten file would be read under its neighbour's
+     * version.
+     */
+    public void testVersionsSurviveDirectoryGroupedEncoding() {
+        String base = "s3://b/data/";
+        List<String> keys = new ArrayList<>();
+        int fileId = 0;
+        for (int year = 2023; year <= 2024; year++) {
+            for (int month = 1; month <= 12; month++) {
+                for (int part = 0; part < 20; part++) {
+                    keys.add(base + "year=" + year + "/month=" + month + "/part-" + (fileId++) + ".parquet");
+                }
+            }
+        }
+        FileList compact = assertRoundTrip(base, versionedListOf(base + "**/*.parquet", keys.toArray(new String[0])));
+        assertThat(compact, Matchers.instanceOf(DirectoryGroupedFileList.class));
+        assertEquals("etag-0", compact.version(0));
+        assertEquals("etag-" + (keys.size() - 1), compact.version(keys.size() - 1));
+    }
+
+    /** Each file's object version survives the dictionary encoding, which is the one a deep layout picks. */
+    public void testVersionsSurviveDictionaryEncoding() {
+        String base = "s3://b/data/";
+        List<String> keys = new ArrayList<>();
+        for (int month = 1; month <= 12; month++) {
+            for (int day = 1; day <= 28; day++) {
+                keys.add(base + "year=2024/month=" + month + "/day=" + day + "/data.parquet");
+            }
+        }
+        FileList compact = assertRoundTrip(base, versionedListOf(base + "**/*.parquet", keys.toArray(new String[0])));
+        assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
+        assertEquals("etag-" + (keys.size() - 1), compact.version(keys.size() - 1));
+    }
+
+    /** A listing whose store reported no versions compacts to a listing with none, and no encoding invents one. */
+    public void testUnversionedListingStaysUnversioned() {
+        String base = "s3://b/data/";
+        List<String> keys = new ArrayList<>();
+        for (int month = 1; month <= 12; month++) {
+            for (int day = 1; day <= 28; day++) {
+                keys.add(base + "year=2024/month=" + month + "/day=" + day + "/data.parquet");
+            }
+        }
+        FileList compact = assertRoundTrip(base, listOf(base + "**/*.parquet", keys.toArray(new String[0])));
+        for (int i = 0; i < compact.fileCount(); i++) {
+            assertNull("no version at " + i, compact.version(i));
+        }
     }
 
     // ------------------------------------------------------------------

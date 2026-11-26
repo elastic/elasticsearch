@@ -29,14 +29,13 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -267,41 +266,28 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
         this.parentTripCountTotalMetric = metrics.getTripCount();
 
-        metrics.registerMemoryGauges(this::collectMemoryLimits, this::collectMemoryEstimates);
+        metrics.registerMemoryGauges(this::recordMemoryLimits, this::recordMemoryEstimates);
     }
 
-    private Collection<LongWithAttributes> collectMemoryLimits() {
-        List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
+    private void recordMemoryLimits(LongAsyncMeasurement measurement) {
         for (CircuitBreaker breaker : this.breakers.values()) {
-            out.add(
-                new LongWithAttributes(
-                    breaker.getLimit(),
-                    Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName())
-                )
-            );
+            measurement.record(breaker.getLimit(), Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName()));
         }
-        out.add(
-            new LongWithAttributes(
-                this.parentSettings.getLimit(),
-                Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
-            )
+        measurement.record(
+            this.parentSettings.getLimit(),
+            Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
         );
-        return out;
     }
 
-    private Collection<LongWithAttributes> collectMemoryEstimates() {
-        List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
+    private void recordMemoryEstimates(LongAsyncMeasurement measurement) {
         for (CircuitBreaker breaker : this.breakers.values()) {
             long estimated = (long) (breaker.getUsed() * breaker.getOverhead());
-            out.add(new LongWithAttributes(estimated, Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName())));
+            measurement.record(estimated, Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName()));
         }
-        out.add(
-            new LongWithAttributes(
-                memoryUsed(0L).totalUsage,
-                Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
-            )
+        measurement.record(
+            memoryUsed(0L).totalUsage,
+            Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
         );
-        return out;
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
@@ -595,7 +581,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         MemoryUsage overLimit(MemoryUsage memoryUsed);
     }
 
-    static class G1OverLimitStrategy implements OverLimitStrategy {
+    public static class G1OverLimitStrategy implements OverLimitStrategy {
         private static final int FILLER_ARRAY_HEADER_ALLOWANCE_BYTES = 64;
 
         private final long g1RegionSize;
@@ -675,7 +661,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             return (int) (g1RegionSize >> 2) - FILLER_ARRAY_HEADER_ALLOWANCE_BYTES;
         }
 
-        static long fallbackRegionSize(JvmInfo jvmInfo) {
+        /**
+         * G1 region size to assume when the JVM does not report one, derived from the heap size the way G1 picks it.
+         */
+        public static long fallbackRegionSize(JvmInfo jvmInfo) {
             // mimic JDK calculation based on JDK 14 source:
             // https://hg.openjdk.java.net/jdk/jdk14/file/6c954123ee8d/src/hotspot/share/gc/g1/heapRegion.cpp#l65
             // notice that newer JDKs will have a slight variant only considering max-heap:

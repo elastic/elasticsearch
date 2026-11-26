@@ -14,7 +14,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -147,7 +146,6 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testEmptyMappingLookup() {
         MappingLookup mappingLookup = MappingLookup.EMPTY;
-        assertEquals("{\"_doc\":{}}", Strings.toString(mappingLookup.getMapping()));
         assertFalse(mappingLookup.hasMappings());
         assertNull(mappingLookup.getMapping().getMeta());
         assertEquals(0, mappingLookup.getMapping().getMetadataMappersMap().size());
@@ -327,9 +325,5 @@ public class MappingLookupTests extends ESTestCase {
             return null;
         }
 
-        @Override
-        public Builder getMergeBuilder() {
-            return null;
-        }
     }
 }

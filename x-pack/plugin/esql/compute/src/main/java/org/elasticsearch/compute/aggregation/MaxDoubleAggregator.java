@@ -12,18 +12,21 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 @Aggregator({ @IntermediateState(name = "max", type = "DOUBLE"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 class MaxDoubleAggregator {
 
     public static double init() {
-        return -Double.MAX_VALUE;
+        return Double.NaN;
     }
 
     public static double combine(double current, double v) {
-        return Math.max(current, v);
+        if (Double.isNaN(v)) {
+            return current;
+        }
+        return Double.isNaN(current) ? v : Math.max(current, v);
     }
 
     public static void combine(DoubleArrayState state, int groupId, double v) {
-        state.max(groupId, v);
+        state.set(groupId, combine(state.getOrDefault(groupId), v));
     }
 }

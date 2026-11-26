@@ -28,11 +28,12 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
- * Golden (characterization) snapshot of the optimized logical plan for the {@link PruneRedundantAggregateGroupings}
- * external-grouping path. See GoldenTestsReadme.md.
+ * Golden (characterization) snapshot of the optimized logical plan for a derived external grouping, which
+ * {@link PruneRedundantAggregateGroupings} leaves untouched (only scalar constants are pruned). See GoldenTestsReadme.md.
  */
 public class PruneRedundantAggregateGroupingsGoldenTests extends GoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION);
@@ -49,8 +50,9 @@ public class PruneRedundantAggregateGroupingsGoldenTests extends GoldenTestCase 
     }
 
     /**
-     * Renaming an external column, deriving a value from it, then grouping by both: the derived grouping is pruned and
-     * rebuilt above the aggregate reading the rename alias, so the plan stays consistent.
+     * Renaming an external column, deriving a value from it, then grouping by both: the derived grouping is kept in the
+     * aggregate and evaluated on the row below it (it is {@code null} where the source column holds a list, which a
+     * per-group recomputation above the aggregate would not reproduce); only the rename alias is re-exposed.
      */
     public void testRenamedDerivedExternalGrouping() {
         assumeTrue("requires FROM <dataset> capability", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
@@ -95,7 +97,8 @@ public class PruneRedundantAggregateGroupingsGoldenTests extends GoldenTestCase 
                 return "parquet";
             }
         };
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            datasetMetadata(),
             Map.of(DATA_RESOURCE, new ExternalSourceResolution.ResolvedSource(metadata, FileList.UNRESOLVED, Map.of()))
         );
     }

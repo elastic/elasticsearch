@@ -296,4 +296,8 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         }
 
     }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/164525")
+    public void testToQueryChargesBreakerOnce() {}
 }

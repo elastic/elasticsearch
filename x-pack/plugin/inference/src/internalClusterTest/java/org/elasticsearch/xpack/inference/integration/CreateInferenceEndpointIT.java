@@ -30,7 +30,9 @@ import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.mock.TestDecisionServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.mock.TestDocumentExtractionServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
@@ -246,6 +248,8 @@ public class CreateInferenceEndpointIT extends ESIntegTestCase {
             case SPARSE_EMBEDDING -> TestSparseInferenceServiceExtension.TestInferenceService.NAME;
             case RERANK -> TestRerankingServiceExtension.TestInferenceService.NAME;
             case COMPLETION, CHAT_COMPLETION -> TestStreamingCompletionServiceExtension.TestInferenceService.NAME;
+            case DECISION -> TestDecisionServiceExtension.TestInferenceService.NAME;
+            case DOCUMENT_EXTRACTION -> TestDocumentExtractionServiceExtension.TestInferenceService.NAME;
             default -> throw new IllegalStateException("Unexpected value: " + taskType);
         };
     }

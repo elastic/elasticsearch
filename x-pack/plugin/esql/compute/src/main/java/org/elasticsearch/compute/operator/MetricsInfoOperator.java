@@ -15,104 +15,115 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Operator for the ESQL {@code METRICS_INFO} command.
  * <p>
  * Operates in two modes, mirroring the two-phase INITIAL/FINAL pattern used by aggregations:
  * <ul>
- *   <li><b>INITIAL</b> (data nodes) – created via {@link Factory}. Expects deduplicated input
- *       (one row per {@code _tsid}) from an upstream {@link DistinctByOperator}, with blocks for
- *       {@code _timeseries_metadata} and {@code _index}. Groups metrics by (metricName, dataStreamName)
- *       so that different backing indices of the same data stream share one entry. Conflicting
- *       unit/metric_type/field_type values across backing indices become multi-valued. Dimension
- *       keys are assigned only to the metrics that actually appeared in each tsid's metadata.
+ *   <li><b>INITIAL</b> (data nodes) – created via {@link Factory}. Expects one row per set of fields that
+ *       occur together in a document, with blocks for the index name and the multivalued field names, as
+ *       emitted by {@code FieldPresenceOperator}. Fields that the {@link MetricFieldLookup} doesn't know as
+ *       metrics are dimensions. Groups metrics by (metricName, indexAbstractionName) so that different backing
+ *       indices of the same data stream share one entry. Conflicting unit/metric_type/field_type values across
+ *       backing indices become multi-valued. Dimension keys are assigned only to the metrics of the same row.
  *       Produces one row per distinct metric signature within the local shards.</li>
  *   <li><b>FINAL</b> (coordinator) – created via {@link FinalFactory}. Receives the 6-column
  *       output pages produced by INITIAL instances on each data node and merges rows that share
- *       the same {@link MetricSignature}, unioning multi-valued fields ({@code data_stream},
+ *       the same metric name and metadata, unioning multi-valued fields ({@code data_stream},
  *       {@code dimension_fields}, etc.).</li>
  * </ul>
  *
  * <h2>Output columns (both modes)</h2>
  * <ul>
  *   <li>{@code metric_name} – keyword (single-valued)</li>
- *   <li>{@code data_stream} – keyword (multi-valued); data stream names that have this metric
+ *   <li>{@code data_stream} – keyword (multi-valued); data stream or standalone index names that have this metric
  *       with the same signature (backing index names are resolved to their parent data stream)</li>
  *   <li>{@code unit} – keyword (multi-valued when backing indices differ; may be null)</li>
  *   <li>{@code metric_type} – keyword (multi-valued when definitions differ across data)</li>
  *   <li>{@code field_type} – keyword (multi-valued when definitions differ across data)</li>
  *   <li>{@code dimension_fields} – keyword (multi-valued); union of dimension keys for this row</li>
  * </ul>
+ *
+ * <h2>State and memory</h2>
+ * State is keyed by metric name. Each metric maps its data streams and standalone indices to the metric's metadata
+ * and dimension keys there. Output combines the index abstractions of a metric that share metadata, one metric at a
+ * time, so no second full-size structure is built. Names repeat across entries, so they come from
+ * {@link MetadataValues}, which keeps and charges each distinct name once. The state is bounded by the metric fields
+ * of the mappings, so each entry owns its metadata lists instead of sharing them. Dimension keys grow as documents and
+ * backing indices add keys, so each entry owns them, as a sorted array of ids into the operator's dimension names.
+ * A row maps its dimension names to ids once, so merging them into each of its metrics compares integers, not strings.
  */
 public class MetricsInfoOperator implements Operator {
 
     public static final int NUM_BLOCKS = 6;
 
-    private record MetricInfoKey(String metricName, String dataStreamName) {}
-
-    /**
-     * Represents an intermediate state grouped by name and dataStream.
-     */
-    private static class MetricInfo {
+    /** One metric and its index abstractions. The name is canonical. */
+    private static final class Metric {
         final String name;
-        final String dataStream;
-        final Set<String> units = new HashSet<>();
-        final Set<String> metricTypes = new HashSet<>();
-        final Set<String> fieldTypes = new HashSet<>();
-        final Set<String> dimensionFieldKeys = new HashSet<>();
+        final Map<String, IndexAbstractionMetadata> indexAbstractions = new LinkedHashMap<>();
 
-        MetricInfo(String name, String dataStream) {
+        Metric(String name) {
             this.name = name;
-            this.dataStream = dataStream;
         }
     }
 
     /**
-     * Represents a merged output row where multiple data streams with the same
-     * signature are combined into one row.
+     * The metric's state in one data stream or standalone index. The name is shared through {@link MetadataValues}.
+     * The metadata lists and dimension ids are owned by this entry.
      */
-    private static class MetricInfoRow {
-        final String metricName;
-        final Set<String> dataStreams = new HashSet<>();
-        final Set<String> units;
-        final Set<String> fieldTypes;
-        final Set<String> metricTypes;
-        final Set<String> dimensionFieldKeys = new HashSet<>();
+    private static final class IndexAbstractionMetadata {
+        final String name;
+        List<String> units = List.of();
+        List<String> fieldTypes = List.of();
+        List<String> metricTypes = List.of();
+        /** Sorted, distinct ids into the operator's dimension names. */
+        int[] dimensionIds = NO_DIMENSIONS;
 
-        MetricInfoRow(String metricName, Set<String> units, Set<String> fieldTypes, Set<String> metricTypes) {
-            this.metricName = metricName;
-            this.units = units;
-            this.fieldTypes = fieldTypes;
-            this.metricTypes = metricTypes;
+        IndexAbstractionMetadata(String name) {
+            this.name = name;
         }
     }
 
-    /**
-     * Signature for merging rows. Data streams with the same signature are merged
-     * into one row with multi-valued data_stream.
-     */
-    private record MetricSignature(String metricName, Set<String> units, Set<String> fieldTypes, Set<String> metricTypes) {}
+    /** Index abstractions of one metric with equal metadata produce one output row. */
+    private record FieldMetadata(List<String> units, List<String> fieldTypes, List<String> metricTypes) {}
+
+    /** The index abstractions and the union of dimension keys of one output row. */
+    private record OutputRow(List<String> indexAbstractionNames, SortedSet<String> dimensionFieldKeys) {}
+
+    /** A new metric with its map entry and its empty index abstraction map. */
+    private static final long METRIC_BYTES = MetadataValues.MAP_ENTRY_BYTES + RamUsageEstimator.shallowSizeOfInstance(Metric.class)
+        + RamUsageEstimates.LINKED_HASH_MAP_SHALLOW_SIZE;
+
+    /** A new index abstraction of a metric with its map entry. */
+    private static final long INDEX_ABSTRACTION_BYTES = MetadataValues.MAP_ENTRY_BYTES + RamUsageEstimator.shallowSizeOfInstance(
+        IndexAbstractionMetadata.class
+    );
+
+    /** A new dimension name with its map entry, its boxed id and its slot in the list of names, excluding the name. */
+    private static final long DIMENSION_NAME_BYTES = MetadataValues.MAP_ENTRY_BYTES + RamUsageEstimator.shallowSizeOfInstance(Integer.class)
+        + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+
+    private static final int[] NO_DIMENSIONS = new int[0];
 
     /**
      * Looks up metric field metadata on demand.
@@ -139,32 +150,32 @@ public class MetricsInfoOperator implements Operator {
     private static final int COL_DIMENSION_FIELDS = 5;
 
     /**
-     * Factory for INITIAL mode (data nodes): extracts metric metadata from shards.
+     * Factory for INITIAL mode (data nodes): builds metric metadata from the sets of fields found in the shards.
      *
-     * @param fieldLookup          on-demand lookup for metric field metadata
-     * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
-     * @param indexChannel         channel index for {@code _index} block
+     * @param fieldLookup        on-demand lookup for metric field metadata
+     * @param dataStreamsByIndex backing index names mapped to their parent data streams, including cluster qualifiers
+     * @param indexChannel       channel of the index name block, including the cluster qualifier
+     * @param fieldNamesChannel  channel of the multivalued block with the names of fields that occur together
      */
-    public record Factory(MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) implements OperatorFactory {
+    public record Factory(MetricFieldLookup fieldLookup, Map<String, String> dataStreamsByIndex, int indexChannel, int fieldNamesChannel)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new MetricsInfoOperator(
                 Mode.INITIAL,
                 driverContext.blockFactory(),
                 fieldLookup,
-                metadataSourceChannel,
+                dataStreamsByIndex,
                 indexChannel,
+                fieldNamesChannel,
                 null
             );
         }
 
         @Override
         public String describe() {
-            return "MetricsInfoOperator[mode=INITIAL, metadataSourceChannel="
-                + metadataSourceChannel
-                + ", indexChannel="
-                + indexChannel
-                + "]";
+            return "MetricsInfoOperator[mode=INITIAL, indexChannel=" + indexChannel + ", fieldNamesChannel=" + fieldNamesChannel + "]";
         }
     }
 
@@ -177,7 +188,7 @@ public class MetricsInfoOperator implements Operator {
     public record FinalFactory(int[] channels) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new MetricsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, -1, -1, channels);
+            return new MetricsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, Map.of(), -1, -1, channels);
         }
 
         @Override
@@ -186,26 +197,30 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    /** Shallow size of a MetricInfoKey + MetricInfo pair (object headers and field slots only). */
-    static final long ENTRY_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MetricInfoKey.class) + RamUsageEstimator
-        .shallowSizeOfInstance(MetricInfo.class);
-
     public enum Mode {
         INITIAL,
         FINAL
     }
 
-    private final Map<MetricInfoKey, MetricInfo> metricsByKey = new LinkedHashMap<>();
+    private Map<String, Metric> metricsByName = new LinkedHashMap<>();
+    /** Metric and index abstraction names, shared by all entries, and the metadata lists the entries own. */
+    private MetadataValues values;
+    /** Ids of the dimension names seen so far. */
+    private Map<String, Integer> dimensionIdsByName = new HashMap<>();
+    /** Dimension names by id. */
+    private List<String> dimensionNames = new ArrayList<>();
+    private int metricsAccumulated;
 
     private final Mode mode;
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
     private long trackedBytes;
 
-    /** INITIAL-mode fields (null in FINAL mode). */
+    /** Fields used only in INITIAL mode. */
     private final MetricFieldLookup fieldLookup;
-    private final int metadataSourceChannel;
+    private final Map<String, String> dataStreamsByIndex;
     private final int indexChannel;
+    private final int fieldNamesChannel;
     /** FINAL-mode field: input channel indices for the 6 output columns. Null in INITIAL mode. */
     private final int[] finalChannels;
 
@@ -220,17 +235,20 @@ public class MetricsInfoOperator implements Operator {
         Mode mode,
         BlockFactory blockFactory,
         MetricFieldLookup fieldLookup,
-        int metadataSourceChannel,
+        Map<String, String> dataStreamsByIndex,
         int indexChannel,
+        int fieldNamesChannel,
         int[] channels
     ) {
         this.mode = mode;
         this.blockFactory = blockFactory;
         this.breaker = blockFactory.breaker();
         this.fieldLookup = fieldLookup;
-        this.metadataSourceChannel = metadataSourceChannel;
+        this.dataStreamsByIndex = dataStreamsByIndex;
         this.indexChannel = indexChannel;
+        this.fieldNamesChannel = fieldNamesChannel;
         this.finalChannels = channels;
+        this.values = new MetadataValues(breaker, "MetricsInfoOperator");
     }
 
     @Override
@@ -249,31 +267,20 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    /** INITIAL mode: extract metric metadata from _timeseries_metadata and _index blocks. */
+    /** INITIAL mode: classify each set of fields that occur together into metrics and dimensions. */
     private void addInputInitial(Page page) {
         try {
-            BytesRefBlock metadataSource = page.getBlock(metadataSourceChannel);
             BytesRefBlock indexBlock = page.getBlock(indexChannel);
+            BytesRefBlock fieldNamesBlock = page.getBlock(fieldNamesChannel);
 
-            BytesRef indexScratch = new BytesRef();
-            BytesRef sourceScratch = new BytesRef();
-
+            BytesRef scratch = new BytesRef();
             for (int p = 0; p < page.getPositionCount(); p++) {
-                if (metadataSource.isNull(p)) {
+                if (indexBlock.isNull(p) || fieldNamesBlock.isNull(p)) {
                     continue;
                 }
-                if (indexBlock.isNull(p)) {
-                    continue;
-                }
-
-                String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
-                String dataStreamName = resolveDataStreamName(indexName);
-                Map<String, Object> metadata = parseMetadataSource(metadataSource, p, sourceScratch);
-                if (metadata == null) {
-                    continue;
-                }
-
-                collectAndAggregateFields(metadata, null, indexName, dataStreamName, new HashSet<>(), new HashSet<>());
+                String indexName = indexBlock.getBytesRef(indexBlock.getFirstValueIndex(p), scratch).utf8ToString();
+                String indexAbstractionName = dataStreamsByIndex.getOrDefault(indexName, indexName);
+                recordFieldSet(indexName, indexAbstractionName, fieldNamesBlock, p, scratch);
             }
         } finally {
             page.releaseBlocks();
@@ -296,24 +303,18 @@ public class MetricsInfoOperator implements Operator {
                     continue;
                 }
 
-                Set<String> dataStreams = readMultiValue(dsBlock, pos, scratch);
-                Set<String> units = readMultiValue(unitBlock, pos, scratch);
-                Set<String> fieldTypes = readMultiValue(ftBlock, pos, scratch);
-                Set<String> metricTypes = readMultiValue(mtBlock, pos, scratch);
-                Set<String> dimensionFields = readMultiValue(dfBlock, pos, scratch);
+                SortedSet<String> units = readMultiValue(unitBlock, pos, scratch);
+                SortedSet<String> fieldTypes = readMultiValue(ftBlock, pos, scratch);
+                SortedSet<String> metricTypes = readMultiValue(mtBlock, pos, scratch);
+                int[] dimensionIds = dimensionIds(readMultiValue(dfBlock, pos, scratch));
 
-                for (String ds : dataStreams) {
-                    MetricInfoKey key = new MetricInfoKey(metricName, ds);
-                    MetricInfo info = metricsByKey.get(key);
-                    if (info == null) {
-                        trackNewEntry(metricName, ds);
-                        info = new MetricInfo(key.metricName(), key.dataStreamName());
-                        metricsByKey.put(key, info);
-                    }
-                    trackSetAddAll(info.units, units);
-                    trackSetAddAll(info.fieldTypes, fieldTypes);
-                    trackSetAddAll(info.metricTypes, metricTypes);
-                    trackSetAddAll(info.dimensionFieldKeys, dimensionFields);
+                Metric metric = findOrCreateMetric(metricName);
+                for (String indexAbstractionName : readMultiValue(dsBlock, pos, scratch)) {
+                    IndexAbstractionMetadata indexAbstraction = findOrCreateIndexAbstraction(metric, indexAbstractionName);
+                    indexAbstraction.units = values.unsharedUnion(indexAbstraction.units, units);
+                    indexAbstraction.fieldTypes = values.unsharedUnion(indexAbstraction.fieldTypes, fieldTypes);
+                    indexAbstraction.metricTypes = values.unsharedUnion(indexAbstraction.metricTypes, metricTypes);
+                    addDimensionIds(indexAbstraction, dimensionIds);
                 }
             }
         } finally {
@@ -328,8 +329,8 @@ public class MetricsInfoOperator implements Operator {
         return block.getBytesRef(position, scratch).utf8ToString();
     }
 
-    private static Set<String> readMultiValue(BytesRefBlock block, int position, BytesRef scratch) {
-        Set<String> values = new HashSet<>();
+    private static SortedSet<String> readMultiValue(BytesRefBlock block, int position, BytesRef scratch) {
+        SortedSet<String> values = new TreeSet<>();
         if (block.isNull(position)) {
             return values;
         }
@@ -342,126 +343,146 @@ public class MetricsInfoOperator implements Operator {
     }
 
     /**
-     * Recursively walks the parsed {@code _timeseries_metadata} JSON, classifying each leaf as
-     * either a metric (via {@link #fieldLookup}) or a dimension key.
+     * Classifies the fields of one document as metrics (via {@link #fieldLookup}) or dimensions, and records the
+     * dimensions only on the metrics of the same document, not on every metric ever seen.
      *
-     * @param metadata       the (possibly nested) metadata map for one tsid
-     * @param prefix         dotted path prefix for the current nesting level ({@code null} at root)
-     * @param indexName      concrete backing-index name – used for the field lookup (mapping is per backing index)
-     * @param dataStreamName resolved data-stream name – used as the grouping key so that all
-     *                       backing indices of the same data stream share a single {@link MetricInfo}
-     * @param dimensionKeys  accumulates non-metric leaf keys found in this document
-     * @param touchedMetrics accumulates the {@link MetricInfo} entries that were created or updated
-     *                       by this document, so that dimension keys are only added to the metrics
-     *                       that actually appeared in the same tsid (not all metrics ever seen)
+     * @param indexName            concrete index name, used for the field lookup because mappings are per index
+     * @param indexAbstractionName parent data-stream name or concrete index name, used as the grouping key so that
+     *                             backing indices of the same data stream share a single entry
+     * @param fieldNamesBlock      names of the fields that occur together in a document, at {@code position}. The
+     *                             presence check reports each field once, so the names are distinct.
      */
-    @SuppressWarnings("unchecked")
-    private void collectAndAggregateFields(
-        Map<String, Object> metadata,
-        String prefix,
+    private void recordFieldSet(
         String indexName,
-        String dataStreamName,
-        Set<String> dimensionKeys,
-        Set<MetricInfo> touchedMetrics
+        String indexAbstractionName,
+        BytesRefBlock fieldNamesBlock,
+        int position,
+        BytesRef scratch
     ) {
-        for (Map.Entry<String, Object> entry : metadata.entrySet()) {
-            String key = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
-            Object value = entry.getValue();
-
-            // Check the metric lookup first, before inspecting the value type.
-            // Some metric types (histogram, exponential_histogram, tdigest) produce
-            // nested JSON in synthetic source. Without this early check, the method
-            // would recurse into the nested structure and misclassify internal fields
-            // (e.g. "values", "counts", "centroids") as dimension keys.
-            MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
+        List<String> dimensionKeys = new ArrayList<>();
+        List<MetricFieldInfo> metrics = new ArrayList<>();
+        int start = fieldNamesBlock.getFirstValueIndex(position);
+        int end = start + fieldNamesBlock.getValueCount(position);
+        for (int i = start; i < end; i++) {
+            String fieldName = fieldNamesBlock.getBytesRef(i, scratch).utf8ToString();
+            MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, fieldName);
             if (fieldInfo != null) {
-                recordMetric(fieldInfo, dataStreamName, touchedMetrics);
-            } else if (value instanceof Map<?, ?> nested) {
-                collectAndAggregateFields((Map<String, Object>) nested, key, indexName, dataStreamName, dimensionKeys, touchedMetrics);
+                metrics.add(fieldInfo);
             } else {
-                dimensionKeys.add(key);
+                dimensionKeys.add(fieldName);
             }
         }
-
-        if (prefix == null && dimensionKeys.isEmpty() == false) {
-            for (MetricInfo info : touchedMetrics) {
-                trackSetAddAll(info.dimensionFieldKeys, dimensionKeys);
-            }
+        int[] dimensionIds = dimensionIds(dimensionKeys);
+        for (MetricFieldInfo fieldInfo : metrics) {
+            recordMetric(fieldInfo, indexAbstractionName, dimensionIds);
         }
     }
 
     /**
-     * Records a metric field into the per-key metric map, grouping by (metricName, dataStreamName)
-     * so that backing indices within the same data stream share one {@link MetricInfo} entry.
-     * Conflicting unit/metric_type/field_type across backing indices of the same data stream
+     * Records a metric field under (metricName, indexAbstractionName), so that backing indices within the same data
+     * stream share one entry. Conflicting unit/metric_type/field_type across backing indices of the same data stream
      * become multi-valued.
      */
-    private void recordMetric(MetricFieldInfo fieldInfo, String dataStreamName, Set<MetricInfo> touchedMetrics) {
-        MetricInfoKey infoKey = new MetricInfoKey(fieldInfo.name(), dataStreamName);
-        MetricInfo info = metricsByKey.get(infoKey);
-        if (info == null) {
-            trackNewEntry(fieldInfo.name(), dataStreamName);
-            info = new MetricInfo(infoKey.metricName(), infoKey.dataStreamName());
-            metricsByKey.put(infoKey, info);
-        }
-        touchedMetrics.add(info);
-
-        trackSetAdd(info.units, fieldInfo.unit());
-        trackSetAdd(info.fieldTypes, fieldInfo.fieldType());
-        trackSetAdd(info.metricTypes, fieldInfo.metricType());
+    private void recordMetric(MetricFieldInfo fieldInfo, String indexAbstractionName, int[] dimensionIds) {
+        IndexAbstractionMetadata indexAbstraction = findOrCreateIndexAbstraction(
+            findOrCreateMetric(fieldInfo.name()),
+            indexAbstractionName
+        );
+        indexAbstraction.units = values.unsharedWithValue(indexAbstraction.units, fieldInfo.unit());
+        indexAbstraction.fieldTypes = values.unsharedWithValue(indexAbstraction.fieldTypes, fieldInfo.fieldType());
+        indexAbstraction.metricTypes = values.unsharedWithValue(indexAbstraction.metricTypes, fieldInfo.metricType());
+        addDimensionIds(indexAbstraction, dimensionIds);
     }
 
-    /**
-     * Matches the default backing-index / failure-store naming convention produced by
-     * {@code DataStream#getDefaultIndexName}: {@code .ds-{name}-{yyyy.MM.dd}-{000001}}
-     * (or the {@code .fs-} variant).
-     * <p>
-     * Index management can prepend dash-terminated prefixes to a backing index when it is
-     * mounted or rewritten in place, for example {@code partial-} and {@code restored-}
-     * (searchable snapshots), {@code shrink-{uuid}-}, and {@code downsample-{interval}-}.
-     * These prefixes can also be chained, e.g. {@code partial-restored-shrink-{uuid}-.ds-...}.
-     * The optional {@code (?:.*-)?} group ignores any such prefix while still requiring the
-     * {@code .ds-}/{@code .fs-} marker, so the captured data-stream name is unaffected.
-     * <p>
-     * Group 1 captures the data-stream name.
-     */
-    private static final Pattern BACKING_INDEX_PATTERN = Pattern.compile("^(?:.*-)?\\.(?:ds|fs)-(.+)-\\d{4}\\.\\d{2}\\.\\d{2}-\\d{6}$");
-
-    /**
-     * Resolves the data-stream name from a concrete backing-index name.
-     * <p>
-     * If the name matches the standard format produced by
-     * {@code DataStream#getDefaultIndexName} ({@code .ds-{name}-{yyyy.MM.dd}-{000001}}),
-     * including any dash-terminated prefixes added when a backing index is mounted or
-     * rewritten (e.g. {@code partial-}, {@code restored-}, {@code shrink-{uuid}-},
-     * {@code downsample-{interval}-}), the data-stream name is extracted. Otherwise the
-     * raw index name is returned unchanged.
-     * <p>
-     * Handles cluster-alias prefixed names (e.g. {@code remote:.ds-k8s-2024.01.15-000001})
-     * so that the output preserves the cluster qualifier (e.g. {@code remote:k8s}).
-     */
-    static String resolveDataStreamName(String indexName) {
-        var split = RemoteClusterAware.splitIndexName(indexName);
-        Matcher m = BACKING_INDEX_PATTERN.matcher(split.indexExpression());
-        String resolved = m.matches() ? m.group(1) : split.indexExpression();
-        return RemoteClusterAware.buildRemoteIndexName(split.clusterAlias(), resolved);
+    /** Returns the sorted, distinct ids of {@code names}, assigning ids to names seen for the first time. */
+    private int[] dimensionIds(Collection<String> names) {
+        if (names.isEmpty()) {
+            return NO_DIMENSIONS;
+        }
+        int[] ids = new int[names.size()];
+        int count = 0;
+        for (String name : names) {
+            ids[count++] = dimensionId(name);
+        }
+        Arrays.sort(ids);
+        int distinct = 1;
+        for (int i = 1; i < count; i++) {
+            if (ids[i] != ids[distinct - 1]) {
+                ids[distinct++] = ids[i];
+            }
+        }
+        return distinct == count ? ids : Arrays.copyOf(ids, distinct);
     }
 
-    private List<MetricInfoRow> mergeRowsBySignature(Map<MetricInfoKey, MetricInfo> metricsByKey) {
-        Map<MetricSignature, MetricInfoRow> bySignature = new LinkedHashMap<>();
-
-        for (MetricInfo info : metricsByKey.values()) {
-            MetricSignature sig = new MetricSignature(info.name, info.units, info.fieldTypes, info.metricTypes);
-            MetricInfoRow row = bySignature.computeIfAbsent(
-                sig,
-                s -> new MetricInfoRow(s.metricName(), s.units(), s.fieldTypes(), s.metricTypes())
-            );
-
-            row.dataStreams.add(info.dataStream);
-            row.dimensionFieldKeys.addAll(info.dimensionFieldKeys);
+    private int dimensionId(String name) {
+        Integer id = dimensionIdsByName.get(name);
+        if (id == null) {
+            trackBytes(DIMENSION_NAME_BYTES + RamUsageEstimator.sizeOf(name));
+            id = dimensionNames.size();
+            dimensionNames.add(name);
+            dimensionIdsByName.put(name, id);
         }
+        return id;
+    }
 
-        return new ArrayList<>(bySignature.values());
+    /** Merges {@code added} into the entry's ids. Both are sorted and distinct. The replaced array is released. */
+    private void addDimensionIds(IndexAbstractionMetadata indexAbstraction, int[] added) {
+        int[] current = indexAbstraction.dimensionIds;
+        if (current == added || added.length == 0) {
+            return;
+        }
+        int missing = 0;
+        for (int i = 0, a = 0; a < added.length; a++) {
+            while (i < current.length && current[i] < added[a]) {
+                i++;
+            }
+            if (i == current.length || current[i] != added[a]) {
+                missing++;
+            }
+        }
+        if (missing == 0) {
+            return;
+        }
+        int[] merged = new int[current.length + missing];
+        trackBytes(RamUsageEstimator.sizeOf(merged));
+        int i = 0;
+        int a = 0;
+        int m = 0;
+        while (i < current.length || a < added.length) {
+            if (a == added.length || (i < current.length && current[i] < added[a])) {
+                merged[m++] = current[i++];
+            } else if (i == current.length || added[a] < current[i]) {
+                merged[m++] = added[a++];
+            } else {
+                merged[m++] = current[i++];
+                a++;
+            }
+        }
+        if (current.length > 0) {
+            releaseBytes(RamUsageEstimator.sizeOf(current));
+        }
+        indexAbstraction.dimensionIds = merged;
+    }
+
+    private Metric findOrCreateMetric(String name) {
+        Metric metric = metricsByName.get(name);
+        if (metric == null) {
+            trackBytes(METRIC_BYTES);
+            metric = new Metric(values.string(name));
+            metricsByName.put(metric.name, metric);
+        }
+        return metric;
+    }
+
+    private IndexAbstractionMetadata findOrCreateIndexAbstraction(Metric metric, String name) {
+        IndexAbstractionMetadata indexAbstraction = metric.indexAbstractions.get(name);
+        if (indexAbstraction == null) {
+            trackBytes(INDEX_ABSTRACTION_BYTES);
+            indexAbstraction = new IndexAbstractionMetadata(values.string(name));
+            metric.indexAbstractions.put(indexAbstraction.name, indexAbstraction);
+            metricsAccumulated++;
+        }
+        return indexAbstraction;
     }
 
     @Override
@@ -487,12 +508,10 @@ public class MetricsInfoOperator implements Operator {
 
         outputProduced = true;
 
-        if (metricsByKey.isEmpty()) {
-            return createEmptyPage();
-        }
-
-        Page output = createOutputPageFromRows(mergeRowsBySignature(metricsByKey));
+        Page output = metricsByName.isEmpty() ? createEmptyPage() : createOutputPage();
         rowsEmitted = output.getPositionCount();
+        // The driver can keep this operator open until the whole pipeline finishes, while the page already holds the result.
+        releaseState();
         return output;
     }
 
@@ -513,59 +532,73 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    private Page createOutputPageFromRows(List<MetricInfoRow> rows) {
-        int rowCount = rows.size();
+    private Page createOutputPage() {
+        int estimatedRows = metricsByName.size();
 
         try (
-            BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
-            BytesRefBlock.Builder dsBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
-            BytesRefBlock.Builder unitBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
-            BytesRefBlock.Builder mtBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
-            BytesRefBlock.Builder ftBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
-            BytesRefBlock.Builder dfBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)
+            BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(estimatedRows);
+            BytesRefBlock.Builder dsBuilder = blockFactory.newBytesRefBlockBuilder(estimatedRows);
+            BytesRefBlock.Builder unitBuilder = blockFactory.newBytesRefBlockBuilder(estimatedRows);
+            BytesRefBlock.Builder mtBuilder = blockFactory.newBytesRefBlockBuilder(estimatedRows);
+            BytesRefBlock.Builder ftBuilder = blockFactory.newBytesRefBlockBuilder(estimatedRows);
+            BytesRefBlock.Builder dfBuilder = blockFactory.newBytesRefBlockBuilder(estimatedRows)
         ) {
-
-            for (MetricInfoRow row : rows) {
-                nameBuilder.appendBytesRef(new BytesRef(row.metricName));
-                appendMultiValued(dsBuilder, row.dataStreams);
-                appendMultiValued(unitBuilder, row.units);
-                appendMultiValued(mtBuilder, row.metricTypes);
-                appendMultiValued(ftBuilder, row.fieldTypes);
-                appendMultiValued(dfBuilder, row.dimensionFieldKeys);
+            int rowCount = 0;
+            for (Metric metric : metricsByName.values()) {
+                for (Map.Entry<FieldMetadata, OutputRow> row : rowsByMetadata(metric).entrySet()) {
+                    FieldMetadata metadata = row.getKey();
+                    nameBuilder.appendBytesRef(new BytesRef(metric.name));
+                    appendMultiValued(dsBuilder, row.getValue().indexAbstractionNames());
+                    appendMultiValued(unitBuilder, metadata.units());
+                    appendMultiValued(mtBuilder, metadata.metricTypes());
+                    appendMultiValued(ftBuilder, metadata.fieldTypes());
+                    appendMultiValued(dfBuilder, row.getValue().dimensionFieldKeys());
+                    rowCount++;
+                }
             }
 
             return new Page(rowCount, Block.Builder.buildAll(nameBuilder, dsBuilder, unitBuilder, mtBuilder, ftBuilder, dfBuilder));
         }
     }
 
-    private static void appendMultiValued(BytesRefBlock.Builder builder, Set<String> values) {
-        if (values == null || values.isEmpty()) {
-            builder.appendNull();
-        } else if (values.size() == 1) {
-            builder.appendBytesRef(new BytesRef(values.iterator().next()));
-        } else {
-            builder.beginPositionEntry();
-            for (String v : values) {
-                builder.appendBytesRef(new BytesRef(v));
+    /**
+     * Groups the index abstractions of one metric by metadata, one output row per group. The map lives only while the
+     * metric is written. It holds references to the metric's names and at most one copy of each distinct dimension key
+     * per row, so it is not charged to the breaker.
+     */
+    private Map<FieldMetadata, OutputRow> rowsByMetadata(Metric metric) {
+        Map<FieldMetadata, OutputRow> rows = new LinkedHashMap<>();
+        for (IndexAbstractionMetadata indexAbstraction : metric.indexAbstractions.values()) {
+            FieldMetadata metadata = new FieldMetadata(indexAbstraction.units, indexAbstraction.fieldTypes, indexAbstraction.metricTypes);
+            OutputRow row = rows.computeIfAbsent(metadata, k -> new OutputRow(new ArrayList<>(), new TreeSet<>()));
+            row.indexAbstractionNames().add(indexAbstraction.name);
+            for (int id : indexAbstraction.dimensionIds) {
+                row.dimensionFieldKeys().add(dimensionNames.get(id));
             }
-            builder.endPositionEntry();
         }
+        for (OutputRow row : rows.values()) {
+            row.indexAbstractionNames().sort(null);
+        }
+        return rows;
     }
 
-    private Map<String, Object> parseMetadataSource(BytesRefBlock metadataSource, int position, BytesRef sourceScratch) {
-        if (metadataSource == null || metadataSource.isNull(position)) {
-            return null;
+    private static void appendMultiValued(BytesRefBlock.Builder builder, Iterable<String> values) {
+        var iterator = values.iterator();
+        if (iterator.hasNext() == false) {
+            builder.appendNull();
+            return;
         }
-        BytesRef bytes = metadataSource.getBytesRef(position, sourceScratch);
-        try (
-            var parser = XContentType.JSON.xContent()
-                .createParser(XContentParserConfiguration.EMPTY, bytes.bytes, bytes.offset, bytes.length)
-        ) {
-            parser.nextToken();
-            return parser.mapOrdered();
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to parse _timeseries_metadata at position [" + position + "]", e);
+        String first = iterator.next();
+        if (iterator.hasNext() == false) {
+            builder.appendBytesRef(new BytesRef(first));
+            return;
         }
+        builder.beginPositionEntry();
+        builder.appendBytesRef(new BytesRef(first));
+        while (iterator.hasNext()) {
+            builder.appendBytesRef(new BytesRef(iterator.next()));
+        }
+        builder.endPositionEntry();
     }
 
     private void trackBytes(long delta) {
@@ -573,32 +606,30 @@ public class MetricsInfoOperator implements Operator {
         trackedBytes += delta;
     }
 
-    private void trackNewEntry(String name, String dataStream) {
-        trackBytes(ENTRY_SHALLOW_SIZE + RamUsageEstimator.sizeOf(name) + RamUsageEstimator.sizeOf(dataStream));
-    }
-
-    private void trackSetAddAll(Set<String> set, Set<String> values) {
-        for (String value : values) {
-            if (set.add(value)) {
-                trackBytes(RamUsageEstimator.sizeOf(value));
-            }
-        }
-    }
-
-    private void trackSetAdd(Set<String> set, String value) {
-        if (value != null && set.add(value)) {
-            trackBytes(RamUsageEstimator.sizeOf(value));
-        }
+    private void releaseBytes(long bytes) {
+        breaker.addWithoutBreaking(-bytes);
+        trackedBytes -= bytes;
     }
 
     @Override
     public void close() {
+        releaseState();
+    }
+
+    private void releaseState() {
+        // Replace rather than clear the maps, because clear() keeps their tables allocated.
+        metricsByName = new LinkedHashMap<>();
+        dimensionIdsByName = new HashMap<>();
+        dimensionNames = new ArrayList<>();
+        values.close();
+        values = new MetadataValues(breaker, "MetricsInfoOperator");
         breaker.addWithoutBreaking(-trackedBytes);
+        trackedBytes = 0;
     }
 
     @Override
     public Operator.Status status() {
-        return new Status(mode, pagesReceived, rowsReceived, rowsEmitted, metricsByKey.size());
+        return new Status(mode, pagesReceived, rowsReceived, rowsEmitted, metricsAccumulated);
     }
 
     @Override
@@ -615,6 +646,16 @@ public class MetricsInfoOperator implements Operator {
             "metrics_info",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        )
+            .required("mode", ProfileSchema.string())
+            .required("pages_received", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("metrics_accumulated", ProfileSchema.integer())
+            .build();
 
         private static final TransportVersion ESQL_METRICS_INFO_OPERATOR_STATUS = TransportVersion.fromName(
             "esql_metrics_info_operator_status"
@@ -638,8 +679,7 @@ public class MetricsInfoOperator implements Operator {
             return ENTRY.name;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("mode", mode);
             builder.field("pages_received", pagesReceived);
@@ -647,6 +687,11 @@ public class MetricsInfoOperator implements Operator {
             builder.field("rows_emitted", rowsEmitted);
             builder.field("metrics_accumulated", metricsAccumulated);
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

@@ -10,6 +10,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.injection.guice.ModuleTestCase;
 import org.hamcrest.Matchers;
 
@@ -228,6 +229,13 @@ public class SettingsModuleTests extends ModuleTestCase {
         final String key = randomAlphaOfLength(8);
         final Setting<String> setting = Setting.simpleString(key, Property.IndexScope);
         runSettingWithoutNamespaceTest(key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting)));
+    }
+
+    public void testBloomFilterForDataStreamTimestampIndicesSettingIsUnknownWithoutStatelessPlugin() {
+        final String key = IndexSettings.BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME;
+        final Settings settings = Settings.builder().put(key, true).build();
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings));
+        assertThat(e.getMessage(), containsString("unknown setting [" + key + "]"));
     }
 
     private void runSettingWithoutNamespaceTest(final String key, final Supplier<SettingsModule> supplier) {

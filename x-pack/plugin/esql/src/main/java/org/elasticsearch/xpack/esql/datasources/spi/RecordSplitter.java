@@ -44,6 +44,13 @@ public interface RecordSplitter {
     long AMBIGUOUS = -3L;
 
     /**
+     * Reason thrown by {@link #findRecordStartAtOrAfter} when {@code isCancelled} is true. The walk is
+     * probing record boundaries of a file already being read, not listing splits; callers that wrap
+     * {@code isCancelled} at the probe layer may throw a phase-specific reason instead.
+     */
+    String RECORD_WALK_CANCELLED_MESSAGE = "ES|QL external read cancelled while probing record boundaries";
+
+    /**
      * Scans forward from the current stream position until the next complete record boundary.
      *
      * @return the number of bytes consumed, {@code -1} if EOF is reached before a boundary,
@@ -87,6 +94,10 @@ public interface RecordSplitter {
      * with embedded newlines, bracketed multi-value cells): starting a probe inside such a construct
      * misreads an in-construct newline as a terminator and desyncs the parse. Callers that get {@code false}
      * must not split at arbitrary offsets; they read the file as one sequential stream instead.
+     * <p>
+     * A splitter may also return {@code true} for a grammar that can carry a record across a raw newline when the
+     * format reader has been configured to assume that no record does; the reader is then responsible for failing,
+     * rather than misreading, on data that proves the assumption wrong.
      */
     default boolean supportsStridedProbing() {
         return true;
@@ -139,8 +150,9 @@ public interface RecordSplitter {
      * {@code -1} at EOF before reaching {@code minSkip}.
      * <p>
      * {@code isCancelled} is polled inside the byte loop so a long walk (a record up to {@link #maxRecordBytes()})
-     * aborts promptly; a cancelled walk throws {@link org.elasticsearch.tasks.TaskCancelledException}. Read-time
-     * callers that do not carry a cancellable task pass {@code () -> false}.
+     * aborts promptly; a cancelled walk throws {@link org.elasticsearch.tasks.TaskCancelledException} with
+     * {@link #RECORD_WALK_CANCELLED_MESSAGE}. Read-time callers that do not carry a cancellable task pass
+     * {@code () -> false}.
      * <p>
      * <b>The stream is not reusable afterwards.</b> An implementation may read ahead of the byte count it
      * returns — buffering is its own business — so the stream's position on return says nothing about the

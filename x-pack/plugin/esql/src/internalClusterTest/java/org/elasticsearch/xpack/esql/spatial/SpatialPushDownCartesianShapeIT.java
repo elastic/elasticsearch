@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
-import org.apache.lucene.document.XYShape;
 import org.apache.lucene.geo.XYEncodingUtils;
-import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.MultiPolygon;
-import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 
 public class SpatialPushDownCartesianShapeIT extends SpatialPushDownShapeTestCase {
 
@@ -30,29 +27,17 @@ public class SpatialPushDownCartesianShapeIT extends SpatialPushDownShapeTestCas
         );
     }
 
+    /**
+     * Whether the {@code shape} mapper would reject this geometry, for example because a random polygon in it,
+     * possibly nested inside a collection, self-intersects.
+     */
     static boolean isInvalid(Geometry geometry) {
-        return switch (geometry) {
-            case Polygon p -> isInvalid(p);
-            case MultiPolygon m -> isInvalid(m);
-            default -> false;
-        };
-    }
-
-    static boolean isInvalid(Polygon polygon) {
         try {
-            XYShape.createIndexableFields("test", LuceneGeometriesUtils.toXYPolygon(polygon), true);
+            new CartesianShapeIndexer("test").indexShape(geometry);
             return false;
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return true;
         }
-    }
-
-    static boolean isInvalid(MultiPolygon mulitPolygon) {
-        boolean inValid = false;
-        for (Polygon p : mulitPolygon) {
-            inValid |= isInvalid(p);
-        }
-        return inValid;
     }
 
     @Override

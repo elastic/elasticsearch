@@ -10,6 +10,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -25,16 +26,32 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -45,8 +62,11 @@ import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +74,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -80,10 +102,21 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
     private static final String SNAPSHOT = "test-snapshot";
     private static final String DOC_ID = "some_id";
     private static final String KNN_INDEX = "test-restore-knn-index";
+    private static final String MULTI_SHARD_INDEX = "test-restore-multi-shard-index";
+    /** Deliberately above the default {@code node_initial_primaries_recoveries} limit (4) so some primaries are throttled. */
+    private static final int MULTI_SHARD_COUNT = 6;
+    private static final int INITIAL_PRIMARIES_RECOVERIES_LIMIT = 4;
+    private static final String CLOSED_INDEX = "test-closed-before-restore-index";
+    private static final String CLOSED_INDEX_PATTERN = "test-closed-before-restore-*";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(MockRepository.Plugin.class);
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // real HTTP, for testSearchClosedIndexBeforeRestoreStarts
     }
 
     /**
@@ -117,10 +150,28 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        // Multi-shard index for the throttled-restore search test. Every shard must hold at least one
+        // document: an empty shard's restore reads no data blobs, so it would never hit the
+        // blockAllDataNodes block and would finish immediately, freeing a throttle slot.
+        createIndex(MULTI_SHARD_INDEX, indexSettingsNoReplicas(MULTI_SHARD_COUNT).build());
+        ensureGreen(MULTI_SHARD_INDEX);
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 200; i++) {
+            bulk.add(client().prepareIndex(MULTI_SHARD_INDEX).setId("doc-" + i).setSource("foo", "bar"));
+        }
+        assertNoFailures(bulk.get());
+        for (ShardStats shardStats : indicesAdmin().prepareStats(MULTI_SHARD_INDEX).clear().setDocs(true).get().getShards()) {
+            assertThat(
+                "every shard needs data so its restore blocks on a data-blob read",
+                shardStats.getStats().getDocs().getCount(),
+                greaterThan(0L)
+            );
+        }
+
         ensureGreen(INDEX, KNN_INDEX);
         createRepository(REPO, "mock");
         createFullSnapshot(REPO, SNAPSHOT);
-        assertAcked(indicesAdmin().prepareDelete(INDEX, KNN_INDEX));
+        assertAcked(indicesAdmin().prepareDelete(INDEX, KNN_INDEX, MULTI_SHARD_INDEX));
     }
 
     // -------------------------------------------------------------------------
@@ -183,24 +234,19 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
      * {@code GET /{index}/_termvectors/{id}} routes through {@code TransportSingleShardAction},
      * which can reach an INITIALIZING shard (routing state; the node-local {@code IndexShardState}
      * is {@code RECOVERING}). It then hits the read-allowed-states check in {@code IndexShard},
-     * which throws {@link IllegalIndexShardStateException} (HTTP 404). That is wrapped by the
-     * transport action in a plain {@code ElasticsearchException("failed to execute term vector
-     * request")} before being surfaced to the caller.
-     *
-     * <p>The wrapping matters: {@code ElasticsearchException#status()} only defers to a cause's
-     * status when the exception implements {@code ElasticsearchWrapperException}. A plain
-     * {@code ElasticsearchException} does not, so it reports its own default —
-     * {@code INTERNAL_SERVER_ERROR} (500) — regardless of the wrapped cause's 404. That 500 is
-     * what actually reaches the REST layer; the inner 404 is only visible by inspecting the cause
-     * directly, which no real client does.
+     * which throws {@link IllegalIndexShardStateException} (HTTP 404). Because that exception is
+     * recognized as a shard-not-available exception, {@code TransportSingleShardAction} fails with
+     * {@link NoShardAvailableActionException} (HTTP 503 SERVICE_UNAVAILABLE) when no other shard
+     * copy is available.
      */
-    public void testTermVectorsWhileRestoringReturnsInternalServerError() throws Exception {
+    public void testTermVectorsWhileRestoringReturnsServiceUnavailable() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         try {
-            Exception e = expectThrows(Exception.class, client().prepareTermVectors(INDEX, DOC_ID));
-            assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-            assertThat(e.getCause(), instanceOf(IllegalIndexShardStateException.class));
-            assertThat(((IllegalIndexShardStateException) e.getCause()).status(), equalTo(RestStatus.NOT_FOUND));
+            NoShardAvailableActionException e = expectThrows(
+                NoShardAvailableActionException.class,
+                client().prepareTermVectors(INDEX, DOC_ID)
+            );
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
         }
@@ -257,6 +303,23 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
             UnavailableShardsException e = expectThrows(
                 UnavailableShardsException.class,
                 client().prepareUpdate(INDEX, DOC_ID).setDoc("field", "new-value").setTimeout(TimeValue.timeValueMillis(100))
+            );
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code PUT /{index}/_doc/{id}}, which indexes with an explicit id, retries until the request timeout elapses without the flag, then
+     * returns {@link UnavailableShardsException} (HTTP 503).
+     */
+    public void testIndexDocWithIdWhileRestoringReturnsServiceUnavailable() throws Exception {
+        blockAndStartRestore(REPO, SNAPSHOT, INDEX);
+        try {
+            UnavailableShardsException e = expectThrows(
+                UnavailableShardsException.class,
+                client().prepareIndex(INDEX).setId("new-id").setSource("field", "value").setTimeout(TimeValue.timeValueMillis(100))
             );
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         } finally {
@@ -342,14 +405,24 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
      * INITIALIZING. The behaviour is identical to {@code _search}: the request hangs until the
      * shard becomes search-ready.
      *
-     * <p>This only holds for a single-shard target: {@code TransportSearchAction#adjustSearchType}
-     * always forces {@code DFS_QUERY_THEN_FETCH} when a kNN clause is present, which is otherwise
-     * harmless, but if the index has more than one shard it also makes
-     * {@code TransportSearchAction#shouldPreFilterSearchShards} run a {@code canMatch} pre-filter
-     * phase. That phase fails fast on a restoring shard (rather than parking) and, since
-     * {@code allow_partial_search_results} defaults to {@code true}, the overall search then
-     * completes immediately with zero hits instead of hanging. Hence {@code KNN_INDEX} is pinned to
-     * {@link #SINGLE_SHARD_NO_REPLICA} here, matching {@code INDEX}.
+     * <p>This test exists for the search phase it exercises, not for kNN-specific logic.
+     * {@code TransportSearchAction#adjustSearchType} forces {@code QUERY_THEN_FETCH} for any
+     * single-shard search, so the single-shard {@code _search} tests in this class never run the DFS
+     * phase; a kNN clause is the exception and forces {@code DFS_QUERY_THEN_FETCH} even on one shard.
+     * This is therefore the only test here that deterministically covers a DFS phase against a
+     * restoring shard. {@code executeDfsPhase} also goes through {@code rewriteAndFetchShardRequest},
+     * so it parks the same way. This relies on the top-level {@code knn} section:
+     * {@code SearchRequest#hasKnnSearch} checks only {@code source.knnSearch()}, so a {@code knn}
+     * query or retriever would not force DFS and the test would no longer cover that phase.
+     *
+     * <p>{@code KNN_INDEX} is pinned to {@link #SINGLE_SHARD_NO_REPLICA}. Left to the randomized
+     * index template it may get several shards but holds a single document, and only the shard holding
+     * that document reads data blobs during restore: empty shards restore without hitting the
+     * {@code blockAllDataNodes} block. If the search arrives while the document's shard is still
+     * UNASSIGNED (throttled by {@code node_initial_primaries_recoveries}, or not yet allocated), that
+     * shard has no copy to route to, the empty shards answer, and with the default
+     * {@code allow_partial_search_results=true} the search completes immediately with zero hits
+     * instead of parking. This is not kNN-specific: a plain {@code _search} behaves the same way.
      */
     public void testKnnSearchWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, KNN_INDEX);
@@ -456,11 +529,16 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
     /**
      * {@code POST /{index}/_refresh} silently swallows the shard-unavailable exception via
      * {@code isShardNotAvailableException} — {@code _shards.failed} stays 0.
+     *
+     * <p>Refresh is a replication action, so the per-shard request waits for the
+     * primary to become active until the request timeout expires, then fails with
+     * {@code UnavailableShardsException}, which is what gets swallowed. A short timeout is used
+     * to avoid waiting for the default 1-minute timeout.
      */
     public void testRefreshWhileRestoringSwallowsExceptionAndReportsNoFailedShards() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         try {
-            assertThat(indicesAdmin().prepareRefresh(INDEX).get().getFailedShards(), equalTo(0));
+            assertThat(indicesAdmin().prepareRefresh(INDEX).setTimeout(TimeValue.timeValueMillis(100)).get().getFailedShards(), equalTo(0));
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
         }
@@ -469,11 +547,16 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
     /**
      * {@code POST /{index}/_flush} silently swallows the shard-unavailable exception —
      * {@code _shards.failed} stays 0.
+     *
+     * <p>Flush is a replication action, so the per-shard request waits for the
+     * primary to become active until the request timeout expires, then fails with
+     * {@code UnavailableShardsException}, which is what gets swallowed. A short timeout is used
+     * to avoid waiting for the default 1-minute timeout.
      */
     public void testFlushWhileRestoringSwallowsExceptionAndReportsNoFailedShards() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         try {
-            assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+            assertThat(indicesAdmin().prepareFlush(INDEX).setTimeout(TimeValue.timeValueMillis(100)).get().getFailedShards(), equalTo(0));
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
         }
@@ -677,9 +760,13 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
             for (var item : resp) {
                 assertThat(item.isFailed(), equalTo(true));
                 Exception cause = item.getFailure().getCause();
-                assertThat(ExceptionsHelper.status(cause), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-                assertThat(cause.getCause(), instanceOf(IllegalIndexShardStateException.class));
-                assertThat(((IllegalIndexShardStateException) cause.getCause()).status(), equalTo(RestStatus.NOT_FOUND));
+                assertThat(ExceptionsHelper.status(cause), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+                assertThat(ExceptionsHelper.unwrapCause(cause), instanceOf(NoShardAvailableActionException.class));
+                assertThat(ExceptionsHelper.unwrapCause(cause.getCause()), instanceOf(IllegalIndexShardStateException.class));
+                assertThat(
+                    ((IllegalIndexShardStateException) ExceptionsHelper.unwrapCause(cause.getCause())).status(),
+                    equalTo(RestStatus.NOT_FOUND)
+                );
             }
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
@@ -848,5 +935,477 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Multi-shard restore exceeding node_initial_primaries_recoveries — a mix of
+    // INITIALIZING and throttled UNASSIGNED primaries on one node
+    // -------------------------------------------------------------------------
+
+    /**
+     * Restoring an index with more primaries than
+     * {@code cluster.routing.allocation.node_initial_primaries_recoveries} (default 4) onto a single
+     * node leaves its primaries in two different states, and a search behaves differently against
+     * each.
+     *
+     * <p>{@code ThrottlingAllocationDecider} lets at most that many primaries start an initial
+     * (non-peer) recovery on a node at once. With the repository blocked none of those recoveries
+     * finish, so the slots never free up: with {@value #MULTI_SHARD_COUNT} primaries the cluster
+     * settles into {@value #INITIAL_PRIMARIES_RECOVERIES_LIMIT} INITIALIZING primaries and the rest
+     * UNASSIGNED with a last allocation status of {@code DECIDERS_THROTTLED}. Which shards end up in
+     * which state is not deterministic, so the test reads it from the routing table.
+     *
+     * <ul>
+     *   <li>An INITIALIZING primary is a routable copy, so a search targeting it parks in
+     *       {@code SearchReadyGate}, exactly as in the single-shard tests above.</li>
+     *   <li>A throttled UNASSIGNED primary has no copy at all. With
+     *       {@code allow_partial_search_results=false}, {@code SearchPhase#doCheckNoMissingShards}
+     *       rejects the search up front ("Search rejected due to missing shards") with a
+     *       {@code SearchPhaseExecutionException} that has no shard failures and no cause, so it
+     *       reports HTTP 503.</li>
+     * </ul>
+     */
+    public void testSearchAcrossThrottledMultiShardRestore() throws Exception {
+        final String limitKey = ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey();
+        updateClusterSettings(Settings.builder().put(limitKey, INITIAL_PRIMARIES_RECOVERIES_LIMIT));
+        final List<ActionFuture<SearchResponse>> parked = new ArrayList<>();
+        try {
+            blockAllDataNodes(REPO);
+            try {
+                clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+                    .setIndices(MULTI_SHARD_INDEX)
+                    .setWaitForCompletion(false)
+                    .execute();
+                waitForBlockOnAnyDataNode(REPO);
+                // Wait on every node, not just the master: a search's coordinating node routes using its
+                // own applied cluster state, and a stale one could see an INITIALIZING shard as UNASSIGNED.
+                for (String node : internalCluster().getNodeNames()) {
+                    awaitClusterState(node, RestoringShardIT::hasSettledIntoDesiredRoutingState);
+                }
+
+                final IndexRoutingTable routing = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                    .get()
+                    .getState()
+                    .routingTable()
+                    .index(MULTI_SHARD_INDEX);
+                for (int shard = 0; shard < MULTI_SHARD_COUNT; shard++) {
+                    final var perShardSearch = client().prepareSearch(MULTI_SHARD_INDEX)
+                        .setPreference("_shards:" + shard)
+                        .setAllowPartialSearchResults(false);
+                    if (routing.shard(shard).primaryShard().initializing()) {
+                        final var future = perShardSearch.execute();
+                        parked.add(future);
+                        expectThrows(TimeoutException.class, () -> future.get(200, TimeUnit.MILLISECONDS));
+                    } else {
+                        assertRejectedForMissingShards(expectThrows(SearchPhaseExecutionException.class, perShardSearch));
+                    }
+                }
+
+                // Whole index, allow_partial_search_results=false: the throttled shards make it fail fast.
+                assertRejectedForMissingShards(
+                    expectThrows(
+                        SearchPhaseExecutionException.class,
+                        client().prepareSearch(MULTI_SHARD_INDEX).setAllowPartialSearchResults(false)
+                    )
+                );
+
+                // Whole index, allow_partial_search_results=true: parks on the INITIALIZING shards.
+                final var partialSearch = client().prepareSearch(MULTI_SHARD_INDEX).setAllowPartialSearchResults(true).execute();
+                parked.add(partialSearch);
+                expectThrows(TimeoutException.class, () -> partialSearch.get(200, TimeUnit.MILLISECONDS));
+            } finally {
+                unblockAndDeleteRestoringIndex(REPO, MULTI_SHARD_INDEX);
+                // Drain: deleting the index fails the parked searches; we only need them consumed.
+                for (var future : parked) {
+                    try {
+                        future.get(30, TimeUnit.SECONDS).decRef();
+                    } catch (Exception ignored) {}
+                }
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(limitKey));
+        }
+    }
+
+    private static boolean hasSettledIntoDesiredRoutingState(ClusterState state) {
+        final IndexRoutingTable routing = state.routingTable().index(MULTI_SHARD_INDEX);
+        if (routing == null) {
+            return false;
+        }
+        int initializing = 0;
+        int throttled = 0;
+        for (int shard = 0; shard < routing.size(); shard++) {
+            final ShardRouting primary = routing.shard(shard).primaryShard();
+            if (primary.initializing()) {
+                initializing++;
+            } else if (primary.unassigned()
+                && primary.unassignedInfo().lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) {
+                    throttled++;
+                }
+        }
+        return initializing == INITIAL_PRIMARIES_RECOVERIES_LIMIT && throttled == MULTI_SHARD_COUNT - INITIAL_PRIMARIES_RECOVERIES_LIMIT;
+    }
+
+    /**
+     * {@code doCheckNoMissingShards} throws from inside the first phase's {@code run()}, and
+     * {@code AbstractSearchAsyncAction#executePhase} catches that and rewraps it via
+     * {@code onPhaseFailure(phaseName, "", e)}. So the exception the caller sees has an empty message
+     * and carries the "missing shards" rejection as its cause; its 503 is derived from that cause.
+     */
+    private static void assertRejectedForMissingShards(SearchPhaseExecutionException e) {
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(e.getCause(), instanceOf(SearchPhaseExecutionException.class));
+        assertThat(e.getCause().getMessage(), containsString("Search rejected due to missing shards"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Closed index before a restore starts — the close -> restore window
+    // -------------------------------------------------------------------------
+
+    /**
+     * Documents what a REST caller sees when searching in the window between closing an index and
+     * starting a restore over it. Restoring over an existing index requires closing it first, so this
+     * window is part of the normal restore workflow — but nothing yet indicates a restore: there is no
+     * {@code RestoreInProgress} entry and the index is simply closed. Asserted over real HTTP, since
+     * the status a client receives is what matters here.
+     *
+     * <ul>
+     *   <li>{@code GET /{index}/_search} fails with HTTP 400 {@code index_closed_exception}, because
+     *       search's default {@code IndicesOptions} forbid closed concrete targets.</li>
+     *   <li>{@code GET /{index}/_search?ignore_unavailable=true} silently skips the closed index:
+     *       HTTP 200 with zero shards and zero hits.</li>
+     *   <li>A wildcard that would match the index silently excludes it too, because
+     *       {@code expand_wildcards} defaults to {@code open}. A caller searching e.g. {@code logs-*}
+     *       gets an empty result, with no error and no sign that a restore is pending.</li>
+     * </ul>
+     */
+    public void testSearchClosedIndexBeforeRestoreStarts() throws Exception {
+        createIndexWithContent(CLOSED_INDEX);
+        // A dedicated client rather than getRestClient(): ESIntegTestCase only closes the shared static
+        // client for TEST-scoped suites, so in this SUITE-scoped class its I/O threads would leak.
+        try (RestClient restClient = createRestClient()) {
+            assertAcked(indicesAdmin().prepareClose(CLOSED_INDEX));
+            assertTrue(
+                "no restore has started",
+                RestoreInProgress.get(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState()).isEmpty()
+            );
+
+            ResponseException e = expectThrows(
+                ResponseException.class,
+                () -> restClient.performRequest(new Request("GET", "/" + CLOSED_INDEX + "/_search"))
+            );
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
+            ObjectPath error = ObjectPath.createFromResponse(e.getResponse());
+            assertThat(error.evaluate("status"), equalTo(RestStatus.BAD_REQUEST.getStatus()));
+            assertThat(error.evaluate("error.type"), equalTo("index_closed_exception"));
+            assertThat(error.evaluate("error.index"), equalTo(CLOSED_INDEX));
+
+            Request ignoreUnavailable = new Request("GET", "/" + CLOSED_INDEX + "/_search");
+            ignoreUnavailable.addParameter("ignore_unavailable", "true");
+            assertSilentlyEmpty(restClient.performRequest(ignoreUnavailable));
+            assertSilentlyEmpty(restClient.performRequest(new Request("GET", "/" + CLOSED_INDEX_PATTERN + "/_search")));
+        } finally {
+            assertAcked(indicesAdmin().prepareDelete(CLOSED_INDEX));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Index-level operations — close and add-block
+    // -------------------------------------------------------------------------
+
+    /**
+     * {@code POST /{index}/_close} of an index that is being restored is rejected up front, before any shard is asked to verify, so it
+     * never reaches the shards and fails with HTTP 400 {@link IllegalArgumentException}.
+     */
+    public void testCloseWhileRestoringIsRejected() throws Exception {
+        blockAndStartRestore(REPO, SNAPSHOT, INDEX);
+        try {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareClose(INDEX));
+            assertThat(e.getMessage(), containsString("Cannot close indices that are being restored"));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code PUT /{index}/_block/write} is not acknowledged, and the shard failure in the response is {@link UnavailableShardsException}
+     * (status 503) once its timeout expires, because the shard-level verification waits for the inactive primary.
+     */
+    public void testAddBlockWhileRestoringReportsUnavailableShardAfterTimeout() throws Exception {
+        blockAndStartRestore(REPO, SNAPSHOT, INDEX);
+        try {
+            final var response = indicesAdmin().prepareAddBlock(IndexMetadata.APIBlock.WRITE, INDEX)
+                .setTimeout(TimeValue.timeValueMillis(100))
+                .get();
+
+            assertThat(response.isAcknowledged(), equalTo(false));
+            final var failure = response.getIndices().getFirst().getShards()[0].getFailures()[0];
+            assertThat(failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            assertThat(ExceptionsHelper.unwrapCause(failure.getCause()), instanceOf(UnavailableShardsException.class));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Restores that ask for ShardRestoringException (reportShardRestoring = true)
+    //
+    // Flag-on versions of the write-path, broadcast and index-level tests above, whose restores use the REST API and so never ask for
+    // it. Requests are sent from a data node, which is not the master (the suite has a dedicated master), so each test also covers the
+    // flag reaching a node that did not start the restore.
+    // -------------------------------------------------------------------------
+
+    /**
+     * {@code POST /{index}/_doc} fails immediately with {@link ShardRestoringException} (HTTP 403) instead of waiting for the primary until
+     * the request timeout expires. A long timeout shows that it does not wait.
+     */
+    public void testIndexDocWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            ShardRestoringException e = expectThrows(
+                ShardRestoringException.class,
+                internalCluster().dataNodeClient().prepareIndex(INDEX).setSource("field", "value").setTimeout(TEST_REQUEST_TIMEOUT)
+            );
+            assertForbiddenShardRestoring(e, restoreUuid);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code PUT /{index}/_doc/{id}} fails immediately with {@link ShardRestoringException} (HTTP 403) when the restore reports shard
+     * restoring.
+     */
+    public void testIndexDocWithIdWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            ShardRestoringException e = expectThrows(
+                ShardRestoringException.class,
+                internalCluster().dataNodeClient()
+                    .prepareIndex(INDEX)
+                    .setId("new-id")
+                    .setSource("field", "value")
+                    .setTimeout(TEST_REQUEST_TIMEOUT)
+            );
+            assertForbiddenShardRestoring(e, restoreUuid);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /{index}/_create/{id}} fails immediately with {@link ShardRestoringException} (HTTP 403).
+     */
+    public void testCreateDocWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            ShardRestoringException e = expectThrows(
+                ShardRestoringException.class,
+                internalCluster().dataNodeClient()
+                    .prepareIndex(INDEX)
+                    .setId("new-create-id")
+                    .setSource("field", "value")
+                    .setOpType(DocWriteRequest.OpType.CREATE)
+                    .setTimeout(TEST_REQUEST_TIMEOUT)
+            );
+            assertForbiddenShardRestoring(e, restoreUuid);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code DELETE /{index}/_doc/{id}} fails immediately with {@link ShardRestoringException} (HTTP 403).
+     */
+    public void testDeleteDocWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            ShardRestoringException e = expectThrows(
+                ShardRestoringException.class,
+                internalCluster().dataNodeClient().prepareDelete(INDEX, DOC_ID).setTimeout(TEST_REQUEST_TIMEOUT)
+            );
+            assertForbiddenShardRestoring(e, restoreUuid);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /{index}/_update/{id}} waits for {@code ?timeout} like it does without the flag, and then fails with
+     * {@link ShardRestoringException} (HTTP 403) instead of {@link UnavailableShardsException}.
+     */
+    public void testUpdateDocWhileRestoringReportingShardRestoringReturnsForbiddenAfterTimeout() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            ShardRestoringException e = expectThrows(
+                ShardRestoringException.class,
+                internalCluster().dataNodeClient()
+                    .prepareUpdate(INDEX, DOC_ID)
+                    .setDoc("field", "new-value")
+                    .setTimeout(TimeValue.timeValueMillis(100))
+            );
+            assertForbiddenShardRestoring(e, restoreUuid);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /_bulk} keeps its HTTP 200 envelope, and each item (index, create and delete) fails immediately with
+     * {@link ShardRestoringException} (status 403) instead of {@link UnavailableShardsException}. A long timeout shows that it does not
+     * wait.
+     */
+    public void testBulkWhileRestoringReportingShardRestoringReturnsPerItemForbidden() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            final var client = internalCluster().dataNodeClient();
+            BulkResponse bulk = client.prepareBulk()
+                .add(client.prepareIndex(INDEX).setId("new1").setSource("field", "value"))
+                .add(client.prepareIndex(INDEX).setId("new2").setSource("field", "value").setOpType(DocWriteRequest.OpType.CREATE))
+                .add(client.prepareDelete(INDEX, DOC_ID))
+                .setTimeout(TEST_REQUEST_TIMEOUT)
+                .get();
+
+            assertThat(bulk.hasFailures(), equalTo(true));
+            assertThat(bulk.getItems().length, equalTo(3));
+            for (BulkItemResponse item : bulk) {
+                assertThat(item.isFailed(), equalTo(true));
+                assertThat(item.getFailure().getStatus(), equalTo(RestStatus.FORBIDDEN));
+                final Throwable cause = ExceptionsHelper.unwrapCause(item.getFailure().getCause());
+                assertThat(cause, instanceOf(ShardRestoringException.class));
+                assertForbiddenShardRestoring((ShardRestoringException) cause, restoreUuid);
+            }
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /_bulk} over REST still succeeds with HTTP 200, and the failure is reported on the item as a 403
+     * {@code shard_restoring_exception}. The Java client test above only asserts on the exception objects, but clients parse this
+     * serialized form.
+     */
+    public void testBulkOverRestWhileRestoringReportingShardRestoringReturnsPerItemForbidden() throws Exception {
+        blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try (RestClient restClient = createRestClient()) {
+            final Request request = new Request("POST", "/_bulk");
+            request.setJsonEntity("{\"index\": {\"_index\": \"" + INDEX + "\"}}\n{\"field\": \"value\"}\n");
+
+            final ObjectPath bulk = ObjectPath.createFromResponse(restClient.performRequest(request));
+            assertThat(bulk.evaluate("items.0.index.status"), equalTo(RestStatus.FORBIDDEN.getStatus()));
+            assertThat(bulk.evaluate("items.0.index.error.type"), equalTo("shard_restoring_exception"));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /{index}/_refresh} is unchanged by the flag: it swallows the exception and {@code _shards.failed} stays 0.
+     */
+    public void testRefreshWhileRestoringReportingShardRestoringSwallowsExceptionAndReportsNoFailedShards() throws Exception {
+        blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            assertThat(
+                internalCluster().dataNodeClient()
+                    .admin()
+                    .indices()
+                    .prepareRefresh(INDEX)
+                    .setTimeout(TimeValue.timeValueMillis(100))
+                    .get()
+                    .getFailedShards(),
+                equalTo(0)
+            );
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /{index}/_flush} is unchanged by the flag: it swallows the exception and {@code _shards.failed} stays 0.
+     */
+    public void testFlushWhileRestoringReportingShardRestoringSwallowsExceptionAndReportsNoFailedShards() throws Exception {
+        blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            assertThat(
+                internalCluster().dataNodeClient()
+                    .admin()
+                    .indices()
+                    .prepareFlush(INDEX)
+                    .setTimeout(TimeValue.timeValueMillis(100))
+                    .get()
+                    .getFailedShards(),
+                equalTo(0)
+            );
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /{index}/_forcemerge} is unchanged by the flag: it swallows the exception and {@code _shards.failed} stays 0.
+     */
+    public void testForceMergeWhileRestoringReportingShardRestoringSwallowsExceptionAndReportsNoFailedShards() throws Exception {
+        blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            assertThat(internalCluster().dataNodeClient().admin().indices().prepareForceMerge(INDEX).get().getFailedShards(), equalTo(0));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /{index}/_close} is rejected the same way when the restore reports shard restoring: the flag does not change it.
+     */
+    public void testCloseWhileRestoringReportingShardRestoringIsRejected() throws Exception {
+        blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                internalCluster().dataNodeClient().admin().indices().prepareClose(INDEX)
+            );
+            assertThat(e.getMessage(), containsString("Cannot close indices that are being restored"));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code PUT /{index}/_block/write} is not acknowledged when its shard verification fails. When the restore reports shard restoring,
+     * the shard failure in the response is a {@link ShardRestoringException} (status 403) straight away, rather than
+     * {@link UnavailableShardsException} (status 503) after the timeout. As without the flag, the failed call is not rolled back.
+     */
+    public void testAddBlockWhileRestoringReportingShardRestoringReportsForbiddenShardFailure() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            // a long timeout shows that the verification does not wait for the primary
+            final var response = internalCluster().dataNodeClient()
+                .admin()
+                .indices()
+                .prepareAddBlock(IndexMetadata.APIBlock.WRITE, INDEX)
+                .setTimeout(TEST_REQUEST_TIMEOUT)
+                .get();
+
+            assertThat(response.isAcknowledged(), equalTo(false));
+            final var failure = response.getIndices().getFirst().getShards()[0].getFailures()[0];
+            assertThat(failure.status(), equalTo(RestStatus.FORBIDDEN));
+            final Throwable cause = ExceptionsHelper.unwrapCause(failure.getCause());
+            assertThat(cause, instanceOf(ShardRestoringException.class));
+            assertForbiddenShardRestoring((ShardRestoringException) cause, restoreUuid);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    private static void assertForbiddenShardRestoring(ShardRestoringException e, String restoreUuid) {
+        assertReportsShardRestoring(e, INDEX, restoreUuid);
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+    }
+
+    private static void assertSilentlyEmpty(Response response) throws IOException {
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        ObjectPath body = ObjectPath.createFromResponse(response);
+        assertThat(body.evaluate("_shards.total"), equalTo(0));
+        assertThat(body.evaluate("_shards.failed"), equalTo(0));
+        assertThat(body.evaluate("hits.total.value"), equalTo(0));
     }
 }

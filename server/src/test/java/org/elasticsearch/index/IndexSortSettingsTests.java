@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SliceKeyFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -43,6 +44,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -61,38 +63,39 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertFalse(indexSettings.getIndexSortConfig().hasIndexSort());
     }
 
-    public void testSliceEnabledAddsRoutingPrimarySort() {
+    public void testSliceEnabledAddsSliceKeyPrimarySort() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
         IndexSortConfig config = indexSettings.getIndexSortConfig();
         assertTrue(config.hasIndexSort());
         assertThat(config.sortSpecs.length, equalTo(1));
 
-        assertThat(config.sortSpecs[0].field, equalTo(RoutingFieldMapper.NAME));
+        assertThat(config.sortSpecs[0].field, equalTo(SliceIndexing.SLICE_KEY_FIELD_NAME));
         assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
         assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
         assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
     }
 
-    public void testSliceEnabledBuildIndexSortWithImplicitRoutingPrimarySort() {
+    public void testSliceEnabledBuildIndexSortWithImplicitSliceKeyPrimarySort() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
 
-        Sort sort = buildIndexSort(indexSettings, Map.of(RoutingFieldMapper.NAME, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE));
+        Sort sort = buildIndexSort(indexSettings, Map.of(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceKeyFieldMapper.FIELD_TYPE));
         assertThat(sort.getSort(), arrayWithSize(1));
-        assertThat(sort.getSort()[0].getField(), equalTo(RoutingFieldMapper.NAME));
+        assertThat(sort.getSort()[0].getField(), equalTo(SliceIndexing.SLICE_KEY_FIELD_NAME));
     }
 
-    public void testSliceEnabledBuildIndexSortWithoutRoutingFieldLookup() {
+    public void testSliceEnabledBuildIndexSortWithoutSliceKeyFieldLookup() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
 
+        // Metadata fields are not in the lookup before mappings load; the config resolves the slice key type itself.
         Sort sort = buildIndexSort(indexSettings, Map.of());
         assertThat(sort.getSort(), arrayWithSize(1));
-        assertThat(sort.getSort()[0].getField(), equalTo(RoutingFieldMapper.NAME));
+        assertThat(sort.getSort()[0].getField(), equalTo(SliceIndexing.SLICE_KEY_FIELD_NAME));
     }
 
-    public void testSliceEnabledPrependsRoutingToExplicitIndexSort() {
+    public void testSliceEnabledPrependsSliceKeyToExplicitIndexSort() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
@@ -107,7 +110,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertTrue(config.hasIndexSort());
         assertThat(config.sortSpecs.length, equalTo(2));
 
-        assertThat(config.sortSpecs[0].field, equalTo(RoutingFieldMapper.NAME));
+        assertThat(config.sortSpecs[0].field, equalTo(SliceIndexing.SLICE_KEY_FIELD_NAME));
         assertThat(config.sortSpecs[1].field, equalTo("field1"));
         assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
         assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
@@ -128,7 +131,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             .putList("index.sort.missing", "_first", "_last")
             .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
-        assertThat(e.getMessage(), containsString("must not contain [_routing] or [_slice]"));
+        assertThat(e.getMessage(), containsString("must not contain [_routing], [_slice], [_slice_key] or [_slice_hash]"));
     }
 
     public void testSliceEnabledRejectsSliceAliasInUserProvidedIndexSort() {
@@ -142,10 +145,24 @@ public class IndexSortSettingsTests extends ESTestCase {
             .putList("index.sort.missing", "_first", "_last")
             .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
-        assertThat(e.getMessage(), containsString("must not contain [_routing] or [_slice]"));
+        assertThat(e.getMessage(), containsString("must not contain [_routing], [_slice], [_slice_key] or [_slice_hash]"));
     }
 
-    public void testSliceEnabledPrependsRoutingToIndexModeDefaultSort() {
+    public void testSliceEnabledRejectsSliceKeyInUserProvidedIndexSort() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        String field = randomFrom(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.SLICE_HASH_FIELD_NAME);
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            .putList("index.sort.field", field, "field1")
+            .putList("index.sort.order", "asc", "asc")
+            .putList("index.sort.mode", "min", "min")
+            .putList("index.sort.missing", "_last", "_last")
+            .build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        assertThat(e.getMessage(), containsString("must not contain [_routing], [_slice], [_slice_key] or [_slice_hash]"));
+    }
+
+    public void testSliceEnabledPrependsSliceKeyToIndexModeDefaultSort() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
@@ -158,7 +175,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertTrue(config.hasIndexSort());
         assertThat(config.sortSpecs.length, equalTo(3));
 
-        assertThat(config.sortSpecs[0].field, equalTo(RoutingFieldMapper.NAME));
+        assertThat(config.sortSpecs[0].field, equalTo(SliceIndexing.SLICE_KEY_FIELD_NAME));
         assertThat(config.sortSpecs[1].field, equalTo("host.name"));
         assertThat(config.sortSpecs[2].field, equalTo("@timestamp"));
         assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
@@ -209,6 +226,77 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(config.sortSpecs[1].missingValue, equalTo("_first"));
         assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
         assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MAX));
+    }
+
+    /**
+     * The ES|QL plugin parses the expression, and its tests cover the syntax. Without it, tools that only read the index
+     * settings, like the shard CLI, still work.
+     */
+    public void testSortExpressionNeedsEsqlPlugin() {
+        Settings settings = Settings.builder().put("index.sort", "field1 DESC").build();
+        assertThat(IndexSortConfig.INDEX_SORT_SETTING.get(settings), equalTo("field1 DESC"));
+        IndexSettings indexSettings = indexSettings(settings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, indexSettings::getIndexSortConfig);
+        assertThat(e.getMessage(), equalTo("setting [index.sort] requires the ES|QL plugin"));
+    }
+
+    public void testSortExpressionNeedsIndexVersion() {
+        Settings settings = Settings.builder().put("index.sort", "field1 DESC").build();
+        IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORT_EXPRESSION);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexSettings(settings, previous).getIndexSortConfig()
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("setting [index.sort] requires an index created after all nodes support it, use [index.sort.field] instead")
+        );
+    }
+
+    public void testBlankSortExpression() {
+        Settings settings = Settings.builder().put("index.sort", "  ").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexSortConfig.INDEX_SORT_SETTING.get(settings));
+        assertThat(e.getMessage(), containsString("setting [index.sort] must not be blank"));
+    }
+
+    public void testEmptySortExpressionHasNoSort() {
+        assertFalse(indexSettings(Settings.builder().put("index.sort", "").build()).getIndexSortConfig().hasIndexSort());
+    }
+
+    public void testSortExpressionCannotBeCombinedWithSortSettings() {
+        for (String other : List.of("index.sort.field", "index.sort.order", "index.sort.mode", "index.sort.missing")) {
+            String value = switch (other) {
+                case "index.sort.field" -> "field1";
+                case "index.sort.order" -> "asc";
+                case "index.sort.mode" -> "min";
+                case "index.sort.missing" -> "_last";
+                default -> throw new AssertionError(other);
+            };
+            Settings settings = Settings.builder().put("index.sort", "field1").put(other, value).build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+            assertThat(e.getMessage(), containsString("setting [index.sort] cannot be combined with [" + other + "]"));
+        }
+    }
+
+    public void testSortExpressionIsNotReportedAsDefault() {
+        Settings.Builder diff = Settings.builder();
+        IndexSortConfig.INDEX_SORT_SETTING.diff(diff, Settings.EMPTY, Settings.EMPTY);
+        assertThat(diff.build().isEmpty(), equalTo(true));
+    }
+
+    public void testSortExpressionClearsIndexModeSortDefaults() {
+        Settings logsdb = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+            .build();
+        // Control: without index.sort the logsdb defaults apply.
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(logsdb), equalTo(List.of("@timestamp")));
+
+        Settings withExpression = Settings.builder().put(logsdb).put("index.sort", "field1 DESC").build();
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(withExpression), empty());
+        assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(withExpression), empty());
+        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(withExpression), empty());
+        assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(withExpression), empty());
     }
 
     public void testInvalidIndexSort() {

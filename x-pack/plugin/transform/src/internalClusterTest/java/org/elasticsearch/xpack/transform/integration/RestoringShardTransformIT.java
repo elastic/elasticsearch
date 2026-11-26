@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.LocalStateTransform;
 
 import java.util.Collection;
@@ -191,7 +192,15 @@ public class RestoringShardTransformIT extends AbstractSnapshotIntegTestCase {
                 new PutTransformAction.Request(config, false, TimeValue.THIRTY_SECONDS)
             );
             ActionFuture<AcknowledgedResponse> future = putFuture;
-            expectThrows(TimeoutException.class, () -> future.get(200, TimeUnit.MILLISECONDS));
+            // this blocks because the SOURCE_INDEX can't recover because the repo is blocked
+            expectThrows(TimeoutException.class, () -> future.get(randomIntBetween(50, 500), TimeUnit.MILLISECONDS));
+
+            // The put creates the internal index itself, so its primary may still be initializing here, and searching it
+            // by the GetTransformStatsAction bellow would fail with NoShardAvailableActionException.
+            assertBusy(() -> {
+                assertTrue(indexExists(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME));
+                ensureGreen(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+            });
 
             // No transform config has been persisted yet (it's only written once the validation
             // search above completes), so stats report no transforms at all.

@@ -196,6 +196,7 @@ public class IncrementalBulkService {
         private final ArrayList<Releasable> releasables = new ArrayList<>(4);
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
         private final IndexingPressure.Incremental incrementalOperation;
+        private final Releasable requestContextReservation;
         // Ideally this should be in RestBulkAction, but it's harder to inject the metric registry there
         private final LongHistogram chunkWaitTimeMillisHistogram;
         private boolean closed = false;
@@ -229,7 +230,19 @@ public class IncrementalBulkService {
             this.refreshPolicy = refreshPolicy;
             this.paramsUsed = paramsUsed;
             this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
-            this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
+            // The REST request's context (headers and transient security metadata) is retained until this handler closes, which
+            // outlives the coordinating operations that are split off per sub-request. Reserve it once for the handler's lifetime.
+            this.requestContextReservation = indexingPressure.markCoordinatingOperationStarted(
+                0,
+                threadPool.getThreadContext().estimatedRequestContextBytes(),
+                false
+            );
+            try {
+                this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
+            } catch (Exception e) {
+                requestContextReservation.close();
+                throw e;
+            }
 
             try (var ignored = threadPool.getThreadContext().newTraceContext()) {
                 bulkSessionTask = (CancellableTask) taskManager.register(
@@ -255,8 +268,8 @@ public class IncrementalBulkService {
                 );
                 createNewBulkRequest(EMPTY_STATE);
             } catch (Exception e) {
-                // The caller never receives this Handler, so nothing would be left to release the reservation.
-                incrementalOperation.close();
+                // The caller never receives this Handler, so nothing would be left to release the reservations.
+                Releasables.close(incrementalOperation, requestContextReservation);
                 throw e;
             }
         }
@@ -330,6 +343,9 @@ public class IncrementalBulkService {
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                         releasables.clear();
                         bulkInProgress = true;
+                        // the individual item requests list is mutated by the transport action, and requests marked as failed are set to
+                        // null; we need to copy it in case the request as a whole is failed, so that we can mark all items as failures
+                        final List<DocWriteRequest<?>> submittedItems = new ArrayList<>(bulkRequest.requests());
                         client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
                             @Override
                             public void onResponse(BulkResponse bulkResponse) {
@@ -341,7 +357,7 @@ public class IncrementalBulkService {
 
                             @Override
                             public void onFailure(Exception e) {
-                                handleBulkFailure(isFirstRequest, e);
+                                handleBulkFailure(isFirstRequest, e, submittedItems);
                             }
                         }, () -> {
                             bulkInProgress = false;
@@ -375,6 +391,9 @@ public class IncrementalBulkService {
                     releasables.clear();
                     // We do not need to set this back to false as this will be the last request.
                     bulkInProgress = true;
+                    // the individual item requests list is mutated by the transport action, and requests marked as failed are set to
+                    // null; we need to copy it in case the request as a whole is failed, so that we can mark all items as failures
+                    final List<DocWriteRequest<?>> submittedItems = new ArrayList<>(bulkRequest.requests());
                     client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
 
                         private final boolean isFirstRequest = incrementalRequestSubmitted == false;
@@ -387,7 +406,7 @@ public class IncrementalBulkService {
 
                         @Override
                         public void onFailure(Exception e) {
-                            handleBulkFailure(isFirstRequest, e);
+                            handleBulkFailure(isFirstRequest, e, submittedItems);
                             errorResponse(finalListener);
                         }
                     }, () -> {
@@ -406,6 +425,7 @@ public class IncrementalBulkService {
                 closed = true;
                 cancelTimeout();
                 incrementalOperation.close();
+                requestContextReservation.close();
                 releasables.forEach(Releasable::close);
                 releasables.clear();
                 if (taskManager.getCancellableTask(bulkSessionTask.getId()) != null) {
@@ -437,13 +457,13 @@ public class IncrementalBulkService {
             bulkRequest = null;
         }
 
-        private void handleBulkFailure(boolean isFirstRequest, Exception e) {
+        private void handleBulkFailure(boolean isFirstRequest, Exception e, List<DocWriteRequest<?>> items) {
             assert bulkActionLevelFailure == null;
             globalFailure = isFirstRequest;
             bulkActionLevelFailure = e instanceof TaskCancelledException tce
                 ? new ElasticsearchStatusException(tce.getMessage(), RestStatus.TOO_MANY_REQUESTS, tce)
                 : e;
-            addItemLevelFailures(bulkRequest.requests());
+            addItemLevelFailures(items);
             bulkRequest = null;
         }
 
@@ -480,7 +500,7 @@ public class IncrementalBulkService {
         }
 
         private void failAndRelease(Exception e) {
-            handleBulkFailure(incrementalRequestSubmitted == false, e);
+            handleBulkFailure(incrementalRequestSubmitted == false, e, bulkRequest.requests());
             incrementalOperation.split().close();
             releasables.forEach(Releasable::close);
             releasables.clear();

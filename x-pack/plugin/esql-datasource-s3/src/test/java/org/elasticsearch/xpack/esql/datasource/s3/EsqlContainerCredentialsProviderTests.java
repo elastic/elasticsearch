@@ -114,7 +114,8 @@ public class EsqlContainerCredentialsProviderTests extends ESTestCase {
         ) {
             assertFalse(provider.isActive());
             assertTrue(provider.isMisconfigured());
-            assertThat(provider.misconfigurationMessage(), containsString(POD_IDENTITY_TOKEN_FILE_LOCATION));
+            Path expectedTokenFile = environment.configDir().resolve(POD_IDENTITY_TOKEN_FILE_LOCATION);
+            assertThat(provider.misconfigurationMessage(), containsString(expectedTokenFile.toString()));
             assertThat(
                 "must not write the JVM-wide token property when the entitled symlink is missing",
                 System.getProperty(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property()),

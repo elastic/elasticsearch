@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -31,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class RangeStorageObjectTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     private static final byte[] FILE_BYTES = "Hello, World! This is test data for range reads.".getBytes(StandardCharsets.UTF_8);
 
@@ -397,9 +398,24 @@ public class RangeStorageObjectTests extends ESTestCase {
         }
 
         @Override
-        public void abortStream(InputStream stream) {
-            abortCount++;
-            lastAborted = stream;
+        public InputStream newStream() {
+            return track(super.newStream());
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return track(super.newStream(position, length));
+        }
+
+        private InputStream track(InputStream in) {
+            return new FilterInputStream(in) {
+                @Override
+                public void close() throws IOException {
+                    abortCount++;
+                    lastAborted = this;
+                    super.close();
+                }
+            };
         }
     }
 

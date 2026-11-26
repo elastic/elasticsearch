@@ -18,6 +18,7 @@ public abstract class LexerConfig extends Lexer {
     // is null when running inside the IDEA plugin
     EsqlConfig config;
     private int promqlDepth = 0;
+    private int promqlBracketDepth = 0;
 
     public LexerConfig() {}
 
@@ -57,6 +58,22 @@ public abstract class LexerConfig extends Lexer {
 
     boolean isPromqlQuery() {
         return promqlDepth > 0;
+    }
+
+    // Needed by the PromQL lexer: like Prometheus, a colon inside brackets separates a subquery range from its step,
+    // as in [5m:1m], and elsewhere may start a metric name, as in :9
+    void incPromqlBracketDepth() {
+        promqlBracketDepth++;
+    }
+
+    void decPromqlBracketDepth() {
+        if (promqlBracketDepth > 0) {
+            promqlBracketDepth--;
+        }
+    }
+
+    boolean isInPromqlBrackets() {
+        return promqlBracketDepth > 0;
     }
 
     /**

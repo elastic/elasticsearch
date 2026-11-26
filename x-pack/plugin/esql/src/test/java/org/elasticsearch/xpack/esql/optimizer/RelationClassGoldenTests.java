@@ -27,6 +27,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
@@ -84,9 +85,101 @@ public class RelationClassGoldenTests extends GoldenTestCase {
         runGoldenTest("FROM class_a, class_b METADATA _class | STATS d = COUNT_DISTINCT(emp_no) BY _class");
     }
 
+    /**
+     * A single subquery in FROM answers "subquery" for _class and null for _name as literals;
+     * the Subquery boundary node carries no relation-column attrs after materialisation.
+     */
+    public void testBothColumnsOnASingleSubquery() {
+        runSubqueryGoldenTest("FROM (FROM employees | KEEP emp_no) METADATA _class, _name | KEEP emp_no, _class, _name");
+    }
+
+    /**
+     * A subquery beside an index contributes different _class literals per branch.
+     */
+    public void testBothColumnsOnSubqueryBesideIndex() {
+        runSubqueryGoldenTest("FROM employees, (FROM employees | KEEP emp_no) METADATA _class | KEEP _class");
+    }
+
+    /**
+     * A single view answers "view" and the view name.
+     */
+    public void testBothColumnsOnASingleView() {
+        runViewGoldenTest("FROM v_employees METADATA _class, _name | KEEP emp_no, _class, _name", Map.of("v_employees", "FROM employees"));
+    }
+
+    /**
+     * A view beside an index contributes different _class and _name literals per branch.
+     */
+    public void testBothColumnsOnViewBesideIndex() {
+        runViewGoldenTest(
+            "FROM employees, v_emp_no METADATA _class, _name | KEEP emp_no, _class, _name",
+            Map.of("v_emp_no", "FROM employees | KEEP emp_no")
+        );
+    }
+
+    /**
+     * A {@code LET} named subquery is a subquery the user named: it answers "subquery" for _class and the subquery name for _name.
+     */
+    public void testBothColumnsOnASingleLetBinding() {
+        runSubqueryGoldenTest("""
+            LET low = (FROM employees | WHERE salary <= 1200 | KEEP emp_no);
+            FROM low METADATA _class, _name
+            | KEEP emp_no, _class, _name""");
+    }
+
+    /**
+     * Two {@code LET} named subqueries in one FROM each answer their own subquery name.
+     */
+    public void testBothColumnsAcrossLetBindings() {
+        runSubqueryGoldenTest("""
+            LET top = (FROM employees | WHERE salary > 1200 | KEEP emp_no);
+            LET low = (FROM employees | WHERE salary <= 1200 | KEEP emp_no);
+            FROM top, low METADATA _class, _name
+            | KEEP emp_no, _class, _name""");
+    }
+
+    /**
+     * A {@code LET} named subquery beside an index: the index branch answers "index" and its concrete index name.
+     */
+    public void testBothColumnsOnLetBindingBesideIndex() {
+        runSubqueryGoldenTest("""
+            LET low = (FROM employees | WHERE salary <= 1200 | KEEP emp_no);
+            FROM employees, low METADATA _class, _name
+            | KEEP emp_no, _class, _name""");
+    }
+
+    /**
+     * A {@code LET} named subquery, a literal subquery and an index in one FROM: each is its own branch of the FROM, so the named subquery
+     * answers its name while the unnamed subquery beside it answers null.
+     */
+    public void testBothColumnsOnLetBindingBesideSubqueryAndIndex() {
+        runSubqueryGoldenTest("""
+            LET low = (FROM employees | WHERE salary <= 1200 | KEEP emp_no);
+            FROM employees, low, (FROM employees | WHERE salary > 1200 | KEEP emp_no) METADATA _class, _name
+            | KEEP emp_no, _class, _name""");
+    }
+
+    /**
+     * The same named subquery twice in one FROM: two branches keyed by the subquery name (the second uniquified), both answering it.
+     */
+    public void testBothColumnsOnRepeatedLetBinding() {
+        runSubqueryGoldenTest("""
+            LET low = (FROM employees | WHERE salary <= 1200 | KEEP emp_no);
+            FROM low, low METADATA _class, _name
+            | KEEP emp_no, _class, _name""");
+    }
+
     private void runGoldenTest(String query) {
         assumeTrue("Requires external data source FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         builder(query).stages(STAGES).datasetMetadata(datasetMetadata()).externalSourceResolution(externalSourceResolution()).run();
+    }
+
+    private void runSubqueryGoldenTest(String query) {
+        builder(query).stages(EnumSet.of(Stage.LOGICAL_OPTIMIZATION)).run();
+    }
+
+    private void runViewGoldenTest(String query, Map<String, String> views) {
+        builder(query).stages(EnumSet.of(Stage.LOGICAL_OPTIMIZATION)).views(views).run();
     }
 
     private static ProjectMetadata datasetMetadata() {
@@ -101,7 +194,8 @@ public class RelationClassGoldenTests extends GoldenTestCase {
 
     /** Identical schemas on both branches, so the UnionAll is leaf-shaped until this rule touches it. */
     private static ExternalSourceResolution externalSourceResolution() {
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            datasetMetadata(),
             Map.of(
                 RESOURCE_A,
                 new ExternalSourceResolution.ResolvedSource(schemaFor(RESOURCE_A), FileList.UNRESOLVED, Map.of()),

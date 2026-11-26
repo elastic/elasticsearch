@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -23,13 +23,36 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasetShape;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class DataSourceInventoryCountersTests extends ESTestCase {
+
+    private static Collection<Measurement> datasourceObservations(ProjectMetadata project, DataSourceValidator validator) {
+        List<Measurement> observations = new ArrayList<>();
+        DataSourceInventoryCounters.recordDatasourceObservations(
+            project,
+            type -> validator,
+            (value, attributes) -> observations.add(new Measurement(value, attributes, false))
+        );
+        return observations;
+    }
+
+    private static Collection<Measurement> datasetObservations(ProjectMetadata project, DataSourceValidator validator) {
+        List<Measurement> observations = new ArrayList<>();
+        DataSourceInventoryCounters.recordDatasetObservations(
+            project,
+            type -> validator,
+            null,
+            (value, attributes) -> observations.add(new Measurement(value, attributes, false))
+        );
+        return observations;
+    }
 
     public void testDoneWhenAnonymousS3CsvGzDeclaredStrict() {
         DataSourceValidator validator = s3AnonymousCsvGzip();
@@ -44,17 +67,17 @@ public class DataSourceInventoryCountersTests extends ESTestCase {
         assertThat(counters.get("datasources.config.datasets.by_partitioning.auto"), equalTo(1L));
         assertThat(counters.get("datasources.config.datasets.by_compression.gzip"), equalTo(1L));
 
-        Collection<LongWithAttributes> datasources = DataSourceInventoryCounters.datasourceObservations(project, type -> validator);
+        Collection<Measurement> datasources = datasourceObservations(project, validator);
         assertThat(datasources, hasSize(1));
-        LongWithAttributes datasource = datasources.iterator().next();
-        assertThat(datasource.value(), equalTo(1L));
+        Measurement datasource = datasources.iterator().next();
+        assertThat(datasource.getLong(), equalTo(1L));
         assertThat(datasource.attributes().get(DataSourceInventoryCounters.TYPE_ATTRIBUTE), equalTo("s3"));
         assertThat(datasource.attributes().get(DataSourceInventoryCounters.AUTH_ATTRIBUTE), equalTo("anonymous"));
 
-        Collection<LongWithAttributes> datasets = DataSourceInventoryCounters.datasetObservations(project, type -> validator, null);
+        Collection<Measurement> datasets = datasetObservations(project, validator);
         assertThat(datasets, hasSize(1));
-        LongWithAttributes dataset = datasets.iterator().next();
-        assertThat(dataset.value(), equalTo(1L));
+        Measurement dataset = datasets.iterator().next();
+        assertThat(dataset.getLong(), equalTo(1L));
         assertThat(dataset.attributes().get(DataSourceInventoryCounters.TYPE_ATTRIBUTE), equalTo("s3"));
         assertThat(dataset.attributes().get(DataSourceInventoryCounters.FORMAT_ATTRIBUTE), equalTo("csv"));
         assertThat(dataset.attributes().get(DataSourceInventoryCounters.SCHEMA_ATTRIBUTE), equalTo("declared_strict"));
@@ -160,16 +183,16 @@ public class DataSourceInventoryCountersTests extends ESTestCase {
         assertThat(counters.get("datasources.config.datasources.by_auth.anonymous"), equalTo(2L));
         assertThat(counters.get("datasources.config.datasets.by_format.csv"), equalTo(2L));
 
-        Collection<LongWithAttributes> datasources = DataSourceInventoryCounters.datasourceObservations(project, type -> validator);
+        Collection<Measurement> datasources = datasourceObservations(project, validator);
         assertThat(datasources, hasSize(1));
-        LongWithAttributes datasource = datasources.iterator().next();
-        assertThat(datasource.value(), equalTo(2L));
+        Measurement datasource = datasources.iterator().next();
+        assertThat(datasource.getLong(), equalTo(2L));
         assertThat(datasource.attributes().get(DataSourceInventoryCounters.TYPE_ATTRIBUTE), equalTo("s3"));
         assertThat(datasource.attributes().get(DataSourceInventoryCounters.AUTH_ATTRIBUTE), equalTo("anonymous"));
 
-        Collection<LongWithAttributes> datasets = DataSourceInventoryCounters.datasetObservations(project, type -> validator, null);
+        Collection<Measurement> datasets = datasetObservations(project, validator);
         assertThat(datasets, hasSize(1));
-        assertThat(datasets.iterator().next().value(), equalTo(2L));
+        assertThat(datasets.iterator().next().getLong(), equalTo(2L));
     }
 
     public void testAuthFactoryThrowIsUnknownAndDoesNotDropType() {

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -250,6 +251,40 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
         )
 
     );
+
+    public void testPassLimitHintToTsInfo() {
+        int limitValue = randomIntBetween(1, 10_000);
+        Limit limit = new Limit(EMPTY, new Literal(EMPTY, limitValue, INTEGER), new TsInfo(EMPTY, relation()));
+
+        Limit optimized = as(optimizePlan(limit), Limit.class);
+
+        assertThat(as(optimized.child(), TsInfo.class).limit(), equalTo(limitValue));
+        assertThat(optimizePlan(optimized), equalTo(optimized));
+    }
+
+    public void testPassLimitHintToTsInfoThroughProject() {
+        int limitValue = randomIntBetween(1, 10_000);
+        TsInfo tsInfo = new TsInfo(EMPTY, relation());
+        Project project = new Project(EMPTY, tsInfo, List.of(tsInfo.output().get(0)));
+        Limit limit = new Limit(EMPTY, new Literal(EMPTY, limitValue, INTEGER), project);
+
+        LogicalPlan optimized = optimizePlan(limit);
+
+        Project optimizedProject = as(optimized, Project.class);
+        Limit pushedLimit = as(optimizedProject.child(), Limit.class);
+        assertThat(as(pushedLimit.child(), TsInfo.class).limit(), equalTo(limitValue));
+    }
+
+    public void testSmallerLimitWinsOnTsInfo() {
+        int existing = randomIntBetween(100, 10_000);
+        int smaller = randomIntBetween(1, existing - 1);
+        Limit smallerLimit = new Limit(EMPTY, new Literal(EMPTY, smaller, INTEGER), new TsInfo(EMPTY, relation(), existing));
+        assertThat(as(as(optimizePlan(smallerLimit), Limit.class).child(), TsInfo.class).limit(), equalTo(smaller));
+
+        int larger = randomIntBetween(existing + 1, 20_000);
+        Limit largerLimit = new Limit(EMPTY, new Literal(EMPTY, larger, INTEGER), new TsInfo(EMPTY, relation(), existing));
+        assertThat(as(as(optimizePlan(largerLimit), Limit.class).child(), TsInfo.class).limit(), equalTo(existing));
+    }
 
     public void testPushableLimitDuplicate() {
         FieldAttribute a = getFieldAttribute("a");

@@ -110,6 +110,37 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
     }
 
     /**
+     * Whether a document in this segment may hold more than one value. The segment is sorted by each document's
+     * minimum or maximum only, so where this is true the index order is not the order of every value the field holds,
+     * and nothing may skip or stop early on it. A segment that cannot tell answers true.
+     */
+    public boolean isMaybeMultiValued(LeafReader reader) throws IOException {
+        return switch (binaryFormat) {
+            case COLUMNAR_PAYLOAD -> {
+                BinaryDocValues values = reader.getBinaryDocValues(getField());
+                if (values == null) {
+                    yield false;
+                }
+                // Payloads that are not a column, such as those of another codec, say nothing of the segment as a whole.
+                yield values instanceof StringColumnSource source ? source.reader().multiValued() : true;
+            }
+            case PLAIN -> throw new AssertionError(
+                "PLAIN fields use a plain BinarySortField, not MultiValuedBinaryDocValuesSortField; field=[" + getField() + "]"
+            );
+            case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
+                // The companion counts every document's slots and is always written with a skipper, so its maximum answers
+                // for the whole segment. No companion means no document wrote one: the field is single-valued or absent.
+                String countsFieldName = getField() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+                if (reader.getNumericDocValues(countsFieldName) == null) {
+                    yield false;
+                }
+                DocValuesSkipper countsSkipper = reader.getDocValuesSkipper(countsFieldName);
+                yield countsSkipper == null || countsSkipper.maxValue() > 1;
+            }
+        };
+    }
+
+    /**
      * Decodes the minimum ({@code maxMode=false}) or maximum ({@code maxMode=true}) sort key from a document's raw
      * binary doc values blob, dispatching to whichever decoder matches the field's {@code format}. Shared by
      * {@link MinMaxBinaryDocValues#binaryValue()} and {@code LongValuesComparatorSource}'s host.name singleton check.
@@ -231,11 +262,13 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
         public int nextDoc() throws IOException {
             int doc = in.nextDoc();
             if (doc != NO_MORE_DOCS) {
-                // Use nextDoc (sequential) rather than advanceExact: during segment flush
-                // Lucene iterates docs with nextDoc() only and the buffered NumericDocValues
-                // writer does not support advanceExact(). The binary and count fields are
-                // always indexed together so they have the same doc IDs and stay in sync.
-                counts.nextDoc();
+                // Step with nextDoc rather than advance/advanceExact: during segment flush the buffered
+                // NumericDocValues writer supports neither. The counts are dense but the binary values
+                // are sparse (a document with no non-null value writes only its count), so stepping counts
+                // once per binary doc would drift out of step; step until it reaches the binary doc.
+                while (counts.docID() < doc) {
+                    counts.nextDoc();
+                }
             }
             return doc;
         }

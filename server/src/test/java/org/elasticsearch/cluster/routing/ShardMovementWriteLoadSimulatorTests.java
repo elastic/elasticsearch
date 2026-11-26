@@ -82,9 +82,9 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 randomShard,
                 "node_1",
                 expectedShardSize,
-                "testing",
+                MoveReason.CANNOT_REMAIN,
                 RoutingChangesObserver.NOOP,
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
         shardMovementWriteLoadSimulator.simulateShardStarted(moveShardTuple.v2());
         final ShardRouting movedAndStartedShard = allocation.routingNodes()
@@ -139,9 +139,9 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 movedAndStartedShard,
                 "node_0",
                 expectedShardSize,
-                "testing",
+                MoveReason.CANNOT_REMAIN,
                 RoutingChangesObserver.NOOP,
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
         shardMovementWriteLoadSimulator.simulateShardStarted(moveBackTuple.v2());
 
@@ -184,9 +184,9 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 randomShard,
                 "node_1",
                 expectedShardSize,
-                "testing",
+                MoveReason.CANNOT_REMAIN,
                 RoutingChangesObserver.NOOP,
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
         shardMovementWriteLoadSimulator.simulateShardStarted(moveShardTuple.v2());
         allocation.routingNodes().startShard(moveShardTuple.v2(), RoutingChangesObserver.NOOP, expectedShardSize);
@@ -213,9 +213,9 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 randomShard,
                 "node_1",
                 0,
-                "testing",
+                MoveReason.CANNOT_REMAIN,
                 RoutingChangesObserver.NOOP,
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
         shardMovementWriteLoadSimulator.simulateShardStarted(moveShardTuple.v2());
 

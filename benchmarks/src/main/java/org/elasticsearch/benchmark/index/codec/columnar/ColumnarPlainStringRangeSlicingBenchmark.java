@@ -9,43 +9,88 @@
 
 package org.elasticsearch.benchmark.index.codec.columnar;
 
+import org.apache.lucene.util.BytesRef;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 
 /**
- * Range query over the plain layout of a ColumNAR string column, isolating the per-interval byte
- * skip index. Unlike {@link ColumnarStringRangeSlicingBenchmark}, this class fixes the format to
- * {@code COLUMNAR_PLAIN} so the skip-index cost is always in the plain code path, and uses data
- * shapes that span the spectrum from maximally skip-friendly to skip-hostile:
+ * Range, term and prefix queries over the plain layout of a ColumNAR string column, with the plain skip index
+ * off ({@code COLUMNAR_PLAIN}) and on ({@code COLUMNAR_PLAIN_BOUNDED}). Unlike
+ * {@link ColumnarStringRangeSlicingBenchmark}, this class keeps the layout plain so the skip-index cost is
+ * always in the plain code path. The data shapes cover each way a column can be ordered:
  *
  * <ul>
- * <li>{@code SORTED_POD_NAME}: values arrive in term order, each term in one run. The interval
- *     {@code [minTerm, maxTerm]} covers a narrow portion of the vocabulary, so nearly every
- *     interval outside the query range is pruned. This is the best case for the byte skip index.</li>
- * <li>{@code SHUFFLED_POD_NAME}: the same multiset in uniformly random document order. Every
- *     interval spans roughly the full vocabulary, so no interval can be pruned. This is the
- *     worst case, and the direct complement to {@code SORTED_POD_NAME}.</li>
- * <li>{@code TRACE_ID}: all values are distinct hex strings. Intervals cover a modest portion of
- *     the lexicographic space, so some pruning is possible at low selectivities.</li>
+ * <li>{@code SORTED_POD_NAME}, {@code SORTED_HOSTNAME}: values arrive in term order. The reader bisects the
+ *     values, and with the skip index it confines each end of the match to one chunk. A pod name is nearly
+ *     unique, a host name repeats in long runs.</li>
+ * <li>{@code DESCENDING_POD_NAME}, {@code DESCENDING_HOSTNAME}: values arrive in reverse term order. The reader
+ *     cannot bisect, and each chunk covers a narrow portion of the vocabulary, so the skip index prunes the
+ *     chunks outside the range and accepts the chunks wholly inside it.</li>
+ * <li>{@code CLUSTERED_POD_NAME}: values arrive in runs that restart, so the column is not ordered and has no
+ *     skip index. It is a control: both formats must measure the same.</li>
+ * <li>{@code SHUFFLED_POD_NAME}: the same multiset in uniformly random document order. Every chunk spans
+ *     roughly the full vocabulary. It is a control: both formats must measure the same.</li>
+ * <li>{@code TRACE_ID}: all values are distinct hex strings, in no order. It is a control: both formats must
+ *     measure the same.</li>
  * </ul>
+ *
+ * <p>The term query looks up the lower bound of the range, which exists in the column except at selectivity
+ * {@code 0.0}, where it is a value just past one that does. The prefix query uses that bound without its last
+ * three bytes, which matches a small run of values.
  *
  * <p>Run commands (from the repository root):
  * <pre>
  * # Smoke test: one fork, no warmup, one iteration (finishes in under a minute).
  * ./gradlew :benchmarks:run --args="ColumnarPlainStringRangeSlicingBenchmark -f 1 -wi 0 -i 1 -p numDocs=100000 -rf json -rff columnar-plain-range.json"
  *
- * # Full run: all three data shapes across four selectivity values and two doc counts.
+ * # Full run: all data shapes across four selectivity values, two doc counts and both formats.
  * ./gradlew :benchmarks:run --args="ColumnarPlainStringRangeSlicingBenchmark -rf json -rff columnar-plain-range.json"
  * </pre>
  */
 public class ColumnarPlainStringRangeSlicingBenchmark extends AbstractStringRangeSlicingBenchmark {
 
-    @Param({ "SORTED_POD_NAME", "SHUFFLED_POD_NAME", "TRACE_ID" })
+    @Param({ "COLUMNAR_PLAIN", "COLUMNAR_PLAIN_BOUNDED" })
+    private StringFormat format;
+
+    @Param(
+        {
+            "SORTED_POD_NAME",
+            "DESCENDING_POD_NAME",
+            "SORTED_HOSTNAME",
+            "DESCENDING_HOSTNAME",
+            "CLUSTERED_POD_NAME",
+            "SORTED_SERVICE",
+            "SHUFFLED_POD_NAME",
+            "TRACE_ID" }
+    )
     private StringData data;
 
     @Param({ "0.0", "0.001", "0.01", "0.1" })
     private double selectivity;
+
+    private BytesRef term;
+    private BytesRef prefix;
+
+    @Setup(Level.Trial)
+    public void setupPointQueries() {
+        term = lower;
+        prefix = new BytesRef(lower.bytes, lower.offset, Math.max(1, lower.length - 3));
+    }
+
+    @Benchmark
+    public void termQuery(Blackhole bh) throws IOException {
+        bh.consume(column.queryTerm(term));
+    }
+
+    @Benchmark
+    public void prefixQuery(Blackhole bh) throws IOException {
+        bh.consume(column.queryPrefix(prefix));
+    }
 
     @Override
     StringData data() {
@@ -64,13 +109,11 @@ public class ColumnarPlainStringRangeSlicingBenchmark extends AbstractStringRang
 
     @Override
     StringFormat format() {
-        return StringFormat.COLUMNAR_PLAIN;
+        return format;
     }
 
     @Override
     void validateLayout(StringFormat.Column column) throws IOException {
-        if (column.shape().startsWith("plain") == false) {
-            throw new IllegalStateException("COLUMNAR_PLAIN produced a non-plain layout: " + column.shape());
-        }
+        format.requirePlainLayout(column, numDocs, data.ordered());
     }
 }

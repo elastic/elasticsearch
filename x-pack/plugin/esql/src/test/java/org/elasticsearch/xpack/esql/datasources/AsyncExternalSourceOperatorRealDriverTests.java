@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -89,7 +90,7 @@ import java.util.concurrent.locks.LockSupport;
 public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
 
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static final String DRIVER_POOL_NAME = "test-driver";
@@ -485,6 +486,9 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
     }
 
     private record StubStorageObject(StoragePath path) implements StorageObject {
+        @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
         @Override
         public InputStream newStream() {
             return InputStream.nullInputStream();

@@ -35,9 +35,10 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
     public static CompactInvalidMappedField mappedEverywhere(
         String name,
         Map<DataType, Set<String>> typesToIndices,
-        Map<Set<String>, Set<String>> indexDedupCache
+        Map<Set<String>, Set<String>> indexDedupCache,
+        TimeSeriesFieldType timeSeriesFieldType
     ) {
-        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), false);
+        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), false, timeSeriesFieldType);
     }
 
     public static CompactInvalidMappedField potentiallyUnmapped(
@@ -45,7 +46,7 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         Map<DataType, Set<String>> typesToIndices,
         Map<Set<String>, Set<String>> indexDedupCache
     ) {
-        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), true);
+        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), true, TimeSeriesFieldType.UNKNOWN);
     }
 
     private static Set<String> truncate(Set<String> indices) {
@@ -54,8 +55,13 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         return Collections.unmodifiableSet(truncated);
     }
 
-    private CompactInvalidMappedField(String name, Map<DataType, TruncatedIndices> typesToIndices, boolean isPotentiallyUnmapped) {
-        super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, TimeSeriesFieldType.UNKNOWN);
+    private CompactInvalidMappedField(
+        String name,
+        Map<DataType, TruncatedIndices> typesToIndices,
+        boolean isPotentiallyUnmapped,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, timeSeriesFieldType);
         this.typesToIndices = typesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }
@@ -79,22 +85,25 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         return samples;
     }
 
-    private Map<String, Set<String>> lazyTypesToIndices;
+    private volatile Map<String, Set<String>> lazyTypesToIndices;
 
     @Override
     public Map<String, Set<String>> getTypesToIndices() {
-        if (lazyTypesToIndices == null) {
-            lazyTypesToIndices = new TreeMap<>();
+        Map<String, Set<String>> result = lazyTypesToIndices;
+        if (result == null) {
+            // Fill a local and publish it once: this field is shared by every thread that holds the plan.
+            result = new TreeMap<>();
             for (Map.Entry<DataType, TruncatedIndices> entry : typesToIndices.entrySet()) {
                 TruncatedIndices indices = entry.getValue();
-                Set<String> result = indices.dropped == 0 ? indices.kept : new LinkedHashSet<>(indices.kept);
-                if (result != indices.kept) {
-                    result.add("...");
+                Set<String> names = indices.dropped == 0 ? indices.kept : new LinkedHashSet<>(indices.kept);
+                if (names != indices.kept) {
+                    names.add("...");
                 }
-                lazyTypesToIndices.put(entry.getKey().typeName(), result);
+                result.put(entry.getKey().typeName(), names);
             }
+            lazyTypesToIndices = result;
         }
-        return lazyTypesToIndices;
+        return result;
     }
 
     @Override

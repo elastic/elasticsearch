@@ -81,6 +81,7 @@ Local content extraction is available for the following self-managed connectors:
 * [Azure Blob Storage](/reference/search-connectors/es-connectors-azure-blob.md)
 * [Confluence](/reference/search-connectors/es-connectors-confluence.md)
 * [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)
+* [Exchange Server](/reference/search-connectors/es-connectors-exchange-server.md)
 * [GitHub](/reference/search-connectors/es-connectors-github.md)
 * [Google Cloud Storage](/reference/search-connectors/es-connectors-google-cloud.md)
 * [Google Drive](/reference/search-connectors/es-connectors-google-drive.md)

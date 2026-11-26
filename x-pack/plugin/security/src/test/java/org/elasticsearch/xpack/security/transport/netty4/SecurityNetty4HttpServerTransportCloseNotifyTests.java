@@ -30,6 +30,7 @@ import io.netty.util.concurrent.Future;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
@@ -64,18 +65,7 @@ import static org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Te
 
 public class SecurityNetty4HttpServerTransportCloseNotifyTests extends ESTestCase {
 
-    private static <T> T safePoll(BlockingQueue<T> queue) {
-        try {
-            var t = queue.poll(5, TimeUnit.SECONDS);
-            if (t == null) {
-                throw new AssertionError("queue is empty");
-            } else {
-                return t;
-            }
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        }
-    }
+    private static final TimeValue POLL_TIMEOUT = TimeValue.timeValueSeconds(5);
 
     private static <T> void safeAwait(Future<T> nettyFuture) {
         try {
@@ -197,9 +187,9 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends ESTestCas
         runForAllTlsVersions(tlsVersion -> {
             try (var ctx = connectClientAndServer(tlsVersion)) {
                 ctx.client.channel.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/index"));
-                var serverRequestCtx = safePoll(ctx.server.dispatcher.reqQueue);
+                var serverRequestCtx = safePoll(ctx.server.dispatcher.reqQueue, POLL_TIMEOUT);
                 serverRequestCtx.restChannel.sendResponse(new RestResponse(RestStatus.OK, ""));
-                safePoll(ctx.client.respQueue);
+                safePoll(ctx.client.respQueue, POLL_TIMEOUT);
                 var ssl = ctx.client.channel.pipeline().get(SslHandler.class);
                 ssl.closeOutbound();
                 safeAwait(ctx.client.channel.closeFuture());

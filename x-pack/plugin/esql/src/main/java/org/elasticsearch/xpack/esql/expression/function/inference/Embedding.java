@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failure;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -40,6 +39,7 @@ import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionR
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
@@ -47,7 +47,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * EMBEDDING function converts input to dense vector embeddings using an inference endpoint with the {@code embedding} task type.
  * It can manage multiple data types and formats (e.g. text, images) based on the options provided
  */
-public class Embedding extends InferenceFunction<Embedding> implements OptionalArgument, PostOptimizationVerificationAware {
+public class Embedding extends InferenceFunction<Embedding> implements OptionalArgument {
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Embedding.class).ternary(Embedding::new).name("embedding");
 
@@ -177,9 +177,8 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution textResolution = isNotNull(inputValue, sourceText(), FIRST).and(
-            isType(inputValue, DataType.KEYWORD::equals, sourceText(), FIRST, "string")
-        );
+        TypeResolution textResolution = isNotNull(inputValue, sourceText(), FIRST).and(isFoldable(inputValue, sourceText(), FIRST))
+            .and(isType(inputValue, DataType.KEYWORD::equals, sourceText(), FIRST, "string"));
 
         if (textResolution.unresolved()) {
             return textResolution;
@@ -187,7 +186,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
         TypeResolution inferenceIdResolution = isNotNull(inferenceId, sourceText(), SECOND).and(
             isType(inferenceId, DataType.KEYWORD::equals, sourceText(), SECOND, "string")
-        );
+        ).and(isFoldable(inferenceId, sourceText(), SECOND));
 
         if (inferenceIdResolution.unresolved()) {
             return inferenceIdResolution;
@@ -196,7 +195,16 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
         if (inputOptions != null) {
             TypeResolution optionsResolution = Options.resolve(inputOptions, source(), THIRD, ALLOWED_OPTIONS, optionsMap -> {
                 try {
-                    inputDataType();
+                    var inputDataType = inputDataType();
+                    if (InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES.contains(inputDataType) == false) {
+                        throw new IllegalArgumentException(
+                            Strings.format(
+                                "Unsupported type [%s], must be one of %s",
+                                inputDataType,
+                                InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES
+                            )
+                        );
+                    }
                     inputTimeout();
                 } catch (IllegalArgumentException e) {
                     throw new InvalidArgumentException("Invalid options for EMBEDDING: " + e.getMessage());
@@ -208,16 +216,6 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
         }
 
         return TypeResolution.TYPE_RESOLVED;
-    }
-
-    @Override
-    public void postOptimizationVerification(Failures failures) {
-        if (inputValue.foldable() == false) {
-            failures.add(Failure.fail(this, "first argument for [" + sourceText() + "] must be a constant string"));
-        }
-        if (inferenceId.foldable() == false) {
-            failures.add(Failure.fail(this, "second argument for [" + sourceText() + "] must be a constant string"));
-        }
     }
 
     @Override

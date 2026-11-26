@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -37,6 +38,8 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
@@ -89,6 +92,31 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
             ),
             Decision.Type.NO,
             "shard role [SEARCH_ONLY] does not match stateless node role [index]"
+        );
+    }
+
+    public void testNoDecisionKeepsLabelWithoutDebug() {
+        var indexName = UUIDs.randomBase64UUID();
+        var indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        var state = createClusterState(1, 0, indexMetadata);
+        var decider = new StatelessAllocationDecider();
+        var allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(decider).build();
+        var indexNode = allocation.routingNodes().node("index-node-0");
+        var searchShard = findShard(state, indexName, 0, ShardRouting.Role.SEARCH_ONLY);
+
+        assertThat(decider.canAllocate(searchShard, indexNode, allocation), isNoDecisionWithNoExplanation(StatelessAllocationDecider.NAME));
+
+        allocation.debugDecision(true);
+        assertThat(
+            decider.canAllocate(searchShard, indexNode, allocation),
+            isNoDecisionWithExplanationMatching(
+                StatelessAllocationDecider.NAME,
+                equalTo("shard role [SEARCH_ONLY] does not match stateless node role [index]")
+            )
         );
     }
 

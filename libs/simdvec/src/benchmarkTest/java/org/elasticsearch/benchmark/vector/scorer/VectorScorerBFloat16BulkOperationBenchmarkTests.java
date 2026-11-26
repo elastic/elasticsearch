@@ -44,16 +44,7 @@ public class VectorScorerBFloat16BulkOperationBenchmarkTests extends BenchmarkTe
     public void testBulk() {
         var bench = newBench();
         try {
-            assertArrayEquals(function + "/" + queryType, bench.scoreSequential(), bench.scoreBulk(), 1e-3f);
-        } finally {
-            bench.teardown();
-        }
-    }
-
-    public void testBulkOffsets() {
-        var bench = newBench();
-        try {
-            assertArrayEquals(function + "/" + queryType, bench.scoreRandom(), bench.scoreBulkOffsets(), 1e-3f);
+            assertArrayEquals(function + "/" + queryType, bench.scoreSequential().clone(), bench.scoreBulk(), 1e-3f);
         } finally {
             bench.teardown();
         }
@@ -62,7 +53,7 @@ public class VectorScorerBFloat16BulkOperationBenchmarkTests extends BenchmarkTe
     public void testBulkSparse() {
         var bench = newBench();
         try {
-            assertArrayEquals(function + "/" + queryType, bench.scoreRandom(), bench.scoreBulkSparse(), 1e-3f);
+            assertArrayEquals(function + "/" + queryType, bench.scoreRandom().clone(), bench.scoreBulkSparse(), 1e-3f);
         } finally {
             bench.teardown();
         }

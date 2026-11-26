@@ -40,7 +40,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -388,6 +387,7 @@ public class SnapshotsServiceUtils {
      * Walks through the snapshot entries' shard snapshots and creates applies updates from looking at removed nodes or indexes and known
      * failed shard snapshots on the same shard IDs.
      *
+     * @param projectMetadata the metadata of the snapshot's project, used to detect indices that are being resharded
      * @param nodeIdRemovalPredicate identify any nodes that are marked for removal / in shutdown mode
      * @param knownFailures already known failed shard snapshots, but more may be found in this method
      * @return an updated map of shard statuses
@@ -395,6 +395,7 @@ public class SnapshotsServiceUtils {
     public static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> processWaitingShardsAndRemovedNodes(
         SnapshotsInProgress.Entry snapshotEntry,
         RoutingTable routingTable,
+        ProjectMetadata projectMetadata,
         DiscoveryNodes nodes,
         Predicate<String> nodeIdRemovalPredicate,
         Map<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> knownFailures
@@ -432,6 +433,21 @@ public class SnapshotsServiceUtils {
             } else if (shardStatus.state() == SnapshotsInProgress.ShardState.WAITING
                 || shardStatus.state() == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL) {
                     // The shard primary wasn't assigned, or the shard snapshot was paused because the node was shutting down.
+                    if (indexIsBeingResharded(projectMetadata.index(shardId.getIndex()))) {
+                        // The index started resharding while this shard snapshot was waiting, and the data node would
+                        // fail it as soon as it starts. Fail it now.
+                        snapshotChanged = true;
+                        logger.debug("failing snapshot of shard [{}] because its index is being resharded", shardId);
+                        final SnapshotsInProgress.ShardSnapshotStatus failedState = new SnapshotsInProgress.ShardSnapshotStatus(
+                            shardStatus.nodeId(),
+                            SnapshotsInProgress.ShardState.FAILED,
+                            shardStatus.generation(),
+                            SnapshotsService.SHARD_BEING_RESHARDED_REASON
+                        );
+                        shards.put(shardId, failedState);
+                        knownFailures.put(shardSnapshotEntry.getKey(), failedState);
+                        continue;
+                    }
                     IndexRoutingTable indexShardRoutingTable = routingTable.index(shardId.getIndex());
                     if (indexShardRoutingTable != null) {
                         IndexShardRoutingTable shardRouting = indexShardRoutingTable.shard(shardId.id());
@@ -508,7 +524,12 @@ public class SnapshotsServiceUtils {
         }
     }
 
-    public static boolean waitingShardsStartedOrUnassigned(SnapshotsInProgress snapshotsInProgress, ClusterChangedEvent event) {
+    /**
+     * Whether a routing table change requires re-evaluating waiting, paused or queued shard snapshots, see
+     * {@link #processWaitingShardsAndRemovedNodes}. This is the case when a shard's primary started or became unassigned,
+     * its index was deleted, or its index started resharding.
+     */
+    public static boolean waitingShardsNeedUpdate(SnapshotsInProgress snapshotsInProgress, ClusterChangedEvent event) {
         for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo()) {
             for (SnapshotsInProgress.Entry entry : entries) {
                 if (entry.state() == SnapshotsInProgress.State.STARTED && entry.isClone() == false) {
@@ -528,6 +549,12 @@ public class SnapshotsServiceUtils {
                             IndexRoutingTable indexShardRoutingTable = event.state().routingTable(projectId).index(index);
                             if (indexShardRoutingTable == null) {
                                 // index got removed concurrently and we have to fail WAITING, QUEUED and PAUSED_FOR_REMOVAL state shards
+                                return true;
+                            }
+                            final IndexMetadata indexMetadata = event.state().metadata().getProject(projectId).index(index);
+                            if (state != SnapshotsInProgress.ShardState.QUEUED && indexIsBeingResharded(indexMetadata)) {
+                                // catches a reshard split that started while a shard snapshot was waiting or paused, in
+                                // which case the shard snapshot will be failed without waiting for its primary to start
                                 return true;
                             }
                             ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.shardId()).primaryShard();
@@ -599,28 +626,21 @@ public class SnapshotsServiceUtils {
 
     /**
      * Finds snapshot delete operations that are ready to execute in the given {@link ClusterState} and computes a new cluster state that
-     * has all executable deletes marked as executing. Returns a {@link Tuple} of the updated cluster state and all executable deletes.
-     * This can either be {@link SnapshotDeletionsInProgress.Entry} that were already in state
-     * {@link SnapshotDeletionsInProgress.State#STARTED} or waiting entries in state {@link SnapshotDeletionsInProgress.State#WAITING}
-     * that were moved to {@link SnapshotDeletionsInProgress.State#STARTED} in the returned updated cluster state.
+     * has all executable deletes marked as executing.
      *
      * @param projectId the project for repositories where deletions should be prepared. {@code null} means all projects
      * @param currentState current cluster state
-     * @return tuple of an updated cluster state and currently executable snapshot delete operations
+     * @return the updated cluster state
      */
-    public static Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> readyDeletions(
-        ClusterState currentState,
-        @Nullable ProjectId projectId
-    ) {
+    public static ClusterState startReadyDeletions(ClusterState currentState, @Nullable ProjectId projectId) {
         final SnapshotDeletionsInProgress deletions = SnapshotDeletionsInProgress.get(currentState);
         if (deletions.hasDeletionsInProgress() == false || (projectId != null && deletions.hasDeletionsInProgress(projectId) == false)) {
-            return Tuple.tuple(currentState, List.of());
+            return currentState;
         }
         final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE);
         assert snapshotsInProgress != null;
         final Set<ProjectRepo> repositoriesSeen = new HashSet<>();
         boolean changed = false;
-        final ArrayList<SnapshotDeletionsInProgress.Entry> readyDeletions = new ArrayList<>();
         final List<SnapshotDeletionsInProgress.Entry> newDeletes = new ArrayList<>();
         for (SnapshotDeletionsInProgress.Entry entry : deletions.getEntries()) {
             if (projectId != null && projectId.equals(entry.projectId()) == false) {
@@ -632,22 +652,31 @@ public class SnapshotsServiceUtils {
             if (repositoriesSeen.add(projectRepo)
                 && entry.state() == SnapshotDeletionsInProgress.State.WAITING
                 && snapshotsInProgress.forRepo(projectRepo).stream().noneMatch(SnapshotsServiceUtils::isWritingToRepository)) {
+                // If we just completed an earlier deletion then we already called `SnapshotsService#updatedSnapshotsInProgress` to start
+                // any snapshot-creation tasks in `SnapshotsInProgress` which were added while the deletion was running. This means that
+                // the above `isWritingToRepository` check is enough to know that there are no higher-priority snapshot creations to run.
+                //
+                // Likewise if we got here by completing a snapshot creation then again the `isWritingToRepository` check ensures that there
+                // are no other higher-priority snapshot creations to run: any such creation tasks would either have active shards or would
+                // be awaiting finalization.
+                //
+                // Otherwise, we got here from `SnapshotExternalChangesBatcher` via a BwC path that removed an ancient ABORTED snapshot
+                // from the queue. Running a deletion despite this ongoing work should be ok, but this path should be impossible today
+                // anyway so it doesn't really matter.
+                //
+                // Note that an initializing clone does not count as a "higher-priority snapshot creation": it's ok for a delete to proceed
+                // while the clone is initializing.
                 changed = true;
-                final SnapshotDeletionsInProgress.Entry newEntry = entry.started();
-                readyDeletions.add(newEntry);
-                newDeletes.add(newEntry);
+                newDeletes.add(entry.started());
             } else {
                 newDeletes.add(entry);
             }
         }
-        return Tuple.tuple(
-            changed
-                ? ClusterState.builder(currentState)
-                    .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(newDeletes))
-                    .build()
-                : currentState,
-            readyDeletions
-        );
+        return changed
+            ? ClusterState.builder(currentState)
+                .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(newDeletes))
+                .build()
+            : currentState;
     }
 
     /**
@@ -770,14 +799,14 @@ public class SnapshotsServiceUtils {
             for (int i = indexOfEntry + 1; i < entryList.size(); i++) {
                 updatedEntries.add(entryList.get(i));
             }
-            result = ClusterState.builder(state)
-                .putCustom(
-                    SnapshotsInProgress.TYPE,
-                    inProgressSnapshots.createCopyWithUpdatedEntriesForRepo(projectId, repository, updatedEntries)
-                )
-                .build();
+            final SnapshotsInProgress updatedSnapshots = inProgressSnapshots.createCopyWithUpdatedEntriesForRepo(
+                projectId,
+                repository,
+                updatedEntries
+            );
+            result = updateWithSnapshots(state, updatedSnapshots, null);
         }
-        return readyDeletions(result, projectId).v1();
+        return startReadyDeletions(result, projectId);
     }
 
     public static void addSnapshotEntry(
@@ -881,7 +910,7 @@ public class SnapshotsServiceUtils {
     public static IndexVersion minCompatibleVersion(
         IndexVersion minNodeVersion,
         RepositoryData repositoryData,
-        @Nullable Collection<SnapshotId> excluded
+        @Nullable Set<SnapshotId> excluded
     ) {
         IndexVersion minCompatVersion = minNodeVersion;
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
@@ -907,7 +936,7 @@ public class SnapshotsServiceUtils {
 
     /**
      * Shortcut to build new {@link ClusterState} from the current state and updated values of {@link SnapshotsInProgress} and
-     * {@link SnapshotDeletionsInProgress}.
+     * {@link SnapshotDeletionsInProgress}. Also drops the {@link SnapshotsInProgressEncryptedData} of snapshots no longer in progress.
      *
      * @param state                       current cluster state
      * @param snapshotsInProgress         new value for {@link SnapshotsInProgress} or {@code null} if it's unchanged
@@ -925,6 +954,11 @@ public class SnapshotsServiceUtils {
         ClusterState.Builder builder = ClusterState.builder(state);
         if (snapshotsInProgress != null) {
             builder.putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress);
+            final SnapshotsInProgressEncryptedData encryptedData = SnapshotsInProgressEncryptedData.get(state);
+            final SnapshotsInProgressEncryptedData retained = encryptedData.retainRunning(snapshotsInProgress);
+            if (retained != encryptedData) {
+                builder.putCustom(SnapshotsInProgressEncryptedData.TYPE, retained);
+            }
         }
         if (snapshotDeletionsInProgress != null) {
             builder.putCustom(SnapshotDeletionsInProgress.TYPE, snapshotDeletionsInProgress);
@@ -1015,6 +1049,7 @@ public class SnapshotsServiceUtils {
                         shardSnapshotStatus = initShardSnapshotStatus(
                             shardRepoGeneration,
                             indexRoutingTable.shard(i).primaryShard(),
+                            indexMetadata,
                             snapshotsInProgress::isNodeIdForRemoval,
                             partial,
                             restoreInProgress
@@ -1033,6 +1068,7 @@ public class SnapshotsServiceUtils {
      *
      * @param shardRepoGeneration    repository generation of the shard in the repository
      * @param primary                primary routing entry for the shard
+     * @param indexMetadata          current metadata of the shard's index, or {@code null} if the index no longer exists
      * @param nodeIdRemovalPredicate tests whether a node ID is currently marked for removal from the cluster
      * @param partial                whether the snapshot was created with {@code partial=true}; when {@code true}, an
      *                               actively-restoring INITIALIZING primary causes the shard to be recorded as
@@ -1045,6 +1081,7 @@ public class SnapshotsServiceUtils {
     public static SnapshotsInProgress.ShardSnapshotStatus initShardSnapshotStatus(
         ShardGeneration shardRepoGeneration,
         ShardRouting primary,
+        @Nullable IndexMetadata indexMetadata,
         Predicate<String> nodeIdRemovalPredicate,
         boolean partial,
         RestoreInProgress restoreInProgress
@@ -1103,7 +1140,28 @@ public class SnapshotsServiceUtils {
         } else {
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
         }
+        if (indexIsBeingResharded(indexMetadata) && shardSnapshotStatus.state().completed() == false) {
+            // The data node fails every shard snapshot of an index with resharding metadata (see
+            // SnapshotShardContextHelper#acquireSnapshotIndexCommit). Fail it here instead of waiting for it to start.
+            // This avoids keeping the snapshot open while split targets are still recovering. Shard snapshots that are
+            // already completed (e.g. MISSING) keep their state.
+            logger.debug("failing snapshot of shard [{}] because its index is being resharded", primary.shardId());
+            shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
+                shardSnapshotStatus.nodeId(),
+                SnapshotsInProgress.ShardState.FAILED,
+                shardRepoGeneration,
+                SnapshotsService.SHARD_BEING_RESHARDED_REASON
+            );
+        }
         return shardSnapshotStatus;
+    }
+
+    /**
+     * Whether the given index is being resharded, in which case the data node would fail any of its shard snapshots, see
+     * {@code SnapshotShardContextHelper#acquireSnapshotIndexCommit}.
+     */
+    private static boolean indexIsBeingResharded(@Nullable IndexMetadata indexMetadata) {
+        return indexMetadata != null && indexMetadata.getReshardingMetadata() != null;
     }
 
     /**

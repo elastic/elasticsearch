@@ -70,7 +70,7 @@ public final class AddLongsEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p)) {
           result.appendNull();
@@ -110,7 +110,7 @@ public final class AddLongsEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long lhs = lhsVector.getLong(p);
         long rhs = rhsVector.getLong(p);

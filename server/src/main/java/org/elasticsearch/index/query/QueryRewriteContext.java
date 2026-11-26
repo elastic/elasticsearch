@@ -11,22 +11,27 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.action.search.SearchPhaseFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -41,6 +46,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -53,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -83,10 +90,13 @@ public class QueryRewriteContext {
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
+    // Added to from the responses of searches that run during the rewrite, which complete on arbitrary threads.
+    private final List<SearchPhaseFailure> phaseFailures = new CopyOnWriteArrayList<>();
     protected final Map<QueryRewriteAsyncAction<?, ?>, List<Consumer<?>>> uniqueAsyncActions = new HashMap<>();
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    protected Predicate<String> fieldVisibilityPredicate = Predicates.always();
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
@@ -100,6 +110,7 @@ public class QueryRewriteContext {
     private final boolean allowPartialSearchResults;
     @Nullable
     private TaskId parentTaskId;
+    private Runnable cancellationCheck = () -> {};
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -342,6 +353,32 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Returns a parser for content the rewrite parses that the request's own parsers never read, such as the query inside a {@code wrapper}
+     * query. It is checked against the breaker of the REST request this rewrite runs for, and charged only until it closes, see
+     * {@link ParsedContentReservation#trackWhileParsing(XContentParser)}. Away from the REST request, such as on a data node, it is checked
+     * against {@link #parsedContentBreaker()} instead, if there is one.
+     */
+    public XContentParser trackParsedContent(XContentParser parser) {
+        final ThreadPool threadPool = client == null ? null : client.threadPool();
+        final ParsedContentReservation reservation = threadPool == null
+            ? null
+            : threadPool.getThreadContext().getTransient(ParsedContentReservation.TRANSIENT_NAME);
+        if (reservation != null) {
+            return reservation.trackWhileParsing(parser);
+        }
+        final CircuitBreaker breaker = parsedContentBreaker();
+        return breaker == null ? parser : ParsedContentReservation.trackWhileParsing(breaker, parser);
+    }
+
+    /**
+     * The breaker that content this rewrite parses away from a REST request is checked against, or {@code null} for none.
+     */
+    @Nullable
+    protected CircuitBreaker parsedContentBreaker() {
+        return null;
+    }
+
+    /**
      * Returns the time in milliseconds that is shared across all resources involved. Even across shards and nodes.
      *
      * Used in date field query rewriting
@@ -383,6 +420,14 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Whether the rewritten query is turned into a Lucene query on the spot and never stored on the request, so it can contain
+     * {@link TransientQueryBuilder}s.
+     */
+    public boolean allowsTransientQueries() {
+        return false;
+    }
+
+    /**
      * Returns the {@link MappedFieldType} for the provided field name.
      * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
      * In case unmapped fields are allowed, null is returned when the field is not mapped.
@@ -400,9 +445,23 @@ public class QueryRewriteContext {
         if (allowedFields != null && false == allowedFields.test(name)) {
             return null;
         }
+        if (isInternalSliceField(name)) {
+            return null;
+        }
         final String fieldName = resolveSliceAlias(name);
         MappedFieldType fieldType = runtimeMappings.get(fieldName);
-        return fieldType == null ? mappingLookup.getFieldType(fieldName) : fieldType;
+        if (fieldType == null) {
+            fieldType = mappingLookup.getFieldType(fieldName);
+        }
+
+        // if this field is a constant_keyword, and the user's role has FLS rules targeting this field, ensure these are respected
+        if (fieldType instanceof ConstantFieldType constantFieldType) {
+            var visible = (mapperService != null && mapperService.isMetadataField(fieldType.name()))
+                || fieldVisibilityPredicate.test(fieldType.name());
+
+            return constantFieldType.applyFieldVisibility(visible);
+        }
+        return fieldType;
     }
 
     private String resolveSliceAlias(String fieldName) {
@@ -436,6 +495,14 @@ public class QueryRewriteContext {
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {
         this.allowUnmappedFields = allowUnmappedFields;
+    }
+
+    /**
+     * Sets the field visibility predicate for this context.
+     * The default value allows all fields, so contexts requiring restricted visibility must set this before resolving fields.
+     */
+    public void setFieldVisibilityPredicate(Predicate<String> fieldVisibilityPredicate) {
+        this.fieldVisibilityPredicate = fieldVisibilityPredicate;
     }
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
@@ -480,6 +547,30 @@ public class QueryRewriteContext {
      */
     public void setParentTask(TaskId parentTaskId) {
         this.parentTaskId = parentTaskId;
+    }
+
+    /**
+     * Sets the check that work done as part of this rewrite, for example combining the results of a compound retriever, calls
+     * periodically so that it stops early once the owning task is cancelled. The check throws if the task was cancelled.
+     */
+    public void setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = Objects.requireNonNull(cancellationCheck);
+    }
+
+    public Runnable getCancellationCheck() {
+        return cancellationCheck;
+    }
+
+    /**
+     * Records failures of search phases that ran as part of this rewrite, for example a reranker that failed in a search run by a
+     * compound retriever. They did not fail the search, and are added to the final search response by the coordinating node.
+     */
+    public void addPhaseFailures(List<SearchPhaseFailure> failures) {
+        phaseFailures.addAll(failures);
+    }
+
+    public List<SearchPhaseFailure> phaseFailures() {
+        return phaseFailures;
     }
 
     /**
@@ -598,8 +689,9 @@ public class QueryRewriteContext {
         if (isSliceFieldAlias(pattern)) {
             return Set.of(SliceIndexing.FIELD_NAME);
         }
-        if (isRoutingHiddenBySlice(pattern)) {
-            // A slice-enabled index hides _routing from field retrieval; it is fetched as _slice instead.
+        if (isRoutingHiddenBySlice(pattern) || isInternalSliceField(pattern)) {
+            // A slice-enabled index hides _routing from field retrieval (it is fetched as _slice instead) and never
+            // exposes its internal sort key and hash fields.
             return Set.of();
         }
         Set<String> matches;
@@ -622,6 +714,12 @@ public class QueryRewriteContext {
                 }
             }
         }
+        if (isSliceFieldAliasEnabled()
+            && (matches.contains(SliceIndexing.SLICE_KEY_FIELD_NAME) || matches.contains(SliceIndexing.SLICE_HASH_FIELD_NAME))) {
+            matches = new HashSet<>(matches);
+            matches.remove(SliceIndexing.SLICE_KEY_FIELD_NAME);
+            matches.remove(SliceIndexing.SLICE_HASH_FIELD_NAME);
+        }
         // If the field is not allowed, behave as if it is not mapped
         return allowedFields == null ? matches : matches.stream().filter(allowedFields).collect(Collectors.toSet());
     }
@@ -636,6 +734,15 @@ public class QueryRewriteContext {
      */
     protected final boolean isRoutingHiddenBySlice(String fieldName) {
         return isSliceFieldAliasEnabled() && RoutingFieldMapper.NAME.equals(fieldName);
+    }
+
+    /**
+     * {@code _slice_key} exists only for the slice layout (the index sort) and {@code _slice_hash} is a reserved name.
+     * Their encoded values mean nothing to users, so they are never resolvable by name on a slice-enabled index.
+     */
+    protected final boolean isInternalSliceField(String fieldName) {
+        return isSliceFieldAliasEnabled()
+            && (SliceIndexing.SLICE_KEY_FIELD_NAME.equals(fieldName) || SliceIndexing.SLICE_HASH_FIELD_NAME.equals(fieldName));
     }
 
     private boolean isSliceFieldAliasEnabled() {

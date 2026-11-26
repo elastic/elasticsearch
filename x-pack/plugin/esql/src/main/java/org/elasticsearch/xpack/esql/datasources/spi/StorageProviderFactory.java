@@ -121,6 +121,25 @@ public interface StorageProviderFactory {
     }
 
     /**
+     * {@link #of(Supplier, Function, Function)} for file-type stores, with the node's {@link CredentialPolicy} applied
+     * to the resolved configuration before {@code providerCtor} runs. The check sits here rather than in the registry
+     * because only the typed configuration knows which of its fields select a credential mechanism, and here rather
+     * than in the provider so a refused mode never allocates a client. Plugins take the policy from
+     * {@link StorageProviderServices#credentialPolicy()}.
+     */
+    static <C extends FileDataSourceConfiguration, P extends StorageProvider> StorageProviderFactory of(
+        Supplier<P> defaultProvider,
+        Function<Map<String, Object>, Configured<C>> configFactory,
+        Function<C, P> providerCtor,
+        CredentialPolicy credentialPolicy
+    ) {
+        return of(defaultProvider, configFactory, cfg -> {
+            credentialPolicy.check(cfg);
+            return providerCtor.apply(cfg);
+        });
+    }
+
+    /**
      * Callable that probes a storage backend for connectivity. May throw a checked {@link IOException}.
      */
     @FunctionalInterface

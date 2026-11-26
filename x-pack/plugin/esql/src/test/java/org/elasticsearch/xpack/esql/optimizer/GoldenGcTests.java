@@ -165,4 +165,27 @@ public class GoldenGcTests extends ESTestCase {
         GoldenGc.deleteDirectoriesNamed(root, "before_x_version");
         GoldenGc.deleteDirectoriesNamed(root.resolve("missing"), "before_x_version");
     }
+
+    /** Stands in for an abstract golden suite whose tests the concrete class inherits. */
+    public abstract static class ParentSuite {
+        public void testInherited() {}
+    }
+
+    public static class ChildSuite extends ParentSuite {
+        public void testDeclared() {}
+    }
+
+    public void testStaleTestDirectoriesNameNoMethodOfTheSuite() throws IOException {
+        Path root = createTempDir();
+        for (String dir : List.of("testDeclared", "testInherited", "testRenamedAway", "testRemoved")) {
+            Files.createDirectories(root.resolve(dir));
+            Files.writeString(root.resolve(dir).resolve("query.esql"), "FROM a");
+        }
+        Files.writeString(root.resolve("notes.txt"), "a file, not a test directory");
+        assertThat(
+            GoldenGc.staleTestDirectories(root, ChildSuite.class),
+            equalTo(List.of(root.resolve("testRemoved"), root.resolve("testRenamedAway")))
+        );
+        assertThat(GoldenGc.staleTestDirectories(root.resolve("missing"), ChildSuite.class), equalTo(List.of()));
+    }
 }

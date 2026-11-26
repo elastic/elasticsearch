@@ -11,6 +11,8 @@ package org.elasticsearch.test.knn;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.knn.data.DatasetConfig;
 import org.elasticsearch.xcontent.XContentParser;
@@ -19,10 +21,84 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class TestConfigurationTests extends ESTestCase {
+
+    public void testSlicedIvfIndexPathIncludesLayoutVersion() throws Exception {
+        String json = """
+            {
+              "dataset": {
+                "file": {
+                  "doc_vectors": ["/path/to/docs"],
+                  "query_vectors": "/path/to/queries",
+                  "num_partitions": 2,
+                  "slices": true
+                }
+              },
+              "dimensions": 128,
+              "index_type": "ivf",
+              "quantize_bits": 4
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertTrue(config.usesSlicedIvf());
+            assertThat(
+                KnnIndexTester.formatIndexPath(config, KnnIndexTester.getDirectoryTypeConfig("default")),
+                containsString("-slice-key-v1.index")
+            );
+        }
+    }
+
+    public void testAshDerivesConfigFromDimsUnlessProjectionIsConfigured() throws Exception {
+        String base = """
+            {
+              "dataset": {
+                "file": {
+                  "doc_vectors": ["/path/to/docs"],
+                  "query_vectors": "/path/to/queries"
+                }
+              },
+              "dimensions": 3072,
+              "index_type": "ivf",
+              "quantization_type": "ash"%s
+            }
+            """;
+        String defaultDir = "default";
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), Strings.format(base, ""))) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertTrue(KnnIndexTester.usesDimsDerivedAsh(config));
+            AshConfigResolver resolver = KnnIndexTester.ashConfigResolver(config);
+            assertEquals(IvfSegmentConfig.AshConfig.forDims(3072, null, 4), resolver.resolve(3072));
+            assertThat(KnnIndexTester.formatIndexPath(config, KnnIndexTester.getDirectoryTypeConfig(defaultDir)), containsString("-dims"));
+        }
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), Strings.format(base, ", \"quantize_bits\": 2"))) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertTrue(KnnIndexTester.usesDimsDerivedAsh(config));
+            assertEquals(2, KnnIndexTester.ashConfigResolver(config).resolve(3072).bitsPerDim());
+        }
+
+        try (
+            XContentParser parser = createParser(XContentType.JSON.xContent(), Strings.format(base, ", \"projected_dims_fraction\": 0.5"))
+        ) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertFalse(KnnIndexTester.usesDimsDerivedAsh(config));
+            IvfSegmentConfig.AshConfig resolved = KnnIndexTester.ashConfigResolver(config).resolve(3072);
+            assertEquals(IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM, resolved.bitsPerDim());
+            assertEquals(1024, resolved.projectedDims(3072));
+            assertThat(
+                KnnIndexTester.formatIndexPath(config, KnnIndexTester.getDirectoryTypeConfig(defaultDir)),
+                not(containsString("-dims"))
+            );
+        }
+    }
 
     public void testParameterParsing() throws Exception {
         String json = """

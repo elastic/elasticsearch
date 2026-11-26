@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -95,6 +96,25 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
         assertThat(eval.fields().get(0).name(), equalTo("step"));
         assertThat(eval.child(), instanceOf(TimeSeriesCollapse.class));
         assertThat(((TimeSeriesCollapse) eval.child()).child(), instanceOf(PromqlCommand.class));
+    }
+
+    /**
+     * A string literal is a result of its own type: an instant query returns the literal itself, from a statement that reads no
+     * index; a range query rejects it like Prometheus does.
+     */
+    public void testStringLiteralIsAStringResult() {
+        Instant evaluationTime = Instant.parse("2025-01-01T00:00:00Z");
+        PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement("\"a string\"", "*", evaluationTime, QueryMode.INSTANT);
+        assertThat(result.resultType(), equalTo("string"));
+        assertThat(result.stringValue(), equalTo("a string"));
+        assertThat(result.esqlStatement().plan(), instanceOf(Limit.class));
+        assertThat(((Limit) result.esqlStatement().plan()).child(), instanceOf(Row.class));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PromqlQueryPlanBuilder.buildStatement("\"a string\"", "*", "1735689600", "1735693200", "60", QueryMode.RANGE)
+        );
+        assertThat(e.getMessage(), equalTo("invalid expression type \"string\" for range query, must be Scalar or instant Vector"));
     }
 
     public void testBuildStatementWithNumericStep() {

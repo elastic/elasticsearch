@@ -1,0 +1,5 @@
+area: Infra/Logging
+issues: []
+pr: 160663
+summary: Guard `StatusLogger` forwarder against re-entrant logging
+type: bug

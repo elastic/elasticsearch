@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -19,9 +20,12 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
@@ -32,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -105,9 +110,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final Integer estimatedRowSize;
     private final List<ExternalSplit> splits;
     // Registered dataset identifier when this exec came from FROM <dataset>, null for a bare glob.
-    // Nothing on this version's data node reads it: _name is answered on the coordinator from
-    // ExternalRelation.datasetName(), and _index answers SQL NULL. It stays serialized because a 9.5
-    // data node composes _index from this slot.
+    // The data node rebinds config and sourcePath from the definition this names before it builds a
+    // reader (DatasetConfigResolver), so a plan shipped over the wire never chooses its own storage
+    // credentials; a null name is refused there on release builds. A 9.5 data node also composes
+    // _index from this slot.
     @Nullable
     private final String datasetName;
     // Declared read-instructions (renames, per-column date formats), or DeclaredReadSpec.NONE. An execution input:
@@ -500,6 +506,85 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
+     * The subset of {@code candidates} that at least one file read by this exec stores at a type other than the
+     * query's, i.e. columns whose values a reconciliation cast ({@code union_by_name} widening) produces
+     * <em>above</em> the reader, in {@code SchemaAdaptingIterator}. A reader sees such a column at the file's
+     * type, so any predicate it is handed on it is at best a hint, never an exact answer; the filter pushdown
+     * rule keeps those conjuncts in the {@code FilterExec} on top of pushing them.
+     * <p>
+     * Decided per node from the splits stamped on this exec: each {@link FileSplit#readSchema()} carries the
+     * file's own (declared-overlaid, logical-named) column types, while {@link #output()} carries the query's
+     * reconciled types -- the same by-name comparison {@code ColumnMapping.alignToQuery} casts on at read
+     * time. Falls back to the coordinator-only {@link #schemaMap()} when no split carries a read schema (the
+     * zero-split multi-file read; also what a data node sees when an older coordinator sent splits without a
+     * read schema -- its {@code schemaMap} is empty, so nothing is held back, as before). When only some splits
+     * carry a read schema, an unstamped file's types are unknown on this node (the coordinator stamps from the
+     * same {@code schemaMap} entry it lacks), so it might be cast and every candidate in {@link #output()} is reported.
+     * A column a file lacks altogether is null-filled, not cast, and is not reported. Declared types and
+     * {@code first_file_wins} pins put the planner type on the read schema and coerce inside the reader, so they
+     * never show up here.
+     */
+    public Set<String> reconciliationCastColumnNames(Set<String> candidates) {
+        if (candidates.isEmpty() || (splits.isEmpty() && schemaMap.isEmpty())) {
+            return Set.of();
+        }
+        Map<String, DataType> queryTypes = Maps.newHashMapWithExpectedSize(candidates.size());
+        for (Attribute attribute : attributes) {
+            if (candidates.contains(attribute.name())) {
+                queryTypes.put(attribute.name(), attribute.dataType());
+            }
+        }
+        if (queryTypes.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> cast = new HashSet<>();
+        ReadSchemaStamps stamps = new ReadSchemaStamps();
+        collectCastColumnsFromSplits(splits, queryTypes, cast, stamps);
+        if (stamps.stamped == false) {
+            for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
+                collectCastColumns(info.fileSchema().attributes(), queryTypes, cast);
+            }
+        } else if (stamps.unstamped) {
+            return Set.copyOf(queryTypes.keySet());
+        }
+        return cast;
+    }
+
+    /** Whether any split leaf walked carried a read schema, and whether any lacked one. */
+    private static final class ReadSchemaStamps {
+        private boolean stamped;
+        private boolean unstamped;
+    }
+
+    /** Walks the splits, through any (possibly nested) {@link CoalescedSplit}, recording on {@code stamps} what it saw. */
+    private static void collectCastColumnsFromSplits(
+        List<ExternalSplit> splits,
+        Map<String, DataType> queryTypes,
+        Set<String> cast,
+        ReadSchemaStamps stamps
+    ) {
+        for (ExternalSplit split : splits) {
+            if (split instanceof CoalescedSplit coalesced) {
+                collectCastColumnsFromSplits(coalesced.children(), queryTypes, cast, stamps);
+            } else if (split instanceof FileSplit fileSplit && fileSplit.readSchema() != null) {
+                stamps.stamped = true;
+                collectCastColumns(fileSplit.readSchema(), queryTypes, cast);
+            } else {
+                stamps.unstamped = true;
+            }
+        }
+    }
+
+    private static void collectCastColumns(List<Attribute> fileSchema, Map<String, DataType> queryTypes, Set<String> cast) {
+        for (Attribute fileAttribute : fileSchema) {
+            DataType queryType = queryTypes.get(fileAttribute.name());
+            if (queryType != null && queryType != fileAttribute.dataType()) {
+                cast.add(fileAttribute.name());
+            }
+        }
+    }
+
+    /**
      * The effective per-source statistics for this exec, resolved from the typed per-split
      * {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats} carried on {@link #splits()} when
      * available, falling back to the whole-file / anchor-file stats embedded in {@link #sourceMetadata()}
@@ -880,6 +965,35 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
+     * Returns a copy of this source reading {@code newSourcePath} with {@code newConfig}. Applied on the executing node by
+     * {@code DatasetConfigResolver}, which replaces both with the registered dataset's definition so the plan carried over
+     * the wire decides neither what is read nor with which credentials. Both are execution inputs that flow through
+     * {@link #info()}, so a node-reflection rebuild keeps the rebound values.
+     */
+    public ExternalSourceExec withSourcePathAndConfig(String newSourcePath, Map<String, Object> newConfig) {
+        return new ExternalSourceExec(
+            source(),
+            newSourcePath,
+            sourceType,
+            attributes,
+            newConfig,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            unifiedSchema,
+            splits,
+            datasetName,
+            deferredExtraction,
+            declaredReadSpec
+        );
+    }
+
+    /**
      * The declared read-instructions (renames, per-column date formats), or {@link DeclaredReadSpec#NONE}. Consumed on the data
      * node by {@code FileSourceFactory} (physicalization) and the pushdown rules; see the field Javadoc.
      */
@@ -953,10 +1067,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // unifiedSchema: also excluded — the optimizer's attribute-rewriting rules walk every arg
         // in info() and would prune the Unified schema along with `attributes`, defeating its
         // whole purpose. Preserved through with* methods which carry it explicitly.
-        // datasetName: INCLUDED — it is a plain String (attribute rewriting cannot prune it) and it
-        // is what a 9.5 data node reads to compose _index during a rolling upgrade; excluding it
-        // would drop the slot whenever a generic rule reconstructs this node via node reflection.
-        // No node on this version reads it: _name is folded on the logical relation by
+        // datasetName: INCLUDED — it is a plain String (attribute rewriting cannot prune it) and the
+        // executing node rebinds config and sourcePath from the definition it names
+        // (DatasetConfigResolver); a 9.5 data node also reads it to compose _index during a rolling
+        // upgrade. Excluding it would drop the slot whenever a generic rule reconstructs this node via
+        // node reflection. _name itself is folded on the logical relation by
         // MaterializeRelationClassAndName, and _index is a null constant here.
         // Mirrors ExternalRelation#info.
         // declaredReadSpec: INCLUDED for the same reason — it carries no Attributes (attribute
@@ -1045,6 +1160,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // (inline EXTERNAL path) secrets. Keep them out of EXPLAIN /
         // debug-log output.
         return List.of(sourcePath, sourceType, attributes);
+    }
+
+    @Override
+    public Object jsonPropertyValue(Object property) {
+        // The same as nodeString shows: the plan JSON must not reveal the bucket and prefix either
+        return sourcePath.equals(property) ? StoragePath.objectName(sourcePath) : property;
     }
 
     @Override

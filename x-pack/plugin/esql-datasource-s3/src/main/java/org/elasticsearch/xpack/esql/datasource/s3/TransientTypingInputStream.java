@@ -11,6 +11,7 @@ import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -34,15 +35,18 @@ import java.util.function.LongConsumer;
  * <p>
  * Remains {@link Abortable} so a caller's abort fast-path still reaches the underlying S3 stream rather than
  * falling back to a draining {@code close()}. {@link #close()} itself aborts when the unread remainder is
- * larger than {@link #MAX_TRAILING_DRAIN_BYTES} (or the body length is unknown) so uncompressed
- * {@code LIMIT} teardown does not drain a 64 MiB GET. A small leftover is drained by the inner close
- * and reported to {@code onDrained} so received-byte counters include those bytes.
+ * larger than {@link #MAX_TRAILING_DRAIN_BYTES}, the body length is unknown, or a body read already
+ * failed. Apache {@code close()} of a just-failed socket can stall another timeout before resume.
+ * A small leftover on a healthy stream is drained and {@code onDrained} credits the bytes actually
+ * read. Abort and thrown drain do not credit expected leftover: resume would fetch those bytes again.
  */
 final class TransientTypingInputStream extends FilterInputStream implements Abortable {
 
     /**
-     * Leftover GET bytes at or below this still drain on {@code close()} so Apache can return the
-     * connection to the pool. Larger leftover (or unknown length) aborts the connection instead.
+     * Leftover GET bytes at or below this {@code close()} the inner stream instead of aborting.
+     * Apache {@code close()} drains that leftover onto the socket; {@code onDrained} credits
+     * bytes actually read after a successful drain of a healthy stream. Larger leftover,
+     * unknown length, or a failed body read aborts the connection instead.
      * Keep in sync with {@code DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES} (64 KiB) and
      * Hadoop S3A readahead. Different package; do not import that package-private field.
      */
@@ -53,25 +57,29 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
     private final long expectedLength;
     /**
      * Bytes delivered to the caller. A single reader thread updates this; a close from another
-     * thread may see a stale count and bias toward drain, which is harmless for LIMIT remainders.
+     * thread may see a stale (lower) count, overestimate leftover, and bias toward abort.
+     * Harmless for LIMIT remainders, which are huge enough to abort anyway.
      */
     private volatile long bytesRead;
     private final AtomicBoolean terminal = new AtomicBoolean();
+    /** Set when a body read failed; {@link #close()} aborts instead of draining the failed socket. */
+    private volatile boolean readFailed;
+    @Nullable
     private final LongConsumer onDrained;
 
     TransientTypingInputStream(InputStream delegate, StoragePath path) {
-        this(delegate, path, -1L, leftover -> {});
+        this(delegate, path, -1L, null);
     }
 
     TransientTypingInputStream(InputStream delegate, StoragePath path, long expectedLength) {
-        this(delegate, path, expectedLength, leftover -> {});
+        this(delegate, path, expectedLength, null);
     }
 
-    TransientTypingInputStream(InputStream delegate, StoragePath path, long expectedLength, LongConsumer onDrained) {
+    TransientTypingInputStream(InputStream delegate, StoragePath path, long expectedLength, @Nullable LongConsumer onDrained) {
         super(delegate);
         this.path = path;
         this.expectedLength = expectedLength;
-        this.onDrained = onDrained == null ? leftover -> {} : onDrained;
+        this.onDrained = onDrained;
     }
 
     @Override
@@ -118,6 +126,7 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
     }
 
     private ExternalException wrap(Exception e) {
+        readFailed = true;
         ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "reading [" + path.objectName() + "]");
         if (expired != null) {
             return expired;
@@ -151,18 +160,39 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
         long leftover = expectedLength < 0 ? Long.MAX_VALUE : expectedLength - bytesRead;
         // Unknown length always aborts, including leftover 0: without Content-Length we cannot
         // treat EOF as a complete window. S3 almost always sends length; callers that need pool
-        // reuse on a fully-read window must pass expectedLength.
-        if (expectedLength < 0 || leftover > MAX_TRAILING_DRAIN_BYTES) {
+        // reuse on a fully-read window must pass expectedLength. A failed read also aborts:
+        // Apache close() of that socket can stall resume/cancel another timeout.
+        if (expectedLength < 0 || leftover > MAX_TRAILING_DRAIN_BYTES || readFailed) {
             abort();
             return;
         }
         if (terminal.getAndSet(true)) {
             return;
         }
-        if (leftover > 0) {
-            onDrained.accept(leftover);
+        long before = bytesRead;
+        try {
+            byte[] buf = new byte[(int) Math.min(Math.max(leftover, 1L), 8192L)];
+            int n;
+            while ((n = in.read(buf)) >= 0) {
+                bytesRead += n;
+            }
+        } catch (IOException | SdkException e) {
+            if (in instanceof Abortable abortable) {
+                abortable.abort();
+            }
+            if (e instanceof IOException ioe) {
+                throw ioe;
+            }
+            throw wrap(e);
         }
+        publishDrained(bytesRead - before);
         super.close();
+    }
+
+    private void publishDrained(long got) {
+        if (onDrained != null && got > 0) {
+            onDrained.accept(got);
+        }
     }
 
     @Override

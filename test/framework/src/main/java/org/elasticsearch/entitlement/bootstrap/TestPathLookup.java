@@ -10,11 +10,14 @@
 package org.elasticsearch.entitlement.bootstrap;
 
 import org.apache.lucene.tests.mockfile.FilterFileSystem;
-import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 
+import java.io.File;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -35,8 +38,13 @@ class TestPathLookup implements PathLookup {
         baseDirPaths.put(TEMP, List.of(tempDir));
         String nativeLibPath = System.getProperty("es.nativelibs.path");
         if (nativeLibPath != null) {
-            baseDirPaths.put(LIB, List.of(PathUtils.get(nativeLibPath)));
+            baseDirPaths.put(LIB, getPathList(nativeLibPath));
         }
+    }
+
+    @SuppressForbidden(reason = "pathSeparator")
+    private static List<Path> getPathList(String paths) {
+        return Arrays.stream(paths.split(File.pathSeparator)).filter(path -> path.isEmpty() == false).map(Paths::get).toList();
     }
 
     @Override

@@ -225,7 +225,7 @@ public class LocalExecutionPlannerLimitBudgetTests extends ESTestCase {
             @Override
             public void close() {}
         };
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         QueryRequest request = new QueryRequest("target", List.of("value"), List.of(), Map.of(), 100, blockFactory);
         return new AsyncConnectorSourceOperatorFactory(connector, request, 10, Runnable::run, new ExternalSliceQueue(List.of()));
     }

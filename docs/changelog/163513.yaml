@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 163513
+summary: "[Inference API] Handle throwables with null messages correctly"
+type: bug

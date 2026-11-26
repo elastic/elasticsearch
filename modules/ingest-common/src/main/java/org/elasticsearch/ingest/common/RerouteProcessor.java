@@ -104,7 +104,7 @@ public final class RerouteProcessor extends AbstractProcessor {
         setFieldValue(ingestDocument, DATA_STREAM_TYPE, type);
         setFieldValue(ingestDocument, DATA_STREAM_DATASET, dataset);
         setFieldValue(ingestDocument, DATA_STREAM_NAMESPACE, namespace);
-        if (ingestDocument.getCtxMap().containsKey(EVENT_DATASET) || ingestDocument.hasField(EVENT_DATASET)) {
+        if (ingestDocument.getSource().containsKey(EVENT_DATASET) || ingestDocument.hasField(EVENT_DATASET)) {
             // ECS specifies that "event.dataset should have the same value as data_stream.dataset"
             // not eagerly set event.dataset but only if the doc contains it already to ensure it's consistent with data_stream.dataset
             setFieldValue(ingestDocument, EVENT_DATASET, dataset);
@@ -114,7 +114,7 @@ public final class RerouteProcessor extends AbstractProcessor {
 
     /* sets a field value in either dotted or nested notation, preserving the notation used in the document */
     private static void setFieldValue(IngestDocument doc, String path, String value) {
-        Map<String, Object> source = doc.getSourceAndMetadata();
+        Map<String, Object> source = doc.getSource();
         if (source.containsKey(path)) {
             source.put(path, value);
         } else {
@@ -288,7 +288,7 @@ public final class RerouteProcessor extends AbstractProcessor {
 
         private String getStringFieldValueInDottedNotation(IngestDocument ingestDocument) {
             String value = null;
-            Object valueObject = ingestDocument.getCtxMap().get(fieldReference);
+            Object valueObject = ingestDocument.getSource().get(fieldReference);
             if (valueObject instanceof String) {
                 value = (String) valueObject;
             } else if (valueObject != null) {

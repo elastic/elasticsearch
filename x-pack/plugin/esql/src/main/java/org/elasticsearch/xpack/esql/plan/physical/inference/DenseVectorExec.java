@@ -48,7 +48,7 @@ public class DenseVectorExec extends InferenceExec {
     private final TimeValue timeout;
     private final org.elasticsearch.inference.DataType inputType;
     private final TaskType endpointTaskType;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public DenseVectorExec(
         Source source,

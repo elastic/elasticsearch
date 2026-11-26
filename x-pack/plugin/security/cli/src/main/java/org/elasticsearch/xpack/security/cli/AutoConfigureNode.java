@@ -11,11 +11,6 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.apache.lucene.util.SetOnce;
-import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.asn1.x509.KeyPurposeId;
-import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
@@ -49,6 +44,10 @@ import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.elasticsearch.xpack.core.security.HttpResponse;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
+import org.elasticsearch.xpack.security.cli.bc.KeyPurpose;
+import org.elasticsearch.xpack.security.cli.bc.PemWriter;
+import org.elasticsearch.xpack.security.cli.bc.SubjectAlternativeNames;
 
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
@@ -102,9 +101,9 @@ import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildKeyUsage;
 import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.DEFAULT_CA_KEY_USAGE;
 import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.DEFAULT_CERT_KEY_USAGE;
+import static org.elasticsearch.xpack.security.cli.bc.CertGenUtils.buildKeyUsage;
 
 /**
  * Configures a new cluster node, by appending to the elasticsearch.yml, so that it forms a single node cluster with
@@ -477,7 +476,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 HTTP_CERTIFICATE_DAYS,
                 SIGNATURE_ALGORITHM,
                 buildKeyUsage(DEFAULT_CERT_KEY_USAGE),
-                Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
+                Set.of(KeyPurpose.SERVER_AUTH)
             );
 
             // the HTTP CA PEM file is provided "just in case". The node doesn't use it, but clients (configured manually, outside of the
@@ -488,11 +487,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 false,
                 inReconfigureMode ? ELASTICSEARCH_GROUP_OWNER : null,
                 stream -> {
-                    try (
-                        JcaPEMWriter pemWriter = new JcaPEMWriter(
-                            new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))
-                        )
-                    ) {
+                    try (PemWriter pemWriter = new PemWriter(new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8)))) {
                         pemWriter.writeObject(httpCaCert);
                     }
                 }
@@ -983,15 +978,16 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    private static GeneralNames getSubjectAltNames(Settings settings) throws IOException {
-        Set<GeneralName> generalNameSet = new HashSet<>();
+    private static SubjectAlternativeNames getSubjectAltNames(Settings settings) throws IOException {
+        List<String> ipAddresses = new ArrayList<>();
+        List<String> dnsNames = new ArrayList<>();
         for (InetAddress ip : NetworkUtils.getAllAddresses()) {
             String ipString = NetworkAddress.format(ip);
-            generalNameSet.add(new GeneralName(GeneralName.iPAddress, ipString));
+            ipAddresses.add(ipString);
         }
-        generalNameSet.add(new GeneralName(GeneralName.dNSName, "localhost"));
+        dnsNames.add("localhost");
         // HOSTNAME should always be set by start-up scripts, and this code is always invoked only by the said startup scripts
-        generalNameSet.add(new GeneralName(GeneralName.dNSName, System.getenv("HOSTNAME")));
+        dnsNames.add(System.getenv("HOSTNAME"));
         for (List<String> publishAddresses : List.of(
             NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.exists(settings)
                 ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings)
@@ -1002,13 +998,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         )) {
             for (String publishAddress : publishAddresses) {
                 if (InetAddresses.isInetAddress(publishAddress)) {
-                    generalNameSet.add(new GeneralName(GeneralName.iPAddress, publishAddress));
+                    ipAddresses.add(publishAddress);
                 } else {
-                    generalNameSet.add(new GeneralName(GeneralName.dNSName, publishAddress));
+                    dnsNames.add(publishAddress);
                 }
             }
         }
-        return new GeneralNames(generalNameSet.toArray(new GeneralName[0]));
+        return CertGenUtils.getSubjectAlternativeNamesValue(ipAddresses, dnsNames, List.of());
     }
 
     // for tests

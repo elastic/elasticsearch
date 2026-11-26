@@ -52,7 +52,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             new Route(GET, "/_search/template"),
             new Route(POST, "/_search/template"),
             new Route(GET, "/{index}/_search/template"),
-            new Route(POST, "/{index}/_search/template")
+            new Route(POST, "/{index}/_search/template"),
+            new Route(GET, "/{index}/{_slice}/_search/template"),
+            new Route(POST, "/{index}/{_slice}/_search/template")
         );
     }
 
@@ -74,7 +76,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             clusterSupportsFeature,
             size -> searchRequest.source().size(size),
             null,
-            Optional.of(crossProjectEnabled)
+            Optional.of(crossProjectEnabled),
+            true
         );
 
         // Creates the search template request

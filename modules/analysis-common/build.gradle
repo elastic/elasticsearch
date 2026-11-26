@@ -27,6 +27,7 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   clusterModules project(':modules:reindex')
   clusterModules project(':modules:mapper-extras')
+  internalClusterTestImplementation project(':modules:mapper-extras')
 }
 
 artifacts {

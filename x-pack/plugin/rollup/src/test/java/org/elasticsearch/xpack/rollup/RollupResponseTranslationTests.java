@@ -1350,7 +1350,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         try (AggregationContext context = createAggregationContext(indexReader, query, fieldType)) {
             Aggregator aggregator = createAggregator(aggBuilder, context);
             aggregator.preCollection();
-            context.searcher().search(query, aggregator.asCollector());
+            context.searcher().search(query, singleThreadedCollectorManager(aggregator.asCollector()));
             aggregator.postCollection();
             return aggregator.buildTopLevel();
         } finally {

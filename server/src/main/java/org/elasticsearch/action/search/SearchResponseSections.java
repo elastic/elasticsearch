@@ -147,6 +147,18 @@ public class SearchResponseSections implements Releasable {
         this.coordinatorFetchCharge = charge;
     }
 
+    boolean hasCoordinatorFetchCharge() {
+        return coordinatorFetchCharge != null;
+    }
+
+    /**
+     * Adds a charge for hits attached after the fetch phase, so that the charge keeps covering all of the hits.
+     */
+    void addCoordinatorFetchCharge(Releasable charge) {
+        assert coordinatorFetchCharge != null : "only charged hits can take an extra charge";
+        coordinatorFetchCharge = Releasables.wrap(coordinatorFetchCharge, charge);
+    }
+
     /**
      * Hands the charge to the caller, who releases it in place of {@link #close()}.
      *

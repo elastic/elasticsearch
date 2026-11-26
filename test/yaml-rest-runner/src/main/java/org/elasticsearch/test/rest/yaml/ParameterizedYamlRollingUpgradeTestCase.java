@@ -18,11 +18,14 @@ import org.elasticsearch.test.RollingUpgradePerformer.ClusterAndClients;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -78,21 +81,57 @@ public abstract class ParameterizedYamlRollingUpgradeTestCase extends ESClientYa
      *   <li>upgradedNodes=2 -> {@code mixed_cluster}</li>
      *   <li>upgradedNodes=3 -> {@code upgraded_cluster}</li>
      * </ul>
+     * The per-task scoped {@code tests.rest.suite.<task path>} filter selects suites in every phase, because a
+     * phase depends on the same-named suites of the phases before it.
      */
     @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
+        String task = System.getProperty("tests.task");
+        String scoped = task == null ? null : System.getProperty(REST_TESTS_SUITE + "." + task);
+        return phaseParameters(scoped, "old_cluster", "mixed_cluster", "mixed_cluster", "upgraded_cluster");
+    }
+
+    // pkg private for tests
+    static List<Object[]> phaseParameters(String scoped, String... testPaths) throws Exception {
+        String suites = expandToEveryPhase(scoped, testPaths);
+        String global = System.getProperty(REST_TESTS_SUITE);
         List<Object[]> result = new ArrayList<>();
-        for (int i = 0; i <= NODE_NUM; i++) {
-            String testPath = switch (i) {
-                case 0 -> "old_cluster";
-                case NODE_NUM -> "upgraded_cluster";
-                default -> "mixed_cluster";
-            };
-            for (Object[] candidate : createParameters(testPath)) {
+        for (int i = 0; i < testPaths.length; i++) {
+            for (Object[] candidate : explicitPathParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), suites, global, testPaths[i])) {
                 result.add(new Object[] { i, candidate[0] });
             }
         }
         return result;
+    }
+
+    /**
+     * Adds all phases to each requested path below a phase directory.
+     * {@code mixed_cluster/10_basic} also runs the {@code old_cluster/10_basic} it depends on.
+     */
+    private static String expandToEveryPhase(String scoped, String... testPaths) {
+        if (scoped == null) {
+            return null;
+        }
+        Set<String> paths = new HashSet<>();
+        for (String path : scoped.split(",")) {
+            paths.add(path);
+            String phase = path.split("/", 2)[0];
+            if (List.of(testPaths).contains(phase)) {
+                String belowPhase = path.substring(phase.length());
+                for (String testPath : testPaths) {
+                    if (suiteExists(testPath + belowPhase)) {
+                        paths.add(testPath + belowPhase);
+                    }
+                }
+            }
+        }
+        return String.join(",", paths);
+    }
+
+    private static boolean suiteExists(String path) {
+        String resource = "rest-api-spec/test/" + path;
+        ClassLoader classLoader = ParameterizedYamlRollingUpgradeTestCase.class.getClassLoader();
+        return classLoader.getResource(resource) != null || classLoader.getResource(resource + ".yml") != null;
     }
 
     @Before

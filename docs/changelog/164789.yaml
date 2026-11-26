@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 164774
+pr: 164789
+summary: Avoid recovery failures due to changes in dynamic mapping limit settings
+type: bug

@@ -80,11 +80,13 @@ M              |null             |3
 ;
 
 nullValue
+required_capability: warn_null_misuse
 from employees
 | sort emp_no
 | eval g = case(gender == "F", 1 + null, 10)
 | keep gender, g
 | limit 5;
+warning:Line 3:32: Expression [1 + null] always evaluates to NULL.
 
 gender:keyword |g:integer
 M              |10           

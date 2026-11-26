@@ -47,12 +47,26 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestIndicesAction extends AbstractCatAction {
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(AbstractCatAction.RESPONSE_PARAMS, "local", "health");
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        REST_MASTER_TIMEOUT_PARAM,
+        "include_unloaded_segments",
+        "local",
+        "health",
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = addToCopy(SUPPORTED_QUERY_PARAMETERS, "index");
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
 
     private final ProjectIdResolver projectIdResolver;
@@ -69,6 +83,16 @@ public class RestIndicesAction extends AbstractCatAction {
     @Override
     public String getName() {
         return "cat_indices_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override
@@ -316,6 +340,16 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell(
             "pri.indexing.index_failed_due_to_version_conflict",
             "default:false;text-align:right;desc:number of failed indexing ops due to version conflict"
+        );
+        table.addCell(
+            "indexing.index_failed_due_to_too_many_docs",
+            "sibling:pri;alias:iiftmd,indexingIndexFailedDueToTooManyDocs;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to the shard reaching the maximum number of documents"
+        );
+        table.addCell(
+            "pri.indexing.index_failed_due_to_too_many_docs",
+            "default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to the shard reaching the maximum number of documents"
         );
 
         table.addCell("merges.current", "sibling:pri;alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
@@ -693,6 +727,13 @@ public class RestIndicesAction extends AbstractCatAction {
             );
             table.addCell(
                 primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedDueToVersionConflictCount()
+            );
+
+            table.addCell(
+                totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedDueToTooManyDocsCount()
+            );
+            table.addCell(
+                primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedDueToTooManyDocsCount()
             );
 
             table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrent());

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import com.carrotsearch.hppc.IntIntHashMap;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -31,13 +32,16 @@ import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.BytesRefSwissHash;
+import org.elasticsearch.swisshash.LongLongSwissHash;
+import org.elasticsearch.swisshash.TimeSeriesPartitionedHash;
 
 /**
  * An optimized block hash that receives two blocks: tsid and timestamp, which are sorted.
  * Since the incoming data is sorted, this block hash checks tsid ordinals to avoid redundant
  * hash lookups for consecutive positions with the same tsid and timestamp.
  */
-public final class TimeSeriesBlockHash extends BlockHash {
+public final class TimeSeriesBlockHash extends PartitionedBlockHash {
 
     private final int tsidChannel;
     private final int timestampChannel;
@@ -76,6 +80,69 @@ public final class TimeSeriesBlockHash extends BlockHash {
     @Override
     public void close() {
         Releasables.close(tsidHash, finalHash);
+    }
+
+    @Override
+    public void clear() {
+        tsidHash.clear();
+        finalHash.clear();
+        minTimestamp = Long.MAX_VALUE;
+        maxTimestamp = Long.MIN_VALUE;
+    }
+
+    @Override
+    public long estimatedBytesForPartitioning() {
+        return estimatedKeyBytes(tsidHash.getBytesRefs()) + finalHash.size() * (Long.BYTES * 2);
+    }
+
+    @Override
+    public void ensureCapacity(int size) {
+        if (finalHash instanceof LongLongSwissHash swiss) {
+            swiss.ensureCapacity(size);
+        }
+    }
+
+    private TimeSeriesPartitionedHash partitioned() {
+        if (tsidHash instanceof BytesRefSwissHash bytes && finalHash instanceof LongLongSwissHash longlong) {
+            return new TimeSeriesPartitionedHash(bytes, longlong, blockFactory.bigArrays());
+        } else {
+            throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+        }
+    }
+
+    @Override
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+        var keys = partitioned().splitPartition(breaker, partitionSplitter);
+        return new KeysWithTimestamps(keys, minTimestamp(), maxTimestamp());
+    }
+
+    private record KeysWithTimestamps(PartitionedHashKeys delegate, long minTimestamp, long maxTimestamp) implements PartitionedHashKeys {
+        @Override
+        public int keysInPartition(int partition) {
+            return delegate.keysInPartition(partition);
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            delegate.releasePartition(breaker, partition);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            delegate.releaseAll(breaker);
+        }
+    }
+
+    @Override
+    public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+        final KeysWithTimestamps withTimestamps = (KeysWithTimestamps) keys;
+        minTimestamp = Math.min(minTimestamp, withTimestamps.minTimestamp);
+        maxTimestamp = Math.max(maxTimestamp, withTimestamps.maxTimestamp);
+        keys = withTimestamps.delegate;
+        if (keys.keysInPartition(partitionIndex) == 0) {
+            return true;
+        }
+        return partitioned().combinePartition(keys, partitionIndex, resultIds);
     }
 
     @Override
@@ -275,14 +342,15 @@ public final class TimeSeriesBlockHash extends BlockHash {
                 tsidOrds.appendInt(p, (int) finalHash.getKey1(groupId));
                 timestamps.appendLong(p, finalHash.getKey2(groupId));
             }
-            final BytesRefArray bytes = tsidHash.getBytesRefs();
-            var dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
-            bytes.incRef();
+            BytesRefArray bytes = tsidHash.getBytesRefs().deepCopy();
+            BytesRefVector dict = null;
             try {
+                dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
+                bytes = null; // owned by dict
                 blocks[0] = new OrdinalBytesRefVector(tsidOrds.build(), dict).asBlock();
             } finally {
                 if (blocks[0] == null) {
-                    dict.close();
+                    Releasables.close(bytes, dict);
                 }
             }
             blocks[1] = timestamps.build().asBlock();

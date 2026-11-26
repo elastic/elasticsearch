@@ -28,4 +28,14 @@ public interface DocValuesScriptFieldFactory extends ScriptFieldFactory {
      * through the {@code doc} variable.
      */
     ScriptDocValues<?> toScriptDocValues();
+
+    /**
+     * The most heap, in bytes, that this factory's underlying doc-values reader can buffer for a single decode (for
+     * example a binary-block decompression buffer), or {@code -1} when there is no estimate. The script lookup uses
+     * this to account for the buffer this reader retains while it is live in a circuit breaker. The default is {@code -1};
+     * factories backed by a buffering binary doc-values reader override it.
+     */
+    default long maxDecodeBytes() {
+        return -1L;
+    }
 }

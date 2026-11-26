@@ -60,11 +60,11 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
         if (geoBoundingBox.isUnbounded()) {
             return values == null
                 ? unboundedCellMultiValues(multiGeoPointValues)
-                : SortedNumericLongValues.singleton(unboundedCellSingleValue(values));
+                : SortedNumericLongValues.singleton(unboundedCellSingleValue(values), multiGeoPointValues.docIdIterator());
         } else {
             return values == null
                 ? boundedCellMultiValues(multiGeoPointValues, geoBoundingBox)
-                : SortedNumericLongValues.singleton(boundedCellSingleValue(values, geoBoundingBox));
+                : SortedNumericLongValues.singleton(boundedCellSingleValue(values, geoBoundingBox), multiGeoPointValues.docIdIterator());
         }
     }
 

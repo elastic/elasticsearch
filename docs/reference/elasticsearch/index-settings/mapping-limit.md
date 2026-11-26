@@ -183,7 +183,9 @@ For indices with deeply nested fields (such as ECS-style mappings), using `subob
 
 $$$ignore-dynamic-beyond-limit$$$
 `index.mapping.total_fields.ignore_dynamic_beyond_limit` {applies_to}`serverless: all`
-:   This setting determines what happens when a dynamically mapped field would exceed the total fields limit. When set to `false` (the default), the index request of the document that tries to add a dynamic field to the mapping will fail with the message `Limit of total fields [X] has been exceeded`. When set to `true`, the index request will not fail. Instead, fields that would exceed the limit are not added to the mapping, similar to [`dynamic: false`](/reference/elasticsearch/mapping-reference/dynamic.md). The fields that were not added to the mapping will be added to the [`_ignored` field](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md). The default value is `false`.
+:   This setting determines what happens when a dynamically mapped field would exceed the total fields limit. When set to `false`, the index request of the document that tries to add a dynamic field to the mapping will fail with the message `Limit of total fields [X] has been exceeded`. When set to `true`, the index request will not fail. Instead, fields that would exceed the limit are not added to the mapping, similar to [`dynamic: false`](/reference/elasticsearch/mapping-reference/dynamic.md). The fields that were not added to the mapping will be added to the [`_ignored` field](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md). The default is `true` for the `logsdb` and `logsdb_columnar` [index modes](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting), and `false` otherwise.
+
+    In [columnar index modes](/reference/elasticsearch/columnar/index.md), only the name of the field is added to `_ignored`, and its value is lost.
 
 `index.mapping.depth.limit`
 :   The maximum depth for a field, which is measured as the number of inner objects. For instance, if all fields are defined at the root object level, then the depth is `1`. If there is one object mapping, then the depth is `2`, etc. Default is `20`.
@@ -208,4 +210,8 @@ $$$ignore-dynamic-beyond-limit$$$
 
 `index.mapping.dimension_fields.limit`
 :   (Dynamic, integer) Maximum number of [time series dimensions](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-dimension) for the index. Defaults to `32768`.
+
+$$$non-indexed-field-max-value-length$$$
+`index.mapping.non_indexed_field.max_value_length` {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+:   (Byte value) Maximum size of a single value in a non-indexed `keyword` or `flattened` field in a [columnar index mode](/reference/elasticsearch/columnar/index.md). For a `flattened` field the size covers the key and the value together. Fields that are indexed and all fields in other index modes, keep Lucene's term limit of `32766` bytes. Defaults to `1mb`. The minimum value is `32766b` and the maximum is `2147483647b`. You can only set this setting in a columnar index mode, when you create the index. You cannot change it later.
 

@@ -6,22 +6,40 @@
 | --- | --- | --- | --- | --- |
 | date_period | | | | date |
 | date_period | | | | date_nanos |
+| integer | date | date | named parameters | date |
+| integer | date | date | named parameters | date_nanos |
 | integer | date | date | | date |
 | integer | date | date | | date_nanos |
+| integer | date | keyword | named parameters | date |
+| integer | date | keyword | named parameters | date_nanos |
 | integer | date | keyword | | date |
 | integer | date | keyword | | date_nanos |
+| integer | date | text | named parameters | date |
+| integer | date | text | named parameters | date_nanos |
 | integer | date | text | | date |
 | integer | date | text | | date_nanos |
+| integer | keyword | date | named parameters | date |
+| integer | keyword | date | named parameters | date_nanos |
 | integer | keyword | date | | date |
 | integer | keyword | date | | date_nanos |
+| integer | keyword | keyword | named parameters | date |
+| integer | keyword | keyword | named parameters | date_nanos |
 | integer | keyword | keyword | | date |
 | integer | keyword | keyword | | date_nanos |
+| integer | keyword | text | named parameters | date |
+| integer | keyword | text | named parameters | date_nanos |
 | integer | keyword | text | | date |
 | integer | keyword | text | | date_nanos |
+| integer | text | date | named parameters | date |
+| integer | text | date | named parameters | date_nanos |
 | integer | text | date | | date |
 | integer | text | date | | date_nanos |
+| integer | text | keyword | named parameters | date |
+| integer | text | keyword | named parameters | date_nanos |
 | integer | text | keyword | | date |
 | integer | text | keyword | | date_nanos |
+| integer | text | text | named parameters | date |
+| integer | text | text | named parameters | date_nanos |
 | integer | text | text | | date |
 | integer | text | text | | date_nanos |
 | time_duration | | | | date |

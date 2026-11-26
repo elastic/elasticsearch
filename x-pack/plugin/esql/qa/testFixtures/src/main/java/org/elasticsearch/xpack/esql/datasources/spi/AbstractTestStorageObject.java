@@ -28,4 +28,8 @@ public abstract class AbstractTestStorageObject implements StorageObject {
     public StorageIdentity storageIdentity() {
         return NOOP;
     }
+
+    /** Test fixtures have no storage I/O counters to attach. */
+    @Override
+    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 }

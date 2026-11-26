@@ -38,7 +38,7 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
             request.preference(randomAlphaOfLength(10));
         }
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && randomBoolean()) {
-            request.searchSlice(randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLength(10));
+            request.searchSlice(randomAlphaOfLength(10));
         } else if (randomBoolean()) {
             request.routing(randomAlphaOfLength(10));
         }
@@ -116,11 +116,6 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
         assertEquals("s1", request.searchSlice());
         assertTrue(request.isRoutingFromSlice());
 
-        request.searchSlice(SliceIndexing.SLICE_ALL);
-        assertNull(request.routing());
-        assertEquals(SliceIndexing.SLICE_ALL, request.searchSlice());
-        assertTrue(request.isRoutingFromSlice());
-
         request.setRoutingFromSlice(false);
         assertNull(request.searchSlice());
     }
@@ -137,6 +132,6 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         OpenPointInTimeRequest request = new OpenPointInTimeRequest("idx");
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> request.searchSlice("s1"));
-        assertThat(ex.getMessage(), containsString("request does not support [slice]"));
+        assertThat(ex.getMessage(), containsString("request does not support [_slice]"));
     }
 }

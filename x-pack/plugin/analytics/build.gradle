@@ -21,6 +21,7 @@ base {
 
 dependencies {
   clusterModules project(':modules:aggregations')
+  clusterModules project(':modules:mapper-extras')
   clusterPlugins project(':x-pack:plugin:analytics')
 
   api "org.apache.commons:commons-math3:${versions.commons_math3}"
@@ -32,6 +33,8 @@ dependencies {
   testImplementation project(xpackModule('otel-data')) // for coerce compatibility tests
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(":libs:exponential-histogram")))
+  // BatchBulkHistogramIT writes time-series indices through data streams, the only way to get a dimensions-based tsid
+  internalClusterTestImplementation project(':modules:data-streams')
 }
 
 if (buildParams.snapshotBuild == false) {

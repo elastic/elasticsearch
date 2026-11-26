@@ -32,7 +32,8 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
             aggregates,
             timeBucket,
             AbstractExpressionSerializationTests.randomChild(),
-            TimeSeriesAggregate.Origin.TS_COMMAND
+            TimeSeriesAggregate.Origin.TS_COMMAND,
+            false
         );
     }
 
@@ -57,7 +58,7 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
             );
             default -> throw new IllegalStateException();
         }
-        return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, timeBucket, instance.timestamp(), origin);
+        return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, timeBucket, instance.timestamp(), origin, false);
     }
 
     @Override

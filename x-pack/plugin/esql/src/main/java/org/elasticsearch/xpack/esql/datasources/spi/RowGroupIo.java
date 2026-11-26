@@ -7,8 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Identity of one row group's remaining object-store GETs. The query budget grants permits to
@@ -25,16 +31,46 @@ public final class RowGroupIo {
     private final AtomicInteger outstanding = new AtomicInteger();
     private final AtomicInteger unissued = new AtomicInteger();
     private final AtomicInteger inFlightGets = new AtomicInteger();
-    private final AtomicReference<Runnable> wake = new AtomicReference<>();
+    private final AtomicLong untracked = new AtomicLong();
+    private final ConcurrentHashMap<Object, Runnable> wakes = new ConcurrentHashMap<>();
     private volatile boolean cancelled;
     private volatile boolean finished;
     private volatile boolean pinned;
     private volatile long startSeq;
     private volatile RowGroupScheduler scheduler;
+    @Nullable
+    private volatile TaskId queryId;
 
     /** Remaining GETs: not yet issued plus currently in flight. */
     public int outstanding() {
         return outstanding.get();
+    }
+
+    /**
+     * Force-added bytes currently attributed to this lease (sliding window, ungated alloc).
+     * A ticket waiter on this lease must see {@code 0}.
+     */
+    public long untracked() {
+        return untracked.get();
+    }
+
+    /** Attributes an unconditional {@link NodeByteBudget#add} to this lease. */
+    public void addUntracked(long bytes) {
+        if (bytes <= 0L) {
+            return;
+        }
+        untracked.addAndGet(bytes);
+    }
+
+    /** Drops an unconditional {@link NodeByteBudget#release} attributed to this lease. */
+    public void releaseUntracked(long bytes) {
+        if (bytes <= 0L) {
+            return;
+        }
+        untracked.updateAndGet(current -> {
+            long next = current - bytes;
+            return next < 0L ? 0L : next;
+        });
     }
 
     /**
@@ -55,7 +91,7 @@ public final class RowGroupIo {
 
     /**
      * Drops {@code n} GETs that were counted in {@link #addUnissued} but will never start
-     * (for example after {@code admitWait} fails and remaining misses are not issued).
+     * (for example after a ticket is cancelled and remaining misses are not issued).
      * Does not change in-flight; those GETs never called {@link #onGetStart}.
      */
     public void forgetUnissued(int n) {
@@ -105,6 +141,19 @@ public final class RowGroupIo {
         return scheduler;
     }
 
+    /** Coordinator task stamped at budget bind, or {@code null} when the query did not supply one. */
+    @Nullable
+    public TaskId queryId() {
+        return queryId;
+    }
+
+    /** First-wins. Later stamps, including a second {@code bind}, leave the original id. */
+    public void setQueryId(TaskId queryId) {
+        if (this.queryId == null) {
+            this.queryId = queryId;
+        }
+    }
+
     /**
      * Binds this lease to {@code scheduler} so other packages and tests can pin/finish without
      * touching the package-private budget class. A second bind with a different scheduler is
@@ -133,20 +182,21 @@ public final class RowGroupIo {
     }
 
     /**
-     * Wake runnable invoked by {@link #cancel()}. The watermark wait installs this; the caller of
-     * {@code cancel()} must not hold the budget lock, because the wake takes the watermark lock.
-     * If this lease is already cancelled, {@code wake} runs immediately.
+     * Registers a wake for {@code owner} invoked by {@link #cancel()}. One slot per owner
+     * (byte budget, query budget) so re-enqueue does not stack duplicate scans. Does not run
+     * inline: callers install this under their lock, and a nested wake would re-enter that lock.
+     * {@link #cancel()} must not be called while holding a budget lock.
      */
-    public void setWake(Runnable wake) {
-        this.wake.set(wake);
-        if (cancelled) {
-            runAndClearWake();
+    public void setWake(Object owner, Runnable wake) {
+        if (owner == null || wake == null) {
+            return;
         }
+        wakes.put(owner, wake);
     }
 
     /**
-     * Marks this lease cancelled and runs the wake runnable, if any. Must not be called while
-     * holding the budget lock. A second cancel is a no-op for the wake.
+     * Marks this lease cancelled and runs every registered wake. Must not be called while
+     * holding a budget lock. A second cancel is a no-op once the map is drained.
      */
     public void cancel() {
         cancelled = true;
@@ -154,9 +204,22 @@ public final class RowGroupIo {
     }
 
     private void runAndClearWake() {
-        Runnable w = wake.getAndSet(null);
-        if (w != null) {
-            w.run();
+        List<Runnable> batch = new ArrayList<>(wakes.values());
+        wakes.clear();
+        RuntimeException first = null;
+        for (Runnable w : batch) {
+            try {
+                w.run();
+            } catch (RuntimeException e) {
+                if (first == null) {
+                    first = e;
+                } else {
+                    first.addSuppressed(e);
+                }
+            }
+        }
+        if (first != null) {
+            throw first;
         }
     }
 

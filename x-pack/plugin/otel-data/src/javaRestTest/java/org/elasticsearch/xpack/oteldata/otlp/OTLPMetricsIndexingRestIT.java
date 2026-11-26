@@ -39,9 +39,9 @@ import io.opentelemetry.sdk.resources.Resource;
 
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
@@ -66,14 +66,14 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
-
-    private static final FeatureFlag METRIC_EXEMPLARS_FEATURE_FLAG = new FeatureFlag("metric_exemplars");
 
     private OtlpHttpMetricExporter exporter;
     private SdkMeterProvider meterProvider;
@@ -228,6 +228,42 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(failureSearch.evaluate("hits.hits.0._source.error.type"), equalTo("timestamp_error"));
     }
 
+    /**
+     * Simulates a client retrying a request that was already indexed, e.g. after a timeout.
+     * The retry results in version conflicts which should be reported as a warning without rejecting data points.
+     */
+    public void testRetryOfIndexedDataPointsIsNotRejected() throws Exception {
+        long now = Clock.getDefault().now();
+        byte[] body = marshalMetrics(
+            List.of(
+                createDoubleGauge(TEST_RESOURCE, Attributes.empty(), "retried_gauge", 1.0, "By", now),
+                createDoubleGauge(TEST_RESOURCE, Attributes.empty(), "retried_gauge", 2.0, "By", now + TimeUnit.MILLISECONDS.toNanos(1))
+            )
+        );
+
+        Request request = new Request("POST", otlpEndpointPath());
+        request.setEntity(new ByteArrayEntity(body, ContentType.create("application/x-protobuf")));
+        var response = client().performRequest(request);
+        assertOK(response);
+        assertThat(ExportMetricsServiceResponse.parseFrom(responseAsBytes(response).array()).hasPartialSuccess(), equalTo(false));
+
+        Request retry = new Request("POST", otlpEndpointPath());
+        retry.setEntity(new ByteArrayEntity(body, ContentType.create("application/x-protobuf")));
+        var retryResponse = client().performRequest(retry);
+        assertOK(retryResponse);
+        ExportMetricsServiceResponse otlpResponse = ExportMetricsServiceResponse.parseFrom(responseAsBytes(retryResponse).array());
+        assertThat(otlpResponse.hasPartialSuccess(), equalTo(true));
+        assertThat(otlpResponse.getPartialSuccess().getRejectedDataPoints(), equalTo(0L));
+        assertThat(
+            otlpResponse.getPartialSuccess().getErrorMessage(),
+            equalTo("Skipped 2 duplicate documents that were already indexed with the same id.\n")
+        );
+
+        refreshMetricsIndices();
+        ObjectPath path = search("metrics-generic.otel-default");
+        assertThat(path.toString(), path.evaluate("hits.total.value"), equalTo(2));
+    }
+
     public void testGauge() throws Exception {
         long now = Clock.getDefault().now();
         export(
@@ -246,7 +282,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testExemplars() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         long dataPointTimestamp = Clock.getDefault().now();
         long exemplarTimestamp = dataPointTimestamp - TimeUnit.MILLISECONDS.toNanos(1);
         SpanContext spanContext = SpanContext.create(
@@ -313,6 +348,81 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(evaluate(exemplarMapping, "metric_name.type"), equalTo("keyword"));
         assertThat(evaluate(exemplarMapping, "metric_name.time_series_dimension"), equalTo(true));
         assertThat(evaluate(exemplarMapping, "value.type"), equalTo("double"));
+    }
+
+    /**
+     * The Prometheus {@code query_exemplars} endpoint returns OTLP exemplars, with the dimensions of their series as series labels, and
+     * their trace and span ids and filtered attributes as exemplar labels.
+     */
+    public void testPrometheusQueryExemplars() throws Exception {
+        // the query_exemplars endpoint is behind a feature flag that is enabled in snapshot builds only
+        assumeTrue("requires a snapshot build", Build.current().isSnapshot());
+        long dataPointTimestamp = Clock.getDefault().now();
+        long exemplarTimestamp = dataPointTimestamp - TimeUnit.MILLISECONDS.toNanos(1);
+        SpanContext spanContext = SpanContext.create(
+            "00112233445566778899aabbccddeeff",
+            "0011223344556677",
+            TraceFlags.getSampled(),
+            TraceState.getDefault()
+        );
+        MetricData metric = ImmutableMetricData.createDoubleGauge(
+            Resource.create(Attributes.of(stringKey("service.name"), "checkout-service")),
+            InstrumentationScopeInfo.create("io.opentelemetry.http"),
+            "request.duration",
+            "",
+            "s",
+            ImmutableGaugeData.create(
+                List.of(
+                    ImmutableDoublePointData.create(
+                        dataPointTimestamp,
+                        dataPointTimestamp,
+                        Attributes.of(stringKey("route"), "/checkout"),
+                        1.0,
+                        List.of(
+                            ImmutableDoubleExemplarData.create(
+                                Attributes.of(AttributeKey.longKey("thread.id"), 42L),
+                                exemplarTimestamp,
+                                spanContext,
+                                0.42
+                            )
+                        )
+                    ),
+                    ImmutableDoublePointData.create(
+                        dataPointTimestamp,
+                        dataPointTimestamp,
+                        Attributes.of(stringKey("route"), "/cart"),
+                        2.0,
+                        List.of(ImmutableDoubleExemplarData.create(Attributes.empty(), exemplarTimestamp, spanContext, 0.84))
+                    )
+                )
+            )
+        );
+        export(List.of(metric));
+        assertOK(client().performRequest(new Request("GET", "metrics-*,exemplars-*/_refresh")));
+
+        Request request = new Request("GET", "/_prometheus/api/v1/query_exemplars");
+        request.addParameter("query", "request.duration{route=\"/checkout\"}");
+        request.addParameter("start", Instant.ofEpochMilli(TimeUnit.NANOSECONDS.toMillis(exemplarTimestamp) - 60_000).toString());
+        request.addParameter("end", Instant.ofEpochMilli(TimeUnit.NANOSECONDS.toMillis(exemplarTimestamp) + 60_000).toString());
+        ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
+
+        assertThat(response.evaluate("status"), equalTo("success"));
+        assertThat(response.evaluate("data"), hasSize(1));
+        Map<String, Object> seriesLabels = response.evaluate("data.0.seriesLabels");
+        assertThat(seriesLabels, hasEntry("__name__", "request.duration"));
+        assertThat(seriesLabels, hasEntry("attributes.route", "/checkout"));
+        assertThat(seriesLabels, hasEntry("resource.attributes.service.name", "checkout-service"));
+        assertThat(seriesLabels, hasEntry("unit", "s"));
+        assertThat(response.evaluate("data.0.exemplars"), hasSize(1));
+        assertThat(
+            response.evaluate("data.0.exemplars.0.labels"),
+            equalTo(Map.of("trace_id", "00112233445566778899aabbccddeeff", "span_id", "0011223344556677", "thread.id", "42"))
+        );
+        assertThat(response.evaluate("data.0.exemplars.0.value"), equalTo("0.42"));
+        assertThat(
+            ObjectPath.<Number>evaluate(response.evaluate("data.0.exemplars.0"), "timestamp").doubleValue(),
+            closeTo(TimeUnit.NANOSECONDS.toMillis(exemplarTimestamp) / 1000.0, 0.0005)
+        );
     }
 
     public void testCounterTemporality() throws Exception {
@@ -635,6 +745,15 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testTsidForBulkIsSame() throws Exception {
+        assertTsidForBulkIsSame("By");
+    }
+
+    public void testTsidForBulkIsSameWithoutUnit() throws Exception {
+        // the unit is omitted from the document when empty, so it must not contribute to the _tsid either
+        assertTsidForBulkIsSame("");
+    }
+
+    private void assertTsidForBulkIsSame(String unit) throws Exception {
         // This test is to ensure that the _tsid is the same when indexing via a bulk request or OTLP.
         long now = Clock.getDefault().now();
 
@@ -652,7 +771,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
                         .build(),
                     "metric",
                     42,
-                    "By",
+                    unit,
                     now
                 )
             )
@@ -692,12 +811,12 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
                         },
                         "scope": {
                             "name": "io.opentelemetry.example.metrics"
-                        },
-                        "unit": "By"
+                        }$unit
                     }
                     """.replace("\n", "")
                     .replace("$time", Long.toString(TimeUnit.NANOSECONDS.toMillis(now) + 1))
                     .replace("$metric_names_hash", metricNamesHash)
+                    .replace("$unit", unit.isEmpty() ? "" : ",\"unit\": \"" + unit + "\"")
                 + "\n"
         );
         assertThat(ObjectPath.createFromResponse(client().performRequest(bulkRequest)).evaluate("errors"), equalTo(false));

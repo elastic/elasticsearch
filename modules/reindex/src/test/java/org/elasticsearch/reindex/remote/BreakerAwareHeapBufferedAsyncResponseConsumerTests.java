@@ -297,7 +297,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
     }
 
     public void testNoopBreakerDoesNotTrip() throws Exception {
-        CircuitBreaker noop = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+        CircuitBreaker noop = NoopCircuitBreaker.INSTANCE;
         var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(noop);
 
         consumer.responseReceived(responseWithContentLength(1024));

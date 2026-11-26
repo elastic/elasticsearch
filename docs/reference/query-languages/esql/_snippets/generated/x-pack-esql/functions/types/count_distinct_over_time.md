@@ -20,10 +20,10 @@
 | double | long | long |
 | double | unsigned_long | long |
 | double | | long |
-| flattened {applies_to}`stack: preview 9.5.0` | integer | long |
-| flattened {applies_to}`stack: preview 9.5.0` | long | long |
-| flattened {applies_to}`stack: preview 9.5.0` | unsigned_long | long |
-| flattened {applies_to}`stack: preview 9.5.0` | | long |
+| flattened {applies_to}`stack: preview 9.5.0, ga 9.6.0` | integer | long |
+| flattened {applies_to}`stack: preview 9.5.0, ga 9.6.0` | long | long |
+| flattened {applies_to}`stack: preview 9.5.0, ga 9.6.0` | unsigned_long | long |
+| flattened {applies_to}`stack: preview 9.5.0, ga 9.6.0` | | long |
 | geohash | integer | long |
 | geohash | long | long |
 | geohash | unsigned_long | long |

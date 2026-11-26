@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.internal.test.TestUtil
 import org.elasticsearch.gradle.OS
 
 /*
@@ -53,6 +52,7 @@ dependencies {
   api(project(':x-pack:plugin:esql:compute'))
   api(project(':x-pack:plugin:esql:qa:testFixtures'))
   api(project(':x-pack:plugin:esql-datasource-csv'))
+  api(project(':x-pack:plugin:esql-datasource-gzip'))
   api(project(':x-pack:plugin:esql-datasource-parquet'))
   api(project(':x-pack:plugin:esql-datasource-orc'))
   api(project(':x-pack:plugin:esql-datasource-ndjson'))
@@ -86,6 +86,8 @@ dependencies {
   }
   api(project(':x-pack:plugin:analytics'))
   api(project(':x-pack:plugin:logsdb'))
+  // For DatafeedNodeSelectorBenchmark, which measures the ML datafeed assignment hot path.
+  api(project(':x-pack:plugin:ml'))
   implementation project(path: ':libs:native')
   implementation project(path: ':libs:simdvec')
   implementation project(path: ':libs:columnar')
@@ -145,11 +147,14 @@ tasks.register("copyPainless", Copy) {
 
 tasks.named("run").configure {
   executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
-  dependsOn "copyExpression", "copyPainless", configurations.nativeLib, ":libs:native:native-libraries:extractLibs"
+  dependsOn "copyExpression", "copyPainless", configurations.nativeLib
   systemProperty 'plugins.dir', "${buildDir}/plugins"
   systemProperty 'tests.index', "${buildDir}/index"
-  def nativeLibsPath = TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
-  systemProperty 'es.nativelibs.path', nativeLibsPath
+  // Six benchmarks replace the JVM options of their fork with @Fork(jvmArgs = ...), so they do not inherit the
+  // ones of this task: the native library path must also reach the forks in -jvmArgsAppend, as it did before.
+  // On JDK 21 and later this task passes another -jvmArgsAppend (see below), which also stops JMH from splitting
+  // our value at spaces; this was the case before, too.
+  nativeLibraryPath.configureForJmh(it, configurations.runtimeClasspath)
   // Arrow's MemoryUtil reflects into java.nio.Buffer.address during static init; the parquet
   // format reader transitively triggers this via BlockFactory.arrowAllocator(). Mirrors the
   // flag already set on the test task above and on :x-pack:plugin:esql-datasource-parquet:test.
@@ -164,15 +169,18 @@ tasks.named("run").configure {
     : ''
   if (vectorArgs) {
     jvmArgs '--add-modules=jdk.incubator.vector'
+    args '-jvmArgsAppend', vectorArgs.trim()
   }
-  // Forward es.nativelibs.path to JMH forked VMs via default jvmArgsAppend
-  args '-jvmArgsAppend', "-Des.nativelibs.path=${nativeLibsPath}${vectorArgs}"
 }
 
 tasks.named('test').configure {
   if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
     jvmArgs '--add-modules=jdk.incubator.vector', '--add-opens=java.base/java.nio=ALL-UNNAMED'
   }
+  // The shape catalog pins the columnar stage each shape reaches with the simdjson ESCF encoder, which is
+  // on by default only in snapshot builds. Without it, release-tests encode with Jackson, which does not
+  // split float-exact array elements into a UNION, so the floating mv1to4 shapes map instead of falling back.
+  systemProperty 'es.simdjson_escf_feature_flag_enabled', 'true'
 }
 
 spotless {
@@ -182,4 +190,15 @@ spotless {
     // to exist, exclude it anyway in order to avoid spurious failures.
     targetExclude 'src/main/generated/**/*.java'
   }
+}
+
+// Counts the cold reads and rounds of doc-values prefetch per format; runs outside JMH, as nothing is timed.
+tasks.register("docValuesPrefetchReads", JavaExec) {
+  def run = tasks.named("run", JavaExec).get()
+  classpath = run.classpath
+  executable = run.executable
+  jvmArgs run.jvmArgs
+  systemProperties run.systemProperties
+  dependsOn run.dependsOn
+  mainClass = 'org.elasticsearch.benchmark.stateless.DocValuesPrefetchReadsReport'
 }

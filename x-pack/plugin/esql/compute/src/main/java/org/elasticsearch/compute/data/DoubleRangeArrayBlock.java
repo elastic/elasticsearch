@@ -106,6 +106,11 @@ public final class DoubleRangeArrayBlock extends AbstractBlockRefCounted impleme
     }
 
     @Override
+    public int nullValuesCount() {
+        return BlockUtils.nullValuesCount(this);
+    }
+
+    @Override
     public boolean mayHaveMultivaluedFields() {
         return fromBlock.mayHaveMultivaluedFields() || toBlock.mayHaveMultivaluedFields();
     }

@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.message.BasicHttpResponse;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -148,7 +147,7 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
             "id",
             failureTestCase.headers
         );
-        assertThat(exception.shouldRetry(), is(failureTestCase.shouldRetry));
+        assertThat(exception.shouldRetry(), is(expectedShouldRetry(failureTestCase)));
         assertThat(exception.getCause().getMessage(), containsString(failureTestCase.errorMessage));
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(failureTestCase.expectedStatus));
         if (failureTestCase.headers.containsKey(RETRY_AFTER_HEADER)) {
@@ -167,16 +166,13 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         assertCauseHasRetryHeader(exception, retryAfter);
     }
 
-    private static RetryException callHandleFailureStatusCode(
+    private RetryException callHandleFailureStatusCode(
         int statusCode,
         @Nullable String errorMessage,
         String modelId,
         Map<String, String> headers
     ) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
-        var httpResponse = new BasicHttpResponse(statusLine);
+        var httpResponse = new BasicHttpResponse(statusCode);
         givenResponseHasHeaders(httpResponse, headers);
 
         String responseJson = Strings.format("""
@@ -188,9 +184,23 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         var mockRequest = mock(OutboundRequest.class);
         when(mockRequest.getInferenceEntityId()).thenReturn(modelId);
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : responseJson.getBytes(StandardCharsets.UTF_8));
-        var handler = new ElasticInferenceServiceResponseHandler("", (request, result) -> null);
 
-        return handler.buildFailureStatusCodeException(mockRequest, httpResult);
+        return createHandler().buildFailureStatusCodeException(mockRequest, httpResult);
+    }
+
+    /**
+     * The handler under test. Subclasses override this to run the shared failure status code tests against a specialized handler.
+     */
+    protected ElasticInferenceServiceResponseHandler createHandler() {
+        return new ElasticInferenceServiceResponseHandler("", (request, result) -> null);
+    }
+
+    /**
+     * Whether the handler is expected to retry for the given case. Defaults to {@link FailureTestCase#shouldRetry()}; subclasses
+     * override this for status codes (e.g. 413) their handler treats differently.
+     */
+    protected boolean expectedShouldRetry(FailureTestCase testCase) {
+        return testCase.shouldRetry();
     }
 
     private static void givenResponseHasHeaders(HttpResponse httpResponse, Map<String, String> headersMap) {

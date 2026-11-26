@@ -80,7 +80,7 @@ public final class DateDiffConstantNanosEvaluator implements ExpressionEvaluator
 
   public IntBlock eval(int positionCount, LongBlock startTimestampBlock,
       LongBlock endTimestampBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (startTimestampBlock.isNull(p)) {
           result.appendNull();
@@ -121,7 +121,7 @@ public final class DateDiffConstantNanosEvaluator implements ExpressionEvaluator
 
   public IntBlock eval(int positionCount, LongVector startTimestampVector,
       LongVector endTimestampVector) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long startTimestamp = startTimestampVector.getLong(p);
         long endTimestamp = endTimestampVector.getLong(p);

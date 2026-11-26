@@ -231,6 +231,62 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
     }
 
     /**
+     * The ideal DCG must be computed over the best possible top-k from the full judgment
+     * list, independent of how many hits the request returned. Previously the ideal ranking
+     * was truncated at the number of returned hits, so a request returning a single relevant
+     * document scored a perfect 1.0 even when four other relevant documents were not
+     * retrieved at all, and NDCG values were not comparable between requests returning
+     * different hit counts for the same judgments and the same k.
+     *
+     * Five documents are rated 3, so the ideal DCG at k=10 is:
+     *
+     * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
+     * ---------------------------------------------------------------------------------------
+     * 1 | 3 | 7.0 | 1.0 | 7.0
+     * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
+     * 3 | 3 | 7.0 | 2.0 | 3.5
+     * 4 | 3 | 7.0 | 2.321928094887362 | 3.01473590651373
+     * 5 | 3 | 7.0 | 2.584962500721156 | 2.7079696506417914
+     *
+     * idcg = 20.639213832155747 (sum of last column)
+     */
+    public void testIdealDCGTruncatedAtSearchWindowNotAtHitCount() {
+        List<RatedDocument> rated = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            rated.add(new RatedDocument("index", Integer.toString(i), 3));
+        }
+        double idealDcgAtK = 20.639213832155747;
+        DiscountedCumulativeGain dcg = new DiscountedCumulativeGain(true, null, 10);
+
+        // a request that retrieves one of the five relevant documents, at rank 1: dcg = 7.0
+        SearchHit[] oneHit = new SearchHit[1];
+        oneHit[0] = new SearchHit(0, "0");
+        oneHit[0].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
+        EvalQueryQuality oneHitQuality = dcg.evaluate("id", oneHit, rated);
+        try {
+            assertEquals(7.0 / idealDcgAtK, oneHitQuality.metricScore(), DELTA);
+        } finally {
+            releaseRatedSearchHitsOnly(oneHitQuality);
+            releaseScratchHits(oneHit);
+        }
+
+        // a request that retrieves two of them must score strictly higher:
+        // dcg = 7.0 + 4.416508275000202 = 11.4165082750002
+        SearchHit[] twoHits = new SearchHit[2];
+        for (int i = 0; i < 2; i++) {
+            twoHits[i] = new SearchHit(i, Integer.toString(i));
+            twoHits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
+        }
+        EvalQueryQuality twoHitQuality = dcg.evaluate("id", twoHits, rated);
+        try {
+            assertEquals(11.4165082750002 / idealDcgAtK, twoHitQuality.metricScore(), DELTA);
+        } finally {
+            releaseRatedSearchHitsOnly(twoHitQuality);
+            releaseScratchHits(twoHits);
+        }
+    }
+
+    /**
      * test that metric returns 0.0 when there are no search results
      */
     public void testNoResults() throws Exception {

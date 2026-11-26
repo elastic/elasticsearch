@@ -12,6 +12,7 @@ package org.elasticsearch.simdjson;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -74,7 +75,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
                     walkJacksonArray(p, events);
                     events.add("endArray()");
                 }
-                case VALUE_STRING -> events.add("string(" + fieldName + "=" + p.text() + ")");
+                case VALUE_STRING -> events.add("string(" + fieldName + "=" + jacksonStringValue(p) + ")");
                 case VALUE_NUMBER -> addJacksonNumberEvent(p, fieldName, events);
                 case VALUE_BOOLEAN -> events.add("bool(" + fieldName + "=" + p.booleanValue() + ")");
                 case VALUE_NULL -> events.add("null(" + fieldName + ")");
@@ -109,7 +110,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
                     walkJacksonArray(p, events);
                     events.add("endArray()");
                 }
-                case VALUE_STRING -> events.add("string(" + fieldName + "=" + p.text() + ")");
+                case VALUE_STRING -> events.add("string(" + fieldName + "=" + jacksonStringValue(p) + ")");
                 case VALUE_NUMBER -> addJacksonNumberEvent(p, fieldName, events);
                 case VALUE_BOOLEAN -> events.add("bool(" + fieldName + "=" + p.booleanValue() + ")");
                 case VALUE_NULL -> events.add("null(" + fieldName + ")");
@@ -119,13 +120,23 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         }
     }
 
+    /**
+     * The string from {@code optimizedText().bytes()} (what the Jackson-based ESCF encoder uses).
+     * This differs from {@link XContentParser#text()} for unpaired surrogate escapes, which
+     * a Java String keeps but UTF-8 encoding replaces with {@code ?}.
+     */
+    private static String jacksonStringValue(XContentParser p) throws IOException {
+        XContentString.UTF8Bytes bytes = p.optimizedText().bytes();
+        return new String(bytes.bytes(), bytes.offset(), bytes.length(), UTF_8);
+    }
+
     private void walkJacksonArray(XContentParser p, List<String> events) throws IOException {
         while (true) {
             XContentParser.Token token = p.nextToken();
             if (token == XContentParser.Token.END_ARRAY) return;
 
             switch (token) {
-                case VALUE_STRING -> events.add("arrayElemString(" + p.text() + ")");
+                case VALUE_STRING -> events.add("arrayElemString(" + jacksonStringValue(p) + ")");
                 case VALUE_NUMBER -> addJacksonArrayNumberEvent(p, events);
                 case VALUE_BOOLEAN -> events.add("arrayElemBoolean(" + p.booleanValue() + ")");
                 case VALUE_NULL -> events.add("arrayElemNull()");
@@ -293,6 +304,47 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         }
     }
 
+    // Both parsers accept unpaired surrogate escapes in string values; the value carries a '?' in place
+    // of each unpaired surrogate (see jacksonStringValue).
+    public void testUnpairedSurrogateValuesMatchJackson() throws IOException {
+        String longPadding = "a".repeat(100);
+        List<String> documents = List.of("""
+            {"x":"\\uD800"}""", """
+            {"x":"a\\uDC00b"}""", """
+            {"x":"\\uDBFF\\u0041"}""", """
+            {"x":"\\uD800\\uD800"}""", """
+            {"x":"\\uDC00\\uD800"}""", """
+            {"x":"\\uD800\\uD83D\\uDE00"}""", """
+            {"x":"\\uD800\\n"}""", """
+            {"x":["\\uDFFF","ok"]}""", """
+            {"o":{"x":"\\uD800"}}""", """
+            {"arr":[{"x":"\\uD800"}]}""", "{\"x\":\"" + longPadding + "\\uD800" + longPadding + "\"}");
+        for (String json : documents) {
+            assertParsersAgree(json);
+        }
+    }
+
+    // Unpaired surrogate escapes in field names: both parsers reject the document.
+    public void testUnpairedSurrogateFieldNamesRejectedByBothParsers() {
+        String longPadding = "a".repeat(100);
+        List<String> invalidDocuments = List.of("""
+            {"\\uD800":1}""", """
+            {"a\\uDC00b":"v"}""", """
+            {"\\uD800\\uD83D\\uDE00":true}""", """
+            {"\\uDBFF\\u0041":1}""", """
+            {"o":{"\\uDBFFx":1}}""", """
+            {"arr":[{"\\uD800":1}]}""", "{\"" + longPadding + "\\uDC00" + longPadding + "\":1}");
+        for (String json : invalidDocuments) {
+            expectThrows(XContentParseException.class, () -> walkWithJackson(json, false));
+            expectThrows(JsonParsingException.class, () -> walkJson(json, true));
+        }
+    }
+
+    public void testSurrogatePairFieldNameMatchesJackson() throws IOException {
+        assertParsersAgree("""
+            {"\\uD83D\\uDE00":1}""");
+    }
+
     // Leading zeroes in the integer part (e.g. "007", "00", "-01") are invalid per RFC 8259;
     // both parsers reject them.
     public void testLeadingZeroRejectedByBothParsers() {
@@ -327,6 +379,56 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
             }
             for (int offset : paddingsAndOffsets) {
                 expectThrows(JsonParsingException.class, () -> walkAndRecordAtOffset(json, offset));
+            }
+        }
+    }
+
+    /**
+     * All JSON values up to {@code depth} levels of nesting, built from a number, the empty object
+     * and the empty array. Each level adds arrays of one or two elements and objects of one or two
+     * fields of the previous level, so every combination of empty and non-empty containers nested
+     * in each other, in first and later positions, is covered.
+     */
+    private static List<String> generateValues(int depth) {
+        List<String> values = List.of("1", "{}", "[]");
+        for (int level = 0; level < depth; level++) {
+            List<String> next = new ArrayList<>(values);
+            for (String first : values) {
+                next.add("[" + first + "]");
+                next.add("{\"a\":" + first + "}");
+                for (String second : values) {
+                    next.add("[" + first + "," + second + "]");
+                    next.add("{\"a\":" + first + ",\"b\":" + second + "}");
+                }
+            }
+            values = next;
+        }
+        return values;
+    }
+
+    // Empty and non-empty objects and arrays nested in each other must parse the same as Jackson,
+    // with and without whitespace inside the empty containers.
+    public void testGeneratedNestedContainersAgreeWithJackson() throws IOException {
+        for (String value : generateValues(2)) {
+            String json = "{\"k\":" + value + "}";
+            assertParsersAgree(json);
+            assertParsersAgree(json.replace("{}", "{ }").replace("[]", "[ ]"));
+        }
+    }
+
+    // A comma directly before any closing brace or bracket is a trailing comma, wherever the container
+    // sits and whether or not it is empty. Both parsers must reject every such document.
+    public void testGeneratedTrailingCommaRejectedByBothParsers() {
+        for (String value : generateValues(2)) {
+            String json = "{\"k\":" + value + "}";
+            for (int i = 0; i < json.length(); i++) {
+                char c = json.charAt(i);
+                if (c != '}' && c != ']') {
+                    continue;
+                }
+                String mutated = json.substring(0, i) + "," + json.substring(i);
+                expectThrows(XContentParseException.class, "Jackson accepted " + mutated, () -> walkWithJackson(mutated));
+                expectThrows(JsonParsingException.class, "simdjson accepted " + mutated, () -> walkJson(mutated));
             }
         }
     }
@@ -374,6 +476,21 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         for (String json : invalidDocuments) {
             expectThrows(XContentParseException.class, () -> walkWithJackson(json));
             expectThrows(JsonParsingException.class, () -> walkJson(json));
+        }
+    }
+
+    // A byte between '9' and 'A' (':' to '?') directly after the digits is trailing garbage, wherever
+    // it falls relative to the 8-byte word the SWAR digit loop reads; both parsers must reject it
+    // (':' is structural, so it is rejected one step later, at the separator).
+    public void testNonDigitAfterDigitsRejectedByBothParsers() {
+        for (char junk : new char[] { ':', ';', '<', '=', '>', '?' }) {
+            for (int digits = 1; digits <= 9; digits++) {
+                String number = "1234567890".substring(0, digits) + junk;
+                for (String json : List.of("{\"n\":" + number + "}", "{\"n\":-" + number + ",\"m\":1}", "{\"a\":[1," + number + "]}")) {
+                    expectThrows(XContentParseException.class, () -> walkWithJackson(json));
+                    expectThrows(JsonParsingException.class, () -> walkJson(json));
+                }
+            }
         }
     }
 
@@ -536,6 +653,36 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
 
     public void testScientificNotation() throws IOException {
         assertParsersAgree("{\"n\":1.5e10}");
+    }
+
+    // Doubles outside the range of binary64 are not errors in either parser: Jackson (and so
+    // XContentParser) rounds them to infinity or zero, and simdjson-java must do the same, however
+    // large the exponent. Exponents of 20 or more digits exceed a long (2^64 + 1 must not wrap to 1).
+    public void testOutOfRangeDoublesAgreeWithJackson() throws IOException {
+        List<String> numbers = List.of(
+            "1e309",
+            "1.5e309",
+            "1e400",
+            "-1e400",
+            "1e-400",
+            "-1e-400",
+            "4.9e-325",
+            "1e999999999",
+            "1e-999999999",
+            "1e99999999999999999999",
+            "1e-99999999999999999999",
+            "1e18446744073709551616",
+            "1e18446744073709551617",
+            "1e-18446744073709551617",
+            "1E+18446744073709551626",
+            "0e99999999999999999999",
+            "-0e99999999999999999999",
+            "1e000000000000000000000000005"
+        );
+        for (String number : numbers) {
+            assertParsersAgree("{\"n\":" + number + "}");
+            assertParsersAgree("{\"a\":[" + number + "," + number + "]}");
+        }
     }
 
     public void testZero() throws IOException {

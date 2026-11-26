@@ -114,6 +114,12 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
         return indexPattern;
     }
 
+    public UnresolvedRelation withIndexPattern(IndexPattern newIndexPattern) {
+        return newIndexPattern.equals(indexPattern)
+            ? this
+            : new UnresolvedRelation(source(), newIndexPattern, frozen, metadataFields, indexMode, unresolvedMsg, commandName);
+    }
+
     public boolean frozen() {
         return frozen;
     }
@@ -135,6 +141,15 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
     @Override
     public String telemetryLabel() {
         return commandName;
+    }
+
+    /**
+     * The source command that reads this relation, or {@code null} for a relation that no source command reads, such as the index
+     * of a {@code LOOKUP JOIN}.
+     */
+    @Nullable
+    public SourceCommand sourceCommand() {
+        return SourceCommand.fromName(commandName);
     }
 
     @Override

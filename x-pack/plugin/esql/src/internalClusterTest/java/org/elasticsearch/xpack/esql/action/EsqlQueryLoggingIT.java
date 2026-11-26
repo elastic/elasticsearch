@@ -10,31 +10,46 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.activity.QueryLoggerContext;
+import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.common.logging.activity.QueryLogging;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
+import org.elasticsearch.xpack.esql.querylog.EsqlCaptureContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_FILTER;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
@@ -49,14 +64,17 @@ import static org.elasticsearch.test.ActivityLoggingUtils.getMessageField;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
+    private static final String SET_SETTINGS = "SET time_zone = \"Europe/Paris\"; SET unmapped_fields = \"NULLIFY\"; ";
     static AccumulatingMockAppender appender;
     static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
@@ -94,25 +112,117 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
 
         assertQuery("FROM index-* | LIMIT 0", 0);
         assertQuery("FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100", 2);
-        assertQuery("FROM index-* | LIMIT 100", numDocs1 + numDocs2);
+        assertQuery(SET_SETTINGS + "FROM index-* | LIMIT 100", numDocs1 + numDocs2);
         assertFailedQuery(
-            "FROM index-* | EVAL a = count(*) | LIMIT 100",
+            SET_SETTINGS + "FROM index-* | EVAL a = count(*) | LIMIT 100",
             "aggregate function [count(*)] not allowed outside STATS command",
             VerificationException.class
         );
     }
 
+    public void testAnalyzeOnlyIsNotLogged() throws Exception {
+        setupIndex("index-analyze-only", "192.168.0.1");
+        var parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        var inferenceSettings = new InferenceSettings(clusterService().state().metadata().settings());
+
+        String query = "FROM index-analyze-only | LIMIT 1";
+        try (var ignored = run(PreparedEsqlQueryRequest.analyzeOnly(parser.parse(query, new QueryParams(), inferenceSettings), query))) {
+            assertNull(appender.getLastEventAndReset());
+        }
+        String failing = "FROM index-analyze-only | KEEP missing";
+        expectThrows(
+            VerificationException.class,
+            () -> run(PreparedEsqlQueryRequest.analyzeOnly(parser.parse(failing, new QueryParams(), inferenceSettings), failing))
+        );
+        assertNull(appender.getLastEventAndReset());
+    }
+
+    public void testLoggingParseFailure() {
+        String query = SET_SETTINGS + "FROM";
+        expectThrows(ParsingException.class, () -> run(query));
+        var message = getMessageData(appender.getLastEventAndReset());
+        assertMessageFailure(message, EsqlCaptureContext.TYPE, query, ParsingException.class, null);
+        assertThat(message.keySet().stream().filter(k -> k.startsWith(EsqlLogProducer.SETTINGS_PREFIX)).toList(), empty());
+        assertThat(message, not(hasKey(EsqlLogProducer.TIME_RANGE_FILTER_FROM_FIELD)));
+    }
+
     public void testLoggingFilter() throws Exception {
         int numDocs = setupIndex("index-filter", "192.168.0.1");
         QueryBuilder filter = new TermQueryBuilder("host", "192.168.0.1");
-        EsqlQueryRequest request = syncEsqlQueryRequest("FROM index-filter | LIMIT 100").filter(filter);
-        assertQuery(request, "FROM index-filter | LIMIT 100", numDocs, filter, "index-filter");
+        String query = SET_SETTINGS + "FROM index-filter | LIMIT 100";
+        EsqlQueryRequest request = syncEsqlQueryRequest(query).filter(filter);
+        assertQuery(request, query, numDocs, filter, "index-filter");
+    }
+
+    public void testLoggingRequestedTimeRange() {
+        createTimestampIndex();
+        // Match Kibana's nested filter shape, and exercise date math using the query's fixed now.
+        QueryBuilder filter = new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").gte("now-1h").lte("now"));
+        try (var ignored = run(syncEsqlQueryRequest("FROM timestamp-index | LIMIT 1").filter(filter))) {
+            var event = appender.getLastEventAndReset();
+            Instant from = Instant.parse((String) getMessageField(event, EsqlLogProducer.TIME_RANGE_FILTER_FROM_FIELD));
+            Instant to = Instant.parse((String) getMessageField(event, EsqlLogProducer.TIME_RANGE_FILTER_TO_FIELD));
+            assertThat(Duration.between(from, to), equalTo(Duration.ofHours(1)));
+        }
+    }
+
+    public void testLoggingRequestedTimeRangeOnFailure() {
+        createTimestampIndex();
+        var request = syncEsqlQueryRequest("FROM timestamp-index | EVAL value = COUNT(*)").filter(
+            new RangeQueryBuilder("@timestamp").gte("2026-01-01T00:00:00Z").lte("2026-01-01T00:15:00Z")
+        );
+        expectThrows(VerificationException.class, () -> run(request));
+        assertRequestedTimeRange(appender.getLastEventAndReset(), "2026-01-01T00:00:00.000Z", "2026-01-01T00:15:00.000Z");
+    }
+
+    public void testStreamingLoggingRequestedTimeRange() throws Exception {
+        createTimestampIndex();
+        var request = syncEsqlQueryRequest("FROM timestamp-index | LIMIT 1").filter(
+            new RangeQueryBuilder("@timestamp").gte("2026-01-01T00:00:00Z").lte("2026-01-01T04:00:00Z")
+        );
+        var subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        StreamQueryTestUtils.executeStreamRequest(client(), request, subscriber);
+        assertRequestedTimeRange(appender.getLastEventAndReset(), "2026-01-01T00:00:00.000Z", "2026-01-01T04:00:00.000Z");
+    }
+
+    public void testLoggingRequestedTimeRangeWithSingleBound() {
+        createTimestampIndex();
+        // A range in the query itself is logged too, and only the bounds it has.
+        try (var ignored = run(syncEsqlQueryRequest("FROM timestamp-index | WHERE @timestamp >= \"2026-01-01T00:00:00Z\" | LIMIT 1"))) {
+            assertRequestedTimeRange(appender.getLastEventAndReset(), "2026-01-01T00:00:00.000Z", null);
+        }
+        try (var ignored = run(syncEsqlQueryRequest("FROM timestamp-index | WHERE @timestamp <= \"2026-01-01T01:00:00Z\" | LIMIT 1"))) {
+            assertRequestedTimeRange(appender.getLastEventAndReset(), null, "2026-01-01T01:00:00.000Z");
+        }
+    }
+
+    public void testLoggingNoRequestedTimeRange() {
+        createTimestampIndex();
+        // A request filter range with only one bound is not interpreted.
+        for (QueryBuilder filter : new QueryBuilder[] { null, new RangeQueryBuilder("@timestamp").gte("now-1h") }) {
+            var request = syncEsqlQueryRequest("FROM timestamp-index | LIMIT 1").filter(filter);
+            try (var ignored = run(request)) {
+                assertRequestedTimeRange(appender.getLastEventAndReset(), null, null);
+            }
+        }
+    }
+
+    private static void assertRequestedTimeRange(LogEvent event, @Nullable String from, @Nullable String to) {
+        assertThat(getMessageField(event, EsqlLogProducer.TIME_RANGE_FILTER_FROM_FIELD), equalTo(from));
+        assertThat(getMessageField(event, EsqlLogProducer.TIME_RANGE_FILTER_TO_FIELD), equalTo(to));
+    }
+
+    private void createTimestampIndex() {
+        assertAcked(prepareCreate("timestamp-index").setMapping("@timestamp", "type=date"));
+        client().prepareIndex("timestamp-index").setSource("@timestamp", "2026-01-01T00:00:00Z").get();
+        refresh("timestamp-index");
+        ensureGreen("timestamp-index");
     }
 
     @SuppressWarnings("unchecked")
     public void testLoggingPositionalParams() throws Exception {
         int numDocs = setupIndex("index-1", "192.168.0.1");
-        String query = "FROM index-1 | WHERE host == ? AND value < ? AND value != ? | LIMIT 100";
+        String query = SET_SETTINGS + "FROM index-1 | WHERE host == ? AND value < ? AND value != ? | LIMIT 100";
         EsqlQueryRequest request = syncEsqlQueryRequest(query);
         request.params(
             new QueryParams(List.of(paramAsConstant(null, "192.168.0.1"), paramAsConstant(null, 1000), paramAsConstant(null, 1000)))
@@ -120,7 +230,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(request)) {
             var event = appender.getLastEventAndReset();
             var message = getMessageData(event);
-            assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+            assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
+            assertSettingsLogged(message, query);
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(numDocs)));
             var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
             assertNotNull(params);
@@ -136,19 +247,95 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testLoggingNamedParams() {
         int numDocs = setupIndex("index-1", "192.168.0.1");
-        String query = "FROM index-1 | WHERE host == ?host_name AND value < ?max_value | LIMIT 100";
+        String query = SET_SETTINGS + "FROM index-1 | WHERE host == ?host_name AND value < ?max_value | LIMIT 100";
         EsqlQueryRequest request = syncEsqlQueryRequest(query);
         request.params(new QueryParams(List.of(paramAsConstant("host_name", "192.168.0.1"), paramAsConstant("max_value", 1000))));
         try (var resp = run(request)) {
             var event = appender.getLastEventAndReset();
             var message = getMessageData(event);
-            assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+            assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
+            assertSettingsLogged(message, query);
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(numDocs)));
             var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
             assertNotNull(params);
             assertThat(params.get("host_name"), equalTo("192.168.0.1"));
             assertThat(params.get("max_value"), equalTo("1000"));
         }
+    }
+
+    /**
+     * Each resolved view's own settings are logged under one field keyed by view name, apart from the caller's, which
+     * stay what the caller set. Every resolved view is logged, with the default for each setting its definition does not
+     * SET, and a query that resolves no view has no such field.
+     */
+    @SuppressWarnings("unchecked")
+    public void testLoggingViewSettings() throws Exception {
+        int numDocs = setupIndex("logged-view-source", "192.168.0.1");
+        createView("nullifying_view", "SET unmapped_fields=\"nullify\"; SET wildcards_match_views=true; FROM logged-view-source");
+        createView("plain_view", "FROM logged-view-source");
+        try {
+            String query = SET_SETTINGS + "FROM nullifying_view, plain_view | LIMIT 100";
+            try (var resp = run(query)) {
+                var event = appender.getLastEventAndReset();
+                var message = getMessageData(event);
+                assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
+                assertSettingsLogged(message, query);
+                assertThat(message.get(EsqlLogProducer.SETTINGS_PREFIX + "wildcards_match_views"), equalTo("false"));
+                assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(2L * numDocs)));
+                var viewSettings = (Map<String, Object>) getMessageField(event, EsqlLogProducer.VIEW_SETTINGS_FIELD);
+                assertThat(
+                    viewSettings,
+                    equalTo(
+                        Map.of(
+                            "nullifying_view",
+                            Map.of("unmapped_fields", "NULLIFY", "wildcards_match_views", "true", "wildcards_match_datasets", "false"),
+                            "plain_view",
+                            PLAIN_VIEW_SETTINGS
+                        )
+                    )
+                );
+            }
+
+            try (var resp = run("FROM plain_view | LIMIT 100")) {
+                var event = appender.getLastEventAndReset();
+                var viewSettings = (Map<String, Object>) getMessageField(event, EsqlLogProducer.VIEW_SETTINGS_FIELD);
+                assertThat(viewSettings, equalTo(Map.of("plain_view", PLAIN_VIEW_SETTINGS)));
+            }
+
+            try (var resp = run("FROM logged-view-source | LIMIT 100")) {
+                var event = appender.getLastEventAndReset();
+                assertNull(getMessageField(event, EsqlLogProducer.VIEW_SETTINGS_FIELD));
+            }
+        } finally {
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { "nullifying_view", "plain_view" })
+            ).actionGet(30, TimeUnit.SECONDS);
+        }
+    }
+
+    private static final Map<String, String> PLAIN_VIEW_SETTINGS = Map.of(
+        "unmapped_fields",
+        "DEFAULT",
+        "wildcards_match_views",
+        "false",
+        "wildcards_match_datasets",
+        "false"
+    );
+
+    private void createView(String viewName, String query) {
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, query, null, false))
+            ).actionGet(30, TimeUnit.SECONDS)
+        );
+    }
+
+    private static void assertSettingsLogged(Map<String, String> message, String query) {
+        boolean set = query.startsWith(SET_SETTINGS);
+        assertThat(message.get(EsqlLogProducer.SETTINGS_PREFIX + "time_zone"), equalTo(set ? "Europe/Paris" : "Z"));
+        assertThat(message.get(EsqlLogProducer.SETTINGS_PREFIX + "unmapped_fields"), equalTo(set ? "NULLIFY" : "DEFAULT"));
     }
 
     private void assertQuery(String query, long hits) {
@@ -161,7 +348,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             // When the request was randomly promoted to a PreparedEsqlQueryRequest the logged
             // query will be the plan representation rather than the original query string.
             var loggedQuery = message.get(QUERY_FIELD_QUERY);
-            assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+            assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
+            assertSettingsLogged(message, query);
             if (hits > 0) {
                 // Zero hits may mean no shards were used, so we can't assert that
                 assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
@@ -187,13 +375,21 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
                 "bytes_read",
                 "read_nanos",
                 "read_cpu_nanos",
-                "cpu_nanos" }) {
+                "cpu_nanos",
+                "driver_nanos",
+                "search_load_nanos",
+                "search_cpu_nanos",
+                "search_waiting_nanos" }) {
                 String fullKey = EsqlLogProducer.PROFILE_PREFIX + key;
                 assertTrue("Expected rollup field present: " + fullKey, message.containsKey(fullKey));
             }
+            if (hits > 0) {
+                // the drivers that read the shards charged them
+                assertThat(Long.parseLong(message.get(EsqlLogProducer.PROFILE_PREFIX + "search_load_nanos")), greaterThan(0L));
+            }
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
             if (filter != null) {
-                assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
+                assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryCaptureContext.filterToLogString(filter).get()));
             } else {
                 assertNull(message.get(QUERY_FIELD_FILTER));
             }
@@ -204,7 +400,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     private void assertFailedQuery(String query, String expectedMessage, Class<? extends Throwable> expectedException) {
         expectThrows(VerificationException.class, () -> run(query));
         var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageFailure(message, EsqlLogContext.TYPE, query, expectedException, expectedMessage);
+        assertMessageFailure(message, EsqlCaptureContext.TYPE, query, expectedException, expectedMessage);
+        assertSettingsLogged(message, query);
     }
 
     private int setupIndex(String name, String prefix) {
@@ -223,7 +420,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
 
     /**
      * When the request succeeds with partial results (some shards fail), the activity log records
-     * shards.successful and shards.failed from EsqlLogContext.shardInfo().
+     * shards.successful and shards.failed from EsqlCaptureContext.shardInfo().
      */
     public void testLoggingPartialShardFailure() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -238,7 +435,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             );
         });
 
-        var query = "FROM esql_partial_test | LIMIT 100";
+        var query = SET_SETTINGS + "FROM esql_partial_test | LIMIT 100";
         EsqlQueryRequest request = syncEsqlQueryRequest(query).allowPartialResults(true);
         try (var resp = run(request)) {
             EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
@@ -248,7 +445,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull(event);
         var message = getMessageData(event);
-        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+        assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
+        assertSettingsLogged(message, query);
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
         assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
@@ -269,8 +467,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         int numDocs2 = setupIndex("stream-index-2", "10.0.0.1");
 
         assertStreamQuery("FROM stream-index-* | LIMIT 0", 0);
-        assertStreamQuery("FROM stream-index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100", 2);
-        assertStreamQuery("FROM stream-index-* | LIMIT 100", numDocs1 + numDocs2);
+        assertStreamQuery(SET_SETTINGS + "FROM stream-index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100", 2);
+        assertStreamQuery(SET_SETTINGS + "FROM stream-index-* | LIMIT 100", numDocs1 + numDocs2);
     }
 
     public void testStreamingLoggingFilter() throws Exception {
@@ -293,7 +491,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
 
         var event = appender.getLastEventAndReset();
         var message = getMessageData(event);
-        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+        assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
+        assertSettingsLogged(message, query);
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(numDocs)));
         var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
         assertNotNull(params);
@@ -317,7 +516,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
 
         var event = appender.getLastEventAndReset();
         var message = getMessageData(event);
-        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+        assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
+        assertSettingsLogged(message, query);
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(numDocs)));
         var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
         assertNotNull(params);
@@ -327,7 +527,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
 
     public void testStreamingLoggingFailure() throws Exception {
         setupIndex("stream-fail-index", "192.168.0.1");
-        String query = "FROM stream-fail-index | EVAL a = count(*) | LIMIT 100";
+        String query = SET_SETTINGS + "FROM stream-fail-index | EVAL a = count(*) | LIMIT 100";
 
         EsqlQueryRequest source = syncEsqlQueryRequest(query);
         StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
@@ -336,7 +536,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull("expected a query-log failure event", event);
         var message = getMessageData(event);
-        assertMessageFailure(message, EsqlLogContext.TYPE, query, VerificationException.class, "count(*)");
+        assertMessageFailure(message, EsqlCaptureContext.TYPE, query, VerificationException.class, "count(*)");
+        assertSettingsLogged(message, query);
     }
 
     private void assertStreamQuery(String query, long expectedHits) throws Exception {
@@ -351,8 +552,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull("expected a query-log event for the streaming query", event);
         var message = getMessageData(event);
-        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
-
+        assertMessageSuccess(message, EsqlCaptureContext.TYPE, query);
+        assertSettingsLogged(message, query);
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(expectedHits)));
         if (expectedHits > 0) {
             assertThat(subscriber.rowCount.get(), greaterThan(0));
@@ -364,15 +565,24 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             assertNotNull(message.get(QUERY_FIELD_INDICES));
         }
         if (filter != null) {
-            assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
+            assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryCaptureContext.filterToLogString(filter).get()));
         } else {
             assertNull(message.get(QUERY_FIELD_FILTER));
         }
 
-        for (String key : new String[] { "documents_found", "values_loaded", "rows_emitted", "bytes_read", "read_nanos", "cpu_nanos" }) {
+        for (String key : new String[] {
+            "documents_found",
+            "values_loaded",
+            "rows_emitted",
+            "bytes_read",
+            "read_nanos",
+            "cpu_nanos",
+            "driver_nanos",
+            "search_load_nanos",
+            "search_cpu_nanos",
+            "search_waiting_nanos" }) {
             String fullKey = EsqlLogProducer.PROFILE_PREFIX + key;
             assertTrue("Expected rollup field present: " + fullKey, message.containsKey(fullKey));
         }
     }
-
 }

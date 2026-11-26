@@ -564,12 +564,15 @@ public class CacheBlobReaderTests extends ESTestCase {
 
     private static byte[] readRange(CacheBlobReader reader, long position, int length) {
         final var future = new PlainActionFuture<byte[]>();
-        // the stream is read and closed in the callback so that a late response can never leak it
-        reader.getRangeInputStream(position, length, ActionListener.wrap(in -> {
+        // the stream is read and closed in the callback so that a late response can never leak it, and the future is only completed
+        // once the stream has been successfully closed
+        reader.getRangeInputStream(position, length, future.delegateFailureAndWrap((l, in) -> {
+            final byte[] bytes;
             try (in) {
-                future.onResponse(in.readNBytes(length));
+                bytes = in.readNBytes(length);
             }
-        }, future::onFailure));
+            l.onResponse(bytes);
+        }));
         return safeGet(future);
     }
 

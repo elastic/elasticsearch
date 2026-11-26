@@ -1928,6 +1928,266 @@ public class GlobExpanderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("limit 10"));
         assertThat(e.getMessage(), containsString("esql.external.max_listed_objects"));
         assertThat(e.getMessage(), not(containsString("esql.external.max_discovered_files")));
+        assertThat(e.getMessage(), not(containsString("folder walk")));
+    }
+
+    /**
+     * A globstar walk that cannot prune (first folder has no filter) still falls through to a flat listing.
+     * When that listing then hits {@code max_listed_objects}, the error names the unfiltered key.
+     */
+    public void testListedObjectsCapAfterWalkWithdrawNamesUnfilteredKeys() {
+        assertListedObjectsCapAfterWalkWithdraw(false);
+    }
+
+    public void testListedObjectsCapAfterWalkWithdrawNamesUnfilteredKeysAsync() throws Exception {
+        assertListedObjectsCapAfterWalkWithdraw(true);
+    }
+
+    private void assertListedObjectsCapAfterWalkWithdraw(boolean async) {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/logs/account=a1/year=2024/a.parquet", 100),
+                entry("s3://bucket/logs/account=a2/year=2024/b.parquet", 100)
+            )
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            if (async) {
+                expandSync("s3://bucket/logs/**", provider, hints, HIVE_ON, MAX, MAX, 1, Integer.MAX_VALUE, 4, () -> false);
+            } else {
+                GlobExpander.expand("s3://bucket/logs/**", provider, hints, HIVE_ON, MAX, MAX, 1);
+            }
+        });
+        assertThat(e.getMessage(), containsString("listed too many objects"));
+        assertThat(e.getMessage(), containsString("esql.external.max_listed_objects"));
+        assertThat(e.getMessage(), containsString("No filter on [account]"));
+        assertThat(e.getMessage(), containsString("The folder walk did not reach [year]"));
+        assertThat(e.getMessage(), containsString("folder walk"));
+        assertThat(e.getMessage(), not(containsString("did not bind to a folder")));
+    }
+
+    /**
+     * Directory-ceiling withdraw, then a flat listing hits {@code max_listed_objects}. The error names the
+     * ceiling and the keys the walk listed without a filter, so raising the object cap is not the only hint.
+     */
+    public void testListedObjectsCapAfterDirectoryCeilingNamesUnfilteredKeys() {
+        List<StorageEntry> tree = new ArrayList<>();
+        for (int a = 0; a < 5; a++) {
+            for (int r = 0; r < 5; r++) {
+                tree.add(entry("s3://bucket/logs/account=a" + a + "/region=r" + r + "/year=2024/f.parquet", 100));
+                tree.add(entry("s3://bucket/logs/account=a" + a + "/region=r" + r + "/year=2025/f.parquet", 100));
+            }
+        }
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/logs/account=*/region=*/year=*/*.parquet",
+                provider,
+                hints,
+                HIVE_ON,
+                MAX,
+                MAX,
+                10,
+                ListingExtents.UNBOUNDED,
+                PlanningMemory.NONE,
+                GlobExpander.NEVER_CANCELLED,
+                null,
+                8
+            )
+        );
+        assertThat(e.getMessage(), containsString("listed too many objects"));
+        assertThat(e.getMessage(), containsString("esql.external.max_listed_objects"));
+        assertThat(e.getMessage(), containsString("esql.external.max_directory_listings"));
+        assertThat(e.getMessage(), containsString("No filter on [account, region]"));
+        assertThat(e.getMessage(), containsString("nothing was pruned"));
+    }
+
+    /**
+     * A hinted key that keeps every folder does not prune. The later object-cap error names that key so
+     * the user can add a tighter filter.
+     */
+    public void testListedObjectsCapNamesHintedKeyThatMatchedEveryFolder() {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 100))
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2024, 2025));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX, 1)
+        );
+        assertThat(e.getMessage(), containsString("listed too many objects"));
+        assertThat(e.getMessage(), containsString("[year] matched every folder"));
+    }
+
+    /**
+     * A temporal folder-range is already a filter. The cap error must not tell the user to add one on
+     * a key the range bound, and a broad IN plus a narrower range must not say the IN matched every folder.
+     */
+    public void testDiscoveredFilesCapDoesNotCallRangeBoundKeyUnfiltered() {
+        TreeStubProvider provider = new TreeStubProvider(templateYearCapTree());
+        FolderRangePredicate yearRange = yearEquals("2024");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/logs/*/*.parquet",
+                provider,
+                null,
+                TEMPLATE_YEAR,
+                1,
+                MAX,
+                MAX,
+                ListingExtents.UNBOUNDED,
+                PlanningMemory.NONE,
+                GlobExpander.NEVER_CANCELLED,
+                yearRange
+            )
+        );
+        assertThat(e.getMessage(), containsString("folder walk"));
+        assertThat(e.getMessage(), containsString("pruned [year]"));
+        assertThat(e.getMessage(), not(containsString("No filter on [year]")));
+        assertThat(e.getMessage(), not(containsString("matched every folder")));
+    }
+
+    public void testDiscoveredFilesCapDoesNotClaimRangePrunedKeyMatchedEveryFolder() {
+        TreeStubProvider provider = new TreeStubProvider(templateYearCapTree());
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2024, 2025));
+        FolderRangePredicate yearRange = yearEquals("2024");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/logs/*/*.parquet",
+                provider,
+                hints,
+                TEMPLATE_YEAR,
+                1,
+                MAX,
+                MAX,
+                ListingExtents.UNBOUNDED,
+                PlanningMemory.NONE,
+                GlobExpander.NEVER_CANCELLED,
+                yearRange
+            )
+        );
+        assertThat(e.getMessage(), containsString("pruned [year]"));
+        assertThat(e.getMessage(), not(containsString("[year] matched every folder")));
+    }
+
+    /**
+     * A deferred peek that {@code listChildren} cannot buffer is not a directory-budget miss.
+     * The later object-cap error must say directories could not be listed, not the listing cap.
+     */
+    public void testListedObjectsCapAfterPeekTooWideDoesNotBlameDirectoryBudget() {
+        ListingWalkHarness provider = new ListingWalkHarness(
+            List.of(
+                entry("s3://bucket/logs/account=a1/region=keep/year=2024/a.parquet", 100),
+                entry("s3://bucket/logs/account=a1/region=drop/year=2024/b.parquet", 100),
+                entry("s3://bucket/logs/account=a2/region=keep/year=2024/c.parquet", 100)
+            )
+        );
+        provider.setNullListChildrenContaining("region=drop");
+        var hints = List.of(
+            hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "keep"),
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024)
+        );
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand("s3://bucket/logs/account=*/region=*/year=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX, 1)
+        );
+        assertThat(e.getMessage(), containsString("listed too many objects"));
+        assertThat(e.getMessage(), containsString("could not list directories"));
+        assertThat(e.getMessage(), not(containsString("max_directory_listings")));
+    }
+
+    /**
+     * Last hinted key resolved with a next unlisted batch that would exceed the directory budget.
+     * That batch is not requested, so a later object-cap error must not cite {@code max_directory_listings}.
+     */
+    public void testListedObjectsCapAfterLastHintDoesNotBlameUnusedDirectoryBudget() {
+        TreeStubProvider provider = new TreeStubProvider(templateYearCapTree());
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2024, 2025));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/logs/*/*.parquet",
+                provider,
+                hints,
+                TEMPLATE_YEAR,
+                MAX,
+                MAX,
+                1,
+                ListingExtents.UNBOUNDED,
+                PlanningMemory.NONE,
+                GlobExpander.NEVER_CANCELLED,
+                null,
+                2
+            )
+        );
+        assertThat(e.getMessage(), containsString("listed too many objects"));
+        assertThat(e.getMessage(), not(containsString("max_directory_listings")));
+    }
+
+    private static List<StorageEntry> templateYearCapTree() {
+        return List.of(
+            entry("s3://bucket/logs/2024/a.parquet", 100),
+            entry("s3://bucket/logs/2024/b.parquet", 100),
+            entry("s3://bucket/logs/2025/c.parquet", 100)
+        );
+    }
+
+    private static FolderRangePredicate yearEquals(String year) {
+        return new FolderRangePredicate() {
+            @Override
+            public boolean mayContain(Map<String, String> boundKeyValues) {
+                String value = boundKeyValues.get("year");
+                return value == null || year.equals(value);
+            }
+
+            @Override
+            public String identity() {
+                return "year=" + year;
+            }
+
+            @Override
+            public List<String> bindKeys() {
+                return List.of("year");
+            }
+        };
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.glob.GlobExpander:DEBUG",
+        reason = "withdraw without a cap still logs why the walk did not narrow"
+    )
+    public void testWalkWithdrawWithoutFailingLogsDiagnostics() throws IOException {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/logs/account=a1/year=2024/a.parquet", 100),
+                entry("s3://bucket/logs/account=a2/year=2024/b.parquet", 100)
+            )
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        try (MockLog mockLog = MockLog.capture(GlobExpander.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "withdraw",
+                    GlobExpander.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "withdrew: The folder walk stopped"
+                )
+            );
+            FileList result = GlobExpander.expand("s3://bucket/logs/**", provider, hints, HIVE_ON, MAX, MAX);
+            assertEquals(2, result.fileCount());
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testExpandGlobAtExactListedObjectsLimitSucceeds() throws IOException {
@@ -5777,12 +6037,20 @@ public class GlobExpanderTests extends ESTestCase {
     /** The discovery cap applies to walked listings as it does to flat ones. */
     public void testGlobstarWalkHonorsMaxDiscoveredFiles() throws IOException {
         TreeStubProvider provider = new TreeStubProvider(
-            List.of(entry("s3://bucket/data/year=2025/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 100))
+            List.of(
+                entry("s3://bucket/data/year=2025/a.parquet", 100),
+                entry("s3://bucket/data/year=2025/b.parquet", 100),
+                entry("s3://bucket/data/year=2024/c.parquet", 100)
+            )
         );
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
 
         Exception e = expectThrows(Exception.class, () -> GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, 1, MAX));
         assertThat(e.getMessage(), containsString("discovered too many files"));
+        assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
+        assertThat(e.getMessage(), containsString("folder walk"));
+        assertThat(e.getMessage(), containsString("pruned [year]"));
+        assertFalse("walk must fail closed at the file cap, not flatten the prefix", provider.listedPrefixes.contains("s3://bucket/data/"));
     }
 
     /**

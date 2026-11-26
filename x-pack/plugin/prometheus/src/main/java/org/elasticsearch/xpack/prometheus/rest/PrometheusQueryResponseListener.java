@@ -113,11 +113,14 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // and crash the node. Reading its pages/blocks directly (without incRef/decRef/close) is safe: the
         // response holds a live reference for the duration of this synchronous callback, same as the
         // generic EsqlResponse.rows()/ResponseValueUtils path this class used to go through.
-        // TODO: the whole body is built in one byte array that the circuit breaker does not see, next to the pages it is
-        // built from. Send it as a chunked response instead, serializing each page into chunks and releasing the page once
-        // it is written, so the JSON never exceeds a chunk and memory goes down while the body is sent.
+        // The channel's builder writes to recycled pages and fails with an exception near 2 GB instead of growing a single
+        // byte array until the node runs out of memory.
+        // TODO: the whole body is still buffered, next to the pages it is built from, and the circuit breaker does not see
+        // it. Send it as a chunked response instead, serializing each page into chunks and releasing the page once it is
+        // written, so the JSON never exceeds a chunk and memory goes down while the body is sent.
         try {
             XContentBuilder builder = convertToPrometheusJson(
+                channel.newBuilder(null, XContentType.JSON, false),
                 queryResponse.pages(),
                 queryResponse.columns(),
                 queryResponse.zoneId(),
@@ -170,6 +173,22 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         QueryMode mode,
         int limit
     ) throws IOException {
+        return convertToPrometheusJson(XContentFactory.jsonBuilder(), pages, columns, zoneId, resultType, mode, limit);
+    }
+
+    /**
+     * Writes the Prometheus-compatible JSON response into {@code builder}, see
+     * {@link #convertToPrometheusJson(List, List, ZoneId, String, QueryMode)}.
+     */
+    static XContentBuilder convertToPrometheusJson(
+        XContentBuilder builder,
+        List<Page> pages,
+        List<ColumnInfoImpl> columns,
+        ZoneId zoneId,
+        String resultType,
+        QueryMode mode,
+        int limit
+    ) throws IOException {
         if (columns.size() < 1 || VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
         }
@@ -180,7 +199,6 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // Column 1 is either _timeseries (a JSON blob) or the first of the individual dimension columns
         final boolean useSeriesCol = columns.size() > 2 && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
 
-        XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field("status", "success");
         builder.startObject("data");

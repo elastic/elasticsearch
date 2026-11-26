@@ -2391,11 +2391,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     MockGatewayMetaState.newAsyncPersistedState(loadedState, asyncWriteExecutor(threadPool))
                 );
             } else {
-                // starts with an empty state whatever was on disk, and never writes anything more. The on-disk state is left alone, so that
-                // any vote it records is not forgotten if this node later becomes master-eligible again.
+                // starts with an empty state whatever was on disk, and never writes anything more. If the on-disk state is in term zero
+                // then the node cannot have voted so it is replaced with an empty state, but otherwise it is left alone so that any vote it
+                // records is not forgotten if this node later becomes master-eligible again.
                 // NB if `disruptStorage` is set then the synchronous in-memory writes can fail, which isn't possible in prod. This is ok.
                 return new SimulatedPersistence(
-                    loadedState,
+                    loadedState.getCurrentTerm() == 0L ? new InMemoryPersistedState(0L, emptyState(node)) : loadedState,
                     new InMemoryPersistedState(0L, emptyState(node)) // NB separate instance so in-memory writes don't reach the disk
                 );
             }

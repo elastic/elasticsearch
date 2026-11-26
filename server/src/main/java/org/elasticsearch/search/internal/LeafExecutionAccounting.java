@@ -54,7 +54,8 @@ final class LeafExecutionAccounting implements Releasable {
      * Like {@link #charge}, for a caller that learns later how much of the reservation it keeps.
      *
      * @return settles the reservation: given the bytes actually retained, releases what was charged beyond them from the scope
-     *         or leaf the charge was attributed to. Never raises the charge, and releases nothing already released. Call at most once.
+     *         or leaf the charge was attributed to. Never raises the charge, and releases nothing already released, under the
+     *         conditions given at {@link #releaseFromLeaf} and {@link LeafExecutionScope#refund}. Call at most once.
      *         {@code null} when nothing was charged.
      */
     @Nullable
@@ -118,7 +119,15 @@ final class LeafExecutionAccounting implements Releasable {
         }
     }
 
-    /** Releases {@code bytes} charged to the leaf {@code ord}, capped at what the leaf still holds. */
+    /**
+     * Releases {@code bytes} charged to the leaf {@code ord}, capped at what the leaf still holds.
+     * <p>
+     * A settle takes from what the leaf holds now, not from its own reservation. If another thread released the leaf after the
+     * reservation and charged it again, the settle would release part of that new charge while it is still held. This is safe as
+     * long as no two threads score the same leaf of a searcher at once: {@link ContextIndexSearcher#slices} only builds
+     * whole-segment partitions, so a search scores each leaf on one thread, and the settle runs before that thread releases the
+     * leaf. Splitting a segment across threads needs the settle bounded by its own reservation.
+     */
     private void releaseFromLeaf(int ord, long bytes) {
         if (bytes <= 0L) {
             return;

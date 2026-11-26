@@ -72,6 +72,11 @@ public final class LeafExecutionScope {
 
     /**
      * Gives up ownership of up to {@code refunded} charged to {@code from}, capped at what this scope still owns.
+     * <p>
+     * This takes from what the scope owns now, not from the reservation being settled. A scope released and charged again while
+     * one of its builds is still running would refund that build's excess from the newer charge, which is still held. This is safe
+     * as long as a scope is never released during one of its own builds: its callers, the ES|QL operators, release and rebuild it
+     * on the one driver thread that builds with it.
      *
      * @return the bytes given up, which the caller releases from {@code from}
      */

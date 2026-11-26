@@ -26,7 +26,10 @@ import java.util.function.LongConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/** Checks that settling a {@link LeafExecutionAccounting#reserve} releases from the leaf or {@link LeafExecutionScope} it was attributed to. */
+/**
+ * Checks that settling a {@link LeafExecutionAccounting#reserve} releases from the leaf
+ * or {@link LeafExecutionScope} it was attributed to.
+ */
 public class LeafExecutionAccountingTests extends ESTestCase {
 
     private static final String LABEL = "test";

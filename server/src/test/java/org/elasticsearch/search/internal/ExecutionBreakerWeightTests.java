@@ -11,11 +11,13 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.LongRange;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -38,10 +40,13 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.search.internal.BreakerWeightTestUtils.chargeAgainst;
+import static org.elasticsearch.search.internal.BreakerWeightTestUtils.isDocIdRange;
 import static org.elasticsearch.search.internal.BreakerWeightTestUtils.newContextIndexSearcher;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -51,6 +56,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class ExecutionBreakerWeightTests extends ESTestCase {
 
     private static final String GEO_FIELD = "g";
+    private static final String RANGE_FIELD = "r";
     private static final int GRID_SIDE = 64;
 
     private Directory directory;
@@ -106,6 +112,42 @@ public class ExecutionBreakerWeightTests extends ESTestCase {
             assertThat(breaker.getUsed(), equalTo(retainedBytes(query)));
             scope.release();
             assertThat("the scope must release what is left after the settle", breaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    /**
+     * When every document of a leaf has a range and the leaf's whole value range is inside the query, Lucene matches all documents
+     * without building anything. The estimator still reserves on a multivalued leaf, so the settle must refund the whole reservation.
+     */
+    public void testRangeFieldMatchAllOnMultivaluedLeafRefundsReservation() throws IOException {
+        try (Directory rangeDirectory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(rangeDirectory, new IndexWriterConfig(null))) {
+                for (int docId = between(2, 1000); docId > 0; docId--) {
+                    Document doc = new Document();
+                    for (int value = between(2, 4); value > 0; value--) {
+                        long min = randomLongBetween(0, 1000);
+                        doc.add(new LongRange(RANGE_FIELD, new long[] { min }, new long[] { min + randomLongBetween(0, 100) }));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader rangeReader = DirectoryReader.open(rangeDirectory)) {
+                LeafReaderContext rangeLeaf = rangeReader.leaves().getFirst();
+                PointValues values = rangeLeaf.reader().getPointValues(RANGE_FIELD);
+                assertThat("every document must have a range", values.getDocCount(), equalTo(rangeLeaf.reader().maxDoc()));
+                assertThat("the leaf must be multivalued", values.size(), greaterThan((long) values.getDocCount()));
+                Query query = LongRange.newIntersectsQuery(RANGE_FIELD, new long[] { -1 }, new long[] { 2000 });
+                assertThat(ExecutionCharge.forQuery(query).estimator(), instanceOf(RangeFieldExecutionEstimator.class));
+                try (ContextIndexSearcher searcher = newContextIndexSearcher(rangeReader)) {
+                    searcher.setCircuitBreaker(breaker);
+                    Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
+                    DocIdSetIterator iterator = weight.scorerSupplier(rangeLeaf).get(Long.MAX_VALUE).iterator();
+                    assertTrue("the query must take the match-all path", isDocIdRange(iterator));
+                    assertThat(breaker.charges(), contains(greaterThan(0L)));
+                    assertThat("the settle must refund the whole reservation", breaker.getUsed(), equalTo(0L));
+                }
+            }
         }
     }
 

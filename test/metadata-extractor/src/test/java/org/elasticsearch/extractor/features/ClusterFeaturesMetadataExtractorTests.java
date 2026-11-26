@@ -18,16 +18,15 @@ import org.junit.rules.TemporaryFolder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentParserConfiguration.EMPTY;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
@@ -45,6 +44,25 @@ public class ClusterFeaturesMetadataExtractorTests extends ESTestCase {
         assertThat(featureNamesSet, not(empty()));
         assertThat(featureNamesSet, hasItem("test_features_enabled"));
 
+        List<String> featureNamesList = generateAndReadFeatureNames(extractor);
+        assertThat(featureNamesList, containsInAnyOrder(featureNamesSet.toArray()));
+    }
+
+    /**
+     * The metadata file is an input of every REST/BWC test task that uses it. It must therefore be byte-for-byte reproducible:
+     * collecting the names in a {@code HashSet} makes the order of hash-colliding names depend on insertion order, which
+     * comes from {@code Set.of(...)} iteration and is randomized per JVM. The names must therefore be written sorted.
+     * Otherwise concurrent builds push differently ordered files under the same build cache key, which changes the cache
+     * keys of all downstream test tasks.
+     */
+    public void testMetadataFileIsSorted() throws IOException {
+        ClusterFeaturesMetadataExtractor extractor = new ClusterFeaturesMetadataExtractor(this.getClass().getClassLoader());
+        List<String> featureNamesList = generateAndReadFeatureNames(extractor);
+        assertThat(featureNamesList.size(), greaterThan(1));
+        assertThat(featureNamesList, equalTo(featureNamesList.stream().sorted().toList()));
+    }
+
+    private List<String> generateAndReadFeatureNames(ClusterFeaturesMetadataExtractor extractor) throws IOException {
         Path outputFile = temporaryFolder.newFile().toPath();
         extractor.generateMetadataFile(outputFile);
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(EMPTY, Files.newInputStream(outputFile))) {
@@ -52,26 +70,8 @@ public class ClusterFeaturesMetadataExtractorTests extends ESTestCase {
             assertThat(parsedMap, hasKey("feature_names"));
 
             @SuppressWarnings("unchecked")
-            Collection<String> featureNamesList = (Collection<String>) (parsedMap.get("feature_names"));
-            assertThat(featureNamesList, containsInAnyOrder(featureNamesSet.toArray()));
-        }
-    }
-
-    /**
-     * The metadata file is an input of every REST/BWC test task that uses it. It must therefore be byte-for-byte reproducible:
-     * feature sets are typically {@code Set.of(...)}, whose iteration order changes with every JVM, so the names must be
-     * written sorted rather than in collection iteration order. Otherwise concurrent builds push differently ordered files
-     * under the same build cache key, which changes the cache keys of all downstream test tasks.
-     */
-    public void testMetadataFileIsSorted() throws IOException {
-        ClusterFeaturesMetadataExtractor extractor = new ClusterFeaturesMetadataExtractor(this.getClass().getClassLoader());
-        Path outputFile = temporaryFolder.newFile().toPath();
-        extractor.generateMetadataFile(outputFile);
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(EMPTY, Files.newInputStream(outputFile))) {
-            @SuppressWarnings("unchecked")
-            List<String> featureNamesList = (List<String>) parser.map().get("feature_names");
-            assertThat(featureNamesList.size(), greaterThan(1));
-            assertThat(featureNamesList, contains(featureNamesList.stream().sorted().toArray()));
+            List<String> featureNames = (List<String>) parsedMap.get("feature_names");
+            return featureNames;
         }
     }
 }

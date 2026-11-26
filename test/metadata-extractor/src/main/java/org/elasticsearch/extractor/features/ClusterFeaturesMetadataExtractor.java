@@ -77,8 +77,9 @@ public class ClusterFeaturesMetadataExtractor {
     }
 
     void extractClusterFeaturesMetadata(CheckedConsumer<Set<String>, IOException> metadataConsumer) throws IOException {
-        // Sorted so the generated file is reproducible: feature sets are usually Set.of(...), whose iteration order is
-        // randomized per JVM. The file is an input of REST/BWC test tasks, so a varying order would change their build cache keys.
+        // Sorted so the generated file is reproducible. In a HashSet, the order of hash-colliding names depends on insertion
+        // order, which comes from Set.of(...) iteration and is randomized per JVM. The file is an input of REST/BWC test tasks,
+        // so a varying order would change their build cache keys.
         Set<String> featureNames = new TreeSet<>();
         ServiceLoader<FeatureSpecification> featureSpecLoader = ServiceLoader.load(FeatureSpecification.class, classLoader);
         for (FeatureSpecification featureSpecification : featureSpecLoader) {

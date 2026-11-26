@@ -725,11 +725,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripFailsQueryWithPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/166909
-- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testOnPageFetchedSeesEveryArrivingPage
-  issue: https://github.com/elastic/elasticsearch/issues/166977
 - class: org.elasticsearch.xpack.esql.action.ExternalSerializedPlanBreakerIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -755,11 +750,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripDropsClusterWithPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/167022
-- class: org.elasticsearch.compute.operator.DriverTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testDriverFailingWhileBlockedClosesItsSleep
-  issue: https://github.com/elastic/elasticsearch/issues/167028
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

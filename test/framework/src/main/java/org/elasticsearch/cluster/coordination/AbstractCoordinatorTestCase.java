@@ -75,6 +75,7 @@ import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -402,6 +403,87 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         /**
+         * Nodes that {@link #runRandomly} restarted with different roles, which it must restore before it returns.
+         */
+        private final Set<String> rolesChangedNodeIds = new HashSet<>();
+
+        /**
+         * Whether a node in {@link #rolesChangedNodeIds} was restarted as a master-ineligible data node rather than as a coordinating-only
+         * node. At most one node is in this state at a time.
+         */
+        private boolean hasDataOnlyDemotedNode;
+
+        private void rebootNode(ClusterNode clusterNode, UnaryOperator<ClusterNode> restart) {
+            clusterNode.close();
+            clusterNodes.forEach(cn -> deterministicTaskQueue.scheduleNow(cn.onNode(new Runnable() {
+                @Override
+                public void run() {
+                    cn.transportService.disconnectFromNode(clusterNode.getLocalNode());
+                }
+
+                @Override
+                public String toString() {
+                    return "disconnect from " + clusterNode.getLocalNode() + " after shutdown";
+                }
+            })));
+            clusterNodes.replaceAll(cn -> cn == clusterNode ? restart.apply(cn) : cn);
+        }
+
+        /**
+         * Occasionally chooses to restart a master-eligible node with different roles, recording the change so that it can be undone.
+         */
+        @Nullable
+        private Set<DiscoveryNodeRole> chooseDifferentRoles(ClusterNode clusterNode) {
+            if (canRestartWithDifferentRoles() == false
+                || clusterNode.getLocalNode().isMasterNode() == false
+                || rolesChangedNodeIds.contains(clusterNode.getId())
+                || (randomBoolean() && randomBoolean()) == false) {
+                return null;
+            }
+            if (hasDataOnlyDemotedNode == false && randomBoolean() && remainingVotersFormQuorum(clusterNode)) {
+                // Safe because a master-ineligible node's votes are ignored, so losing its asynchronous writes cannot lose anything that
+                // the
+                // cluster relied on, as long as the other voters can still elect a master without it: restarting it as master-eligible
+                // later results in a stale voting configuration which prevents it from winning an election itself.
+                rolesChangedNodeIds.add(clusterNode.getId());
+                hasDataOnlyDemotedNode = true;
+                return Set.of(DiscoveryNodeRole.DATA_ROLE);
+            }
+            // Always safe, even for a majority of the master-eligible nodes, as the persisted state is retained on disk.
+            rolesChangedNodeIds.add(clusterNode.getId());
+            return emptySet();
+        }
+
+        /**
+         * @return whether every other master-eligible node's voting configurations (both accepted and committed) still have a quorum of
+         * master-eligible nodes if the given node were master-ineligible.
+         */
+        private boolean remainingVotersFormQuorum(ClusterNode demotedNode) {
+            final Set<String> remainingVoters = clusterNodes.stream()
+                .filter(cn -> cn != demotedNode && cn.getLocalNode().isMasterNode())
+                .map(ClusterNode::getId)
+                .collect(Collectors.toSet());
+            boolean foundConfiguration = false;
+            for (final ClusterNode cn : clusterNodes) {
+                if (cn.getLocalNode().isMasterNode() == false) {
+                    continue;
+                }
+                final ClusterState state = cn.persistedState.getLastAcceptedState();
+                for (final var configuration : List.of(state.getLastAcceptedConfiguration(), state.getLastCommittedConfiguration())) {
+                    if (configuration.getNodeIds().isEmpty()
+                        || configuration.getNodeIds().contains(GatewayMetaState.STALE_STATE_CONFIG_NODE_ID)) {
+                        continue; // not yet bootstrapped, or not a real configuration
+                    }
+                    foundConfiguration = true;
+                    if (configuration.hasQuorum(remainingVoters) == false) {
+                        return false;
+                    }
+                }
+            }
+            return foundConfiguration;
+        }
+
+        /**
          * @param allowReboots whether to randomly reboot the nodes during the process, losing all transient state. Usually true.
          * @param coolDown whether to set the delay variability back to {@link Cluster#DEFAULT_DELAY_VARIABILITY} and drain all
          *                 disrupted events from the queue before returning. Usually true.
@@ -440,6 +522,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         blackholedNodes.clear();
                         deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
                         logger.debug("----> [runRandomly {}] reducing delay variability and running until [{}ms]", step, finishTime);
+                        // Reinstate the roles of any nodes that were restarted with different roles
+                        for (final String demotedNodeId : List.copyOf(rolesChangedNodeIds)) {
+                            logger.debug("----> [runRandomly {}] restoring roles of [{}]", step, demotedNodeId);
+                            rebootNode(getNodeById(demotedNodeId), n -> n.restartedNodeWithRoles(ALL_ROLES_EXCEPT_VOTING_ONLY));
+                        }
+                        rolesChangedNodeIds.clear();
+                        hasDataOnlyDemotedNode = false;
                     } else {
                         logger.debug(
                             "----> [runRandomly {}] running until [{}ms] with delay variability of [{}ms]",
@@ -486,22 +575,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             clusterNode.submitSetAutoShrinkVotingConfiguration(autoShrinkVotingConfiguration);
                         }).run();
                     } else if (allowReboots && rarely()) {
-                        // reboot random node
+                        // reboot random node, occasionally with different roles
                         final ClusterNode clusterNode = getAnyNode();
-                        logger.debug("----> [runRandomly {}] rebooting [{}]", thisStep, clusterNode.getId());
-                        clusterNode.close();
-                        clusterNodes.forEach(cn -> deterministicTaskQueue.scheduleNow(cn.onNode(new Runnable() {
-                            @Override
-                            public void run() {
-                                cn.transportService.disconnectFromNode(clusterNode.getLocalNode());
-                            }
-
-                            @Override
-                            public String toString() {
-                                return "disconnect from " + clusterNode.getLocalNode() + " after shutdown";
-                            }
-                        })));
-                        clusterNodes.replaceAll(cn -> cn == clusterNode ? cn.restartedNode() : cn);
+                        // no role changes once cooling down, since there'd be no opportunity to restore them
+                        final Set<DiscoveryNodeRole> newRoles = coolDown && finishTime == -1 ? chooseDifferentRoles(clusterNode) : null;
+                        logger.debug("----> [runRandomly {}] rebooting [{}] with new roles {}", thisStep, clusterNode.getId(), newRoles);
+                        rebootNode(clusterNode, newRoles == null ? ClusterNode::restartedNode : n -> n.restartedNodeWithRoles(newRoles));
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNode();
                         clusterNode.onNode(() -> {
@@ -1283,6 +1362,22 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     ? ALL_ROLES_EXCEPT_VOTING_ONLY
                     : isMasterIneligibleDataNode(localNode) ? Set.of(DiscoveryNodeRole.DATA_ROLE)
                     : emptySet();
+                return restartedNode(adaptGlobalMetadata, adaptCurrentTerm, settings, newRoles);
+            }
+
+            /**
+             * Restart this node with exactly the given roles, e.g. to promote a node that was previously master-ineligible.
+             */
+            ClusterNode restartedNodeWithRoles(Set<DiscoveryNodeRole> newRoles) {
+                return restartedNode(Function.identity(), Function.identity(), nodeSettings, newRoles);
+            }
+
+            private ClusterNode restartedNode(
+                Function<Metadata, Metadata> adaptGlobalMetadata,
+                Function<Long, Long> adaptCurrentTerm,
+                Settings settings,
+                Set<DiscoveryNodeRole> newRoles
+            ) {
                 final DiscoveryNode newLocalNode = DiscoveryNodeUtils.builder(localNode.getId())
                     .name(localNode.getName())
                     .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
@@ -1774,6 +1869,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 threadPool
             );
         }
+    }
+
+    /**
+     * @return whether {@link Cluster#runRandomly} may restart master-eligible nodes with different roles (restoring them before it
+     * returns). Off by default: only subclasses whose nodes have role-dependent local persisted state, as in production, should enable it.
+     */
+    protected boolean canRestartWithDifferentRoles() {
+        return false;
     }
 
     protected CoordinatorStrategy createCoordinatorStrategy() {
@@ -2288,11 +2391,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     MockGatewayMetaState.newAsyncPersistedState(loadedState, asyncWriteExecutor(threadPool))
                 );
             } else {
-                // starts with an empty state whatever was on disk, writing that to disk but never anything more
+                // starts with an empty state whatever was on disk, and never writes anything more. The on-disk state is left alone, so that
+                // any vote it records is not forgotten if this node later becomes master-eligible again.
                 // NB if `disruptStorage` is set then the synchronous in-memory writes can fail, which isn't possible in prod. This is ok.
                 return new SimulatedPersistence(
-                    new InMemoryPersistedState(0L, emptyState(node)),
-                    new InMemoryPersistedState(0L, emptyState(node)) // NB different instances so in-memory writes don't cross restarts
+                    loadedState,
+                    new InMemoryPersistedState(0L, emptyState(node)) // NB separate instance so in-memory writes don't reach the disk
                 );
             }
         }

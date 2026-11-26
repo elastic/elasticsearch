@@ -42,6 +42,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -2259,6 +2260,51 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 is(value(cluster.getAnyLeader().getLastAppliedClusterState()))
             );
         }
+    }
+
+    /**
+     * A master-eligible node that restarts without any roles must not discard the state that records its past votes, since if it is later
+     * restarted as master-eligible again then it must not vote in a way that contradicts them.
+     */
+    public void testMasterEligibleNodeRestartedWithoutRolesRetainsVotes() {
+        assumeTrue("requires role-dependent local persisted state", canRestartWithDifferentRoles());
+        try (Cluster cluster = new Cluster(randomIntBetween(3, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final ClusterNode leader = cluster.getAnyLeader();
+            final ClusterNode node = randomFrom(cluster.getAllNodesExcept(leader));
+            assertTrue(node.getLocalNode().isMasterNode());
+            final long term = node.persistedState.getCurrentTerm();
+            final long lastAcceptedVersion = node.persistedState.getLastAcceptedState().version();
+            assertThat(term, greaterThan(0L));
+
+            node.close();
+            final ClusterNode coordinatingOnlyNode = node.restartedNode(Function.identity(), Function.identity(), NodeRoles.noRoles());
+            assertFalse(coordinatingOnlyNode.getLocalNode().isMasterNode());
+            assertFalse(coordinatingOnlyNode.getLocalNode().canContainData());
+            cluster.clusterNodes.replaceAll(cn -> cn == node ? coordinatingOnlyNode : cn);
+            cluster.runFor(randomLongBetween(0, DEFAULT_STABILISATION_TIME), "running as a coordinating-only node");
+
+            coordinatingOnlyNode.close();
+            final ClusterNode promotedNode = coordinatingOnlyNode.restartedNodeWithRoles(ALL_ROLES_EXCEPT_VOTING_ONLY);
+            assertTrue(promotedNode.getLocalNode().isMasterNode());
+            cluster.clusterNodes.replaceAll(cn -> cn == coordinatingOnlyNode ? promotedNode : cn);
+
+            assertThat("term retained", promotedNode.persistedState.getCurrentTerm(), greaterThanOrEqualTo(term));
+            assertThat(
+                "accepted state retained",
+                promotedNode.persistedState.getLastAcceptedState().version(),
+                greaterThanOrEqualTo(lastAcceptedVersion)
+            );
+
+            cluster.stabilise();
+        }
+    }
+
+    @Override
+    protected boolean canRestartWithDifferentRoles() {
+        return true;
     }
 
     private ClusterState buildNewClusterStateWithVotingConfigExclusion(

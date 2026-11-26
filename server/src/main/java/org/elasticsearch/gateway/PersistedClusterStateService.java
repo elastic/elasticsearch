@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -99,6 +100,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -422,6 +424,57 @@ public class PersistedClusterStateService {
                 } catch (IndexNotFoundException e) {
                     logger.debug(() -> format("no on-disk state at %s", indexPath), e);
                 }
+            }
+        }
+    }
+
+    /**
+     * For a node that is neither master-eligible nor a data node (and so does not otherwise use its persisted cluster state): makes sure
+     * that the node's persistent ID is on disk, without discarding any safety-critical state that a previous incarnation of this node left
+     * there.
+     */
+    public void persistNodeIdWithoutOverwritingState(long currentTerm, ClusterState emptyClusterState) throws IOException {
+        assert emptyClusterState.nodes().getLocalNode() instanceof DiscoveryNode localNode // i.e. not null
+            && (localNode.isMasterNode() || localNode.canContainData()) == false;
+
+        var maybeRecordedVote = false;
+        for (final var dataPath : dataPaths) {
+            final var indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
+            if (Files.exists(indexPath)) {
+                try (Directory directory = new NIOFSDirectory(indexPath); DirectoryReader reader = DirectoryReader.open(directory)) {
+                    maybeRecordedVote |= Long.parseLong(reader.getIndexCommit().getUserData().get(CURRENT_TERM_KEY)) != 0L;
+                } catch (IndexNotFoundException e) {
+                    logger.debug(() -> format("no on-disk state at %s", indexPath), e);
+                }
+            }
+        }
+
+        if (maybeRecordedVote) {
+            // These data paths belonged to a master or data node at some point in its past, so the node may have voted. We must preserve
+            // this state in case it goes back to being master-eligible in the future.
+            logger.info(
+                "rewriting on-disk state as master and/or data roles have been removed from node [{}]",
+                emptyClusterState.nodes().getLocalNode()
+            );
+            final OnDiskState onDiskState = loadBestOnDiskState();
+            if (onDiskState.empty()) {
+                throw new IllegalStateException("found a persisted term above zero in " + Arrays.toString(dataPaths) + " but no state");
+            }
+            try (Writer writer = createWriter()) {
+                writer.writeFullStateAndCommit(
+                    onDiskState.currentTerm,
+                    ClusterState.builder(emptyClusterState.getClusterName())
+                        .version(onDiskState.lastAcceptedVersion)
+                        .metadata(onDiskState.metadata)
+                        .build()
+                );
+            }
+        } else {
+            // No vote can have been recorded: write the provided empty state in order to capture the node's persistent ID. This overwrites
+            // the state that's already there because that state might have been written by the previous Lucene major: we need to be able
+            // to upgrade this node to the next Lucene major.
+            try (Writer writer = createWriter()) {
+                writer.writeFullStateAndCommit(currentTerm, emptyClusterState);
             }
         }
     }

@@ -219,6 +219,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         return new AtomicRegisterCoordinatorStrategy();
     }
 
+    @Override
+    protected boolean canRestartWithDifferentRoles() {
+        // nodes here have no role-dependent local persisted state: it all lives in the shared register store
+        return false;
+    }
+
     /**
      * Strategy used to inject custom behavior into the {@link AbstractCoordinatorTestCase} test infrastructure.
      */

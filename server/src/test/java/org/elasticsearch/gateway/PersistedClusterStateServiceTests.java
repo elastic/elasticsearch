@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
@@ -1971,6 +1972,147 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             var onDiskState = persistedClusterStateService.loadBestOnDiskState();
             assertThat(onDiskState.clusterUUID, is(equalTo(clusterUUID)));
             assertThat(onDiskState.clusterUUIDCommitted, is(clusterUUIDCommitted));
+        }
+    }
+
+    private static ClusterState coordinatingOnlyEmptyState(String nodeId) {
+        final var localNode = DiscoveryNodeUtils.builder(nodeId).roles(Set.of()).build();
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().add(localNode).localNodeId(nodeId)).build();
+    }
+
+    private static final String REWRITING_STATE_WARNING = "rewriting on-disk state as master and/or data roles have been removed from node";
+
+    public void testPersistNodeIdWithoutOverwritingStateOnFreshDataPaths() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            final ClusterState emptyState = coordinatingOnlyEmptyState(persistedClusterStateService.getNodeId());
+
+            try (var mockLog = MockLog.capture(PersistedClusterStateService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "no warning",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.WARN,
+                        REWRITING_STATE_WARNING
+                    )
+                );
+                persistedClusterStateService.persistNodeIdWithoutOverwritingState(0L, emptyState);
+                mockLog.assertAllExpectationsMatched();
+            }
+
+            // the state is now on disk, so can be loaded
+            final var onDiskState = persistedClusterStateService.loadBestOnDiskState();
+            assertThat(onDiskState.currentTerm, equalTo(0L));
+            assertThat(onDiskState.lastAcceptedVersion, equalTo(0L));
+        }
+    }
+
+    public void testPersistNodeIdWithoutOverwritingStateReplacesStateWithoutVotes() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            final String clusterUUID = UUIDs.randomBase64UUID(random());
+
+            // term zero means that the node cannot have voted, so there is nothing safety-critical on disk
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(
+                    0L,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .version(randomLongBetween(1, 100))
+                        .metadata(Metadata.builder().clusterUUID(clusterUUID).clusterUUIDCommitted(true))
+                        .build()
+                );
+            }
+
+            try (var mockLog = MockLog.capture(PersistedClusterStateService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "no warning",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.WARN,
+                        REWRITING_STATE_WARNING
+                    )
+                );
+                persistedClusterStateService.persistNodeIdWithoutOverwritingState(
+                    0L,
+                    coordinatingOnlyEmptyState(persistedClusterStateService.getNodeId())
+                );
+                mockLog.assertAllExpectationsMatched();
+            }
+
+            final var onDiskState = persistedClusterStateService.loadBestOnDiskState();
+            assertThat(onDiskState.currentTerm, equalTo(0L));
+            assertThat(onDiskState.lastAcceptedVersion, equalTo(0L));
+            assertThat(onDiskState.metadata.clusterUUID(), equalTo(Metadata.UNKNOWN_CLUSTER_UUID));
+        }
+    }
+
+    public void testPersistNodeIdWithoutOverwritingStateRetainsStateWithVotes() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            final long term = randomLongBetween(1, Long.MAX_VALUE - 1);
+            final long version = randomLongBetween(1, Long.MAX_VALUE - 1);
+            final String clusterUUID = UUIDs.randomBase64UUID(random());
+            final var votingConfiguration = new CoordinationMetadata.VotingConfiguration(Set.of("node-a", "node-b", "node-c"));
+            final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder()
+                .term(term)
+                .lastAcceptedConfiguration(votingConfiguration)
+                .lastCommittedConfiguration(votingConfiguration)
+                .build();
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(
+                    term,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .version(version)
+                        .metadata(
+                            Metadata.builder()
+                                .coordinationMetadata(coordinationMetadata)
+                                .clusterUUID(clusterUUID)
+                                .clusterUUIDCommitted(true)
+                        )
+                        .build()
+                );
+            }
+
+            // repeated, since the node may restart without any roles several times
+            for (int i = between(1, 3); i > 0; i--) {
+                try (var mockLog = MockLog.capture(PersistedClusterStateService.class)) {
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "warning",
+                            PersistedClusterStateService.class.getCanonicalName(),
+                            Level.WARN,
+                            REWRITING_STATE_WARNING
+                        )
+                    );
+                    persistedClusterStateService.persistNodeIdWithoutOverwritingState(
+                        0L,
+                        coordinatingOnlyEmptyState(persistedClusterStateService.getNodeId())
+                    );
+                    mockLog.assertAllExpectationsMatched();
+                }
+
+                final var onDiskState = persistedClusterStateService.loadBestOnDiskState();
+                assertThat(onDiskState.currentTerm, equalTo(term));
+                assertThat(onDiskState.lastAcceptedVersion, equalTo(version));
+                assertThat(onDiskState.metadata.clusterUUID(), equalTo(clusterUUID));
+                assertTrue(onDiskState.metadata.clusterUUIDCommitted());
+                assertThat(onDiskState.metadata.coordinationMetadata(), equalTo(coordinationMetadata));
+            }
+        }
+    }
+
+    public void testPersistNodeIdWithoutOverwritingStateRejectsRoles() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            final String nodeId = persistedClusterStateService.getNodeId();
+            final var localNode = DiscoveryNodeUtils.builder(nodeId)
+                .roles(Set.of(randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)))
+                .build();
+            final var stateWithRoles = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(nodeId))
+                .build();
+            expectThrows(AssertionError.class, () -> persistedClusterStateService.persistNodeIdWithoutOverwritingState(0L, stateWithRoles));
         }
     }
 

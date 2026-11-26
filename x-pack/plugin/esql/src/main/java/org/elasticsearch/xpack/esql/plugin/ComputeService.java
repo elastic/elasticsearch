@@ -71,6 +71,7 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
@@ -273,6 +274,7 @@ public class ComputeService {
     private final IpLocationService ipLocationService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
+    private final CrossProjectModeDecider crossProjectModeDecider;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
@@ -327,6 +329,7 @@ public class ComputeService {
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
+        this.crossProjectModeDecider = transportActionServices.crossProjectModeDecider();
         this.batchIndexingEnabled = transportActionServices.batchIndexingEnabled();
         this.clusterService.getClusterSettings()
             .initializeAndWatch(
@@ -2259,6 +2262,7 @@ public class ComputeService {
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion(),
                 taskClient,
+                crossProjectModeDecider,
                 externalCompute,
                 escfBulkService,
                 () -> ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService),

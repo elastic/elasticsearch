@@ -124,6 +124,7 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
@@ -335,6 +336,7 @@ public class LocalExecutionPlanner {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final Client client;
+    private final CrossProjectModeDecider crossProjectModeDecider;
     // INTO writes through ESCF batches; null in planners that never plan an INTO
     @Nullable
     private final EscfBulkService escfBulkService;
@@ -409,6 +411,7 @@ public class LocalExecutionPlanner {
         MatcherWatchdog grokMatcherWatchdog,
         TransportVersion minTransportVersion,
         Client client,
+        CrossProjectModeDecider crossProjectModeDecider,
         ExternalComputeContext externalCompute,
         @Nullable EscfBulkService escfBulkService,
         BooleanSupplier batchIndexingSupported,
@@ -443,6 +446,7 @@ public class LocalExecutionPlanner {
         this.grokMatcherWatchdog = grokMatcherWatchdog;
         this.minTransportVersion = minTransportVersion;
         this.client = client;
+        this.crossProjectModeDecider = crossProjectModeDecider;
         this.externalCompute = externalCompute;
         this.escfBulkService = escfBulkService;
         this.batchIndexingSupported = batchIndexingSupported;
@@ -2642,6 +2646,7 @@ public class LocalExecutionPlanner {
             new EqlRequests.EnclosingQuery(
                 // Bridge the enclosing ES|QL query's own contracts so an EQL source honors them like FROM does.
                 configuration.allowPartialResults(),
+                crossProjectModeDecider.crossProjectEnabled(),
                 QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
                 eqlSource.requestFilter()
             )

@@ -111,7 +111,7 @@ public class IndexResolver {
      * Those options shift index resolution validation to FieldCaps action itself
      * as well as automatically expand flat expressions to multiple qualified ones.
      */
-    private static final IndicesOptions FLAT_STRICT_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
+    public static final IndicesOptions FLAT_STRICT_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .crossProjectModeOptions(new CrossProjectModeOptions(true))
         .build();

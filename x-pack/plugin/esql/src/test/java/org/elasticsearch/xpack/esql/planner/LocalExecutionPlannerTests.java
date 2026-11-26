@@ -87,6 +87,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.tasks.TaskId;
@@ -2659,6 +2660,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             MatcherWatchdog.noop(),
             TransportVersion.current(),
             null, // client - not needed for these tests
+            CrossProjectModeDecider.NOOP,
             externalCompute,
             null, // escfBulkService - not needed for these tests
             () -> false,

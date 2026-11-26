@@ -1065,3 +1065,9 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/166620
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testSerializationOfSimple {TestCase=<integer>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <null>, <long>,
+    <long>, <long>, <long>, <long>, <long>, <long>}
+  issue: https://github.com/elastic/elasticsearch/issues/167652

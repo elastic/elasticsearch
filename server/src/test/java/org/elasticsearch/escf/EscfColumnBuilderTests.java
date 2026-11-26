@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Unit tests for {@link EscfColumnBuilder}, covering both {@link CollisionPolicy}s: the
@@ -111,6 +112,19 @@ public class EscfColumnBuilderTests extends ESTestCase {
         EscfColumn col = EscfColumn.from(data);
         for (int i = 0; i < expected.size(); i++) {
             assertEquals("row " + i, expected.get(i), col.getStringValue(i).string());
+        }
+    }
+
+    /**
+     * A value larger than a page always goes through the scratch buffer. Written as raw bytes, the same value leaves the
+     * same pages and offsets but no scratch buffer, so the difference in memory is the scratch buffer alone.
+     */
+    public void testRamBytesUsedCountsStringScratch() {
+        String value = randomAlphaOfLength(2 * PageCacheRecycler.BYTE_PAGE_SIZE);
+        try (EscfColumnBuilder viaScratch = builder(); EscfColumnBuilder direct = builder()) {
+            viaScratch.addUtf8String(utf8Value(value));
+            direct.addString(utf8(value));
+            assertThat(viaScratch.ramBytesUsed() - direct.ramBytesUsed(), greaterThanOrEqualTo((long) value.length()));
         }
     }
 

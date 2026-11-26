@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
+import org.elasticsearch.xpack.esql.action.RequestedTimeRange;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -184,6 +185,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.telemetry.QuerySourceCommand;
 import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
@@ -733,6 +735,21 @@ public class EsqlSession {
         // For EXPLAIN (detected and unwrapped right after parsing), enable profile to capture plans from all nodes
         final Configuration finalConfiguration = explainContext != null ? configuration.withExplainOnly() : configuration;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
+        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
+        // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
+        // an empty time range). Extraction uses configuration::absoluteStartedTimeInMillis, the query's now.
+        // Also kept on the request, together with that now, so the time range the query asked for is known however the query
+        // ends from here on. It is deliberately not extracted earlier, against a now of its own: planning must resolve date math
+        // against the same now as NOW() and the filter on the data nodes.
+        TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            request.filter(),
+            finalConfiguration::absoluteStartedTimeInMillis
+        );
+        if (timestampBounds != null) {
+            // The millisecond now that date math was resolved against, rather than the configuration's finer-grained now().
+            Instant now = Instant.ofEpochMilli(finalConfiguration.absoluteStartedTimeInMillis());
+            request.setRequestedTimeRange(new RequestedTimeRange(timestampBounds, now));
+        }
 
         analyzedPlan(
             plan,
@@ -740,6 +757,7 @@ public class EsqlSession {
             finalConfiguration,
             executionInfo,
             request.filter(),
+            timestampBounds,
             viewResolution.indexViewOrigins(),
             viewResolution.viewSettings(),
             new ActionListener<Versioned<LogicalPlan>>() {
@@ -2041,6 +2059,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
         IndexViewOrigins indexViewOrigins,
         Map<String, ViewQuerySettings> viewSettings,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
@@ -2072,6 +2091,7 @@ public class EsqlSession {
                     configuration,
                     executionInfo,
                     requestFilter,
+                    timestampBounds,
                     indexViewOrigins,
                     delegate
                 );
@@ -2086,11 +2106,14 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
         IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert planningCpu.isMeteringCurrentThread() : "analyzedPlanAfterDatasetResolution reached on an unmetered thread";
+        // Classified here, where views and datasets are resolved but PROMQL is not yet translated into the same plan as TS.
+        planTelemetry.sourceCommand(QuerySourceCommand.of(rewritten));
         // The time range that the query itself restricts each index pattern to prunes index resolution like the request filter
         // does, and next to it: both must match, and the query is often narrower than the time picker.
         Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(
@@ -2116,15 +2139,8 @@ public class EsqlSession {
         PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, viewSettings, requestFilter, configuration)
             .withMinimumTransportVersion(localClusterMinimumVersion)
             .withIndexViewOrigins(indexViewOrigins);
-        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
-        // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
-        // an empty time range). Extraction uses configuration::absoluteStartedTimeInMillis (fixed at request start).
-        // PromQL / TBUCKET / TSTEP keep LEGACY rounding. Listing uses RANGE_QUERY so folder hints are never tighter
-        // than the row-filter rewrite (a time_zone range the translator drops does not narrow listing).
-        TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
-            requestFilter,
-            configuration::absoluteStartedTimeInMillis
-        );
+        // PromQL / TBUCKET / TSTEP keep LEGACY rounding (timestampBounds). Listing uses RANGE_QUERY so folder hints are never
+        // tighter than the row-filter rewrite (a time_zone range the translator drops does not narrow listing).
         TimestampBounds listingBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
             requestFilter,
             configuration::absoluteStartedTimeInMillis,

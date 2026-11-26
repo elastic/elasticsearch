@@ -781,8 +781,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     /**
-     * {@code driver_nanos} and the search load round-trip on current nodes. Nodes that predate them read 0, while
-     * {@code cpu_nanos} still round-trips.
+     * {@code driver_nanos}, the search load and the peak memory round-trip on current nodes. Nodes that predate them read 0,
+     * while {@code cpu_nanos} still round-trips.
      */
     public void testDriverNanosSerialization() throws IOException {
         try (
@@ -798,7 +798,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 8888,
                 9999,
                 new SearchLoadMetrics(11, 12, 13),
-                0L,
+                1414,
                 null,
                 true,
                 null,
@@ -815,6 +815,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 assertThat(copy.cpuNanos(), equalTo(8888L));
                 assertThat(copy.driverNanos(), equalTo(9999L));
                 assertThat(copy.searchLoad(), equalTo(new SearchLoadMetrics(11, 12, 13)));
+                assertThat(copy.peakMemoryBytes(), equalTo(1414L));
+            }
+            TransportVersion beforePeakMemory = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("search_peak_memory"));
+            try (EsqlQueryResponse copy = copyInstance(response, beforePeakMemory)) {
+                assertThat(copy.searchLoad(), equalTo(new SearchLoadMetrics(11, 12, 13)));
+                assertThat(copy.peakMemoryBytes(), equalTo(0L));
             }
             TransportVersion beforeSearchLoad = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("search_load_report"));
             try (EsqlQueryResponse copy = copyInstance(response, beforeSearchLoad)) {

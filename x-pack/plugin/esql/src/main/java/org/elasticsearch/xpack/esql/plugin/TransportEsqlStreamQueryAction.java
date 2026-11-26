@@ -476,18 +476,16 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             }, ex -> {
                 computeDone.set(true);
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, ex);
-                transportEsqlQueryAction.collectMetricsOnce(
-                    metricsCollected,
-                    executionInfo,
-                    workDoneBeforeFailure(executionInfo, resultRef.get()),
-                    PlanExecutor.outcomeOf(ex)
-                );
+                DriverCompletionInfo workDone = workDoneBeforeFailure(executionInfo, resultRef.get());
+                transportEsqlQueryAction.collectMetricsOnce(metricsCollected, executionInfo, workDone, PlanExecutor.outcomeOf(ex));
                 PageStreamPublisher.StreamFooter footer = failureFooter(
                     ex,
                     executionInfo,
                     completedWork.finish(),
+                    workDone.peakMemoryBytes(),
                     threadPool.getThreadContext()
                 );
+                request.setFailedPeakMemoryBytes(footer.failedPeakMemoryBytes());
                 if (streamStarted.get()) {
                     publisher.failStream(ex, footer);
                 } else {
@@ -647,10 +645,15 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         return executionInfo.tookOrElapsed().millis();
     }
 
+    /**
+     * The footer of a failed query. It reports no stats, but the peak memory, the highest of {@code peakMemoryBytes} and the peak of
+     * {@code completedWork}, since it tells how close the query came to the memory limits.
+     */
     static PageStreamPublisher.StreamFooter failureFooter(
         Exception ex,
         EsqlExecutionInfo executionInfo,
         DriverCompletionInfo completedWork,
+        long peakMemoryBytes,
         ThreadContext threadContext
     ) {
         return new PageStreamPublisher.StreamFooter(
@@ -661,7 +664,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             null,
             null,
             ex,
-            null
+            null,
+            Math.max(peakMemoryBytes, completedWork.peakMemoryBytes())
         );
     }
 

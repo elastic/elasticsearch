@@ -89,6 +89,11 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     private transient RequestedTimeRange requestedTimeRange;
     /**
+     * The most memory the query held at once on one of its nodes, as far as it is known when the query failed.
+     * Runtime-only state of the node that runs the query: it is not serialized.
+     */
+    private transient long failedPeakMemoryBytes;
+    /**
      * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
      * {@link #applyCanonicalRequestSettings()}. A setting that also has a legacy top-level body field
      * must be supplied in exactly one place — see that method.
@@ -477,6 +482,19 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     @Nullable
     public RequestedTimeRange requestedTimeRange() {
         return requestedTimeRange;
+    }
+
+    /** Records the peak memory of the query when it failed. Not serialized. */
+    public void setFailedPeakMemoryBytes(long failedPeakMemoryBytes) {
+        this.failedPeakMemoryBytes = failedPeakMemoryBytes;
+    }
+
+    /**
+     * The most memory the query held at once on one of its nodes, as far as it is known when it failed, or 0 if it did not fail or
+     * nothing was measured before it failed.
+     */
+    public long failedPeakMemoryBytes() {
+        return failedPeakMemoryBytes;
     }
 
     Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {

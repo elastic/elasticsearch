@@ -2434,7 +2434,8 @@ public class ComputeService {
                 Releasables.close(context.searchContexts().iterable());
             }
             LOGGER.debug("Error in ComputeService.runCompute for : " + context.description());
-            listener.onFailure(e);
+            // no driver ran, but building them may have charged the query's breaker
+            failWithUsage(listener, e, List.of(), 0L, context.queryLoad(), computePart.peakMemoryBytes(), false);
         }
     }
 

@@ -500,7 +500,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             }, ex -> {
                 if (request.analyzeOnly() == false) {
                     recordCCSTelemetry(task, executionInfo, request, ex);
-                    collectMetricsOnce(metricsCollected, executionInfo, executionInfo.failedWork(), PlanExecutor.outcomeOf(ex));
+                    DriverCompletionInfo failedWork = executionInfo.failedWork();
+                    collectMetricsOnce(metricsCollected, executionInfo, failedWork, PlanExecutor.outcomeOf(ex));
+                    request.setFailedPeakMemoryBytes(failedWork.peakMemoryBytes());
                 }
                 listener.onFailure(ex);
             })

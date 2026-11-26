@@ -39,6 +39,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -552,7 +553,6 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void testMultiValuedIdIsRejected() {
         IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
         Page page;
-        // The valid first row has already reserved breaker bytes when the second row is rejected, so they must be released
         try (
             BytesRefBlock.Builder id = blockFactory.newBytesRefBlockBuilder(2);
             BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2)
@@ -609,7 +609,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testNullTypedIdColumnLeavesIdsToTheDestination() throws IOException {
         List<Attribute> columns = List.of(
-            new ReferenceAttribute(Source.EMPTY, IntoPageWriter.ID_COLUMN, DataType.NULL),
+            new ReferenceAttribute(Source.EMPTY, IdFieldMapper.NAME, DataType.NULL),
             new ReferenceAttribute(Source.EMPTY, "host", DataType.KEYWORD)
         );
         sink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), DEST, columns, INDEX, IntoOptions.DEFAULT);
@@ -697,7 +697,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     private IntoPageWriter writerWithIds(Collisions collisions) {
         List<Attribute> columns = List.of(
-            new ReferenceAttribute(Source.EMPTY, IntoPageWriter.ID_COLUMN, DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, IdFieldMapper.NAME, DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, "host", DataType.KEYWORD)
         );
         IntoOptions options = IntoOptions.builder().collisions(collisions).build();

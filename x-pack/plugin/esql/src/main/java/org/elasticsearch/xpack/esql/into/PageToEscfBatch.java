@@ -44,13 +44,16 @@ import java.util.List;
 final class PageToEscfBatch {
     private PageToEscfBatch() { /* static class */ }
 
+    private static final int NO_SKIPPED_COLUMN = -1;
+
     /** Appends the page to partition 0 of {@code batch}, one row at a time. */
     static void append(EscfBatchBuilder batch, Page page, List<String> names, List<DataType> types) {
-        append(batch, page, names, types, -1);
+        append(batch, page, names, types, NO_SKIPPED_COLUMN);
     }
 
     /**
-     * As {@link #append(EscfBatchBuilder, Page, List, List)}, but leaves out the column at {@code skippedColumn}, if it is not negative.
+     * As {@link #append(EscfBatchBuilder, Page, List, List)}, but leaves out the column at {@code skippedColumn}, unless that is
+     * {@link #NO_SKIPPED_COLUMN}.
      */
     static void append(EscfBatchBuilder batch, Page page, List<String> names, List<DataType> types, int skippedColumn) {
         boolean[] absent = new boolean[names.size()];

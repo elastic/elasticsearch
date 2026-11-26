@@ -44,13 +44,12 @@ public record IntoOptions(boolean refresh, boolean keepGoing, Collisions collisi
         }
     }
 
-    /** What happens when a written row's {@code _id} already exists in the destination. */
     public enum Collisions {
-        /** Fails the query on the first collision. */
+        /** Fails on the first collision. */
         ABORT,
-        /** Leaves the existing document untouched and counts the collision in {@code version_conflicts}. */
+        /** Leaves the existing document, counted in {@code version_conflicts}. */
         KEEP,
-        /** Overwrites the existing document and counts it in {@code updated}. */
+        /** Overwrites the existing document, counted in {@code updated}. */
         REPLACE;
 
         /** The lower-case names users write, in the order error messages list them. */

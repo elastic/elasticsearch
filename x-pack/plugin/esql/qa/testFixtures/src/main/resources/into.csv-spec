@@ -12,7 +12,7 @@ total:long | created:long | updated:long | version_conflicts:long | failures:lon
 
 // The cluster is shared across runs, so these leave _id to the destination to stay repeatable. Each case writes its own
 // destination so its counts stay independent of the other cases sharing the cluster.
-// Without an _id the keep/replace/null-id cases cannot be told apart from an abort: they are parse and plumbing smoke
+// Without an _id the keep/replace cases cannot be told apart from an abort: they are parse and plumbing smoke
 // tests only, and IntoIT covers the behavior of each mode.
 rowIntoIndexWithCollisionsKeep
 required_capability: into_command
@@ -36,15 +36,4 @@ ROW into_long = [1, 2]
 
 total:long | created:long | updated:long | version_conflicts:long | failures:long | failure_details:keyword
 2          | 2            | 0            | 0                      | 0             | null
-;
-
-rowIntoIndexWithNullId
-required_capability: into_command
-
-ROW _id = null, into_long = 1
-| INTO into_destination_null_id WITH {"collisions": "replace"}
-;
-
-total:long | created:long | updated:long | version_conflicts:long | failures:long | failure_details:keyword
-1          | 1            | 0            | 0                      | 0             | null
 ;

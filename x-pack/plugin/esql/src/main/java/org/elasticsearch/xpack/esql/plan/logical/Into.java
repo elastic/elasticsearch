@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.into.IntoOptions;
-import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -166,12 +166,12 @@ public class Into extends UnaryPlan
             failures.add(fail(this, UNBOUNDED_SORT, sort.sourceText()));
         }
         for (Attribute column : child().output()) {
-            if (column.name().equals(IntoPageWriter.ID_COLUMN) && ID_TYPES.contains(column.dataType()) == false) {
+            if (column.name().equals(IdFieldMapper.NAME) && ID_TYPES.contains(column.dataType()) == false) {
                 failures.add(
                     fail(
                         column,
                         "INTO column [{}] must be of type [keyword] or [text], found [{}]",
-                        IntoPageWriter.ID_COLUMN,
+                        IdFieldMapper.NAME,
                         column.dataType().typeName()
                     )
                 );

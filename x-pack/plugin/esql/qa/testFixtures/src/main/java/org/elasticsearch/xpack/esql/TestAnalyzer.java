@@ -687,7 +687,6 @@ public class TestAnalyzer {
         return this;
     }
 
-    /** The coordinator's view of the cluster, for rules that check index metadata. Defaults to {@code null}, as if unavailable. */
     public TestAnalyzer projectMetadata(ProjectMetadata projectMetadata) {
         this.projectMetadata = projectMetadata;
         return this;

@@ -45,7 +45,6 @@ public class IntoSerializationTests extends AbstractLogicalPlanSerializationTest
             .build();
     }
 
-    /** Changes exactly one option, so each field's part in equality and serialization is exercised. */
     public static IntoOptions mutateIntoOptions(IntoOptions options) {
         return switch (between(0, 2)) {
             case 0 -> IntoOptions.builder()

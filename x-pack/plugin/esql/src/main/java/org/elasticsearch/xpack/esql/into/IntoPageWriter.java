@@ -36,6 +36,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
@@ -57,7 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * its own producer. The writer bounds the bulks in flight with the node's {@link EscfBulkService#defaultPolicy()} and
  * charges the query breaker and coordinating indexing pressure. Rows are written with {@code create} unless
  * {@link IntoOptions#collisions()} is {@link IntoOptions.Collisions#REPLACE}, which overwrites with {@code index}. A
- * {@value #ID_COLUMN} column sets each document's id instead of being written to its source.
+ * {@code _id} column sets each document's id instead of being written to its source.
  * A row the destination refuses fails the run, unless {@link IntoOptions#keepGoing()} is set: then it is counted and the
  * run continues. A bulk request that fails as a whole always fails the run, as does a row whose failure is transient
  * (too many requests or service unavailable), because that row was not refused by the destination and dropping it would
@@ -65,8 +66,6 @@ import java.util.concurrent.atomic.AtomicReference;
  * and not a refusal.
  */
 public final class IntoPageWriter {
-    /** The column whose value becomes the document id rather than a source field. */
-    public static final String ID_COLUMN = "_id";
 
     private static final int MAX_FAILURE_DETAIL_LENGTH = 1024;
 
@@ -85,8 +84,8 @@ public final class IntoPageWriter {
         private final IntoOptions options;
         @Nullable
         private final EscfBulkWriter writer;
-        /** Position of {@link #ID_COLUMN} in {@link #columns}, or {@code -1} when the destination assigns every id. */
-        private final int idColumn;
+        /** Position of the {@code _id} column in {@link #columns}, or {@code -1} when the destination assigns every id. */
+        private final int idColumnPosition;
         private final DocWriteRequest.OpType opType;
         private final IntoOptions.Collisions collisions;
         private final AtomicLong total = new AtomicLong();
@@ -136,7 +135,7 @@ public final class IntoPageWriter {
             this.columns = columns;
             this.types = types;
             this.options = options;
-            this.idColumn = columns.indexOf(ID_COLUMN);
+            this.idColumnPosition = columns.indexOf(IdFieldMapper.NAME);
             this.collisions = options.collisions();
             this.opType = switch (collisions) {
                 case ABORT, KEEP -> DocWriteRequest.OpType.CREATE;
@@ -361,13 +360,13 @@ public final class IntoPageWriter {
     public void consume(Page page) {
         try {
             if (producer != null && page.getPositionCount() > 0 && sink.failure.get() == null) {
-                if (sink.idColumn >= 0) {
+                if (sink.idColumnPosition >= 0) {
                     requireSingleValuedIds(page);
                 }
                 if (asyncAction.compareAndSet(false, true)) {
                     driverContext.addAsyncAction();
                 }
-                producer.add(new PageRows(page, sink.columns, sink.types, sink.destination, sink.idColumn, sink.opType), false);
+                producer.add(new PageRows(page, sink.columns, sink.types, sink.destination, sink.idColumnPosition, sink.opType), false);
                 Exception failed = sink.writer.failure();
                 if (failed != null) {
                     throw ExceptionsHelper.convertToRuntime(sink.recordWriterFailure(failed));
@@ -378,9 +377,12 @@ public final class IntoPageWriter {
         }
     }
 
-    /** Fails every driver of the run, not just this one, so a row that can never be written does not keep the others sending. */
+    /**
+     * Rejects the page if the {@code _id} of any row has several values, and fails every driver of the run, not just this one, so that
+     * a row that can never be written does not keep the others sending. Does nothing otherwise.
+     */
     private void requireSingleValuedIds(Page page) {
-        BytesRefBlock ids = page.getBlock(sink.idColumn);
+        BytesRefBlock ids = page.getBlock(sink.idColumnPosition);
         for (int row = 0; row < page.getPositionCount(); row++) {
             int count = ids.getValueCount(row);
             if (count > 1) {
@@ -394,7 +396,7 @@ public final class IntoPageWriter {
                     "INTO [{}] failed: [{}] must be single-valued, found [{}]",
                     RestStatus.BAD_REQUEST,
                     sink.destination,
-                    ID_COLUMN,
+                    IdFieldMapper.NAME,
                     values
                 );
                 sink.failure.compareAndSet(null, failed);
@@ -488,7 +490,7 @@ public final class IntoPageWriter {
         List<String> columns,
         List<DataType> types,
         String destination,
-        int idColumn,
+        int idColumnPosition,
         DocWriteRequest.OpType opType
     ) implements EscfBulkWriter.Rows {
         @Override
@@ -498,7 +500,7 @@ public final class IntoPageWriter {
 
         @Override
         public void append(EscfBatchBuilder batch) {
-            PageToEscfBatch.append(batch, page, columns, types, idColumn);
+            PageToEscfBatch.append(batch, page, columns, types, idColumnPosition);
         }
 
         @Override
@@ -506,13 +508,13 @@ public final class IntoPageWriter {
             return new IndexRequest(destination).id(documentId(row)).opType(opType);
         }
 
-        /** The {@value #ID_COLUMN} value of {@code row}, or {@code null} when the destination assigns the id. */
+        /** The {@code _id} value of {@code row}, or {@code null} when the destination assigns the id. */
         @Nullable
         private String documentId(int row) {
-            if (idColumn < 0) {
+            if (idColumnPosition < 0) {
                 return null;
             }
-            Block ids = page.getBlock(idColumn);
+            Block ids = page.getBlock(idColumnPosition);
             if (ids.isNull(row)) {
                 return null;
             }

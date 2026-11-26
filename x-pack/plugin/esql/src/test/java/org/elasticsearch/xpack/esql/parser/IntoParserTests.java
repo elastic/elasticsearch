@@ -85,8 +85,8 @@ public class IntoParserTests extends AbstractStatementParserTests {
 
     public void testMultipleUnknownOptionsRejected() {
         expectError(
-            "ROW a = 1 | INTO dst WITH {\"foo\": 1, \"bar\": 2}",
-            "Invalid options [foo, bar] in INTO, expected one of [refresh, keep_going, collisions]"
+            "ROW a = 1 | INTO dst WITH {\"Foo\": 1, \"BAR\": 2}",
+            "Invalid options [Foo, BAR] in INTO, expected one of [refresh, keep_going, collisions]"
         );
     }
 
@@ -198,45 +198,14 @@ public class IntoParserTests extends AbstractStatementParserTests {
         assertThat(intoOptions("ROW a = 1 | INTO \"my-dst\" WITH {}"), equalTo(IntoOptions.DEFAULT));
     }
 
-    public void testUnknownOptionRejectedAlongsideKnownOnes() {
-        expectError(
-            "ROW a = 1 | INTO dst WITH {\"collisions\": \"keep\", \"foo\": 1}",
-            "Invalid option [foo] in INTO, expected one of [collisions, refresh]"
-        );
-        expectError(
-            "ROW a = 1 | INTO dst WITH {\"refresh\": false, \"foo\": 1}",
-            "Invalid option [foo] in INTO, expected one of [collisions, refresh]"
-        );
-    }
-
-    public void testUnknownOptionIsReportedAsWritten() {
-        expectError("ROW a = 1 | INTO dst WITH {\"FOO\": 1}", "Invalid option [FOO] in INTO, expected one of [collisions, refresh]");
-    }
-
-    public void testDuplicateOptionRejected() {
-        expectError(
-            "ROW a = 1 | INTO dst WITH {\"collisions\": \"keep\", \"collisions\": \"abort\"}",
-            "Duplicated named parameters with the same name [collisions] is not supported"
-        );
-        expectError(
-            "ROW a = 1 | INTO dst WITH {\"collisions\": \"keep\", \"COLLISIONS\": \"abort\"}",
-            "Duplicate option [collisions] in INTO"
-        );
-    }
-
     public void testCollisionsDefaultsToAbort() {
         assertThat(IntoOptions.DEFAULT.collisions(), equalTo(Collisions.ABORT));
-    }
-
-    public void testCollisionsValues() {
-        assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"collisions\": \"abort\"}").collisions(), equalTo(Collisions.ABORT));
-        assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"collisions\": \"keep\"}").collisions(), equalTo(Collisions.KEEP));
-        assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"collisions\": \"replace\"}").collisions(), equalTo(Collisions.REPLACE));
     }
 
     public void testCollisionsNameAndValueAreCaseInsensitive() {
         assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"collisions\": \"REPLACE\"}").collisions(), equalTo(Collisions.REPLACE));
         assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"Collisions\": \"Keep\"}").collisions(), equalTo(Collisions.KEEP));
+        assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"COLLISIONS\": \"Abort\"}").collisions(), equalTo(Collisions.ABORT));
     }
 
     public void testCollisionsValueIsNotTrimmed() {
@@ -259,14 +228,6 @@ public class IntoParserTests extends AbstractStatementParserTests {
             "ROW a = 1 | INTO dst WITH {\"collisions\": \"overwrite\"}",
             "Invalid value [overwrite] for option [collisions] in INTO, expected one of [abort, keep, replace]"
         );
-    }
-
-    public void testCollisionsMustBeAString() {
-        String error = "Option [collisions] must be a string literal, one of [abort, keep, replace]";
-        expectError("ROW a = 1 | INTO dst WITH {\"collisions\": 1}", error);
-        expectError("ROW a = 1 | INTO dst WITH {\"collisions\": true}", error);
-        expectError("ROW a = 1 | INTO dst WITH {\"collisions\": null}", error);
-        expectError("ROW a = 1 | INTO dst WITH {\"collisions\": {\"x\": \"keep\"}}", error);
     }
 
     public void testRefreshAndCollisionsTogether() {

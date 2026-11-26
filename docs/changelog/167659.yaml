@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 167659
+summary: Restore the cluster state encryption key when the elected master can't read it
+type: bug

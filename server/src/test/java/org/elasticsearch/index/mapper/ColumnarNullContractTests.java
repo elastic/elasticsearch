@@ -50,6 +50,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         && configuration.mode() == IndexMode.VECTORDB_COLUMNAR;
 
     private static final List<String> NUMBERS = List.of("long", "integer", "short", "byte", "double", "float", "half_float");
+    private static final String MALFORMED_DATE = "not a date";
     private static final List<String> STRINGS = List.of("keyword", "text");
     private static final List<String> PLAIN_TYPES = List.of(
         "long",
@@ -133,7 +134,25 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         final int[] calls = new int[1];
         return plain("long").withParameters(Map.of("ignore_malformed", true))
             .withValues(() -> calls[0]++ % 2 == 0 ? randomLong() : "malformed-" + randomAlphaOfLength(3))
+            .withIndexable(value -> value instanceof Long)
             .batchedGroups((configuration, shape) -> false);
+    }
+
+    // NOTE: the BATCH strategy has no test for this scenario. DateFieldMapper#doMapColumnBatch does not apply ignore_malformed: it throws
+    // an IllegalArgumentException for a malformed value and relies on the engine falling back after logging it. That is not the
+    // UnsupportedOperationException that asks for the fallback, so the strategy reports it as a mapper failure.
+    private static Scenario dateIgnoreMalformed() {
+        final int[] calls = new int[1];
+        final Supplier<Object> dates = values("date");
+        return plain("date").withParameters(Map.of("ignore_malformed", true))
+            .withValues(() -> calls[0]++ % 2 == 0 ? dates.get() : MALFORMED_DATE)
+            .withCanonical(value -> value.equals(MALFORMED_DATE) ? MALFORMED_DATE : Instant.parse(String.valueOf(value)).toString())
+            .withIndexable(value -> value.equals(MALFORMED_DATE) == false)
+            .batchedGroups((configuration, shape) -> false);
+    }
+
+    private static Scenario keywordEmptyString() {
+        return plain("keyword").withValues(() -> "");
     }
 
     private static Scenario keywordIgnoreAbove() {
@@ -323,6 +342,63 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testLongIgnoreMalformedSourceBatch() throws IOException {
         assertSourceDropsNullElements(longIgnoreMalformed(), IndexingStrategy.BATCH);
+    }
+
+    public void testLongIgnoreMalformedExistsDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(longIgnoreMalformed(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testLongIgnoreMalformedExistsBatch() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(longIgnoreMalformed(), IndexingStrategy.BATCH);
+    }
+
+    public void testLongIgnoreMalformedKeepsTheIgnoredValuesDocument() throws IOException {
+        assertSourceHoldsTheValues(longIgnoreMalformed(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testLongIgnoreMalformedKeepsTheIgnoredValuesBatch() throws IOException {
+        assertSourceHoldsTheValues(longIgnoreMalformed(), IndexingStrategy.BATCH);
+    }
+
+    public void testDateIgnoreMalformedExistsDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(dateIgnoreMalformed(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testDateIgnoreMalformedKeepsTheIgnoredValuesDocument() throws IOException {
+        assertSourceHoldsTheValues(dateIgnoreMalformed(), IndexingStrategy.DOCUMENT);
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
+    public void testDateIgnoreMalformedSourceDocument() throws IOException {
+        assertSourceDropsNullElements(dateIgnoreMalformed(), IndexingStrategy.DOCUMENT);
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)
+    public void testKeywordEmptyStringExistsDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(keywordEmptyString(), IndexingStrategy.DOCUMENT);
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)
+    public void testKeywordEmptyStringExistsBatch() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(keywordEmptyString(), IndexingStrategy.BATCH);
+    }
+
+    public void testKeywordEmptyStringIsAValueDocument() throws IOException {
+        assertSourceHoldsTheValues(keywordEmptyString(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testKeywordEmptyStringIsAValueBatch() throws IOException {
+        assertSourceHoldsTheValues(keywordEmptyString(), IndexingStrategy.BATCH);
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
+    public void testKeywordEmptyStringSourceDocument() throws IOException {
+        assertSourceDropsNullElements(keywordEmptyString(), IndexingStrategy.DOCUMENT);
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
+    public void testKeywordEmptyStringSourceBatch() throws IOException {
+        assertSourceDropsNullElements(keywordEmptyString(), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)

@@ -141,6 +141,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
      * @param batchedGroups the configurations and column shapes that are known to execute as a batch today
      * @param modes         the strict modes that accept the type
      * @param singleValued  whether the type rejects a document with more than one value, which the documents then respect
+     * @param indexable     whether a value is indexed, which is false for a value that {@code ignore_malformed} keeps in the source only
      */
     protected record Scenario(
         String type,
@@ -151,36 +152,45 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         boolean hasIndex,
         BiPredicate<Configuration, Integer> batchedGroups,
         List<IndexMode> modes,
-        boolean singleValued
+        boolean singleValued,
+        Predicate<Object> indexable
     ) {
         public Scenario withParameters(Map<String, Object> parameters) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued);
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued, indexable);
         }
 
         public Scenario withNullValue(Object nullValue) {
             final Map<String, Object> withNullValue = new HashMap<>(parameters);
             withNullValue.put("null_value", nullValue);
-            return new Scenario(type, withNullValue, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued);
+            return new Scenario(type, withNullValue, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued, indexable);
         }
 
         public Scenario withValues(Supplier<Object> values) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued);
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued, indexable);
         }
 
         public Scenario withCanonical(Function<Object, String> canonical) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued);
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued, indexable);
         }
 
         public Scenario withoutIndex() {
-            return new Scenario(type, parameters, values, nullValue, canonical, false, batchedGroups, modes, singleValued);
+            return new Scenario(type, parameters, values, nullValue, canonical, false, batchedGroups, modes, singleValued, indexable);
         }
 
         public Scenario asSingleValued() {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, true);
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, true, indexable);
+        }
+
+        public Scenario withIndexable(Predicate<Object> indexable) {
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued, indexable);
         }
 
         public Scenario batchedGroups(BiPredicate<Configuration, Integer> batchedGroups) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued);
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued, indexable);
+        }
+
+        boolean hasValue(TestDocument document) {
+            return expected(document).stream().anyMatch(indexable);
         }
 
         List<Object> expected(TestDocument document) {
@@ -200,7 +210,18 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
     }
 
     protected static Scenario scenario(String type, Supplier<Object> values) {
-        return new Scenario(type, Map.of(), values, null, String::valueOf, true, (configuration, group) -> false, MODES, false);
+        return new Scenario(
+            type,
+            Map.of(),
+            values,
+            null,
+            String::valueOf,
+            true,
+            (configuration, group) -> false,
+            MODES,
+            false,
+            value -> true
+        );
     }
 
     protected static TestDocument absent() {
@@ -401,7 +422,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             (configuration, mapperService, indexWriter, docs) -> {
                 final List<Integer> expected = new ArrayList<>();
                 for (int i = 0; i < docs.size(); i++) {
-                    if (scenario.expected(docs.get(i)).isEmpty() == false) {
+                    if (scenario.hasValue(docs.get(i))) {
                         expected.add(i);
                     }
                 }
@@ -464,6 +485,19 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             ALL,
             documentGroups(scenario),
             DOCUMENT_SHAPES,
+            (configuration, mapperService, indexWriter, docs) -> {
+                assertSources(scenario, mapperService, indexWriter, docs, false);
+            }
+        );
+    }
+
+    protected final void assertSourceHoldsTheValues(Scenario scenario, IndexingStrategy strategy) throws IOException {
+        forEachConfiguration(
+            scenario,
+            strategy,
+            ALL,
+            documentGroups(scenario).subList(0, 2),
+            List.of(SCALARS, ARRAYS),
             (configuration, mapperService, indexWriter, docs) -> {
                 assertSources(scenario, mapperService, indexWriter, docs, false);
             }

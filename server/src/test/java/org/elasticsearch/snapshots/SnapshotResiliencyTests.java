@@ -1880,25 +1880,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             .cluster()
                             .createSnapshot(
                                 new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).waitForCompletion(false),
-                                ActionListener.wrap(
-                                    response -> fail("different UUID should not start while name is in-progress"),
-                                    e -> {
-                                        assertThat(
-                                            ExceptionsHelper.unwrapCause(e),
-                                            instanceOf(SnapshotNameAlreadyInUseException.class)
+                                ActionListener.wrap(response -> fail("different UUID should not start while name is in-progress"), e -> {
+                                    assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(SnapshotNameAlreadyInUseException.class));
+                                    client().admin()
+                                        .cluster()
+                                        .createSnapshot(
+                                            new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).uuid(uuid)
+                                                .waitForCompletion(false),
+                                            ActionListener.wrap(sameUuidResponse -> {
+                                                sequencer.releaseBlock(snapshotName, index);
+                                                doneListener.onResponse(null);
+                                            }, doneListener::onFailure)
                                         );
-                                        client().admin()
-                                            .cluster()
-                                            .createSnapshot(
-                                                new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).uuid(uuid)
-                                                    .waitForCompletion(false),
-                                                ActionListener.wrap(sameUuidResponse -> {
-                                                    sequencer.releaseBlock(snapshotName, index);
-                                                    doneListener.onResponse(null);
-                                                }, doneListener::onFailure)
-                                            );
-                                    }
-                                )
+                                })
                             );
                     }, doneListener::onFailure)
                 );

@@ -111,8 +111,10 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
     public void testNoLocalRoutingNodeReportsNothing() {
         var service = mock(IndicesClusterStateService.class);
         var state = mock(ClusterState.class);
+        var nodes = mock(DiscoveryNodes.class);
+        when(nodes.getLocalNodeId()).thenReturn(LOCAL_NODE_ID);
+        when(state.nodes()).thenReturn(nodes);
         when(state.getRoutingNodes()).thenReturn(mock(RoutingNodes.class));
-        when(state.nodes()).thenReturn(mock(DiscoveryNodes.class));
         var tracker = new LocalRecoveryRetriesHealthTracker(clusterService(state), () -> service);
 
         assertThat(tracker.determineCurrentHealth(), equalTo(LocalRecoveryRetriesHealthInfo.EMPTY));

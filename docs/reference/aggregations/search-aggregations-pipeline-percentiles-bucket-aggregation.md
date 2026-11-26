@@ -2,6 +2,9 @@
 navigation_title: "Percentiles bucket"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-pipeline-percentiles-bucket-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Percentiles bucket aggregation [search-aggregations-pipeline-percentiles-bucket-aggregation]

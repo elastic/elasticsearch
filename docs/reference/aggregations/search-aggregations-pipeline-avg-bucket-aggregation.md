@@ -2,6 +2,9 @@
 navigation_title: "Average bucket"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-pipeline-avg-bucket-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Average bucket aggregation [search-aggregations-pipeline-avg-bucket-aggregation]

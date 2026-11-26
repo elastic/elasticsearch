@@ -316,7 +316,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             .startObject("vector")
             .field("type", "dense_vector")
             .field("dims", dims)
-            .field("element_type", elementType.toString().toLowerCase(Locale.ROOT))
+            .field("element_type", elementType)
             .field("index", index);
         if (index) {
             mapping.field("similarity", similarity.name().toLowerCase(Locale.ROOT));

@@ -31,6 +31,7 @@ import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTCLASS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests how {@link ESRandomizedRunner} applies filters, by looking at the descriptions that remain after filtering a runner for a
@@ -199,6 +200,30 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
         runner.filter(new OtherFilter("testTwo"));
 
         assertThat(leafNames(runner.getDescription()), containsInAnyOrder("testOne", "testThree"));
+    }
+
+    /** The Vintage engine is quadratic in the number of tests under suites that are not the root, so the tests must be its direct children. */
+    public void testDescriptionIsFlat() throws Exception {
+        ESRandomizedRunner runner = parameterizedFixtureRunner();
+
+        Description description = runner.getDescription();
+
+        assertThat(description.getChildren().size(), equalTo(4));
+        for (Description child : description.getChildren()) {
+            Assert.assertTrue(child.isTest());
+        }
+    }
+
+    public void testDescriptionIsFlatAfterFiltering() throws Exception {
+        ESRandomizedRunner runner = parameterizedFixtureRunner();
+        runner.getDescription();
+
+        runner.filter(new VintageLikeFilter("testOne {p=b}"));
+
+        assertThat(runner.getDescription().getChildren().size(), equalTo(3));
+        for (Description child : runner.getDescription().getChildren()) {
+            Assert.assertTrue(child.isTest());
+        }
     }
 
     private static ESRandomizedRunner parameterizedFixtureRunner() throws Exception {

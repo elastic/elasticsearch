@@ -33,6 +33,10 @@ import java.util.Set;
  * <p>
  * For filters built by Vintage this runner therefore evaluates the filter once per real test description and only lets the
  * accepted ones through.
+ * <p>
+ * The description is also flattened to the suite and its tests, dropping the per-method suites {@link RandomizedRunner} adds. It runs
+ * tests in random order, so with those suites the Vintage engine keeps one per method in progress at once, and on every test start it
+ * copies and scans all their children: quadratic in the number of tests, which made suites with tens of thousands of tests time out.
  */
 public final class ESRandomizedRunner extends Runner implements Filterable {
 
@@ -40,6 +44,7 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
 
     private final RandomizedRunner delegate;
     private final String vintageFilterClassNamePrefix;
+    private volatile Description flatDescription;
 
     @SuppressWarnings("unused") // main Runner constructor
     public ESRandomizedRunner(Class<?> suiteClass) throws InitializationError {
@@ -54,7 +59,30 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
 
     @Override
     public Description getDescription() {
-        return delegate.getDescription();
+        Description flat = flatDescription;
+        if (flat == null) {
+            flat = flatten(delegate.getDescription());
+            flatDescription = flat;
+        }
+        return flat;
+    }
+
+    private static Description flatten(Description suite) {
+        Description flat = suite.childlessCopy();
+        addLeaves(suite, flat);
+        return flat;
+    }
+
+    private static void addLeaves(Description description, Description flat) {
+        for (Description child : description.getChildren()) {
+            if (child.isTest()) {
+                if (child.getMethodName() != null) {
+                    flat.addChild(child);
+                }
+            } else {
+                addLeaves(child, flat);
+            }
+        }
     }
 
     @Override
@@ -64,6 +92,7 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
 
     @Override
     public void filter(Filter filter) throws NoTestsRemainException {
+        flatDescription = null;
         if (filter.getClass().getName().startsWith(vintageFilterClassNamePrefix) == false) {
             delegate.filter(filter);
             return;

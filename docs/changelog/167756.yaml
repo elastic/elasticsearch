@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 167756
+summary: Separate `doc_values_skippers` from `doc_values` in disk usage API
+type: enhancement

@@ -4373,7 +4373,7 @@ public class EsqlCapabilities {
          * label container without {@code __name__} and a side without one by the empty signature, as Prometheus signatures do.
          * Gates csv-spec coverage of those shapes.
          */
-        PROMQL_BINARY_OPAQUE_SIGNATURE_MATCH(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_BINARY_OPAQUE_SIGNATURE_MATCH(PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled()),
 
         /**
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.

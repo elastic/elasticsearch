@@ -404,10 +404,10 @@ public final class TaskResultsCleanupService extends AbstractLifecycleComponent 
         if (currentLoop == null) {
             return false;
         }
-        logger.trace("stopping task results cleanup, no projects to cleanup: [{}]", projectsToCleanup.isEmpty());
+        logger.trace(() -> "stopping task results cleanup" + (projectsToCleanup.isEmpty() ? ", no projects to cleanup" : ""));
         currentLoop.cancel();
         currentLoop = null;
-        logger.debug("stopped task results cleanup, no projects to cleanup: [{}]", projectsToCleanup.isEmpty());
+        logger.debug(() -> "stopped task results cleanup" + (projectsToCleanup.isEmpty() ? ", no projects to cleanup" : ""));
         return true;
     }
 }

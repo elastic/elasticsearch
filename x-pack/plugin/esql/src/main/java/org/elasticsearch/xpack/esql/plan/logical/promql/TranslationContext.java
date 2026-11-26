@@ -221,13 +221,9 @@ public record TranslationContext(
             LogicalPlan plan = emitTimeSeriesAlias(intermediateResult, new NameId());
             return doTranslateFinal(plan, intermediateResult.kind().constant);
         }
-        // Compile every branch as its own module (own step/value ids, own shifted evaluation timestamp), then link. Prometheus
-        // matches the branches on their labels but the metric name, so each also exposes its label container without it.
-        TranslationContext branch = dropsMetricName()
-            ? withRequired(TranslationSchema.union(required, open(List.of(LabelMatcher.NAME))))
-            : this;
+        // Compile every branch as its own module (own step/value ids, own shifted evaluation timestamp), then link.
         var intermediateResultPlan = doTranslateUnion(
-            branches.stream().map(b -> branch.translateIntermediate(b, new NameId(), new NameId())).toList()
+            branches.stream().map(b -> translateIntermediate(b, new NameId(), new NameId())).toList()
         );
         return doTranslateFinal(intermediateResultPlan, false);
     }
@@ -304,7 +300,6 @@ public record TranslationContext(
             // Drop null-valued rows per branch so an absent left side does not shadow a present right side.
             var ir = intermediateResults.get(i);
             LogicalPlan branchPlan = emitNullsFilter(source, emitTimeSeriesAlias(ir, new NameId()), ir.valueColumn());
-            branchPlan = emitMatchKey(ir, branchPlan);
             branchPlan = alignLabelColumnNames(branchPlan, columnNamesByLabel);
             var branchTagExpression = new Alias(source, cmd.branchColumnName(), new Literal(source, i, DataType.INTEGER));
             LogicalPlan tagged = new Eval(source, branchPlan, List.of(branchTagExpression));
@@ -320,44 +315,29 @@ public record TranslationContext(
         List<Attribute> unionOutput = VectorBinarySet.unionOutputByName(branchPlans);
         var union = new UnionAll(source, branchPlans, unionOutput);
 
-        // Left-preferring dedup: group by every column except the value and the branch tag, keep the lowest branch. Where the
-        // source stores the metric name, the label container without it stands in for _timeseries and __name__ is no key.
+        // Left-preferring dedup: group by every column except the value and the branch tag, keep the lowest branch. Where
+        // results drop the metric name a series' labels group without it, which Prometheus' or leaves out.
         var groupings = new ArrayList<Expression>();
         Attribute branchAttr = null;
+        LogicalPlan plan = union;
         for (Attribute attr : unionOutput) {
             if (attr.name().equals(cmd.branchColumnName())) {
                 branchAttr = attr;
-            } else if (attr.name().equals(cmd.valueColumnName()) == false
-                && (dropsMetricName() == false
-                    || (MetadataAttribute.TIMESERIES.equals(attr.name()) == false && LabelMatcher.NAME.equals(mapFinite(attr)) == false))) {
-                        groupings.add(attr);
-                    }
+            } else if (attr.name().startsWith(MetadataAttribute.TIMESERIES + "$")) {
+                // a packing a branch derives from its _timeseries, which already keys the series
+                continue;
+            } else if (dropsMetricName() && LabelMatcher.NAME.equals(mapFinite(attr))) {
+                continue;
+            } else if (attr.name().equals(MetadataAttribute.TIMESERIES) && dropsMetricName()) {
+                Alias signature = new Alias(source, "$prom_sig", unset(attr, Stream.of(LabelMatcher.NAME)));
+                plan = new Eval(source, plan, List.of(signature));
+                groupings.add(signature.toAttribute());
+            } else if (attr.name().equals(cmd.valueColumnName()) == false) {
+                groupings.add(attr);
+            }
         }
         var order = new Order(source, branchAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
-        return new TopNBy(source, union, List.of(order), new Literal(source, 1, DataType.INTEGER), groupings);
-    }
-
-    /**
-     * The branch's label container without the metric name, under one name in every branch: what an {@code or} matches
-     * series on where the source stores the metric name. The finest packing leaving {@code __name__} out, which the
-     * branch carries as {@link #translateFinal} requires it; a branch without one matches on its label columns alone.
-     */
-    private LogicalPlan emitMatchKey(IntermediateResult branch, LogicalPlan plan) {
-        if (dropsMetricName() == false) {
-            return plan;
-        }
-        Set<String> skip = branch.schema()
-            .skips()
-            .stream()
-            .filter(s -> s.contains(LabelMatcher.NAME))
-            .min(Comparator.comparingInt(Set::size))
-            .orElse(null);
-        if (skip == null) {
-            return plan;
-        }
-        Attribute packed = branch.packed(skip);
-        assert packed != null : "invariant: packing " + skip + " must be carried by the finished branch";
-        return new Eval(cmd.source(), plan, List.of(new Alias(cmd.source(), mapOpen(Set.of(LabelMatcher.NAME)), packed)));
+        return new TopNBy(source, plan, List.of(order), new Literal(source, 1, DataType.INTEGER), groupings);
     }
 
     /**

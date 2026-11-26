@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardAllocationId;
@@ -29,6 +28,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.node.HealthInfoTests;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
@@ -37,6 +37,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.stream.Collectors.groupingBy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -45,6 +46,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
+
+    private static final String LOCAL_NODE_ID = "local-node";
 
     public void testNoShards() {
         assertThat(determineHealth(Map.of()), equalTo(LocalRecoveryRetriesHealthInfo.EMPTY));
@@ -117,9 +120,7 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         int localRetries = randomValueOtherThan(defaultRetries, () -> randomIntBetween(1, 10));
         when(service.getLocalRecoveryRetryCount(localRouting)).thenReturn(localRetries);
 
-        var clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(state);
-        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService, () -> service);
+        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService(state), () -> service);
 
         var health = tracker.determineCurrentHealth();
 
@@ -127,17 +128,21 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         verify(service, never()).getLocalRecoveryRetryCount(remoteRouting);
     }
 
-    /// The local node may not be in the routing table at all (non-data node, or not
-    /// yet joined), in which case there's nothing to report rather than a null pointer.
+    /// The local node may not be in the routing table at all (non-data node, or not yet joined), in which case
+    /// there's nothing to report rather than a null pointer. This can't be modeled by the cluster-state-building
+    /// helper, so we mock it here.
     public void testNoLocalRoutingNodeReportsNothing() {
         var service = mock(IndicesClusterStateService.class);
-        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService(null), () -> service);
+        var state = mock(ClusterState.class);
+        when(state.getRoutingNodes()).thenReturn(mock(RoutingNodes.class));
+        when(state.nodes()).thenReturn(mock(DiscoveryNodes.class));
+        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService(state), () -> service);
 
         assertThat(tracker.determineCurrentHealth(), equalTo(LocalRecoveryRetriesHealthInfo.EMPTY));
     }
 
     public void testSetBuilder() {
-        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService(List.of()), () -> mock(IndicesClusterStateService.class));
+        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService(state(List.of())), () -> mock(IndicesClusterStateService.class));
         var builder = mock(UpdateHealthInfoCacheAction.Request.Builder.class);
         var health = new LocalRecoveryRetriesHealthInfo(Map.of(HealthInfoTests.randomShardAllocationId(), randomIntBetween(1, 10)));
 
@@ -149,40 +154,51 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
     private static LocalRecoveryRetriesHealthInfo determineHealth(Map<ShardRouting, Integer> routingsWithRetries) {
         var service = mock(IndicesClusterStateService.class);
         routingsWithRetries.forEach((routing, retries) -> when(service.getLocalRecoveryRetryCount(routing)).thenReturn(retries));
-        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService(List.copyOf(routingsWithRetries.keySet())), () -> service);
+        var tracker = new LocalRecoveryRetriesHealthTracker(
+            clusterService(state(List.copyOf(routingsWithRetries.keySet()))),
+            () -> service
+        );
         return tracker.determineCurrentHealth();
     }
 
-    /// Creates a [ClusterService] whose [ClusterState#getRoutingNodes] resolves the local node to a [RoutingNode]
-    /// iterating over [routings], or to no [RoutingNode] at all when `routings` is null.
-    ///
-    /// Mocks are used because [ClusterState] and friends are plain data holders that only need to answer a
-    /// handful of calls here -- the tracker only reads the local node's shard routings from them.
-    private static ClusterService clusterService(List<ShardRouting> routings) {
-        String localNodeId = randomAlphaOfLength(8);
-        var routingNodes = mock(RoutingNodes.class);
-        if (routings == null) {
-            when(routingNodes.node(localNodeId)).thenReturn(null);
-        } else {
-            var routingNode = mock(RoutingNode.class);
-            when(routingNode.iterator()).thenAnswer(invocation -> routings.iterator());
-            when(routingNodes.node(localNodeId)).thenReturn(routingNode);
-        }
-        var discoveryNodes = mock(DiscoveryNodes.class);
-        when(discoveryNodes.getLocalNodeId()).thenReturn(localNodeId);
-        var state = mock(ClusterState.class);
-        when(state.getRoutingNodes()).thenReturn(routingNodes);
-        when(state.nodes()).thenReturn(discoveryNodes);
+    private static ClusterService clusterService(ClusterState state) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
         return clusterService;
     }
 
-    private static ShardRouting routing(ShardId shardId, ShardRoutingState routingState) {
-        return TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(8), true, routingState);
+    /// Builds a real [ClusterState] with routing table matching the provided `routings`,
+    /// all assigned to the local node, with a different node as master.
+    private static ClusterState state(List<ShardRouting> routings) {
+        ProjectMetadata.Builder projectMetadata = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        for (var entry : routings.stream().collect(groupingBy(ShardRouting::index)).entrySet()) {
+            Index index = entry.getKey();
+            List<ShardRouting> shardsInIndex = entry.getValue();
+            IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+                .settings(indexSettings(IndexVersion.current(), index.getUUID(), shardsInIndex.size(), 0))
+                .build();
+            IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+            shardsInIndex.forEach(indexRoutingTable::addShard);
+            projectMetadata.put(indexMetadata, false);
+            routingTable.add(indexRoutingTable);
+        }
+
+        DiscoveryNode localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(randomAlphaOfLength(8));
+        return ClusterState.builder(ClusterStateCreationUtils.state(localNode, masterNode, new DiscoveryNode[] { localNode }))
+            .metadata(Metadata.builder().put(projectMetadata))
+            .routingTable(GlobalRoutingTable.builder().put(Metadata.DEFAULT_PROJECT_ID, routingTable).build())
+            .build();
     }
 
+    private static ShardRouting routing(ShardId shardId, ShardRoutingState routingState) {
+        return TestShardRouting.newShardRouting(shardId, LOCAL_NODE_ID, true, routingState);
+    }
+
+    /// Always shard 0: each call gets its own fresh, independent index, so every group in [state] has exactly
+    /// one contiguous shard -- IndexRoutingTable can't have gaps in its shard numbering.
     private static ShardId randomShardId() {
-        return new ShardId(randomAlphaOfLength(8), randomAlphaOfLength(22), randomIntBetween(0, 5));
+        return new ShardId(randomAlphaOfLength(8), randomAlphaOfLength(22), 0);
     }
 }

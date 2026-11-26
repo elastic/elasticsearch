@@ -23,9 +23,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.LeafCollector;
@@ -34,9 +37,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.CheckedConsumer;
@@ -70,12 +77,16 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     private static final String RARE_TERM = "rare";
     private static final int RARE_DOCS = 5;
     private static final int NUM_DOCS = 2000;
+    /** Upper bound of the dense range, which matches the documents with values 0 to three quarters of {@link #NUM_DOCS}. */
+    private static final int DENSE_UPPER = NUM_DOCS * 3 / 4;
 
     private Directory directory;
     private DirectoryReader reader;
+    private TrackingCircuitBreaker breaker;
 
     @Before
     public void initDirectoryAndReader() throws Exception {
+        breaker = new TrackingCircuitBreaker(-1L);
         directory = newDirectory();
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
             for (int docId = 0; docId < NUM_DOCS; docId++) {
@@ -97,6 +108,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     @After
     public void closeDirectoryAndReader() throws Exception {
         IOUtils.close(reader, directory);
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public void testDenseRangeChargesAndReleasesAcrossSearch() throws IOException {
@@ -104,25 +116,94 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     public void testIndexOrDocValuesRangeChargesAndReleasesAcrossSearch() throws IOException {
-        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L);
+        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, DENSE_UPPER);
         assertChargesThenReleases(new IndexOrDocValuesQuery(denseRangeQuery(), dvQuery));
     }
 
+    public void testBoostedRangeChargesAndReleasesAcrossSearch() throws IOException {
+        assertChargesThenReleases(new BoostQuery(denseRangeQuery(), 2f));
+    }
+
+    public void testBoostedIndexOrDocValuesRangeChargesAndReleasesAcrossSearch() throws IOException {
+        assertChargesThenReleases(new BoostQuery(denseIndexOrDocValuesRangeQuery(), 2f));
+    }
+
+    /** On an index not sorted on the field, the index-sort range runs its fallback, which builds the points result set. */
+    public void testIndexSortRangeChargesWhenFallbackRuns() throws IOException {
+        assertChargesThenReleases(indexSortRangeQuery(denseIndexOrDocValuesRangeQuery()));
+        assertChargesThenReleases(new BoostQuery(indexSortRangeQuery(denseIndexOrDocValuesRangeQuery()), 2f));
+    }
+
+    /** The constant score query hands its boosted child back to the searcher, which charges it there and only there. */
+    public void testConstantScoreOverBoostedRangeIsChargedOnce() throws IOException {
+        try (ContextIndexSearcher searcher = newContextIndexSearcher(reader)) {
+            searcher.setCircuitBreaker(breaker);
+            Query query = new ConstantScoreQuery(new BoostQuery(denseRangeQuery(), 2f));
+            // Not rewritten: the rewrite would drop the boost under the constant score query.
+            Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            assertThat(reader.leaves(), hasSize(1));
+            chargeAgainst(weight, reader.leaves().get(0));
+            assertThat(breaker.charges(), hasSize(1));
+        }
+    }
+
+    /** Single-valued doc values on the primary sort field are answered from the index sort, which allocates nothing. */
+    public void testIndexSortRangeAnsweredFromSortChargesNothing() throws Exception {
+        withIndexSortedReader(false, sortedReader -> {
+            int hits = BreakerWeightTestUtils.runSearch(sortedReader, indexSortRangeQuery(denseIndexOrDocValuesRangeQuery()), breaker);
+            assertThat(hits, equalTo(DENSE_UPPER + 1));
+            assertThat("a range answered from the index sort builds no result set", breaker.peak(), equalTo(0L));
+        });
+    }
+
+    /** Multivalued doc values cannot be answered from the index sort, so the fallback builds the points result set. */
+    public void testMultiValuedIndexSortRangeChargesFallback() throws Exception {
+        withIndexSortedReader(true, sortedReader -> {
+            int hits = BreakerWeightTestUtils.runSearch(sortedReader, indexSortRangeQuery(denseIndexOrDocValuesRangeQuery()), breaker);
+            assertThat(hits, greaterThan(0));
+            assertThat("the fallback must charge execution RAM while it runs", breaker.peak(), greaterThan(0L));
+        });
+    }
+
+    /**
+     * Lucene answers from the index sort only on an {@code INT} or {@code LONG} sort, so on a {@code DOUBLE} sort the fallback
+     * builds the points result set. The points are two-dimensional, which keeps Lucene from answering through them instead.
+     */
+    public void testIndexSortRangeOnOtherSortTypeChargesFallback() throws Exception {
+        try (Directory sortedDirectory = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig(null).setIndexSort(
+                new Sort(new SortedNumericSortField(FIELD, SortField.Type.DOUBLE))
+            );
+            try (IndexWriter writer = new IndexWriter(sortedDirectory, config)) {
+                for (int docId = 0; docId < NUM_DOCS; docId++) {
+                    Document doc = new Document();
+                    doc.add(new LongPoint(FIELD, docId, docId));
+                    doc.add(new SortedNumericDocValuesField(FIELD, NumericUtils.doubleToSortableLong(docId)));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader sortedReader = DirectoryReader.open(sortedDirectory)) {
+                Query fallback = LongPoint.newRangeQuery(FIELD, new long[] { 0L, 0L }, new long[] { DENSE_UPPER, DENSE_UPPER });
+                int hits = BreakerWeightTestUtils.runSearch(sortedReader, indexSortRangeQuery(fallback), breaker);
+                assertThat("the fallback must answer the range", hits, equalTo(DENSE_UPPER + 1));
+                assertThat("the fallback must charge execution RAM while it runs", breaker.peak(), greaterThan(0L));
+            }
+        }
+    }
+
     public void testMatchAllRangeChargesNothing() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         runSearch(LongPoint.newRangeQuery(FIELD, Long.MIN_VALUE, Long.MAX_VALUE), breaker);
         assertThat("a match-all range allocates no result bitset", breaker.peak(), equalTo(0L));
-        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public void testExpensiveRangeTripsBreakerWithoutLeaking() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(100L);
-        expectThrows(CircuitBreakingException.class, () -> runSearch(denseRangeQuery(), breaker));
-        assertThat("a tripped reservation must not leak onto the breaker", breaker.getUsed(), equalTo(0L));
+        TrackingCircuitBreaker tinyBreaker = new TrackingCircuitBreaker(100L);
+        expectThrows(CircuitBreakingException.class, () -> runSearch(denseRangeQuery(), tinyBreaker));
+        assertThat("a tripped reservation must not leak onto the breaker", tinyBreaker.getUsed(), equalTo(0L));
     }
 
     public void testPointRangeAccountingNotAllocatedWithoutPointRangeQuery() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
         searcher.setCircuitBreaker(breaker);
         int hits = searcher.search(new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM)), new CountingCollectorManager());
@@ -134,7 +215,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     public void testPointRangeAccountingAllocatedLazilyForPointRangeQuery() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
         searcher.setCircuitBreaker(breaker);
         assertFalse("accounting must not be allocated before any query has run", searcher.hasLeafExecutionAccounting());
@@ -143,34 +223,31 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     public void testPlainRangeInConjunctionChargesViaScorerGetPath() throws IOException {
-        Query dv = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L);
+        Query dv = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, DENSE_UPPER);
         assertChargesThenReleases(conjunction(denseRangeQuery(), dv));
     }
 
     public void testIndexOrDocValuesInConjunctionChargesWhenPointsBranchSelected() throws IOException {
         Query indexOrDocValues = new IndexOrDocValuesQuery(
             denseRangeQuery(),
-            SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L)
+            SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, DENSE_UPPER)
         );
-        Query lead = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L);
+        Query lead = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, DENSE_UPPER);
         assertChargesThenReleases(conjunction(indexOrDocValues, lead));
     }
 
     public void testIndexOrDocValuesInConjunctionSkipsChargeWhenDocValuesBranchSelected() throws IOException {
         Query indexOrDocValues = new IndexOrDocValuesQuery(
             denseRangeQuery(),
-            SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L)
+            SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, DENSE_UPPER)
         );
         Query rareLead = new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM));
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         int hits = runSearch(conjunction(rareLead, indexOrDocValues), breaker);
         assertThat("the selective lead clause must still match documents so the scorer runs", hits, greaterThan(0));
         assertThat("the doc-values branch allocates no result bitset, so nothing is charged", breaker.peak(), equalTo(0L));
-        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public void testOutOfBandChargeReleasedOnClose() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         DenseSearch denseSearch = newDenseSearch(reader, breaker);
         for (LeafReaderContext leaf : reader.leaves()) {
             chargeAgainst(denseSearch.weight(), leaf);
@@ -181,7 +258,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     public void testOutOfBandChargeOnAnotherThreadReleasedOnClose() throws Exception {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         DenseSearch denseSearch = newDenseSearch(reader, breaker);
 
         try (ExecutorService worker = Executors.newSingleThreadExecutor()) {
@@ -202,7 +278,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     public void testCloseDuringOpenScopeDoesNotDoubleRelease() throws Exception {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         DenseSearch denseSearch = newDenseSearch(reader, breaker);
         ContextIndexSearcher searcher = denseSearch.searcher();
         Weight weight = denseSearch.weight();
@@ -235,7 +310,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
 
     public void testNestedSearchLeafOnDifferentLeavesReleaseIndependently() throws Exception {
         withMultiSegmentReader(multiSegmentReader -> {
-            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
             DenseSearch denseSearch = newDenseSearch(multiSegmentReader, breaker);
             ContextIndexSearcher searcher = denseSearch.searcher();
             Weight weight = denseSearch.weight();
@@ -277,7 +351,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     public void testConcurrentSlicesChargeAndReleaseIndependently() throws Exception {
         withMultiSegmentReader(multiSegmentReader -> {
             int leafCount = multiSegmentReader.leaves().size();
-            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
             try (ExecutorService executor = Executors.newFixedThreadPool(leafCount)) {
                 ContextIndexSearcher searcher = new ContextIndexSearcher(
                     multiSegmentReader,
@@ -305,7 +378,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     public void testConcurrentPartitionsOfSameLeafDoNotDoubleRelease() throws Exception {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         DenseSearch denseSearch = newDenseSearch(reader, breaker);
         ContextIndexSearcher searcher = denseSearch.searcher();
         Weight weight = denseSearch.weight();
@@ -378,7 +450,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     public void testStaleWeightChargingAfterBreakerClearedDoesNotThrow() throws Exception {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         DenseSearch denseSearch = newDenseSearch(reader, breaker);
 
         ContextIndexSearcher searcher = denseSearch.searcher();
@@ -398,7 +469,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
                     greaterThan(1)
                 );
 
-                TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
                 ContextIndexSearcher searcher = newContextIndexSearcher(vectorReader);
                 searcher.setCircuitBreaker(breaker);
 
@@ -436,7 +506,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
      * Two callers scoring the same leaf each own what they were charged: one releasing must not release the other's.
      */
     public void testScopesOnTheSameLeafReleaseIndependently() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         DenseSearch denseSearch = newDenseSearch(reader, breaker);
         LeafReaderContext leaf = reader.leaves().get(0);
         LeafExecutionScope first = new LeafExecutionScope();
@@ -455,12 +524,10 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         second.release();
         assertThat(breaker.getUsed(), equalTo(0L));
         denseSearch.searcher().close();
-        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     /** A caller that rebuilds its scorer releases first, so it holds one charge however often it rebuilds. */
     public void testScopeIsReusableAfterRelease() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         DenseSearch denseSearch = newDenseSearch(reader, breaker);
         LeafReaderContext leaf = reader.leaves().get(0);
         LeafExecutionScope scope = new LeafExecutionScope();
@@ -474,11 +541,9 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
             assertThat(breaker.getUsed(), equalTo(singleCharge));
         }
         scope.release();
-        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public void testSearcherCloseReleasesScopedChargeOnce() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         DenseSearch denseSearch = newDenseSearch(reader, breaker);
         LeafExecutionScope scope = new LeafExecutionScope();
         captureCharge(scope, denseSearch.weight(), reader.leaves().get(0));
@@ -492,7 +557,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
 
     /** The scope only owns what is charged while {@code capture} runs, including when the build fails. */
     public void testChargeOutsideCaptureBelongsToTheLeaf() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         DenseSearch denseSearch = newDenseSearch(reader, breaker);
         LeafReaderContext leaf = reader.leaves().get(0);
         LeafExecutionScope scope = new LeafExecutionScope();
@@ -505,7 +569,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         assertThat("the scope must not own a charge made after capture returned", breaker.getUsed(), equalTo(leafCharge));
 
         denseSearch.searcher().close();
-        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     /** A scope owns charges of a single searcher; a charge from another searcher belongs to that searcher's leaf. */
@@ -534,7 +597,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     public void testNestedCaptureRestoresTheOuterScope() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         DenseSearch denseSearch = newDenseSearch(reader, breaker);
         LeafReaderContext leaf = reader.leaves().get(0);
         LeafExecutionScope outer = new LeafExecutionScope();
@@ -549,17 +611,16 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         inner.release();
         assertThat("each scope must own exactly one of the two charges", breaker.getUsed(), equalTo(bothCharges / 2));
         outer.release();
-        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public void testTrippedChargeIsNotOwnedByTheScope() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(100L);
-        DenseSearch denseSearch = newDenseSearch(reader, breaker);
+        TrackingCircuitBreaker tinyBreaker = new TrackingCircuitBreaker(100L);
+        DenseSearch denseSearch = newDenseSearch(reader, tinyBreaker);
         LeafExecutionScope scope = new LeafExecutionScope();
         expectThrows(CircuitBreakingException.class, () -> captureCharge(scope, denseSearch.weight(), reader.leaves().get(0)));
-        assertThat(breaker.getUsed(), equalTo(0L));
+        assertThat(tinyBreaker.getUsed(), equalTo(0L));
         scope.release();
-        assertThat(breaker.getUsed(), equalTo(0L));
+        assertThat(tinyBreaker.getUsed(), equalTo(0L));
     }
 
     /**
@@ -567,7 +628,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
      * one that releases the charge.
      */
     public void testDerivedSearcherSharesBreakerAndAccounting() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
         searcher.setCircuitBreaker(breaker);
         ContextIndexSearcher derived = searcher.withQueryCache(null);
@@ -617,7 +677,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
 
     /** A clause served from the query cache builds nothing, so only the search that fills the cache is charged. */
     public void testClauseServedFromQueryCacheIsNotCharged() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         LRUQueryCache queryCache = newQueryCache();
         Query query = conjunction(denseRangeQuery(), new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM)));
         try (ContextIndexSearcher searcher = newCachingSearcher(queryCache, true)) {
@@ -635,7 +694,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
 
     /** Scorers built for a leaf that is already cached, as concurrent readers of one segment do, are not charged. */
     public void testScorersOfACachedLeafAreNotCharged() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         LRUQueryCache queryCache = newQueryCache();
         try (ContextIndexSearcher searcher = newCachingSearcher(queryCache, true)) {
             searcher.setCircuitBreaker(breaker);
@@ -662,7 +720,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
 
     /** A clause that the cache does not keep is built by every search, so every search is charged. */
     public void testClauseTheCacheDoesNotKeepIsChargedEveryTime() throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         LRUQueryCache queryCache = newQueryCache();
         Query query = conjunction(denseRangeQuery(), new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM)));
         try (ContextIndexSearcher searcher = newCachingSearcher(queryCache, false)) {
@@ -763,15 +820,50 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     private static Query denseRangeQuery() {
-        return LongPoint.newRangeQuery(FIELD, 0L, (long) (NUM_DOCS * 3 / 4));
+        return LongPoint.newRangeQuery(FIELD, 0L, DENSE_UPPER);
     }
 
+    private static Query denseIndexOrDocValuesRangeQuery() {
+        return new IndexOrDocValuesQuery(denseRangeQuery(), SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, DENSE_UPPER));
+    }
+
+    /** Wraps {@code fallback} the way the number and date mappers do when the index is sorted on the field. */
+    private static Query indexSortRangeQuery(Query fallback) {
+        return new IndexSortSortedNumericDocValuesRangeQuery(FIELD, 0L, DENSE_UPPER, fallback);
+    }
+
+    /** A single-segment index sorted on {@link #FIELD}, with one value per document or, if {@code multiValued}, two. */
+    private static void withIndexSortedReader(boolean multiValued, CheckedConsumer<DirectoryReader, Exception> body) throws Exception {
+        try (Directory sortedDirectory = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig(null).setIndexSort(
+                new Sort(new SortedNumericSortField(FIELD, SortField.Type.LONG))
+            );
+            try (IndexWriter writer = new IndexWriter(sortedDirectory, config)) {
+                for (int docId = 0; docId < NUM_DOCS; docId++) {
+                    Document doc = new Document();
+                    doc.add(new LongPoint(FIELD, docId));
+                    doc.add(new SortedNumericDocValuesField(FIELD, docId));
+                    if (multiValued) {
+                        doc.add(new LongPoint(FIELD, docId + NUM_DOCS));
+                        doc.add(new SortedNumericDocValuesField(FIELD, docId + NUM_DOCS));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader sortedReader = DirectoryReader.open(sortedDirectory)) {
+                body.accept(sortedReader);
+            }
+        }
+    }
+
+    /** Uses a breaker of its own: some tests call it more than once, and the peak must reflect only this search. */
     private void assertChargesThenReleases(Query query) throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
-        int hits = runSearch(query, breaker);
+        TrackingCircuitBreaker freshBreaker = new TrackingCircuitBreaker(-1L);
+        int hits = runSearch(query, freshBreaker);
         assertThat("the range must match documents so its scorer actually runs", hits, greaterThan(0));
-        assertThat("the point-range scorer must charge execution RAM while it runs", breaker.peak(), greaterThan(0L));
-        assertThat("the per-leaf execution charge must be released once the leaf is scored", breaker.getUsed(), equalTo(0L));
+        assertThat("the point-range scorer must charge execution RAM while it runs", freshBreaker.peak(), greaterThan(0L));
+        assertThat("the per-leaf execution charge must be released once the leaf is scored", freshBreaker.getUsed(), equalTo(0L));
     }
 
     private int runSearch(Query query, CircuitBreaker breaker) throws IOException {

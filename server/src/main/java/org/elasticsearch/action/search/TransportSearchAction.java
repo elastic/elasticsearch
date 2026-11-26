@@ -551,6 +551,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             allowPartialSearchResults
         );
         rewriteContext.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
+        rewriteContext.setCancellationCheck(task::ensureNotCancelled);
 
         // Searches run during the rewrite, such as those of compound retrievers, record their phase failures on the rewrite context.
         final ActionListener<SearchResponse> listenerWithRewriteFailures = originalListener.delegateFailureAndWrap((l, response) -> {

@@ -1,0 +1,72 @@
+{
+  "prometheus.query_range": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/reference/query-languages/promql/promql-http-api#promql-http-api-query-range",
+      "description": "Run a PromQL range query"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/x-www-form-urlencoded"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_prometheus/api/v1/query_range",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/_prometheus/{index}/api/v1/query_range",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "An index expression that restricts which indices are considered. Defaults to `metrics-*`"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "query": {
+        "type": "string",
+        "description": "The PromQL expression to evaluate",
+        "required": true
+      },
+      "start": {
+        "type": "string",
+        "description": "The start of the range, as an RFC 3339 timestamp or Unix time in seconds",
+        "required": true
+      },
+      "end": {
+        "type": "string",
+        "description": "The end of the range, as an RFC 3339 timestamp or Unix time in seconds",
+        "required": true
+      },
+      "step": {
+        "type": "string",
+        "description": "The resolution between samples, as a number of seconds or a duration such as `30s`",
+        "required": true
+      },
+      "limit": {
+        "type": "int",
+        "description": "The maximum number of series to return. `0` means no limit from the request"
+      },
+      "timeout": {
+        "type": "string",
+        "description": "The evaluation timeout, as a number of seconds or a duration such as `30s`. Capped by `xpack.prometheus.query.timeout`"
+      }
+    }
+  }
+}

@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
@@ -1780,5 +1782,99 @@ public class SchemaReconciliationTests extends ESTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("per-file read schemas"));
+    }
+
+    // === nested columns ===
+
+    public void testNestedUnionWidensAndUnitesFields() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            nestedMeta(new NestedColumns.NestedColumn("answers", Map.of("type", DataType.KEYWORD, "ttl", DataType.INTEGER), null)),
+            f2,
+            nestedMeta(new NestedColumns.NestedColumn("answers", Map.of("ttl", DataType.LONG, "data", DataType.KEYWORD), null))
+        );
+        NestedColumns merged = SchemaReconciliation.reconcileNestedUnionByName(metadata);
+        assertThat(
+            merged,
+            equalTo(
+                NestedColumns.of(
+                    List.of(
+                        new NestedColumns.NestedColumn(
+                            "answers",
+                            Map.of("type", DataType.KEYWORD, "ttl", DataType.LONG, "data", DataType.KEYWORD),
+                            null
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    /** A file without the column contributes no elements and no conflict. */
+    public void testNestedUnionKeepsColumnAbsentFromAFile() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        NestedColumns.NestedColumn answers = new NestedColumns.NestedColumn("answers", Map.of("type", DataType.KEYWORD), null);
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            nestedMeta(answers),
+            f2,
+            meta(List.of(attr("question", DataType.KEYWORD)))
+        );
+        assertThat(SchemaReconciliation.reconcileNestedUnionByName(metadata), equalTo(NestedColumns.of(List.of(answers))));
+    }
+
+    /** A column that is a list of structures in one file and a scalar or a structure in another cannot be read as nested. */
+    public void testNestedUnionConflictsWithAnotherShape() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        NestedColumns.NestedColumn answers = new NestedColumns.NestedColumn("answers", Map.of("type", DataType.KEYWORD), null);
+        for (Attribute other : List.of(attr("answers", DataType.KEYWORD), attr("answers.type", DataType.KEYWORD))) {
+            Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, nestedMeta(answers), f2, meta(List.of(other)));
+            NestedColumns.NestedColumn merged = SchemaReconciliation.reconcileNestedUnionByName(metadata).get("answers");
+            assertThat(merged.conflict(), equalTo("[answers] is a list of structures in [f1.parquet] but not in [f2.parquet]"));
+        }
+    }
+
+    public void testNestedStrictRejectsDifferentFields() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            nestedMeta(new NestedColumns.NestedColumn("answers", Map.of("ttl", DataType.INTEGER), null)),
+            f2,
+            nestedMeta(new NestedColumns.NestedColumn("answers", Map.of("ttl", DataType.LONG), null))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SchemaReconciliation.reconcileNestedStrict(f1, metadata)
+        );
+        assertEquals(
+            "[f2.parquet] has nested columns [answers [ttl long]], [f1.parquet] has [answers [ttl integer]]"
+                + "; set [schema_resolution] to [union_by_name] to merge schemas",
+            e.getMessage()
+        );
+    }
+
+    public void testNestedStrictAcceptsEqualFields() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        NestedColumns.NestedColumn answers = new NestedColumns.NestedColumn("answers", Map.of("ttl", DataType.LONG), null);
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, nestedMeta(answers), f2, nestedMeta(answers));
+        assertThat(SchemaReconciliation.reconcileNestedStrict(f1, metadata), equalTo(NestedColumns.of(List.of(answers))));
+    }
+
+    private static SourceMetadata nestedMeta(NestedColumns.NestedColumn column) {
+        return new SimpleSourceMetadata(
+            List.of(attr(column.path(), DataType.UNSUPPORTED)),
+            "parquet",
+            "s3://b/" + column.path(),
+            null,
+            null,
+            NestedColumns.of(List.of(column)).writeTo(null),
+            null
+        );
     }
 }

@@ -109,6 +109,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -9412,6 +9413,37 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    /**
+     * The footer's metadata says which columns are lists of structures and what each element holds, so the dataset's schema
+     * carries the nested type from discovery; a file without one records none.
+     */
+    public void testMetadataDescribesListOfStructs() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              optional group tags (LIST) { repeated group list { optional binary element (UTF8); } }
+              optional group answers (LIST) {
+                repeated group list { optional group element { optional binary type (UTF8); optional int64 ttl; } }
+              }
+            }
+            """);
+        byte[] data = createParquetFile(schema, factory -> List.of(factory.newGroup().append("id", "a")));
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(data));
+        assertThat(
+            NestedColumns.read(metadata.sourceMetadata()),
+            equalTo(
+                NestedColumns.of(
+                    List.of(new NestedColumns.NestedColumn("answers", Map.of("type", DataType.KEYWORD, "ttl", DataType.LONG), null))
+                )
+            )
+        );
+
+        MessageType flat = MessageTypeParser.parseMessageType("message t { required binary id (UTF8); }");
+        byte[] flatData = createParquetFile(flat, factory -> List.of(factory.newGroup().append("id", "a")));
+        SourceMetadata flatMetadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(flatData));
+        assertThat(flatMetadata.sourceMetadata().containsKey(NestedColumns.KEY), equalTo(false));
     }
 
     /**

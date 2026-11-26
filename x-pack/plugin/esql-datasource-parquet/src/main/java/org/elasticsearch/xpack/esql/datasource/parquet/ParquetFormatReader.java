@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
@@ -1269,7 +1270,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         validateFooterIntegrity(parquetSchema, footer.getBlocks());
         List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
         SourceStatistics statistics = extractStatistics(footer.getBlocks(), schema, parquetSchema);
-        return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
+        Map<String, Object> described = nestedColumns(parquetSchema).writeTo(null);
+        return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null, described, null);
+    }
+
+    /** The file's lists of structures, as the nested columns its schema describes. */
+    static NestedColumns nestedColumns(MessageType parquetSchema) {
+        List<NestedColumns.NestedColumn> columns = new ArrayList<>();
+        for (CollectionSchema collection : ParquetCollections.describe(parquetSchema)) {
+            Map<String, DataType> leaves = new HashMap<>();
+            for (CollectionSchema.Leaf leaf : collection.leaves()) {
+                leaves.put(leaf.name(), leaf.type());
+            }
+            columns.add(new NestedColumns.NestedColumn(collection.path(), leaves, collection.unsupported()));
+        }
+        return NestedColumns.of(columns);
     }
 
     /**

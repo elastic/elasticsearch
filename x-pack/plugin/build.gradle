@@ -170,6 +170,8 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("esql/63_enrich_int_range/Invalid age as double", "TODO: require disable allow_partial_results")
     task.skipTest("esql/191_lookup_join_on_datastreams/data streams not supported in LOOKUP JOIN", "Added support for aliases in JOINs")
     task.skipTest("esql/160_union_types/CASE", "CASE now reports the multivalue condition warning the same way other functions do")
+    task.skipTest("esql/160_union_types/load two indices with incorrect conversion function, TO_IP instead of TO_LONG", "A conversion of a type the function doesn't convert is now null instead of an error")
+    task.skipTest("esql/160_union_types/load two indices with incorrect conversion function, TO_LONG instead of TO_IP", "A conversion of a type the function doesn't convert is now null instead of an error")
     task.skipTest("esql/190_lookup_join/non-lookup index", "Error message changed")
     task.skipTest("esql/190_lookup_join/fails with non-lookup index", "Error message changed")
     task.skipTest("esql/192_lookup_join_on_aliases/alias-pattern-multiple", "Error message changed")

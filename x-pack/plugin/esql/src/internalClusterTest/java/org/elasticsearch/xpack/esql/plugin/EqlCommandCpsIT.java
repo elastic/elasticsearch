@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -89,14 +91,16 @@ public class EqlCommandCpsIT extends AbstractEsqlIntegTestCase {
         RequestCapturePlugin.ESQL_RESOLUTIONS.clear();
         RequestCapturePlugin.EQL_SEARCHES.clear();
         RequestCapturePlugin.EQL_FIELD_CAPS.clear();
+        RequestCapturePlugin.EQL_PITS.clear();
+        RequestCapturePlugin.EQL_EVENT_SEARCHES.clear();
     }
 
     public void testEqlRequestsUseCrossProjectOptions() {
-        assertEqlSourceRows(ALL_PROCESSES_QUERY, ALL_PROCESSES, null);
+        assertEqlSourceRows(ALL_PROCESSES_QUERY, ALL_PROCESSES, null, false);
     }
 
     public void testProjectRoutingReachesEqlSearch() {
-        assertEqlSourceRows(SET_PROJECT_ROUTING + ALL_PROCESSES_QUERY, ALL_PROCESSES, PROJECT_ROUTING);
+        assertEqlSourceRows(SET_PROJECT_ROUTING + ALL_PROCESSES_QUERY, ALL_PROCESSES, PROJECT_ROUTING, false);
     }
 
     public void testProjectRoutingReachesEqlSequence() {
@@ -107,7 +111,8 @@ public class EqlCommandCpsIT extends AbstractEsqlIntegTestCase {
                 + " \"sequence [process where process.name == \\\"cmd.exe\\\"] [process where process.name == \\\"explorer.exe\\\"]\""
                 + KEEP_PROCESS_NAMES,
             ALL_PROCESSES,
-            PROJECT_ROUTING
+            PROJECT_ROUTING,
+            true
         );
     }
 
@@ -121,11 +126,12 @@ public class EqlCommandCpsIT extends AbstractEsqlIntegTestCase {
                 + " \"process where process.name == \\\"cmd.exe\\\"\" | KEEP process.name)"
                 + KEEP_PROCESS_NAMES,
             List.of(List.of("cmd.exe")),
-            PROJECT_ROUTING
+            PROJECT_ROUTING,
+            false
         );
     }
 
-    private void assertEqlSourceRows(String query, List<List<Object>> expectedRows, String expectedProjectRouting) {
+    private void assertEqlSourceRows(String query, List<List<Object>> expectedRows, String expectedProjectRouting, boolean pit) {
         try (EsqlQueryResponse response = run(query)) {
             assertThat(getValuesList(response), equalTo(expectedRows));
             assertThat(response.isPartial(), equalTo(false));
@@ -142,6 +148,14 @@ public class EqlCommandCpsIT extends AbstractEsqlIntegTestCase {
         assertThat(search.projectRouting(), equalTo(expectedProjectRouting));
         assertThat(RequestCapturePlugin.ESQL_RESOLUTIONS, everyItem(equalTo(search)));
         assertThat(RequestCapturePlugin.EQL_FIELD_CAPS, everyItem(equalTo(search)));
+        if (pit) {
+            assertThat(RequestCapturePlugin.EQL_PITS, hasSize(1));
+            assertThat(RequestCapturePlugin.EQL_PITS, everyItem(equalTo(search)));
+        } else {
+            assertThat(RequestCapturePlugin.EQL_PITS, empty());
+            assertThat(RequestCapturePlugin.EQL_EVENT_SEARCHES, not(empty()));
+            assertThat(RequestCapturePlugin.EQL_EVENT_SEARCHES, everyItem(equalTo(search)));
+        }
     }
 
     record Captured(IndicesOptions indicesOptions, String projectRouting) {}
@@ -150,6 +164,8 @@ public class EqlCommandCpsIT extends AbstractEsqlIntegTestCase {
         static final Queue<Captured> ESQL_RESOLUTIONS = new ConcurrentLinkedQueue<>();
         static final Queue<Captured> EQL_SEARCHES = new ConcurrentLinkedQueue<>();
         static final Queue<Captured> EQL_FIELD_CAPS = new ConcurrentLinkedQueue<>();
+        static final Queue<Captured> EQL_PITS = new ConcurrentLinkedQueue<>();
+        static final Queue<Captured> EQL_EVENT_SEARCHES = new ConcurrentLinkedQueue<>();
 
         @Override
         public Collection<ActionFilter> getActionFilters() {
@@ -177,6 +193,11 @@ public class EqlCommandCpsIT extends AbstractEsqlIntegTestCase {
                             EQL_SEARCHES.add(captured);
                         } else if (TransportFieldCapabilitiesAction.NAME.equals(action)) {
                             EQL_FIELD_CAPS.add(captured);
+                        } else if (TransportOpenPointInTimeAction.TYPE.name().equals(action)) {
+                            EQL_PITS.add(captured);
+                        } else if (TransportSearchAction.TYPE.name().equals(action)
+                            && captured.indicesOptions().resolveCrossProjectIndexExpression()) {
+                            EQL_EVENT_SEARCHES.add(captured);
                         }
                     }
                     chain.proceed(task, action, request, listener);

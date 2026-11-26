@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -81,8 +84,8 @@ public class BasicQueryClient implements QueryClient {
         }
 
         // PIT contains the options already, and _search won't accept them a second time
-        if (usingPit() == false && cfg.crossProjectEnabled()) {
-            search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
+        if (usingPit() == false) {
+            applyCrossProjectSearchOptions(search);
         }
         client.search(search, listener.delegateFailureAndWrap((delegate, response) -> {
             directoryMetricsConsumer.accept(response.getDirectoryMetrics());
@@ -221,6 +224,28 @@ public class BasicQueryClient implements QueryClient {
 
     protected boolean usingPit() {
         return false;
+    }
+
+    final String[] unresolvedIndices() {
+        ResolvedIndexExpressions resolved = cfg.resolvedIndexExpressions();
+        if (resolved == null) {
+            return indices;
+        }
+        return resolved.expressions().stream().map(ResolvedIndexExpression::original).toArray(String[]::new);
+    }
+
+    private void applyCrossProjectSearchOptions(SearchRequest search) {
+        IndicesOptions options = cfg.indicesOptions();
+        if (options != null && options.resolveCrossProjectIndexExpression()) {
+            search.indices(unresolvedIndices());
+            search.indicesOptions(options);
+            String projectRouting = cfg.projectRouting();
+            if (projectRouting != null) {
+                search.setProjectRouting(projectRouting);
+            }
+        } else if (cfg.crossProjectEnabled()) {
+            search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
+        }
     }
 
     /**

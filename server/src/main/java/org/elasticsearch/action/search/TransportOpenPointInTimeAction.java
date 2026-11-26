@@ -168,16 +168,19 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
         if (indicesPerCluster.isEmpty()) {
             // for CPS requests that are targeting origin only, could be because of project_routing or other reasons, execute standard pit.
-            final Exception ex = CrossProjectIndexResolutionValidator.validate(
-                originalIndicesOptions,
-                request.getProjectRouting(),
-                localResolvedIndexExpressions,
-                Map.of(),
-                Map.of()
-            );
-            if (ex != null) {
-                listener.onFailure(ex);
-                return;
+            // Without a security filter there is no local resolution to validate; a null list would throw inside the validator.
+            if (localResolvedIndexExpressions != null) {
+                final Exception ex = CrossProjectIndexResolutionValidator.validate(
+                    originalIndicesOptions,
+                    request.getProjectRouting(),
+                    localResolvedIndexExpressions,
+                    Map.of(),
+                    Map.of()
+                );
+                if (ex != null) {
+                    listener.onFailure(ex);
+                    return;
+                }
             }
             executeOpenPit(task, request, listener);
             return;

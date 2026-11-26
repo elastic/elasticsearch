@@ -26,7 +26,6 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
@@ -138,13 +137,19 @@ public class PITAwareQueryClient extends BasicQueryClient {
     }
 
     private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable, boolean allowPartialSearchResults) {
-        IndicesOptions indicesOptions = IndexResolver.FIELD_CAPS_INDICES_OPTIONS;
-        if (cfg.crossProjectEnabled()) {
-            indicesOptions = CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions);
-        }
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(indicesOptions)
+        // Fan-out clears resolveCrossProjectIndexExpression(), and already-rewritten indices fail a second resolution.
+        // Send the original pattern with the caller's options; the open-PIT transport fans out after it resolves.
+        IndicesOptions requestOptions = cfg.indicesOptions();
+        boolean crossProject = requestOptions != null && requestOptions.resolveCrossProjectIndexExpression();
+        IndicesOptions indicesOptions = crossProject ? requestOptions : IndexResolver.FIELD_CAPS_INDICES_OPTIONS;
+        String[] pitIndices = crossProject ? unresolvedIndices() : indices;
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(pitIndices).indicesOptions(indicesOptions)
             .keepAlive(keepAlive)
             .allowPartialSearchResults(allowPartialSearchResults);
+        String projectRouting = cfg.projectRouting();
+        if (crossProject && projectRouting != null) {
+            request.projectRouting(projectRouting);
+        }
         request.indexFilter(filter);
 
         client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {

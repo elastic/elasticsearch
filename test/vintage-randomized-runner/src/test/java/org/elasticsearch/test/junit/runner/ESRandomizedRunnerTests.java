@@ -26,16 +26,21 @@ import org.junit.runner.notification.RunListener;
 import org.junit.runner.notification.RunNotifier;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTCLASS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests how {@link ESRandomizedRunner} applies filters, by looking at the descriptions that remain after filtering a runner for a
@@ -233,10 +238,7 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
 
         Description description = runner.getDescription();
 
-        assertThat(leafNames(description), containsInAnyOrder("testOne {p=a}", "testOne {p=b}", "testTwo {p=a}", "testTwo {p=b}"));
-        for (Description child : description.getChildren()) {
-            Assert.assertTrue(child.isTest());
-        }
+        assertFlatChildren(description, "testOne {p=a}", "testOne {p=b}", "testTwo {p=a}", "testTwo {p=b}");
     }
 
     public void testDescriptionIsFlatAfterFiltering() throws Exception {
@@ -245,10 +247,7 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
 
         runner.filter(new VintageLikeFilter("testOne {p=b}"));
 
-        assertThat(leafNames(runner.getDescription()), containsInAnyOrder("testOne {p=a}", "testTwo {p=a}", "testTwo {p=b}"));
-        for (Description child : runner.getDescription().getChildren()) {
-            Assert.assertTrue(child.isTest());
-        }
+        assertFlatChildren(runner.getDescription(), "testOne {p=a}", "testTwo {p=a}", "testTwo {p=b}");
     }
 
     /** Every event {@link RandomizedRunner} fires must be about the suite or a test of the flat description the engine discovered. */
@@ -295,14 +294,33 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
 
         runner.run(notifier);
 
-        Set<String> failedTests = new TreeSet<>();
-        for (Failure failure : failures) {
-            failedTests.add(withoutSeed(failure.getDescription().getMethodName()));
-        }
-        assertThat(failedTests, containsInAnyOrder("testFails {p=a}", "testFails {p=b}"));
+        Map<String, Long> discovered = countByName(root.getChildren());
+        List<Description> failed = failures.stream().map(Failure::getDescription).toList();
+        assertThat(
+            countByName(failed),
+            equalTo(Map.of("testFails {p=a}", discovered.get("testFails {p=a}"), "testFails {p=b}", discovered.get("testFails {p=b}")))
+        );
         for (Description description : fired) {
             Assert.assertTrue("unknown description " + description, known.contains(description));
         }
+    }
+
+    /**
+     * The direct children are exactly the given tests: no suites, no unnamed descriptions, and every test appears the same number of
+     * times, which is more than once only when {@code tests.iters} repeats them.
+     */
+    private static void assertFlatChildren(Description description, String... expectedNames) {
+        for (Description child : description.getChildren()) {
+            Assert.assertTrue("not a test: " + child, child.isTest() && child.getMethodName() != null);
+        }
+        Map<String, Long> counts = countByName(description.getChildren());
+        assertThat(counts.keySet(), containsInAnyOrder(expectedNames));
+        assertThat(new HashSet<>(counts.values()).size(), equalTo(1));
+    }
+
+    private static Map<String, Long> countByName(Collection<Description> descriptions) {
+        return descriptions.stream()
+            .collect(Collectors.groupingBy(d -> withoutSeed(d.getMethodName()), TreeMap::new, Collectors.counting()));
     }
 
     private static ESRandomizedRunner parameterizedFixtureRunner() throws Exception {

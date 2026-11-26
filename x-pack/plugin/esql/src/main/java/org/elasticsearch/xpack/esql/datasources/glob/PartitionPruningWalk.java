@@ -242,6 +242,7 @@ final class PartitionPruningWalk {
         List<StoragePath> prunedDirs,
         @Nullable StorageEntry fileKeepStash,
         int globKeptCount,
+        int listed,
         boolean truncated
     ) {}
 
@@ -778,6 +779,9 @@ final class PartitionPruningWalk {
         FinishMode mode,
         boolean templateFrontier
     ) throws IOException {
+        if (collector.truncated()) {
+            return collector.result(prunedColumns, columnFullTypes, prunedDirs);
+        }
         if (prunedColumns.isEmpty()) {
             return null;
         }
@@ -1723,6 +1727,10 @@ final class PartitionPruningWalk {
 
         @Nullable
         private WalkResult afterListingsStop() throws IOException {
+            WalkResult truncated = resultIfTruncated();
+            if (truncated != null) {
+                return truncated;
+            }
             if (dirs.isEmpty()) {
                 return finished();
             }
@@ -1730,6 +1738,28 @@ final class PartitionPruningWalk {
                 return finishSurvivors();
             }
             return anyLevelHinted ? finishSurvivors() : withdraw(WalkDiagnostics.StopReason.UNHINTED_LEVEL);
+        }
+
+        @Nullable
+        private WalkResult resultIfTruncated() {
+            if (collector.truncated() == false) {
+                return null;
+            }
+            publishSnapshot();
+            return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
+        }
+
+        @Nullable
+        private WalkResult addLevelFiles(List<StorageEntry> files) {
+            // Stop at the cap. Do not drain the rest of this already-fetched page past max_listed_objects.
+            for (StorageEntry file : files) {
+                collector.add(file);
+                WalkResult truncated = resultIfTruncated();
+                if (truncated != null) {
+                    return truncated;
+                }
+            }
+            return null;
         }
 
         /**
@@ -1912,8 +1942,9 @@ final class PartitionPruningWalk {
                         return withdraw(peekFail);
                     }
                 }
-                for (StorageEntry file : level.levelFiles) {
-                    collector.add(file);
+                WalkResult truncated = addLevelFiles(level.levelFiles);
+                if (truncated != null) {
+                    return truncated;
                 }
                 estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, level.listedDirs, Math.max(level.next.size(), 1));
                 setDirs(level.next);
@@ -1924,8 +1955,9 @@ final class PartitionPruningWalk {
             pendingPeeks = newPeeks != null ? newPeeks : List.of();
             if (level.hintedLevel == false) {
                 if (descendUnhintedKeyedLevel(level.levelKeys, pending, keyedGlobKeys)) {
-                    for (StorageEntry file : level.levelFiles) {
-                        collector.add(file);
+                    WalkResult truncated = addLevelFiles(level.levelFiles);
+                    if (truncated != null) {
+                        return truncated;
                     }
                     estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, level.listedDirs, level.shapedDirs.size());
                     setDirs(level.next);
@@ -1937,10 +1969,15 @@ final class PartitionPruningWalk {
                     setDirs(List.of());
                     return withdraw(WalkDiagnostics.StopReason.UNHINTED_LEVEL);
                 }
+                WalkResult truncated = resultIfTruncated();
+                if (truncated != null) {
+                    return truncated;
+                }
                 return finishSurvivors();
             }
-            for (StorageEntry file : level.levelFiles) {
-                collector.add(file);
+            WalkResult truncated = addLevelFiles(level.levelFiles);
+            if (truncated != null) {
+                return truncated;
             }
             anyLevelHinted = true;
             estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, level.listedDirs, level.shapedDirs.size());
@@ -2064,6 +2101,9 @@ final class PartitionPruningWalk {
         }
 
         void add(StorageEntry entry) {
+            if (truncated) {
+                return;
+            }
             String entryPath = entry.path().toString();
             String relativePath = entryPath.startsWith(prefixStr) ? entryPath.substring(prefixStr.length()) : entry.path().objectName();
             if (relativePath.isEmpty() || relativePath.endsWith("/")) {
@@ -2141,6 +2181,7 @@ final class PartitionPruningWalk {
                 List.copyOf(prunedDirs),
                 fileKeepStash,
                 globKeptCount,
+                listed,
                 truncated
             );
         }

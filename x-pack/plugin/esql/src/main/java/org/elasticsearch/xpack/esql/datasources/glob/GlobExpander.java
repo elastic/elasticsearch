@@ -1749,6 +1749,11 @@ public final class GlobExpander {
             // through to the flat listing with the value filter still on — Stage 2 keeps one excluded file.
             if (walk != null && walk.matched().isEmpty()) {
                 if (walk.truncated()) {
+                    // Listed-objects overflow with no glob match. Fail closed so the user can raise the
+                    // limit; a silent empty truncated listing looks like "no files".
+                    if (walk.listed() > maxListedObjects) {
+                        throw new ListedObjectsLimitException(walk.listed(), maxListedObjects, walkDiagnostics);
+                    }
                     // Bound filled with non-keeps; a match may sit past it. Do not promote a stash or
                     // inference anchor, and do not suppress the value filter.
                     return emptyListing(pattern, null, true);
@@ -1822,12 +1827,15 @@ public final class GlobExpander {
                         // Prove the walk on the full matched set, then apply the file-set bound. Truncating first
                         // can hide a type-widening folder past the prefix and reject a correct walk, after which
                         // the bounded flat drain prefix-lists unfiltered.
-                        reserveRetained(memory, walked.size(), 0, true);
                         boolean truncated = walk.truncated() || (extents.boundsFileSet() && walked.size() > extents.maxFiles());
                         if (extents.boundsFileSet() && walked.size() > extents.maxFiles()) {
                             walked = new ArrayList<>(walked.subList(0, extents.maxFiles()));
                             walkedMetadata = detectPartitions(walked, partitionConfig, ignored -> {});
                         }
+                        if (truncated) {
+                            walkedMetadata = overlayWalkTypes(walkedMetadata, walk.columnFullTypes(), walked, partitionConfig, pattern);
+                        }
+                        reserveRetained(memory, walked.size(), 0, true);
                         // globKeptCount is glob matches after exclusion, before _file.*, matching the flat path.
                         if (walk.excludedCount() > 0) {
                             String exclusionNotice = exclusionNotice(

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.glob.ListedObjectsLimitException;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
@@ -8967,6 +8968,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * Bounded walk hitting {@code max_listed_objects} after a full sample marks truncated instead of throwing.
+     * Extent and discovery sit above the listed-objects cap so a walk that ignored it would return 40 files.
      */
     public void testBoundedWalkListedObjectsCapTruncatesInsteadOfThrowing() throws IOException {
         List<StorageEntry> files = new ArrayList<>();
@@ -8983,17 +8985,57 @@ public class GlobExpanderTests extends ESTestCase {
             40,
             MAX,
             15,
-            new ListingExtents(10),
+            new ListingExtents(50),
             PlanningMemory.NONE
         );
-        assertEquals(10, result.fileCount());
+        assertEquals(15, result.fileCount());
         assertTrue(result.isTruncated());
         assertThat("must not fall back to a prefix drain of the dataset", provider.listedPrefixes, not(hasItem("s3://bucket/data/")));
     }
 
     /**
+     * Root-level non-matches can exhaust {@code max_listed_objects} before any glob match. Throw rather
+     * than a silent empty truncated listing, and do not list the surviving partition.
+     */
+    public void testBoundedWalkListedObjectsCapWithNoMatchesThrows() {
+        List<StorageEntry> files = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            files.add(entry("s3://bucket/data/skip" + i + ".txt", 100));
+        }
+        files.add(entry("s3://bucket/data/year=2024/old.parquet", 100));
+        for (int i = 0; i < 80; i++) {
+            files.add(entry("s3://bucket/data/year=2025/f" + i + ".parquet", 100));
+        }
+        TreeStubProvider provider = new TreeStubProvider(files);
+        expectThrows(
+            ListedObjectsLimitException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/data/" + "**/*.parquet",
+                provider,
+                List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+                HIVE_ON,
+                40,
+                MAX,
+                15,
+                new ListingExtents(50),
+                PlanningMemory.NONE
+            )
+        );
+        assertThat(
+            "truncated walk must not listObjects the surviving partition",
+            provider.listedPrefixes,
+            not(hasItem("s3://bucket/data/year=2025/"))
+        );
+        assertThat(
+            "truncated walk must not listChildren the surviving partition",
+            provider.childListedPrefixes,
+            not(hasItem("s3://bucket/data/year=2025/"))
+        );
+    }
+
+    /**
      * Truncated walk sample can omit a type-widening folder the directory listing already saw. Keep the
-     * walked sample rather than prefix-draining unfiltered.
+     * walked sample rather than prefix-draining unfiltered, and publish the walk-seen type.
      */
     public void testBoundedWalkTruncationKeepsValueFilterOnTypeWiden() throws IOException {
         List<StorageEntry> files = new ArrayList<>();
@@ -9006,7 +9048,10 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand(
             "s3://bucket/data/year=*/month=*/*.parquet",
             provider,
-            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            List.of(
+                hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025),
+                hint("month", PartitionFilterHintExtractor.Operator.NOT_EQUALS, "zzz")
+            ),
             HIVE_ON,
             20,
             MAX,
@@ -9021,6 +9066,7 @@ public class GlobExpanderTests extends ESTestCase {
         for (int i = 0; i < result.fileCount(); i++) {
             assertThat(result.path(i).toString(), containsString("year=2025"));
         }
+        assertEquals(DataType.KEYWORD, result.partitionMetadata().partitionColumns().get("month"));
     }
 
     public void testUnboundedWalkStillThrowsAtDiscoveredFilesLimit() {

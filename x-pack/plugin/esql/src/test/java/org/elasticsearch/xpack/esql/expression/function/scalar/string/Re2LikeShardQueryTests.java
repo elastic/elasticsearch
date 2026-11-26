@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2L
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -161,11 +162,15 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         assertThat(breaker.held.keySet(), equalTo(Set.of("regexp[RE2_LIKE:label]")));
         assertThat(breaker.held.values(), everyItem(equalTo(0L)));
 
-        // a build that grows past the program's reservation, and trips, refunds what the automaton held as well
+        // a build that trips while the builder holds a reservation past the program's refunds that reservation as well
         LabelTrackingCircuitBreaker tripped = new LabelTrackingCircuitBreaker();
         SearchExecutionContext limited = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), tripped);
-        expectThrows(CircuitBreakingException.class, () -> query("\\pL{100}", limited));
-        assertThat("past the program's reservation", tripped.peak(), greaterThan(100 * Re2RegExp.BYTES_PER_INSTRUCTION));
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> query("\\pL{100}", limited));
+        assertTrue(
+            "tripped while the builder grows the automaton",
+            Arrays.stream(e.getStackTrace()).anyMatch(frame -> frame.getClassName().equals(Re2RegExp.class.getName() + "$Builder"))
+        );
+        assertThat("the builder holds a reservation then", tripped.usedWhenTripped, greaterThan(tripped.firstCharge));
         limited.releaseQueryConstructionMemory();
         assertThat(tripped.held.keySet(), equalTo(Set.of("regexp[RE2_LIKE:label]")));
         assertThat(tripped.held.values(), everyItem(equalTo(0L)));
@@ -219,9 +224,14 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         return query("label", regex, context);
     }
 
-    /** A breaker that keeps what each label holds, an unlabeled refund under its own key. */
+    /**
+     * A breaker that keeps what each label holds, an unlabeled refund under its own key, as well as its first charge, which
+     * reserves the program, and what it held when it tripped.
+     */
     private static class LabelTrackingCircuitBreaker extends TrackingCircuitBreaker {
         private final Map<String, Long> held = new ConcurrentHashMap<>();
+        private volatile long firstCharge = -1;
+        private volatile long usedWhenTripped = -1;
 
         LabelTrackingCircuitBreaker() {
             super(ByteSizeValue.ofMb(1).getBytes());
@@ -231,6 +241,15 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
             super.addEstimateBytesAndMaybeBreak(bytes, label);
             held.merge(label, bytes, Long::sum);
+            if (firstCharge < 0) {
+                firstCharge = bytes;
+            }
+        }
+
+        @Override
+        public void circuitBreak(String label, long bytesNeeded) {
+            usedWhenTripped = getUsed();
+            super.circuitBreak(label, bytesNeeded);
         }
 
         @Override

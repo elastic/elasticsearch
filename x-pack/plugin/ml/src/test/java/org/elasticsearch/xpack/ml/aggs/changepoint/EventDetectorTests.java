@@ -135,10 +135,10 @@ public class EventDetectorTests extends ESTestCase {
     }
 
     public void testReportsMostVarianceIncreasesAsADistributionChange() {
-        // Mean constant, noise scale 1 then 5. About 0.8% of such random series are reported as something else,
+        // Mean constant, noise scale 1 then 5. About 0.75% of such random series are reported as something else,
         // e.g. a step change when the noisier half's mean is offset by chance. So test many series and require
-        // most to be a distribution change. With 100 series and at least 80 distribution changes, a false
-        // failure has probability ~1e-23.
+        // most to be a distribution change. With 100 series and at least 87 distribution changes, a false
+        // failure has probability ~4e-14, i.e. a 50% chance of one in about 2M years at 10M runs per year.
         NormalDistribution first = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
         NormalDistribution second = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 5);
         Map<String, Integer> changeTypeCounts = new TreeMap<>();
@@ -156,7 +156,7 @@ public class EventDetectorTests extends ESTestCase {
         assertThat(
             changeTypeCounts.toString(),
             changeTypeCounts.getOrDefault(ChangeType.DistributionChange.NAME, 0),
-            greaterThanOrEqualTo(80)
+            greaterThanOrEqualTo(87)
         );
     }
 

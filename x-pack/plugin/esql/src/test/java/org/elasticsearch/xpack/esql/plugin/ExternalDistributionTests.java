@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
@@ -679,6 +680,28 @@ public class ExternalDistributionTests extends ESTestCase {
         assertTrue(ComputeService.hasNonEmptyExternalSplits(new ComputeService.ExternalDistributionResult(source, null, splits)));
         ExternalDistributionPlan distributed = new ExternalDistributionPlan(Map.of("search-1", splits), true);
         assertTrue(ComputeService.hasNonEmptyExternalSplits(new ComputeService.ExternalDistributionResult(source, distributed, List.of())));
+    }
+
+    public void testDatasetLoadKeysPhysicalSourceName() {
+        ExternalSourceExec source = createExternalSourceExec().withDatasetName("csv_load");
+        ComputeService.DatasetLoad load = ComputeService.datasetLoad(ProjectId.DEFAULT, source);
+        assertEquals(ProjectId.DEFAULT, load.projectId());
+        assertEquals(Set.of("csv_load"), load.datasets());
+        load.charge(10, 3, 1);
+        assertEquals("charge is a no-op until datasets have stats", Set.of("csv_load"), load.datasets());
+    }
+
+    public void testDatasetLoadKeysFragmentRelationName() {
+        ExternalRelation relation = createExternalRelationWithDatasetName("logs");
+        FragmentExec fragment = new FragmentExec(relation);
+        ExchangeSinkExec sink = new ExchangeSinkExec(SRC, relation.output(), false, fragment);
+        ComputeService.DatasetLoad load = ComputeService.datasetLoad(ProjectId.DEFAULT, sink);
+        assertEquals(Set.of("logs"), load.datasets());
+    }
+
+    public void testDatasetLoadSkipsUnnamedSources() {
+        ComputeService.DatasetLoad load = ComputeService.datasetLoad(ProjectId.DEFAULT, createExternalSourceExec());
+        assertEquals(Set.of(), load.datasets());
     }
 
     public void testRunsExternalScanLocally() {

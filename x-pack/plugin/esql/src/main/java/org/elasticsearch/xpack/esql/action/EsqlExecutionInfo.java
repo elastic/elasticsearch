@@ -252,6 +252,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return queryProfile.total().timeTook();
     }
 
+    /**
+     * The {@link #overallTook()} of a query that has ended, or the time since it started for one that has not reached
+     * {@link #markEndQuery()}, such as a query that failed during planning. Used where a duration is needed on every outcome.
+     */
+    public TimeValue tookOrElapsed() {
+        TimeValue took = overallTook();
+        return took != null ? took : queryProfile.total().timeSinceStarted();
+    }
+
     public Set<String> clusterAliases() {
         return clusterInfo.keySet();
     }

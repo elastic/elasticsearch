@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
-import org.elasticsearch.xpack.esql.action.RequestedTimeRange;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -743,18 +742,16 @@ public class EsqlSession {
         // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
         // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
         // an empty time range). Extraction uses configuration::absoluteStartedTimeInMillis, the query's now.
-        // Also kept on the request, together with that now, so the time range the query asked for is known however the query
-        // ends from here on. It is deliberately not extracted earlier, against a now of its own: planning must resolve date math
-        // against the same now as NOW() and the filter on the data nodes.
+        // Also kept on the request, combined with the range in the query itself, so the time range the query asked for is known
+        // however the query ends from here on. It is deliberately not extracted earlier, against a now of its own: planning must
+        // resolve date math against the same now as NOW() and the filter on the data nodes.
         TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
             request.filter(),
             finalConfiguration::absoluteStartedTimeInMillis
         );
-        if (timestampBounds != null) {
-            // The millisecond now that date math was resolved against, rather than the configuration's finer-grained now().
-            Instant now = Instant.ofEpochMilli(finalConfiguration.absoluteStartedTimeInMillis());
-            request.setRequestedTimeRange(new RequestedTimeRange(timestampBounds, now));
-        }
+        request.setRequestedTimeRange(
+            QueryTimeRangeExtractor.requestedTimeRange(plan, timestampBounds, finalConfiguration, functionRegistry)
+        );
 
         analyzedPlan(
             plan,

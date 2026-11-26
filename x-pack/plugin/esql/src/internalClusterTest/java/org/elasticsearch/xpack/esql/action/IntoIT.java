@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -200,12 +201,12 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testKeepGoingSkipsRefusedRows() {
-        String query = """
+        String query = Strings.format("""
             ROW k = ["ok1", "bad", "ok2"]
             | MV_EXPAND k
             | EVAL unmapped_col = CASE(k == "bad", "nope", null)
             | INTO %s WITH {"keep_going": true}
-            """.formatted(DESTINATION);
+            """, DESTINATION);
         try (EsqlQueryResponse response = run(query)) {
             assertIntoColumns(response);
             List<Object> summary = singleValue(getValuesList(response));

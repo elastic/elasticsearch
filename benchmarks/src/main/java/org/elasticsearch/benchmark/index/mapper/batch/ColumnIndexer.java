@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.BatchMappingShardContext;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
@@ -30,21 +31,38 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * The columnar batch path without the engine: {@code mapColumnBatch} then {@code IndexWriter.addBatch}. It mirrors
  * {@code ShardBatchIndexer} chunking at {@code BATCH_CHUNK_SIZE} and the seqno, primary term and version stamping
  * {@code InternalEngine} applies to the column slice, so the Lucene input matches production while version map, translog and
  * locking stay out of the measurement.
+ *
+ * <p>{@link WriteMode#BATCH} is the columnar write ({@code addBatch}). {@link WriteMode#ROWS} maps the same columns and then writes
+ * each document through the row cursor and {@code addDocuments}, as the engine does for a sub-batch that cannot use
+ * {@code addBatch}, so it measures what column mapping alone gains over row parsing.
  */
 public final class ColumnIndexer {
 
+    /** How the mapped columns reach Lucene. */
+    public enum WriteMode {
+        BATCH,
+        ROWS
+    }
+
     private final BenchShardContext ctx;
     private final Recycler<BytesRef> recycler;
+    private final WriteMode writeMode;
 
     public ColumnIndexer(BenchShardContext ctx, Recycler<BytesRef> recycler) {
+        this(ctx, recycler, WriteMode.BATCH);
+    }
+
+    public ColumnIndexer(BenchShardContext ctx, Recycler<BytesRef> recycler, WriteMode writeMode) {
         this.ctx = ctx;
         this.recycler = recycler;
+        this.writeMode = writeMode;
     }
 
     public record BenchShardContext(MapperService mapperService, IndexSettings indexSettings, long primaryTerm)
@@ -158,7 +176,16 @@ public final class ColumnIndexer {
                 slice.setSeqNo(i, stamper.nextSeqNo());
                 slice.setVersion(i, stamper.version());
             }
-            writer.addBatch(slice.toColumnBatch());
+            switch (writeMode) {
+                case BATCH -> writer.addBatch(slice.toColumnBatch());
+                case ROWS -> {
+                    MappedColumns.RowCursor cursor = slice.rowCursor();
+                    for (int i = 0; i < n; i++) {
+                        cursor.advance();
+                        writer.addDocuments(List.of(new LuceneDocument(cursor.fields())));
+                    }
+                }
+            }
             return n;
         }
     }

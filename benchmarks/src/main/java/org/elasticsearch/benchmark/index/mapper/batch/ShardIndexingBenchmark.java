@@ -200,6 +200,7 @@ public class ShardIndexingBenchmark {
 
         CountingRecycler recycler;
         ColumnIndexer indexer;
+        ColumnIndexer rowWriteIndexer;
 
         @Override
         String shapeName() {
@@ -225,6 +226,7 @@ public class ShardIndexingBenchmark {
         void init() {
             recycler = CountingRecycler.pooled();
             indexer = new ColumnIndexer(ctx, recycler);
+            rowWriteIndexer = new ColumnIndexer(ctx, recycler, ColumnIndexer.WriteMode.ROWS);
         }
     }
 
@@ -354,6 +356,15 @@ public class ShardIndexingBenchmark {
     @Benchmark
     public long column(ColumnState s, PageCounters c) throws IOException {
         long docs = s.indexer.index(s.sink.writer(), s.stamper, s.fixture.requests());
+        c.pagesObtained += s.recycler.pagesObtained();
+        c.pagesFresh += s.recycler.pagesFresh();
+        s.recycler.reset();
+        return docs;
+    }
+
+    @Benchmark
+    public long columnRowWrite(ColumnState s, PageCounters c) throws IOException {
+        long docs = s.rowWriteIndexer.index(s.sink.writer(), s.stamper, s.fixture.requests());
         c.pagesObtained += s.recycler.pagesObtained();
         c.pagesFresh += s.recycler.pagesFresh();
         s.recycler.reset();

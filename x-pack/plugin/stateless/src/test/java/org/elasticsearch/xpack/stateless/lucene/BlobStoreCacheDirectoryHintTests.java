@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReaderTestUtils;
-import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 
 import java.io.IOException;
@@ -568,12 +568,12 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             }
 
             @Override
-            protected CacheBlobReader getCacheBlobReader(String fileName, BccBlob bccBlob) {
+            protected CacheBlobReader getCacheBlobReader(String fileName, Blob blob) {
                 return mock(CacheBlobReader.class);
             }
 
             @Override
-            public CacheBlobReader getCacheBlobReaderForWarming(BccBlob bccBlob) {
+            public CacheBlobReader getCacheBlobReaderForWarming(Blob blob) {
                 return mock(CacheBlobReader.class);
             }
 

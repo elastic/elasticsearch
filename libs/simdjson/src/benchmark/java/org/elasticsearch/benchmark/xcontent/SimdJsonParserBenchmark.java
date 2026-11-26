@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -86,9 +87,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * <p><strong>Shapes.</strong> {@code analytics} is {@link AnalyticsDocs}: wide, flat documents whose field count,
  * string mix, integer widths and escape density were measured on real web-analytics data, so it exercises
  * the escaped-string path as well as the plain ones. {@code small_sparse} and {@code otel_nested} are hand-written.
+ * {@code arrays} is hand-written too, and is the only shape with arrays: string arrays with and without escapes,
+ * numeric arrays, an array of objects and a mixed-type array.
  *
- * <p><strong>Running.</strong> Defaults cover two document shapes; {@code otel_nested} and other
- * parameters are available via {@code -p}.
+ * <p><strong>Running.</strong> Defaults cover two document shapes; {@code otel_nested}, {@code arrays} and
+ * other parameters are available via {@code -p}.
  * <pre>{@code
  * # Single-threaded (default):
  * ./gradlew :libs:simdjson:benchmark --args "SimdJsonParserBenchmark \
@@ -100,7 +103,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  *
  * # All shapes, single bulk size:
  * ./gradlew :libs:simdjson:benchmark --args "SimdJsonParserBenchmark \
- *   -p shape=analytics,otel_nested,small_sparse -p docCount=1000"
+ *   -p shape=analytics,otel_nested,small_sparse,arrays -p docCount=1000"
  *
  * # Index fan-out, which is what prices the shared field name table:
  * ../gradlew run --args "org.elasticsearch.benchmark.xcontent.SimdJsonParserBenchmark \
@@ -146,8 +149,8 @@ public class SimdJsonParserBenchmark {
     private int mappingCount;
 
     /**
-     * Document shape. {@code otel_nested} is omitted by default to keep the parameter matrix small;
-     * pass it explicitly with {@code -p shape=...}.
+     * Document shape. {@code otel_nested} and {@code arrays} are omitted by default to keep the parameter
+     * matrix small; pass them explicitly with {@code -p shape=...}.
      */
     @Param({ "analytics", "small_sparse" })
     private String shape;
@@ -300,6 +303,7 @@ public class SimdJsonParserBenchmark {
             case "analytics" -> AnalyticsDocs.generate(random);
             case "otel_nested" -> generateOtelNested(random);
             case "small_sparse" -> generateSmallSparse(random, docIndex);
+            case "arrays" -> generateArrays(random);
             default -> throw new IllegalArgumentException("unknown shape: " + shape);
         };
         return escapePercent > 0 ? injectEscapes(json, random, escapePercent) : json;
@@ -434,6 +438,86 @@ public class SimdJsonParserBenchmark {
                 random.nextInt(600)
             );
         };
+    }
+
+    /**
+     * An observability-style document whose fields are mostly arrays of varying length, one per array path of the
+     * encoder: string arrays without escapes (at the top level and inside an object), string arrays with {@code \/} and
+     * {@code \"} escapes, integer and floating-point arrays, an array of objects, and a mixed-type array.
+     */
+    private static String generateArrays(Random random) {
+        StringBuilder sb = new StringBuilder(1024);
+        sb.append(
+            String.format(
+                Locale.ROOT,
+                "{\"@timestamp\":\"2025-09-23T%02d:%02d:%02dZ\",\"service\":\"%s\"",
+                random.nextInt(24),
+                random.nextInt(60),
+                random.nextInt(60),
+                randomService(random)
+            )
+        );
+        appendArrayField(sb, "tags", 1 + random.nextInt(6), random, r -> quoted(randomWord(r)));
+        sb.append(",\"event\":{\"outcome\":\"success\"");
+        appendArrayField(sb, "category", 1 + random.nextInt(3), random, r -> quoted(randomWord(r)));
+        sb.append('}');
+        appendArrayField(
+            sb,
+            "files",
+            1 + random.nextInt(4),
+            random,
+            r -> quoted("\\/var\\/log\\/" + randomService(r) + "\\/" + randomWord(r) + ".log")
+        );
+        appendArrayField(
+            sb,
+            "messages",
+            1 + random.nextInt(3),
+            random,
+            r -> r.nextBoolean() ? quoted(randomMessage(r)) : quoted("said \\\"" + randomWord(r) + "\\\"")
+        );
+        sb.append(",\"related\":{\"service\":\"").append(randomService(random)).append('"');
+        appendArrayField(
+            sb,
+            "ip",
+            1 + random.nextInt(4),
+            random,
+            r -> quoted("10." + r.nextInt(256) + "." + r.nextInt(256) + "." + r.nextInt(256))
+        );
+        sb.append('}');
+        appendArrayField(sb, "ports", 1 + random.nextInt(5), random, r -> Integer.toString(1024 + r.nextInt(64512)));
+        appendArrayField(sb, "latency_ms", 1 + random.nextInt(5), random, r -> String.format(Locale.ROOT, "%.3f", r.nextDouble() * 1000));
+        appendArrayField(
+            sb,
+            "spans",
+            1 + random.nextInt(4),
+            random,
+            r -> String.format(
+                Locale.ROOT,
+                "{\"name\":\"%s\",\"duration_us\":%d,\"ok\":%b}",
+                randomWord(r),
+                r.nextInt(100_000),
+                r.nextBoolean()
+            )
+        );
+        sb.append(
+            String.format(Locale.ROOT, ",\"attributes\":[\"%s\",%d,%b]", randomWord(random), random.nextInt(1000), random.nextBoolean())
+        );
+        return sb.append('}').toString();
+    }
+
+    private static void appendArrayField(StringBuilder sb, String name, int count, Random random, Function<Random, String> element) {
+        sb.append(",\"").append(name).append("\":[");
+        for (int i = 0; i < count; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(element.apply(random));
+        }
+        sb.append(']');
+    }
+
+    private static String quoted(String value) {
+        return '"' + value + '"';
     }
 
     // ------------------------------------------------------------------

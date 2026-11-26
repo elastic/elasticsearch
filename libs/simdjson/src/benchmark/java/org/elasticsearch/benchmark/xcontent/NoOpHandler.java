@@ -22,16 +22,13 @@ final class NoOpHandler implements JsonDocumentHandler {
     long checksum;
 
     @Override
-    public void startObject(String fieldName) {
-    }
+    public void startObject(String fieldName) {}
 
     @Override
-    public void endObject() {
-    }
+    public void endObject() {}
 
     @Override
-    public void emptyObject(String fieldName) {
-    }
+    public void emptyObject(String fieldName) {}
 
     @Override
     public void stringField(String fieldName, byte[] buf, int off, int len) {
@@ -59,16 +56,13 @@ final class NoOpHandler implements JsonDocumentHandler {
     }
 
     @Override
-    public void nullField(String fieldName) {
-    }
+    public void nullField(String fieldName) {}
 
     @Override
-    public void startArray(String fieldName) {
-    }
+    public void startArray(String fieldName) {}
 
     @Override
-    public void endArray() {
-    }
+    public void endArray() {}
 
     @Override
     public void arrayElemString(byte[] buf, int off, int len) {
@@ -96,22 +90,17 @@ final class NoOpHandler implements JsonDocumentHandler {
     }
 
     @Override
-    public void arrayElemNull() {
-    }
+    public void arrayElemNull() {}
 
     @Override
-    public void arrayElemStartObject() {
-    }
+    public void arrayElemStartObject() {}
 
     @Override
-    public void arrayElemEndObject() {
-    }
+    public void arrayElemEndObject() {}
 
     @Override
-    public void arrayElemStartArray() {
-    }
+    public void arrayElemStartArray() {}
 
     @Override
-    public void arrayElemEndArray() {
-    }
+    public void arrayElemEndArray() {}
 }

@@ -22,9 +22,6 @@ public final class TermsQueryCostEstimator implements QueryCostEstimator {
     /** Flat floor for the shallow size of a {@code TermInSetQuery}; also the minimum for an empty terms list. */
     public static final long BASE_BYTES = 64L;
 
-    /** Fixed per-leaf overhead for a dense result {@code FixedBitSet}. */
-    public static final long FIXED_BITSET_BASE_BYTES = 96L;
-
     /** Fixed per-leaf overhead for a sparse {@code DocIdSetBuilder}. */
     public static final long DOC_ID_SET_BUILDER_BASE_BYTES = 192L;
 
@@ -42,9 +39,6 @@ public final class TermsQueryCostEstimator implements QueryCostEstimator {
      * after half of its nominal {@code maxDoc >>> 7} threshold.
      */
     private static final int SPARSE_TO_DENSE_SHIFT = 8;
-
-    private static final long BITS_PER_WORD = 64L;
-    private static final long BYTES_PER_WORD = 8L;
 
     private final long termsRamBytes;
 
@@ -85,8 +79,7 @@ public final class TermsQueryCostEstimator implements QueryCostEstimator {
             return 0L;
         }
         try {
-            long words = Math.ceilDiv((long) leafMaxDoc, BITS_PER_WORD);
-            long denseBytes = Math.addExact(Math.multiplyExact(words, BYTES_PER_WORD), FIXED_BITSET_BASE_BYTES);
+            long denseBytes = FixedBitSetCost.scorerBytes(leafMaxDoc);
 
             long boundedCost = Math.max(0L, cost);
             long sparseToDenseThreshold = (long) leafMaxDoc >>> SPARSE_TO_DENSE_SHIFT;

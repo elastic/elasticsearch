@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167345
+summary: Affix fast path for LIKE patterns
+type: enhancement

@@ -811,6 +811,68 @@ public class NodeJoinExecutorTests extends ESTestCase {
         assertThat(rejection.get().getCause(), instanceOf(NullPointerException.class));
     }
 
+    /** The master logs why it rejected a join in an election, since the node only gets the publication failure if it doesn't commit. */
+    public void testJoinAttributesRejectionInElectionIsLogged() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode rejectedNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()))
+            .build();
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(
+            allocationService,
+            rerouteService,
+            createFeatureService(),
+            Function.identity(),
+            List.of((node, joinAttributes, state) -> {
+                if (node.equals(rejectedNode)) {
+                    throw new IllegalStateException("node cannot join");
+                }
+            })
+        );
+
+        try (var mockLog = MockLog.capture(NodeJoinExecutor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "rejection",
+                    LOGGER_NAME,
+                    Level.INFO,
+                    "rejecting join of [" + rejectedNode.descriptionWithoutAttributes() + "] in election: node cannot join"
+                )
+            );
+            ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+                clusterState,
+                executor,
+                List.of(
+                    JoinTask.completingElection(
+                        Stream.of(
+                            new JoinTask.NodeJoinTask(
+                                masterNode,
+                                CompatibilityVersionsUtils.staticCurrent(),
+                                Set.of(),
+                                TEST_REASON,
+                                NO_FAILURE_LISTENER
+                            ),
+                            new JoinTask.NodeJoinTask(
+                                rejectedNode,
+                                CompatibilityVersionsUtils.staticCurrent(),
+                                Set.of(),
+                                TEST_REASON,
+                                ActionListener.wrap(o -> fail("should have failed"), e -> {})
+                            )
+                        ),
+                        1L
+                    )
+                )
+            );
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
     private static JoinTask joinTask(DiscoveryNode node, Map<String, String> joinAttributes, ActionListener<Void> listener) {
         return JoinTask.singleNode(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinAttributes, TEST_REASON, listener, 0L);
     }

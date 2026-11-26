@@ -4974,9 +4974,11 @@ public class EsqlCapabilities {
         COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
 
         /**
-         * {@code column_metadata} reports the field a column reads as {@code _meta.field} and its unit as {@code _meta.unit}.
+         * {@code column_metadata} reports what {@code DESCRIBE} reports about a column, other than its name and type, as
+         * {@code _meta} entries of the same names: {@code role}, {@code field}, {@code origin}, {@code metric_type}, {@code unit},
+         * {@code interval}, {@code time_zone} and {@code description}.
          */
-        COLUMN_METADATA_FIELD_SEMANTICS(Build.current().isSnapshot()),
+        COLUMN_METADATA_DESCRIBE_COLUMNS,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which

@@ -2,6 +2,9 @@
 navigation_title: "Missing"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-missing-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Missing aggregation [search-aggregations-bucket-missing-aggregation]

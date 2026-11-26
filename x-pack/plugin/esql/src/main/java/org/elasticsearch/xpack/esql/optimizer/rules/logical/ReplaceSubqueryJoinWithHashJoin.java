@@ -55,9 +55,9 @@ public final class ReplaceSubqueryJoinWithHashJoin extends Rule<LogicalPlan, Log
             lowered.add(new Lowered(project, join.config().leftFields()));
             return project;
         });
-        // A join comes after the joins nested in its sides, so walking backwards narrows a join before the ones below it, which
-        // then see what it no longer reads. Narrowing a join rebuilds only the plans above it, so the joins below keep their
-        // identity.
+        // transformUp lists a join after the joins nested in its sides. Walking the list backwards narrows each join before the joins
+        // below it, so those no longer keep columns that only its dropped projections read. Narrowing replaces the join and rebuilds
+        // the plans above it, and no join still to narrow is above it, so each keeps the identity pruneUnusedColumns finds it by.
         for (int i = lowered.size() - 1; i >= 0; i--) {
             result = pruneUnusedColumns(result, lowered.get(i));
         }
@@ -97,8 +97,8 @@ public final class ReplaceSubqueryJoinWithHashJoin extends Rule<LogicalPlan, Log
         LogicalPlan left = leftColumns.isEmpty() ? join.left() : new Eval(source, join.left(), leftColumns);
         LogicalPlan subquery = join.right();
         if (rightCasts.isEmpty() == false) {
-            // Drop the subquery's own keys: the join's output doesn't have them, and they would shadow the left columns of the
-            // same name.
+            // Drop the subquery's own keys, as LOOKUP JOIN does: only its other columns replace left columns of the same name.
+            // The hash join's right keys are now the casts, so it would keep the original keys among the subquery's columns.
             List<NamedExpression> projections = new ArrayList<>();
             for (Attribute output : subquery.output()) {
                 if (rightFields.contains(output) == false) {

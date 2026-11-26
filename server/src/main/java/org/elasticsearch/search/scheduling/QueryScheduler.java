@@ -9,9 +9,16 @@
 
 package org.elasticsearch.search.scheduling;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.ArrayList;
@@ -24,10 +31,17 @@ import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
 /**
- * Measures the search waiting of the queries on this node. It only measures: tasks go to their pools unchanged and in
+ * Tracks the queries on this node. A query is identified by the task of its coordinator, the same on every node. It is
+ * tracked while one of its {@link QueryPart}s is open or one of its tasks is queued or running on this node.
+ * <p>
+ * It measures the search waiting of the queries. It only measures: tasks go to their pools unchanged and in
  * order. A query waits while it has tasks queued on the node and none running: a query running fewer tasks than it queued
  * is not waiting. While a query waits, each shard with queued work accumulates the waiting time once, however many of its
  * tasks are queued. Shards are charged when a task leaves the queue.
+ * <p>
+ * The query's own waiting on the node goes to the {@link QueryLoad} of the executor whose task left the queue, so the loads
+ * of its executors add up to it.
+ * Each query charges its memory through {@link QueryPart#breaker()}, one breaker for all its parts on the node.
  */
 public final class QueryScheduler {
 
@@ -55,49 +69,235 @@ public final class QueryScheduler {
     record Shard(Object id, SearchWaitingAccumulator searchWaiting, BooleanSupplier hasWork) {}
 
     private final LongSupplier clock;
+    private final CircuitBreaker requestBreaker;
     private final ConcurrentHashMap<TaskId, Query> queries = new ConcurrentHashMap<>();
+    /** The open parts owned by a task, by the id of the task on this node. */
+    private final ConcurrentHashMap<Long, List<QueryPart>> partsByOwner = new ConcurrentHashMap<>();
 
     /**
      * @param clock the clock waiting is measured with, like {@link System#nanoTime()}
      */
     public QueryScheduler(LongSupplier clock) {
+        this(clock, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+    }
+
+    /**
+     * @param clock          the clock waiting is measured with, like {@link System#nanoTime()}
+     * @param requestBreaker the breaker the queries charge their memory to
+     */
+    public QueryScheduler(LongSupplier clock, CircuitBreaker requestBreaker) {
         this.clock = clock;
+        this.requestBreaker = requestBreaker;
     }
 
     /**
      * Returns an executor that submits the tasks of the query {@code queryId} to {@code delegate}. The tasks work on
      * {@code shards}, each listed once, which accumulate the waiting into {@link ShardSearchStats#accumulateSearchWaiting}.
      * A query is identified by the task of its coordinator in this cluster, the same on every node.
+     *
+     * @param load where the query's waiting handed to this executor goes, or {@code null} if it takes none
      */
-    public QueryExecutor executor(TaskId queryId, Executor delegate, List<SearchedShard> shards) {
+    public QueryExecutor executor(TaskId queryId, Executor delegate, List<SearchedShard> shards, @Nullable QueryLoad load) {
         List<Shard> searched = new ArrayList<>(shards.size());
         for (SearchedShard shard : shards) {
             ShardSearchStats stats = shard.shard().shardSearchStats();
             searched.add(new Shard(stats, stats::accumulateSearchWaiting, shard.hasWork()));
         }
-        return newExecutor(queryId, delegate, searched);
+        return newExecutor(queryId, delegate, searched, load);
     }
 
     /**
      * Returns an executor that submits the tasks of the query {@code queryId} to {@code delegate}, all working on
      * {@code shard}, which has work as long as they are queued.
+     *
+     * @param load where the query's waiting handed to this executor goes, or {@code null} if it takes none
      */
-    public QueryExecutor executor(TaskId queryId, Executor delegate, IndexShard shard) {
+    public QueryExecutor executor(TaskId queryId, Executor delegate, IndexShard shard, @Nullable QueryLoad load) {
         ShardSearchStats stats = shard.shardSearchStats();
-        return newExecutor(queryId, delegate, List.of(new Shard(stats, stats::accumulateSearchWaiting, () -> true)));
+        return newExecutor(queryId, delegate, List.of(new Shard(stats, stats::accumulateSearchWaiting, () -> true)), load);
     }
 
     QueryExecutor newExecutor(TaskId queryId, Executor delegate, List<Shard> shards) {
+        return newExecutor(queryId, delegate, shards, new QueryLoad());
+    }
+
+    QueryExecutor newExecutor(TaskId queryId, Executor delegate, List<Shard> shards, @Nullable QueryLoad load) {
         assert queryId.isSet() : "query id must be set";
         assert shards.stream().map(Shard::id).distinct().count() == shards.size() : "shards listed more than once " + shards;
-        return new QueryExecutor(queryId, delegate, shards);
+        return new QueryExecutor(queryId, delegate, shards, load);
     }
 
     /**
-     * The number of queries with tasks queued or running on this node.
+     * Opens a part of the query {@code queryId}, owned by the task {@code ownerId} on this node. Its engine closes it.
+     * Removing the owner after the part opened closes it too.
+     */
+    public QueryPart part(TaskId queryId, long ownerId) {
+        assert queryId.isSet() : "query id must be set";
+        QueryPart part = new QueryPart(ownerId);
+        while (true) {
+            Query query = queries.computeIfAbsent(queryId, Query::new);
+            synchronized (query) {
+                if (query.forgotten) {
+                    // it was forgotten meanwhile: track the query again
+                    queries.remove(queryId, query);
+                    continue;
+                }
+                query.openParts++;
+                if (query.breaker == null) {
+                    query.breaker = new QueryCircuitBreaker(requestBreaker, () -> forgetIfIdle(query));
+                }
+                part.query = query;
+                part.breaker = query.breaker;
+            }
+            break;
+        }
+        partsByOwner.compute(ownerId, (id, parts) -> {
+            List<QueryPart> owned = parts == null ? new ArrayList<>(2) : parts;
+            owned.add(part);
+            return owned;
+        });
+        return part;
+    }
+
+    /**
+     * Closes the parts a task owns when the task is removed.
+     */
+    public RemovedTaskListener removedTaskListener() {
+        return task -> {
+            if (partsByOwner.isEmpty() == false) {
+                List<QueryPart> owned = partsByOwner.remove(task.getId());
+                if (owned != null) {
+                    for (QueryPart part : owned) {
+                        part.close();
+                    }
+                }
+            }
+        };
+    }
+
+    /**
+     * The bytes the query {@code queryId} holds on this node, or 0 if it is not tracked.
+     */
+    public long memoryBytes(TaskId queryId) {
+        Query query = queries.get(queryId);
+        if (query == null) {
+            return 0;
+        }
+        synchronized (query) {
+            return query.breaker == null ? 0 : query.breaker.usedBytes();
+        }
+    }
+
+    /**
+     * The number of queries tracked on this node.
      */
     public int queries() {
         return queries.size();
+    }
+
+    /**
+     * The open parts owned by a task, by the id of the task. Only for tests.
+     */
+    Map<Long, List<QueryPart>> ownedParts() {
+        return partsByOwner;
+    }
+
+    /**
+     * Forgets the query if it has no task, no open part and no memory left. A later task or part of the same query
+     * tracks it again from scratch, as when a search opens a new context on the node for its fetch phase.
+     */
+    private void forgetIfIdle(Query query) {
+        boolean forget;
+        synchronized (query) {
+            forget = query.forgetIfIdle();
+        }
+        if (forget) {
+            queries.remove(query.id, query);
+        }
+    }
+
+    /**
+     * A part of a query on this node, such as a search context or the coordination. It keeps the query tracked until it
+     * closes. Its memory is the query's.
+     */
+    public final class QueryPart implements Releasable {
+        /** The id of the task whose removal closes the part. */
+        private final long owner;
+        /** The query the part keeps tracked while it is open. */
+        private Query query;
+        private QueryCircuitBreaker breaker;
+        /** Guarded by the query. */
+        private boolean closed;
+
+        private QueryPart(long owner) {
+            this.owner = owner;
+        }
+
+        /**
+         * The query's breaker on this node, shared by all its parts. It is a child of the request breaker.
+         */
+        public CircuitBreaker breaker() {
+            return breaker;
+        }
+
+        /**
+         * A breaker service that returns {@link #breaker()} as the request breaker, to allocate {@link BigArrays}
+         * through the query.
+         */
+        public CircuitBreakerService breakerService(CircuitBreakerService next) {
+            return new QueryCircuitBreaker.Service(next, breaker);
+        }
+
+        /**
+         * Big arrays that charge the query, or {@code bigArrays} itself if it charges no breaker.
+         */
+        public BigArrays bigArrays(BigArrays bigArrays) {
+            CircuitBreakerService next = bigArrays.breakerService();
+            return next == null ? bigArrays : bigArrays.withBreakerService(breakerService(next));
+        }
+
+        /**
+         * The bytes the query holds on this node.
+         */
+        long memoryBytes() {
+            return breaker.usedBytes();
+        }
+
+        /**
+         * The most bytes the query held at once on this node.
+         */
+        public long peakMemoryBytes() {
+            return breaker.peakBytes();
+        }
+
+        boolean isClosed() {
+            synchronized (query) {
+                return closed;
+            }
+        }
+
+        /**
+         * Ends the part. The query stays tracked while it has tasks queued or running, or memory left.
+         */
+        @Override
+        public void close() {
+            boolean forget;
+            synchronized (query) {
+                if (closed) {
+                    return;
+                }
+                closed = true;
+                query.openParts--;
+                forget = query.forgetIfIdle();
+            }
+            if (forget) {
+                queries.remove(query.id, query);
+            }
+            partsByOwner.computeIfPresent(owner, (id, parts) -> {
+                parts.remove(this);
+                return parts.isEmpty() ? null : parts;
+            });
+        }
     }
 
     /**
@@ -108,6 +308,8 @@ public final class QueryScheduler {
         private final TaskId queryId;
         private final Executor delegate;
         private final List<Shard> shards;
+        @Nullable
+        private final QueryLoad load;
         /** Tasks submitted and not started. */
         private int queuedTasks;
         /** The waiting of the query when this executor last charged its shards, or started queuing. */
@@ -117,10 +319,11 @@ public final class QueryScheduler {
         /** Whether other executors of the query queued at the same time, so its shards are charged through the query. */
         private boolean shared;
 
-        private QueryExecutor(TaskId queryId, Executor delegate, List<Shard> shards) {
+        private QueryExecutor(TaskId queryId, Executor delegate, List<Shard> shards, QueryLoad load) {
             this.queryId = queryId;
             this.delegate = delegate;
             this.shards = shards;
+            this.load = load;
         }
 
         @Override
@@ -153,7 +356,7 @@ public final class QueryScheduler {
             Query query = queries.computeIfAbsent(queryId, Query::new);
             synchronized (query) {
                 if (query.forgotten) {
-                    // its last task completed meanwhile: track the query again
+                    // its last task completed or its last part closed meanwhile: track the query again
                     queries.remove(queryId, query);
                     continue;
                 }
@@ -185,10 +388,9 @@ public final class QueryScheduler {
             }
             task.completed = true;
             query.completed(task, clock);
-            if (query.isIdle() == false) {
+            if (query.forgetIfIdle() == false) {
                 return;
             }
-            query.forgotten = true;
         }
         queries.remove(query.id, query);
     }
@@ -210,14 +412,20 @@ public final class QueryScheduler {
         long waitedNanos;
         /** The last time {@link #waitedNanos} was brought up to date. */
         long waitedUpToNanos;
+        /** The part of {@link #waitedNanos} handed to the loads of its executors. */
+        long handedOutWaitedNanos;
         /** The executors with tasks queued. */
         int queuingExecutors;
         /** The executor with tasks queued while no other has any, so it is shared once another joins. */
         QueryExecutor alone;
         /** The shards of the shared executors, by id. */
         Map<Object, QueuedShard> queuedShards;
-        /** Whether the query had no task left and is no longer tracked. */
+        /** Parts of the query not closed. */
+        int openParts;
+        /** Whether the query had no task, no open part and no memory left, and is no longer tracked. */
         boolean forgotten;
+        /** Created by its first part. */
+        QueryCircuitBreaker breaker;
 
         Query(TaskId id) {
             this.id = id;
@@ -228,7 +436,18 @@ public final class QueryScheduler {
         }
 
         boolean isIdle() {
-            return runningTasks == 0 && queuedTasks == 0;
+            return runningTasks == 0 && queuedTasks == 0 && openParts == 0 && (breaker == null || breaker.usedBytes() == 0);
+        }
+
+        /**
+         * Marks the query forgotten if it is idle, and returns whether it did. The caller then stops tracking it.
+         */
+        boolean forgetIfIdle() {
+            if (forgotten || isIdle() == false) {
+                return false;
+            }
+            forgotten = true;
+            return true;
         }
 
         /**
@@ -336,10 +555,14 @@ public final class QueryScheduler {
         }
 
         /**
-         * A task of the executor left the queue: charges its shards if the query waited since the executor last charged
-         * them, and forgets them if it was the last task the executor had queued.
+         * A task of the executor left the queue. Hands the query's remaining waiting to the executor's load, if any, charges
+         * the shards their waiting, and forgets them if nothing else is queued.
          */
         private void leaveQueue(QueryExecutor executor) {
+            if (executor.load != null && handedOutWaitedNanos != waitedNanos) {
+                executor.load.addWaiting(waitedNanos - handedOutWaitedNanos);
+                handedOutWaitedNanos = waitedNanos;
+            }
             if (executor.chargedWaitedNanos != waitedNanos) {
                 charge(executor);
             }

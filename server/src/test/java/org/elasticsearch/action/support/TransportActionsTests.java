@@ -20,8 +20,10 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.test.ESTestCase;
@@ -87,5 +89,23 @@ public class TransportActionsTests extends ESTestCase {
     public void testGenericExceptionsAreRetriable() {
         assertTrue(TransportActions.isRetriableShardLevelException(new RuntimeException("unexpected")));
         assertTrue(TransportActions.isRetriableShardLevelException(new ElasticsearchException("internal error")));
+    }
+
+    public void testMissingContextIsRetriableOnlyForRetryableContext() {
+        var retryableContextId = new ShardSearchContextId("session", 1, "searcher");
+        var missingContext = new SearchContextMissingException(retryableContextId);
+        assertTrue(TransportActions.isRetriableShardLevelException(missingContext, retryableContextId));
+        assertTrue(
+            TransportActions.isRetriableShardLevelException(new RemoteTransportException("remote", missingContext), retryableContextId)
+        );
+        assertFalse(TransportActions.isRetriableShardLevelException(missingContext, new ShardSearchContextId("session", 1)));
+        assertFalse(TransportActions.isRetriableShardLevelException(missingContext, null));
+        assertFalse(TransportActions.isRetriableShardLevelException(missingContext));
+    }
+
+    public void testRetryableContextDoesNotChangeOtherExceptions() {
+        var retryableContextId = new ShardSearchContextId("session", 1, "searcher");
+        assertFalse(TransportActions.isRetriableShardLevelException(new ParsingException(0, 0, "parse error", null), retryableContextId));
+        assertTrue(TransportActions.isRetriableShardLevelException(new ShardNotFoundException(SHARD_ID), retryableContextId));
     }
 }

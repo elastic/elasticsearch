@@ -296,7 +296,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         if (buildFeatures.getConfigurationCache().getActive().get() == false) {
             // if configuration cache is enabled, resolving the test seed early breaks configuration cache reuse
-            LOGGER.quiet("  Random Testing Seed   : " + buildParams.getTestSeed());
+            LOGGER.quiet("  Random Testing Seed   : " + buildParams.getTestSeedProvider().get());
         }
         LOGGER.quiet("  In FIPS 140 mode      : " + buildParams.getInFipsJvm());
         LOGGER.quiet("=======================================");

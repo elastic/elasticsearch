@@ -395,12 +395,15 @@ public class LocalStorageProviderTests extends ESTestCase {
     }
 
     public void testListChildrenOnMissingDirectoryThrows() {
-        Path tempDir = createTempDir();
+        Path missing = createTempDir().resolve("missing_dir");
         LocalStorageProvider provider = new LocalStorageProvider();
-        expectThrows(
-            IOException.class,
-            () -> provider.listChildren(StoragePath.of(StoragePath.fileUri(tempDir.resolve("missing"))), 10_000)
+        NoSuchFileException e = expectThrows(
+            NoSuchFileException.class,
+            () -> provider.listChildren(StoragePath.of(StoragePath.fileUri(missing)), 10_000)
         );
+        assertThat(e.getMessage(), containsString("missing_dir"));
+        assertThat(e.getMessage(), containsString("Directory does not exist"));
+        assertThat(e.getMessage(), not(containsString(missing.getParent().toString())));
     }
 
     public void testFileNotFound() throws IOException {
@@ -432,9 +435,27 @@ public class LocalStorageProviderTests extends ESTestCase {
         Path missing = createTempDir().resolve("missing_dir");
         LocalStorageProvider provider = new LocalStorageProvider();
 
-        IOException e = expectThrows(IOException.class, () -> provider.listObjects(StoragePath.of(StoragePath.fileUri(missing)), false));
+        NoSuchFileException e = expectThrows(
+            NoSuchFileException.class,
+            () -> provider.listObjects(StoragePath.of(StoragePath.fileUri(missing)), false)
+        );
 
         assertThat(e.getMessage(), containsString("missing_dir"));
+        assertThat(e.getMessage(), containsString("Directory does not exist"));
+        assertThat(e.getMessage(), not(containsString(missing.getParent().toString())));
+    }
+
+    public void testListingAMissingDirectoryWithNamePrefixThrowsNoSuchFile() {
+        Path missing = createTempDir().resolve("missing_dir");
+        LocalStorageProvider provider = new LocalStorageProvider();
+
+        NoSuchFileException e = expectThrows(
+            NoSuchFileException.class,
+            () -> provider.listObjects(StoragePath.of(StoragePath.fileUri(missing)), "part-", false)
+        );
+
+        assertThat(e.getMessage(), containsString("missing_dir"));
+        assertThat(e.getMessage(), containsString("Directory does not exist"));
         assertThat(e.getMessage(), not(containsString(missing.getParent().toString())));
     }
 

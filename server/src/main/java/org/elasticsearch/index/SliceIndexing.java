@@ -55,12 +55,6 @@ public final class SliceIndexing {
     private static final Pattern VALID_SLICE_VALUE_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9._:-]*[a-zA-Z0-9])?");
 
     /**
-     * A reserved value for the REST-only {@code _slice} search parameter meaning "do not restrict to a routing value".
-     * This is used to query across all slices while still indicating intentional slice-mode access.
-     */
-    public static final String SLICE_ALL = "_all";
-
-    /**
      * Doc-values field holding the slice sort key, {@code BE32(sliceHash) ++ utf8(slice)}; the primary (and only
      * prepended) index sort of a slice-enabled index. Bytewise order equals {@code (unsigned hash, slice)} order, so
      * segments are laid out by hash prefix while slices with colliding hashes remain distinct, adjacent terms.
@@ -132,23 +126,11 @@ public final class SliceIndexing {
 
     /**
      * Returns the {@code slice} value implied by a routing value and its provenance: {@code null} when routing did not come from
-     * {@code slice}, {@link #SLICE_ALL} when it did but is unrestricted, otherwise the routing value itself.
+     * {@code slice}, otherwise the routing value itself.
      */
     @Nullable
     public static String toSearchSlice(@Nullable String routing, boolean routingFromSlice) {
-        if (routingFromSlice == false) {
-            return null;
-        }
-        return routing == null ? SLICE_ALL : routing;
-    }
-
-    /**
-     * Inverse of {@link #toSearchSlice}: returns the routing value implied by a {@code slice} value, where {@link #SLICE_ALL}
-     * means unrestricted ({@code null}) routing.
-     */
-    @Nullable
-    public static String sliceToRouting(String slice) {
-        return SLICE_ALL.equals(slice) ? null : slice;
+        return routingFromSlice ? routing : null;
     }
 
     /**
@@ -171,9 +153,6 @@ public final class SliceIndexing {
                     + "]"
             );
         }
-        if (SLICE_ALL.equals(slice)) {
-            throw new IllegalArgumentException("invalid [" + FIELD_NAME + "] value [" + slice + "]: value is reserved");
-        }
         if (VALID_SLICE_VALUE_PATTERN.matcher(slice).matches() == false) {
             throw new IllegalArgumentException(
                 "invalid ["
@@ -192,7 +171,7 @@ public final class SliceIndexing {
      * term vectors, mget, bulk, explain).
      * <p>
      * Slice is encoded as a path segment, for example {@code /{index}/{_slice}/_doc/{id}}; the {@code _slice} query parameter is not
-     * supported. The value must be a single slice (the reserved token {@code _all} and comma-separated lists are rejected by
+     * supported. The value must be a single slice (comma-separated lists are rejected by
      * {@link #validateUserSliceValue}). Returns the effective routing value and whether it was provided via {@code _slice}.
      */
     public static ParsedRouting parseRoutingOrSliceWithProvenance(RestRequest request) {
@@ -213,21 +192,23 @@ public final class SliceIndexing {
     /**
      * Parses and validates slice routing for search APIs.
      * <p>
-     * Slice is encoded in the path as {@code /{index}/{_slice}/_search}. The {@code {_slice}} segment may be a single slice,
-     * a comma-separated list (for example {@code tenant-a,tenant-b}), or the reserved token {@code _all}.
+     * Slice is encoded in the path as {@code /{index}/{_slice}/_search}, or supplied as the {@code _slice} parameter. The value may
+     * be a single slice or a comma-separated list (for example {@code tenant-a,tenant-b}). To search every slice, omit the slice.
+     *
+     * @param sliceSupported whether the calling handler supports slices, i.e. registers {@code {_slice}} path segment routes.
+     *                       Handlers that do not (for example plugin routes such as {@code /{prefix}/{index}/_search}) never
+     *                       read {@code _slice}.
      */
-    public static ParsedRouting parseSearchRoutingOrSliceWithProvenance(RestRequest request) {
+    public static ParsedRouting parseSearchRoutingOrSliceWithProvenance(RestRequest request, boolean sliceSupported) {
         final String routing = request.param("routing");
-        if (isPathBasedSliceSearch(request)) {
+        if (sliceSupported && request.hasParam(FIELD_NAME)) {
             if (SLICE_FEATURE_FLAG.isEnabled() == false) {
                 throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
             }
             if (routing != null) {
                 throw new IllegalArgumentException("[routing] is not allowed together with [" + FIELD_NAME + "]");
             }
-            final String pathSlice = request.param(FIELD_NAME);
-            assert pathSlice != null : "path slice search must capture [" + FIELD_NAME + "] from the path";
-            return parseSearchPathSlice(pathSlice);
+            return parseSearchPathSlice(request.param(FIELD_NAME));
         }
         if (routing != null) {
             return new ParsedRouting(routing, false);
@@ -236,9 +217,6 @@ public final class SliceIndexing {
     }
 
     private static ParsedRouting parseSearchPathSlice(String pathSlice) {
-        if (SLICE_ALL.equals(pathSlice)) {
-            return new ParsedRouting(null, true);
-        }
         final String[] slices = Strings.splitStringByCommaToArray(pathSlice);
         if (slices.length == 0) {
             throw new IllegalArgumentException("invalid [" + FIELD_NAME + "] value: value must be non-empty");
@@ -252,8 +230,10 @@ public final class SliceIndexing {
     /**
      * Validates and normalizes a {@code _slice} value supplied inside the search {@code pit} object. A point-in-time search targets
      * no index, so it cannot carry the slice as a {@code /{index}/{_slice}/_search} path segment; instead the slice is provided as
-     * the {@code _slice} field of the {@code pit} object. The value may be a single slice, a comma-separated list, or the reserved
-     * token {@code _all}. Requires the slice feature flag to be enabled.
+     * the {@code _slice} field of the {@code pit} object. The value may be a single slice or a
+     * comma-separated list. Requires the slice feature flag to be enabled.
+     * <p>
+     * Also used for the {@code _slice} in an {@code _msearch} metadata line, which is likewise a body-supplied value.
      */
     public static ParsedRouting parsePitSearchSlice(String slice) {
         if (SLICE_FEATURE_FLAG.isEnabled() == false) {
@@ -269,7 +249,7 @@ public final class SliceIndexing {
      * <p>
      * These APIs either target multiple indices/sub-requests ({@code _msearch}) or otherwise have no per-index {@code {_slice}}
      * path segment, so the slice is supplied as a parameter (mirroring the {@code routing} parameter). The value may be a single
-     * slice, a comma-separated list, or the reserved token {@code _all}. For {@code _msearch} this is the request-level default;
+     * slice or a comma-separated list. For {@code _msearch} this is the request-level default;
      * per-sub-request overrides are handled separately via the metadata line.
      */
     public static ParsedRouting parseParamRoutingOrSliceWithProvenance(RestRequest request) {
@@ -285,32 +265,6 @@ public final class SliceIndexing {
             return new ParsedRouting(routing, false);
         }
         return parseSearchPathSlice(slice);
-    }
-
-    /**
-     * Returns {@code true} when the request matched a path-based slice search endpoint. The supported shapes are
-     * {@code /{index}/{_slice}/_search}, {@code /{index}/{_slice}/_count}, {@code /{index}/{_slice}/_delete_by_query},
-     * {@code /{index}/{_slice}/_update_by_query}, {@code /{index}/{_slice}/_search/template}, and
-     * {@code /{index}/{_slice}/_fleet/_fleet_search}.
-     */
-    static boolean isPathBasedSliceSearch(RestRequest request) {
-        String rawPath = request.rawPath();
-        final int queryStart = rawPath.indexOf('?');
-        if (queryStart >= 0) {
-            rawPath = rawPath.substring(0, queryStart);
-        }
-        final String[] parts = Strings.tokenizeToStringArray(rawPath, "/");
-        if (parts.length == 3) {
-            return "_search".equals(parts[2])
-                || "_count".equals(parts[2])
-                || "_delete_by_query".equals(parts[2])
-                || "_update_by_query".equals(parts[2]);
-        }
-        if (parts.length == 4) {
-            return ("_search".equals(parts[2]) && "template".equals(parts[3]))
-                || ("_fleet".equals(parts[2]) && "_fleet_search".equals(parts[3]));
-        }
-        return false;
     }
 
     /**
@@ -384,7 +338,7 @@ public final class SliceIndexing {
             );
         }
         if (routingFromSlice) {
-            return SLICE_ALL.equals(requestedSlice) ? null : requestedSlice;
+            return requestedSlice;
         }
         return routing;
     }

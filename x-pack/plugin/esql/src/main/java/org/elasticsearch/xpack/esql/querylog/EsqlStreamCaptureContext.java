@@ -22,7 +22,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * {@link EsqlCaptureContext} for streaming queries ({@code POST /_query?streaming=true}), which never build an
+ * {@link EsqlCaptureContext} for streaming queries ({@code POST /_query/stream}), which never build an
  * {@link org.elasticsearch.xpack.esql.action.EsqlQueryResponse}. Response-derived fields are sourced
  * instead from the {@link EsqlExecutionInfo} (mutated in place during execution), the final
  * {@link Result}, and the {@link PageStreamPublisher} row counter.
@@ -98,7 +98,8 @@ class EsqlStreamCaptureContext extends EsqlCaptureContext {
                 ci.readNanos(),
                 ci.readCpuNanos(),
                 ci.cpuNanos(),
-                ci.driverNanos()
+                ci.driverNanos(),
+                ci.searchLoad()
             )
         );
     }

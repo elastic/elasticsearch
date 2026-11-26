@@ -32,7 +32,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequestTests;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils;
@@ -213,19 +213,19 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 .build()
         );
         final var searchTaskQueue = new DeterministicTaskQueue();
-        Set<BlobFile> blobFilesReadCurrentCommit = ConcurrentCollections.newConcurrentSet();
-        Set<BlobFile> blobFilesReadPreviousCommits = ConcurrentCollections.newConcurrentSet();
+        Set<BccBlob> bccBlobsReadCurrentCommit = ConcurrentCollections.newConcurrentSet();
+        Set<BccBlob> bccBlobReadPreviousCommits = ConcurrentCollections.newConcurrentSet();
         try (
             var indexEngine = newIndexEngine(indexConfig);
             var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, (searchDirectory, statelessCompoundCommit) -> {
                 for (var commitBlobLocation : statelessCompoundCommit.commitFiles().values()) {
-                    blobFilesReadCurrentCommit.add(commitBlobLocation.blobFile());
+                    bccBlobsReadCurrentCommit.add(commitBlobLocation.bccBlob());
                 }
             }, ((cacheBlobReaderService, blobFile) -> {
-                if (blobFilesReadCurrentCommit.isEmpty()) {
+                if (bccBlobsReadCurrentCommit.isEmpty()) {
                     assertFalse(
                         "Unexpected read for blobs from previous commits before updating commit",
-                        blobFilesReadPreviousCommits.contains(blobFile)
+                        bccBlobReadPreviousCommits.contains(blobFile)
                     );
                 }
             }))
@@ -244,8 +244,8 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 }
                 if (searchTaskQueue.hasRunnableTasks() && randomBoolean()) {
                     // a new commit update is going to be processed
-                    blobFilesReadPreviousCommits.addAll(blobFilesReadCurrentCommit);
-                    blobFilesReadCurrentCommit.clear();
+                    bccBlobReadPreviousCommits.addAll(bccBlobsReadCurrentCommit);
+                    bccBlobsReadCurrentCommit.clear();
                     searchTaskQueue.runRandomTask();
                 }
             }

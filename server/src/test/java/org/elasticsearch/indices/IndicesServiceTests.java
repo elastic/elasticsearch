@@ -15,7 +15,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
-import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
@@ -403,7 +402,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
             ShardDeletionCheckResult.STILL_ALLOCATED
         );
-        test.removeShard(0, "boom", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionTestUtils.assertNoFailureListener(v -> {}));
+        test.removeShard(0, "boom", EsExecutors.DIRECT_EXECUTOR_SERVICE, () -> {});
         assertEquals(
             "shard is removed",
             indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
@@ -431,25 +430,25 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         Map<ShardId, Long> totals = new HashMap<>();
         TaskLoadAttribution.Target target = indicesService.searchLoad(List.of(first, second, missing), id -> totals.getOrDefault(id, 0L));
 
-        target.charge(100, System.nanoTime());
+        target.charge(100, 100, System.nanoTime());
         assertSearchLoad(indexService, 50, 50);
-        target.charge(100, System.nanoTime());
+        target.charge(100, 100, System.nanoTime());
         assertSearchLoad(indexService, 100, 100);
 
         // the totals are read when the task completes
         totals.put(first, 3L);
         totals.put(second, 1L);
         totals.put(missing, 10L);
-        target.charge(100, System.nanoTime());
+        target.charge(100, 100, System.nanoTime());
         assertSearchLoad(indexService, 175, 125);
 
         // only the second shard returned more results
         totals.put(second, 5L);
-        target.charge(100, System.nanoTime());
+        target.charge(100, 100, System.nanoTime());
         assertSearchLoad(indexService, 175, 225);
 
         // no shard returned more results, as for the rest of the previous task
-        target.charge(80, System.nanoTime());
+        target.charge(80, 80, System.nanoTime());
         assertSearchLoad(indexService, 175, 305);
     }
 
@@ -472,7 +471,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertFalse(hasShardPredicate.test(missingShard));
 
         final PlainActionFuture<Void> shardRemoved = new PlainActionFuture<>();
-        test.removeShard(0, "boom", EsExecutors.DIRECT_EXECUTOR_SERVICE, shardRemoved);
+        test.removeShard(0, "boom", EsExecutors.DIRECT_EXECUTOR_SERVICE, () -> shardRemoved.onResponse(null));
         shardRemoved.actionGet();
         assertFalse(hasShardPredicate.test(openShard));
     }
@@ -1246,7 +1245,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
             final var store = closedShard.store();
             final PlainActionFuture<Void> shardRemoved = new PlainActionFuture<>();
-            closedIndexService.removeShard(0, "close before recovery starts", EsExecutors.DIRECT_EXECUTOR_SERVICE, shardRemoved);
+            closedIndexService.removeShard(
+                0,
+                "close before recovery starts",
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                () -> shardRemoved.onResponse(null)
+            );
             shardRemoved.actionGet();
             assertThat(closedShard.state(), equalTo(IndexShardState.CLOSED));
             assertFalse(store.hasReferences());

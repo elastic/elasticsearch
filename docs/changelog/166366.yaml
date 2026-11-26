@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 164853
+pr: 166366
+summary: Keep best overspill score in IVF leaf dedup
+type: bug

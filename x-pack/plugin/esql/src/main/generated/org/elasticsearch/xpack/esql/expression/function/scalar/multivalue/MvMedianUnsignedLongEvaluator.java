@@ -39,7 +39,7 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
     }
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       MvMedian.Longs work = new MvMedian.Longs();
       for (int p = 0; p < positionCount; p++) {
         if (v.isNull(p)) {
@@ -70,7 +70,7 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
     }
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       MvMedian.Longs work = new MvMedian.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -93,7 +93,7 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
   private Block evalAscendingNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       MvMedian.Longs work = new MvMedian.Longs();
       for (int p = 0; p < positionCount; p++) {
         if (v.isNull(p)) {
@@ -115,7 +115,7 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
   private Block evalAscendingNotNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       MvMedian.Longs work = new MvMedian.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);

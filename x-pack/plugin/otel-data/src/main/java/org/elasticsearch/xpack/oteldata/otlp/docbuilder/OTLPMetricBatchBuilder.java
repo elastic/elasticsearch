@@ -18,9 +18,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
+import org.elasticsearch.xpack.core.analytics.mapper.HistogramEscfSchema;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
@@ -33,10 +36,17 @@ import java.util.concurrent.TimeUnit;
  * Columnar counterpart to {@link MetricDocumentBuilder}: writes OTel metric data-point groups directly into
  * an ESCF batch without going through an intermediate XContent representation.
  *
- * <p>{@link #buildMetricRow} writes each group <b>optimistically</b> and returns {@code false} the moment it
- * encounters something that can't be expressed as ESCF columns — a non-scalar data point
- * (histogram/summary/exponential-histogram) or unsupported attributes — rather than scanning the group
- * upfront. A {@code false} return leaves the builder with a half-written row, so callers must discard the
+ * <p>Scalar metrics are written as a single leaf column under {@code metrics}. Structured metric values
+ * (histograms, exponential histograms, summaries) are written through cached sub-schemas such as
+ * {@link HistogramEscfSchema}, see {@link DataPoint#writeColumnarValue}.
+ *
+ * <p>{@link #buildMetricRows} writes one row per data-point group of a resource group. Resource and scope fields
+ * are shared by every row of their group, so they are written once per resource and scope group via fills
+ * instead of being re-encoded for every row.
+ *
+ * <p>{@link #buildMetricRows} writes each group <b>optimistically</b> and returns {@code false} the moment it
+ * encounters something that can't be expressed as ESCF columns — unsupported attributes — rather than
+ * scanning the groups upfront. A {@code false} return leaves the builder with half-written rows, so callers must discard the
  * builder and fall back to the {@link MetricDocumentBuilder} XContent path.
  *
  * <p>The field layout emitted by this class is identical to that of {@link MetricDocumentBuilder}: same field
@@ -73,6 +83,8 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
     private int temporalityCol = NOT_REGISTERED;
     private int docCountCol = NOT_REGISTERED;
 
+    private final DataPoint.SerializationScratch scratch = new DataPoint.SerializationScratch();
+
     /** Creates a builder using {@code recycler} to back column byte buffers for high-throughput paths. */
     public OTLPMetricBatchBuilder(Recycler<BytesRef> recycler, MappingHints defaultMappingHints) {
         super(recycler);
@@ -94,26 +106,68 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
     }
 
     /**
-     * Writes a single metric data-point group as the next row and commits it.
-     *
-     * @param dataPointGroup        the group to write
-     * @param dynamicTemplates      out-parameter: per-field dynamic-template names (same semantics as in
-     *                              {@link MetricDocumentBuilder#buildMetricDocument})
-     * @param dynamicTemplateParams out-parameter: per-field dynamic-template parameters
-     * @return {@code true} if the row was written and committed; {@code false} if the group contains data unsupported in batch mode,
-     * in which case this builder must be discarded and the caller should fall back to the XContent path
+     * Receives every row written by {@link #buildMetricRows}, in row order, right after the row is committed.
      */
-    public boolean buildMetricRow(
-        DataPointGroupingContext.DataPointGroup dataPointGroup,
-        Map<String, String> dynamicTemplates,
-        Map<String, Map<String, String>> dynamicTemplateParams
-    ) {
+    @FunctionalInterface
+    public interface MetricRowConsumer {
+        /**
+         * @param dataPointGroup        the group the row was written from
+         * @param dynamicTemplates      per-field dynamic-template names of the row (same semantics as in
+         *                              {@link MetricDocumentBuilder#buildMetricDocument})
+         * @param dynamicTemplateParams per-field dynamic-template parameters of the row
+         */
+        void accept(
+            DataPointGroupingContext.DataPointGroup dataPointGroup,
+            Map<String, String> dynamicTemplates,
+            Map<String, Map<String, String>> dynamicTemplateParams
+        );
+    }
+
+    /**
+     * Writes every data-point group of {@code resourceGroup} as one row each and commits them. The resource and scope
+     * fields, shared by all rows of the resource group and of each scope group respectively, are written once per
+     * group via fills (see {@link #prepareFill}) rather than once per row.
+     *
+     * <p>{@code rowConsumer} sees each row as soon as it is committed, so on a {@code false} return it has already
+     * seen rows of a batch that must now be discarded.
+     *
+     * @return {@code true} if all rows were written and committed; {@code false} if the resource group contains data
+     * unsupported in batch mode, in which case this builder must be discarded and the caller should fall back to the
+     * XContent path
+     */
+    public boolean buildMetricRows(DataPointGroupingContext.ResourceGroup resourceGroup, MetricRowConsumer rowConsumer) {
         try {
-            writeRow(dataPointGroup, dynamicTemplates, dynamicTemplateParams);
+            int resourceFillFrom = prepareFill();
+            for (DataPointGroupingContext.ScopeGroup scopeGroup : resourceGroup.scopes()) {
+                int scopeFillFrom = prepareFill();
+                for (var dpByTimestamp : scopeGroup.dataPointGroups().values()) {
+                    for (var dpByHash : dpByTimestamp.values()) {
+                        for (var dataPointGroup : dpByHash.values()) {
+                            int expectedSize = dataPointGroup.dataPoints().size();
+                            Map<String, String> dynamicTemplates = Maps.newHashMapWithExpectedSize(expectedSize);
+                            Map<String, Map<String, String>> dynamicTemplateParams = Maps.newHashMapWithExpectedSize(expectedSize);
+                            writeRow(dataPointGroup, dynamicTemplates, dynamicTemplateParams);
+                            rowConsumer.accept(dataPointGroup, dynamicTemplates, dynamicTemplateParams);
+                        }
+                    }
+                }
+                fillScope(scopeGroup.scope(), scopeGroup.scopeSchemaUrl(), scopeFillFrom);
+            }
+            fillResource(resourceGroup.resource(), resourceGroup.resourceSchemaUrl(), resourceFillFrom);
             return true;
         } catch (RowIneligibleException e) {
             return false;
         }
+    }
+
+    /** Returns the column of the scalar metric {@code metricName} within the {@code metrics} object. */
+    public int getMetricLeafField(String metricName) {
+        return leafField(metricName, metricsParentCol);
+    }
+
+    /** Returns the sub-schema for the structured metric {@code metricName} within the {@code metrics} object. */
+    public <T> T getMetricSubSchema(String metricName, SourceSchema.SubSchemaFactory<T> factory) {
+        return getSubSchema(metricsParentCol, metricName, factory);
     }
 
     private void writeRow(
@@ -128,11 +182,9 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
             longField(startTimestampCol(), TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getStartTimestampUnixNano()));
         }
 
-        writeResource(dataPointGroup.resource(), dataPointGroup.resourceSchemaUrl());
         writeDataStream(dataPointGroup.targetIndex());
-        writeScope(dataPointGroup.scope(), dataPointGroup.scopeSchemaUrl());
         // datapoint attributes (top-level "attributes" object)
-        writeAttributes(AttributeKind.DATA_POINT, dataPointGroup.dataPointAttributes(), 0);
+        writeAttributes(attributesParentCol, dataPointGroup.dataPointAttributes());
 
         String unit = dataPointGroup.unit();
         if (Strings.hasLength(unit)) {
@@ -151,13 +203,10 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
         long docCount = 0;
         for (int i = 0; i < dataPoints.size(); i++) {
             DataPoint dataPoint = dataPoints.get(i);
-            if (dataPoint.supportsColumnarValue() == false) {
-                throw RowIneligibleException.INSTANCE;
-            }
             String metricName = dataPoint.getMetricName();
-            dataPoint.writeColumnarValue(this, leafField(metricName, metricsParentCol));
-
             MappingHints mappingHints = defaultMappingHints.withConfigFromAttributes(dataPoint.getAttributes());
+            dataPoint.writeColumnarValue(mappingHints, this, scratch);
+
             String dynamicTemplate = dataPoint.getDynamicTemplate(mappingHints);
             if (dynamicTemplate != null) {
                 String metricFieldPath = "metrics." + metricName;
@@ -181,26 +230,34 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
     // Resource / Scope / DataStream / Attributes
     // -------------------------------------------------------------------------
 
-    private void writeResource(Resource resource, ByteString schemaUrl) {
+    /** Writes the resource fields for every row committed since {@code fillFrom}. */
+    private void fillResource(Resource resource, ByteString schemaUrl, int fillFrom) {
         if (hasLength(schemaUrl)) {
-            stringField(resourceSchemaUrlCol(), schemaUrl);
+            fillString(resourceSchemaUrlCol(), schemaUrl, fillFrom);
         }
-        writeAttributes(AttributeKind.RESOURCE, resource.getAttributesList(), resource.getDroppedAttributesCount());
+        if (resource.getDroppedAttributesCount() > 0) {
+            fillLong(resourceDroppedAttributesCountCol(), resource.getDroppedAttributesCount(), fillFrom);
+        }
+        fillAttributes(resourceAttributesParentCol, resource.getAttributesList(), fillFrom);
     }
 
-    private void writeScope(InstrumentationScope scope, ByteString schemaUrl) {
+    /** Writes the scope fields for every row committed since {@code fillFrom}. */
+    private void fillScope(InstrumentationScope scope, ByteString schemaUrl, int fillFrom) {
         if (hasLength(schemaUrl)) {
-            stringField(scopeSchemaUrlCol(), schemaUrl);
+            fillString(scopeSchemaUrlCol(), schemaUrl, fillFrom);
         }
         ByteString name = scope.getNameBytes();
         if (hasLength(name)) {
-            stringField(scopeNameCol(), name);
+            fillString(scopeNameCol(), name, fillFrom);
         }
         ByteString version = scope.getVersionBytes();
         if (hasLength(version)) {
-            stringField(scopeVersionCol(), version);
+            fillString(scopeVersionCol(), version, fillFrom);
         }
-        writeAttributes(AttributeKind.SCOPE, scope.getAttributesList(), scope.getDroppedAttributesCount());
+        if (scope.getDroppedAttributesCount() > 0) {
+            fillLong(scopeDroppedAttributesCountCol(), scope.getDroppedAttributesCount(), fillFrom);
+        }
+        fillAttributes(scopeAttributesParentCol, scope.getAttributesList(), fillFrom);
     }
 
     private void writeDataStream(TargetIndex targetIndex) {
@@ -218,37 +275,17 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
         }
     }
 
-    /** Which fixed attribute bucket a {@link #writeAttributes} call targets. */
-    private enum AttributeKind {
-        RESOURCE,
-        SCOPE,
-        DATA_POINT
-    }
-
-    private void writeAttributes(AttributeKind kind, List<KeyValue> attributes, int droppedCount) {
-        if (droppedCount > 0) {
-            switch (kind) {
-                case RESOURCE -> longField(resourceDroppedAttributesCountCol(), droppedCount);
-                case SCOPE -> longField(scopeDroppedAttributesCountCol(), droppedCount);
-                // Callers never pass a non-zero droppedCount for data-point attributes (OTel data points
-                // don't carry a dropped-attributes count); a non-zero value here would be a caller bug.
-                case DATA_POINT -> throw new AssertionError("data-point attributes have no dropped-count field");
-            }
-        }
-        int parent = switch (kind) {
-            case RESOURCE -> resourceAttributesParentCol;
-            case SCOPE -> scopeAttributesParentCol;
-            case DATA_POINT -> attributesParentCol;
-        };
+    /** Writes {@code attributes} into the object at {@code parentIdx} of the current row. */
+    private void writeAttributes(int parentIdx, List<KeyValue> attributes) {
         for (int i = 0; i < attributes.size(); i++) {
             KeyValue kv = attributes.get(i);
             if (OTelDocumentBuilder.isIgnoredAttribute(kv.getKey()) == false) {
-                writeAttributeValue(parent, kv.getKey(), kv.getValue());
+                writeAttributeValue(parentIdx, kv.getKey(), kv.getValue());
             }
         }
     }
 
-    /** Writes attribute {@code key} into the object at {@code parentIdx} as a single leaf column. */
+    /** Writes attribute {@code key} into the object at {@code parentIdx} of the current row as a single leaf column. */
     private void writeAttributeValue(int parentIdx, String key, AnyValue value) {
         // An unset value is dropped rather than registering a column: it contributes nothing to the tsid, creates
         // no mapping, and indexes no value, so the only trace it could leave is in a stored _source which we are not interested in
@@ -270,6 +307,42 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
             case INT_VALUE -> longField(col, value.getIntValue());
             case DOUBLE_VALUE -> doubleField(col, value.getDoubleValue());
             case ARRAY_VALUE -> arrayField(col, packArray(value.getArrayValue().getValuesList()));
+            case BYTES_VALUE, KVLIST_VALUE -> throw RowIneligibleException.INSTANCE;
+            case VALUE_NOT_SET -> throw new AssertionError("an unset value is dropped before a column is resolved");
+        }
+    }
+
+    /**
+     * Writes {@code attributes} into the object at {@code parentIdx} of every row committed since {@code fillFrom}
+     * (see {@link #prepareFill}).
+     */
+    private void fillAttributes(int parentIdx, List<KeyValue> attributes, int fillFrom) {
+        for (int i = 0; i < attributes.size(); i++) {
+            KeyValue kv = attributes.get(i);
+            if (OTelDocumentBuilder.isIgnoredAttribute(kv.getKey()) == false) {
+                fillAttributeValue(parentIdx, kv.getKey(), kv.getValue(), fillFrom);
+            }
+        }
+    }
+
+    /**
+     * Writes attribute {@code key} into the object at {@code parentIdx} of every row committed since {@code fillFrom}
+     * as a single leaf column. Unset values and repeated keys are handled as in {@link #writeAttributeValue}.
+     */
+    private void fillAttributeValue(int parentIdx, String key, AnyValue value, int fillFrom) {
+        if (value.getValueCase() == AnyValue.ValueCase.VALUE_NOT_SET) {
+            return;
+        }
+        int col = leafField(key, parentIdx);
+        if (isFilled(col, fillFrom)) {
+            return;
+        }
+        switch (value.getValueCase()) {
+            case STRING_VALUE -> fillString(col, value.getStringValueBytes(), fillFrom);
+            case BOOL_VALUE -> fillBoolean(col, value.getBoolValue(), fillFrom);
+            case INT_VALUE -> fillLong(col, value.getIntValue(), fillFrom);
+            case DOUBLE_VALUE -> fillDouble(col, value.getDoubleValue(), fillFrom);
+            case ARRAY_VALUE -> fillArray(col, packArray(value.getArrayValue().getValuesList()), fillFrom);
             case BYTES_VALUE, KVLIST_VALUE -> throw RowIneligibleException.INSTANCE;
             case VALUE_NOT_SET -> throw new AssertionError("an unset value is dropped before a column is resolved");
         }

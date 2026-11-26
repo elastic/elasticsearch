@@ -224,21 +224,9 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
                 page.releaseBlocks();
                 continue;
             }
-            ready = iter.waitForReady();
-            if (ready.isDone() == false) {
-                remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
-                if (remainingMs <= 0L) {
-                    fail("timed out draining iterator after 30s; idle window is still wedging admission");
-                }
-                safeAwait(ready, TimeValue.timeValueMillis(remainingMs));
-                continue;
-            }
-            page = iter.tryAdvance();
-            if (page == null) {
+            if (iter.waitForReady().isDone() && iter.isExhausted()) {
                 return rows;
             }
-            rows += page.getPositionCount();
-            page.releaseBlocks();
         }
     }
 

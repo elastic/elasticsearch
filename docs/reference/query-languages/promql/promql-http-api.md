@@ -31,7 +31,7 @@ When you omit `{index}` in the path, qualifying indices are identified through t
 
 ## Query endpoints [promql-http-api-query-endpoints]
 
-These endpoints mirror the {{prom}} [range query](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) and [instant query](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries) APIs.
+These endpoints mirror the {{prom}} [range query](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries), [instant query](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries), and [exemplar query](https://prometheus.io/docs/prometheus/latest/querying/api/#querying-exemplars) APIs.
 
 ### Range query [promql-http-api-query-range]
 
@@ -70,6 +70,27 @@ This endpoint evaluates at a single instant and returns vector data (`resultType
 | `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 
 The `lookback_delta` and `stats` parameters are not supported yet (refer to [Differences from {{prom}}](#promql-http-api-differences)).
+
+### Exemplar query [promql-http-api-query-exemplars]
+
+{applies_to}`stack: preview 9.7` {applies_to}`serverless: preview`
+
+`GET  /_prometheus/api/v1/query_exemplars`\
+`POST /_prometheus/api/v1/query_exemplars`\
+`GET  /_prometheus/{index}/api/v1/query_exemplars`\
+`POST /_prometheus/{index}/api/v1/query_exemplars`
+
+This endpoint returns the exemplars of the series that the selectors of a {{promql}} expression select within a time range, grouped by series.
+It accepts the same expressions as the [range query](#promql-http-api-query-range) endpoint.
+
+| Parameter | Required | Description |
+| --- | --- | --- |
+| `query` | Yes | {{promql}} expression |
+| `start` | Yes | Range start, [Timestamp](#promql-http-api-param-timestamp) |
+| `end` | Yes | Range end, [Timestamp](#promql-http-api-param-timestamp) |
+| `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
+
+At most the 10,000 most recent exemplars are returned (refer to [Differences from {{prom}}](#promql-http-api-differences)).
 
 ## Metadata and discovery endpoints [promql-http-api-metadata]
 
@@ -203,9 +224,11 @@ The `step` query parameter accepts:
 - A non-negative decimal integer string: seconds between samples (for example, `15` for 15s resolution).
 - Or {{prom}}-style duration literals such as `30s`, `5m`, or `1h30m`: a non-negative integer plus a unit suffix (`ms`, `s`, `m`, `h`, `d`, `w`, or `y`), repeated and concatenated when needed (for example, `1h30m`). See {{prom}} [float literals and time durations](https://prometheus.io/docs/prometheus/latest/querying/basics/#float-literals-and-time-durations).
 
+As in {{prom}}, a range query can return at most 11,000 points per series. If `(end - start) / step` is greater than 11,000, the request fails with `400` and `errorType` `bad_data`. Use a larger `step` or a shorter time range.
+
 ### `timeout` [promql-http-api-timeout]
 
-The `timeout` parameter of the [range](#promql-http-api-query-range) and [instant](#promql-http-api-query-instant) query endpoints accepts the same formats as [`step`](#promql-http-api-param-step): a decimal integer number of seconds, or a {{prom}}-style duration literal such as `30s` or `1m30s`. The timeout must be positive.
+The `timeout` parameter of the [range](#promql-http-api-query-range), [instant](#promql-http-api-query-instant), and [exemplar](#promql-http-api-query-exemplars) query endpoints accepts the same formats as [`step`](#promql-http-api-param-step): a decimal integer number of seconds, or a {{prom}}-style duration literal such as `30s` or `1m30s`. The timeout must be positive.
 
 The dynamic cluster setting `xpack.prometheus.query.timeout` (default: `2m`) is both the default and the maximum timeout, like the {{prom}} `-query.timeout` flag. A `timeout` parameter can only lower it. Set `xpack.prometheus.query.timeout` to `-1` to remove the default and the maximum. Unlike in {{prom}}, where a timeout of `0` makes every query time out immediately, `0` is rejected.
 

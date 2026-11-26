@@ -18,6 +18,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.plugins.internal.MeteringModel;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -47,6 +48,35 @@ abstract class AbstractFixed64Column extends EscfColumn {
         return new DenseLongValuesCursor(docCount, this);
     }
 
+    /** The value stored in {@code raw}, the raw 8-byte slot of a row, narrowed to a float. */
+    abstract float toFloat(long raw);
+
+    /**
+     * Narrows the values of rows {@code [from, from + dst.length)} to floats into {@code dst}, reading the slots chunk by chunk
+     * rather than one random access per row.
+     */
+    final void readFloats(int from, float[] dst) {
+        int i = 0;
+        try {
+            BytesRefIterator chunks = data.slice(from * 8, dst.length * 8).iterator();
+            BytesRef chunk;
+            while ((chunk = chunks.next()) != null) {
+                // every chunk holds whole slots (see assertDataValid), and so does a slice starting on a slot
+                if ((chunk.length & 7) != 0) {
+                    throw new IllegalStateException("float column chunk length " + chunk.length + " is not a multiple of 8");
+                }
+                for (int off = chunk.offset, end = chunk.offset + chunk.length; off < end; off += 8) {
+                    dst[i++] = toFloat(ByteUtils.readLongLE(chunk.bytes, off));
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        if (i != dst.length) {
+            throw new IllegalStateException("read [" + i + "] floats but expected [" + dst.length + "]");
+        }
+    }
+
     /** The raw little-endian 8-byte slot for document {@code d}. */
     final long rawLong(int row) {
         return data.getLongLE(row * 8);
@@ -68,6 +98,21 @@ abstract class AbstractFixed64Column extends EscfColumn {
         PresentDocIterator present = presentDocs();
         for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
             sizes[d] += Long.BYTES;
+        }
+    }
+
+    @Override
+    public final void addMeteredSizes(long[] sizes, MeteringModel model) {
+        final long numberBytes = model.numberBytes();
+        if (validity == null) {
+            for (int d = 0; d < docCount; d++) {
+                sizes[d] += numberBytes;
+            }
+            return;
+        }
+        PresentDocIterator present = presentDocs();
+        for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
+            sizes[d] += numberBytes;
         }
     }
 

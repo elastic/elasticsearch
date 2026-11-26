@@ -183,7 +183,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                         searchResponse.getSuccessfulShards(),
                         searchResponse.getSkippedShards(),
                         searchResponse.getTook().millis(),
-                        searchResponse.shardFailuresList(),
+                        searchResponse.getShardFailures(),
                         searchResponse.getClusters()
                     );
                     try {

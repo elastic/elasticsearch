@@ -176,7 +176,6 @@ public class ComputeServiceBranchStatusTests extends ESTestCase {
             REMOTE,
             REMOTE,
             "logs-*",
-            true,
             status,
             totalShards,
             successfulShards,

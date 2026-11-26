@@ -88,7 +88,7 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
     // visible for testing
     void checkForOrphanedResources() {
         try {
-            String defaultRepository = RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(clusterService.state().metadata().settings());
+            String defaultRepository = clusterService.getClusterSettings().get(RepositoriesService.DEFAULT_REPOSITORY_SETTING);
             if (defaultRepository.isEmpty()) {
                 logger.debug("No default repository configured, skipping snapshot cleanup");
                 defaultRepository = null;

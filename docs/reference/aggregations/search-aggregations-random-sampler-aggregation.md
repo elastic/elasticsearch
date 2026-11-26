@@ -2,6 +2,9 @@
 navigation_title: "Random sampler"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-random-sampler-aggregation.html
+applies_to:
+  stack: preview
+  serverless: preview
 ---
 
 # Random sampler aggregation [search-aggregations-random-sampler-aggregation]

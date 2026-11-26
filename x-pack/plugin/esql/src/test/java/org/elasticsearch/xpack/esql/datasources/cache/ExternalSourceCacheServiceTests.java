@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -122,6 +123,39 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 6,
                 loads.get()
             );
+        }
+    }
+
+    /**
+     * Split discovery does not always record the listing key resolution used, so a missing-object retry addresses the
+     * dataset by its location and storage identity. Every hint variant of that store is dropped; another dataset and
+     * another endpoint stay.
+     */
+    public void testInvalidateListingsAtDropsEveryHintVariantOfThatLocation() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger loads = new AtomicInteger();
+            ListingCacheKey recorded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey hinted = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "year=2024");
+            ListingCacheKey other = ListingCacheKey.build("s3", "other", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey otherStore = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "other-endpoint", "", Map.of(), "");
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
+                service.getOrComputeListing(key, k -> {
+                    loads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            assertEquals(4, loads.get());
+
+            service.invalidateListingsAt(StoragePath.of("s3://bucket/data/*.parquet"), "");
+
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
+                service.getOrComputeListing(key, k -> {
+                    loads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            assertEquals("hint variants of that store are read again; another dataset and another endpoint are not", 6, loads.get());
         }
     }
 
@@ -421,6 +455,64 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             leaderCompletion.get().onResponse(result);
             assertSame(result, leader.actionGet());
             assertSame(result, follower.actionGet());
+        }
+    }
+
+    /**
+     * A complete listing offered under a second address is served there without a second compute.
+     * Discriminators {@code bound} / {@code unbounded} are synthetic: this test is the cache primitive,
+     * not {@code GlobExpander.listingCacheDiscriminator}.
+     */
+    public void testPublishListingIfAbsentFillsOnlyAnEmptyAddress() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey bounded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "bound");
+            ListingCacheKey unbounded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "unbounded");
+            FileList first = testCompactFileList();
+            FileList second = testCompactFileList();
+            assertNotSame(first, second);
+
+            service.getOrComputeListing(bounded, k -> first);
+            service.publishListingIfAbsent(unbounded, first);
+            assertSame(first, service.getOrComputeListing(unbounded, k -> {
+                fail("the unbounded address must be served from the alias");
+                return second;
+            }));
+
+            service.publishListingIfAbsent(unbounded, second);
+            assertSame("a resident entry is not replaced", first, service.listingCache().get(unbounded));
+        }
+    }
+
+    public void testPublishListingIfAbsentIsNoopWhenTheCacheIsDisabled() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            service.setEnabled(false);
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "unbounded");
+            service.publishListingIfAbsent(key, testCompactFileList());
+            assertNull("disabled cache must not retain the alias", service.listingCache().get(key));
+            assertEquals(0, service.usageStats().get("listing_cache.count"));
+        }
+    }
+
+    /**
+     * An in-flight unbounded compute keeps its waiters; the alias fills the cache for a later arrival
+     * without completing the leader's future.
+     */
+    public void testPublishListingIfAbsentDoesNotCompleteInFlightWaiters() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey unbounded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "unbounded");
+            AtomicReference<ActionListener<FileList>> leaderCompletion = new AtomicReference<>();
+            PlainActionFuture<FileList> waiter = new PlainActionFuture<>();
+            service.getOrComputeListingAsync(unbounded, leaderCompletion::set, waiter);
+
+            FileList alias = testCompactFileList();
+            service.publishListingIfAbsent(unbounded, alias);
+            assertFalse("the waiter belongs to the in-flight leader", waiter.isDone());
+            assertSame(alias, service.listingCache().get(unbounded));
+
+            FileList fromLeader = testCompactFileList();
+            assertNotSame(alias, fromLeader);
+            leaderCompletion.get().onResponse(fromLeader);
+            assertSame("waiters receive the leader's listing", fromLeader, waiter.actionGet());
         }
     }
 
@@ -3148,12 +3240,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testReconcileWholeFileContributionsWithMismatchedMtimeTripsAssertion() throws Exception {
-        // Defends the Javadoc contract in mergeWholeFileContributions: row count, mtime, and
-        // config fingerprint must agree across all whole-file contributions for the same file.
-        // Only row count was previously asserted; mtime and fingerprint mismatches were silently
-        // swallowed, which could cause the merged entry to carry the wrong mtime and miss the
-        // downstream cache-match in reconcileSourceStats.
+    public void testReconcileWholeFileContributionsWithMismatchedMtimeIsASafeMiss() throws Exception {
+        // Two data sources can hold different files under one object name -- two endpoints, one object key -- and
+        // a query may now read both, because a read is keyed by its resource AND its configuration. A contribution
+        // is addressed by its path string alone, so the two arrive as one list agreeing on both fingerprints and
+        // differing on mtime. The merge cannot tell that from one file measured twice, so it refuses rather than
+        // calling an ordinary query an invariant violation.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
@@ -3163,18 +3255,28 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
                 false
             );
-            seedSchemaCache(service, key, path, "fp");
+            seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
 
-            Map<String, Object> first = wholeFileStats(mtime, "fp", 100L);
-            Map<String, Object> second = wholeFileStats(mtime + 1, "fp", 100L); // different mtime, same row count
+            Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            Map<String, Object> second = wholeFileWithShape(mtime + 1, "fp1", "config-own", 100L);
 
-            expectThrows(AssertionError.class, () -> service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second))));
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+
+            SchemaCacheEntry entry = warm(service, key);
+            assertFalse(
+                "contributions that do not describe one read must not merge into one measurement",
+                entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
         }
     }
 
-    public void testReconcileWholeFileContributionsWithMismatchedFingerprintTripsAssertion() throws Exception {
-        // Companion to the mtime test: config fingerprint disagreement between whole-file
-        // contributions is equally invalid and must be caught by the assertion.
+    public void testReconcileWholeFileContributionsWithMismatchedFingerprintIsASafeMiss() throws Exception {
+        // A format-config disagreement between two whole-file contributions for one path is a legitimate plan:
+        // external resolution keys a read by its resource AND its configuration, so two datasets over one file
+        // that set a different delimiter or error policy are two reads whose resolved columns -- and so whose
+        // read-config fingerprints -- can be identical.
+        // Such a pair agrees on row count, mtime and read configuration, and differs only here. The merge refuses
+        // it, exactly as it refuses two different read configurations.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
@@ -3184,21 +3286,30 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
                 false
             );
-            seedSchemaCache(service, key, path, "fp1");
+            seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
 
-            Map<String, Object> first = wholeFileStats(mtime, "fp1", 100L);
-            Map<String, Object> second = wholeFileStats(mtime, "fp2", 100L); // different fingerprint, same row count
+            // Same mtime, same row count, same resolved read configuration; only the reader's own configuration differs.
+            Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            Map<String, Object> second = wholeFileWithShape(mtime, "fp2", "config-own", 100L);
 
-            expectThrows(AssertionError.class, () -> service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second))));
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+
+            SchemaCacheEntry entry = warm(service, key);
+            assertFalse(
+                "two reads configured differently must not merge into one measurement",
+                entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
         }
     }
 
-    public void testReconcileWholeFileContributionsWithDisagreeingColumnStatTripsAssertion() throws Exception {
-        // Two whole-file contributions for the same file+fingerprint+mtime must agree on every
-        // column-stat key they both publish. Disagreement is a bug in the upstream publisher
-        // (e.g., a race or a mis-configured probe pass), not a legitimate coverage difference.
-        // Without this assertion the "first-wins" putIfAbsent produces a non-deterministic pick
-        // whose survivor depends on data-node response ordering.
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService:DEBUG",
+        reason = "the refusal is a debug line, and this asserts it names the gate that refused"
+    )
+    public void testReconcileWholeFileContributionsWithMismatchedRowCountIsASafeMiss() throws Exception {
+        // The row-count half of the same input: two files under one object name that differ in length rather than
+        // in timestamp. Refused for the same reason and in the same way, so neither disagreement can reach a merge
+        // that would relabel one store's measurement as the other's.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
@@ -3208,15 +3319,168 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
                 false
             );
-            seedSchemaCache(service, key, path, "fp");
+            seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
 
-            Map<String, Object> first = wholeFileStats(mtime, "fp", 100L);
+            Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            Map<String, Object> second = wholeFileWithShape(mtime, "fp1", "config-own", 101L);
+
+            // The refusal names its gate: without it, a genuinely non-deterministic read of one file -- the same
+            // store scanned twice, disagreeing -- is indistinguishable from the legitimate two-datasets case.
+            try (MockLog mockLog = MockLog.capture(ExternalSourceCacheService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "the refused gate",
+                        ExternalSourceCacheService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "*whole-file contributions for [" + path + "] disagree on [" + SourceStatisticsSerializer.STATS_ROW_COUNT + "]*"
+                    )
+                );
+                service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+                mockLog.assertAllExpectationsMatched();
+            }
+
+            SchemaCacheEntry entry = warm(service, key);
+            assertFalse(
+                "contributions that do not describe one read must not merge into one measurement",
+                entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService:DEBUG",
+        reason = "the refusal is a debug line, and this asserts the resource it names carries no signature"
+    )
+    public void testTheRefusalDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        // The contribution is recorded under the storage location verbatim, query string included, so for an https
+        // dataset the key the refusal names IS the credential. The gate the test above asserts passes either way,
+        // because its path has no query string to lose.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+            String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
+            seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
+
+            Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            Map<String, Object> second = wholeFileWithShape(mtime, "fp1", "config-own", 101L);
+
+            try (MockLog mockLog = MockLog.capture(ExternalSourceCacheService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "the refusal, naming the resource without its query string",
+                        ExternalSourceCacheService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "*whole-file contributions for [https://bucket.s3.example.com/data/employees.csv] disagree*"
+                    )
+                );
+                // Paired with the expectation above, so this cannot pass by the line never being logged at all.
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "no signature on any line",
+                        ExternalSourceCacheService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "*" + signature + "*"
+                    )
+                );
+                service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService:DEBUG",
+        reason = "the refusal is a debug line, and this asserts it names the column without its extrema"
+    )
+    public void testTheRefusalDoesNotLogColumnExtrema() throws Exception {
+        // A column minimum or maximum is a value out of the data itself, so the gate that refuses on one names the
+        // column and stops there. The sibling gates above disagree on row counts, mtimes and fingerprints, none of
+        // which is data, and those do name both sides.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
+            seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
+
+            String minimum = "aaron.aaronson@example.com";
+            String otherMinimum = "zoe.zimmerman@example.com";
+            Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            first.put(SourceStatisticsSerializer.columnMinKey("email"), minimum);
+            Map<String, Object> second = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            second.put(SourceStatisticsSerializer.columnMinKey("email"), otherMinimum);
+
+            try (MockLog mockLog = MockLog.capture(ExternalSourceCacheService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "the refusal, naming the column statistic",
+                        ExternalSourceCacheService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "*disagree on column statistic [" + SourceStatisticsSerializer.columnMinKey("email") + "]*"
+                    )
+                );
+                // Paired with the expectation above, so this cannot pass by the line never being logged at all.
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "neither extremum on any line",
+                        ExternalSourceCacheService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "*" + minimum + "*"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "nor the other one",
+                        ExternalSourceCacheService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "*" + otherMinimum + "*"
+                    )
+                );
+                service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+    }
+
+    public void testReconcileWholeFileContributionsWithDisagreeingColumnStatIsASafeMiss() throws Exception {
+        // Equal row count and equal mtime do not establish one file: a replica copied with its timestamp preserved
+        // measures the same rows under the same name and can still disagree on a column. So the last gate is
+        // refused rather than asserted on too, and the first-wins putIfAbsent never decides which store's extrema
+        // the other store's twin is served.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
+            seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
+
+            Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
             first.put(SourceStatisticsSerializer.columnNullCountKey("id"), 0L);
 
-            Map<String, Object> second = wholeFileStats(mtime, "fp", 100L);
-            second.put(SourceStatisticsSerializer.columnNullCountKey("id"), 5L); // same key, different value
+            Map<String, Object> second = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            second.put(SourceStatisticsSerializer.columnNullCountKey("id"), 5L);
 
-            expectThrows(AssertionError.class, () -> service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second))));
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+
+            SchemaCacheEntry entry = warm(service, key);
+            assertFalse(
+                "contributions that do not describe one read must not merge into one measurement",
+                entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
         }
     }
 
@@ -4212,7 +4476,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
-    /** {@link #seedSchemaCache} plus a resolved read-configuration fingerprint on the entry's metadata. */
+    /**
+     * {@link #seedSchemaCache} plus a resolved read-configuration fingerprint on the entry's metadata. A safe-miss test
+     * needs the stamp: an entry seeded without one refuses every stamped contribution before any merge gate is reached,
+     * so a "nothing was committed" assertion over it would pass whatever the gate under test does.
+     */
     private static void seedSchemaCacheWithReadConfig(
         ExternalSourceCacheService service,
         SchemaCacheKey key,

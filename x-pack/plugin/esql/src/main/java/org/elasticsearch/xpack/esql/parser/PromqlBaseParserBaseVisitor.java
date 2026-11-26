@@ -173,6 +173,20 @@ public class PromqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> 
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitMetricName(PromqlBaseParser.MetricNameContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitGroupingLabel(PromqlBaseParser.GroupingLabelContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitEvaluation(PromqlBaseParser.EvaluationContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}

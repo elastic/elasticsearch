@@ -12,6 +12,7 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
@@ -28,23 +29,32 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>What a request is parsed into can be far larger than its content, since every token becomes at least one object. The in-flight
  * requests breaker only charges the content, so parsers from {@link #track} charge for what they read. A request that responds before
- * its work ends, such as an async search, keeps the parsed request after the response, so its work holds the charge until it ends, see
- * {@link #hold(ThreadContext)}. Other such requests, such as a task started with {@code wait_for_completion=false}, still release the
- * charge at the response.
+ * its work ends, such as an async search or a reindex with {@code wait_for_completion=false}, keeps the parsed request after the
+ * response, so its work holds the charge until it ends, see {@link #hold(ThreadContext)}. Other such requests still release the charge
+ * at the response.
  *
  * <p>A request can be read by many parsers, such as one per {@code _msearch} line. The reservation counts what they charge without a
  * check, so the request is checked once per chunk however small each parser is.
+ *
+ * <p>Content parsed on the request's behalf later, such as the query inside a {@code wrapper} query, is charged only while it is parsed,
+ * see {@link #trackWhileParsing(XContentParser)}. It can be parsed again for every search or shard the request's work runs, and each
+ * parse is dropped when that search ends, so holding them would grow the charge with the searches rather than with the request.
  */
 public final class ParsedContentReservation implements Releasable {
 
     /** The label of these charges and releases. A circuit breaker exception reports it, and it is their breaker metrics category. */
     public static final String LABEL = ChildMemoryCircuitBreaker.CATEGORY_PARSED_REQUEST;
 
-    /**
-     * The thread context transient that carries the reservation of the REST request being handled, see
-     * {@link #track(ThreadContext, XContentParser)}.
-     */
+    /** The thread context transient that carries the reservation of the REST request being handled, see {@link #hold(ThreadContext)}. */
     public static final String TRANSIENT_NAME = "_parsed_content_reservation";
+
+    /**
+     * What a request that must not be rejected for its memory can charge before it is checked like any other. Far more than such
+     * requests need, such as logging in, while a request that parses into more is still bounded. A fully received body larger than
+     * this is checked by the in-flight requests breaker, which also bounds values the parsers charge at a fixed size, such as binary
+     * values.
+     */
+    public static final long NON_TRIPPING_ALLOWANCE_BYTES = ByteSizeUnit.MB.toBytes(10);
 
     /** Marks a released reservation. Charges only add to the count, so it never reaches this. */
     private static final long RELEASED = Long.MIN_VALUE;
@@ -60,7 +70,8 @@ public final class ParsedContentReservation implements Releasable {
 
     /**
      * @param breaker the breaker to charge
-     * @param canTrip whether a charge may trip the breaker, false for requests that must not be rejected for the memory they use
+     * @param canTrip whether a charge may trip the breaker, false for requests that must not be rejected for the memory they use, which
+     *                are still checked once they charge more than {@link #NON_TRIPPING_ALLOWANCE_BYTES}
      */
     public ParsedContentReservation(CircuitBreaker breaker, boolean canTrip) {
         this.breaker = breaker;
@@ -84,27 +95,28 @@ public final class ParsedContentReservation implements Releasable {
     }
 
     /**
-     * Like {@link #track(XContentParser)} for the reservation of the REST request handled in {@code threadContext}, or returns
-     * {@code parser} itself if there is none. For content parsed on the request's behalf later, such as the query inside a {@code wrapper}
-     * query.
+     * Returns a parser for content parsed on the request's behalf after the request itself, such as the query inside a {@code wrapper}
+     * query. It charges a reservation of its own on this one's breaker, released when the parser closes, and trips only if this reservation
+     * may. It shares no unchecked charge with the request, so it is checked only once it charges a chunk, and it still charges after this
+     * reservation is released, since work that runs after the response still parses.
      */
-    public static XContentParser track(ThreadContext threadContext, XContentParser parser) {
-        final ParsedContentReservation reservation = threadContext.getTransient(TRANSIENT_NAME);
-        return reservation == null ? parser : reservation.track(parser);
+    public XContentParser trackWhileParsing(XContentParser parser) {
+        return new ChargingXContentParser(parser, new ParsedContentReservation(breaker, canTrip), true);
     }
 
     /**
-     * Charges {@code bytes}, checking the limit unless the request must not trip it. The check also covers earlier charges made without
-     * one. Once the charge is released, nothing is charged or checked.
+     * Charges {@code bytes}, checking the limit unless the request must not trip it and stays within its allowance. The check also covers
+     * earlier charges made without one. Once the charge is released, nothing is charged or checked.
      */
     void reserve(long bytes) {
-        if (reserved.get() == RELEASED) {
+        final long alreadyReserved = reserved.get();
+        if (alreadyReserved == RELEASED) {
             return;
         }
         // Taken before the check, so that two checks at the same time cannot both take it.
         final long priorUnchecked = unchecked.getAndSet(0);
         try {
-            if (canTrip) {
+            if (canTrip || alreadyReserved + bytes > NON_TRIPPING_ALLOWANCE_BYTES) {
                 breaker.addEstimateBytesAndMaybeBreak(bytes, LABEL);
             } else {
                 breaker.addWithoutBreaking(bytes, LABEL);

@@ -2,6 +2,9 @@
 navigation_title: "Moving function"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-pipeline-movfn-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Moving function aggregation [search-aggregations-pipeline-movfn-aggregation]

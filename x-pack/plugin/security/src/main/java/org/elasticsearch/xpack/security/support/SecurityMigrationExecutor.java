@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionA
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
@@ -156,7 +155,7 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, RefreshAction.INSTANCE, refreshRequest, ActionListener.wrap(response -> {
             if (response.getFailedShards() != 0) {
                 // Log a warning but do not stop migration, since this is not a critical operation
-                logger.warn("Failed to refresh security index during security migration {}", Arrays.toString(response.getShardFailures()));
+                logger.warn("Failed to refresh security index during security migration {}", response.getShardFailures());
             }
             listener.onResponse(null);
         }, exception -> {

@@ -1,0 +1,4 @@
+@timestamp:date,cluster:keyword,pod:keyword,double_dim:double,float_dim:float,network.eth0.tx:integer
+2024-05-10T00:00:29.000Z,staging,two,1.25,2.5,81
+2024-05-10T00:00:33.000Z,staging,three,-3.5,-4.25,48
+2024-05-10T00:00:51.000Z,prod,three,,,58

@@ -1740,7 +1740,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             if (name.equals("ValuesSourceReaderOperator")) {
                 assertNotNull("Expected loaders to match the ValuesSourceReaderOperator for driver " + driverDesc, expectedLoaders);
                 MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name))
-                    .entry("status", matchesMap().entry("readers_built", anyOf(expectedLoaders.toArray(new MapMatcher[0]))).extraOk());
+                    .entry("status", matchesMap().entry("readers_built", anyOf(expectedLoaders.toArray(new MapMatcher[0]))).extraOk())
+                    .extraOk();
                 assertMap("Error checking values loaded for driver " + driverDesc + "; ", operator, expectedOp);
             }
             sig.add(name);

@@ -90,7 +90,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         java.util.function.LongSupplier directoryBytesRead,
         QueryWarnings singleValueQueryWarnings
     ) {
-        super(shardRefCounters, driverContext, PAGE_SIZE, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
+        super(shardRefCounters, driverContext, PAGE_SIZE, sliceQueue, directoryBytesRead, singleValueQueryWarnings, false);
         this.remainingDocs = limit;
         this.numberType = numberType;
         this.fieldName = fieldName;

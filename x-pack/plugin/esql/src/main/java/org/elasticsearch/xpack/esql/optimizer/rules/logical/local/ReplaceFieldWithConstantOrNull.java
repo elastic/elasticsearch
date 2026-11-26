@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -67,8 +69,11 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         }
         var lookupFieldsBuilder = AttributeSet.builder();
         var externalFieldsBuilder = AttributeSet.builder();
+        var nestedChildrenBuilder = AttributeSet.builder();
         Map<Attribute, Expression> attrToConstant = new HashMap<>();
         plan.forEachUp(ExternalRelation.class, external -> externalFieldsBuilder.addAll(external.output()));
+        plan.forEachUp(NestedExpand.class, expand -> nestedChildrenBuilder.addAll(expand.expanded()));
+        plan.forEachUp(p -> p.forEachExpression(NestedPredicate.class, predicate -> nestedChildrenBuilder.addAll(predicate.inputs())));
         plan.forEachUp(EsRelation.class, esRelation -> {
             // Looking for indices in LOOKUP mode is correct: during parsing, we assign the expected mode and even if a lookup index
             // is used in the FROM command, it will not be marked with LOOKUP mode there - but STANDARD.
@@ -92,6 +97,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         );
         AttributeSet lookupFields = lookupFieldsBuilder.build();
         AttributeSet externalFields = externalFieldsBuilder.build();
+        AttributeSet nestedChildren = nestedChildrenBuilder.build();
 
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices and external sources because we do not have stats for these.
@@ -106,7 +112,9 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             // but absent from field caps).
             || (f.field() instanceof MissingEsField == false && localLogicalOptimizerContext.searchStats().exists(f.fieldName()))
             || lookupFields.contains(f)
-            || externalFields.contains(f);
+            || externalFields.contains(f)
+            // The expansion reads a child of a nested field from its hidden child documents, which no shard's stats count as a field.
+            || nestedChildren.contains(f);
 
         boolean nullifyUnmappedFields = localLogicalOptimizerContext.searchStats().mayHoldUnmappedFields() == false;
 

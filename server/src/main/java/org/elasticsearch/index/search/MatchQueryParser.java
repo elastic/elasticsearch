@@ -407,7 +407,11 @@ public class MatchQueryParser {
             assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
 
             // Build an appropriate query based on the analysis chain.
-            try (CachingTokenFilter stream = new CachingTokenFilter(source)) {
+            try (
+                CachingTokenFilter stream = new CachingTokenFilter(
+                    new QueryTokenCacheAccountingFilter(source, context.getCircuitBreaker(), field)
+                )
+            ) {
 
                 TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
                 PositionIncrementAttribute posIncAtt = stream.addAttribute(PositionIncrementAttribute.class);

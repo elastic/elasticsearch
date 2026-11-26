@@ -58,6 +58,20 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
     }
 
     @Override
+    protected void doExecute(Task task, PutLifecycleRequest request, ActionListener<AcknowledgedResponse> listener) {
+        try {
+            PutLifecycleMetadataService.validateUnboundedTotalShardsPerNodeSupported(
+                request.getPolicy(),
+                clusterService.state().getMinTransportVersion()
+            );
+        } catch (IllegalArgumentException e) {
+            listener.onFailure(e);
+            return;
+        }
+        super.doExecute(task, request, listener);
+    }
+
+    @Override
     protected void masterOperation(
         Task task,
         PutLifecycleRequest request,

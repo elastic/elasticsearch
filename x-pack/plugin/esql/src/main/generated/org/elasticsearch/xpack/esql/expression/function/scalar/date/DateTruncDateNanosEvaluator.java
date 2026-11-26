@@ -51,7 +51,7 @@ public final class DateTruncDateNanosEvaluator implements ExpressionEvaluator {
       if (fieldValVector == null) {
         return eval(page.getPositionCount(), fieldValBlock);
       }
-      return eval(page.getPositionCount(), fieldValVector).asBlock();
+      return eval(page.getPositionCount(), fieldValVector);
     }
   }
 
@@ -63,7 +63,7 @@ public final class DateTruncDateNanosEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldValBlock.isNull(p)) {
           result.appendNull();
@@ -78,17 +78,27 @@ public final class DateTruncDateNanosEvaluator implements ExpressionEvaluator {
               continue position;
         }
         long fieldVal = fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p));
-        result.appendLong(DateTrunc.processDateNanos(fieldVal, this.rounding));
+        try {
+          result.appendLong(DateTrunc.processDateNanos(fieldVal, this.rounding));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public LongVector eval(int positionCount, LongVector fieldValVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, LongVector fieldValVector) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long fieldVal = fieldValVector.getLong(p);
-        result.appendLong(p, DateTrunc.processDateNanos(fieldVal, this.rounding));
+        try {
+          result.appendLong(DateTrunc.processDateNanos(fieldVal, this.rounding));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

@@ -12,8 +12,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.datasources.spi.ChildRelationPages;
-import org.elasticsearch.xpack.esql.datasources.spi.ChildWindows;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -89,7 +87,7 @@ final class FormatReaders {
      * {@code StatsCapturingIterator} and {@code SchemaAdaptingIterator} forward it. A non-producer
      * delegate fails loud in {@link #innerProducer()}.
      */
-    private static final class ReaderReleasingIterator implements CloseableIterator<Page>, ColumnExtractorProducer, ChildRelationPages {
+    private static final class ReaderReleasingIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
         private final CloseableIterator<Page> pages;
         private final FormatReader owner;
         private final FormatReader[] minted;
@@ -139,11 +137,6 @@ final class FormatReaders {
         @Override
         public void setExtractorId(int id) {
             innerProducer().setExtractorId(id);
-        }
-
-        @Override
-        public ChildWindows children(String path) {
-            return ChildRelationPages.forward(pages, path);
         }
 
         private ColumnExtractorProducer innerProducer() {

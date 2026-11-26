@@ -68,9 +68,6 @@ import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
-import org.elasticsearch.xpack.esql.datasources.spi.ChildRelationPages;
-import org.elasticsearch.xpack.esql.datasources.spi.ChildRelationRead;
-import org.elasticsearch.xpack.esql.datasources.spi.ChildWindows;
 import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -84,6 +81,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExpandRead;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -2223,7 +2221,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             context.sharedErrorBudget(),
             counters,
             context.collections(),
-            context.childRelations()
+            context.expandRead()
         );
     }
 
@@ -2744,7 +2742,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             context.sharedErrorBudget(),
             counters,
             context.collections(),
-            context.childRelations()
+            context.expandRead()
         );
     }
 
@@ -2806,7 +2804,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         @Nullable SharedErrorBudget sharedErrorBudget,
         @Nullable ParquetReaderCounters counters,
         Map<String, List<CollectionSchema.Leaf>> collections,
-        List<ChildRelationRead> childRelations
+        @Nullable ExpandRead expandRead
     ) throws IOException {
         if (counters != null) {
             counters.setLateMaterializationEnabled(true);
@@ -2854,15 +2852,50 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // whole, so every block stays owned by its page and is released downstream with it.
             if (projectedColumns != null
                 && projectedColumns.isEmpty()
-                && childRelations.isEmpty()
+                && expandRead == null
                 && filterPredicate == null
                 && pushedExpressions == null
                 && FilterCompat.isFilteringRequired(recordFilter) == false) {
                 return new ParquetCountOnlyIterator(reader, batchSize, rowLimit);
             }
-            List<Attribute> projectedAttributes = buildProjectedAttributes(projectedColumns, attributes);
+            ParquetExpansion.Spec expansion = null;
+            List<Attribute> projectedAttributes;
+            if (expandRead == null) {
+                projectedAttributes = buildProjectedAttributes(projectedColumns, attributes);
+            } else {
+                // An expanding read reads only the columns it names: no legacy full-schema fallback for an empty
+                // projection, whose every column would then be repeated per element
+                List<String> parentColumns = projectedColumns == null ? List.of() : projectedColumns;
+                if (parentColumns.contains(ColumnExtractor.ROW_POSITION_COLUMN)) {
+                    throw new IllegalArgumentException(
+                        "a read that expands [" + expandRead.path() + "] cannot carry [" + ColumnExtractor.ROW_POSITION_COLUMN + "]"
+                    );
+                }
+                projectedAttributes = buildNamedAttributes(parentColumns, attributes);
+                String fileLocation = safeObjectName(object.path());
+                expansion = ParquetExpansion.Spec.of(
+                    parquetSchema,
+                    expandRead,
+                    parentColumns.size(),
+                    batchSize,
+                    fileLocation,
+                    errorPolicy,
+                    warningSink
+                );
+                if (expansion.dropReason() != null) {
+                    // A leaf this file cannot supply under skip_row drops the file's rows, as a declared column does
+                    ColumnarRowDropHelper.dropWholeRead(
+                        sharedErrorBudget,
+                        errorPolicy,
+                        fileLocation,
+                        rowCount(reader),
+                        expansion.dropReason()
+                    );
+                    return new ParquetCountOnlyIterator(reader, batchSize, 0);
+                }
+            }
 
-            MessageType projectedSchema = projectedSchema(parquetSchema, projectedAttributes, collections, childRelations);
+            MessageType projectedSchema = projectedSchema(parquetSchema, projectedAttributes, collections, expansion);
             String createdBy = fileMetaData.getCreatedBy();
             boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
             recordPerColumnMaterialization(projectedAttributes, useOptimized, counters);
@@ -2884,7 +2917,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     warningSink,
                     sharedErrorBudget,
                     counters,
-                    childRelations
+                    expansion
                 );
             }
             return new ParquetColumnIterator(
@@ -2906,7 +2939,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 warningSink,
                 sharedErrorBudget,
                 collections,
-                childRelations
+                expansion
             );
         } catch (Throwable t) {
             reader.close();
@@ -2931,7 +2964,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         @Nullable Consumer<String> warningSink,
         @Nullable SharedErrorBudget sharedErrorBudget,
         @Nullable ParquetReaderCounters counters,
-        List<ChildRelationRead> childRelations
+        @Nullable ParquetExpansion.Spec expansion
     ) {
         if (inputFile instanceof ParquetStorageObjectAdapter == false) {
             throw new ElasticsearchException(
@@ -3145,7 +3178,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 errorPolicy,
                 warningSink,
                 sharedErrorBudget,
-                childRelations
+                expansion
             );
             // Constructor succeeded — iterator now owns preloadedMetadata. Set the flag after
             // construction so that a throw inside the constructor does not suppress cleanup.
@@ -3460,7 +3493,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * iterator produces no pages (all row groups pruned by predicate statistics), the warning is
      * never emitted — consistent with {@link org.elasticsearch.xpack.esql.datasources.SchemaAdaptingIterator}'s lazy-emit design.
      */
-    private static final class DeferredWarnProducer implements CloseableIterator<Page>, ColumnExtractorProducer, ChildRelationPages {
+    private static final class DeferredWarnProducer implements CloseableIterator<Page>, ColumnExtractorProducer {
         private final OptimizedParquetColumnIterator delegate;
         @Nullable
         private String[] pendingWarnings;
@@ -3538,11 +3571,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         @Override
         public void setExtractorId(int id) {
             delegate.setExtractorId(id);
-        }
-
-        @Override
-        public ChildWindows children(String path) {
-            return delegate.children(path);
         }
 
         @Override
@@ -3634,6 +3662,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         if (projectedColumns == null || projectedColumns.isEmpty()) {
             return fileAttributes;
         }
+        return buildNamedAttributes(projectedColumns, fileAttributes);
+    }
+
+    /**
+     * The attributes of exactly {@code projectedColumns}, in that order, followed by the pushed filter's columns the
+     * projection does not name. Unlike {@link #buildProjectedAttributes}, an empty projection reads no column of the
+     * file beyond the filter's.
+     */
+    private List<Attribute> buildNamedAttributes(List<String> projectedColumns, List<Attribute> fileAttributes) {
         Map<String, Attribute> attributeMap = new HashMap<>();
         for (Attribute attr : fileAttributes) {
             attributeMap.put(attr.name(), attr);
@@ -3683,26 +3720,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * The schema a read decodes: the projected columns, the columns of the collections carried, and of each child
-     * relation only the leaves it names, so a wide element costs the read only what is asked of it.
+     * The schema a read decodes: the projected columns, the columns of the collections carried, and of an expanded
+     * collection only the leaves it names, so a wide element costs the read only what is asked of it.
      */
     static MessageType projectedSchema(
         MessageType fileSchema,
         List<Attribute> projectedAttributes,
         Map<String, List<CollectionSchema.Leaf>> collections,
-        List<ChildRelationRead> childRelations
+        @Nullable ParquetExpansion.Spec expansion
     ) {
-        for (ChildRelationRead read : childRelations) {
-            // A carrier and a child relation of one collection would each bind a reader to its columns' one page reader
-            if (collections.containsKey(CollectionSchema.carrierName(read.path()))) {
-                throw new IllegalArgumentException("collection [" + read.path() + "] cannot be both carried and read as a child relation");
-            }
-        }
         List<Attribute> columns = withCarriedColumns(projectedAttributes, collections);
-        if (childRelations.isEmpty() == false) {
+        if (expansion != null) {
+            String path = expansion.read().path();
+            // A carrier and an expansion of one collection would each bind a reader to its columns' one page reader
+            if (collections.containsKey(CollectionSchema.carrierName(path))) {
+                throw new IllegalArgumentException("collection [" + path + "] cannot be both carried and expanded");
+            }
             columns = new ArrayList<>(columns);
-            for (String path : ParquetChildRelations.projectedColumns(fileSchema, childRelations)) {
-                columns.add(new ReferenceAttribute(Source.EMPTY, null, path, DataType.NULL, Nullability.TRUE, null, false));
+            for (String leaf : expansion.projectedColumns(fileSchema)) {
+                columns.add(new ReferenceAttribute(Source.EMPTY, null, leaf, DataType.NULL, Nullability.TRUE, null, false));
             }
         }
         return buildProjectedSchema(fileSchema, columns);
@@ -4335,7 +4371,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * (maxRepLevel > 0) continue using {@link ColumnReadStoreImpl} and {@link ColumnReader}
      * since they require stateful multi-value handling via repetition levels.
      */
-    private static class ParquetColumnIterator implements CloseableIterator<Page>, ChildRelationPages {
+    private static class ParquetColumnIterator implements CloseableIterator<Page> {
         private final ParquetFileReader reader;
         private final MessageType projectedSchema;
         private final List<Attribute> attributes;
@@ -4352,8 +4388,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         private final ColumnInfo[] columnInfos;
         /** Per-attribute decoder of a collection read as its carrier; null for every other attribute. */
         private final ParquetCollections.Decoder[] collections;
-        /** The child relations this read decodes beside its rows; see {@link ChildRelationPages}. */
-        private final ParquetChildRelations childRelations;
+        /** The collection this read expands each batch's rows by, or {@code null} when it emits one row per file row. */
+        @Nullable
+        private final ParquetExpansion expansion;
         private final boolean hasListColumns;
         /**
          * File-global first-row offsets per row group; mirrors the field of the same name on
@@ -4480,7 +4517,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             @Nullable Consumer<String> warningSink,
             @Nullable SharedErrorBudget sharedErrorBudget,
             Map<String, List<CollectionSchema.Leaf>> collections,
-            List<ChildRelationRead> childRelations
+            @Nullable ParquetExpansion.Spec expansion
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
@@ -4516,13 +4553,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             reader.setRequestedSchema(projectedSchema);
 
             this.columnInfos = buildColumnInfos(projectedSchema, attributes, declaredDateFormats);
-            this.childRelations = ParquetChildRelations.of(
-                projectedSchema,
-                childRelations,
-                blockFactory,
-                this::coercionWarnings,
-                path -> nullListElementWarnings().addOnce(ParquetColumnDecoding.nullListElementsMessage(path))
-            );
+            this.expansion = expansion == null
+                ? null
+                : ParquetExpansion.of(
+                    expansion,
+                    projectedSchema,
+                    blockFactory,
+                    path -> nullListElementWarnings().addOnce(ParquetColumnDecoding.nullListElementsMessage(path))
+                );
             String[] absentWarnings = buildAbsentColumnWarnings(attributes, this.columnInfos);
             if (absentWarnings.length > 0 && warningSink != null) {
                 this.pendingAbsentWarnings = absentWarnings;
@@ -4710,7 +4748,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 listColumnReaders = null;
                 columnUncompressedBytes = null;
             }
-            if (this.childRelations.isEmpty() == false) {
+            if (this.expansion != null) {
                 // The same store as the row's repeated columns: it hands out each column's one page reader once
                 if (store == null) {
                     store = new ColumnReadStoreImpl(
@@ -4720,7 +4758,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         createdBy
                     );
                 }
-                this.childRelations.bind(store, listCorruptionHandler, fileLocation, rowGroupOrdinal, rowsBeforeCurrentGroup);
+                this.expansion.bind(store, listCorruptionHandler, fileLocation, rowGroupOrdinal, rowsBeforeCurrentGroup);
             }
             ColumnReadStoreImpl collectionStore = null;
             for (ParquetCollections.Decoder decoder : collections) {
@@ -4752,9 +4790,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 effectiveBatch = Math.min(effectiveBatch, rowBudget);
             }
             int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
-            if (childRelations.isEmpty() == false) {
-                // The elements are decoded first so a batch whose elements reach the budget ends at that row
-                rowsToRead = childRelations.decodeBatch(rowsToRead);
+            if (expansion != null) {
+                // The elements are decoded first so a batch whose expanded rows reach the budget ends at that row
+                try {
+                    rowsToRead = expansion.decodeBatch(rowsToRead);
+                } catch (CircuitBreakingException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw ParquetReadFailures.wrap(e, expansionFailureContext());
+                }
             }
             // Pre-decrement snapshot of the in-block index of this batch's first row. Used to
             // synthesise the {@code _rowPosition} block when present in the projection. The
@@ -4824,22 +4868,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         }
                     }
                 }
-                int[] survivors = null;
                 if (rowDropHelper != null && rowDropHelper.hasFailures()) {
                     blocks = rowDropHelper.filterBlocks(blocks, blockFactory);
                     producedRows = rowsToRead - rowDropHelper.failedCount();
-                    survivors = rowDropHelper.survivorPositions();
-                }
-                if (childRelations.isEmpty() == false) {
-                    childRelations.finishBatch(rowsToRead);
-                    childRelations.retainParents(survivors, producedRows);
                 }
             } catch (CircuitBreakingException e) {
-                childRelations.close();
+                closeExpansion();
                 ParquetReadFailures.closePreservingCause(e, blocks);
                 throw e;
             } catch (Exception e) {
-                childRelations.close();
+                closeExpansion();
                 ParquetReadFailures.closePreservingCause(e, blocks);
                 throw ParquetReadFailures.wrap(
                     e,
@@ -4860,9 +4898,23 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             try {
                 listCorruptionHandler.completeBatch(rowsToRead, droppedRows);
             } catch (RuntimeException e) {
-                childRelations.releaseCurrent();
+                closeExpansion();
                 ParquetReadFailures.closePreservingCause(e, blocks);
                 throw e;
+            }
+            // An expanding read may project no parent column at all, so a page without blocks still counts its rows
+            Page page = blocks.length == 0 ? new Page(producedRows) : new Page(blocks);
+            if (expansion != null) {
+                // The drops above narrowed the parents; the elements follow the rows they kept. The expansion owns the
+                // parent page from here, and releases it if it fails.
+                int[] survivors = rowDropHelper != null && rowDropHelper.hasFailures() ? rowDropHelper.survivorPositions() : null;
+                try {
+                    page = expansion.expand(page, survivors);
+                } catch (CircuitBreakingException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw ParquetReadFailures.wrap(e, expansionFailureContext());
+                }
             }
 
             pageBatchIndexInRowGroup++;
@@ -4871,11 +4923,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 try {
                     validateListColumnsExhausted();
                 } catch (RuntimeException e) {
-                    childRelations.releaseCurrent();
-                    ParquetReadFailures.closePreservingCause(e, blocks);
+                    ParquetReadFailures.closePreservingCause(e, page::releaseBlocks);
                     throw e;
                 }
             }
+            // The row limit and the counters count the file's rows, the parents, before any expansion
             if (rowBudget != FormatReader.NO_LIMIT) {
                 rowBudget -= producedRows;
             }
@@ -4885,11 +4937,32 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // Emit only after the page is fully built: if any column read above threw, we
             // should not warn about absent columns — no data was produced for this batch.
             emitAbsentColumnWarningsOnce();
-            return new Page(blocks);
+            return page;
+        }
+
+        /** Where a failure to decode or expand the elements of this batch happened, for its message. */
+        private String expansionFailureContext() {
+            return "Failed to expand ["
+                + expansion.path()
+                + "] at row group ["
+                + (rowGroupOrdinal + 1)
+                + "] page batch ["
+                + pageBatchIndexInRowGroup
+                + "] in file ["
+                + fileLocation
+                + "]";
+        }
+
+        private void closeExpansion() {
+            if (expansion != null) {
+                expansion.close();
+            }
         }
 
         private void validateListColumnsExhausted() {
-            childRelations.validateExhausted();
+            if (expansion != null) {
+                expansion.validateExhausted();
+            }
             if (listColumnReaders == null) {
                 return;
             }
@@ -4898,11 +4971,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     listReader.validateExhausted();
                 }
             }
-        }
-
-        @Override
-        public ChildWindows children(String path) {
-            return childRelations.children(path);
         }
 
         private Block readColumnBlock(
@@ -5266,7 +5334,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         @Override
         public void close() throws IOException {
             try {
-                childRelations.close();
+                // First, and it cannot throw: the batch in progress is released whatever the rest of the close does
+                closeExpansion();
                 if (rowGroup != null) {
                     rowGroup.close();
                 }

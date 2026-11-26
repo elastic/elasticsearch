@@ -13,11 +13,10 @@ import org.elasticsearch.compute.ann.IntermediateState;
 
 /**
  * A {@code double} minimum aggregator with Prometheus/IEEE-754 non-finite semantics, used only by the PromQL translation.
- * Unlike {@link MinDoubleAggregator} (which seeds with a {@code +Double.POSITIVE_INFINITY} sentinel and uses
- * {@code Math.min}, propagating {@code NaN}), this seeds with {@code NaN} and skips {@code NaN} inputs whenever a
- * non-{@code NaN} value is present, so {@code min} is {@code NaN} only when every input is {@code NaN}. {@code ±Inf}
- * participate as ordinary ordered values. Emptiness is still reported as {@code null} via the generated {@code seen}
- * tracking.
+ * {@link MinDoubleAggregator} also skips {@code NaN} and answers {@code NaN} only when every input is {@code NaN}; the
+ * difference is signed zero. That aggregator orders {@code -0.0} below {@code 0.0} through {@code Math.min}, while this
+ * one compares with {@code >}, as PromQL does, and treats the two zeros as equal. {@code ±Inf} participate as ordinary
+ * ordered values. Emptiness is still reported as {@code null} via the generated {@code seen} tracking.
  */
 @Aggregator({ @IntermediateState(name = "min", type = "DOUBLE"), @IntermediateState(name = "seen", type = "BOOLEAN") })
 @GroupingAggregator

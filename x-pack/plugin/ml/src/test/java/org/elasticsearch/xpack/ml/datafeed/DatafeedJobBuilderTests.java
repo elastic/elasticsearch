@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
@@ -51,13 +52,17 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -65,9 +70,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -547,13 +550,13 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             new DatafeedTimingStats(jobBuilder.getId())
         );
 
-        TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
+        TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1", List.of("remotecluster:index-*"));
 
         buildDatafeedJob(datafeedTask, datafeedContext, datafeedJobHandler);
         assertBusy(() -> assertTrue(wasHandlerCalled.get()));
     }
 
-    public void testCheckRemoteIndicesAreAvailableGivenNullIndicesShouldNotThrow() {
+    public void testCheckRemoteIndicesAreAvailableGivenNullTaskIndicesShouldNotThrow() {
         datafeedJobBuilder = new DatafeedJobBuilder(
             client,
             xContentRegistry(),
@@ -570,15 +573,110 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
-        DatafeedConfig datafeedWithoutIndices = spy(datafeed);
-        doReturn(null).when(datafeedWithoutIndices).getIndices();
 
-        datafeedJobBuilder.checkRemoteIndicesAreAvailable(datafeedWithoutIndices);
+        datafeedJobBuilder.checkRemoteIndicesAreAvailable(newDatafeedTask("datafeed1", null), datafeed);
+    }
+
+    public void testCheckRemoteIndicesAreAvailableGivenDslDatafeedShouldUseConfigIndicesNotTaskIndices() {
+        datafeedJobBuilder = newBuilder(nonRemoteClusterClientNode());
+        DatafeedConfig localDatafeed = new DatafeedConfig.Builder("datafeed1", "job1").setIndices(List.of("local-index")).build();
+        DatafeedConfig remoteDatafeed = new DatafeedConfig.Builder("datafeed1", "job1").setIndices(List.of("east:logs-*")).build();
+
+        // The task holds the indices the master read, which an update may have changed before the config was loaded.
+        datafeedJobBuilder.checkRemoteIndicesAreAvailable(newDatafeedTask("datafeed1", List.of("east:logs-*")), localDatafeed);
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> datafeedJobBuilder.checkRemoteIndicesAreAvailable(newDatafeedTask("datafeed1", List.of("local-index")), remoteDatafeed)
+        );
+        assertThat(e.getMessage(), containsString("east:logs-*"));
+    }
+
+    public void testBuildGivenEsqlRemoteSourceAndNoRemoteSearchingShouldFail() throws Exception {
+        datafeedJobBuilder = newBuilder(nonRemoteClusterClientNode());
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        datafeedJobBuilder.build(
+            newDatafeedTask("datafeed1", List.of("east:logs-*")),
+            newEsqlContext(),
+            ActionListener.wrap(datafeedJob -> fail("expected the build to fail"), failure::set)
+        );
+
+        assertBusy(() -> assertThat(failure.get(), notNullValue()));
+        assertThat(
+            failure.get().getMessage(),
+            equalTo(Messages.getMessage(Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH, "datafeed1", "[east:logs-*]", "test_node"))
+        );
+    }
+
+    public void testBuildGivenEsqlLocalSourceAndNoRemoteSearchingShouldSucceed() throws Exception {
+        datafeedJobBuilder = newBuilder(nonRemoteClusterClientNode());
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        datafeedJobBuilder.build(
+            newDatafeedTask("datafeed1", List.of()),
+            newEsqlContext(),
+            ActionTestUtils.assertNoFailureListener(datafeedJob -> wasHandlerCalled.set(true))
+        );
+
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
+    public void testBuildGivenEsqlRemoteSourceAndRemoteSearchingShouldSucceed() throws Exception {
+        datafeedJobBuilder = newBuilder(Settings.EMPTY);
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        datafeedJobBuilder.build(
+            newDatafeedTask("datafeed1", List.of("east:logs-*")),
+            newEsqlContext(),
+            ActionTestUtils.assertNoFailureListener(datafeedJob -> wasHandlerCalled.set(true))
+        );
+
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
+    private DatafeedJobBuilder newBuilder(Settings settings) {
+        return new DatafeedJobBuilder(
+            client,
+            xContentRegistry(),
+            auditor,
+            annotationPersister,
+            System::currentTimeMillis,
+            jobResultsPersister,
+            settings,
+            clusterService,
+            CloudCredentialManager.Noop::new,
+            DatafeedSearchTelemetry.NOOP
+        );
+    }
+
+    private static DatafeedContext newEsqlContext() {
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
+        datafeed.setEsqlQuery("FROM east:logs-*");
+        datafeed.setSourceTimeField("@timestamp");
+        datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+        return new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            new RestartTimeInfo(null, null, true),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
     }
 
     private static TransportStartDatafeedAction.DatafeedTask newDatafeedTask(String datafeedId) {
+        return newDatafeedTask(datafeedId, List.of());
+    }
+
+    private static TransportStartDatafeedAction.DatafeedTask newDatafeedTask(String datafeedId, List<String> datafeedIndices) {
         TransportStartDatafeedAction.DatafeedTask task = mock(TransportStartDatafeedAction.DatafeedTask.class);
         when(task.getDatafeedId()).thenReturn(datafeedId);
+        when(task.getDatafeedIndices()).thenReturn(datafeedIndices);
         TaskId parentTaskId = new TaskId("");
         when(task.getParentTaskId()).thenReturn(parentTaskId);
         return task;

@@ -22,7 +22,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -1520,7 +1522,7 @@ public class DriverTests extends ESTestCase {
         }
     }
 
-    /** A driver whose blocked future fails ends while asleep: the sleep must be closed, not reported as still going. */
+    /** A driver that fails while asleep must close its sleep, not report it as still going. */
     public void testDriverFailingWhileBlockedClosesItsSleep() {
         DriverContext driverContext = driverContext();
         SubscribableListener<Void> blocked = new SubscribableListener<>();
@@ -1547,13 +1549,27 @@ public class DriverTests extends ESTestCase {
             new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
         );
         ThreadPool threadPool = threadPool();
+        DriverExecutor rejectingWakeups = new DriverExecutor() {
+            @Override
+            public void execute(Runnable task) {
+                threadPool.executor("esql").execute(task);
+            }
+
+            @Override
+            public void executeResumed(AbstractRunnable task) {
+                task.onRejection(new EsRejectedExecutionException("wakeup rejected"));
+            }
+        };
         try {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            Driver.start(threadPool.getThreadContext(), rejectingWakeups, driver, between(1, 1000), future);
             assertBusy(() -> assertThat(driver.status().status(), equalTo(DriverStatus.Status.ASYNC)));
-            blocked.onFailure(new IllegalStateException("blocked failed"));
-            IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-            assertThat(failure.getMessage(), equalTo("blocked failed"));
+            blocked.onResponse(null);
+            EsRejectedExecutionException failure = expectThrows(
+                EsRejectedExecutionException.class,
+                () -> future.actionGet(30, TimeUnit.SECONDS)
+            );
+            assertThat(failure.getMessage(), equalTo("wakeup rejected"));
             assertFinishedWithUsage(driver, 3, 0, 0);
             DriverSleeps.Sleep sleep = driver.status().sleeps().last().get(0);
             assertThat(sleep.reason(), equalTo("test blocked"));

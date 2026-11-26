@@ -448,7 +448,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (id.equals(datafeedConfig.getId()) == false) {
             throw new IllegalArgumentException("Cannot apply update to datafeedConfig with different id");
         }
-        if (datafeedConfig.getEsqlQuery() != null && changesEsqlQueryShape()) {
+        if (datafeedConfig.getEsqlQuery() != null && changesEsqlQueryShape(datafeedConfig)) {
             throw ExceptionsHelper.badRequestException(
                 Messages.getMessage(Messages.DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE, datafeedConfig.getId())
             );
@@ -533,8 +533,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return builder.build();
     }
 
-    private boolean changesEsqlQueryShape() {
-        return esqlQuery != null
+    private boolean changesEsqlQueryShape(DatafeedConfig current) {
+        // An unchanged esql_query resent by a client that echoes the full config is a no-op, not a shape change.
+        return (esqlQuery != null && Objects.equals(esqlQuery, current.getEsqlQuery()) == false)
             || sourceTimeField != null
             || groupingInterval != null
             || indices != null

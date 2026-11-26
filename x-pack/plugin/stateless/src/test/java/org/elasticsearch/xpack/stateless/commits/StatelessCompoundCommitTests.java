@@ -664,18 +664,24 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
 
     /// Locations that reference the same blob share a single [Blob] instance once read from the store, whatever the header format.
     public void testReadFromStoreDeduplicatesBlobs() throws IOException {
-        var blobName = BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000));
+        var shardId = randomShardId();
+        long generation = randomLongBetween(1, 1000);
         long term = randomLongBetween(1, 10);
-        // equal but distinct blob instances
+        var blobName = BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000));
+        var containingBlobName = BccBlob.blobNameFromGeneration(generation);
+        // equal but distinct blob instances, including some that reference the blob containing the commit itself
         var commitFiles = Map.of(
             "file_1",
             new BlobLocation(new BccBlob(blobName, term), 0, 10),
             "file_2",
             new BlobLocation(new BccBlob(blobName, term), 10, 10),
             "file_3",
-            new BlobLocation(new BccBlob(blobName, term), 20, 10)
+            new BlobLocation(new BccBlob(blobName, term), 20, 10),
+            "file_4",
+            new BlobLocation(new BccBlob(containingBlobName, term), 0, 10)
         );
         var internalFiles = List.of(new InternalFile("internal_file", randomLongBetween(100, 1000)));
+        var extraContent = List.of(new InternalFile("extra_file", randomLongBetween(100, 1000)));
 
         var versions = new int[] {
             StatelessCompoundCommit.VERSION_WITH_COMMIT_FILES,
@@ -685,25 +691,26 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 if (version == StatelessCompoundCommit.VERSION_WITH_XCONTENT_ENCODING) {
                     StatelessCompoundCommit.writeXContentHeader(
-                        randomShardId(),
-                        randomNonZeroPositiveLong(),
-                        randomNonZeroPositiveLong(),
-                        randomNodeEphemeralId(),
-                        0,
+                        shardId,
+                        generation,
+                        term,
+                        // only hollow commits can have extra content
+                        "",
+                        HOLLOW_TRANSLOG_RECOVERY_START_FILE,
                         randomTimestampFieldValueRange(),
                         commitFiles,
-                        List.of(),
+                        internalFiles,
                         InternalFilesReplicatedRanges.EMPTY,
                         new OutputStreamStreamOutput(output),
                         randomBoolean(),
-                        List.of()
+                        extraContent
                     );
                 } else {
                     writeBwcHeader(
                         new OutputStreamStreamOutput(output),
-                        randomShardId(),
-                        randomNonZeroPositiveLong(),
-                        randomNonZeroPositiveLong(),
+                        shardId,
+                        generation,
+                        term,
                         randomNodeEphemeralId(),
                         commitFiles,
                         internalFiles,
@@ -719,6 +726,11 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     }
                     assertSame(copy.commitFiles().get("file_1").blob(), copy.commitFiles().get("file_2").blob());
                     assertSame(copy.commitFiles().get("file_1").blob(), copy.commitFiles().get("file_3").blob());
+                    // the files uploaded by the commit share the instance of the referenced locations to the same blob
+                    assertSame(copy.commitFiles().get("file_4").blob(), copy.commitFiles().get("internal_file").blob());
+                    if (version == StatelessCompoundCommit.VERSION_WITH_XCONTENT_ENCODING) {
+                        assertSame(copy.commitFiles().get("file_4").blob(), copy.extraContent().get("extra_file").blob());
+                    }
                 }
             }
         }

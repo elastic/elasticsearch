@@ -660,6 +660,14 @@ public record StatelessCompoundCommit(
     ) {
         PrimaryTermAndGeneration bccTermAndGen = new PrimaryTermAndGeneration(primaryTerm, bccGenSupplier.apply(generation));
         var blobFile = new BccBlob(bccTermAndGen);
+        for (BlobLocation referencedBlobLocation : referencedBlobLocations.values()) {
+            if (referencedBlobLocation.blob().equals(blobFile)) {
+                // reuse the instance already held by the referenced locations (if any)
+                // so that all the locations of this blob share a single object
+                blobFile = (BccBlob) referencedBlobLocation.blob();
+                break;
+            }
+        }
         final var combinedCommitFilesResult = combineCommitFiles(
             blobFile,
             replicatedContentRanges,

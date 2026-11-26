@@ -38,6 +38,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -70,7 +71,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
 
     @Before
     public void initBlockFactoryAndCodec() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         codecFactory = new PlainCompressionCodecFactory();
     }
 
@@ -769,7 +770,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
         };
     }
 
-    private static final class InMemoryStorageObject implements StorageObject {
+    private static final class InMemoryStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
 
         InMemoryStorageObject(byte[] data) {

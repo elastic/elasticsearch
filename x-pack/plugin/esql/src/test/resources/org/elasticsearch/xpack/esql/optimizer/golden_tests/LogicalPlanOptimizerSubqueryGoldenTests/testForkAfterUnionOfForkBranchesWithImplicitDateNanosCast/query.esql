@@ -1,0 +1,4 @@
+FROM (FROM sample_data | FORK (WHERE true) (WHERE true)),
+     (FROM sample_data_ts_nanos | FORK (WHERE true) (WHERE true))
+| FORK (WHERE true) (WHERE true)
+| KEEP @timestamp

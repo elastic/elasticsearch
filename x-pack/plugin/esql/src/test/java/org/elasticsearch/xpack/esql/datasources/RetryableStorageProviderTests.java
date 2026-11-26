@@ -11,10 +11,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -36,7 +40,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class RetryableStorageProviderTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     public void testNewObjectWrapsWithRetry() throws IOException {
         AtomicInteger streamCalls = new AtomicInteger();
@@ -120,11 +124,11 @@ public class RetryableStorageProviderTests extends ESTestCase {
                     public boolean hasNext() {
                         if (index == 0 && firstPageFailed == false) {
                             firstPageFailed = true;
-                            throw new ExternalUnavailableException("first page unavailable", (Throwable) null);
+                            throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L);
                         }
                         if (index == 1 && secondPageFailed == false) {
                             secondPageFailed = true;
-                            throw new ExternalUnavailableException("second page unavailable", (Throwable) null);
+                            throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L);
                         }
                         return index < 2;
                     }
@@ -171,6 +175,23 @@ public class RetryableStorageProviderTests extends ESTestCase {
         assertEquals(2, calls.get());
     }
 
+    public void testObjectMetadataRetriesOnTransientFailure() throws IOException {
+        AtomicInteger calls = new AtomicInteger();
+        StorageProvider delegate = new StubStorageProvider() {
+            @Override
+            public StorageEntry objectMetadata(StoragePath path) throws IOException {
+                if (calls.incrementAndGet() < 2) {
+                    throw new SocketTimeoutException("timeout");
+                }
+                return new StorageEntry(path, 42L, Instant.EPOCH);
+            }
+        };
+        RetryableStorageProvider provider = new RetryableStorageProvider(delegate, new RetryPolicy(3, 1, 10));
+
+        assertEquals(42L, provider.objectMetadata(StoragePath.of("s3://bucket/file.csv")).length());
+        assertEquals(2, calls.get());
+    }
+
     public void testSupportedSchemesDelegates() {
         StorageProvider delegate = new StubStorageProvider() {
             @Override
@@ -185,6 +206,19 @@ public class RetryableStorageProviderTests extends ESTestCase {
     public void testReadBytesAsyncRetriesOnTransientFailure() throws Exception {
         AtomicInteger asyncCalls = new AtomicInteger();
         StorageObject inner = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream("data".getBytes(StandardCharsets.UTF_8));
@@ -266,6 +300,19 @@ public class RetryableStorageProviderTests extends ESTestCase {
     private static StorageObject stubObject(String location, IOStreamSupplier streamSupplier) {
         StoragePath path = StoragePath.of(location);
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return streamSupplier.get();

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -156,7 +157,7 @@ public class IndexMetadataUpdaterTests extends ESTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             unassignedInfo,
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            RecoveryPriority.UNASSIGNED_EXPECTED
         );
         final ShardRouting targetUnassigned = ShardRouting.newUnassigned(
             targetShardId,
@@ -164,7 +165,7 @@ public class IndexMetadataUpdaterTests extends ESTestCase {
             new RecoverySource.ReshardSplitRecoverySource(sourceShardId),
             unassignedInfo,
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            RecoveryPriority.UNASSIGNED_EXPECTED
         );
         final ShardRouting sourceInitializing = sourceUnassigned.initialize(
             node.getId(),

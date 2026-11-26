@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 165133
+summary: Filter `resolveStartedDeletionSnapshots` by repo
+type: bug

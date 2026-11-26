@@ -491,7 +491,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
 
-            listener.onFailure(new SearchPhaseExecutionException("fetch", "boum", ShardSearchFailure.EMPTY_ARRAY));
+            listener.onFailure(new SearchPhaseExecutionException("fetch", "boum", List.of()));
             assertCompletionListeners(task, totalShards, 0, numSkippedShards, 0, true, true, false);
         }
     }

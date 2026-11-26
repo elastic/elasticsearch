@@ -27,6 +27,7 @@ import java.io.IOException;
 public class PredicateTokenFilterScriptFactory extends AbstractTokenFilterFactory {
 
     private final AnalysisPredicateScript.Factory factory;
+    private final Script script;
 
     public PredicateTokenFilterScriptFactory(IndexSettings indexSettings, String name, Settings settings, ScriptService scriptService) {
         super(name);
@@ -36,6 +37,15 @@ public class PredicateTokenFilterScriptFactory extends AbstractTokenFilterFactor
             throw new IllegalArgumentException("Cannot use stored scripts in tokenfilter [" + name + "]");
         }
         this.factory = scriptService.compile(script, AnalysisPredicateScript.CONTEXT);
+        this.script = script;
+    }
+
+    @Override
+    public Object sharingKey() {
+        // Script has value equality over its language, source and options, which determine the compiled
+        // factory on a node. The compiled factory itself is not a stable key: script cache eviction can
+        // hand out a new instance for the same source.
+        return script;
     }
 
     @Override

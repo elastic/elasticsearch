@@ -37,7 +37,7 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals(DataType.INTEGER, result.partitionColumns().get("month"));
         assertEquals(DataType.INTEGER, result.partitionColumns().get("day"));
 
-        Map<String, Object> file1 = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/2024/01/15/file1.parquet"));
+        Map<String, Object> file1 = values(result, files, "s3://bucket/data/2024/01/15/file1.parquet");
         assertEquals(2024, file1.get("year"));
         assertEquals(1, file1.get("month"));
         assertEquals(15, file1.get("day"));
@@ -66,14 +66,14 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._index"));
         assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
 
-        Map<String, Object> file1 = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/alpha/2024/file1.parquet"));
+        Map<String, Object> file1 = values(result, files, "s3://bucket/data/alpha/2024/file1.parquet");
         assertEquals("alpha", file1.get("_partition._index"));
         assertEquals(2024, file1.get("year"));
 
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             warnings
         );
@@ -100,9 +100,9 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_id] surfaced as [_partition._id]",
-                "partition column [_source] surfaced as [_partition._source]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_id] is named [_partition._id]",
+                "partition key [_source] is named [_partition._source]"
             ),
             warnings
         );
@@ -122,7 +122,7 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("region"));
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("city"));
 
-        Map<String, Object> file1 = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/americas/sao_paulo/file.parquet"));
+        Map<String, Object> file1 = values(result, files, "s3://bucket/data/americas/sao_paulo/file.parquet");
         assertEquals("americas", file1.get("region"));
         assertEquals("sao_paulo", file1.get("city"));
     }
@@ -194,14 +194,8 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
-        assertEquals(
-            "americas",
-            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/americas/sao_paulo/file.parquet")).get("region")
-        );
-        assertEquals(
-            "sao_paulo",
-            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/americas/sao_paulo/file.parquet")).get("city")
-        );
+        assertEquals("americas", values(result, files, "s3://bucket/data/americas/sao_paulo/file.parquet").get("region"));
+        assertEquals("sao_paulo", values(result, files, "s3://bucket/data/americas/sao_paulo/file.parquet").get("city"));
     }
 
     public void testUrlEncodedValues() {
@@ -212,7 +206,7 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
-        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/S%C3%A3o%20Paulo/file.parquet"));
+        Map<String, Object> values = values(result, files, "s3://bucket/data/S%C3%A3o%20Paulo/file.parquet");
         assertEquals("São Paulo", values.get("city"));
     }
 
@@ -229,7 +223,7 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
-        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/a+b/file.parquet"));
+        Map<String, Object> values = values(result, files, "s3://bucket/data/a+b/file.parquet");
         assertEquals("a+b", values.get("tag"));
     }
 
@@ -242,7 +236,7 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
-        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/a%2Bns%3Ab/file.parquet"));
+        Map<String, Object> values = values(result, files, "s3://bucket/data/a%2Bns%3Ab/file.parquet");
         assertEquals("a+ns:b", values.get("tag"));
     }
 
@@ -258,7 +252,7 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
-        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/a+b%20c/file.parquet"));
+        Map<String, Object> values = values(result, files, "s3://bucket/data/a+b%20c/file.parquet");
         assertEquals("a+b c", values.get("tag"));
     }
 
@@ -271,7 +265,7 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
-        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/a%2/file.parquet"));
+        Map<String, Object> values = values(result, files, "s3://bucket/data/a%2/file.parquet");
         assertEquals("a%2", values.get("tag"));
     }
 
@@ -314,12 +308,13 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
 
     public void testLiteralSegmentAnchorsTheBinding() {
         TemplatePartitionDetector detector = new TemplatePartitionDetector("{year}/junk/{month}");
-        PartitionMetadata result = detector.detect(List.of(entry("s3://bucket/logs/2024/junk/01/part-0.parquet")), WarningSinks.FAILING);
+        List<StorageEntry> files = List.of(entry("s3://bucket/logs/2024/junk/01/part-0.parquet"));
+        PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
         assertEquals(DataType.INTEGER, result.partitionColumns().get("month"));
-        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/logs/2024/junk/01/part-0.parquet"));
+        Map<String, Object> values = values(result, files, "s3://bucket/logs/2024/junk/01/part-0.parquet");
         assertEquals(2024, values.get("year"));
         assertEquals(1, values.get("month"));
     }
@@ -336,9 +331,10 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
 
     public void testLeadingLiteralBindsWhenTheDirectoryMatches() {
         TemplatePartitionDetector detector = new TemplatePartitionDetector("logs/{year}/{month}");
-        PartitionMetadata result = detector.detect(List.of(entry("s3://bucket/logs/2024/01/part-0.parquet")), WarningSinks.FAILING);
+        List<StorageEntry> files = List.of(entry("s3://bucket/logs/2024/01/part-0.parquet"));
+        PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
         assertFalse(result.isEmpty());
-        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/logs/2024/01/part-0.parquet"));
+        Map<String, Object> values = values(result, files, "s3://bucket/logs/2024/01/part-0.parquet");
         assertEquals(2024, values.get("year"));
         assertEquals(1, values.get("month"));
     }
@@ -356,9 +352,10 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
     public void testDuplicatePlaceholderRequiresEqualValues() {
         TemplatePartitionDetector detector = new TemplatePartitionDetector("{year}/junk/{year}");
         assertEquals(List.of("year"), detector.columnNames());
-        PartitionMetadata match = detector.detect(List.of(entry("s3://bucket/logs/2024/junk/2024/part-0.parquet")), WarningSinks.FAILING);
+        List<StorageEntry> files = List.of(entry("s3://bucket/logs/2024/junk/2024/part-0.parquet"));
+        PartitionMetadata match = detector.detect(files, WarningSinks.FAILING);
         assertFalse(match.isEmpty());
-        Map<String, Object> values = match.filePartitionValues().get(StoragePath.of("s3://bucket/logs/2024/junk/2024/part-0.parquet"));
+        Map<String, Object> values = values(match, files, "s3://bucket/logs/2024/junk/2024/part-0.parquet");
         assertEquals(2024, values.get("year"));
         assertTrue(detector.detect(List.of(entry("s3://bucket/logs/2023/junk/2024/part-0.parquet")), WarningSinks.FAILING).isEmpty());
     }
@@ -372,8 +369,8 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals(Set.of("_partition._index"), match.partitionColumns().keySet());
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             warnings
         );
@@ -410,8 +407,8 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.BOOLEAN, result.partitionColumns().get("flag"));
-        assertEquals(true, result.filePartitionValues().get(StoragePath.of("s3://bucket/data/True/file1.parquet")).get("flag"));
-        assertEquals(false, result.filePartitionValues().get(StoragePath.of("s3://bucket/data/False/file2.parquet")).get("flag"));
+        assertEquals(true, values(result, files, "s3://bucket/data/True/file1.parquet").get("flag"));
+        assertEquals(false, values(result, files, "s3://bucket/data/False/file2.parquet").get("flag"));
     }
 
     public void testMixedIntegerAndKeyword() {
@@ -475,11 +472,20 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._index"));
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             sink
         );
+    }
+
+    private static Map<String, Object> values(PartitionMetadata result, List<StorageEntry> files, String path) {
+        for (int i = 0; i < files.size(); i++) {
+            if (files.get(i).path().toString().equals(path)) {
+                return result.valuesAsMap(i);
+            }
+        }
+        throw new AssertionError("no file [" + path + "]");
     }
 
 }

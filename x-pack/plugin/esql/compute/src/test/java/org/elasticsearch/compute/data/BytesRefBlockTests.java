@@ -8,13 +8,17 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
+import org.elasticsearch.common.bytes.ZeroBytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
@@ -279,6 +283,35 @@ public class BytesRefBlockTests extends BlockTestCase<BytesRefBlock, BytesRefBlo
             bytesRefBuilder.appendBytesRef(new BytesRef(data));
             try (BytesRefBlock b1 = cursorBuilder.build(); BytesRefBlock b2 = bytesRefBuilder.build()) {
                 assertThat(BytesRefBlock.equals(b1, b2), is(true));
+            }
+        }
+    }
+
+    public void testAppendBytesReferenceThroughBlockLoader() {
+        var paged = new ZeroBytesReference(40_000) {
+            @Override
+            public BytesRef toBytesRef() {
+                throw new AssertionError("block append must not materialize the reference");
+            }
+        };
+        try (
+            BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder expected = blockFactory().newBytesRefBlockBuilder(1)
+        ) {
+            BlockLoader.BytesRefBuilder loaderBuilder = builder;
+            loaderBuilder.appendBytesReference(paged);
+            expected.appendBytesRef(new BytesRef(new byte[paged.length()]));
+            loaderBuilder.appendNull();
+            expected.appendNull();
+            loaderBuilder.beginPositionEntry();
+            loaderBuilder.appendBytesReference(CompositeBytesReference.of(new BytesArray("ab"), new BytesArray("cd")).slice(1, 2));
+            loaderBuilder.appendBytesReference(BytesArray.EMPTY);
+            loaderBuilder.endPositionEntry();
+            expected.beginPositionEntry().appendBytesRef(new BytesRef("bc")).appendBytesRef(new BytesRef()).endPositionEntry();
+            loaderBuilder.appendBytesReference(new BytesArray("tail"));
+            expected.appendBytesRef(new BytesRef("tail"));
+            try (BytesRefBlock actualBlock = builder.build(); BytesRefBlock expectedBlock = expected.build()) {
+                assertTrue(BytesRefBlock.equals(actualBlock, expectedBlock));
             }
         }
     }

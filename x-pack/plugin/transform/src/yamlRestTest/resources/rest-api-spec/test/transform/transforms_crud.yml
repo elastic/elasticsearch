@@ -586,6 +586,41 @@ setup:
           }
 
 ---
+"Test put config with invalid indexer request timeout":
+  - do:
+      catch: /settings\.indexer_request_timeout \[0s\] is out of range. The minimum value is 1ms and the maximum is 12h/
+      transform.put_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "settings": {
+              "indexer_request_timeout": "0s"
+            }
+          }
+  - do:
+      catch: /settings\.indexer_request_timeout \[13h\] is out of range. The minimum value is 1ms and the maximum is 12h/
+      transform.put_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "settings": {
+              "indexer_request_timeout": "13h"
+            }
+          }
+
+---
 "Test creation failures due to duplicate and conflicting field names":
   - do:
       catch: /duplicate field \[airline\] detected/

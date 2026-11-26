@@ -24,6 +24,7 @@ public final class TargetIndex {
 
     public static final String TYPE_LOGS = "logs";
     public static final String TYPE_METRICS = "metrics";
+    public static final String TYPE_EXEMPLARS = "exemplars";
 
     private static final String RECEIVER = "/receiver/";
     private static final String CONNECTOR = "/connector/";
@@ -54,6 +55,22 @@ public final class TargetIndex {
 
     public static TargetIndex defaultMetrics() {
         return DEFAULT_METRICS_TARGET;
+    }
+
+    /**
+     * Returns the exemplar data stream corresponding to this metrics data stream.
+     * Explicit non-data-stream targets do not have an automatically derived exemplar target.
+     */
+    public @Nullable TargetIndex exemplarsTarget() {
+        if (TYPE_METRICS.equals(type) == false) {
+            return null;
+        }
+        TargetIndex target = new TargetIndex();
+        target.type = TYPE_EXEMPLARS;
+        target.dataset = dataset;
+        target.namespace = namespace;
+        target.index = TYPE_EXEMPLARS + index.substring(TYPE_METRICS.length());
+        return target;
     }
 
     public static boolean isTargetIndexAttribute(String attributeKey) {

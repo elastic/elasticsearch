@@ -17,7 +17,6 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -33,7 +32,7 @@ public final class KnnRuntimeScoreEvaluator implements ExpressionEvaluator {
 
   private final float[] queryVector;
 
-  private final DenseVectorFieldMapper.SimilarityFunction similarityFunction;
+  private final VectorSimilarityMetric similarityMetric;
 
   private final float boost;
 
@@ -44,12 +43,12 @@ public final class KnnRuntimeScoreEvaluator implements ExpressionEvaluator {
   private Warnings warnings;
 
   public KnnRuntimeScoreEvaluator(Source source, ExpressionEvaluator fieldBlock,
-      float[] queryVector, DenseVectorFieldMapper.SimilarityFunction similarityFunction,
-      float boost, float[] scratchVector, DriverContext driverContext) {
+      float[] queryVector, VectorSimilarityMetric similarityMetric, float boost,
+      float[] scratchVector, DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
     this.queryVector = queryVector;
-    this.similarityFunction = similarityFunction;
+    this.similarityMetric = similarityMetric;
     this.boost = boost;
     this.scratchVector = scratchVector;
     this.driverContext = driverContext;
@@ -73,7 +72,7 @@ public final class KnnRuntimeScoreEvaluator implements ExpressionEvaluator {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendDouble(Knn.runtimeScore(p, fieldBlockBlock, this.queryVector, this.similarityFunction, this.boost, this.scratchVector));
+          result.appendDouble(Knn.runtimeScore(p, fieldBlockBlock, this.queryVector, this.similarityMetric, this.boost, this.scratchVector));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -85,7 +84,7 @@ public final class KnnRuntimeScoreEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "KnnRuntimeScoreEvaluator[" + "fieldBlock=" + fieldBlock + ", queryVector=" + queryVector + ", similarityFunction=" + similarityFunction + ", boost=" + boost + "]";
+    return "KnnRuntimeScoreEvaluator[" + "fieldBlock=" + fieldBlock + ", queryVector=" + queryVector + ", similarityMetric=" + similarityMetric + ", boost=" + boost + "]";
   }
 
   @Override
@@ -107,31 +106,31 @@ public final class KnnRuntimeScoreEvaluator implements ExpressionEvaluator {
 
     private final float[] queryVector;
 
-    private final DenseVectorFieldMapper.SimilarityFunction similarityFunction;
+    private final VectorSimilarityMetric similarityMetric;
 
     private final float boost;
 
     private final Function<DriverContext, float[]> scratchVector;
 
     public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, float[] queryVector,
-        DenseVectorFieldMapper.SimilarityFunction similarityFunction, float boost,
+        VectorSimilarityMetric similarityMetric, float boost,
         Function<DriverContext, float[]> scratchVector) {
       this.source = source;
       this.fieldBlock = fieldBlock;
       this.queryVector = queryVector;
-      this.similarityFunction = similarityFunction;
+      this.similarityMetric = similarityMetric;
       this.boost = boost;
       this.scratchVector = scratchVector;
     }
 
     @Override
     public KnnRuntimeScoreEvaluator get(DriverContext context) {
-      return new KnnRuntimeScoreEvaluator(source, fieldBlock.get(context), queryVector, similarityFunction, boost, scratchVector.apply(context), context);
+      return new KnnRuntimeScoreEvaluator(source, fieldBlock.get(context), queryVector, similarityMetric, boost, scratchVector.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "KnnRuntimeScoreEvaluator[" + "fieldBlock=" + fieldBlock + ", queryVector=" + queryVector + ", similarityFunction=" + similarityFunction + ", boost=" + boost + "]";
+      return "KnnRuntimeScoreEvaluator[" + "fieldBlock=" + fieldBlock + ", queryVector=" + queryVector + ", similarityMetric=" + similarityMetric + ", boost=" + boost + "]";
     }
   }
 }

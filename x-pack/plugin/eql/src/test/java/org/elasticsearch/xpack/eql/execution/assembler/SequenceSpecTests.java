@@ -54,7 +54,7 @@ import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
 
 public class SequenceSpecTests extends ESTestCase {
 
-    private static final NoopCircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("SequenceSpecTests");
+    private static final NoopCircuitBreaker NOOP_CIRCUIT_BREAKER = NoopCircuitBreaker.INSTANCE;
 
     private static final String PARAM_FORMATTING = "%1$s";
     private static final String QUERIES_FILENAME = "sequences.series-spec";

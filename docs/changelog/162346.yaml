@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162346
+summary: Limits nodes after view expansion and in parsing
+type: enhancement

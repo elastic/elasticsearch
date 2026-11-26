@@ -159,7 +159,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
     private void runUnusedStatsRemover() {
         PlainActionFuture<Boolean> deletionListener = new PlainActionFuture<>();
-        new UnusedStatsRemover(client, new TaskId("test", 0L)).remove(10000.0f, deletionListener, () -> false);
+        new UnusedStatsRemover(client, clusterService(), new TaskId("test", 0L)).remove(10000.0f, deletionListener, () -> false);
         deletionListener.actionGet();
     }
 

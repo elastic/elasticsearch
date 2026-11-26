@@ -12,6 +12,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -24,9 +25,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -46,6 +49,8 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -67,6 +72,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private static final Logger logger = LogManager.getLogger(QueryPhaseResultConsumer.class);
 
     private final Executor executor;
+    /** Where the time spent merging results is charged, or {@code null}. */
+    private volatile TaskLoadAttribution.Target mergeLoad;
+    /** The docs each shard matched, recorded only while {@link #mergeLoad} is set. */
+    private final Map<ShardId, Long> docsMatched = new ConcurrentHashMap<>();
+    /** Whether a shard did not count the docs it matched, so that every shard counts as one result instead. */
+    private volatile boolean docsMatchedUnknown;
     private final CircuitBreaker circuitBreaker;
     private final SearchProgressListener progressListener;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
@@ -93,7 +104,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final ArrayDeque<MergeTask> queue = new ArrayDeque<>();
     private final AtomicReference<MergeTask> runningTask = new AtomicReference<>();
-    final AtomicReference<Exception> failure = new AtomicReference<>();
+    private final AtomicReference<Exception> failure = new AtomicReference<>();
 
     final TopDocsStats topDocsStats;
     private volatile MergeResult mergeResult;
@@ -134,6 +145,33 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
         batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         topDocsStats = new TopDocsStats(request.resolveTrackTotalHitsUpTo());
+    }
+
+    /**
+     * Charges the time spent merging results to {@code mergeLoad}.
+     */
+    public void mergeLoad(TaskLoadAttribution.Target mergeLoad) {
+        this.mergeLoad = mergeLoad;
+    }
+
+    /**
+     * The total hits of the result of {@code shardId}, or {@code 0} before it is consumed. Once a shard did not count its hits,
+     * every consumed shard counts as {@code 1}.
+     */
+    public long docsMatched(ShardId shardId) {
+        Long docs = docsMatched.get(shardId);
+        if (docs == null) {
+            return 0L;
+        }
+        return docsMatchedUnknown ? 1L : docs;
+    }
+
+    /**
+     * Where the time spent merging results is charged, or {@code null} when it is not charged.
+     */
+    @Nullable
+    TaskLoadAttribution.Target mergeLoad() {
+        return mergeLoad;
     }
 
     /**
@@ -182,6 +220,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         super.consumeResult(result, () -> {});
         QuerySearchResult querySearchResult = result.queryResult();
         progressListener.notifyQueryResult(querySearchResult.getShardIndex(), querySearchResult);
+        TotalHits totalHits = querySearchResult.getTotalHits();
+        if (mergeLoad != null && totalHits != null && querySearchResult.getSearchShardTarget() != null) {
+            if (totalHits.value() == 0 && totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+                // the shard ran with hit counting disabled
+                docsMatchedUnknown = true;
+            }
+            docsMatched.put(querySearchResult.getSearchShardTarget().getShardId(), totalHits.value());
+        }
         consume(querySearchResult, next);
     }
 
@@ -211,6 +257,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     void addBatchedPartialResult(TopDocsStats topDocsStats, MergeResult mergeResult) {
         synchronized (batchedResults) {
+            // close() raises the flag before releaseBuffer() drains this list under the same lock
+            if (isClosed()) {
+                releaseBatchedAggs(mergeResult.reducedAggs());
+                return;
+            }
             batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
         }
     }
@@ -494,6 +545,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return failure.get() != null;
     }
 
+    Exception getFailure() {
+        return failure.get();
+    }
+
     private boolean hasPendingMerges() {
         return queue.isEmpty() == false || runningTask.get() != null;
     }
@@ -509,6 +564,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         circuitBreakerBytes += estimatedSize;
         maxAggsCurrentBufferSize = Math.max(maxAggsCurrentBufferSize, circuitBreakerBytes);
         return circuitBreakerBytes;
+    }
+
+    private synchronized boolean addPartialMergeEstimate(long estimatedSize) {
+        if (hasFailure()) {
+            return false;
+        }
+        addEstimateAndMaybeBreak(estimatedSize);
+        return true;
     }
 
     /**
@@ -533,7 +596,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     private void consume(QuerySearchResult result, Runnable next) {
-        if (hasFailure()) {
+        if (shouldDiscard()) {
             result.consumeAll();
             next.run();
         } else if (result.isNull() || result.isPartiallyReduced()) {
@@ -546,10 +609,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         } else {
             final long aggsSize = ramBytesUsedQueryResult(result);
             boolean executeNextImmediately = true;
-            boolean hasFailure = false;
+            boolean discarded = false;
             synchronized (this) {
-                if (hasFailure()) {
-                    hasFailure = true;
+                // Re-checked under the lock: doClose() is synchronized too and close() raises the closed flag before
+                // calling it, so this read tells a buffer doClose() already released from one it has yet to see.
+                if (shouldDiscard()) {
+                    discarded = true;
                 } else {
                     if (hasAggs) {
                         try {
@@ -557,10 +622,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         } catch (Exception exc) {
                             releaseBuffer();
                             onMergeFailure(exc);
-                            hasFailure = true;
+                            discarded = true;
                         }
                     }
-                    if (hasFailure == false) {
+                    if (discarded == false) {
                         var b = buffer;
                         aggsCurrentBufferSize += aggsSize;
                         // add one if a partial merge is pending
@@ -579,13 +644,21 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     }
                 }
             }
-            if (hasFailure) {
+            if (discarded) {
                 result.consumeAll();
             }
             if (executeNextImmediately) {
                 next.run();
             }
         }
+    }
+
+    /**
+     * Whether to discard results rather than buffer them, because a partial merge failed or because the search
+     * already closed this consumer.
+     */
+    private boolean shouldDiscard() {
+        return hasFailure() || isClosed();
     }
 
     private void releaseBuffer() {
@@ -599,32 +672,114 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         synchronized (this.batchedResults) {
             Tuple<TopDocsStats, MergeResult> batchedResult;
             while ((batchedResult = batchedResults.poll()) != null) {
-                Releasables.close(batchedResult.v2().reducedAggs());
+                releaseBatchedAggs(batchedResult.v2().reducedAggs());
             }
         }
     }
 
-    private synchronized void onMergeFailure(Exception exc) {
-        if (failure.compareAndSet(null, exc) == false) {
-            assert circuitBreakerBytes == 0;
-            return;
+    /**
+     * Releases the aggregations of a wire-received {@link MergeResult} that will not be reduced. A serialized one frees
+     * its buffer on close, but a connection older than {@code batched_query_execution_delayable_writeable} sends the
+     * tree expanded and {@code readFrom} wraps it in a referencing {@link DelayableWriteable} whose close does nothing,
+     * so its pooled top_hits are dropped here. Not for a {@link #partialReduce} result: {@code topHitsToRelease} owns those.
+     */
+    static void releaseBatchedAggs(@Nullable DelayableWriteable<InternalAggregations> reducedAggs) {
+        if (reducedAggs != null && reducedAggs.isSerialized() == false) {
+            List<SearchHits> topHits = new ArrayList<>();
+            InternalAggregations.addTopHitsToReleaseList(reducedAggs.expand(), topHits, false);
+            for (SearchHits hits : topHits) {
+                hits.decRef();
+            }
         }
-        assert circuitBreakerBytes >= 0;
-        if (circuitBreakerBytes > 0) {
-            // make sure that we reset the circuit breaker
-            circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
-            circuitBreakerBytes = 0;
+        Releasables.close(reducedAggs);
+    }
+
+    /**
+     * Records a reduction failure received from another node and completes callbacks for queued merges. A merge that is already
+     * executing completes its own callback after it stops using its results.
+     */
+    void setFailure(Exception exc) {
+        final List<MergeTask> queuedTasks = recordFailure(exc);
+        if (queuedTasks != null) {
+            cancelTasks(queuedTasks);
         }
-        onPartialMergeFailure.accept(exc);
-        final MergeTask task = runningTask.getAndSet(null);
-        if (task != null) {
+    }
+
+    private void onMergeFailure(Exception exc) {
+        final List<MergeTask> queuedTasks = recordFailure(exc);
+        if (queuedTasks != null) {
+            try {
+                onPartialMergeFailure.accept(exc);
+            } finally {
+                cancelTasks(queuedTasks);
+            }
+        }
+    }
+
+    @Nullable
+    private List<MergeTask> recordFailure(Exception exc) {
+        final List<MergeTask> queuedTasks;
+        synchronized (this) {
+            if (failure.compareAndSet(null, exc) == false) {
+                assert circuitBreakerBytes == 0;
+                return null;
+            }
+            assert circuitBreakerBytes >= 0;
+            if (circuitBreakerBytes > 0) {
+                // make sure that we reset the circuit breaker
+                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
+                circuitBreakerBytes = 0;
+            }
+            queuedTasks = new ArrayList<>(queue);
+            queue.clear();
+            if (runningTask.get() == null) {
+                releaseCurrentMergeResult();
+            }
+        }
+        return queuedTasks;
+    }
+
+    private static void cancelTasks(List<MergeTask> tasks) {
+        for (MergeTask task : tasks) {
             task.cancel();
         }
-        MergeTask mergeTask;
-        while ((mergeTask = queue.pollFirst()) != null) {
-            mergeTask.cancel();
+    }
+
+    private void cancelRunningTask(MergeTask task) {
+        if (runningTask.compareAndSet(task, null)) {
+            task.cancel();
         }
+    }
+
+    private static void releaseMergeResult(MergeResult mergeResult) {
+        if (mergeResult != null) {
+            Releasables.close(mergeResult.reducedAggs());
+        }
+    }
+
+    private synchronized void releaseCurrentMergeResult() {
+        final MergeResult mergeResultToRelease = mergeResult;
         mergeResult = null;
+        releaseMergeResult(mergeResultToRelease);
+    }
+
+    private synchronized boolean checkFailedMerge(MergeTask task, List<QuerySearchResult> toConsume) {
+        if (hasFailure() == false) {
+            return false;
+        }
+        releaseCurrentMergeResult();
+        releaseAggs(toConsume);
+        cancelRunningTask(task);
+        return true;
+    }
+
+    private synchronized void finishMergeFailure(Exception exc, MergeTask task) {
+        // Record the failure before clearing runningTask so recordFailure leaves the merge result for its current owner to release.
+        onMergeFailure(exc);
+        if (runningTask.compareAndSet(task, null)) {
+            mergeResult = null;
+            task.cancel();
+        }
     }
 
     private void tryExecuteNext() {
@@ -642,25 +797,51 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
+                TaskLoadAttribution.Target load = mergeLoad;
+                if (load != null) {
+                    TaskLoadAttribution.attribute(load);
+                }
                 MergeTask mergeTask = task;
-                List<QuerySearchResult> toConsume = mergeTask.consumeBuffer();
                 while (mergeTask != null) {
+                    List<QuerySearchResult> toConsume = mergeTask.consumeBuffer();
+                    assert toConsume != null;
+                    if (checkFailedMerge(mergeTask, toConsume)) {
+                        return;
+                    }
                     final MergeResult thisMergeResult = mergeResult;
                     long estimatedTotalSize = (thisMergeResult != null ? thisMergeResult.estimatedSize : 0) + mergeTask.aggsBufferSize;
-                    final MergeResult newMerge;
                     try {
                         long estimatedMergeSize = estimateRamBytesUsedForReduce(estimatedTotalSize);
-                        addEstimateAndMaybeBreak(estimatedMergeSize);
+                        if (addPartialMergeEstimate(estimatedMergeSize) == false) {
+                            checkFailedMerge(mergeTask, toConsume);
+                            return;
+                        }
                         estimatedTotalSize += estimatedMergeSize;
+                    } catch (Exception t) {
+                        QueryPhaseResultConsumer.releaseAggs(toConsume);
+                        mergeResult = null;
+                        releaseMergeResult(thisMergeResult);
+                        finishMergeFailure(t, mergeTask);
+                        return;
+                    }
+                    final MergeResult newMerge;
+                    // partialReduce takes ownership of the preceding merge result and releases it.
+                    mergeResult = null;
+                    try {
+                        // Safe due to single merge worker
                         ++numReducePhases;
                         newMerge = partialReduce(toConsume, mergeTask.emptyResults, topDocsStats, thisMergeResult, numReducePhases);
                     } catch (Exception t) {
                         QueryPhaseResultConsumer.releaseAggs(toConsume);
-                        onMergeFailure(t);
+                        // partialReduce releases the preceding merge result before throwing
+                        finishMergeFailure(t, mergeTask);
                         return;
                     }
+                    final Runnable next;
                     synchronized (QueryPhaseResultConsumer.this) {
                         if (hasFailure()) {
+                            releaseMergeResult(newMerge);
+                            cancelRunningTask(mergeTask);
                             return;
                         }
                         mergeResult = newMerge;
@@ -678,30 +859,26 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                                 );
                             }
                         }
+                        next = mergeTask.consumeListener();
+                        mergeTask = queue.poll();
+                        runningTask.set(mergeTask);
                     }
-                    Runnable r = mergeTask.consumeListener();
-                    synchronized (QueryPhaseResultConsumer.this) {
-                        while (true) {
-                            mergeTask = queue.poll();
-                            runningTask.set(mergeTask);
-                            if (mergeTask == null) {
-                                break;
-                            }
-                            toConsume = mergeTask.consumeBuffer();
-                            if (toConsume != null) {
-                                break;
-                            }
-                        }
-                    }
-                    if (r != null) {
-                        r.run();
+                    if (next != null) {
+                        next.run();
                     }
                 }
             }
 
             @Override
             public void onFailure(Exception exc) {
-                onMergeFailure(exc);
+                synchronized (QueryPhaseResultConsumer.this) {
+                    onMergeFailure(exc);
+                    MergeTask currentTask = runningTask.getAndSet(null);
+                    if (currentTask != null) {
+                        releaseCurrentMergeResult();
+                        currentTask.cancel();
+                    }
+                }
             }
         });
     }

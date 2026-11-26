@@ -11,6 +11,7 @@ import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
@@ -41,6 +42,7 @@ import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.asse
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
 
@@ -85,6 +87,49 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
             assertResultConcreteIndices(response);
             assertExecutionInfo(response, new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "fake", Status.SKIPPED));
         }
+    }
+
+    public void testPartialRemoteIndex() {
+        indexRandom(REMOTE_CLUSTER_1, true, "index-1", 1);
+        assertAcked(client(REMOTE_CLUSTER_1).admin().indices().prepareCreate("index-2"));
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        expectThrows(
+            RemoteException.class,
+            equalTo("Remote [cluster-a] encountered an error"), // fails when present index is non-empty
+            () -> run(
+                withRandomAllowPartialResult(
+                    syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-1," + REMOTE_CLUSTER_1 + ":nonexisting-1")
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-2," + REMOTE_CLUSTER_1 + ":nonexisting-1"))) {
+            assertOk(response); // passes when the present index has no fields and no documents
+        }
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        try (
+            var response = run(
+                withRandomAllowPartialResult(
+                    syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-1," + REMOTE_CLUSTER_1 + ":nonexisting-1")
+                ).includeCCSMetadata(true)
+            )
+        ) {
+            assertPartial(response); // passes when the present index has no fields and no documents
+            assertExecutionInfo(response, new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "index-1,nonexisting-1", Status.SKIPPED));
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-2," + REMOTE_CLUSTER_1 + ":nonexisting-1"))) {
+            assertOk(response); // passes when the present index has no fields and no documents
+        }
+    }
+
+    private static EsqlQueryRequest withRandomAllowPartialResult(EsqlQueryRequest request) {
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> request; // default
+            case 1 -> request.allowPartialResults(true);
+            case 2 -> request.allowPartialResults(false);
+            default -> throw new IllegalStateException("Illegal random number between 0 and 2");
+        };
     }
 
     public void testResolvesLocalAndRemoteIndex() {

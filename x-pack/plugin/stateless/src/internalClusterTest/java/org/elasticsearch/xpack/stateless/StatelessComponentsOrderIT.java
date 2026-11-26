@@ -24,6 +24,9 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MonitorInfo;
+import java.lang.management.ThreadInfo;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
@@ -121,11 +124,45 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
                     if (ThreadPool.Names.MERGE.equals(EsExecutors.executorName(Thread.currentThread()))) {
                         mergeReadStartedLatch.countDown();
                         logger.info("--> merge thread blocked");
-                        safeAwait(cacheEvictedLatch);
+                        try {
+                            safeAwait(cacheEvictedLatch);
+                        } catch (AssertionError e) {
+                            logger.info("--> merge thread timed out waiting to be unblocked, relevant threads:\n{}", dumpRelevantThreads());
+                            throw e;
+                        }
                     }
                     return super.doOpenInput(name, context, blobFileRanges);
                 }
             };
+        }
+
+        /**
+         * Dumps the test, flush and merge threads including the monitor each is blocked on and its owner, so that a failure can show what
+         * (if anything) the blocked merge thread is holding up, e.g. the flush waiting on the IndexWriter monitor.
+         */
+        private static String dumpRelevantThreads() {
+            final var sb = new StringBuilder();
+            for (ThreadInfo info : ManagementFactory.getThreadMXBean().dumpAllThreads(true, true)) {
+                final String name = info.getThreadName();
+                if (name.startsWith("TEST-") == false && name.contains("[flush]") == false && name.contains("[merge]") == false) {
+                    continue;
+                }
+                sb.append('"').append(name).append("\" ").append(info.getThreadState());
+                if (info.getLockInfo() != null) {
+                    sb.append(" on ").append(info.getLockInfo());
+                }
+                if (info.getLockOwnerName() != null) {
+                    sb.append(" owned by \"").append(info.getLockOwnerName()).append('"');
+                }
+                sb.append('\n');
+                for (StackTraceElement frame : info.getStackTrace()) {
+                    sb.append("\tat ").append(frame).append('\n');
+                }
+                for (MonitorInfo monitor : info.getLockedMonitors()) {
+                    sb.append("\t- locked ").append(monitor).append(" at depth ").append(monitor.getLockedStackDepth()).append('\n');
+                }
+            }
+            return sb.toString();
         }
 
         @Override

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162919
+pr: 163047
+summary: Fail cancelled queries instead of returning partial results
+type: bug

@@ -64,6 +64,7 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
     ) {
         super(
             CancelRecoveriesAction.TYPE.name(),
+            false,
             transportService,
             actionFilters,
             CancelRecoveriesAction.Request::new,

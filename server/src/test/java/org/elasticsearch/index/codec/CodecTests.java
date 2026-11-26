@@ -397,6 +397,7 @@ public class CodecTests extends ESTestCase {
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, BitsetFilterCache.Listener.NOOP);
         MapperService service = new MapperService(
             () -> TransportVersion.current(),
+            f -> true,
             settings,
             indexAnalyzers,
             parserConfig(),

@@ -194,10 +194,10 @@ public interface RuntimeField extends ToXContentFragment {
                 if (parserContext.getNamespaceValidator() != null) {
                     parserContext.getNamespaceValidator().validateNamespace(null, fieldName);
                 }
-                if (parserContext.getIndexSettings().isSliceEnabled() && SliceIndexing.FIELD_NAME.equals(fieldName)) {
+                if (parserContext.getIndexSettings().isSliceEnabled() && SliceIndexing.isReservedFieldName(fieldName)) {
                     throw new MapperParsingException(
                         "["
-                            + SliceIndexing.FIELD_NAME
+                            + fieldName
                             + "] is a reserved field name and cannot be used when ["
                             + IndexSettings.SLICE_ENABLED.getKey()
                             + "] is true"
@@ -240,10 +240,6 @@ public interface RuntimeField extends ToXContentFragment {
         }).collect(Collectors.toUnmodifiableMap(MappedFieldType::name, mappedFieldType -> mappedFieldType, (t, t2) -> {
             throw new IllegalArgumentException("Found two runtime fields with same name [" + t.name() + "]");
         }));
-    }
-
-    static <T> Function<FieldMapper, T> initializerNotSupported() {
-        return mapper -> { throw new UnsupportedOperationException(); };
     }
 
     static Script parseScript(String name, MappingParserContext parserContext, Object scriptObject) {

@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 161615
+summary: Combine the dynamic mapping updates of a bulk request
+type: enhancement

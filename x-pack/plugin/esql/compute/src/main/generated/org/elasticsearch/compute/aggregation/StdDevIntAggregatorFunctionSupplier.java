@@ -17,8 +17,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class StdDevIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final boolean stdDev;
 
-  public StdDevIntAggregatorFunctionSupplier(boolean stdDev) {
+  private final boolean allowNonFinite;
+
+  public StdDevIntAggregatorFunctionSupplier(boolean stdDev, boolean allowNonFinite) {
     this.stdDev = stdDev;
+    this.allowNonFinite = allowNonFinite;
   }
 
   @Override
@@ -34,13 +37,13 @@ public final class StdDevIntAggregatorFunctionSupplier implements AggregatorFunc
   @Override
   public StdDevIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new StdDevIntAggregatorFunction(driverContext, channels, stdDev);
+    return new StdDevIntAggregatorFunction(driverContext, channels, stdDev, allowNonFinite);
   }
 
   @Override
   public StdDevIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new StdDevIntGroupingAggregatorFunction(channels, driverContext, stdDev);
+    return new StdDevIntGroupingAggregatorFunction(channels, driverContext, stdDev, allowNonFinite);
   }
 
   @Override

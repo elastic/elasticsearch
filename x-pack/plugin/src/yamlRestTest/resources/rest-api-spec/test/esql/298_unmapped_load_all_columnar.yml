@@ -6,10 +6,10 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
       reason: >
         Columnar index mode (index.mode=columnar) is a 9.5+ tech preview feature.
-        optional_fields_load_all_v2 (snapshot-only) post-dates 9.5. In strict columnar mode the generic
+        optional_fields_load_all_v2 post-dates 9.5. In strict columnar mode the generic
         _ignored_source is disabled, so unmapped fields are dropped at ingest and cannot
         be recovered by LOAD_ALL at query time.
 
@@ -95,33 +95,38 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM unmapped-idx-std, unmapped-idx-col METADATA _index | SORT foo NULLS LAST, bar NULLS LAST | LIMIT 5'
-  - length: { columns: 3 }
+  - length: { columns: 4 }
   - match: { columns.0.name: bar }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: foo }
   - match: { columns.1.type: keyword }
   - match: { columns.2.name: _index }
   - match: { columns.2.type: keyword }
-  - match: { values.0: [ "b1", "a1", "unmapped-idx-std" ] }
-  - match: { values.1: [ "b2", null, "unmapped-idx-col" ] }
+  - match: { columns.3.name: _unmapped_fields }
+  - match: { columns.3.type: _source }
+  # bar and foo are each mapped in one of the indices, so neither is left over for the _unmapped_fields object.
+  - match: { values.0: [ "b1", "a1", "unmapped-idx-std", null ] }
+  - match: { values.1: [ "b2", null, "unmapped-idx-col", null ] }
 
 ---
-'wildcard unmapped* expansion produces no extra columns in columnar LOAD_ALL':
+'wildcard unmapped* finds nothing to put in _unmapped_fields in columnar LOAD_ALL':
   # unmapped_x was dropped at ingest by the columnar engine (isStrictColumnar() disables
   # _ignored_source, so the field is lost during document parsing). Under LOAD_ALL, the
-  # wildcard unmapped* finds no candidates in source, so only foo survives KEEP.
+  # wildcard unmapped* finds no candidates in source, so _unmapped_fields is null.
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM unmapped-idx-col-dyn-false | KEEP foo, unmapped*, * | LIMIT 5'
-  - length: { columns: 1 }
+  - length: { columns: 2 }
   - match: { columns.0.name: foo }
   - match: { columns.0.type: keyword }
-  - match: { values.0: [ "v1" ] }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "v1", null ] }
 
 ---
 'explicit reference to unmapped field on columnar index yields null':
-  # Naming unmapped_x explicitly under LOAD_ALL is valid syntax (the field expands as keyword),
+  # Naming unmapped_x explicitly under LOAD_ALL is valid syntax (the field loads as keyword, like under LOAD),
   # but because columnar mode dropped it at ingest there is nothing to load from source.
   - do:
       esql.query:

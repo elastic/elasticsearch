@@ -7,23 +7,21 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.ratelimit.RateLimitable;
-
-import java.util.function.Supplier;
 
 /**
  * A contract for constructing a {@link Runnable} to handle sending an inference request to a 3rd party service.
  */
 public interface RequestManager extends RateLimitable {
-    void execute(
-        InferenceInputs inferenceInputs,
-        RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
-    );
+    /**
+     * Builds the request for the inputs and sends it with the request sender.
+     *
+     * @param timedListener notified of the result. It also tells whether the request already completed (e.g. timed out), and lets
+     *                      the sender register actions aborting work that is abandoned once the request fails.
+     */
+    void execute(InferenceInputs inferenceInputs, RequestSender requestSender, TimedListener<InferenceServiceResults> timedListener);
 
     // TODO For batching we'll add 2 new method: prepare(query, input, ...) which will allow the individual
     // managers to implement their own batching

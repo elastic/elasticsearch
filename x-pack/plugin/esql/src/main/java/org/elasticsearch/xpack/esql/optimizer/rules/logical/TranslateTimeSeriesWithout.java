@@ -70,6 +70,9 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
         // Collect TimeSeriesWithout groupings and lower each into a TimeSeriesMetadataAttribute
         // that carries the excluded dimension names.
         var replacements = new LinkedHashMap<NameId, TimeSeriesMetadataAttribute>();
+        // Lowered attributes that stay hidden behind a user alias: they are added to the source relation but
+        // never substituted into the aggregates, which keep referencing the alias by its original id.
+        var aliasedLowered = new ArrayList<TimeSeriesMetadataAttribute>();
         var newGroupings = new ArrayList<Expression>(aggregate.groupings().size());
 
         for (Expression grouping : aggregate.groupings()) {
@@ -90,6 +93,10 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
                 Attribute groupingAttribute = Expressions.attribute(grouping);
                 assert groupingAttribute != null : "time-series grouping must be a named expression";
 
+                // A user alias (BY dims = WITHOUT(...)) must survive as the grouping's output name. The lowered
+                // attribute then gets a fresh id and sits behind the alias, which keeps the user's id, so references to
+                // the grouping resolved before this rule ran still point at a column named by the user.
+                boolean keepAlias = grouping instanceof Alias alias && alias.name().equals(MetadataAttribute.TIMESERIES) == false;
                 TimeSeriesMetadataAttribute lowered;
                 if (groupingAttribute instanceof TimeSeriesMetadataAttribute t && excludedFields.equals(t.excludedFields())) {
                     lowered = t;
@@ -102,20 +109,26 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
                         MetadataAttribute.TIMESERIES,
                         timeSeriesField(),
                         groupingAttribute.nullable(),
-                        groupingAttribute.id(),
+                        keepAlias ? new NameId() : groupingAttribute.id(),
                         groupingAttribute.synthetic(),
                         excludedFields
                     );
                 }
 
-                replacements.put(lowered.id(), lowered);
-                newGroupings.add(lowered);
+                if (keepAlias) {
+                    Alias alias = (Alias) grouping;
+                    aliasedLowered.add(lowered);
+                    newGroupings.add(new Alias(alias.source(), alias.name(), lowered, alias.id()));
+                } else {
+                    replacements.put(lowered.id(), lowered);
+                    newGroupings.add(lowered);
+                }
             } else {
                 newGroupings.add(grouping);
             }
         }
 
-        if (replacements.isEmpty()) {
+        if (replacements.isEmpty() && aliasedLowered.isEmpty()) {
             return aggregate;
         }
 
@@ -128,8 +141,10 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
             }));
         }
 
-        // Add the new _timeseries attribute to the EsRelation so field extraction can find it.
-        LogicalPlan newChild = addLoweredAttributesToTimeSeriesSource(aggregate.child(), replacements.values());
+        // Add the new _timeseries attributes to the EsRelation so field extraction can find them.
+        var allLowered = new ArrayList<>(replacements.values());
+        allLowered.addAll(aliasedLowered);
+        LogicalPlan newChild = addLoweredAttributesToTimeSeriesSource(aggregate.child(), allLowered);
         return aggregate.with(newChild, newGroupings, newAggregates);
     }
 }

@@ -97,7 +97,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
 
     @Override
     protected void assertResults(
-        CsvTestUtils.ExpectedResults expected,
+        CsvTestUtils.TestResults expected,
         List<Map<String, String>> actualColumns,
         List<List<Object>> actualValues,
         Logger logger

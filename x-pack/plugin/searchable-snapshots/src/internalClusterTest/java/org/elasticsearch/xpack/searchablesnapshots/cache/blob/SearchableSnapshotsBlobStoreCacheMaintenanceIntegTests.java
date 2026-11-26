@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -471,7 +470,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                 ByteRange.of(i, i + length),
                 new BytesArray(bytes, 0, length),
                 creationTimeInEpochMillis,
-                ActionListener.running(latch::countDown)
+                latch::countDown
             );
         }
         safeAwait(latch);

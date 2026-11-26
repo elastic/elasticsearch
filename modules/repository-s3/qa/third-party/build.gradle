@@ -24,6 +24,7 @@ boolean useFixture = false
 String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
 String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
 String s3PermanentBucket = System.getenv("amazon_s3_bucket")
+String s3PermanentRegion = System.getenv("amazon_s3_region")
 String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
 
 // If all these variables are missing then we are testing against the MinIO fixture instead, which has the following credentials hard-coded in.
@@ -33,6 +34,7 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
   s3PermanentAccessKey = 's3_test_access_key'
   s3PermanentSecretKey = 's3_test_secret_key'
   s3PermanentBucket = 'bucket'
+  s3PermanentRegion = 'us-east-1'
   s3PermanentBasePath = 'base_path'
 }
 
@@ -41,6 +43,7 @@ tasks.named("test").configure {
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket
+  systemProperty 'test.s3.region', s3PermanentRegion
   nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + buildParams.testSeed
 
 }

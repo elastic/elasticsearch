@@ -22,6 +22,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -55,6 +57,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
@@ -106,10 +109,26 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Create an inner query supported by {@link #createQueryWithInnerQuery}. Defaults to a match_all query.
+     */
+    protected QueryBuilder createInnerQuery() {
+        return new MatchAllQueryBuilder();
+    }
+
+    /**
+     * Sub-queries of {@code builder} that it builds with {@link QueryBuilder#toQuery(SearchExecutionContext)} and that
+     * {@link Query#visit} cannot reach, so the breaker is charged for them on top of the walk of the final query.
+     * If the sub-queries themselves have sub-queries, they must also be returned by this method.
+     */
+    protected List<QueryBuilder> subQueriesHiddenFromVisit(QueryBuilder builder) {
+        return List.of();
+    }
+
     public void testMaxNestedDepth() throws IOException {
         QB query = null;
         try {
-            query = createQueryWithInnerQuery(new MatchAllQueryBuilder());
+            query = createQueryWithInnerQuery(createInnerQuery());
         } catch (UnsupportedOperationException e) {
             assumeNoException("Runs only for queries that support nesting", e);
         }
@@ -135,6 +154,45 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             assertEquals(expectedMessage, exception.getMessage());
         } finally {
             AbstractQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY));
+        }
+    }
+
+    /**
+     * Wrapping queries must not compound the breaker charge, however deeply they are wrapped.
+     */
+    public void testWrappedQueriesChargeBreakerOnce() throws IOException {
+        try (IndexReaderManager irm = getIndexReaderManager()) {
+            SearchExecutionContext context = createSearchExecutionContext(irm.getIndexSearcher());
+            context.setAllowUnmappedFields(true);
+
+            // Build the query from the inside out, rewriting each level along the way to catch if it is rewritten to a query type
+            // without inner queries.
+            Deque<QueryBuilder> levels = new ArrayDeque<>();
+            levels.push(createInnerQuery());
+            int depth = randomIntBetween(1, 3);
+            for (int i = 0; i < depth; i++) {
+                QB wrapper;
+                try {
+                    wrapper = createQueryWithInnerQuery(levels.peek());
+                } catch (UnsupportedOperationException e) {
+                    assumeNoException("Runs only for queries that wrap others", e);
+                    return;
+                }
+
+                QueryBuilder rewritten = rewriteQuery(wrapper, createQueryRewriteContext(), new SearchExecutionContext(context));
+                if (rewritten.getClass() != wrapper.getClass()) {
+                    // The rewrite rewrote the wrapper to another query type. We assume that, in the context of these tests, such
+                    // rewrites produce query types without inner or hidden queries. If this assumption is wrong, the test will fail.
+                    // Clear the levels from here and start fresh.
+                    levels.clear();
+                }
+                levels.push(rewritten);
+            }
+
+            QueryBuilder root = levels.peek();
+            assertNotNull(root);
+            List<QueryBuilder> hidden = levels.stream().flatMap(level -> subQueriesHiddenFromVisit(level).stream()).toList();
+            assertBreakerChargedOnce(root, hidden, context);
         }
     }
 
@@ -545,6 +603,25 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
+     * The request breaker must be charged exactly what one fresh walk of the final query estimates,
+     * so no sub-query is charged twice.
+     */
+    public void testToQueryChargesBreakerOnce() throws IOException {
+        for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
+            try (IndexReaderManager irm = getIndexReaderManager()) {
+                SearchExecutionContext context = createSearchExecutionContext(irm.getIndexSearcher());
+                context.setAllowUnmappedFields(true);
+                QueryBuilder rewritten = rewriteQuery(
+                    createTestQueryBuilder(),
+                    createQueryRewriteContext(),
+                    new SearchExecutionContext(context)
+                );
+                assertBreakerChargedOnce(rewritten, subQueriesHiddenFromVisit(rewritten), context);
+            }
+        }
+    }
+
+    /**
      * Simulate rewriting the query builder exclusively on the data node.
      * <br/>
      * <br/>
@@ -939,6 +1016,63 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return future.actionGet();
     }
 
+    private void assertBreakerChargedOnce(QueryBuilder builder, List<QueryBuilder> hidden, SearchExecutionContext source)
+        throws IOException {
+        QueryChargeRecordingBreaker breaker = new QueryChargeRecordingBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(source, breaker);
+        try {
+            long expected = chargeQuery(builder, context, false);
+            for (QueryBuilder hiddenQuery : hidden) {
+                expected += chargeQuery(hiddenQuery, context, true);
+            }
+
+            assertEquals(builder.toString(), expected, breaker.queryBytes);
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    /**
+     * Charge query bytes.
+     * <p>
+     * Charges the query bytes against the breaker contained in {@code source}, as is done in production. Returns the estimated query charge
+     * without visiting hidden queries.
+     * </p>
+     *
+     * @param builder The query builder to charge.
+     * @param source A search execution context containing a non-null circuit breaker.
+     * @param estimateOnly When true, don't charge the circuit-breaker in {@code source}. Only return the estimated query charge without
+     *                     visiting hidden queries.
+     *
+     * @return The estimated query charge without visiting hidden queries.
+     */
+    private static long chargeQuery(QueryBuilder builder, SearchExecutionContext source, boolean estimateOnly) throws IOException {
+        // Always build with a non-null breaker to match production, as pre-charged query handling depends on this.
+        assertNotNull(source.getCircuitBreaker());
+        SearchExecutionContext context = estimateOnly ? new SearchExecutionContext(source, NoopCircuitBreaker.INSTANCE) : source;
+
+        try {
+            // Actual query charge
+            Query query = builder.toQuery(context);
+            assertNotNull("toQuery should not return null", query);
+
+            // Estimated query charge, without hidden queries
+            MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                Integer.MAX_VALUE,
+                context.getCircuitBreaker(),
+                context::isQueryMemoryPreCharged,
+                MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader()),
+                context.getIndexReader()
+            );
+            query.visit(visitor);
+            return visitor.getEstimatedBytes();
+        } finally {
+            if (estimateOnly) {
+                context.releaseQueryConstructionMemory();
+            }
+        }
+    }
+
     public boolean isTextField(String fieldName) {
         return fieldName.equals(TEXT_FIELD_NAME) || fieldName.equals(TEXT_ALIAS_FIELD_NAME);
     }
@@ -1018,6 +1152,22 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         @Override
         public IndexSearcher getIndexSearcher() {
             return null;
+        }
+    }
+
+    /** Records the bytes charged under the query category, the only category that {@code toQuery} charges for the visitor walk. */
+    private static final class QueryChargeRecordingBreaker extends NoopCircuitBreaker {
+        private long queryBytes;
+
+        QueryChargeRecordingBreaker() {
+            super("query-charge-recorder");
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            if (ChildMemoryCircuitBreaker.CATEGORY_QUERY.equals(label)) {
+                queryBytes += bytes;
+            }
         }
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -94,8 +95,8 @@ public class IndexLifecycleService
     private final IndexLifecycleRunner lifecycleRunner;
     private final Settings settings;
     private final ClusterService clusterService;
-    private final ThreadPool threadPool;
     private final LongSupplier nowSupplier;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private final ExecutorService managementExecutor;
     /** A reference to the last seen cluster state. If it's not null, we're currently processing a cluster state. */
     private final AtomicReference<ClusterState> lastSeenState = new AtomicReference<>();
@@ -112,17 +113,25 @@ public class IndexLifecycleService
         LongSupplier nowSupplier,
         NamedXContentRegistry xContentRegistry,
         ILMHistoryStore ilmHistoryStore,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         super();
         this.settings = settings;
         this.clusterService = clusterService;
-        this.threadPool = threadPool;
         this.clock = clock;
         this.nowSupplier = nowSupplier;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.scheduledJob = null;
         this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client, licenseState);
-        this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, ilmHistoryStore, clusterService, threadPool, nowSupplier);
+        this.lifecycleRunner = new IndexLifecycleRunner(
+            policyRegistry,
+            ilmHistoryStore,
+            clusterService,
+            threadPool,
+            nowSupplier,
+            dataStreamLifecycleSettings
+        );
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         this.managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         clusterService.addStateApplier(this);
@@ -193,6 +202,7 @@ public class IndexLifecycleService
      */
     private void maybeRunAsyncActions(ProjectState state) {
         final ProjectMetadata projectMetadata = state.metadata();
+        boolean minimumLifecycleEnabled = dataStreamLifecycleSettings.minimumLifecycleEnabled();
         final IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata == null) {
             return;
@@ -204,7 +214,7 @@ public class IndexLifecycleService
 
         boolean safeToStop = true; // true until proven false by a run policy
         for (IndexMetadata idxMeta : projectMetadata.indices().values()) {
-            if (projectMetadata.isIndexManagedByILM(idxMeta) == false) {
+            if (projectMetadata.isIndexManagedByILM(idxMeta, minimumLifecycleEnabled) == false) {
                 continue;
             }
             String policyName = idxMeta.getLifecyclePolicyName();
@@ -479,6 +489,7 @@ public class IndexLifecycleService
     void triggerPolicies(ProjectState state, boolean fromClusterStateChange) {
         final var projectMetadata = state.metadata();
         IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+        boolean minimumLifecycleEnabled = dataStreamLifecycleSettings.minimumLifecycleEnabled();
 
         OperationMode currentMode = currentILMMode(projectMetadata);
         if (currentMetadata == null) {
@@ -499,7 +510,7 @@ public class IndexLifecycleService
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
         for (IndexMetadata idxMeta : projectMetadata.indices().values()) {
-            if (projectMetadata.isIndexManagedByILM(idxMeta)) {
+            if (projectMetadata.isIndexManagedByILM(idxMeta, minimumLifecycleEnabled)) {
                 String policyName = idxMeta.getLifecyclePolicyName();
                 final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                 StepKey stepKey = Step.getCurrentStepKey(lifecycleState);

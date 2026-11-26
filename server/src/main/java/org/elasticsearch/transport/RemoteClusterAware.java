@@ -35,6 +35,8 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
     public static final String CCS_CHAINING_DEPRECATION_WARNING = "Index name [{}] contains multiple cluster prefixes, which is deprecated";
+    public static final String ALL_INDICES_EXCLUDED_MESSAGE_PREFIX =
+        "The '-' exclusions in the index expression list excludes all indexes. Nothing to search.";
 
     protected final Settings settings;
     private final String nodeName;
@@ -248,11 +250,7 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
             }
         }
         if (hasExclusions && perClusterIndices.isEmpty()) {
-            throw new IllegalArgumentException(
-                "The '-' exclusions in the index expression list excludes all indexes. Nothing to search. Input: ["
-                    + String.join(",", requestIndices)
-                    + "]"
-            );
+            throw new IllegalArgumentException(ALL_INDICES_EXCLUDED_MESSAGE_PREFIX + " Input: [" + String.join(",", requestIndices) + "]");
         }
         return perClusterIndices;
     }

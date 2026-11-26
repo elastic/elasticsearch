@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 163903
+summary: "Fix(tsdb): retain legacy `_id` breaker reservations"
+type: bug

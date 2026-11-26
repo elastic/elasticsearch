@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -89,5 +90,13 @@ public class PackDimsExec extends UnaryExec {
         }
         PackDimsExec other = (PackDimsExec) obj;
         return Objects.equals(dims, other.dims) && Objects.equals(packed, other.packed) && Objects.equals(child(), other.child());
+    }
+
+    int estimateRowSize() {
+        int size = 4;
+        for (Expression dim : dims) {
+            size += EstimatesRowSize.estimateSize(dim.dataType().noText());
+        }
+        return size;
     }
 }

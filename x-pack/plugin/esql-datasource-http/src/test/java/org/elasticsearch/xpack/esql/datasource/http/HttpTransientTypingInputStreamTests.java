@@ -16,6 +16,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+
 /**
  * Verifies that {@link HttpTransientTypingInputStream} re-types a mid-read fault into a
  * {@link ExternalUnavailableException} so the provider-agnostic resume loop engages — the JDK
@@ -41,6 +44,18 @@ public class HttpTransientTypingInputStreamTests extends ESTestCase {
         HttpTransientTypingInputStream wrapped = new HttpTransientTypingInputStream(faultingStream("connection reset"), PATH);
         ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, () -> wrapped.read(new byte[16], 0, 16));
         assertFalse(e.throttling());
+    }
+
+    public void testRetypedFailureRedactsUrl() throws IOException {
+        HttpTransientTypingInputStream wrapped = new HttpTransientTypingInputStream(
+            faultingStream("connection reset"),
+            StoragePath.of(HttpUrlsTests.SECRET_URL)
+        );
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
+        assertThat(e.getMessage(), containsString("b.csv"));
+        assertThat(e.getMessage(), not(containsString("user:pass")));
+        assertThat(e.getMessage(), not(containsString("X-Amz-Signature")));
+        assertThat(e.getMessage(), not(containsString("https://")));
     }
 
     public void testCleanReadPassesThroughUntyped() throws IOException {

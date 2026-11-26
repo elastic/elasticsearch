@@ -210,6 +210,14 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
 
     // Visible for testing
     void persistProgress(Client clientToUse, String jobId, Runnable runnable) {
+        StatsHolder statsHolder = this.statsHolder;
+        if (statsHolder == null) {
+            // The stats holder is only set once the task has been initialized on the node. A task that failed during initialization, or
+            // that was assigned to this node while it was in the failed state, never gets one, and has no progress to persist.
+            LOGGER.debug("[{}] Not persisting progress as the task was not initialised", jobId);
+            runnable.run();
+            return;
+        }
         LOGGER.debug("[{}] Persisting progress", jobId);
 
         SetOnce<StoredProgress> storedProgress = new SetOnce<>();

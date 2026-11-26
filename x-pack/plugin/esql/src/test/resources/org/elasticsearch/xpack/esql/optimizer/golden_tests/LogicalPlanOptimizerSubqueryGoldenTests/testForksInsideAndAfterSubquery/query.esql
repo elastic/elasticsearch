@@ -1,0 +1,4 @@
+FROM (FROM employees
+      | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)),
+     (FROM languages | EVAL emp_no = language_code | KEEP emp_no)
+| FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)

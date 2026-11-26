@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterCo
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -91,8 +90,8 @@ import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NOD
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -539,7 +538,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
             "All commits uploaded under 1 primary term, except the stale generation",
             blobNamesAndPrimaryTerms.entrySet()
                 .stream()
-                .filter(commit -> commit.getKey().equals(StatelessCompoundCommit.blobNameFromGeneration(generation)) == false)
+                .filter(commit -> commit.getKey().equals(BatchedCompoundCommit.blobNameFromGeneration(generation)) == false)
                 .allMatch(commit -> commit.getValue().size() == 1),
             equalTo(true)
         );
@@ -551,13 +550,13 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
         assertThat(
             "The commit uploaded under more than 1 primary term correspond to the stale commit generation",
             blobNamesAndPrimaryTerms.entrySet().stream().filter(commit -> commit.getValue().size() != 1).map(Map.Entry::getKey).toList(),
-            hasItem(equalTo(StatelessCompoundCommit.blobNameFromGeneration(staleCommitGeneration)))
+            hasItem(equalTo(BatchedCompoundCommit.blobNameFromGeneration(staleCommitGeneration)))
         );
         assertThat(
             "The duplicate commits have been uploaded under the expected primary terms",
             blobNamesAndPrimaryTerms.entrySet()
                 .stream()
-                .filter(commit -> commit.getKey().equals(StatelessCompoundCommit.blobNameFromGeneration(staleCommitGeneration)))
+                .filter(commit -> commit.getKey().equals(BatchedCompoundCommit.blobNameFromGeneration(staleCommitGeneration)))
                 .map(Map.Entry::getValue)
                 .findFirst()
                 .get(),

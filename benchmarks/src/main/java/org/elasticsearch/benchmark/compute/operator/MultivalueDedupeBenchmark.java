@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 @Fork(1)
 public class MultivalueDedupeBenchmark {
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     @Param({ "BOOLEAN", "BYTES_REF", "DOUBLE", "INT", "LONG" })

@@ -21,11 +21,14 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.index.shard.DenseVectorStats;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -43,26 +46,48 @@ final class DenseVectorStatsCache {
      */
     DenseVectorStats get(LeafReader leafReader, Iterable<String> fieldNames, boolean includeCounts) throws IOException {
         final Map<String, Long> cachedCounts = includeCounts ? cacheFor(leafReader) : null;
-        long count = 0;
+        long totalValuesCount = 0;
         final Map<String, Map<String, Long>> offHeapStats = new HashMap<>();
+        final Map<String, List<DenseVectorStats.AutoCalibrationEntry>> calibrationStats = new HashMap<>();
+
+        final SegmentReader segmentReader = Lucene.segmentReader(leafReader);
+        KnnVectorsReader baseVectorsReader = segmentReader.getVectorReader();
+
         for (String fieldName : fieldNames) {
             final FieldInfo info = leafReader.getFieldInfos().fieldInfo(fieldName);
             if (info == null || info.getVectorDimension() <= 0) {
                 continue;
             }
+            long fieldCount = 0;
             if (includeCounts) {
-                Long fieldCount = cachedCounts == null ? null : cachedCounts.get(fieldName);
-                if (fieldCount == null) {
-                    fieldCount = countVectors(leafReader, info);
+                Long cached = cachedCounts == null ? null : cachedCounts.get(fieldName);
+                if (cached == null) {
+                    cached = countVectors(leafReader, info);
                     if (cachedCounts != null) {
-                        cachedCounts.put(fieldName, fieldCount);
+                        cachedCounts.put(fieldName, cached);
                     }
                 }
-                count += fieldCount;
+                fieldCount = cached;
+                totalValuesCount += fieldCount;
             }
-            offHeapStats.put(fieldName, offHeapByteSize(leafReader, info));
+            Map<String, Long> fieldOffHeap = offHeapByteSize(leafReader, info);
+            offHeapStats.put(fieldName, fieldOffHeap);
+
+            KnnVectorsReader fieldReader = baseVectorsReader;
+            if (fieldReader instanceof PerFieldKnnVectorsFormat.FieldsReader fr) {
+                fieldReader = fr.getFieldReader(fieldName);
+            }
+            long sizeBytes = fieldOffHeap.values().stream().mapToLong(Long::longValue).sum();
+            if (fieldReader instanceof CalibrationAwareReader calibrationReader) {
+                SegmentCalibrationParameters params = calibrationReader.getCalibrationParameters(info);
+                calibrationStats.put(fieldName, List.of(new DenseVectorStats.AutoCalibrationEntry(params, fieldCount, sizeBytes, 1)));
+            }
         }
-        return new DenseVectorStats(count, Collections.unmodifiableMap(offHeapStats));
+        return new DenseVectorStats(
+            totalValuesCount,
+            Collections.unmodifiableMap(offHeapStats),
+            Collections.unmodifiableMap(calibrationStats)
+        );
     }
 
     /**

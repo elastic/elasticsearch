@@ -42,7 +42,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -251,7 +250,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 "es.http.connections.total",
                 "total number of inbound HTTP connections accepted",
                 "count",
-                () -> new LongWithAttributes(totalChannelsAccepted.get())
+                totalChannelsAccepted::get
             )
         );
         metricsToClose.add(
@@ -259,7 +258,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 "es.http.connections.current",
                 "number of inbound HTTP connections currently open",
                 "count",
-                () -> new LongWithAttributes(httpChannels.size())
+                httpChannels::size
             )
         );
         startInternal();

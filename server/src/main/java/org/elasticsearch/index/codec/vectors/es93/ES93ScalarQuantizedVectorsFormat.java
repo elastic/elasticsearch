@@ -102,7 +102,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
         assert elementType != DenseVectorFieldMapper.ElementType.BIT : "BIT should not be used with scalar quantization";
 
-        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO, false);
         this.confidenceInterval = confidenceInterval;
         this.bits = (byte) bits;
         this.compress = compress;

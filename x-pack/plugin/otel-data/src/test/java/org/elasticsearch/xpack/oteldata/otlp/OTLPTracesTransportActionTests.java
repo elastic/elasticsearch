@@ -214,6 +214,8 @@ public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionT
         verify(responseListener).onFailure(exception.capture());
         assertThat(ExceptionsHelper.status(exception.getValue()), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
         assertThat(exception.getValue().getMessage(), containsString("expanded content would exceed limit"));
+        assertThat(exception.getValue().getMessage(), containsString("[15] telemetry items selected for conversion"));
+        assertThat(exception.getValue().getMessage(), containsString("Estimated expanded size of the full request"));
         verify(client, never()).execute(any(), any(), any());
     }
 

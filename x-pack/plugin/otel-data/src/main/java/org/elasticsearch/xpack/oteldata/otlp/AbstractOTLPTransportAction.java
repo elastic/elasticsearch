@@ -13,9 +13,11 @@ import com.google.protobuf.MessageLite;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -63,6 +65,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         try {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             ProcessingContext context = prepareBulkRequest(request, bulkRequestBuilder);
+
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 if (context.getIgnoredItems() == 0) {
                     listener.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
@@ -78,13 +81,20 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             }
 
             ProcessingContext finalContext = context;
-            bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
-                if (finalContext.getIgnoredItems() > 0 || needsPartialSuccess(bulkResponse)) {
+            BulkRequest bulkRequest = bulkRequestBuilder.request();
+            ActionListener<BulkResponse> bulkListener = listener.delegateFailure((delegate, bulkResponse) -> {
+                if (finalContext.getIgnoredItems() > 0
+                    || finalContext.getWarningMessage().isEmpty() == false
+                    || needsPartialSuccess(bulkResponse)) {
                     handlePartialSuccess(bulkResponse, finalContext, delegate);
                 } else {
                     delegate.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
                 }
-            }));
+            });
+            ActionListener.run(
+                ActionListener.runBefore(bulkListener, bulkRequest::releasePreBuiltBatches),
+                l -> client.execute(TransportBulkAction.TYPE, bulkRequest, l)
+            );
 
         } catch (InvalidProtocolBufferException e) {
             logger.debug("invalid OTLP protobuf payload", e);
@@ -133,6 +143,26 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         }
 
         /**
+         * Returns a warning that should produce a partial-success response without increasing the rejected-item count.
+         */
+        default String getWarningMessage() {
+            return "";
+        }
+
+        /**
+         * Returns whether the bulk item represents a primary document for the exported telemetry signal.
+         * E.g. metrics, logs and traces are primary telemetry, exemplars are not.
+         */
+        default boolean isPrimaryTelemetryDoc(int bulkItemPosition) {
+            return true;
+        }
+
+        /**
+         * Records a failed non-primary telemetry document (e.g. exemplars) so signal-specific implementations can report it.
+         */
+        default void recordNonPrimaryTelemetryDocFailure(BulkItemResponse bulkItemResponse) {}
+
+        /**
          * A simple implementation of ProcessingContext that only tracks the total number of items processed
          * and does not track any ignored items or error messages.
          */
@@ -151,30 +181,90 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         throws IOException;
 
     /**
-     * Accounts for the memory used by a generated {@link IndexRequest} and rejects the request if the running total would exceed
-     * {@link HttpTransportSettings#SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH}. Resource/scope attributes and labels are
-     * copied into every document, so {@link IndexRequest#ramBytesUsed()} reflects that fan-out.
+     * Creates a tracker that accounts for the memory used by the {@link IndexRequest}s generated for a single OTLP request and rejects
+     * the request if the total would exceed {@link HttpTransportSettings#SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH}.
      *
-     * @param totalExpandedBytes bytes already accounted for from previously built index requests
-     * @param indexRequest       the newly built index request
-     * @return the updated running total including {@code indexRequest}
+     * @param request    the incoming OTLP export request
+     * @param totalItems the number of telemetry items (e.g. data points, log records, spans) selected for conversion
      */
-    protected long accountExpandedContent(long totalExpandedBytes, IndexRequest indexRequest) {
-        long updatedTotal = totalExpandedBytes + indexRequest.ramBytesUsed();
-        if (updatedTotal > maxExpandedContentLength) {
-            throw new ElasticsearchStatusException(
-                "OTLP request rejected: expanded content would exceed limit [" + maxExpandedContentLength + "] bytes",
-                RestStatus.REQUEST_ENTITY_TOO_LARGE
-            );
-        }
-        return updatedTotal;
+    protected ExpandedContentTracker expandedContentTracker(OTLPActionRequest request, int totalItems) {
+        return new ExpandedContentTracker(request.getRequest().length(), totalItems);
     }
 
-    private void handlePartialSuccess(
-        BulkResponse bulkItemResponses,
-        ProcessingContext context,
-        ActionListener<OTLPActionResponse> listener
-    ) {
+    /**
+     * Keeps a running total of the expanded size of the documents generated for an OTLP request.
+     * Resource/scope attributes and labels are copied into every document, so a comparably small protobuf payload can expand into a
+     * much larger bulk request. When rejecting a request, the error message includes how many items have been processed and an
+     * extrapolation of the expanded size of the full request. This helps to tell apart requests that contain a large number of
+     * items from requests where each document is large (e.g. due to large resource attributes) and to inform the limits clients should
+     * apply when batching requests.
+     */
+    protected final class ExpandedContentTracker {
+
+        private final int requestBytes;
+        private final int totalItems;
+        private long expandedBytes;
+        private int documents;
+        private int processedItems;
+
+        private ExpandedContentTracker(int requestBytes, int totalItems) {
+            this.requestBytes = requestBytes;
+            this.totalItems = totalItems;
+        }
+
+        /**
+         * Accounts for a single {@link IndexRequest} using {@link IndexRequest#ramBytesUsed()}.
+         *
+         * @param indexRequest the newly built index request
+         * @param items        the number of telemetry items represented by the document
+         *                     (e.g. a metric document may contain multiple data points)
+         */
+        public void add(IndexRequest indexRequest, int items) {
+            add(indexRequest.ramBytesUsed(), 1, items);
+        }
+
+        /**
+         * Accounts for the given number of bytes, documents and telemetry items.
+         *
+         * @throws ElasticsearchStatusException with status {@link RestStatus#REQUEST_ENTITY_TOO_LARGE} if the limit would be exceeded
+         */
+        public void add(long bytes, int documents, int items) {
+            this.expandedBytes += bytes;
+            this.documents += documents;
+            this.processedItems += items;
+            if (expandedBytes > maxExpandedContentLength) {
+                String message = rejectionMessage();
+                logger.debug("{}", message);
+                throw new ElasticsearchStatusException(message, RestStatus.REQUEST_ENTITY_TOO_LARGE);
+            }
+        }
+
+        private String rejectionMessage() {
+            StringBuilder sb = new StringBuilder("OTLP request rejected: expanded content would exceed limit [").append(
+                maxExpandedContentLength
+            )
+                .append("] bytes. The request with a protobuf size of [")
+                .append(requestBytes)
+                .append("] bytes has [")
+                .append(totalItems)
+                .append("] telemetry items selected for conversion. [")
+                .append(processedItems)
+                .append("] telemetry items were converted to [")
+                .append(documents)
+                .append("] documents with an expanded size of [")
+                .append(expandedBytes)
+                .append("] bytes (average [")
+                .append(expandedBytes / documents)
+                .append("] bytes per document) before reaching the limit.");
+            if (processedItems > 0 && processedItems < totalItems) {
+                long estimatedBytes = (long) Math.ceil((double) expandedBytes / processedItems * totalItems);
+                sb.append(" Estimated expanded size of the full request: [").append(estimatedBytes).append("] bytes.");
+            }
+            return sb.toString();
+        }
+    }
+
+    private void handlePartialSuccess(BulkResponse bulkResponse, ProcessingContext context, ActionListener<OTLPActionResponse> listener) {
         // index -> status -> failure group
         Map<String, Map<RestStatus, FailureGroup>> failureGroups = new HashMap<>();
         int failureStoreRedirects = 0;
@@ -184,29 +274,52 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         // https://opentelemetry.io/docs/specs/otlp/#partial-success-1
         RestStatus status = RestStatus.OK;
         int failures = 0;
-        for (BulkItemResponse bulkItemResponse : bulkItemResponses.getItems()) {
-            BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
-            if (failure != null) {
-                // we're counting each document as one item here
-                // which is an approximation since one document can represent multiple OTLP items
-                failures++;
-                if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                    // If the server receives more requests than the client is allowed or the server is overloaded,
-                    // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
-                    // and MAY include "Retry-After" header with a recommended time interval in seconds to wait before retrying.
-                    // https://opentelemetry.io/docs/specs/otlp/#otlphttp-throttling
-                    status = RestStatus.TOO_MANY_REQUESTS;
+        int failedBulkItems = 0;
+        int duplicates = 0;
+        boolean hasPrimaryTelemetryDuplicate = false;
+        String duplicateMessageSample = null;
+        BulkItemResponse[] bulkItems = bulkResponse.getItems();
+        for (int i = 0; i < bulkItems.length; i++) {
+            BulkItemResponse.Failure failure = bulkItems[i].getFailure();
+            boolean failureStoreRedirect = isFailureStoreRedirect(bulkItems[i]);
+            if (failure != null || failureStoreRedirect) {
+                failedBulkItems++;
+                if (failure != null && failure.getStatus() == RestStatus.CONFLICT) {
+                    // A conflict means a document with the same _id has already been indexed.
+                    // This is almost always caused by a client retrying a request that was already (partially) indexed,
+                    // e.g. after a timeout. We don't count these as rejected items,
+                    // as clients would otherwise report the data as dropped even though it's stored.
+                    duplicates++;
+                    if (context.isPrimaryTelemetryDoc(i)) {
+                        hasPrimaryTelemetryDuplicate = true;
+                    }
+                    if (duplicateMessageSample == null) {
+                        duplicateMessageSample = failure.getMessage();
+                    }
+                } else if (context.isPrimaryTelemetryDoc(i) == false) {
+                    context.recordNonPrimaryTelemetryDocFailure(bulkItems[i]);
+                } else if (failure != null) {
+                    // we're counting each document as one item here
+                    // which is an approximation since one document can represent multiple OTLP items
+                    failures++;
+                    if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
+                        // If the server receives more requests than the client is allowed or the server is overloaded,
+                        // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
+                        // and MAY include "Retry-After" header with a recommended time interval in seconds to wait before retrying.
+                        // https://opentelemetry.io/docs/specs/otlp/#otlphttp-throttling
+                        status = RestStatus.TOO_MANY_REQUESTS;
+                    }
+                    FailureGroup failureGroup = failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
+                        .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
+                    failureGroup.failureCount().incrementAndGet();
+                } else if (failureStoreRedirect) {
+                    failures++;
+                    failureStoreRedirects++;
                 }
-                FailureGroup failureGroup = failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
-                    .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
-                failureGroup.failureCount().incrementAndGet();
-            } else if (isFailureStoreRedirect(bulkItemResponse)) {
-                failures++;
-                failureStoreRedirects++;
             }
         }
-        if (bulkItemResponses.getItems().length == failures) {
-            // all items failed, so we report total items as failures
+        if (bulkItems.length == failedBulkItems && hasPrimaryTelemetryDuplicate == false) {
+            // All primary telemetry failed, so we report total items as failures even if exemplars were duplicates.
             failures = context.totalItems();
         }
         StringBuilder failureMessageBuilder = new StringBuilder();
@@ -229,7 +342,15 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         if (failureStoreRedirects > 0) {
             failureMessageBuilder.append("Redirected ").append(failureStoreRedirects).append(" documents to the failure store.\n");
         }
+        if (duplicates > 0) {
+            logger.debug("skipped [{}] duplicate documents. Sample error message: [{}]", duplicates, duplicateMessageSample);
+            // Reported as a warning without increasing the rejected-item count
+            failureMessageBuilder.append("Skipped ")
+                .append(duplicates)
+                .append(" duplicate documents that were already indexed with the same id.\n");
+        }
         failureMessageBuilder.append(context.getIgnoredItemsMessage(10));
+        failureMessageBuilder.append(context.getWarningMessage());
         String message = failureMessageBuilder.toString();
         if (status == RestStatus.TOO_MANY_REQUESTS) {
             listener.onFailure(new ElasticsearchStatusException(message, RestStatus.TOO_MANY_REQUESTS));

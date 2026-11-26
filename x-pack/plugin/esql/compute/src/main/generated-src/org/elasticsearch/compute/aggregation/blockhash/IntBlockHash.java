@@ -178,6 +178,11 @@ final class IntBlockHash extends PartitionedBlockHash {
     }
 
     @Override
+    public long estimatedBytesForPartitioning() {
+        return (long) numKeys() * Integer.BYTES;
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1)).seenGroupIds(bigArrays);
     }

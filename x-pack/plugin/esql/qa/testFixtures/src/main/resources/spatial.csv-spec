@@ -507,6 +507,7 @@ FROM airports
 ;
 warningRegex:evaluation of \[TO_GEOSHAPE.*\] failed, treating result as null. Only first 20 failures recorded
 warningRegex:.*max y cannot be less than min y.*
+warningRegex:Line \d+:\d+: Expression \[ST_INTERSECTS\(location, TO_GEOSHAPE\("BBOX\(0\.0, 12\.0, 30\.0, 60\.0\)"\)\)\] always evaluates to NULL\.
 
 count:long
 0
@@ -553,6 +554,26 @@ FROM airports
 
 centroid:geo_point                              | count:long | centroid_in_uk:boolean | centroid_in_iceland:boolean | centroid_within_uk:boolean | centroid_within_iceland:boolean | centroid_contains_uk:boolean | centroid_contains_iceland:boolean
 POINT (-2.597342072712148 54.33551226578214)    | 17         | true                   | false                       | true                       | false                           | false                        | false
+;
+
+centroidFromAirportsWithToStringDocValuesEval
+required_capability: st_centroid_agg
+required_capability: fix_spatial_doc_values_non_spatial_eval
+
+// Reproducer for https://github.com/elastic/elasticsearch/issues/141300
+// TO_STRING applied to a geo_point field should not cause a ClassCastException when the same field
+// is also consumed by ST_CENTROID_AGG, which can trigger the SpatialDocValuesExtraction optimization
+// that changes the field's block type from BytesRefBlock (WKB) to LongBlock (doc-values encoding).
+// All geo_point WKT strings start with "POINT", so SUBSTRING(TO_STRING(location), 1, 5) groups
+// all airports into a single "POINT" bucket, yielding the same centroid as ST_CENTROID_AGG(location).
+FROM airports
+| EVAL location_str = SUBSTRING(TO_STRING(location), 1, 5)
+| STATS centroid = ST_CENTROID_AGG(location) BY location_str
+| SORT location_str
+;
+
+centroid:geo_point                             | location_str:keyword
+POINT(-0.030548143003023033 24.37553649504829) | POINT
 ;
 
 centroidFromAirportsAfterIntersectsEvalExpression

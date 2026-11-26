@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -53,15 +54,17 @@ public final class GsubProcessor extends AbstractStringProcessor<String> {
     }
 
     @Override
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     protected String process(String value) {
         try {
             return pattern.matcher(value).replaceAll(replacement);
-        } catch (StackOverflowError e) {
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             /*
-             * A bad regex on problematic data can trigger a StackOverflowError. In this case we can safely recover from the
-             * StackOverflowError, so we rethrow it as an Exception instead. This way the document fails this processor, but processing
-             * can carry on. The value would be useful to log here, but we do not do so for because we do not want to write potentially
-             * sensitive data to the logs.
+             * A bad regex on problematic data can trigger a StackOverflowError. After the stack unwinds we cannot be certain all
+             * invariants still hold. This currently rethrows as a user-facing exception, which prevents the error from reaching
+             * the uncaught-exception handler, but the correct fix is to bound regex execution depth manually instead of catching here.
+             * The value would be useful to log here, but we do not do so because we do not want to write potentially sensitive data
+             * to the logs.
              */
             String message = "Caught a StackOverflowError while processing gsub pattern: [" + pattern + "]";
             logger.trace(message, e);

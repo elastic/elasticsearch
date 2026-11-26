@@ -232,12 +232,12 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             // telemetry says that there are indeed some segments enqueued to be merged
             testTelemetryPlugin.collect();
             assertThat(
-                testTelemetryPlugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE).getLast().getLong(),
+                testTelemetryPlugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE).getLast().getLong(),
                 greaterThan(0L)
             );
             // but still no merges are currently running
             assertThat(
-                testTelemetryPlugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE).getLast().getLong(),
+                testTelemetryPlugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE).getLast().getLong(),
                 equalTo(0L)
             );
             // indices stats also says that no merge is currently running (blocked merges are NOT considered as "running")
@@ -260,13 +260,22 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         }
         // wait for the merge call to return
         safeGet(forceMergeFuture);
+        // the force merge call returns as soon as the IndexWriter completes the merge, but the merge thread updates the merge stats and
+        // telemetry only after that, so also wait for the merge executor to be done with the merge task
+        assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(indexName).setMerge(true).get();
         testTelemetryPlugin.collect();
         // assert index stats and telemetry report no merging in progress (after force merge returned)
         long currentMergeCount = indicesStatsResponse.getIndices().get(indexName).getPrimaries().merge.getCurrent();
         assertThat(currentMergeCount, equalTo(0L));
-        assertThat(testTelemetryPlugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE).getLast().getLong(), equalTo(0L));
-        assertThat(testTelemetryPlugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE).getLast().getLong(), equalTo(0L));
+        assertThat(
+            testTelemetryPlugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE).getLast().getLong(),
+            equalTo(0L)
+        );
+        assertThat(
+            testTelemetryPlugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE).getLast().getLong(),
+            equalTo(0L)
+        );
         // but some merging took place (there might have been other merges automatically triggered before the force merge call)
         long totalMergeCount = indicesStatsResponse.getIndices().get(indexName).getPrimaries().merge.getTotal();
         assertThat(totalMergeCount, greaterThan(0L));
@@ -328,12 +337,12 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             // telemetry says that there are indeed some segments enqueued to be merged
             testTelemetryPlugin.collect();
             assertThat(
-                testTelemetryPlugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE).getLast().getLong(),
+                testTelemetryPlugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE).getLast().getLong(),
                 greaterThan(0L)
             );
             // but still no merges are currently running
             assertThat(
-                testTelemetryPlugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE).getLast().getLong(),
+                testTelemetryPlugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE).getLast().getLong(),
                 equalTo(0L)
             );
             // indices stats also says that no merge is currently running (blocked merges are NOT considered as "running")

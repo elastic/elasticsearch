@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -46,7 +47,10 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
  * This provides common support for type resolution and validation. Ensuring that both arguments are spatial types
  * and of compatible CRS. For example geo_point and geo_shape can be compared, but not geo_point and cartesian_point.
  */
-public abstract class BinarySpatialFunction extends BinaryScalarFunction implements SpatialEvaluatorFactory.SpatialSourceResolution {
+public abstract class BinarySpatialFunction extends BinaryScalarFunction
+    implements
+        EvaluatorMapper,
+        SpatialEvaluatorFactory.SpatialSourceResolution {
 
     private static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = TransportVersion.fromName(
         "esql_serialize_source_functions_warnings"
@@ -103,6 +107,11 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
 
     @Override
     public Object fold(FoldContext ctx) {
+        return EvaluatorMapper.super.fold(source(), ctx);
+    }
+
+    @Override
+    public Object doFold(Source source, FoldContext ctx) {
         var leftGeom = makeGeometryFromLiteral(ctx, left());
         var rightGeom = makeGeometryFromLiteral(ctx, right());
         if (leftGeom == null || rightGeom == null) {

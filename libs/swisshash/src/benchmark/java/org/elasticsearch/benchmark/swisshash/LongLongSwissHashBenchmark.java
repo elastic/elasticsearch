@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -75,7 +76,7 @@ public class LongLongSwissHashBenchmark {
     int numWorkers;
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("bench"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     @Setup(Level.Trial)
@@ -83,7 +84,7 @@ public class LongLongSwissHashBenchmark {
         keys = generate(cardinality);
         bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
-        breaker = new NoopCircuitBreaker("dummy");
+        breaker = NoopCircuitBreaker.INSTANCE;
         threadPool = new TestThreadPool("test", Settings.EMPTY);
     }
 
@@ -97,6 +98,7 @@ public class LongLongSwissHashBenchmark {
     public static class TestThreadPool extends ThreadPool implements Releasable {
         public TestThreadPool(String name, Settings settings, ExecutorBuilder<?>... customBuilders) {
             super(
+                new ThreadContext(settings),
                 Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(),
                 MeterRegistry.NOOP,
                 new DefaultBuiltInExecutorBuilders(),

@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -74,15 +76,31 @@ public class TsInfoExec extends UnaryExec {
      * the input attributes of {@link Mode#FINAL} and {@link Mode#INTERMEDIATE}.
      * Analogous to {@link AggregateExec#intermediateAttributes()}.
      */
+    private static final TransportVersion ESQL_TS_INFO_LIMIT = TransportVersion.fromName("esql_ts_info_limit");
+
     private final List<Attribute> intermediateAttributes;
     private final List<Attribute> outputAttrs;
     private final Mode mode;
+    @Nullable
+    private final Integer limit;
 
     public TsInfoExec(Source source, PhysicalPlan child, List<Attribute> outputAttrs, List<Attribute> intermediateAttributes, Mode mode) {
+        this(source, child, outputAttrs, intermediateAttributes, mode, null);
+    }
+
+    public TsInfoExec(
+        Source source,
+        PhysicalPlan child,
+        List<Attribute> outputAttrs,
+        List<Attribute> intermediateAttributes,
+        Mode mode,
+        @Nullable Integer limit
+    ) {
         super(source, child);
         this.outputAttrs = outputAttrs;
         this.intermediateAttributes = intermediateAttributes;
         this.mode = mode;
+        this.limit = limit;
     }
 
     private TsInfoExec(StreamInput in) throws IOException {
@@ -91,7 +109,8 @@ public class TsInfoExec extends UnaryExec {
             in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readEnum(Mode.class)
+            in.readEnum(Mode.class),
+            in.getTransportVersion().supports(ESQL_TS_INFO_LIMIT) ? in.readOptionalVInt() : null
         );
     }
 
@@ -102,6 +121,9 @@ public class TsInfoExec extends UnaryExec {
         out.writeNamedWriteableCollection(outputAttrs);
         out.writeNamedWriteableCollection(intermediateAttributes);
         out.writeEnum(mode);
+        if (out.getTransportVersion().supports(ESQL_TS_INFO_LIMIT)) {
+            out.writeOptionalVInt(limit);
+        }
     }
 
     @Override
@@ -111,6 +133,11 @@ public class TsInfoExec extends UnaryExec {
 
     public Mode mode() {
         return mode;
+    }
+
+    @Nullable
+    public Integer limit() {
+        return limit;
     }
 
     public List<Attribute> outputAttrs() {
@@ -123,12 +150,12 @@ public class TsInfoExec extends UnaryExec {
 
     @Override
     protected NodeInfo<TsInfoExec> info() {
-        return NodeInfo.create(this, TsInfoExec::new, child(), outputAttrs, intermediateAttributes, mode);
+        return NodeInfo.create(this, TsInfoExec::new, child(), outputAttrs, intermediateAttributes, mode, limit);
     }
 
     @Override
     public TsInfoExec replaceChild(PhysicalPlan newChild) {
-        return new TsInfoExec(source(), newChild, outputAttrs, intermediateAttributes, mode);
+        return new TsInfoExec(source(), newChild, outputAttrs, intermediateAttributes, mode, limit);
     }
 
     @Override
@@ -151,7 +178,7 @@ public class TsInfoExec extends UnaryExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), outputAttrs, intermediateAttributes, mode);
+        return Objects.hash(child(), outputAttrs, intermediateAttributes, mode, limit);
     }
 
     @Override
@@ -165,6 +192,7 @@ public class TsInfoExec extends UnaryExec {
 
         TsInfoExec other = (TsInfoExec) obj;
         return mode == other.mode
+            && Objects.equals(limit, other.limit)
             && Objects.equals(child(), other.child())
             && Objects.equals(outputAttrs, other.outputAttrs)
             && Objects.equals(intermediateAttributes, other.intermediateAttributes);

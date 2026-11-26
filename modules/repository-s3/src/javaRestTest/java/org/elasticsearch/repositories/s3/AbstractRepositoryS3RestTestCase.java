@@ -76,6 +76,11 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
                     [s3.client.placeholder.disable_chunked_encoding] setting was deprecated in Elasticsearch and will be removed \
                     in a future release. See the breaking changes documentation for the next major version.""");
             }
+            if (settings.keySet().contains("legacy_content_md5")) {
+                expectedWarnings.add("""
+                    [s3.client.placeholder.legacy_content_md5] setting was deprecated in Elasticsearch and will be removed \
+                    in a future release. See the breaking changes documentation for the next major version.""");
+            }
             if (expectedWarnings.isEmpty() == false) {
                 request.setOptions(expectWarnings(expectedWarnings.toArray(String[]::new)));
             }

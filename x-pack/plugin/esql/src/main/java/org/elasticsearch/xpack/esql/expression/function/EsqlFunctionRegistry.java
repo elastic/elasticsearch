@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
@@ -123,7 +124,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.Day;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.Hour;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.Month;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeContains;
@@ -133,6 +137,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.ToRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.Year;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.NetworkDirection;
@@ -518,8 +523,12 @@ public class EsqlFunctionRegistry {
                 DateParse.DEFINITION,
                 DateTrunc.DEFINITION,
                 DateUnitCount.DEFINITION,
+                Day.DEFINITION,
                 DayName.DEFINITION,
+                Hour.DEFINITION,
+                Month.DEFINITION,
                 MonthName.DEFINITION,
+                Year.DEFINITION,
                 Now.DEFINITION,
                 RangeContains.DEFINITION,
                 RangeIntersects.DEFINITION,
@@ -640,6 +649,7 @@ public class EsqlFunctionRegistry {
                 TopSnippets.DEFINITION },
             // time-series functions
             new FunctionDefinition[] {
+                Changes.DEFINITION,
                 Rate.DEFINITION,
                 Irate.DEFINITION,
                 Idelta.DEFINITION,

@@ -7,17 +7,13 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
-import org.elasticsearch.xpack.esql.view.PutViewAction;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -27,7 +23,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -69,15 +64,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         assumeTrue("requires external dataset in from command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
     }
 
-    private static void requireInSubquery() {
-        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-
-    }
-
-    private static void requireWhereInSubqueryWithTS() {
-        assumeTrue("Requires IN subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
-    }
-
     @Before
     public void writeFixture() throws IOException {
         // Five-column schema gives downstream tests something to group by (department), aggregate (salary), and join on
@@ -117,28 +103,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             csvFixtureSalaryLong,
             String.join("\n", "emp_no:integer,name:keyword,salary:long", "10,Diana,75000", "11,Eve,65000") + "\n"
         );
-    }
-
-    /** Names every view {@code testXxx} bodies PUT, dropped after each method so the SUITE cluster stays clean. */
-    private static final Set<String> CREATED_VIEWS = Set.of("emp_meta_view");
-
-    /**
-     * Datasets and the {@code local_ds} data source are registered through the base
-     * {@link AbstractExternalDataSourceIT#registerDataset}/{@link AbstractExternalDataSourceIT#registerDataSource}
-     * helpers, so the base {@code cleanupRegistry()} tears them down. Only views need bespoke teardown here.
-     */
-    @After
-    public void cleanupViews() {
-        try {
-            client().execute(
-                DeleteViewAction.INSTANCE,
-                new DeleteViewAction.Request(TIMEOUT, TIMEOUT, CREATED_VIEWS.toArray(String[]::new))
-            ).actionGet(TIMEOUT);
-        } catch (ResourceNotFoundException ignored) {
-            // none created by this test
-        } catch (Exception e) {
-            logger.warn("view cleanup failed", e);
-        }
     }
 
     public void testSubqueryOnlyDataset() {
@@ -351,44 +315,29 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    /**
-     * A subquery whose own FROM references multiple datasets produces a {@code UnionAll} nested inside the outer
-     * {@code UnionAll}'s branch (outer: real_employees + subquery; inner: employees + employees_alt). Nested
-     * subqueries are supported: the result is the same flat union as spelling each dataset as its own subquery,
-     * see {@link #testIndexInMainDatasetInSubquery}.
-     */
     public void testIndexInMainMultipleDatasetInSubquery() {
         createRealEmployees();
         registerEmployees();
         registerEmployeesAlt();
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt) | SORT emp_no, first_name"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(10)); // 5 from real_employees + 3 from employees + 2 from employees_alt
 
-        if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled() == false) {
-            Exception ex = expectThrows(
-                Exception.class,
-                () -> run(syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt)"), TIMEOUT)
-            );
-            assertCauseMessageContains(ex, "Nested subqueries are not supported");
-        } else {
-            try (
-                var response = run(
-                    syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt) | SORT emp_no, first_name"),
-                    TIMEOUT
-                )
-            ) {
-                List<List<Object>> rows = getValuesList(response);
-                assertThat(rows, hasSize(10)); // 5 from real_employees + 3 from employees + 2 from employees_alt
-
-                // same union as testIndexInMainDatasetInSubquery, spot-check the overlap rows and branch provenance
-                assertThat(rows.get(0).get(0), equalTo(1));
-                assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-                assertThat(rows.get(1).get(0), equalTo(1));
-                assertThat(rows.get(1).get(1).toString(), equalTo("Alice-real"));
-                assertNull(rows.get(1).get(2)); // real_employees has no last_name
-                assertThat(rows.get(5).get(0), equalTo(10));
-                assertThat(rows.get(5).get(1).toString(), equalTo("Diana"));
-                assertThat(rows.get(9).get(0), equalTo(101));
-                assertThat(rows.get(9).get(1).toString(), equalTo("Grace"));
-            }
+            // same union as testIndexInMainDatasetInSubquery, spot-check the overlap rows and branch provenance
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(0), equalTo(1));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Alice-real"));
+            assertNull(rows.get(1).get(2)); // real_employees has no last_name
+            assertThat(rows.get(5).get(0), equalTo(10));
+            assertThat(rows.get(5).get(1).toString(), equalTo("Diana"));
+            assertThat(rows.get(9).get(0), equalTo(101));
+            assertThat(rows.get(9).get(1).toString(), equalTo("Grace"));
         }
     }
 
@@ -624,26 +573,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             assertThat(rows, hasSize(1));
             assertThat(rows.get(0).get(names.indexOf("_index")), nullValue());
             assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
-        }
-    }
-
-    public void testMetadataSurfacesThroughViewOverDataset() {
-        registerEmployees();
-        createView("emp_meta_view", "FROM employees METADATA _index, _file.path");
-
-        // A view is a saved query; FROM <view> expands to it, so metadata named in the view's body
-        // surfaces at the call site with no KEEP — directly and inside a subquery, matching the FROM
-        // contract. The view body carries the METADATA clause; the caller adds nothing.
-        for (String query : List.of("FROM emp_meta_view | LIMIT 1", "FROM (FROM emp_meta_view) | LIMIT 1")) {
-            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-                List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-                assertThat(query + " must surface _index without KEEP, got " + names, names, hasItem("_index"));
-                assertThat(query + " must surface _file.path without KEEP, got " + names, names, hasItem("_file.path"));
-
-                List<List<Object>> rows = getValuesList(response);
-                assertThat(rows.get(0).get(names.indexOf("_index")), nullValue());
-                assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
-            }
         }
     }
 
@@ -1032,6 +961,61 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * MATCH over a union of an index and a dataset runs as a Lucene query on the index branch and at runtime on the
+     * dataset branch; both must give a keyword column the same exact-value semantics.
+     */
+    public void testMatchOnKeywordAcrossIndexAndDataset() {
+        createRealEmployees();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM real_employees, (FROM employees)
+            | WHERE MATCH(first_name, "Alice") OR MATCH(first_name, "Carol-real")
+            | KEEP emp_no, first_name
+            | SORT first_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertValues(response.values(), List.of(List.of(1, "Alice"), List.of(3, "Carol-real")));
+        }
+    }
+
+    /**
+     * TO_TEXT over a union of an index and a dataset analyzes both branches at runtime, so "Alice-real" from the
+     * index tokenizes to a match just like the dataset's "Alice".
+     */
+    public void testMatchOnTextAcrossIndexAndDataset() {
+        createRealEmployees();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM real_employees, (FROM employees)
+            | EVAL name = TO_TEXT(first_name)
+            | WHERE MATCH(name, "alice")
+            | KEEP emp_no, first_name
+            | SORT first_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertValues(response.values(), List.of(List.of(1, "Alice"), List.of(1, "Alice-real")));
+        }
+    }
+
+    public void testMatchPhraseOnTextAcrossIndexAndDataset() {
+        createRealEmployees();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM real_employees, (FROM employees)
+            | EVAL name = TO_TEXT(first_name)
+            | WHERE MATCH_PHRASE(name, "carol real") OR MATCH_PHRASE(name, "bob")
+            | KEEP emp_no, first_name
+            | SORT first_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertValues(response.values(), List.of(List.of(2, "Bob"), List.of(3, "Carol-real")));
+        }
+    }
+
     // Mixed data types across subquery branches
 
     public void testConflictingTypesAcrossSubqueriesRejected() {
@@ -1103,7 +1087,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     // WHERE ... IN / NOT IN (subquery) crossed with external datasets
 
     public void testInSubqueryMainDatasetSubqueryIndex() {
-        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -1121,7 +1104,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryIndex() {
-        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -1138,7 +1120,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testInSubqueryMainIndexSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -1156,7 +1137,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainIndexSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -1175,7 +1155,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testInSubqueryMainDatasetSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         registerEmployeesAlt();
 
@@ -1193,7 +1172,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         registerEmployeesAlt();
 
@@ -1220,7 +1198,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
      * {@code AbstractPhysicalOperationProviders$IntermediateInputs}.
      */
     public void testEmptyInSubqueryThenStatsOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1235,7 +1212,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testEmptyInSubqueryThenGroupedStatsOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1253,7 +1229,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
      * zero rows, no crash.
      */
     public void testEmptyInSubqueryThenSortOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1272,7 +1247,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
      * dataset scan alive, so this pins the unchanged collapse/scan path next to the empty one.
      */
     public void testNonEmptyInSubqueryThenStatsOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1292,7 +1266,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
      * external aggregation split (the counterpart of {@link #testEmptyInSubqueryThenStatsOnDataset}).
      */
     public void testNotInEmptySubqueryThenStatsOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1308,7 +1281,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
 
     /** Row-returning variant of {@link #testNotInEmptySubqueryThenStatsOnDataset}: every dataset row comes back. */
     public void testNotInEmptySubqueryOnDatasetKeepsAllRows() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1332,7 +1304,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
      * substitution this shape crashed external physical planning the same way.
      */
     public void testNotInSubqueryWithNullThenStatsOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1348,7 +1319,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
 
     /** Every right value NULL: same ANTI short-circuit, pinned on the row-returning path — zero rows, no crash. */
     public void testNotInSubqueryAllNullOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1365,7 +1335,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     // WHERE ... IN / NOT IN (subquery) crossing a time-series index with an external dataset
 
     public void testInSubqueryMainTimeSeriesIndexSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1382,7 +1351,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainTimeSeriesIndexSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1399,7 +1367,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testInSubqueryMainDatasetSubqueryTimeSeriesIndex() {
-        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1417,7 +1384,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryTimeSeriesIndex() {
-        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1441,8 +1407,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     // testInSubqueryMainTimeSeriesIndexSubqueryDataset, exercising the IN/NOT IN join below a lowered TS aggregation.
 
     public void testInSubqueryMainTimeSeriesRateSubqueryDataset() {
-        requireInSubquery();
-        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1462,8 +1426,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainTimeSeriesRateSubqueryDataset() {
-        requireInSubquery();
-        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1485,8 +1447,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     // index via TS with a rate(...) aggregate (instead of plain FROM). Mirrors testInSubqueryMainDatasetSubqueryTimeSeriesIndex.
 
     public void testInSubqueryMainDatasetSubqueryTimeSeriesRate() {
-        requireInSubquery();
-        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1506,8 +1466,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryTimeSeriesRate() {
-        requireInSubquery();
-        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1524,6 +1482,98 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(1).toString(), equalTo("Engineering"));
             assertThat(rows.get(1).get(0), equalTo(2));
             assertThat(rows.get(1).get(1).toString(), equalTo("Engineering"));
+        }
+    }
+
+    // Nested subquery, view, FORK and dataset
+
+    public void testForkAfterSubqueryOnDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees), (FROM employees_alt)
+            | FORK (WHERE emp_no < 10) (WHERE emp_no >= 10)
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(2L));
+        }
+    }
+
+    public void testForkInsideDatasetSubquery() {
+        registerEmployees();
+        registerEmployeesAlt();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | FORK (WHERE department == "Engineering") (WHERE department == "Sales")),
+                 (FROM employees_alt | WHERE emp_no == 10 | EVAL _fork = "fork1")
+            | KEEP _fork, emp_no
+            | SORT _fork, emp_no
+            """), TIMEOUT)) {
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of("fork1", 1), List.of("fork1", 2), List.of("fork1", 10), List.of("fork2", 3)))
+            );
+        }
+    }
+
+    public void testNestedDatasetSubqueryWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        var request = syncEsqlQueryRequest("""
+            FROM (FROM employees, (FROM employees_alt)),
+                 (FROM employees_alt)
+            | KEEP emp_no
+            | SORT emp_no
+            """);
+        request.filter(QueryBuilders.rangeQuery("emp_no").gte(10));
+        try (var response = run(request, TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(10), List.of(10), List.of(11), List.of(11))));
+        }
+    }
+
+    /**
+     * The request filter and a runtime MATCH both filter the same dataset reads, so only rows passing both remain:
+     * the range drops Alice (emp_no 1) and the match drops the Sales rows.
+     */
+    public void testMatchOnDatasetWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        for (String condition : List.of("MATCH(department, \"Engineering\")", "MATCH(TO_TEXT(department), \"engineering\")")) {
+            var request = syncEsqlQueryRequest("FROM (FROM employees), (FROM employees_alt) | WHERE " + condition + """
+                 | KEEP emp_no
+                 | SORT emp_no
+                """);
+            request.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
+            try (var response = run(request, TIMEOUT)) {
+                assertThat(condition, getValuesList(response), equalTo(List.of(List.of(2), List.of(10))));
+            }
+        }
+    }
+
+    public void testForkAfterSubqueryOnDatasetsWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        var request = syncEsqlQueryRequest("""
+            FROM (FROM employees), (FROM employees_alt)
+            | FORK (WHERE emp_no < 10) (WHERE emp_no >= 10)
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """);
+        request.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
+        try (var response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(2L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(2L));
         }
     }
 
@@ -1625,12 +1675,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     private void registerEmployees() {
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-    }
-
-    private void createView(String name, String query) {
-        assertAcked(
-            client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, query))).actionGet(TIMEOUT)
-        );
     }
 
     private void registerEmployeesAlt() {

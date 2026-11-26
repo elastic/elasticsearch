@@ -159,6 +159,11 @@ public final class ColumnMapping implements Writeable {
         return index.length;
     }
 
+    /** Length of the cast array, or {@code 0} when this mapping stores no cast array. */
+    int castArrayLength() {
+        return cast == null ? 0 : cast.length;
+    }
+
     int localIndex(int globalIndex) {
         return index[globalIndex];
     }

@@ -120,7 +120,8 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
             List.of(aggregate),
             null,
             timestamp,
-            TimeSeriesAggregate.Origin.TS_COMMAND
+            TimeSeriesAggregate.Origin.TS_COMMAND,
+            false
         );
 
         // Must not throw; the unresolved sort should be left untouched for the Verifier to report.
@@ -159,7 +160,8 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
             List.of(aggregate),
             null,
             timestamp,
-            TimeSeriesAggregate.Origin.TS_COMMAND
+            TimeSeriesAggregate.Origin.TS_COMMAND,
+            false
         );
 
         // Must not throw; the unresolved sort should be left untouched for the Verifier to report.

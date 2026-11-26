@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -75,21 +74,20 @@ public class ExternalSchemaResolutionErrorIT extends AbstractExternalDataSourceI
 
     /**
      * Registers a {@code *.csv} glob dataset with {@code {"schema_resolution":"strict", "header_row":<headerRow>}}
-     * settings, runs {@code FROM <dataset> | STATS …}, and asserts the request fails with an
-     * {@link IllegalArgumentException} from {@code SchemaReconciliation#validateStrictMatch} whose message
-     * identifies a schema mismatch and points at the {@code union_by_name} escape hatch. This maps to HTTP 400
-     * on the wire.
+     * settings, runs {@code FROM <dataset> | STATS …}, and asserts the request fails with an HTTP 400 error
+     * (surfaced as {@code ExternalClientException}) from {@code SchemaReconciliation#validateStrictMatch} whose
+     * message identifies a schema mismatch and points at the {@code union_by_name} escape hatch.
      */
     private void assertStrictSchemaMismatch(Path dir, boolean headerRow) {
         String glob = StoragePath.fileUri(dir) + "/*.csv";
         String dataset = registerDataset("strict_csv", glob, Map.of("schema_resolution", "strict", "header_row", headerRow));
         String query = "FROM " + dataset + " | STATS count = COUNT(*)";
 
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+        Exception ex = expectThrows(Exception.class, () -> {
             try (var response = run(syncEsqlQueryRequest(query))) {
                 // should not reach here
             }
         });
-        assertThat(ex.getMessage(), allOf(containsString("Schema mismatch"), containsString("union_by_name")));
+        assertThat(ex.getMessage(), containsString("set [schema_resolution] to [union_by_name] to merge schemas"));
     }
 }

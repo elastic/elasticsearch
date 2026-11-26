@@ -1,0 +1,1 @@
+FROM partial_mapping_sample_data, (FROM sample_data | WHERE event_duration > 0) | WHERE event_duration > 0

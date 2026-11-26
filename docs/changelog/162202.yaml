@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 162202
+summary: Fix 2 NPEs and 1 `ClassCast` bug
+type: bug

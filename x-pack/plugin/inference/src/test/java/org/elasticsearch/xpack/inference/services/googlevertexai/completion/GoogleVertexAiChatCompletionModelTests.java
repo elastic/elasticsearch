@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
@@ -298,6 +298,35 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getTaskSettings().maxTokens(), is(TEST_MAX_TOKENS));
         assertThat(overriddenModel.nonStreamingUri(), is(expectedNonStreamingUri));
         assertThat(overriddenModel.streamingURI(), is(expectedStreamingUri));
+    }
+
+    public void testOfUnifiedRequest_PreservesAuthHeaderDecorator() {
+        var model = createCompletionModel(
+            TEST_PROJECT_ID,
+            TEST_LOCATION,
+            TEST_MODEL_ID,
+            TEST_API_KEY,
+            TEST_RATE_LIMIT,
+            EMPTY_THINKING_CONFIG,
+            null,
+            null,
+            null,
+            "Bearer test-token"
+        );
+        var request = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentString("hello"), "user", null, null)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, request);
+
+        assertThat(overriddenModel.authHeaderDecorator(), sameInstance(model.authHeaderDecorator()));
     }
 
     public static GoogleVertexAiChatCompletionModel createCompletionModel(

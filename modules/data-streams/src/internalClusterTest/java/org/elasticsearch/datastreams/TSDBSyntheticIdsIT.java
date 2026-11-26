@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
@@ -63,6 +64,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -588,7 +590,15 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         final var dataStreamName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
-        putDataStreamTemplate(dataStreamName, numShards, 0, useNestedDocs);
+        putDataStreamTemplate(
+            dataStreamName,
+            numShards,
+            0,
+            // TODO: batch indexing writes the TSDB routing hash into translog operations, where doc-mode writes null routing
+            // Fix this so that we can use a random batch indexing setting here too
+            Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), false).build(),
+            useNestedDocs
+        );
 
         final var docsIndices = new HashSet<String>();
         final var docsIndicesById = new HashMap<String, String>();
@@ -830,6 +840,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             Settings.builder()
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
+                // TODO: batch indexing writes the TSDB routing hash into translog operations, where doc-mode writes null routing
+                // Fix this so that we can use a random batch indexing setting here too
+                .put(IndexSettings.BATCH_INDEXING.getKey(), false)
                 .build(),
             useNestedDocs
         );
@@ -1771,7 +1784,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
-            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false); // Sequence numbers are needed for id validation.
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false) // Sequence numbers are needed for id validation.
+            .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
 
         if (randomBoolean()) {
             settings.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
@@ -2072,7 +2086,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final int nbVisitedShards = internalCluster().forEveryIndexShard(indices, indexShard -> {
             long size = indexShard.withEngineOrNull(engine -> {
                 if (engine != null) {
-                    try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
+                    try (var searcher = engine.acquireSearcher("assert_no_id_stored_field", SplitShardCountSummary.IRRELEVANT)) {
                         long segmentsTotalSize = 0L;
 
                         for (var leaf : searcher.getLeafContexts()) {
@@ -2140,7 +2154,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                         nbVisitedShards += indexShard.withEngineOrNull(engine -> {
                             if (engine != null) {
                                 assertThat(engine.config().getCodec().getName(), equalTo(Elasticsearch96Codec.NAME));
-                                try (var searcher = engine.acquireSearcher("test_codec")) {
+                                try (var searcher = engine.acquireSearcher("test_codec", SplitShardCountSummary.IRRELEVANT)) {
                                     for (var leaf : searcher.getLeafContexts()) {
                                         var segInfo = Lucene.segmentReader(leaf.reader()).getSegmentInfo().info;
                                         assertThat(

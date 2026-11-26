@@ -1,0 +1,69 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.columnar.string;
+
+import org.apache.lucene.util.BytesRef;
+
+/**
+ * What one consumer of a survey asks of it: how many term bytes it will pay for, and how rare a term it
+ * will still admit.
+ *
+ * <p>The two consumers ask differently, and this is where the difference is stated rather than spread
+ * through the code that answers it.
+ *
+ * @param budget   the most term bytes the answer may hold
+ * @param minCount how often a term must have been seen to be admitted at all
+ */
+record TermQuota(long budget, int minCount) {
+
+    /** What {@code term} costs a budget. The empty term is charged a byte so a budget of nothing buys nothing. */
+    static long cost(BytesRef term) {
+        return Math.max(1, term.length);
+    }
+
+    /**
+     * What a dictionary asks. It admits no term held once, which would cost its own bytes to buy a single
+     * ordinal, and it is bounded by a share of the column as well as by the policy's cap, since a
+     * dictionary as large as the values it stands in for has bought nothing.
+     */
+    static TermQuota forDictionary(DictionaryPolicy dictionaryPolicy, long columnBytes) {
+        return new TermQuota(dictionaryPolicy.budgetFor(columnBytes), 2);
+    }
+
+    /**
+     * What a summary asks. It admits every term the survey saw, since one held once in this column may be
+     * held once per segment and many times by the merged column, and only the cap bounds it: a share of
+     * this column says nothing about the merge that reads it.
+     */
+    static TermQuota forSummary(SummaryPolicy summaryPolicy) {
+        return new TermQuota(summaryPolicy.maxBytes(), 1);
+    }
+
+    /**
+     * What a merged column's summary asks: a retained count of at least two.
+     *
+     * <p>A retention heuristic, not a proof of uniqueness. Counts are lower bounds, so a term retained once
+     * may have occurred more often in an input that omitted it or trimmed it away. What the rule buys is
+     * that a column of values unique to the index is not summarised at the size of the column itself, at
+     * every generation. {@link Vocabulary#combined} may take a wider selection that admits retained counts
+     * of one, but only where it keeps every term this one would have kept and still fits the byte budget.
+     */
+    static TermQuota forMergedSummary(SummaryPolicy summaryPolicy) {
+        return new TermQuota(summaryPolicy.maxBytes(), 2);
+    }
+
+    /**
+     * What a merged summary asks for the terms it retained once, beside {@link #forMergedSummary}. Bounded by
+     * the column's share, so a column of values unique to the index is not recorded whole every generation.
+     */
+    static TermQuota forMergedSummaryTail(DictionaryPolicy dictionaryPolicy, long columnBytes) {
+        return new TermQuota(dictionaryPolicy.budgetFor(columnBytes), 1);
+    }
+}

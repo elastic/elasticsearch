@@ -9,21 +9,31 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -93,6 +103,9 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             task = invocation.getArgument(1, ClusterStateTaskListener.class);
             return null;
         }).when(queue).submitTask(any(), any(), any());
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(clusterService.threadPool()).thenReturn(threadPool);
+        when(threadPool.executor(ThreadPool.Names.MANAGEMENT)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.service = new SystemIndexMetadataUpgradeService(
             new SystemIndices(
@@ -282,6 +295,103 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
         assertThat(service.shouldBeSystem(correctlyNonSystem), equalTo(false));
         assertThat(service.requiresUpdate(correctlyNonSystem), equalTo(false));
+    }
+
+    public void testDemoteIndexThatNoLongerMatchesSystemDescriptor() {
+        IndexMetadata indexMetadata = IndexMetadata.builder("user-index")
+            .system(true)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+            .build();
+        Metadata metadata = Metadata.builder().put(IndexMetadata.builder(indexMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
+            .metadata(metadata)
+            .customs(Map.of())
+            .build();
+
+        service.submitUpdateTask(List.of(indexMetadata.getIndex()), List.of());
+        IndexMetadata result = executeTask(clusterState).metadata().getProject().index(indexMetadata.getIndex().getName());
+
+        assertThat(result.isSystem(), equalTo(false));
+        assertThat(result.isHidden(), equalTo(true));
+    }
+
+    public void testNewMasterScansUnchangedMetadataForDemotion() {
+        IndexMetadata firstIndex = IndexMetadata.builder("user-index-1")
+            .system(true)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+            .build();
+        IndexMetadata secondIndex = IndexMetadata.builder("user-index-2")
+            .system(true)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+            .build();
+        String dataStreamName = ".old-system-data-stream";
+        IndexMetadata backingIndex = IndexMetadata.builder(DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-1")
+            .system(true)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+            .build();
+        DataStream dataStream = DataStream.builder(dataStreamName, List.of(backingIndex.getIndex()))
+            .setHidden(true)
+            .setSystem(true)
+            .build();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder(firstIndex))
+            .put(IndexMetadata.builder(secondIndex))
+            .put(backingIndex, true)
+            .put(dataStream)
+            .build();
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
+        DiscoveryNodes previousNodes = DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build();
+        ClusterState previousState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
+            .metadata(metadata)
+            .nodes(previousNodes)
+            .build();
+        ClusterState currentState = ClusterState.builder(previousState)
+            .nodes(DiscoveryNodes.builder(previousNodes).masterNodeId(localNode.getId()))
+            .build();
+
+        service.clusterChanged(new ClusterChangedEvent("local node elected master", currentState, previousState));
+        ClusterState result = executeTask(currentState);
+
+        assertThat(result.metadata().getProject().index(firstIndex.getIndex().getName()).isSystem(), equalTo(false));
+        assertThat(result.metadata().getProject().index(secondIndex.getIndex().getName()).isSystem(), equalTo(false));
+        assertThat(result.metadata().getProject().dataStreams().get(dataStreamName).isSystem(), equalTo(false));
+        assertThat(result.metadata().getProject().index(backingIndex.getIndex().getName()).isSystem(), equalTo(false));
+    }
+
+    public void testWarnsAboutDataStreamMatchingSystemIndexPattern() {
+        IndexMetadata backingIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(".myindex-ds", 1))
+            .settings(getSettingsBuilder())
+            .build();
+        DataStream dataStream = DataStream.builder(".myindex-ds", List.of(backingIndex.getIndex())).setHidden(true).build();
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
+        DiscoveryNodes previousNodes = DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build();
+        ClusterState previousState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
+            .metadata(Metadata.builder().put(backingIndex, true).put(dataStream))
+            .nodes(previousNodes)
+            .build();
+        ClusterState currentState = ClusterState.builder(previousState)
+            .nodes(DiscoveryNodes.builder(previousNodes).masterNodeId(localNode.getId()))
+            .build();
+        if (randomBoolean()) {
+            previousState = ClusterState.builder(currentState.getClusterName())
+                .nodes(currentState.nodes())
+                .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+                .build();
+        }
+
+        try (var mockLog = MockLog.capture(SystemIndexMetadataUpgradeService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "warning",
+                    SystemIndexMetadataUpgradeService.class.getCanonicalName(),
+                    Level.WARN,
+                    "data stream [.myindex-ds] matches system index pattern [.myindex-*] but is not a system data stream; "
+                        + "its backing indices are not restricted"
+                )
+            );
+            service.clusterChanged(new ClusterChangedEvent("local node elected master", currentState, previousState));
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testIsVisible() {

@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.datastreams;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.SecureString;
@@ -24,7 +25,7 @@ import org.junit.ClassRule;
 
 public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public DataStreamsClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public DataStreamsClientYamlTestSuiteIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

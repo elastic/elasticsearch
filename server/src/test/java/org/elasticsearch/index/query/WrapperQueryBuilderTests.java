@@ -13,14 +13,23 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
@@ -158,6 +167,82 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         assertEquals(Queries.ALL_DOCS_INSTANCE, qb.rewrite(searchExecutionContext).toQuery(searchExecutionContext));
     }
 
+    public void testRewriteAwayFromRestRequestIsCheckedAgainstBreaker() throws IOException {
+        BoolQueryBuilder inner = new BoolQueryBuilder();
+        // Charged over a chunk while parsed, so the breaker is checked while the source is parsed.
+        for (int i = 0; i < 5_000; i++) {
+            inner.should(new TermQueryBuilder(TEXT_FIELD_NAME, "value-" + i));
+        }
+        WrapperQueryBuilder wrapper = new WrapperQueryBuilder(Strings.toString(inner));
+        // No reservation in the thread context, as on a data node, so the rewrite parses against the context's breaker.
+        LimitedBreaker tight = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofKb(512));
+        // The bool parser wraps the trip, which is still a 429.
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
+            () -> wrapper.rewrite(new SearchExecutionContext(createSearchExecutionContext(), tight))
+        );
+        assertThat(ExceptionsHelper.status(e), Matchers.equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(tight.getUsed(), Matchers.equalTo(0L));
+
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
+        assertNotNull(wrapper.rewrite(new SearchExecutionContext(createSearchExecutionContext(), breaker)));
+        assertThat("released once parsed", breaker.getUsed(), Matchers.equalTo(0L));
+    }
+
+    public void testRewriteChargesTheReservationRatherThanTheContextsBreaker() throws IOException {
+        BoolQueryBuilder inner = new BoolQueryBuilder();
+        int clauses = between(1, 20);
+        for (int i = 0; i < clauses; i++) {
+            inner.should(new TermQueryBuilder(TEXT_FIELD_NAME, "value-" + i));
+        }
+        WrapperQueryBuilder wrapper = new WrapperQueryBuilder(Strings.toString(inner));
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
+        // A shard request on the node that handles the REST request keeps its thread context, so its rewrite has both.
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), breaker);
+        ThreadContext threadContext = context.client.threadPool().getThreadContext();
+        try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, true)) {
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, reservation);
+                assertNotNull(wrapper.rewrite(context));
+            }
+            // Charged once, to the reservation, which holds it until the response, rather than released once parsed.
+            assertThat(reservation.reservedBytes(), Matchers.greaterThan(0L));
+            assertThat(breaker.getUsed(), Matchers.equalTo(reservation.reservedBytes()));
+        }
+        assertThat(breaker.getUsed(), Matchers.equalTo(0L));
+    }
+
+    public void testRewriteChargesParsedContentReservation() throws IOException {
+        BoolQueryBuilder inner = new BoolQueryBuilder();
+        int clauses = between(1, 20);
+        for (int i = 0; i < clauses; i++) {
+            inner.should(new TermQueryBuilder(TEXT_FIELD_NAME, "value-" + i));
+        }
+        WrapperQueryBuilder wrapper = new WrapperQueryBuilder(Strings.toString(inner));
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
+        ParsedContentReservation reservation = new ParsedContentReservation(breaker, true);
+        TestThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            ThreadContext threadContext = threadPool.getThreadContext();
+            QueryRewriteContext context = new QueryRewriteContext(parserConfig(), new NoOpClient(threadPool), () -> 0L);
+
+            // Without a reservation in the thread context, as on a node that got the request over the transport layer, it still parses.
+            assertEquals(inner, wrapper.rewrite(context));
+
+            // The rewrite parses the wrapped query with a parser of its own, which has to charge the REST request's reservation.
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, reservation);
+                assertEquals(inner, wrapper.rewrite(context));
+            }
+            assertThat(reservation.reservedBytes(), Matchers.greaterThan(0L));
+            assertThat(breaker.getUsed(), Matchers.equalTo(reservation.reservedBytes()));
+        } finally {
+            reservation.close();
+            terminate(threadPool);
+        }
+        assertThat(breaker.getUsed(), Matchers.equalTo(0L));
+    }
+
     @Override
     protected Query rewrite(Query query) throws IOException {
         // WrapperQueryBuilder adds some optimization if the wrapper and query builder have boosts / query names that wraps
@@ -175,9 +260,10 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         return new WrapperQueryBuilder(Strings.toString(queryBuilder));
     }
 
+    @Override
     public void testMaxNestedDepth() throws IOException {
         BoolQueryBuilderTests boolQueryBuilderTests = new BoolQueryBuilderTests();
-        BoolQueryBuilder boolQuery = boolQueryBuilderTests.createQueryWithInnerQuery(new MatchAllQueryBuilder());
+        BoolQueryBuilder boolQuery = boolQueryBuilderTests.createQueryWithInnerQuery(createInnerQuery());
         int maxDepth = randomIntBetween(3, 5);
         AbstractQueryBuilder.setMaxNestedDepth(maxDepth);
         for (int i = 1; i < maxDepth - 1; i++) {

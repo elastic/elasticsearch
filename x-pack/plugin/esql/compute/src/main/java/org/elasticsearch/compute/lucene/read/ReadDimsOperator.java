@@ -132,6 +132,7 @@ public final class ReadDimsOperator implements Operator {
         boolean success = false;
         try {
             DocVector docVector = docBlock.asVector();
+            docVector.ensureAttached("ReadDimsOperator");
             shards = docVector.shards().filter(false, firstPos, 0, dictSize);
             segments = docVector.segments().filter(false, firstPos, 0, dictSize);
             docs = docVector.docs().filter(false, firstPos, 0, dictSize);

@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -50,9 +52,20 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         if (usesBinaryDocValues) {
             if (usesArrayOrderBinaryDocValues) {
-                var binary = context.reader().getBinaryDocValues(keyedFieldName);
-                var counts = context.reader()
-                    .getNumericDocValues(keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+                BinaryDocValues binary = context.reader().getBinaryDocValues(keyedFieldName);
+                NumericDocValues counts;
+                // Field-level security hides the slots of some keys. Whether it hides this key is decided once for the segment, and the
+                // slots are then read as they are stored, instead of having the doc values filter out and copy the slots of every document.
+                if (binary instanceof KeyFilteredSlots slots) {
+                    if (slots.grants(key) == false) {
+                        return ConstantNull.COLUMN_READER;
+                    }
+                    binary = slots.storedSlots();
+                    counts = slots.storedCounts();
+                } else {
+                    counts = context.reader()
+                        .getNumericDocValues(keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+                }
                 SortableBinaryDocValues filtered = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
                 return new BinaryKeyedBlockDocValuesReader(breaker, filtered);
             }

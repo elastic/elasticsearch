@@ -1,7 +1,7 @@
 // Nested STRUCT subfield projection for external Parquet (Java) and ORC sources.
 // Tracking issues:
-//   - elastic/esql-planning#435 (this work)
-//   - elastic/esql-planning#320 (correctness gap addressed here too)
+// - (this work)
+// - (correctness gap addressed here too)
 // Out of scope for this PR (no tracking issue yet — file follow-ups if pursued):
 //   - ORC nested column pruning specifically (subsumed by issue #320 for parquet,
 //     no equivalent ORC issue exists at the time of writing — please file one

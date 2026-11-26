@@ -17,11 +17,13 @@ import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocOriginTable;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -119,7 +121,15 @@ public class GroupedTopNOperator implements Operator, Accountable {
     private final long jumboPageBytes;
     private final int topCount;
     private final List<ElementType> elementTypes;
+    /**
+     * The encoders of this operator, with detached {@code _doc} columns bound to {@link #originTable}.
+     */
     private final List<TopNEncoder> encoders;
+    /**
+     * Numbers the origins of detached {@code _doc} rows, {@code null} if no column holds them.
+     */
+    @Nullable
+    private final DocOriginTable originTable;
     private final List<TopNOperator.SortOrder> sortOrders;
     private final boolean[] channelInKey;
     private final GroupKeyEncoder keyEncoder;
@@ -152,16 +162,20 @@ public class GroupedTopNOperator implements Operator, Accountable {
     ) {
         BytesRefHashTable keysHash = null;
         GroupedQueue inputQueue = null;
+        DocOriginTable originTable = null;
         boolean success = false;
         try {
+            originTable = DocVectorEncoder.originTableFor(encoders, breaker);
             keysHash = HashImplFactory.newBytesRefHash(blockFactory);
             inputQueue = new GroupedQueue(breaker, blockFactory.bigArrays(), topCount);
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(keyEncoder, keysHash, inputQueue);
+                Releasables.close(keyEncoder, keysHash, inputQueue, originTable);
             }
         }
+        this.originTable = originTable;
+        this.encoders = originTable == null ? encoders : DocVectorEncoder.withOrigins(encoders, originTable);
         this.keyEncoder = keyEncoder;
         this.outputOrdering = outputOrdering;
         this.keysHash = keysHash;
@@ -172,7 +186,6 @@ public class GroupedTopNOperator implements Operator, Accountable {
         this.jumboPageBytes = jumboPageBytes;
         this.topCount = topCount;
         this.elementTypes = elementTypes;
-        this.encoders = encoders;
         this.sortOrders = sortOrders;
         this.channelInKey = new boolean[elementTypes.size()];
         for (TopNOperator.SortOrder so : sortOrders) {
@@ -262,7 +275,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(spare, inputQueue, output, keysHash, keyEncoder);
+        Releasables.closeExpectNoException(spare, inputQueue, output, keysHash, keyEncoder, originTable);
         inputQueue = null;
         output = null;
     }
@@ -286,6 +299,9 @@ public class GroupedTopNOperator implements Operator, Accountable {
         }
         if (spare != null) {
             size += spare.ramBytesUsed();
+        }
+        if (originTable != null) {
+            size += originTable.ramBytesUsed();
         }
         return size;
     }

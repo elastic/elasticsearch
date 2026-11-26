@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 162035
+summary: Fix PromQL `count_over_time`, `present_over_time`, `absent_over_time` and `count` returning `0` or `false` over empty ranges instead of no result
+type: bug

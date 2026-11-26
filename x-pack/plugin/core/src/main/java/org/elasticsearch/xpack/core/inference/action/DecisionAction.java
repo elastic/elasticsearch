@@ -1,0 +1,121 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.core.inference.action;
+
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.DecisionRequest;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
+
+import java.io.IOException;
+import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.inference.DecisionRequest.INPUT_FIELD;
+
+public class DecisionAction extends ActionType<InferenceAction.Response> {
+    public static final DecisionAction INSTANCE = new DecisionAction();
+    public static final String NAME = "cluster:internal/xpack/inference/decision";
+
+    public DecisionAction() {
+        super(NAME);
+    }
+
+    public static class Request extends BaseInferenceActionRequest {
+        public static Request parseRequest(String inferenceEntityId, TimeValue timeout, InferenceContext context, XContentParser parser)
+            throws IOException {
+            var decisionRequest = DecisionRequest.PARSER.apply(parser, null);
+            return new Request(inferenceEntityId, decisionRequest, context, timeout);
+        }
+
+        private final String inferenceEntityId;
+        private final DecisionRequest decisionRequest;
+        private final TimeValue timeout;
+
+        public Request(String inferenceEntityId, DecisionRequest decisionRequest, @Nullable TimeValue timeout) {
+            this(inferenceEntityId, decisionRequest, InferenceContext.EMPTY_INSTANCE, timeout);
+        }
+
+        public Request(String inferenceEntityId, DecisionRequest decisionRequest, InferenceContext context, @Nullable TimeValue timeout) {
+            super(context);
+            this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
+            this.decisionRequest = Objects.requireNonNull(decisionRequest);
+            this.timeout = Objects.requireNonNullElse(timeout, TIMEOUT_NOT_DETERMINED);
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.inferenceEntityId = in.readString();
+            this.decisionRequest = new DecisionRequest(in);
+            this.timeout = in.readTimeValue();
+        }
+
+        public TaskType getTaskType() {
+            return TaskType.DECISION;
+        }
+
+        public String getInferenceEntityId() {
+            return inferenceEntityId;
+        }
+
+        public DecisionRequest getDecisionRequest() {
+            return decisionRequest;
+        }
+
+        public boolean isStreaming() {
+            // streaming is not supported for the DECISION task
+            return false;
+        }
+
+        public TimeValue getTimeout() {
+            return timeout;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            // A non-null input with a supported data type is already enforced by the DecisionRequest constructor
+            if (decisionRequest.input().value().isBlank()) {
+                return addValidationError(format("Field [%s] cannot be empty", INPUT_FIELD), null);
+            }
+
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(inferenceEntityId);
+            decisionRequest.writeTo(out);
+            out.writeTimeValue(timeout);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return super.equals(o)
+                && Objects.equals(inferenceEntityId, request.inferenceEntityId)
+                && Objects.equals(decisionRequest, request.decisionRequest)
+                && Objects.equals(timeout, request.timeout);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), inferenceEntityId, decisionRequest, timeout);
+        }
+
+    }
+
+}

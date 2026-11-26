@@ -75,11 +75,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         return TimeSeriesIdFieldMapper.getInstance(useDocValuesSkipper);
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(this.useDocValuesSkipper).init(this);
-    }
-
     public static class Builder extends MetadataFieldMapper.Builder {
 
         private final boolean useDocValuesSkipper;

@@ -41,8 +41,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.containsString;
@@ -86,7 +88,10 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             ),
             AggregatorMode.INITIAL,
             List.of(rate),
-            1024
+            1024,
+            Integer.MAX_VALUE,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
         try (var operator = (TimeSeriesAggregationOperator) factory.get(driverContext)) {
             Page page = new Page(
@@ -213,7 +218,10 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             ),
             AggregatorMode.SINGLE,
             aggregatorFactories,
-            10_000
+            10_000,
+            Integer.MAX_VALUE,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
 
         BlockFactory blockFactory = blockFactory();
@@ -296,7 +304,10 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             ),
             AggregatorMode.SINGLE,
             aggregatorFactories,
-            10_000
+            10_000,
+            Integer.MAX_VALUE,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
 
         BlockFactory blockFactory = blockFactory();
@@ -342,11 +353,9 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * Time-series aggregations never emit partial results periodically (rate and {@code *_over_time} require every
-     * sample of a {@code _tsid} to be aggregated by a single driver in one pass): nothing is emitted until finish(),
-     * no matter how many high-cardinality batches are fed.
+     * Non-rate time-series aggregations may emit partial results periodically when the hash grows large enough.
      */
-    public void testDoesNotEmitPartialResultsPeriodically() {
+    public void testEmitsPartialResultsPeriodicallyWithoutRate() {
         Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
         var operatorFactory = new TimeSeriesAggregationOperator.Factory(
             oneMinBucket,
@@ -358,18 +367,29 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             AggregatorMode.INITIAL,
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
             1024,
-            5
+            Integer.MAX_VALUE,
+            1,
+            null
         );
         BlockFactory bf = blockFactory();
         var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
         List<Page> collected = new ArrayList<>();
+        boolean sawPartial = false;
         try (Operator op = operatorFactory.get(driverCtx)) {
             for (String tsid : List.of("a", "b", "c", "d", "e", "f", "g", "h")) {
                 List<List<Object>> batch = new ArrayList<>();
                 addTsidRows(batch, tsid, 4);
                 op.addInput(buildPage(bf, batch));
-                assertNull("periodic partial emission must be disabled: no output before finish()", op.getOutput());
+                Page partial = op.getOutput();
+                if (partial != null) {
+                    sawPartial = true;
+                    collected.add(partial);
+                    while ((partial = op.getOutput()) != null) {
+                        collected.add(partial);
+                    }
+                }
             }
+            assertTrue("expected at least one periodic partial emit without rate", sawPartial);
             op.finish();
             drainInto(op, collected);
             assertTrue(op.isFinished());
@@ -380,6 +400,87 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 page.releaseBlocks();
             }
         }
+    }
+
+    public void testEmitPartialResultsPeriodicallyWithRate() {
+        assertEmitResultsPeriodicallyWithRate(AggregatorMode.INITIAL);
+    }
+
+    public void testEmitResultsPeriodicallyWithRateInSingleMode() {
+        assertEmitResultsPeriodicallyWithRate(AggregatorMode.SINGLE);
+    }
+
+    private void assertEmitResultsPeriodicallyWithRate(AggregatorMode mode) {
+        var operatorFactory = rateOperatorFactory(mode);
+        BlockFactory bf = blockFactory();
+        var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
+        List<Page> outputPages = new ArrayList<>();
+        try (Operator op = operatorFactory.get(driverCtx)) {
+            for (int i = 0; i < 8; i++) {
+                op.addInput(ratePage(bf, i, 0));
+                assertNull("rate must not emit partial results within a slice", op.getOutput());
+            }
+            op.addInput(ratePage(bf, 8, 1));
+            drainInto(op, outputPages);
+            assertThat(
+                "the previous slice is emitted when a new slice starts",
+                outputPages.stream().mapToInt(Page::getPositionCount).sum(),
+                equalTo(8)
+            );
+            for (int i = 9; i < 12; i++) {
+                op.addInput(ratePage(bf, i, 1));
+                assertNull("rate must not emit partial results within a slice", op.getOutput());
+            }
+            op.finish();
+            drainInto(op, outputPages);
+            assertTrue(op.isFinished());
+            assertThat(outputPages.stream().mapToInt(Page::getPositionCount).sum(), equalTo(12));
+            Set<String> tsids = new HashSet<>();
+            BytesRef scratch = new BytesRef();
+            for (Page page : outputPages) {
+                BytesRefBlock tsidBlock = page.getBlock(0);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    tsids.add(tsidBlock.getBytesRef(tsidBlock.getFirstValueIndex(p), scratch).utf8ToString());
+                }
+            }
+            assertThat("every series is emitted exactly once", tsids.size(), equalTo(12));
+        } finally {
+            for (Page page : outputPages) {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    private static TimeSeriesAggregationOperator.Factory rateOperatorFactory(AggregatorMode mode) {
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        var rate = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false, TestWarningsSource.INSTANCE)
+            .groupingAggregatorFactory(mode, List.of(2, 3, 4, 5, 6));
+        return new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            mode,
+            List.of(rate),
+            1024,
+            Integer.MAX_VALUE,
+            1,
+            null
+        );
+    }
+
+    private static Page ratePage(BlockFactory bf, int i, int sliceIndex) {
+        return new Page(
+            bf.newConstantBytesRefBlockWith(new BytesRef("tsid-" + i), 1),
+            bf.newConstantLongBlockWith(i * 60_000L, 1),
+            bf.newConstantDoubleBlockWith(10.0 + i, 1),
+            bf.newConstantLongBlockWith(i * 60_000L, 1),
+            bf.newConstantNullBlock(1),
+            bf.newConstantIntBlockWith(sliceIndex, 1),
+            bf.newConstantLongBlockWith(Long.MAX_VALUE, 1)
+        );
     }
 
     /**
@@ -446,7 +547,9 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 )
             ),
             1024,
-            targetChunkRows
+            targetChunkRows,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
         BlockFactory bf = blockFactory();
         var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
@@ -523,7 +626,9 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 AggregatorMode.INTERMEDIATE,
                 List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(2, 3))),
                 1024,
-                targetChunkRows
+                targetChunkRows,
+                TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+                null
             );
             BlockFactory bf = blockFactory();
             var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
@@ -550,7 +655,9 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 AggregatorMode.FINAL,
                 List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2, 3))),
                 1024,
-                targetChunkRows
+                targetChunkRows,
+                TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+                null
             );
             try (Operator op = finalFactory.get(driverCtx)) {
                 while (intermediatePages.isEmpty() == false) {
@@ -759,7 +866,9 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             AggregatorMode.FINAL,
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2, 3))),
             1024,
-            finalTargetChunkRows
+            finalTargetChunkRows,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
         BlockFactory bf = blockFactory();
         var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
@@ -802,7 +911,9 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             AggregatorMode.SINGLE,
             aggregators,
             10_000,
-            targetChunkRows
+            targetChunkRows,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
         BlockFactory bf = blockFactory();
         var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
@@ -960,7 +1071,9 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             AggregatorMode.SINGLE,
             List.of(aggregatorFactory),
             10_000,
-            targetChunkRows
+            targetChunkRows,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
 
         BlockFactory bf = blockFactory();
@@ -1063,7 +1176,9 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             AggregatorMode.INITIAL,
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
             1024,
-            targetChunkRows
+            targetChunkRows,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
 
         BlockFactory bf = blockFactory();
@@ -1105,7 +1220,9 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             AggregatorMode.INITIAL,
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
             1024,
-            targetChunkRows
+            targetChunkRows,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
 
         BlockFactory bf = blockFactory();

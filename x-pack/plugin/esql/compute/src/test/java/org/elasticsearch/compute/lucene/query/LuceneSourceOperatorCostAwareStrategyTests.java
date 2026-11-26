@@ -10,14 +10,21 @@ package org.elasticsearch.compute.lucene.query;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.geo.Circle;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -35,6 +42,7 @@ import static org.elasticsearch.compute.lucene.query.LuceneSliceQueue.Partitioni
 import static org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrategy.SEGMENT;
 import static org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrategy.SHARD;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests {@link LuceneSourceOperator.Factory#autoStrategy(long)}, the cost-aware source strategy.
@@ -45,17 +53,26 @@ import static org.hamcrest.Matchers.equalTo;
  * a costly point/multi-term clause → SEGMENT; {@code MatchAll} → DOC.
  *
  * <p>A <b>limited</b> scan (implicit {@code LIMIT}) keeps {@link LuceneSliceQueue.PartitioningStrategy#SHARD} for
- * costly-to-build clauses (BKD point ranges, multi-term) and for cheap / {@code MatchAll} queries that trivially
- * early-terminate. Only a scan-heavy non-costly filter (doc-values-only, cost ≥ threshold) is promoted to
+ * costly-to-build clauses (BKD point ranges, multi-term), for indexed spatial queries (their scorers walk a BKD
+ * tree, so a doc split repeats that walk), and for cheap / {@code MatchAll} queries that trivially early-terminate.
+ * Only a scan-heavy non-costly filter (doc-values-only, cost ≥ threshold) is promoted to
  * {@link LuceneSliceQueue.PartitioningStrategy#DOC} because it visits ~maxDoc regardless of match density.
+ * A no-limit indexed spatial query is not treated as costly and still follows the cost threshold.
  */
 public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
 
     private static final int NUM_DOCS = 200;
     private static final long MIN_COST_FOR_DOC = 10;
 
+    private static final String GEO = "geo";
+    private static final String GEO_DV = "geo_dv";
+    /** Covers every indexed point, so a distance query estimates at or above {@link #MIN_COST_FOR_DOC}. */
+    private static final double WORLD_RADIUS_METERS = 20_000_000d;
+
     private Directory directory;
     private IndexReader reader;
+    private Directory geoDirectory;
+    private IndexReader geoReader;
 
     @Before
     public void initIndex() throws Exception {
@@ -71,11 +88,25 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
             }
         }
         reader = DirectoryReader.open(directory);
+
+        // Separate from the keyword/points index: one indexed point plus doc values, and a doc-values-only field.
+        // Every point is the origin, inside a world-sized circle, so estimateDocCount is the doc count.
+        geoDirectory = newDirectory();
+        try (IndexWriter writer = new IndexWriter(geoDirectory, new IndexWriterConfig())) {
+            for (int i = 0; i < NUM_DOCS; i++) {
+                Document doc = new Document();
+                doc.add(new LatLonPoint(GEO, 0, 0));
+                doc.add(new LatLonDocValuesField(GEO, 0, 0));
+                doc.add(new LatLonDocValuesField(GEO_DV, 0, 0));
+                writer.addDocument(doc);
+            }
+        }
+        geoReader = DirectoryReader.open(geoDirectory);
     }
 
     @After
     public void closeIndex() throws Exception {
-        IOUtils.close(reader, directory);
+        IOUtils.close(reader, directory, geoReader, geoDirectory);
     }
 
     // --- no-limit (STATS): the cost threshold applies, same as TopN/count ---
@@ -125,11 +156,68 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
         assertThat(pick(LongPoint.newRangeQuery("pt", 0, NUM_DOCS / 2), between(1, 1000)), equalTo(SHARD));
     }
 
+    // --- indexed spatial: limited scans stay SHARD; doc-values-only and no-limit do not ---
+
+    public void testLimitedGeoDistancePicksShard() throws IOException {
+        Query query = LatLonPoint.newDistanceQuery(GEO, 0, 0, WORLD_RADIUS_METERS);
+        assertGeoCostAtLeastDocThreshold(query);
+        assertThat(pick(geoReader, query, between(1, 1000)), equalTo(SHARD));
+    }
+
+    public void testLimitedGeoDistanceIndexOrDocValuesPicksShard() throws IOException {
+        // Shape produced by GeoPointFieldMapper.geoShapeQuery when the field has points and doc values.
+        Query query = new IndexOrDocValuesQuery(
+            LatLonPoint.newDistanceQuery(GEO, 0, 0, WORLD_RADIUS_METERS),
+            LatLonDocValuesField.newSlowDistanceQuery(GEO, 0, 0, WORLD_RADIUS_METERS)
+        );
+        assertGeoCostAtLeastDocThreshold(query);
+        assertThat(pick(geoReader, query, between(1, 1000)), equalTo(SHARD));
+    }
+
+    public void testLimitedGeoDistanceAndDisjointPicksShard() throws IOException {
+        // One indexed spatial clause is enough. The disjoint circle is elsewhere, so both clauses estimate
+        // at or above the threshold; a low conjunction cost would stay SHARD even without the spatial check.
+        Query query = new BooleanQuery.Builder().add(
+            LatLonPoint.newDistanceQuery(GEO, 0, 0, WORLD_RADIUS_METERS),
+            BooleanClause.Occur.FILTER
+        )
+            .add(
+                LatLonPoint.newGeometryQuery(GEO, ShapeField.QueryRelation.DISJOINT, new Circle(50, 50, 1_000)),
+                BooleanClause.Occur.FILTER
+            )
+            .build();
+        assertGeoCostAtLeastDocThreshold(query);
+        assertThat(pick(geoReader, query, between(1, 1000)), equalTo(SHARD));
+    }
+
+    public void testLimitedGeoDocValuesDistancePicksDoc() throws IOException {
+        Query query = LatLonDocValuesField.newSlowDistanceQuery(GEO_DV, 0, 0, WORLD_RADIUS_METERS);
+        assertGeoCostAtLeastDocThreshold(query);
+        assertThat(pick(geoReader, query, between(1, 1000)), equalTo(DOC));
+    }
+
+    public void testStatsGeoDistancePicksDoc() throws IOException {
+        // No limit: the spatial class check must not leak into isCostlyToBuildScorer (that would pick SEGMENT).
+        Query query = LatLonPoint.newDistanceQuery(GEO, 0, 0, WORLD_RADIUS_METERS);
+        assertGeoCostAtLeastDocThreshold(query);
+        assertThat(pick(geoReader, query, NO_LIMIT), equalTo(DOC));
+    }
+
     private static final int NO_LIMIT = LuceneOperator.NO_LIMIT;
 
     private LuceneSliceQueue.PartitioningStrategy pick(Query query, int limit) throws IOException {
-        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
-        Query rewritten = new IndexSearcher(reader).rewrite(query);
+        return pick(reader, query, limit);
+    }
+
+    private LuceneSliceQueue.PartitioningStrategy pick(IndexReader indexReader, Query query, int limit) throws IOException {
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(indexReader, 0);
+        Query rewritten = new IndexSearcher(indexReader).rewrite(query);
         return LuceneSourceOperator.Factory.autoStrategy(MIN_COST_FOR_DOC).pickStrategy(limit).apply(ctx, rewritten);
+    }
+
+    private void assertGeoCostAtLeastDocThreshold(Query query) throws IOException {
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(geoReader, 0);
+        Query rewritten = new IndexSearcher(geoReader).rewrite(query);
+        assertThat(LuceneSourceOperator.Factory.queryCost(ctx, rewritten, Long.MAX_VALUE), greaterThanOrEqualTo(MIN_COST_FOR_DOC));
     }
 }

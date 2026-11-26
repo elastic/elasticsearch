@@ -67,7 +67,7 @@ public final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
         closed = true;
         LongVector vector;
         if (values.length == 1) {
-            vector = blockFactory.newConstantLongBlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = blockFactory.newConstantLongVector(values[0], 1, preAdjustedBytes);
         } else {
             vector = blockFactory.newLongArrayVector(values, values.length, preAdjustedBytes);
         }
@@ -84,6 +84,7 @@ public final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

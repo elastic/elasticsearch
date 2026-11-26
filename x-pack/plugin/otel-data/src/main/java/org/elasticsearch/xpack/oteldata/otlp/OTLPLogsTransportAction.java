@@ -71,7 +71,13 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
         LogDocumentBuilder logDocumentBuilder = new LogDocumentBuilder(byteStringAccessor);
         List<ResourceLogs> resourceLogsList = logsServiceRequest.getResourceLogsList();
         LogsProcessingContext context = new LogsProcessingContext();
-        long totalExpandedBytes = 0;
+        int totalLogRecords = 0;
+        for (ResourceLogs resourceLogs : resourceLogsList) {
+            for (ScopeLogs scopeLogs : resourceLogs.getScopeLogsList()) {
+                totalLogRecords += scopeLogs.getLogRecordsCount();
+            }
+        }
+        ExpandedContentTracker expandedContentTracker = expandedContentTracker(request, totalLogRecords);
         for (int i = 0, resourceLogsListSize = resourceLogsList.size(); i < resourceLogsListSize; i++) {
             ResourceLogs resourceLogs = resourceLogsList.get(i);
             Resource resource = resourceLogs.getResource();
@@ -111,7 +117,7 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
                             indexRequest.setPipeline(ingestPipeline);
                         }
                         indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder);
-                        totalExpandedBytes = accountExpandedContent(totalExpandedBytes, indexRequest);
+                        expandedContentTracker.add(indexRequest, 1);
                         bulkRequestBuilder.add(indexRequest);
                     }
                 }

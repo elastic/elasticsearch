@@ -12,7 +12,12 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.function.Supplier;
+
 import static java.util.Arrays.asList;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.in;
@@ -50,6 +55,15 @@ public class QueriesTests extends ESTestCase {
         return bool;
     }
 
+    private static QueryBuilder[] randomDistinctQueries(Supplier<QueryBuilder> supplier) {
+        Set<QueryBuilder> queries = new LinkedHashSet<>();
+        int size = between(2, 10);
+        while (queries.size() < size) {
+            queries.add(supplier.get());
+        }
+        return queries.toArray(QueryBuilder[]::new);
+    }
+
     public void testCombineNotCreatingBool() {
         var clause = randomFrom(Queries.Clause.values());
         var nonBool = randomNonBoolQuery();
@@ -57,7 +71,7 @@ public class QueriesTests extends ESTestCase {
     }
 
     public void testCombineNonBoolQueries() {
-        var queries = randomArray(2, 10, QueryBuilder[]::new, QueriesTests::randomNonBoolQuery);
+        var queries = randomDistinctQueries(QueriesTests::randomNonBoolQuery);
 
         var clause = randomFrom(Queries.Clause.values());
         var list = asList(queries);
@@ -70,22 +84,7 @@ public class QueriesTests extends ESTestCase {
     }
 
     public void testCombineBoolQueries() {
-        var queries = randomArray(2, 10, QueryBuilder[]::new, () -> {
-            var bool = QueryBuilders.boolQuery();
-            if (randomBoolean()) {
-                bool.filter(randomNonBoolQuery());
-            }
-            if (randomBoolean()) {
-                bool.must(randomNonBoolQuery());
-            }
-            if (randomBoolean()) {
-                bool.mustNot(randomNonBoolQuery());
-            }
-            if (randomBoolean()) {
-                bool.should(randomNonBoolQuery());
-            }
-            return bool;
-        });
+        var queries = randomDistinctQueries(QueriesTests::randomBoolQuery);
 
         var clause = randomFrom(Queries.Clause.values());
         var list = asList(queries);
@@ -94,6 +93,18 @@ public class QueriesTests extends ESTestCase {
         assertThat(combination, instanceOf(BoolQueryBuilder.class));
         var bool = (BoolQueryBuilder) combination;
         assertBoolQueryMerge(queries, bool, clause);
+    }
+
+    public void testCombineEqualNonBoolQueries() {
+        var clause = randomFrom(Queries.Clause.values());
+        var query = randomNonBoolQuery();
+        assertThat(Queries.combine(clause, asList(query, query)), sameInstance(query));
+    }
+
+    public void testCombineEqualBoolQueries() {
+        var clause = randomFrom(Queries.Clause.values());
+        var query = QueryBuilders.boolQuery().should(QueryBuilders.termQuery("a", 1)).should(QueryBuilders.termQuery("b", 2));
+        assertThat(Queries.combine(clause, asList(query, query)), equalTo(query));
     }
 
     private void assertBoolQueryMerge(QueryBuilder[] queries, BoolQueryBuilder bool, Queries.Clause clause) {
@@ -118,13 +129,7 @@ public class QueriesTests extends ESTestCase {
     }
 
     public void testCombineMixedBoolAndNonBoolQueries() {
-        var queries = randomArray(2, 10, QueryBuilder[]::new, () -> {
-            if (randomBoolean()) {
-                return QueriesTests.randomBoolQuery();
-            } else {
-                return QueriesTests.randomNonBoolQuery();
-            }
-        });
+        var queries = randomDistinctQueries(() -> randomBoolean() ? randomBoolQuery() : randomNonBoolQuery());
 
         var clause = randomFrom(Queries.Clause.values());
         var list = asList(queries);

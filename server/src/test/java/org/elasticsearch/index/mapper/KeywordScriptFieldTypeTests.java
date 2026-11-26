@@ -54,6 +54,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -81,12 +82,12 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [2, 1]}"))));
-            List<String> results = new ArrayList<>();
+            List<String> results = Collections.synchronizedList(new ArrayList<>());
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 KeywordScriptFieldType ft = build("append_param", Map.of("param", "-suffix"), OnScriptError.FAIL);
                 StringScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
-                searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
+                searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager(() -> new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -109,7 +110,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                             }
                         };
                     }
-                });
+                }));
                 assertThat(results, containsInAnyOrder("1-suffix", "1-suffix", "2-suffix"));
             }
         }

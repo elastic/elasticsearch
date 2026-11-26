@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -75,6 +76,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
@@ -558,6 +560,105 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         result.close();
         assertThat(circuitBreaker.getUsed(), equalTo(0L));
+
+        docs.reader.close();
+        docs.directory.close();
+    }
+
+    /** The held last chunk goes through the writer, and the result carries what the writer returned, so the writer can charge it. */
+    public void testIterateAsyncHoldsLastChunkThroughWriter() throws Exception {
+        boolean singleChunk = randomBoolean();
+        LuceneDocs docs = createDocs(singleChunk ? 5 : 100, false);
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        AtomicReference<ReleasableBytesReference> returned = new AtomicReference<>();
+        AtomicInteger holds = new AtomicInteger();
+        AtomicBoolean heldClosed = new AtomicBoolean();
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker) {
+            @Override
+            public ReleasableBytesReference holdLastChunk(ReleasableBytesReference bytes) {
+                holds.incrementAndGet();
+                ReleasableBytesReference held = new ReleasableBytesReference(bytes, () -> {
+                    heldClosed.set(true);
+                    bytes.close();
+                });
+                returned.set(held);
+                return held;
+            }
+        };
+        AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+
+        PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+        CountDownLatch refsComplete = new CountDownLatch(1);
+        RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+
+        createStreamingIterator().iterateAsync(
+            createShardTarget(),
+            docs.reader,
+            docs.docIds,
+            chunkWriter,
+            singleChunk ? 1024 * 1024 : 50,
+            refs,
+            4,
+            sendFailure,
+            cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+
+        IterateResult result = future.get(10, TimeUnit.SECONDS);
+        refs.close();
+        assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
+
+        assertThat(holds.get(), equalTo(1));
+        assertThat(result.lastChunkBytes, sameInstance(returned.get()));
+        assertFalse(heldClosed.get());
+
+        result.close();
+        assertTrue(heldClosed.get());
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+
+        docs.reader.close();
+        docs.directory.close();
+    }
+
+    /** A writer that cannot hold the last chunk, because its charge trips, fails the fetch and the chunk's pages are released. */
+    public void testIterateAsyncFailsWhenHoldingLastChunkTrips() throws Exception {
+        LuceneDocs docs = createDocs(randomBoolean() ? 5 : 100, false);
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker) {
+            @Override
+            public ReleasableBytesReference holdLastChunk(ReleasableBytesReference bytes) {
+                throw new CircuitBreakingException("simulated trip holding the last chunk", CircuitBreaker.Durability.TRANSIENT);
+            }
+        };
+        AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+
+        PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+        CountDownLatch refsComplete = new CountDownLatch(1);
+        RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+
+        createStreamingIterator().iterateAsync(
+            createShardTarget(),
+            docs.reader,
+            docs.docIds,
+            chunkWriter,
+            randomBoolean() ? 1024 * 1024 : 50,
+            refs,
+            4,
+            sendFailure,
+            cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+
+        Exception e = expectThrows(Exception.class, () -> future.get(10, TimeUnit.SECONDS));
+        assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
+
+        refs.close();
+        assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
+        assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(0L)));
 
         docs.reader.close();
         docs.directory.close();

@@ -32,6 +32,7 @@ public final class SimdJsonTestDocuments {
             docs,
             """
                 {}""","""
+                { }""","""
                 {"a":1}""", """
                 {"s":"hello"}""", """
                 {"b":true}""", """
@@ -41,6 +42,12 @@ public final class SimdJsonTestDocuments {
                 {"sci":1.5e10}""",  """
                 {"neg":-42}""", """
                 {"arr":[1,"s",true,null,3.14]}""", """
+                {"a":[]}""", """
+                {"a":{}}""", """
+                {"a":[ ]}""", """
+                {"a":[[]]}""", """
+                {"a":[{}]}""", """
+                {"a":[[],{},[1],{"b":[]}],"c":{}}""", """
                 {"o":{"inner":"val"}}""", """
                 {"esc":"line1\\nline2"}""", """
                 {"q":"say \\"hi\\""}""", """
@@ -90,8 +97,22 @@ public final class SimdJsonTestDocuments {
                 {"n":1.5}""", """
                 {"n":1e2}""", """
                 {"n":12.5}""", """
+                {"n":1.5e-5}""", """
                 {"a":[0,9,10,99,100,1234567890,-5,-99]}""", """
-                {"a":[1.5,12.5]}""",
+                {"a":[1.5,12.5,2e5]}""",
+                // Valid shapes near the strict-number checks: signed exponents, zero fractions,
+                // and whitespace after a fraction/exponent, as field values and array elements.
+                """
+                {"n":1e+5}""", """
+                {"n":1E-5}""", """
+                {"n":-1.5e+3}""", """
+                {"n":-0.0}""", """
+                {"n":1.0e0}""", """
+                {"n":1.5 ,"m":2 }""", """
+                {"n":1e5\t,"m":2\n}""", """
+                {"a":[1e+5,1E-5,-0.0]}""", """
+                {"a":[1.5 ,2e5\t,3\n]}""", """
+                {"a":[[1],[2.5],[3e0]]}""",
                 // Integer digit-count boundary at 19 (long vs. BigInteger fallback): exactly 19
                 // digits fitting a signed long (both sign boundaries), 19 digits overflowing it
                 // (both sign boundaries), and 20+ digits (always BigInteger), and the same
@@ -105,13 +126,21 @@ public final class SimdJsonTestDocuments {
                 {"a":[9223372036854775807,-9223372036854775808,9223372036854775808,-9223372036854775809,99999999999999999999]}""",
                 // DoubleParser code paths (see that class's own comments): fast path,
                 // Eisel-Lemire (main, round-to-even, underflow, overflow, subnormal), and the
-                // slow path (>19 significant digits).
+                // slow path (>19 significant digits). Explicit exponents of 20+ digits (past 2^64) must
+                // saturate to infinity or zero like Jackson, not wrap.
                 """
                 {"d":1e22}""", """
                 {"d":1e23}""", """
                 {"d":9007199254740993e0}""", """
                 {"d":1e-400}""", """
                 {"d":-1e400}""", """
+                {"d":1e18446744073709551616}""", """
+                {"d":1e18446744073709551617}""", """
+                {"d":-1E+18446744073709551626}""", """
+                {"d":1e-18446744073709551617}""", """
+                {"d":1e99999999999999999999}""", """
+                {"d":0e99999999999999999999}""", """
+                {"a":[1e18446744073709551617,1e-18446744073709551617,0e99999999999999999999]}""", """
                 {"d":5e-324}""", """
                 {"d":2.2250738585072013e-308}""", """
                 {"d":100000000000000000000.000000}""",
@@ -149,6 +178,92 @@ public final class SimdJsonTestDocuments {
         docs.add("{\"longRaw\":\"" + "a".repeat(150) + "café" + "a".repeat(50) + "\"}");
         docs.add("{\"arrLong\":[\"" + "a".repeat(200) + "\",\"" + "b".repeat(100) + "\\t" + "c".repeat(80) + "\"]}");
         docs.add("{\"objArrLong\":[{\"a\":\"" + "a".repeat(200) + "\",\"b\":\"" + "b".repeat(120) + "\\n" + "b".repeat(60) + "\"}]}");
+        return List.copyOf(docs);
+    }
+
+    /**
+     * Malformed documents that both simdjson and Jackson/XContent are expected to reject.
+     * Grouped by RFC 8259 rule violated.
+     */
+    public static List<String> invalidDocumentsRejectedByBothParsers() {
+        List<String> docs = new ArrayList<>();
+        // tag::noformat
+        Collections.addAll(
+            docs,
+            // Unescaped control characters (RFC 8259: U+0000-U+001F must be escaped), in a
+            // string value and in a field name.
+            "{\"a\":\"x" + '\n' + "y\"}",
+            "{\"a\":\"x" + '\t' + "y\"}",
+            "{\"a\":\"x" + (char) 1 + "y\"}",
+            "{\"a" + (char) 1 + "b\":1}",
+            // Unrecognized or incomplete escapes.
+            """
+                {"a":"x\\qy"}""", """
+                {"a":"x\\u12"}""",
+            // Grammar errors: missing/extra/misplaced structural characters.
+            """
+                {"a" 1}""", """
+                {"a":1 "b":2}""", """
+                {"a":[1 2]}""", """
+                {"a":[,1]}""", """
+                {'a':1}""", """
+                {a:1}""", """
+                {"a":1,,"b":2}""", """
+                {"a":1:"b":2}""", """
+                {"a":[1,2}""",
+            // Trailing commas: a comma must be followed by another member or element.
+            """
+                {"a":1,}""", """
+                {"a":[1,]}""", """
+                {"a":{"b":1,}}""", """
+                {"a":[{"b":1,}]}""", """
+                {"a":[{"b":1},]}""", """
+                {"a":[[1,2,]]}""", """
+                {"a":[1,],"b":2}""", """
+                {"a":1,"b":2,}""", """
+                {"a":["x",]}""", """
+                {"a":[{},]}""", """
+                {"a":[[],]}""",
+            // Non-standard number tokens (JsonReadFeature-gated in Jackson; simdjson has no
+            // equivalent opt-in).
+            """
+                {"a":NaN}""", """
+                {"a":Infinity}""", """
+                {"a":+1}""", """
+                {"a":0x1A}""",
+            // ':' to '?' have a zero high nibble after subtracting 0x30, so the SWAR check must
+            // test every byte against 0..9: after 1, 7 and 8 digits (word edges), and in arrays.
+            """
+                {"n":1;}""", """
+                {"n":1;,"m":2}""", """
+                {"n":12<}""", """
+                {"n":1234567;}""", """
+                {"n":1234567=,"m":2}""", """
+                {"n":12345678>}""", """
+                {"n":-1234567?}""", """
+                {"n":1234567:}""", """
+                {"a":[1234567;]}""", """
+                {"a":[1,12345678<]}""",
+            // Truncated documents: input ends where the grammar still requires more tokens. These
+            // leave the structural index window exhausted mid-walk (see BitIndexes#getAndAdvance).
+            "{",
+            "{\"a\"",
+            "{\"a\":",
+            "{\"a\":1",
+            "{\"a\":1,",
+            "{\"a\":\"x",
+            "{\"a\":[",
+            "{\"a\":[1",
+            "{\"a\":[1,",
+            "{\"a\":{",
+            "{\"a\":{\"b\":1}",
+            "{\"a\":[{\"b\":1}",
+            "{\"a\":[{\"b\":1},",
+            // Truncated after a string containing structural characters, so the document's own
+            // structural indexes are not a prefix of what a shorter document would produce.
+            "{\"s\":\"}}}}}}}}}}\",\"y\":"
+        );
+        // end::noformat
         return List.copyOf(docs);
     }
 }

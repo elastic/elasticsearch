@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -92,7 +93,8 @@ public class Top extends AggregateFunction
         ToAggregator,
         SurrogateExpression,
         PostOptimizationVerificationAware,
-        AnyNullIsNull {
+        AnyNullIsNull,
+        UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Top.class)
         .quaternary(Top::new)

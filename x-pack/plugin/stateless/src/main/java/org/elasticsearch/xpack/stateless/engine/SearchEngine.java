@@ -56,7 +56,9 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.PrefetchResult;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherMetrics;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -138,6 +140,11 @@ public class SearchEngine extends Engine {
 
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
+    // Guarded by the openReaders monitor. Set whenever a reader is removed from openReaders (e.g. a PIT or a
+    // superseded refresh reader closes) and cleared whenever retainOpenReaderFiles() recomputes filesToRetain from
+    // the current openReaders state. Lets a reader-close listener know whether a retain pass is already "owed" so
+    // it only enqueues one coalesced retainOpenReaderFiles task per batch of closes.
+    private boolean openReadersChanged = false;
 
     // Keyed by segments file name. Insertions happen only on the processCommitTaskRunner thread;
     // removals are driven by SharedPITCommitState's refcount reaching zero (any thread).
@@ -173,7 +180,8 @@ public class SearchEngine extends Engine {
         SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings,
         CircuitBreaker readerHeapBreaker,
         StatelessReaderHeapMetrics readerHeapMetrics,
-        ReshardSearchFilters reshardSearchFilters
+        ReshardSearchFilters reshardSearchFilters,
+        SearchCommitPrefetcherMetrics prefetcherMetrics
     ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
@@ -369,7 +377,8 @@ public class SearchEngine extends Engine {
                 config.getThreadPool(),
                 prefetchExecutor,
                 clusterSettings,
-                prefetcherDynamicSettings
+                prefetcherDynamicSettings,
+                prefetcherMetrics
             );
             warmReaderCacheAfterResharding();
             success = true;
@@ -391,14 +400,68 @@ public class SearchEngine extends Engine {
         Set<PrimaryTermAndGeneration> bccDependencies
     ) throws IOException {
         ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> {
+            boolean shouldEnqueueRetain;
             synchronized (openReaders) {
                 openReaders.remove(directoryReader);
+                shouldEnqueueRetain = openReadersChanged == false && isClosed.get() == false;
+                openReadersChanged = true;
+            }
+            if (shouldEnqueueRetain) {
+                processCommitTaskRunner.enqueueTask(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        try (releasable) {
+                            retainOpenReaderFiles();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // The retain pass never ran (e.g. the task was rejected on shutdown), so clear the flag to let
+                        // a subsequent reader close enqueue another retain rather than leaving the retain owed forever.
+                        synchronized (openReaders) {
+                            openReadersChanged = false;
+                        }
+                        logger.warn(() -> shardId + " failed to retain open reader files after reader close", e);
+                    }
+                });
             }
         });
 
         synchronized (openReaders) {
             openReaders.put(directoryReader, new OpenReaderInfo(commit.getFileNames(), reservation, bccDependencies));
         }
+    }
+
+    /**
+     * Recomputes the set of files referenced by currently open readers (including PIT-held ones) and retains only
+     * those in the search directory's metadata, triggering eviction of cache regions that are no longer referenced
+     * (see {@link SearchDirectory#retainFiles}). Called both when processing a new commit notification and, via
+     * {@link #trackLocalOpenReader}'s reader-close listener, when a reader (e.g. a closed PIT) stops referencing
+     * files that a subsequent commit notification might be slow to arrive and clean up on its own.
+     * <p>
+     * Both call sites enqueue this on the {@link #processCommitTaskRunner}, which runs a single task at a time, so the
+     * two paths never interleave and each invocation observes a consistent view of {@code openReaders}.
+     */
+    private void retainOpenReaderFiles() {
+        // A commit notification first calls SearchDirectory#updateCommit (adding the new commit's files to the
+        // directory metadata) and only then refreshes the reader that references those files. If that refresh was
+        // deferred by the reader-heap breaker, the directory metadata already contains the deferred commit's files
+        // but openReaders does not reference them yet. Recomputing filesToRetain now would prematurely evict those
+        // files. Leave the retain "owed" (openReadersChanged stays set); processing the deferred notification clears
+        // pendingDeferredNotification and calls this method again, which recomputes once the reader has advanced.
+        if (pendingDeferredNotification != null) {
+            return;
+        }
+        Set<String> filesToRetain;
+        synchronized (openReaders) {
+            filesToRetain = openReaders.values()
+                .stream()
+                .flatMap(openReaderInfo -> openReaderInfo.files().stream())
+                .collect(Collectors.toSet());
+            openReadersChanged = false;
+        }
+        searchDirectory.retainFiles(filesToRetain);
     }
 
     /**
@@ -505,6 +568,32 @@ public class SearchEngine extends Engine {
     }
 
     /**
+     * Explains where each entry of {@link #getAcquiredPrimaryTermAndGenerations()} comes from: the acquired generational files, and for
+     * every open reader (current reader, PIT / scroll / in-flight search readers) the BCCs its commit depends on. Meant for diagnostics
+     * of BCCs that are retained longer than expected.
+     */
+    public String describeAcquiredPrimaryTermAndGenerations() {
+        final var sb = new StringBuilder();
+        sb.append("generationalFiles=").append(new TreeSet<>(searchDirectory.getAcquiredGenerationalFileTermAndGenerations()));
+        synchronized (openReaders) {
+            sb.append(" openReaders=").append(openReaders.size()).append(" [");
+            int i = 0;
+            for (var entry : openReaders.entrySet()) {
+                sb.append(i++ == 0 ? "" : "; ")
+                    .append("reader refCount=")
+                    .append(entry.getKey().getRefCount())
+                    .append(" files=")
+                    .append(entry.getValue().files().size())
+                    .append(" referencedBCCs=")
+                    .append(new TreeSet<>(entry.getValue().referencedBCCs()));
+            }
+            sb.append(']');
+        }
+        sb.append(" currentCommit=").append(currentPrimaryTermGeneration);
+        return sb.toString();
+    }
+
+    /**
      * Process a new commit notification from the primary, and complete the provided {@code listener} when this commit (or a later commit)
      * is visible to searches.
      */
@@ -555,7 +644,7 @@ public class SearchEngine extends Engine {
         commitPrefetcher.maybePrefetchLatestCommit(
             newCommitNotification,
             timeSinceLastSearcherWasAcquiredInMillis,
-            listener.delegateResponse((l, e) -> {
+            listener.<PrefetchResult>map(ignored -> null).delegateResponse((l, e) -> {
                 // We don't want to prevent the new commit notification to make progress
                 logger.warn(() -> "Unable to prefetch commit for notification " + newCommitNotification, e);
                 l.onResponse(null);
@@ -774,14 +863,7 @@ public class SearchEngine extends Engine {
                 var reader = readerManager.acquire();
                 try {
                     assert assertSegmentInfosAndCommits(reader, latestCommit, current, next);
-                    Set<String> filesToRetain;
-                    synchronized (openReaders) {
-                        filesToRetain = openReaders.values()
-                            .stream()
-                            .flatMap(openReaderInfo -> openReaderInfo.files().stream())
-                            .collect(Collectors.toSet());
-                    }
-                    searchDirectory.retainFiles(filesToRetain);
+                    retainOpenReaderFiles();
                     logger.debug("segments updated from generation [{}] to [{}]", current.getGeneration(), next.getGeneration());
                     callSegmentGenerationListeners(
                         new PrimaryTermAndGeneration(primaryTerm(reader.getIndexCommit()), reader.getIndexCommit().getGeneration())
@@ -1266,7 +1348,7 @@ public class SearchEngine extends Engine {
     }
 
     @Override
-    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+    public List<Segment> segments(boolean includeVectorFormatsInfo, boolean includeAutoCalibration) {
         // TODO : include vector formats, when required
         return segments();
     }

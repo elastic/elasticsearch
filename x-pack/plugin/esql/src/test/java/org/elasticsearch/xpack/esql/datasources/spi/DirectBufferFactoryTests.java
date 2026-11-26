@@ -48,14 +48,14 @@ public class DirectBufferFactoryTests extends ESTestCase {
 
             try (DirectReadBuffer allocated = DirectReadBuffer.allocate(local, 64)) {
                 assertThat(allocated.buffer().remaining(), equalTo(64));
-                assertThat(parent.getUsed(), equalTo(64L));
+                assertThat(parent.getUsed(), equalTo(HeapFootprint.byteArrayBytes(64)));
             }
             assertThat(parent.getUsed(), equalTo(0L));
 
             DirectBufferFactory factory = DirectBufferFactory.forBreaker(local);
             try (DirectReadBuffer allocated = factory.allocate(32)) {
                 assertThat(allocated.buffer().remaining(), equalTo(32));
-                assertThat(parent.getUsed(), equalTo(32L));
+                assertThat(parent.getUsed(), equalTo(HeapFootprint.byteArrayBytes(32)));
             }
             assertThat(parent.getUsed(), equalTo(0L));
         } finally {

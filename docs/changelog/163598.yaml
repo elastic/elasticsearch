@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 138253
+pr: 163598
+summary: Fix sort on field mapped in some indices only
+type: bug

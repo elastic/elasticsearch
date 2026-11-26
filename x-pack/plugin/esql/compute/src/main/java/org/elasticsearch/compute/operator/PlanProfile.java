@@ -25,6 +25,30 @@ public record PlanProfile(
     PlanTimeProfile planTimeProfile
 ) implements Writeable, ToXContentObject {
 
+    public static final ProfileSchema<PlanProfile> PROFILE_SCHEMA = ProfileSchema.of(PlanProfile.class, (builder, value, params) -> {
+        builder.startObject();
+        builder.field("description", value.description);
+        builder.field("cluster_name", value.clusterName);
+        builder.field("node_name", value.nodeName);
+        builder.field("plan", value.planTree);
+        if (value.logicalPlanTree != null) {
+            builder.field("logical_plan", value.logicalPlanTree);
+        }
+        if (value.planTimeProfile != null) {
+            PlanTimeProfile.PROFILE_SCHEMA.write(builder, value.planTimeProfile, params);
+        }
+        return builder.endObject();
+    })
+        .required("description", ProfileSchema.string())
+        .required("cluster_name", ProfileSchema.string())
+        .required("node_name", ProfileSchema.string())
+        .required("plan", ProfileSchema.string())
+        .optional("logical_plan", ProfileSchema.string())
+        .optional("logical_optimization_nanos", ProfileSchema.integer())
+        .optional("physical_optimization_nanos", ProfileSchema.integer())
+        .optional("reduction_nanos", ProfileSchema.integer())
+        .build();
+
     private static final TransportVersion PLAN_PROFILE_VERSION = TransportVersion.fromName("plan_profile_version");
     private static final TransportVersion LOGICAL_PLAN_VERSION = TransportVersion.fromName("esql_explain_only");
 
@@ -61,18 +85,6 @@ public record PlanProfile(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("description", description);
-        builder.field("cluster_name", clusterName);
-        builder.field("node_name", nodeName);
-        builder.field("plan", planTree);
-        if (logicalPlanTree != null) {
-            builder.field("logical_plan", logicalPlanTree);
-        }
-        if (planTimeProfile != null) {
-            planTimeProfile.toXContent(builder, params);
-        }
-
-        return builder.endObject();
+        return PROFILE_SCHEMA.write(builder, this, params);
     }
 }

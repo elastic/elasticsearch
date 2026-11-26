@@ -26,6 +26,12 @@ import java.io.IOException;
  */
 public final class ChunkedBytesReader {
 
+    /** The most bytes a {@link #transfer} under the identity codec reads at once. */
+    private static final int IDENTITY_TRANSFER_BYTES = 32 * 1024;
+
+    /** The largest range {@link #span} puts back together in a buffer it keeps; a larger one gets a buffer of its own. */
+    public static final int RETAINED_SPAN_BYTES = 1024 * 1024;
+
     private final IndexInput data;
     private final ChunkCodec codec;
     private final ChunkDecompressor decompressor;
@@ -116,10 +122,10 @@ public final class ChunkedBytesReader {
                 return;
             }
             // Stored verbatim in the file, so there is no decoded chunk to point into.
-            verbatim = ArrayUtil.growNoCopy(verbatim, length);
+            final byte[] target = length > RETAINED_SPAN_BYTES ? new byte[length] : (verbatim = ArrayUtil.growNoCopy(verbatim, length));
             data.seek(dataOffset + offset);
-            data.readBytes(verbatim, 0, length);
-            dst.bytes = verbatim;
+            data.readBytes(target, 0, length);
+            dst.bytes = target;
             dst.offset = 0;
             dst.length = length;
             return;
@@ -134,12 +140,41 @@ public final class ChunkedBytesReader {
             return;
         }
         // A chunk is cut wherever its bound falls, so a range the caller addresses as one may be spread over
-        // two of them or more. Those are put back together here, which is the only read that copies.
-        verbatim = ArrayUtil.growNoCopy(verbatim, length);
-        gather(offset, length, verbatim);
-        dst.bytes = verbatim;
+        // two of them or more. Those are put back together here, which is the only read that copies. A range over
+        // RETAINED_SPAN_BYTES gets a buffer of its own rather than growing the one this reader keeps.
+        final byte[] target = length > RETAINED_SPAN_BYTES ? new byte[length] : (verbatim = ArrayUtil.growNoCopy(verbatim, length));
+        gather(offset, length, target);
+        dst.bytes = target;
         dst.offset = 0;
         dst.length = length;
+    }
+
+    /**
+     * Hands {@code length} bytes at {@code offset} to {@code sink} a piece at a time: at most a decoded chunk, or
+     * {@link #IDENTITY_TRANSFER_BYTES} under the identity codec.
+     */
+    public void transfer(long offset, long length, BytesSink sink) throws IOException {
+        if (codec.isIdentity()) {
+            data.seek(dataOffset + offset);
+            verbatim = ArrayUtil.growNoCopy(verbatim, (int) Math.min(length, IDENTITY_TRANSFER_BYTES));
+            long remaining = length;
+            while (remaining > 0) {
+                final int take = (int) Math.min(remaining, IDENTITY_TRANSFER_BYTES);
+                data.readBytes(verbatim, 0, take);
+                sink.append(verbatim, 0, take);
+                remaining -= take;
+            }
+            return;
+        }
+        long at = offset;
+        final long end = offset + length;
+        while (at < end) {
+            ensureChunk(chunkContaining(at));
+            final int within = (int) (at - cachedStart);
+            final int take = (int) Math.min(cachedLength - within, end - at);
+            sink.append(chunk, within, take);
+            at += take;
+        }
     }
 
     /** Copies {@code length} bytes at {@code offset} out of however many chunks hold them. */

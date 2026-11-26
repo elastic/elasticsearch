@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.formatter.arrow;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.types.Types;
+import org.apache.arrow.vector.types.pojo.ArrowType.ExtensionType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -22,10 +24,13 @@ import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import java.io.IOException;
 import java.util.BitSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -37,14 +42,33 @@ public abstract class BlockArrowFormatter {
     private final FieldType fieldType;
 
     protected BlockArrowFormatter(DataType esqlType, Types.MinorType minorType) {
+        this(esqlType, minorType, Map.of());
+    }
+
+    protected BlockArrowFormatter(DataType esqlType, Types.MinorType minorType, Map<String, String> extraMetadata) {
         // Add the exact ESQL type as field metadata
-        var outputType = esqlType.outputType();
-        var meta = Map.of(ESQL_TYPE_METADATA, outputType);
+        var meta = new HashMap<>(extraMetadata);
+        meta.put(ESQL_TYPE_METADATA, esqlType.outputType());
         this.fieldType = new FieldType(true, minorType.getType(), null, meta);
     }
 
     public Field arrowField(String name) {
         return new Field(name, fieldType, null);
+    }
+
+    /**
+     * Whether this block requires its column to be encoded as an Arrow list. The column is a list if any of its blocks
+     * returns {@code true}, and the remaining blocks may then not be checked. This is decided before the schema is sent,
+     * since the schema can't change once streaming has started.
+     * <p>
+     * Formatters that can't encode lists must override this to return {@code false}, rejecting blocks that actually
+     * contain multivalued positions.
+     *
+     * @param columnName the column name, for error messages
+     * @param block a block of that column
+     */
+    public boolean isMultivalued(String columnName, Block block) {
+        return block.mayHaveMultivaluedFields();
     }
 
     // Block.nullValuesCount was more efficient but was removed in https://github.com/elastic/elasticsearch/pull/108916
@@ -79,7 +103,7 @@ public abstract class BlockArrowFormatter {
             // List node
             nodes.add(new ArrowFieldNode(block.getPositionCount(), nullValuesCount(block)));
             // Value vector, does not contain nulls.
-            nodes.add(new ArrowFieldNode(valueCount(block), 0));
+            nodes.add(new ArrowFieldNode(block.getTotalValueCount(), 0));
         } else {
 
             nodes.add(new ArrowFieldNode(block.getPositionCount(), nullValuesCount(block)));
@@ -92,8 +116,15 @@ public abstract class BlockArrowFormatter {
      * @param multivalued is this column multivalued? This block may not, but some blocks in that column are.
      * @param bufs arrow buffers, used to track sizes
      * @param bufWriters buffer writers, that will do the actual work of writing the data
+     * @param releasables resources retained until the deferred buffer writers have completed
      */
-    public abstract void convert(Block block, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters);
+    public abstract void convert(
+        Block block,
+        boolean multivalued,
+        List<ArrowBuf> bufs,
+        List<BufWriter> bufWriters,
+        List<Releasable> releasables
+    );
 
     /**
      * Conversion of Double blocks
@@ -105,7 +136,7 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             DoubleBlock block = (DoubleBlock) b;
 
             if (multivalued) {
@@ -113,23 +144,29 @@ public abstract class BlockArrowFormatter {
             }
             accumulateVectorValidity(bufs, bufWriters, block, multivalued);
 
-            bufs.add(dummyArrowBuf(vectorByteSize(block)));
+            bufs.add(dummyArrowBuf(vectorByteSize(block, multivalued)));
             bufWriters.add(out -> {
-                if (block.areAllValuesNull()) {
-                    return BlockArrowFormatter.writeZeroes(out, vectorByteSize(block));
-                }
-
                 // TODO could we "just" get the memory of the array and dump it?
-                int count = BlockArrowFormatter.valueCount(block);
-                for (int i = 0; i < count; i++) {
-                    out.writeDoubleLE(block.getDouble(i));
+                int count = arrowValueCount(block, multivalued);
+                for (int position = 0; position < block.getPositionCount(); position++) {
+                    if (block.isNull(position)) {
+                        if (multivalued == false) {
+                            out.writeDoubleLE(0);
+                        }
+                        continue;
+                    }
+                    int start = block.getFirstValueIndex(position);
+                    int end = start + block.getValueCount(position);
+                    for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                        out.writeDoubleLE(block.getDouble(valueIndex));
+                    }
                 }
                 return (long) count * Double.BYTES;
             });
         }
 
-        private static int vectorByteSize(DoubleBlock b) {
-            return Double.BYTES * BlockArrowFormatter.valueCount(b);
+        private static int vectorByteSize(DoubleBlock b, boolean multivalued) {
+            return Double.BYTES * arrowValueCount(b, multivalued);
         }
     }
 
@@ -143,7 +180,7 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             IntBlock block = (IntBlock) b;
 
             if (multivalued) {
@@ -151,23 +188,29 @@ public abstract class BlockArrowFormatter {
             }
             accumulateVectorValidity(bufs, bufWriters, block, multivalued);
 
-            bufs.add(dummyArrowBuf(vectorByteSize(block)));
+            bufs.add(dummyArrowBuf(vectorByteSize(block, multivalued)));
             bufWriters.add(out -> {
-                if (block.areAllValuesNull()) {
-                    return BlockArrowFormatter.writeZeroes(out, vectorByteSize(block));
-                }
-
                 // TODO could we "just" get the memory of the array and dump it?
-                int count = BlockArrowFormatter.valueCount(block);
-                for (int i = 0; i < count; i++) {
-                    out.writeIntLE(block.getInt(i));
+                int count = arrowValueCount(block, multivalued);
+                for (int position = 0; position < block.getPositionCount(); position++) {
+                    if (block.isNull(position)) {
+                        if (multivalued == false) {
+                            out.writeIntLE(0);
+                        }
+                        continue;
+                    }
+                    int start = block.getFirstValueIndex(position);
+                    int end = start + block.getValueCount(position);
+                    for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                        out.writeIntLE(block.getInt(valueIndex));
+                    }
                 }
                 return (long) count * Integer.BYTES;
             });
         }
 
-        private static int vectorByteSize(Block b) {
-            return Integer.BYTES * BlockArrowFormatter.valueCount(b);
+        private static int vectorByteSize(Block b, boolean multivalued) {
+            return Integer.BYTES * arrowValueCount(b, multivalued);
         }
     }
 
@@ -184,7 +227,7 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             LongBlock block = (LongBlock) b;
 
             if (multivalued) {
@@ -192,23 +235,48 @@ public abstract class BlockArrowFormatter {
             }
             accumulateVectorValidity(bufs, bufWriters, block, multivalued);
 
-            bufs.add(dummyArrowBuf(vectorByteSize(block)));
+            bufs.add(dummyArrowBuf(vectorByteSize(block, multivalued)));
             bufWriters.add(out -> {
-                if (block.areAllValuesNull()) {
-                    return BlockArrowFormatter.writeZeroes(out, vectorByteSize(block));
-                }
-
                 // TODO could we "just" get the memory of the array and dump it?
-                int count = BlockArrowFormatter.valueCount(block);
-                for (int i = 0; i < count; i++) {
-                    out.writeLongLE(block.getLong(i));
+                int count = arrowValueCount(block, multivalued);
+                for (int position = 0; position < block.getPositionCount(); position++) {
+                    if (block.isNull(position)) {
+                        if (multivalued == false) {
+                            out.writeLongLE(0);
+                        }
+                        continue;
+                    }
+                    int start = block.getFirstValueIndex(position);
+                    int end = start + block.getValueCount(position);
+                    for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                        out.writeLongLE(arrowValue(block.getLong(valueIndex)));
+                    }
                 }
                 return (long) count * Long.BYTES;
             });
         }
 
-        private static int vectorByteSize(LongBlock b) {
-            return Long.BYTES * BlockArrowFormatter.valueCount(b);
+        protected long arrowValue(long blockValue) {
+            return blockValue;
+        }
+
+        private static int vectorByteSize(LongBlock b, boolean multivalued) {
+            return Long.BYTES * arrowValueCount(b, multivalued);
+        }
+    }
+
+    /**
+     * Conversion of {@code unsigned_long} blocks, which store values with the sign bit flipped so that they sort as signed
+     * longs. Arrow's {@code UInt64} expects the plain unsigned bits.
+     */
+    public static class AsUnsignedLong extends AsInt64 {
+        public AsUnsignedLong(DataType esqlType) {
+            super(esqlType, Types.MinorType.UINT8);
+        }
+
+        @Override
+        protected long arrowValue(long blockValue) {
+            return blockValue ^ NumericUtils.TWOS_COMPLEMENT_BITMASK;
         }
     }
 
@@ -221,7 +289,7 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             BooleanBlock block = (BooleanBlock) b;
 
             if (multivalued) {
@@ -229,18 +297,28 @@ public abstract class BlockArrowFormatter {
             }
             accumulateVectorValidity(bufs, bufWriters, block, multivalued);
 
-            bufs.add(dummyArrowBuf(vectorByteSize(block)));
+            bufs.add(dummyArrowBuf(vectorByteSize(block, multivalued)));
             bufWriters.add(out -> {
-                int count = BlockArrowFormatter.valueCount(block);
+                int count = arrowValueCount(block, multivalued);
                 BitSet bits = new BitSet();
 
                 // Only set the bits that are true, writeBitSet will take
                 // care of adding zero bytes if needed.
-                if (block.areAllValuesNull() == false) {
-                    for (int i = 0; i < count; i++) {
-                        if (block.getBoolean(i)) {
-                            bits.set(i);
+                int outputIndex = 0;
+                for (int position = 0; position < block.getPositionCount(); position++) {
+                    if (block.isNull(position)) {
+                        if (multivalued == false) {
+                            outputIndex++;
                         }
+                        continue;
+                    }
+                    int start = block.getFirstValueIndex(position);
+                    int end = start + block.getValueCount(position);
+                    for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                        if (block.getBoolean(valueIndex)) {
+                            bits.set(outputIndex);
+                        }
+                        outputIndex++;
                     }
                 }
 
@@ -248,8 +326,8 @@ public abstract class BlockArrowFormatter {
             });
         }
 
-        private static int vectorByteSize(BooleanBlock b) {
-            return BlockArrowFormatter.bitSetLength(BlockArrowFormatter.valueCount(b));
+        private static int vectorByteSize(BooleanBlock b, boolean multivalued) {
+            return BlockArrowFormatter.bitSetLength(arrowValueCount(b, multivalued));
         }
     }
 
@@ -262,8 +340,12 @@ public abstract class BlockArrowFormatter {
             super(esqlType, minorType);
         }
 
+        protected BytesReFormatter(DataType esqlType, Types.MinorType minorType, Map<String, String> extraMetadata) {
+            super(esqlType, minorType, extraMetadata);
+        }
+
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             BytesRefBlock block = (BytesRefBlock) b;
 
             if (multivalued) {
@@ -272,69 +354,76 @@ public abstract class BlockArrowFormatter {
             accumulateVectorValidity(bufs, bufWriters, block, multivalued);
 
             // Offsets vector
-            bufs.add(dummyArrowBuf(offsetvectorByteSize(block)));
+            bufs.add(dummyArrowBuf(offsetvectorByteSize(block, multivalued)));
 
-            bufWriters.add(out -> {
-                if (block.areAllValuesNull()) {
-                    var count = valueCount(block) + 1;
-                    for (int i = 0; i < count; i++) {
-                        out.writeIntLE(0);
-                    }
-                    return offsetvectorByteSize(block);
-                }
-
-                // TODO could we "just" get the memory of the array and dump it?
-                BytesRef scratch = new BytesRef();
-                int offset = 0;
-                for (int i = 0; i < valueCount(block); i++) {
-                    out.writeIntLE(offset);
-                    // FIXME: add a ByteRefsVector.getLength(position): there are some cases
-                    // where getBytesRef will allocate, which isn't needed here.
-                    BytesRef v = block.getBytesRef(i, scratch);
-
-                    offset += v.length;
-                }
-                out.writeIntLE(offset);
-                return offsetvectorByteSize(block);
-            });
+            bufWriters.add(out -> writeOffsets(out, block, multivalued));
 
             // Data vector
             bufs.add(BlockArrowFormatter.dummyArrowBuf(dataVectorByteSize(block)));
 
-            bufWriters.add(out -> {
-                if (block.areAllValuesNull()) {
-                    return 0;
-                }
-
-                // TODO could we "just" get the memory of the array and dump it?
-                BytesRef scratch = new BytesRef();
-                long length = 0;
-                for (int i = 0; i < valueCount(block); i++) {
-                    BytesRef v = block.getBytesRef(i, scratch);
-
-                    out.write(v.bytes, v.offset, v.length);
-                    length += v.length;
-                }
-                return length;
-            });
+            bufWriters.add(out -> writeData(out, block));
         }
 
-        private static int offsetvectorByteSize(BytesRefBlock block) {
-            return Integer.BYTES * (valueCount(block) + 1);
+        protected BytesRef getBytesRef(BytesRefBlock block, int valueIndex, BytesRef scratch) {
+            return block.getBytesRef(valueIndex, scratch);
+        }
+
+        private static int offsetvectorByteSize(BytesRefBlock block, boolean multivalued) {
+            return Integer.BYTES * (arrowValueCount(block, multivalued) + 1);
+        }
+
+        private long writeOffsets(RecyclerBytesStreamOutput out, BytesRefBlock block, boolean multivalued) throws IOException {
+            // TODO could we "just" get the memory of the array and dump it?
+            BytesRef scratch = new BytesRef();
+            int offset = 0;
+            out.writeIntLE(offset);
+            for (int position = 0; position < block.getPositionCount(); position++) {
+                if (block.isNull(position)) {
+                    if (multivalued == false) {
+                        out.writeIntLE(offset);
+                    }
+                    continue;
+                }
+                int start = block.getFirstValueIndex(position);
+                int end = start + block.getValueCount(position);
+                for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                    // FIXME: add a ByteRefsVector.getLength(position): there are some cases
+                    // where getBytesRef will allocate, which isn't needed here.
+                    offset += getBytesRef(block, valueIndex, scratch).length;
+                    out.writeIntLE(offset);
+                }
+            }
+            return offsetvectorByteSize(block, multivalued);
+        }
+
+        private long writeData(RecyclerBytesStreamOutput out, BytesRefBlock block) throws IOException {
+            // TODO could we "just" get the memory of the array and dump it?
+            BytesRef scratch = new BytesRef();
+            long startPosition = out.position();
+            for (int position = 0; position < block.getPositionCount(); position++) {
+                if (block.isNull(position)) {
+                    continue;
+                }
+                int start = block.getFirstValueIndex(position);
+                int end = start + block.getValueCount(position);
+                for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                    BytesRef value = getBytesRef(block, valueIndex, scratch);
+                    out.write(value.bytes, value.offset, value.length);
+                }
+            }
+            return out.position() - startPosition;
         }
 
         private int dataVectorByteSize(BytesRefBlock block) {
-            if (block.areAllValuesNull()) {
-                return 0;
-            }
-
             // TODO we can probably get the length from the vector without all this sum
-
             int length = 0;
             BytesRef scratch = new BytesRef();
-            for (int i = 0; i < valueCount(block); i++) {
-                BytesRef v = block.getBytesRef(i, scratch);
-                length += v.length;
+            for (int position = 0; position < block.getPositionCount(); position++) {
+                int start = block.getFirstValueIndex(position);
+                int end = start + block.getValueCount(position);
+                for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                    length += getBytesRef(block, valueIndex, scratch).length;
+                }
             }
             return length;
         }
@@ -359,48 +448,38 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
-            BytesRefBlock block = (BytesRefBlock) b;
-            try (BytesRefBlock transformed = transformValues(block)) {
-                super.convert(transformed, multivalued, bufs, bufWriters);
-            }
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+            BytesRefBlock transformed = transformValues((BytesRefBlock) b);
+            releasables.add(transformed);
+            super.convert(transformed, multivalued, bufs, bufWriters, releasables);
         }
 
-        /**
-         * Creates a new BytesRefBlock by applying the value converter to each non null and non empty value
-         */
         private BytesRefBlock transformValues(BytesRefBlock block) {
             try (BytesRefBlock.Builder builder = block.blockFactory().newBytesRefBlockBuilder(block.getPositionCount())) {
                 BytesRef scratch = new BytesRef();
-                if (block.mayHaveMultivaluedFields() == false) {
-                    for (int pos = 0; pos < valueCount(block); pos++) {
-                        if (block.isNull(pos)) {
-                            builder.appendNull();
-                        } else {
-                            convertAndAppend(builder, block, pos, scratch);
-                        }
+                for (int position = 0; position < block.getPositionCount(); position++) {
+                    if (block.isNull(position)) {
+                        builder.appendNull();
+                        continue;
                     }
-                } else {
-                    for (int pos = 0; pos < block.getPositionCount(); pos++) {
-                        if (block.isNull(pos)) {
-                            builder.appendNull();
-                        } else {
-                            builder.beginPositionEntry();
-                            int startPos = block.getFirstValueIndex(pos);
-                            int lastPos = block.getFirstValueIndex(pos + 1);
-                            for (int valuePos = startPos; valuePos < lastPos; valuePos++) {
-                                convertAndAppend(builder, block, valuePos, scratch);
-                            }
-                            builder.endPositionEntry();
-                        }
+                    int start = block.getFirstValueIndex(position);
+                    int end = start + block.getValueCount(position);
+                    if (end - start == 1) {
+                        convertAndAppend(builder, block, start, scratch);
+                        continue;
                     }
+                    builder.beginPositionEntry();
+                    for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                        convertAndAppend(builder, block, valueIndex, scratch);
+                    }
+                    builder.endPositionEntry();
                 }
                 return builder.build();
             }
         }
 
-        private void convertAndAppend(BytesRefBlock.Builder builder, BytesRefBlock block, int position, BytesRef scratch) {
-            BytesRef bytes = block.getBytesRef(position, scratch);
+        private void convertAndAppend(BytesRefBlock.Builder builder, BytesRefBlock block, int valueIndex, BytesRef scratch) {
+            BytesRef bytes = block.getBytesRef(valueIndex, scratch);
             if (bytes.length != 0) {
                 bytes = valueConverter.apply(bytes, scratch);
             }
@@ -417,6 +496,42 @@ public abstract class BlockArrowFormatter {
     public static class AsVarBinary extends BytesReFormatter {
         public AsVarBinary(DataType esqlType) {
             super(esqlType, Types.MinorType.VARBINARY);
+        }
+    }
+
+    /**
+     * Geometries stored as WKB in a {@code BytesRefBlock}, exposed as a variable-size binary vector tagged with the
+     * <a href="https://geoarrow.org/extension-types.html#wkb">{@code geoarrow.wkb}</a> Arrow extension type.
+     */
+    public static class AsGeoArrowWkb extends BytesReFormatter {
+        public static final String GEOARROW_WKB = "geoarrow.wkb";
+
+        /**
+         * GeoArrow extension metadata for geographic types: the CRS is {@code OGC:CRS84} (WGS 84, longitude/latitude order),
+         * given as an authority code.
+         */
+        private static final String GEO_CRS_METADATA = "{\"crs\":\"OGC:CRS84\",\"crs_type\":\"authority_code\"}";
+
+        public AsGeoArrowWkb(DataType esqlType) {
+            super(esqlType, Types.MinorType.VARBINARY, extensionMetadata(esqlType));
+        }
+
+        /**
+         * Geo types declare the CRS as lon/lat. Cartesian types omit the {@code crs}, which GeoArrow defines as "the
+         * producer does not have any information about the CRS".
+         */
+        private static Map<String, String> extensionMetadata(DataType esqlType) {
+            boolean geographic = switch (esqlType) {
+                case GEO_POINT, GEO_SHAPE -> true;
+                case CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+                default -> throw new IllegalArgumentException("Not a WKB geometry type: " + esqlType);
+            };
+            var metadata = new HashMap<String, String>();
+            metadata.put(ExtensionType.EXTENSION_METADATA_KEY_NAME, GEOARROW_WKB);
+            if (geographic) {
+                metadata.put(ExtensionType.EXTENSION_METADATA_KEY_METADATA, GEO_CRS_METADATA);
+            }
+            return metadata;
         }
     }
 
@@ -441,7 +556,7 @@ public abstract class BlockArrowFormatter {
         public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
             int count = block.getPositionCount();
             if (multivalued) {
-                int valueCount = valueCount(block);
+                int valueCount = block.getTotalValueCount();
                 nodes.add(new ArrowFieldNode(count, nullValuesCount(block)));  // list
                 nodes.add(new ArrowFieldNode(valueCount, 0));                  // struct (items have no independent nulls)
                 nodes.add(new ArrowFieldNode(valueCount, 0));                  // from
@@ -460,12 +575,12 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             LongRangeBlock block = (LongRangeBlock) b;
             int count = block.getPositionCount();
 
             if (multivalued) {
-                int valueCount = valueCount(block);
+                int valueCount = block.getTotalValueCount();
                 addListOffsets(bufs, bufWriters, block);
                 // Struct validity: empty — items inside a list entry are never null in ES|QL
                 bufs.add(dummyArrowBuf(0));
@@ -475,13 +590,8 @@ public abstract class BlockArrowFormatter {
                 bufWriters.add(out -> 0);
                 bufs.add(dummyArrowBuf(valueCount * Long.BYTES));
                 bufWriters.add(out -> {
-                    if (block.areAllValuesNull()) {
-                        return writeZeroes(out, valueCount * Long.BYTES);
-                    }
                     LongBlock fromBlock = block.getFromBlock();
-                    for (int i = 0; i < valueCount; i++) {
-                        out.writeLongLE(fromBlock.getLong(i));
-                    }
+                    writeMultivaluedLongs(out, fromBlock);
                     return (long) valueCount * Long.BYTES;
                 });
                 // to child: empty validity + int64 data for all value slots
@@ -489,13 +599,8 @@ public abstract class BlockArrowFormatter {
                 bufWriters.add(out -> 0);
                 bufs.add(dummyArrowBuf(valueCount * Long.BYTES));
                 bufWriters.add(out -> {
-                    if (block.areAllValuesNull()) {
-                        return writeZeroes(out, valueCount * Long.BYTES);
-                    }
                     LongBlock toBlock = block.getToBlock();
-                    for (int i = 0; i < valueCount; i++) {
-                        out.writeLongLE(toBlock.getLong(i));
-                    }
+                    writeMultivaluedLongs(out, toBlock);
                     return (long) valueCount * Long.BYTES;
                 });
             } else {
@@ -524,11 +629,21 @@ public abstract class BlockArrowFormatter {
             accumulateVectorValidity(bufs, bufWriters, childBlock, false);
             bufs.add(dummyArrowBuf(count * Long.BYTES));
             bufWriters.add(out -> {
-                for (int i = 0; i < count; i++) {
-                    out.writeLongLE(childBlock.getLong(i));
+                for (int position = 0; position < childBlock.getPositionCount(); position++) {
+                    out.writeLongLE(childBlock.isNull(position) ? 0 : childBlock.getLong(childBlock.getFirstValueIndex(position)));
                 }
                 return (long) count * Long.BYTES;
             });
+        }
+
+        private static void writeMultivaluedLongs(RecyclerBytesStreamOutput out, LongBlock block) throws IOException {
+            for (int position = 0; position < block.getPositionCount(); position++) {
+                int start = block.getFirstValueIndex(position);
+                int end = start + block.getValueCount(position);
+                for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                    out.writeLongLE(block.getLong(valueIndex));
+                }
+            }
         }
     }
 
@@ -553,7 +668,7 @@ public abstract class BlockArrowFormatter {
         public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
             int count = block.getPositionCount();
             if (multivalued) {
-                int valueCount = valueCount(block);
+                int valueCount = block.getTotalValueCount();
                 nodes.add(new ArrowFieldNode(count, nullValuesCount(block)));  // list
                 nodes.add(new ArrowFieldNode(valueCount, 0));                  // struct (items have no independent nulls)
                 nodes.add(new ArrowFieldNode(valueCount, 0));                  // from
@@ -572,12 +687,12 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             DoubleRangeBlock block = (DoubleRangeBlock) b;
             int count = block.getPositionCount();
 
             if (multivalued) {
-                int valueCount = valueCount(block);
+                int valueCount = block.getTotalValueCount();
                 addListOffsets(bufs, bufWriters, block);
                 // Struct validity: empty — items inside a list entry are never null in ES|QL
                 bufs.add(dummyArrowBuf(0));
@@ -587,13 +702,8 @@ public abstract class BlockArrowFormatter {
                 bufWriters.add(out -> 0);
                 bufs.add(dummyArrowBuf(valueCount * Double.BYTES));
                 bufWriters.add(out -> {
-                    if (block.areAllValuesNull()) {
-                        return writeZeroes(out, valueCount * Double.BYTES);
-                    }
                     DoubleBlock fromBlock = block.getDoubleFromBlock();
-                    for (int i = 0; i < valueCount; i++) {
-                        out.writeDoubleLE(fromBlock.getDouble(i));
-                    }
+                    writeMultivaluedDoubles(out, fromBlock);
                     return (long) valueCount * Double.BYTES;
                 });
                 // to child: empty validity + float64 data for all value slots
@@ -601,13 +711,8 @@ public abstract class BlockArrowFormatter {
                 bufWriters.add(out -> 0);
                 bufs.add(dummyArrowBuf(valueCount * Double.BYTES));
                 bufWriters.add(out -> {
-                    if (block.areAllValuesNull()) {
-                        return writeZeroes(out, valueCount * Double.BYTES);
-                    }
                     DoubleBlock toBlock = block.getDoubleToBlock();
-                    for (int i = 0; i < valueCount; i++) {
-                        out.writeDoubleLE(toBlock.getDouble(i));
-                    }
+                    writeMultivaluedDoubles(out, toBlock);
                     return (long) valueCount * Double.BYTES;
                 });
             } else {
@@ -636,11 +741,139 @@ public abstract class BlockArrowFormatter {
             accumulateVectorValidity(bufs, bufWriters, childBlock, false);
             bufs.add(dummyArrowBuf(count * Double.BYTES));
             bufWriters.add(out -> {
-                for (int i = 0; i < count; i++) {
-                    out.writeDoubleLE(childBlock.getDouble(i));
+                for (int position = 0; position < childBlock.getPositionCount(); position++) {
+                    out.writeDoubleLE(childBlock.isNull(position) ? 0 : childBlock.getDouble(childBlock.getFirstValueIndex(position)));
                 }
                 return (long) count * Double.BYTES;
             });
+        }
+
+        private static void writeMultivaluedDoubles(RecyclerBytesStreamOutput out, DoubleBlock block) throws IOException {
+            for (int position = 0; position < block.getPositionCount(); position++) {
+                int start = block.getFirstValueIndex(position);
+                int end = start + block.getValueCount(position);
+                for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                    out.writeDoubleLE(block.getDouble(valueIndex));
+                }
+            }
+        }
+    }
+
+    /**
+     * Keeps aggregate summaries columnar while preserving independently absent metrics as nullable struct children.
+     * <p>
+     * A row is a null struct only when all four metrics are absent: {@link AggregateMetricDoubleBlock} has no separate
+     * validity, so it can't distinguish a missing summary from a summary where every metric is missing. Rows with at
+     * least one metric are valid structs whose absent metrics are null children.
+     * <p>
+     * Summaries are always single-valued, so columns of this type are never encoded as Arrow lists.
+     */
+    public static class AsAggregateMetricDouble extends BlockArrowFormatter {
+        private static final AsFloat64 DOUBLE_FORMATTER = new AsFloat64(DataType.DOUBLE);
+        private static final AsInt32 COUNT_FORMATTER = new AsInt32(DataType.INTEGER);
+
+        private final DataType esqlType;
+
+        public AsAggregateMetricDouble(DataType esqlType) {
+            super(esqlType, Types.MinorType.STRUCT);
+            this.esqlType = esqlType;
+        }
+
+        @Override
+        public Field arrowField(String name) {
+            var doubleType = FieldType.nullable(Types.MinorType.FLOAT8.getType());
+            var countType = FieldType.nullable(Types.MinorType.INT.getType());
+            return new Field(
+                name,
+                super.arrowField(name).getFieldType(),
+                List.of(
+                    new Field("min", doubleType, null),
+                    new Field("max", doubleType, null),
+                    new Field("sum", doubleType, null),
+                    new Field("value_count", countType, null)
+                )
+            );
+        }
+
+        @Override
+        public boolean isMultivalued(String columnName, Block block) {
+            // mayHaveMultivaluedFields() can report false positives, which must not reject valid summaries.
+            if (block.doesHaveMultivaluedFields()) {
+                throw new IllegalArgumentException(
+                    "Column ["
+                        + columnName
+                        + "] of ES|QL type ["
+                        + esqlType.outputType()
+                        + "] has multivalued fields, which the Arrow format does not support for this type"
+                );
+            }
+            return false;
+        }
+
+        @Override
+        public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
+            AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
+            DoubleBlock min = aggregate.minBlock();
+            DoubleBlock max = aggregate.maxBlock();
+            DoubleBlock sum = aggregate.sumBlock();
+            IntBlock count = aggregate.countBlock();
+            int positions = block.getPositionCount();
+            int minNulls = 0;
+            int maxNulls = 0;
+            int sumNulls = 0;
+            int countNulls = 0;
+            int summaryNulls = 0;
+            if (block.mayHaveNulls()) {
+                for (int position = 0; position < positions; position++) {
+                    boolean minNull = min.isNull(position);
+                    boolean maxNull = max.isNull(position);
+                    boolean sumNull = sum.isNull(position);
+                    boolean countNull = count.isNull(position);
+                    minNulls += minNull ? 1 : 0;
+                    maxNulls += maxNull ? 1 : 0;
+                    sumNulls += sumNull ? 1 : 0;
+                    countNulls += countNull ? 1 : 0;
+                    if (minNull && maxNull && sumNull && countNull) {
+                        summaryNulls++;
+                    }
+                }
+            }
+            // The struct and each of its children have one slot per row.
+            nodes.add(new ArrowFieldNode(positions, summaryNulls));
+            nodes.add(new ArrowFieldNode(positions, minNulls));
+            nodes.add(new ArrowFieldNode(positions, maxNulls));
+            nodes.add(new ArrowFieldNode(positions, sumNulls));
+            nodes.add(new ArrowFieldNode(positions, countNulls));
+        }
+
+        @Override
+        public void convert(
+            Block block,
+            boolean multivalued,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
+            AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
+            if (summaryMayBeNull(aggregate)) {
+                accumulateVectorValidity(bufs, bufWriters, block, false);
+            } else {
+                // The block reports nulls if any metric may be null, but a summary is only null when all four are.
+                bufs.add(dummyArrowBuf(0));
+                bufWriters.add(out -> 0);
+            }
+            // Child accessors on ConstantNullBlock return the null block itself, which primitive formatters also accept.
+            DOUBLE_FORMATTER.convert(aggregate.minBlock(), false, bufs, bufWriters, releasables);
+            DOUBLE_FORMATTER.convert(aggregate.maxBlock(), false, bufs, bufWriters, releasables);
+            DOUBLE_FORMATTER.convert(aggregate.sumBlock(), false, bufs, bufWriters, releasables);
+            COUNT_FORMATTER.convert(aggregate.countBlock(), false, bufs, bufWriters, releasables);
+        }
+
+        private static boolean summaryMayBeNull(AggregateMetricDoubleBlock aggregate) {
+            return aggregate.minBlock().mayHaveNulls()
+                && aggregate.maxBlock().mayHaveNulls()
+                && aggregate.sumBlock().mayHaveNulls()
+                && aggregate.countBlock().mayHaveNulls();
         }
     }
 
@@ -650,7 +883,13 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block block, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(
+            Block block,
+            boolean multivalued,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
             // Null vector in arrow has no associated buffers
             // See https://arrow.apache.org/docs/format/Columnar.html#null-layout
         }
@@ -666,19 +905,8 @@ public abstract class BlockArrowFormatter {
         return (totalValues + 7) / 8;
     }
 
-    /**
-     * Get the value count for a block. For single-valued blocks this is the same as the position count.
-     * For multivalued blocks, this is the flattened number of items.
-     */
-    static int valueCount(Block block) {
-        int result = block.getFirstValueIndex(block.getPositionCount());
-
-        // firstValueIndex is always zero for all-null blocks.
-        if (result == 0 && block.areAllValuesNull()) {
-            result = block.getPositionCount();
-        }
-
-        return result;
+    private static int arrowValueCount(Block block, boolean multivalued) {
+        return multivalued ? block.getTotalValueCount() : block.getPositionCount();
     }
 
     private static void accumulateVectorValidity(List<ArrowBuf> bufs, List<BufWriter> bufWriters, Block b, boolean multivalued) {
@@ -726,7 +954,7 @@ public abstract class BlockArrowFormatter {
     private static long writeValidities(RecyclerBytesStreamOutput out, Block block, int valueCount) {
         BitSet bits = new BitSet(valueCount);
         for (int i = 0; i < block.getPositionCount(); i++) {
-            // isNull is value indices, not multi-value positions
+            // isNull uses position indices, not value indices.
             if (block.isNull(i) == false) {
                 bits.set(i);
             }
@@ -762,16 +990,11 @@ public abstract class BlockArrowFormatter {
 
         bufs.add(dummyArrowBuf(bufferLen));
         bufWriters.add(out -> {
-            if (block.mayHaveMultivaluedFields()) {
-                // '<=' is intentional to write the end position of the last item
-                for (int i = 0; i <= block.getPositionCount(); i++) {
-                    // TODO could we get the block's firstValueIndexes and dump it?
-                    out.writeIntLE(block.getFirstValueIndex(i));
-                }
-            } else {
-                for (int i = 0; i <= block.getPositionCount(); i++) {
-                    out.writeIntLE(i);
-                }
+            int offset = 0;
+            out.writeIntLE(offset);
+            for (int position = 0; position < block.getPositionCount(); position++) {
+                offset += block.getValueCount(position);
+                out.writeIntLE(offset);
             }
 
             return bufferLen;

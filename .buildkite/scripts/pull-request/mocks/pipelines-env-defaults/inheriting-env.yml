@@ -1,0 +1,3 @@
+steps:
+  - label: test-step
+    command: echo 'hello world'

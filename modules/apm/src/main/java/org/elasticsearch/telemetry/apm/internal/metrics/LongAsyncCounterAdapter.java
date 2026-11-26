@@ -13,12 +13,10 @@ import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableLongCounter;
 
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 
-import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 class LongAsyncCounterAdapter extends AbstractAsyncInstrument<ObservableLongCounter> implements LongAsyncCounter {
 
@@ -27,18 +25,18 @@ class LongAsyncCounterAdapter extends AbstractAsyncInstrument<ObservableLongCoun
         String name,
         String description,
         String unit,
-        Supplier<Collection<LongWithAttributes>> observer,
+        Consumer<LongAsyncMeasurement> callback,
         Consumer<AbstractInstrument<?>> deregisterFunc
     ) {
-        super(meter, new Builder(name, description, unit, observer), deregisterFunc);
+        super(meter, new Builder(name, description, unit, callback), deregisterFunc);
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableLongCounter> {
-        private final Supplier<Collection<LongWithAttributes>> observer;
+        private final Consumer<LongAsyncMeasurement> callback;
 
-        private Builder(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
+        private Builder(String name, String description, String unit, Consumer<LongAsyncMeasurement> callback) {
             super(name, description, unit);
-            this.observer = Objects.requireNonNull(observer);
+            this.callback = Objects.requireNonNull(callback);
         }
 
         @Override
@@ -47,7 +45,7 @@ class LongAsyncCounterAdapter extends AbstractAsyncInstrument<ObservableLongCoun
                 .counterBuilder(name)
                 .setDescription(description)
                 .setUnit(unit)
-                .buildWithCallback(OtelHelper.longCounterMeasurementCallback(name, observer));
+                .buildWithCallback(OtelHelper.longCounterMeasurementCallback(name, callback));
         }
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoriesMetrics;
@@ -97,12 +98,62 @@ public class AzureBlobStoreTests extends ESTestCase {
         }
     }
 
+    public void testUploadBlockSizeSettings() {
+        // default value
+        var azureBlobStore = newBlobStore(Settings.EMPTY);
+        assertEquals(AzureRepository.Repository.DEFAULT_BLOCK_SIZE.getBytes(), azureBlobStore.getUploadBlockSize());
+
+        azureBlobStore = newBlobStore(
+            Settings.builder().put(AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), "10mb").build()
+        );
+        assertEquals(ByteSizeUnit.MB.toBytes(10), azureBlobStore.getUploadBlockSize());
+
+        // below minimum
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> newBlobStore(
+                Settings.builder().put(AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), "10kb").build()
+            )
+        );
+
+        // above maximum
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> newBlobStore(
+                Settings.builder().put(AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), "101mb").build()
+            )
+        );
+
+        // MAX_SINGLE_PART_UPLOAD_SIZE_SETTING needs to be aligned with MULTIPART_UPLOAD_PART_SIZE_SETTING.
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> newBlobStore(
+                Settings.builder()
+                    .put(AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), "10mb")
+                    .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), "5mb")
+                    .build()
+            )
+        );
+    }
+
     private static AzureBlobStore newBlobStore(@Nullable String dataAccessTier, @Nullable String metadataAccessTier) {
+        return newBlobStore(Settings.EMPTY, dataAccessTier, metadataAccessTier);
+    }
+
+    private static AzureBlobStore newBlobStore(Settings customSettings) {
+        return newBlobStore(customSettings, null, null);
+    }
+
+    private static AzureBlobStore newBlobStore(
+        Settings customSettings,
+        @Nullable String dataAccessTier,
+        @Nullable String metadataAccessTier
+    ) {
         final AzureStorageService service = mock(AzureStorageService.class);
         final RepositoryMetadata metadata = new RepositoryMetadata(
             "test",
             AzureRepository.TYPE,
-            Settings.builder().put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "test-container").build()
+            Settings.builder().put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "test-container").put(customSettings).build()
         );
         return new AzureBlobStore(
             ProjectId.DEFAULT,

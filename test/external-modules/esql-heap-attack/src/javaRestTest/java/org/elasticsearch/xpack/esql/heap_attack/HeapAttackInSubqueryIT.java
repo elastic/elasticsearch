@@ -35,6 +35,9 @@ import static org.hamcrest.Matchers.containsString;
  *     <li>The IN subquery carries a large amount of data (many big fields, or a giant text field) through to the output.</li>
  *     <li>The IN subquery carries a sort over many big fields or a grouping aggregation with a large grouping set.</li>
  * </ul>
+ * <p>
+ * The sizes and measurements below are for a 512mb heap. Each test scales its data with {@link #scaleToHeap} so it still trips on
+ * larger heaps.
  */
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
@@ -58,7 +61,7 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
      * rejects the subquery result with a {@code 400 illegal_argument_exception}.
      */
     public void testIntermediateLocalRelationMaxSizeWithInSubquery() throws IOException {
-        heapAttackIT.initGiantTextField(20, true, 1, true);
+        heapAttackIT.initGiantTextField(scaleToHeap(20), true, 1, true);
         try {
             Map<String, Object> response = giantTextInSubquery();
             fail("expected the intermediate local relation size guard to reject the subquery result but got " + response);
@@ -143,15 +146,18 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
      * {@link #testIntermediateLocalRelationMaxSizeWithInSubquery()}).
      */
     public void testDedupBlockHashWithInSubquery() throws IOException {
+        // The sizes in these comments are for a 512mb heap; scaleToHeap grows them with the heap.
         // 64 docs, each a distinct ~1mb text field, so the dedup BlockHash retains one ~1mb entry per row and cannot collapse anything.
-        heapAttackIT.initGiantTextField(64, true, 1, true);
+        heapAttackIT.initGiantTextField(scaleToHeap(64), true, 1, true);
         // Raise the per-request intermediate-result cap (default min(2% heap, 100mb) ≈ 10mb here) above the ~64mb result so it reaches
         // dedup rather than being rejected by checkPagesBelowSize. 128mb stays above the result's estimated size across every ramp step.
-        setIntermediateLocalRelationMaxSize("128mb");
+        setIntermediateLocalRelationMaxSize(scaleToHeap(128) + "mb");
         try {
             // Ramp the subquery LIMIT (52, 56, 60, 64) so the coexisting dedup copies grow until the request breaker's 307.1mb ceiling
             // (60% of the 512mb heap) is crossed inside BlockHash. In practice attempt 1 (LIMIT 52) already reaches ~364mb and trips.
-            assertCircuitBreaksVia(attempt -> giantTextInSubquery(48 + attempt * 4), "AbstractSubqueryJoin", "BlockHash");
+            int baseLimit = scaleToHeap(48);
+            int limitStep = scaleToHeap(4);
+            assertCircuitBreaksVia(attempt -> giantTextInSubquery(baseLimit + attempt * limitStep), "AbstractSubqueryJoin", "BlockHash");
         } finally {
             setIntermediateLocalRelationMaxSize(null);
         }
@@ -172,8 +178,9 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
      */
     public void testRandomKeywordOrTextFieldsWithInSubquery() throws IOException {
         String dataType = keywordOrText();
-        heapAttackIT.initManyBigFieldsIndex(MAX_DOC, dataType, true, STRING_FIELD_1000);
-        assertCircuitBreaks(attempt -> inSubqueryKeepManyFields());
+        int docs = scaleToHeap(MAX_DOC);
+        heapAttackIT.initManyBigFieldsIndex(docs, dataType, true, STRING_FIELD_1000);
+        assertCircuitBreaks(attempt -> inSubqueryKeepManyFields(docs));
     }
 
     /**
@@ -187,8 +194,9 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
      */
     public void testSortWithInSubquery() throws IOException {
         String dataType = keywordOrText();
-        heapAttackIT.initManyBigFieldsIndex(MAX_DOC, dataType, true, STRING_FIELD_1000);
-        assertCircuitBreaks(attempt -> inSubqueryWithSort(sortOrGroupingColumns(100), true));
+        int docs = scaleToHeap(MAX_DOC);
+        heapAttackIT.initManyBigFieldsIndex(docs, dataType, true, STRING_FIELD_1000);
+        assertCircuitBreaks(attempt -> inSubqueryWithSort(sortOrGroupingColumns(100), true, docs));
     }
 
     /**
@@ -203,8 +211,9 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
      */
     public void testAggWithInSubquery() throws IOException {
         String dataType = keywordOrText();
-        heapAttackIT.initManyBigFieldsIndex(MAX_DOC, dataType, true, STRING_FIELD_1000);
-        assertCircuitBreaks(attempt -> inSubqueryWithAgg("c = COUNT_DISTINCT(f499)", sortOrGroupingColumns(100)));
+        int docs = scaleToHeap(MAX_DOC);
+        heapAttackIT.initManyBigFieldsIndex(docs, dataType, true, STRING_FIELD_1000);
+        assertCircuitBreaks(attempt -> inSubqueryWithAgg("c = COUNT_DISTINCT(f499)", sortOrGroupingColumns(100), docs));
     }
 
     /**
@@ -226,13 +235,17 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
      */
     public void testNotInSubqueryBreaksInSubquery() throws IOException {
         String dataType = keywordOrText();
-        heapAttackIT.initManyBigFieldsIndex(MAX_DOC, dataType, true, STRING_FIELD_1000);
-        assertCircuitBreaks(attempt -> inSubqueryWithSort(sortOrGroupingColumns(STRING_FIELD_1000), false));
+        int docs = scaleToHeap(MAX_DOC);
+        heapAttackIT.initManyBigFieldsIndex(docs, dataType, true, STRING_FIELD_1000);
+        assertCircuitBreaks(attempt -> inSubqueryWithSort(sortOrGroupingColumns(STRING_FIELD_1000), false, docs));
     }
 
-    private Map<String, Object> inSubqueryKeepManyFields() throws IOException {
+    private Map<String, Object> inSubqueryKeepManyFields(int limit) throws IOException {
         StringBuilder query = startQuery();
-        query.append("FROM manybigfields | WHERE f000 IN (FROM manybigfields | KEEP f000)");
+        query.append("FROM manybigfields | WHERE f000 IN (FROM manybigfields | KEEP f000 | LIMIT ")
+            .append(limit)
+            .append(") | LIMIT ")
+            .append(limit);
         query.append("\"}");
         return responseAsMap(query(query.toString(), "columns"));
     }
@@ -272,26 +285,27 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
         return responseAsMap(query(query.toString(), "columns"));
     }
 
-    private Map<String, Object> inSubqueryWithSort(String sortKeys, boolean in) throws IOException {
+    private Map<String, Object> inSubqueryWithSort(String sortKeys, boolean in, int limit) throws IOException {
         StringBuilder query = startQuery();
         query.append("FROM manybigfields | WHERE f000 ")
             .append(in ? "IN" : "NOT IN")
             .append(" (FROM manybigfields | SORT ")
             .append(sortKeys)
             .append(" | KEEP f000 | LIMIT ")
-            .append(MAX_DOC)
-            .append(")");
+            .append(limit)
+            .append(") | LIMIT ")
+            .append(limit);
         query.append("\"}");
         return responseAsMap(query(query.toString(), "columns"));
     }
 
-    private Map<String, Object> inSubqueryWithAgg(String agg, String grouping) throws IOException {
+    private Map<String, Object> inSubqueryWithAgg(String agg, String grouping, int limit) throws IOException {
         StringBuilder query = startQuery();
         query.append("FROM manybigfields | WHERE f000 IN (FROM manybigfields | STATS ").append(agg);
         if (grouping != null && grouping.isEmpty() == false) {
             query.append(" BY ").append(grouping);
         }
-        query.append(" | KEEP f000)");
+        query.append(" | KEEP f000 | LIMIT ").append(limit).append(") | LIMIT ").append(limit);
         query.append("\"}");
         return responseAsMap(query(query.toString(), "columns"));
     }

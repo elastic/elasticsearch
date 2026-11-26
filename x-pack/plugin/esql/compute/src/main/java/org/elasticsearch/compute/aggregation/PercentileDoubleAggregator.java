@@ -15,12 +15,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
+/**
+ * A {@code double} percentile aggregator. In non-finite mode, used only by the PromQL translation, {@code NaN} and
+ * {@code ±Inf} observations are tallied alongside the t-digest (which cannot hold them) and ranked as
+ * {@code NaN < -Inf < finite < +Inf}; otherwise such an observation is rejected by the digest.
+ */
 @Aggregator({ @IntermediateState(name = "quart", type = "BYTES_REF") })
 @GroupingAggregator
 class PercentileDoubleAggregator {
 
-    public static QuantileStates.SingleState initSingle(DriverContext driverContext, double percentile, double tDigestStateCompression) {
-        return new QuantileStates.SingleState(driverContext.breaker(), percentile, tDigestStateCompression);
+    public static QuantileStates.SingleState initSingle(
+        DriverContext driverContext,
+        double percentile,
+        double tDigestStateCompression,
+        boolean allowNonFinite
+    ) {
+        return new QuantileStates.SingleState(driverContext.breaker(), percentile, tDigestStateCompression, allowNonFinite);
     }
 
     public static void combine(QuantileStates.SingleState current, double v) {
@@ -38,9 +48,16 @@ class PercentileDoubleAggregator {
     public static QuantileStates.GroupingState initGrouping(
         DriverContext driverContext,
         double percentile,
-        double tDigestStateCompression
+        double tDigestStateCompression,
+        boolean allowNonFinite
     ) {
-        return new QuantileStates.GroupingState(driverContext.breaker(), driverContext.bigArrays(), percentile, tDigestStateCompression);
+        return new QuantileStates.GroupingState(
+            driverContext.breaker(),
+            driverContext.bigArrays(),
+            percentile,
+            tDigestStateCompression,
+            allowNonFinite
+        );
     }
 
     public static void combine(QuantileStates.GroupingState state, int groupId, double v) {

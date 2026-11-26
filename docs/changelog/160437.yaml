@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 160373
+pr: 160437
+summary: Fix `v_magnitude` with nulls
+type: bug

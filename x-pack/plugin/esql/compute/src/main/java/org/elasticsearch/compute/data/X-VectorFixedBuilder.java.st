@@ -67,7 +67,7 @@ public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder
         closed = true;
         $Type$Vector vector;
         if (values.length == 1) {
-            vector = blockFactory.newConstant$Type$BlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = blockFactory.newConstant$Type$Vector(values[0], 1, preAdjustedBytes);
         } else {
             vector = blockFactory.new$Type$ArrayVector(values, values.length, preAdjustedBytes);
         }
@@ -84,6 +84,7 @@ public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

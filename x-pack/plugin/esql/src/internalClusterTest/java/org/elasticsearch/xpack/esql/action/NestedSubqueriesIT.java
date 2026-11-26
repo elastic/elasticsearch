@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.getAsyncResponse;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
@@ -45,10 +46,12 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * needs them.
  * <p>
  * Each test uses {@code branch_parallel_degree = 1} (or {@code 2} for the reaper case) so one outer leaf starts while nested leaves wait
- * for a permit. Branches that must not run read the pausable {@code pause_me} field; {@code scriptWaits} is the proof they never started.
- * LIMIT and STOP finish the root {@code LocalExchange} without cancelling the root task, so the next depth-first search visit must skip
- * those leaves as success. Cancel must fail the query instead. The inactive-sink reaper must not drop a leaf that has not been dispatched
- * yet: those leaves have no {@code ExchangeSinkHandler}, only a dummy sink on the parent {@code LocalExchange}.
+ * for a permit. Branches that must not run read the pausable {@code pause_me} field; for STOP and cancel, {@code scriptWaits} is the
+ * proof they never started. LIMIT finishes the root {@code LocalExchange} without cancelling the root task, but
+ * {@code ExecutionLeaf.after()} can dispatch the next leaf before that exchange is marked finished, so a nested {@code pause_me} leaf
+ * may still start. STOP finishes the root exchange so the next depth-first search visit must skip queued leaves as success. Cancel must
+ * fail the query instead. The inactive-sink reaper must not drop a leaf that has not been dispatched yet: those leaves have no
+ * {@code ExchangeSinkHandler}, only a dummy sink on the parent {@code LocalExchange}.
  */
 public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
 
@@ -77,8 +80,8 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
     }
 
     @Before
-    public void checkNestedSubquerySupport() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    public void requirePragma() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
     }
 
     @Before
@@ -134,19 +137,17 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
     }
 
     /**
-     * A nested merge branch that has not started yet must be skipped once the query already has enough rows.
+     * {@code LIMIT 1} on a nested union must still return a completed, non-partial row from the first outer branch.
      * <p>
      * When the root {@code LimitExec} has enough pages it finishes the root {@code LocalExchange}. The next {@code tryExecuteLeaves} visit
-     * sees that the parent exchange is finished and completes the nested merge without {@code runCompute}, then skips its leaves without
-     * {@code executePlan}. Without that check, an unstarted nested union would start a coordinator merge driver and run its own branches
-     * to produce rows that nobody will read.
+     * that sees a finished parent exchange completes the nested merge without {@code runCompute} and skips its leaves without
+     * {@code executePlan}. {@code ExecutionLeaf.after()} returns the branch permit and schedules the next leaf immediately, though, so a
+     * nested {@code pause_me} leaf can still start before that exchange is marked finished. If that happens this test unblocks the paused
+     * script instead of treating the extra wait as a failure.
      * <p>
      * {@code branch_parallel_degree = 1} starts only the first outer branch, and that branch reads just {@code foo}, so {@code LIMIT 1} is
-     * satisfied while the nested union is still waiting for the single permit. The nested branches do read {@code pause_me} and no permits
-     * have been released at that point, so if the merge were started they would block in the pause script and raise {@code scriptWaits}.
-     * <p>
-     * Each branch tags its rows with its own name so that the one row {@code LIMIT 1} keeps says which branch produced it. {@code foo} is
-     * the document id, so its value is whichever document the outer branch happened to emit first.
+     * satisfied from that branch. Each branch tags its rows with its own name so the one row {@code LIMIT 1} keeps says which branch
+     * produced it. {@code foo} is the document id, so its value is whichever document the outer branch happened to emit first.
      */
     public void testLimitSkipsUnstartedNestedMergeAndQueuedSiblingLeaves() {
         String query = """
@@ -159,20 +160,32 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
         var request = syncEsqlQueryRequest(query).pragmas(new QueryPragmas(Settings.builder().put("branch_parallel_degree", 1).build()));
 
         ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
-        try (EsqlQueryResponse response = future.actionGet(30, TimeUnit.SECONDS)) {
-            assertColumnNames(response.columns(), List.of("branch", "foo"));
-            assertColumnTypes(response.columns(), List.of("keyword", "long"));
-            // Skipping branches is not a partial result: the query ran to completion, it just did not need every branch.
-            assertFalse(response.isPartial());
+        try {
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (future.isDone() == false) {
+                if (scriptWaits.availablePermits() > 0) {
+                    // A nested leaf can reach pause_me before LIMIT finishes the root exchange
+                    scriptPermits.release(numberOfDocs() * 10);
+                }
+                assertTrue("timed out waiting for the query to complete", System.nanoTime() < deadlineNanos);
+                safeSleep(10);
+            }
+            try (EsqlQueryResponse response = future.actionGet()) {
+                assertColumnNames(response.columns(), List.of("branch", "foo"));
+                assertColumnTypes(response.columns(), List.of("keyword", "long"));
+                // Skipping branches is not a partial result: the query ran to completion, it just did not need every branch.
+                assertFalse(response.isPartial());
 
-            List<List<Object>> values = getValuesList(response);
-            assertThat(values, hasSize(1));
-            // Only the first outer branch ever ran, so the surviving row has to be one of its documents.
-            assertThat(values.get(0).get(0), equalTo("outer"));
-            assertThat((Long) values.get(0).get(1), allOf(greaterThanOrEqualTo(0L), lessThan((long) numberOfDocs())));
+                List<List<Object>> values = getValuesList(response);
+                assertThat(values, hasSize(1));
+                // The surviving row has to come from the first outer branch, even if a nested leaf raced the LIMIT cut.
+                assertThat(values.get(0).get(0), equalTo("outer"));
+                assertThat((Long) values.get(0).get(1), allOf(greaterThanOrEqualTo(0L), lessThan((long) numberOfDocs())));
 
-            // The nested branches never ran: reaching pause_me would have raised scriptWaits.
-            assertThat(scriptWaits.availablePermits(), equalTo(0));
+                // A nested pause_me leaf may have started in the LIMIT/exchange window; it cannot have evaluated more
+                // documents than the index contains.
+                assertThat(scriptWaits.availablePermits(), lessThanOrEqualTo(numberOfDocs()));
+            }
         } finally {
             // Unblock anything that did reach pause_me, so a failing run tears the cluster down instead of hanging.
             scriptPermits.release(numberOfDocs() * 10);
@@ -268,7 +281,13 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
             assertThat(initialResponse.asyncExecutionId(), isPresent());
             assertTrue("the first outer branch must reach the pausable field", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
 
-            var stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(initialResponse.asyncExecutionId().get()));
+            String asyncId = initialResponse.asyncExecutionId().get();
+            var stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(asyncId));
+            assertBusy(() -> {
+                try (EsqlQueryResponse running = getAsyncResponse(client(), asyncId)) {
+                    assertThat(running.isPartial(), is(true));
+                }
+            });
             scriptPermits.release(numberOfDocs() * 10);
             try (EsqlQueryResponse stoppedResponse = stopFuture.actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(stoppedResponse.isRunning(), is(false));

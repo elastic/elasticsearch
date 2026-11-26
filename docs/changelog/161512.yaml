@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 161512
+summary: Expose the timestamp tail merging completed in the DLM explain
+type: enhancement

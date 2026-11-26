@@ -12,12 +12,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
@@ -56,10 +60,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
     }
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testSingleValue() throws IOException {
@@ -147,6 +148,34 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         );
     }
 
+    /**
+     * A bare null is the field being absent, while a null inside the field's own array keeps its slot. Mixing the shapes in one batch, in
+     * random order, checks that the columnar path tells them apart per document the way the row path does.
+     */
+    public void testBareNullsAndNullArraysInOneBatch() throws IOException {
+        List<String> sources = new ArrayList<>(
+            List.of(
+                "{\"f\":null}",
+                "{\"f\":null}",
+                "{\"f\":[null]}",
+                "{\"f\":[null,null]}",
+                "{\"f\":\"" + NetworkAddress.format(randomIp(randomBoolean())) + "\"}",
+                "{\"f\":[\"" + NetworkAddress.format(randomIp(randomBoolean())) + "\",null]}",
+                "{}"
+            )
+        );
+        Collections.shuffle(sources, random());
+        Doc[] docs = new Doc[sources.size()];
+        for (int i = 0; i < docs.length; i++) {
+            docs[i] = doc("d" + i, i + 1, sources.get(i));
+        }
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "ip").endObject()),
+            columnarSettings(),
+            batch("bare nulls and null arrays", 1L, docs)
+        );
+    }
+
     public void testMixedIpv4Ipv6() throws IOException {
         // IPv4 and IPv6 addresses in the same batch. An IPv4 address stored as IPv4-mapped IPv6 (e.g.
         // ::ffff:192.168.0.1) should encode identically to the plain IPv4 address 192.168.0.1.
@@ -202,7 +231,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
     public void testSingleValueMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -220,7 +249,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // Present value, absent doc ({}), and explicit JSON null without null_value -> absent.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -237,7 +266,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
     public void testNullValueSubstitutionMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip").field("null_value", "0.0.0.0");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -255,7 +284,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // A single-element array {"f":["1.1.1.1"]} is a legal value for a multi_value=false field.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -273,7 +302,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // Every doc has an ip value; no absent docs. Exercises the dense (validity==null) wrap.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -290,7 +319,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
     public void testManyMixedPresentAbsentMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -311,7 +340,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
     public void testIpv6MultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }), columnarSettings(), batch("ipv6 multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"2001:db8::1\"}"), doc("d2", 2L, "{}")));
     }
@@ -396,6 +425,83 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         );
     }
 
+    /** A field-level keep mode does not propagate to the multi-field that would otherwise record offsets. */
+    public void testTsdbFieldKeepArraysMultiFieldArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(tsdbKeepSettings(null), b -> {
+            b.field("type", "ip").field("synthetic_source_keep", "arrays");
+            b.startObject("fields").startObject("sub").field("type", "keyword").endObject().endObject();
+        }, "[\"10.0.0.2\",\"10.0.0.1\",\"10.0.0.2\"]");
+    }
+
+    /** Under {@code synthetic_source_keep: all} the row path keeps every value of the field in {@code _ignored_source}. */
+    public void testTsdbFieldKeepAllArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(
+            tsdbKeepSettings(null),
+            b -> b.field("type", "ip").field("synthetic_source_keep", "all"),
+            "[\"10.0.0.2\",\"10.0.0.1\"]"
+        );
+    }
+
+    /**
+     * Under {@code synthetic_source_keep: all} the row path copies every value of the field, scalars included, into
+     * {@code _ignored_source}, which the columnar path does not write, so the field is not eligible for the columnar path at all.
+     * Without the setting the same field is.
+     */
+    public void testTsdbFieldKeepAllIsNotColumnar() throws IOException {
+        for (boolean keepAll : new boolean[] { false, true }) {
+            final var mapperService = createMapperService(tsdbKeepSettings(null), mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+                b.startObject(FIELD).field("type", "ip");
+                if (keepAll) {
+                    b.field("synthetic_source_keep", "all");
+                }
+                b.endObject();
+            }));
+            final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+            assertEquals("keep all: " + keepAll, keepAll == false, mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+        }
+    }
+
+    /**
+     * {@code f} is a plain {@code ip} field next to a keyword dimension, so its row-path handling of arrays is decided by
+     * {@code synthetic_source_keep} rather than by being a dimension.
+     */
+    private static Settings tsdbKeepSettings(String indexKeep) {
+        final Settings.Builder builder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z");
+        if (indexKeep != null) {
+            builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), indexKeep);
+        }
+        return builder.build();
+    }
+
+    /**
+     * Maps one {@code f} array under a keep mode the row path honours by writing {@code _ignored_source} (or offsets), which the
+     * columnar path does not, and asserts the batch is refused so it falls back to the row path.
+     */
+    private void assertTsdbKeepModeArrayBailsOut(
+        Settings settings,
+        CheckedConsumer<XContentBuilder, IOException> fieldMapping,
+        String array
+    ) throws IOException {
+        final var mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD);
+            fieldMapping.accept(b);
+            b.endObject();
+        }));
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":1705320000000,\"f\":" + array + "}")
+        );
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
+    }
+
     /** TIME_SERIES settings listing {@code f} under the given dimension-source setting. */
     private static Settings tsdbSettings(String dimensionSettingKey) {
         return Settings.builder()
@@ -412,7 +518,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"1.1.1.1\",\"2.2.2.2\"]}"));
@@ -424,12 +530,32 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("nullability", false).endObject();
+            b.field("nullability", false);
             b.endObject();
         }));
         expectThrows(
             UnsupportedOperationException.class,
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"1.1.1.1\"}", "{\"f\":null}")
+        );
+    }
+
+    /** A nullability=false field that is missing, null, or an array with no non-null value goes in _ignored under on_failure=ignore. */
+    public void testRequiredFieldWithoutValueIsIgnored() throws IOException {
+        final String ips = "[\""
+            + NetworkAddress.format(randomIp(randomBoolean()))
+            + "\",\""
+            + NetworkAddress.format(randomIp(randomBoolean()))
+            + "\"]";
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "ip").field("nullability", false).endObject()),
+            Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch(
+                "required field without a value",
+                1L,
+                doc("d1", 1L, "{\"f\":" + ips + "}"),
+                doc("d2", 2L, "{\"f\":" + randomFrom("[]", "[[]]", "[null]", "[null,null]") + "}")
+            ),
+            batch("missing and null", 1L, doc("d1", 1L, "{\"f\":" + ips + "}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":null}"))
         );
     }
 
@@ -550,13 +676,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // ip field with a null_value configured used to write two values instead of bailing.
         // The multi-value check now runs before null_value substitution.
         final MapperService mapperService = createMapperService(columnarSettings(), mapping(b -> {
-            b.startObject(FIELD)
-                .field("type", "ip")
-                .startObject("doc_values")
-                .field("multi_value", false)
-                .endObject()
-                .field("null_value", "0.0.0.0")
-                .endObject();
+            b.startObject(FIELD).field("type", "ip").field("multi_value", false).field("null_value", "0.0.0.0").endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"192.168.0.1\",null]}"));
     }
@@ -566,13 +686,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // be rejected. The null element is substituted (first write), so the subsequent real IP is a
         // second value and must trigger the multi_value=false violation.
         final MapperService mapperService = createMapperService(columnarSettings(), mapping(b -> {
-            b.startObject(FIELD)
-                .field("type", "ip")
-                .startObject("doc_values")
-                .field("multi_value", false)
-                .endObject()
-                .field("null_value", "0.0.0.0")
-                .endObject();
+            b.startObject(FIELD).field("type", "ip").field("multi_value", false).field("null_value", "0.0.0.0").endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[null,\"192.168.0.1\"]}"));
     }

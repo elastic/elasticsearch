@@ -26,13 +26,16 @@ import java.io.IOException;
  * <p>A base is the address its block of counts starts at, so reaching a document costs the counts in that
  * block and nothing for the column before it.
  *
- * @param counts how many slots each document holds, one value a document, in rank order
- * @param bases  the first slot address of every block of {@code counts}
+ * @param counts       how many slots each document holds, one value a document, in rank order
+ * @param bases        the first slot address of every block of {@code counts}
+ * @param someDocumentHoldsSeveral whether a document holds more than one slot, which the counts alone answer
+ *                                 only by being read; a column keeps addressing for a document holding none
+ *                                 just as much
  */
-public record SlotAddressing(LongBlocks.Metadata counts, MonotonicWriter.Table bases) {
+public record SlotAddressing(LongBlocks.Metadata counts, MonotonicWriter.Table bases, boolean someDocumentHoldsSeveral) {
 
     /** What a column whose slots are in step with its documents holds: a rank is its own value address. */
-    public static final SlotAddressing NONE = new SlotAddressing(null, MonotonicWriter.Table.NONE);
+    public static final SlotAddressing NONE = new SlotAddressing(null, MonotonicWriter.Table.NONE, false);
 
     /** How many blocks of counts a column of {@code numDocsWithField} documents has. */
     static long numBlocks(int numDocsWithField, int blockSize) {
@@ -40,6 +43,7 @@ public record SlotAddressing(LongBlocks.Metadata counts, MonotonicWriter.Table b
     }
 
     void writeTo(DataOutput out) throws IOException {
+        out.writeByte((byte) (someDocumentHoldsSeveral ? 1 : 0));
         counts.writeTo(out);
         out.writeVLong(bases.dataOffset());
         out.writeVLong(bases.dataLength());
@@ -48,11 +52,12 @@ public record SlotAddressing(LongBlocks.Metadata counts, MonotonicWriter.Table b
     }
 
     static SlotAddressing readFrom(DataInput in) throws IOException {
+        final boolean someDocumentHoldsSeveral = in.readByte() != 0;
         final LongBlocks.Metadata counts = LongBlocks.Metadata.readFrom(in);
         final long dataOffset = in.readVLong();
         final long dataLength = in.readVLong();
         final byte[] meta = new byte[in.readVInt()];
         in.readBytes(meta, 0, meta.length);
-        return new SlotAddressing(counts, new MonotonicWriter.Table(dataOffset, dataLength, meta));
+        return new SlotAddressing(counts, new MonotonicWriter.Table(dataOffset, dataLength, meta), someDocumentHoldsSeveral);
     }
 }

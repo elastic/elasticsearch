@@ -1,3 +1,3 @@
 Limit[1000[INTEGER],false,false]
 \_Filter[MVGREATER(dt{r}#0,1577836800000[DATETIME],MapExpression[[include_bound[KEYWORD], true[BOOLEAN]]]) AND MVINRANGE(i{r}#1,2[INTEGER],8[INTEGER]) AND ISNOTNULL(dt{r}#0)]
-  \_ExternalRelation[s3://bucket/every_type.parquet][parquet][kw{r}#2, txt{r}#3, i{r}#1, l{r}#4, d{r}#5, b{r}#6, dt{r}#0, dn{r}#7, ul{r}#8, ip{r}#9, v{r}#10]
+  \_ExternalRelation[every_type.parquet][parquet][kw{r}#2, txt{r}#3, i{r}#1, l{r}#4, d{r}#5, b{r}#6, dt{r}#0, dn{r}#7, ul{r}#8, ip{r}#9, v{r}#10]

@@ -22,6 +22,8 @@ public abstract class RegexExtractExec extends UnaryExec implements EstimatesRow
     protected final Expression inputExpression;
     protected final List<Attribute> extractedFields;
 
+    private List<Attribute> lazyOutput;
+
     protected RegexExtractExec(Source source, PhysicalPlan child, Expression inputExpression, List<Attribute> extractedFields) {
         super(source, child);
         this.inputExpression = inputExpression;
@@ -30,7 +32,10 @@ public abstract class RegexExtractExec extends UnaryExec implements EstimatesRow
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(extractedFields, child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(extractedFields, child().output());
+        }
+        return lazyOutput;
     }
 
     @Override

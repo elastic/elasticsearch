@@ -42,7 +42,7 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
     implements
         OptimizerRules.LocalAware<LogicalPlan> {
     public PropagateEmptyRelation() {
-        super(OptimizerRules.TransformDirection.DOWN);
+        super(OptimizerRules.TransformDirection.UP);
     }
 
     @Override

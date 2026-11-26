@@ -25,8 +25,17 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
         parse("row a = 1 | lookup_\uD83D\uDC14 \"foo\" on j", "lookup_\uD83D\uDC14");
     }
 
+    public void testDevelopmentSubqueryJoin() throws Exception {
+        parse("row a = 1 | left outer join (row b = 2) on b", "left");
+        parse("row a = 1 | inner join (row b = 2) on b", "inner");
+    }
+
     public void testDevelopmentMatch() throws Exception {
         parse("row a = 1 | match foo", "match");
+    }
+
+    public void testDevelopmentInto() throws Exception {
+        parse("row a = 1 | into foo", "into");
     }
 
     public void testDevelopmentLambda() throws Exception {

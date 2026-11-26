@@ -606,7 +606,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetFieldMappings(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().preparePutMapping(dataStreamName).setSource("""
-            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
+            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}"""), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, dataStreamName), false);
         verifyResolvability(
             dataStreamName,
@@ -653,7 +653,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetFieldMappings(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().preparePutMapping(wildcardExpression).setSource("""
-            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
+            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}"""), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(
@@ -1208,9 +1208,7 @@ public class DataStreamIT extends ESIntegTestCase {
             DataStreamTimestampFieldMapper.NAME,
             Map.of("enabled", true)
         );
-        indicesAdmin().preparePutMapping("logs-foobar")
-            .setSource("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}", XContentType.JSON)
-            .get();
+        indicesAdmin().preparePutMapping("logs-foobar").setSource("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}").get();
         // The mappings of all backing indices should be updated:
         getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));

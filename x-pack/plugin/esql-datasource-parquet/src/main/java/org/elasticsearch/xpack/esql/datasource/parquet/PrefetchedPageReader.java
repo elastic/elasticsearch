@@ -94,6 +94,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     // AtomicBoolean (rather than a plain volatile flag) so concurrent close() callers race
     // on a single compareAndSet and only one thread actually releases the breaker charge.
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final ParquetDecodeBudget decodeBudget;
 
     PrefetchedPageReader(
         BytesInputDecompressor decompressor,
@@ -102,10 +103,22 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         DictionaryPage compressedDictionaryPage,
         long valueCount
     ) {
+        this(decompressor, breaker, compressedPages, compressedDictionaryPage, valueCount, ParquetDecodeBudget.NOOP);
+    }
+
+    PrefetchedPageReader(
+        BytesInputDecompressor decompressor,
+        CircuitBreaker breaker,
+        List<CompressedPage> compressedPages,
+        DictionaryPage compressedDictionaryPage,
+        long valueCount,
+        ParquetDecodeBudget decodeBudget
+    ) {
         this.decompressor = decompressor;
         this.heapDest = decompressor instanceof PlainCompressionCodecFactory.HeapDestDecompressor h ? h : null;
         this.breaker = breaker;
         this.valueCount = valueCount;
+        this.decodeBudget = decodeBudget == null ? ParquetDecodeBudget.NOOP : decodeBudget;
         DictionaryPage dictionaryCopy = copyDictionaryPage(compressedDictionaryPage);
         try {
             this.compressedPages = new ArrayDeque<>(compressedPages);
@@ -146,6 +159,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
                 dictionaryPage.getEncoding()
             );
             dictionaryCopyCharge.set(copySize);
+            decodeBudget.consume(copySize);
             success = true;
             return result;
         } catch (IOException e) {
@@ -240,6 +254,9 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             );
             cachedDictionaryPage = decodedDictionaryPage;
             dictCharge.set(charge ? uncompressedSize : 0);
+            if (charge) {
+                decodeBudget.consume(uncompressedSize);
+            }
             // Charge is owned by dictCharge now; close() or releaseCharge below uncharges it.
             success = true;
             if (closed.get()) {
@@ -375,6 +392,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         try {
             BytesInput decompressed = decompressor.decompress(compressed, decompressedSize);
             dataPageCharge.set(decompressedSize);
+            decodeBudget.consume(decompressedSize);
             // Charge is owned by dataPageCharge now; close() or releaseCharge below uncharges it.
             success = true;
             if (closed.get()) {
@@ -406,6 +424,9 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         }
         reusableDecompBuf = next;
         long previous = dataPageCharge.getAndSet(needed);
+        if (needed > previous) {
+            decodeBudget.consume(needed - previous);
+        }
         if (previous != 0) {
             breaker.addWithoutBreaking(-previous);
         }

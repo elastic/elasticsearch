@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 164482
+summary: Use confined arenas for temporary files when writing stored fields
+type: bug

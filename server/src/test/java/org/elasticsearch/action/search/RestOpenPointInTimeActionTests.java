@@ -73,7 +73,7 @@ public class RestOpenPointInTimeActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/slice-index/_pit")
-            .withParams(Map.of("slice", "tenant-a", "keep_alive", "5m"))
+            .withParams(Map.of("_slice", "tenant-a", "keep_alive", "5m"))
             .build();
         dispatchRequest(request);
         assertThat(transportRequests, hasSize(1));

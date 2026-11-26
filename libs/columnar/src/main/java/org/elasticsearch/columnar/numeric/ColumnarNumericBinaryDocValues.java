@@ -48,6 +48,11 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
     /** Reused across {@link #bulkLongs} calls; grown to the batch size, never to the column size. */
     private int[] ranks = new int[8];
 
+    // Where the values of the document at addressedRank start and how many it holds, for docValueCount and valueAt.
+    private int addressedRank = -1;
+    private long addressedFirstValue;
+    private int addressedValueCount;
+
     public ColumnarNumericBinaryDocValues(
         NumericColumnReader reader,
         ColumnIterator iterator,
@@ -81,6 +86,39 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
             values[i] = reader.valueAt(first + i);
         }
         return NumericBinaryPayload.encode(values, (int) count, payload);
+    }
+
+    /** Whether every document in the column holds exactly one value. */
+    public boolean isSingleValued() {
+        return singleValued;
+    }
+
+    /** Whether every document in the segment has a value. */
+    public boolean isDense() {
+        return reader.numDocsWithField() == maxDoc;
+    }
+
+    /** The number of values the current document holds; at least one. */
+    public int docValueCount() {
+        addressCurrentDoc();
+        return addressedValueCount;
+    }
+
+    /** The current document's {@code index}-th value, in the order the values were written. */
+    public long valueAt(int index) throws IOException {
+        addressCurrentDoc();
+        assert index >= 0 && index < addressedValueCount : "value " + index + " of a document holding " + addressedValueCount;
+        return reader.valueAt(addressedFirstValue + index);
+    }
+
+    /** Looks up where the current document's values are once, however many of them are read. */
+    private void addressCurrentDoc() {
+        final int rank = iterator.rank();
+        if (rank != addressedRank) {
+            addressedFirstValue = reader.firstValueAddress(rank);
+            addressedValueCount = (int) reader.valueCount(rank);
+            addressedRank = rank;
+        }
     }
 
     @Override

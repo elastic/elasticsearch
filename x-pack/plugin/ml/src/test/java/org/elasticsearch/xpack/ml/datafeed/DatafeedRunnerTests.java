@@ -292,6 +292,9 @@ public class DatafeedRunnerTests extends ESTestCase {
                     && message.contains("extraction boom")
             )
         );
+        // The auto-stop is a clean completion, not a task failure: the finish handler must receive null so the
+        // persistent task is marked as completed rather than failed. The reason is captured in the audit message above.
+        verify(handler).accept(null);
     }
 
     public void testRealTime_GivenExtractionFailuresBelowThreshold_KeepsRunning() throws Exception {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.ProfileSchema;
 
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,23 @@ public interface DataSourcePlugin {
      */
     default Set<String> supportedSchemes() {
         return Set.of();
+    }
+
+    /**
+     * Maps logical data-source type names (as accepted by PUT /_query/data_source) to the primary URI
+     * scheme used to look up this plugin's storage provider factory for test-connection purposes.
+     *
+     * <p>Override when the PUT type name differs from the URI scheme. For example, the GCS plugin
+     * uses type {@code "gcs"} for PUT but registers its factory under scheme {@code "gs"}; the Azure
+     * plugin uses type {@code "azure"} but registers under {@code "wasbs"}; the HTTP plugin uses type
+     * {@code "local"} but registers under {@code "file"}.
+     *
+     * <p>Plugins whose type name already matches a URI scheme (e.g. S3 type {@code "s3"} → scheme
+     * {@code "s3"}, or HTTP type {@code "http"} → scheme {@code "http"}) do not need to override —
+     * the direct lookup in {@code DataSourceModule.testConnection} already finds the correct factory.
+     */
+    default Map<String, String> testConnectionSchemes() {
+        return Map.of();
     }
 
     /**
@@ -141,6 +159,16 @@ public interface DataSourcePlugin {
     }
 
     default List<NamedWriteableRegistry.Entry> namedWriteables() {
+        return List.of();
+    }
+
+    /**
+     * Profile schemas for the format-reader statuses contributed by this plugin.
+     *
+     * <p>The same variants should supply the plugin's named-writeable registrations, keeping the
+     * transport discriminator and public profile discriminator in sync.
+     */
+    default List<ProfileSchema.Variant<FormatReaderStatus>> formatReaderProfileVariants() {
         return List.of();
     }
 

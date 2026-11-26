@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 163312
+pr: 164102
+summary: Fix `wait_for_checkpoints` hang when the timeout is -1
+type: bug

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -48,7 +49,8 @@ public class Rate extends TimeSeriesAggregateFunction
         ToAggregator,
         TimestampAware,
         TemporalityAware,
-        AnyNullIsNull {
+        AnyNullIsNull,
+        UnitAware.PerSecond {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Rate.class)
@@ -66,7 +68,11 @@ public class Rate extends TimeSeriesAggregateFunction
         .extendedDescription(PromqlFunctionDefinition.COUNTER_RATE_BEHAVIOR)
         .example("rate(http_requests_total[5m])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(PromqlFunctionDefinition.RATE_INCREASE_NOTE)
+        .stdDivergence(
+            "`rate` on native histograms, such as `rate(h[5m])`, isn't supported yet. Use `increase` instead, such as "
+                + "`histogram_quantile(0.99, sum by (job) (increase(h[5m])))`. "
+                + PromqlFunctionDefinition.RATE_INCREASE_NOTE
+        )
         .name("rate");
 
     private final Expression timestamp;

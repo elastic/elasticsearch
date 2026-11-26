@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
@@ -57,10 +58,18 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     public List<Measurement> getDoubleGaugeMeasurement(String name) {
+        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_GAUGE, name);
+    }
+
+    public List<Measurement> getDoubleAsyncGaugeMeasurement(String name) {
         return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, name);
     }
 
     public List<Measurement> getLongGaugeMeasurement(String name) {
+        return meter.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, name);
+    }
+
+    public List<Measurement> getLongAsyncGaugeMeasurement(String name) {
         return meter.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, name);
     }
 
@@ -86,6 +95,7 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     @Override
     public final TelemetryProvider getTelemetryProvider(
+        ThreadContext threadContext,
         Environment environment,
         List<TelemetryLoggingFilterProvider> filterProviders,
         TelemetryLogResourceProvider logResourceProvider

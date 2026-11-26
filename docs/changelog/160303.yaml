@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160303
+summary: Apply request filter to output of branching views
+type: bug

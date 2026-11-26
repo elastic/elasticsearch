@@ -28,4 +28,9 @@ public class PolishStemTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         return new StempelFilter(tokenStream, new StempelStemmer(PolishAnalyzer.getDefaultTable()));
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

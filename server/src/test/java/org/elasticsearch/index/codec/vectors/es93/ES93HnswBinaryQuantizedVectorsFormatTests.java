@@ -83,7 +83,8 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             random().nextBoolean(),
             numMergeWorkers,
             service,
-            hnswGraphThreshold
+            hnswGraphThreshold,
+            false
         );
     }
 
@@ -150,7 +151,8 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             random().nextBoolean(),
             1,
             null,
-            0
+            0,
+            false
         );
         config.setCodec(alwaysKnnVectorsFormat(format));
         var matcher = expectVecOffHeap

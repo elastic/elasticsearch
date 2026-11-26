@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 162993
+summary: Let the AlertZero Attack Discovery role use its attack fingerprint index
+type: enhancement

@@ -160,7 +160,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Map<String, Object> mappingProperties = getIndexMappingProperties(sharedResultsIndex);
 
         // Assert mappings have a few fields from the template
-        assertThat(mappingProperties.keySet(), hasItems("anomaly_score", "bucket_count"));
+        assertThat(mappingProperties.keySet(), hasItems("anomaly_score", "bucket_count", "source_end_ms", "datafeed_id", "fingerprint"));
         // Assert mappings have the by field
         assertThat(mappingProperties.keySet(), hasItem("by_field_1"));
 

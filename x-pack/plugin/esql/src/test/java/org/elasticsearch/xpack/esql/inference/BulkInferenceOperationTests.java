@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceOperation;
@@ -17,8 +18,11 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRes
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Exercises {@link BulkInferenceOperation#onToleratedInferenceFailure} directly. Whether a tolerated failure registers its
@@ -64,6 +68,45 @@ public class BulkInferenceOperationTests extends ESTestCase {
         assertThat(warned.get(), equalTo(false));
         ElasticsearchException failure = expectThrows(ElasticsearchException.class, completion::actionGet);
         assertThat(failure.getMessage(), equalTo("bulk operation failed"));
+    }
+
+    /**
+     * The responses handed to the completion listener must not be emptied afterwards by the operation that produced them.
+     *
+     * The list is published by reference: {@code completeIfFinished} passes {@code Collections.unmodifiableList(responses)},
+     * which is a view over the live {@code ArrayList} rather than a copy, and nothing downstream copies it either --
+     * {@code InferenceOperator#performAsync} maps it straight into an {@code OngoingInferenceResult} that
+     * {@code InferenceOperator#getOutput} reads on a later turn of the driver. In between, {@code clearBuffers} empties that
+     * same list whenever {@code hasFailure()} is true.
+     *
+     * The listener below stages cleanup after the handoff by recording a failure before {@code clearBuffers} runs. This
+     * verifies that the listener owns a stable snapshot; it does not model how a late failure might arise in production.
+     *
+     * The consequence downstream is not a lost response but a corrupt page: the embedding output builder appends one entry
+     * per response, so an emptied list yields a block with zero positions and the page invariant fails with
+     * "does not have same position count: 0 != N" -- naming a block type and two numbers, and nothing about inference.
+     */
+    public void testResponsesHandedToTheListenerSurviveALateFailure() {
+        AtomicReference<List<BulkInferenceResponseItem>> delivered = new AtomicReference<>();
+        AtomicReference<BulkInferenceOperation> operationRef = new AtomicReference<>();
+
+        ActionListener<List<BulkInferenceResponseItem>> listener = ActionListener.wrap(responses -> {
+            delivered.set(responses);
+            operationRef.get().onException(new ElasticsearchException("failure arriving after the handoff"));
+        }, e -> fail("the operation completed successfully, so the listener must not see a failure: " + e));
+
+        BulkInferenceOperation operation = new BulkInferenceOperation(requestIterator(1), listener);
+        operationRef.set(operation);
+
+        BulkInferenceRequestItem request = operation.pollNextRequest();
+        operation.onInferenceResponse(request.createResponse(null));
+
+        assertThat("the operation completed, so the listener was handed its responses", delivered.get(), notNullValue());
+        assertThat(
+            "the one response handed over is still there; the producer must not empty a list it has published",
+            delivered.get(),
+            hasSize(1)
+        );
     }
 
     private static BulkInferenceRequestItemIterator requestIterator(int size) {

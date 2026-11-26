@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -86,7 +87,7 @@ public class SearchTemplateResponseTests extends ESTestCase {
             successfulShards,
             skippedShards,
             tookInMillis,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
     }

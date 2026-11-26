@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
@@ -54,6 +56,7 @@ import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.WildcardFieldMaskingReader;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -830,7 +833,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
      * using a key:value pair above the Lucene term length limit would throw an error on indexing
      * that we pre-empt with a nices exception
      */
-    public void testImmenseKeyedTermException() throws IOException {
+    public void testOverLimitSizeKeyedValueException() throws IOException {
         DocumentMapper newMapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "flattened"); }));
 
         String longKey = "x".repeat(32800);
@@ -842,7 +845,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endArray();
         })));
         assertEquals(
-            "Flattened field [field] contains one immense field whose keyed encoding is longer "
+            "Flattened field [field] contains a field whose keyed encoding is longer "
                 + "than the allowed max length of 32766 bytes. Key length: "
                 + longKey.length()
                 + ", value length: 5 for key starting with [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]",
@@ -858,12 +861,84 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endArray();
         })));
         assertEquals(
-            "Flattened field [field] contains one immense field whose keyed encoding is longer "
+            "Flattened field [field] contains a field whose keyed encoding is longer "
                 + "than the allowed max length of 32766 bytes. Key length: 3, value length: "
                 + value.length()
                 + " for key starting with [key]",
             ex.getCause().getMessage()
         );
+    }
+
+    /**
+     * A non-indexed flattened field in strictly columnar mode writes only binary doc values, which Lucene does not limit in
+     * length, so a keyed value longer than {@link IndexWriter#MAX_TERM_LENGTH} is accepted and round-trips.
+     */
+    public void testKeyedValueLongerThan32766NotIndexedInColumnarModeIsAccepted() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "flattened").field("index", false)));
+        String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        assertEquals("{\"field\":{\"key\":\"" + value + "\"}}", syntheticSource(mapper, b -> b.field("field", Map.of("key", value))));
+    }
+
+    public void testKeyedValueLongerThan32766IndexedInColumnarModeIsRejected() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "flattened").field("index", true)));
+        String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("key", value))))
+        );
+        assertThat(e.getCause().getMessage(), containsString("allowed max length of " + IndexWriter.MAX_TERM_LENGTH + " bytes"));
+    }
+
+    /**
+     * A non-indexed flattened field that does not use the time series doc values format writes sorted-set doc values, which
+     * Lucene limits to {@link IndexWriter#MAX_TERM_LENGTH}, so it keeps that limit rather than the binary doc values limit.
+     */
+    public void testKeyedValueLongerThan32766NotIndexedSortedSetIsRejected() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), false).build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened").field("index", false)))
+            .documentMapper();
+        String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("key", value))))
+        );
+        assertThat(e.getCause().getMessage(), containsString("allowed max length of " + IndexWriter.MAX_TERM_LENGTH + " bytes"));
+    }
+
+    /**
+     * Logsdb uses binary doc values for flattened fields, but the non-indexed field limit applies only in columnar index modes, so
+     * a non-indexed flattened field keeps Lucene's term limit. Logsdb defaults {@code ignore_above} to 8191, which would drop the
+     * value before the limit is checked, so it is raised here.
+     */
+    public void testKeyedValueLongerThan32766NotIndexedInLogsdbModeIsRejected() throws IOException {
+        DocumentMapper mapper = createLogsModeDocumentMapper(
+            fieldMapping(b -> b.field("type", "flattened").field("index", false).field("ignore_above", Integer.MAX_VALUE))
+        );
+        String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("@timestamp", "2026-01-01T00:00:00Z").field("field", Map.of("key", value))))
+        );
+        assertThat(e.getCause().getMessage(), containsString("allowed max length of " + IndexWriter.MAX_TERM_LENGTH + " bytes"));
+    }
+
+    public void testKeyedValueLongerThanNonIndexedFieldLimitIsRejected() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened").field("index", false)))
+            .documentMapper();
+        // The keyed encoding "key\0" + value adds 4 bytes to the value.
+        String valueAtLimit = "x".repeat(64 * 1024 - 4);
+        mapper.parse(source(b -> b.field("field", Map.of("key", valueAtLimit))));
+
+        String valueOverLimit = valueAtLimit + "x";
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("key", valueOverLimit))))
+        );
+        assertThat(e.getCause().getMessage(), containsString("allowed max length of 65536 bytes"));
     }
 
     public void testNullValues() throws Exception {
@@ -2014,6 +2089,94 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource, equalTo("{\"field\":{\"a_unmapped\":\"val_a\",\"e_unmapped\":\"val_e\",\"c_mapped\":\"val_c\"}}"));
     }
 
+    private static final String TIMESTAMP = "2024-01-01T00:00:00.000Z";
+
+    private MapperService createMappedSubFieldMapperService(IndexMode mode, String type) throws IOException {
+        return createMapperService(Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("labels").field("type", "flattened");
+            b.startObject("properties").startObject("n").field("type", type).endObject().endObject();
+            b.endObject();
+        }));
+    }
+
+    /** Two distinct values of {@code type}, each written the way synthetic source writes it back. */
+    private static List<Object> twoDistinctSubFieldValues(String type) {
+        return switch (type) {
+            case "keyword" -> {
+                String first = randomAlphaOfLength(5);
+                yield List.of(first, randomValueOtherThan(first, () -> randomAlphaOfLength(5)));
+            }
+            case "long" -> {
+                long first = randomLong();
+                yield List.of(first, randomValueOtherThan(first, ESTestCase::randomLong));
+            }
+            case "ip" -> {
+                String first = NetworkAddress.format(randomIp(randomBoolean()));
+                yield List.of(first, randomValueOtherThan(first, () -> NetworkAddress.format(randomIp(randomBoolean()))));
+            }
+            case "boolean" -> {
+                boolean first = randomBoolean();
+                yield List.of(first, first == false);
+            }
+            case "date" -> {
+                long first = randomLongBetween(0, 4102444800000L);
+                long second = randomValueOtherThan(first, () -> randomLongBetween(0, 4102444800000L));
+                yield List.of(
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(first),
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(second)
+                );
+            }
+            default -> throw new AssertionError(type);
+        };
+    }
+
+    /** A random array of {@code values} and nulls, holding at least one null. */
+    private static List<Object> randomArrayWithNull(List<Object> values) {
+        List<Object> array = new ArrayList<>();
+        int size = between(1, 5);
+        for (int i = 0; i < size; i++) {
+            array.add(randomBoolean() ? null : randomFrom(values));
+        }
+        array.set(between(0, size - 1), null);
+        return array;
+    }
+
+    private void assertMappedSubFieldRoundTrips(DocumentMapper mapper, List<Object> array) throws IOException {
+        XContentBuilder expected = XContentBuilder.builder(XContentType.JSON.xContent());
+        expected.startObject().field("@timestamp", TIMESTAMP).startObject("labels").field("n", array).endObject().endObject();
+        String actual = syntheticSource(mapper, b -> b.field("@timestamp", TIMESTAMP).startObject("labels").field("n", array).endObject());
+        assertThat(actual, equalTo(BytesReference.bytes(expected).utf8ToString()));
+    }
+
+    /**
+     * A mapped sub-field tells an element of its own array from a bare value by the immediate parent the parser records, so the flattened
+     * parser has to record its own arrays and objects. In a strictly columnar index a null inside the sub-field's own array keeps its
+     * slot, while a bare null is the sub-field being absent (see MultiValuedBinaryDocValuesField#keepsNullSlot).
+     */
+    public void testMappedSubFieldKeepsNullsInItsOwnArrayInStrictColumnar() throws IOException {
+        String type = randomFrom("keyword", "long", "ip", "boolean", "date");
+        DocumentMapper mapper = createMappedSubFieldMapperService(IndexMode.LOGSDB_COLUMNAR, type).documentMapper();
+        assertMappedSubFieldRoundTrips(mapper, randomArrayWithNull(twoDistinctSubFieldValues(type)));
+        String absent = syntheticSource(mapper, b -> b.field("@timestamp", TIMESTAMP));
+        assertThat(
+            syntheticSource(mapper, b -> b.field("@timestamp", TIMESTAMP).startObject("labels").nullField("n").endObject()),
+            equalTo(absent)
+        );
+    }
+
+    /**
+     * With {@code synthetic_source_keep: arrays}, the logsdb default, a mapped sub-field records offsets for its own array, so the array
+     * comes back in its original order, with its duplicates and nulls.
+     */
+    public void testMappedSubFieldKeepsItsArrayInLogsdb() throws IOException {
+        String type = randomFrom("keyword", "long", "ip", "boolean", "date");
+        DocumentMapper mapper = createMappedSubFieldMapperService(IndexMode.LOGSDB, type).documentMapper();
+        List<Object> values = twoDistinctSubFieldValues(type);
+        assertMappedSubFieldRoundTrips(mapper, List.of(values.get(0), values.get(1), values.get(0)));
+        assertMappedSubFieldRoundTrips(mapper, randomArrayWithNull(values));
+    }
+
     public void testExistsQueryOnMappedProperty() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "flattened");
@@ -2171,6 +2334,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             }
         });
         assertThat(blockLoader, instanceOf(BlockSourceReader.BytesRefsBlockLoader.class));
+    }
+
+    @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        return false;
     }
 
     @Override
@@ -2541,5 +2709,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             new WildcardFieldMaskingReader(roundtripMaskedFields, reader),
             new WildcardFieldMaskingReader(roundtripMaskedFields, roundTripReader)
         );
+    }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The values of a flattened field are objects, not the scalar sample values.
+        return false;
     }
 }

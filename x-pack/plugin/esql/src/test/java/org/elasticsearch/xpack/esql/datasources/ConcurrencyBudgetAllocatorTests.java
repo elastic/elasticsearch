@@ -128,4 +128,11 @@ public class ConcurrencyBudgetAllocatorTests extends ESTestCase {
         ConcurrencyBudgetAllocator allocator = new ConcurrencyBudgetAllocator(42);
         assertEquals(42, allocator.totalBudget());
     }
+
+    public void testSchemeScopedGateName() {
+        ConcurrencyBudgetAllocator unnamed = new ConcurrencyBudgetAllocator(10);
+        assertEquals("budget", unnamed.name());
+        ConcurrencyBudgetAllocator s3 = new ConcurrencyBudgetAllocator(10, 50L, null, "s3");
+        assertEquals("budget/s3", s3.name());
+    }
 }

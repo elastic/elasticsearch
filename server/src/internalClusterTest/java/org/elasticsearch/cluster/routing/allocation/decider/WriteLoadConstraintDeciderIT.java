@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -35,9 +36,9 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.PrioritiseByShardLoadComparator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -61,7 +62,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.hamcrest.Matchers;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -72,7 +72,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -85,7 +84,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
@@ -597,7 +595,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
     /**
      * Determine which shard was moved and check that it's the "best" according to
-     * {@link org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator}
+     * {@link PrioritiseByShardLoadComparator}
      */
     private void assertThatTheBestShardWasMoved(
         TestHarness harness,
@@ -610,11 +608,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 || desiredNodeIds.contains(harness.thirdDiscoveryNode.getId());
         }).findFirst().map(Map.Entry::getKey).orElseThrow(() -> new AssertionError("No shard was moved to a non-hot-spotting node"));
 
-        final BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator comparator =
-            new BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator(
-                desiredBalanceResponse.getClusterInfo(),
-                originalClusterState.getRoutingNodes().node(harness.firstDataNodeId)
-            );
+        final PrioritiseByShardLoadComparator comparator = new PrioritiseByShardLoadComparator(
+            desiredBalanceResponse.getClusterInfo(),
+            originalClusterState.getRoutingNodes().node(harness.firstDataNodeId)
+        );
 
         final List<ShardRouting> bestShardsToMove = StreamSupport.stream(
             originalClusterState.getRoutingNodes().node(harness.firstDataNodeId).spliterator(),
@@ -639,7 +636,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         assertThat(recoveryStatesForMovedShard.size(), equalTo(1));
         assertThat(
             recoveryStatesForMovedShard.getFirst().getRecoveryPriority(),
-            equalTo(ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED)
+            equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED)
         );
     }
 
@@ -651,6 +648,8 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             )
             .build();
         final var dataNodes = internalCluster().startNodes(3, settings);
+        ensureStableCluster(3);
+        getMostRecentQueueLatencyMetrics(dataNodes);
 
         // Refresh cluster info (should trigger polling)
         refreshClusterInfo();
@@ -669,10 +668,13 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         range(0, writeThreadPoolSize + 1).forEach(i -> writeThreadPool.execute(() -> safeAwait(latch)));
         final long delayMillis = randomIntBetween(100, 200);
         safeSleep(delayMillis);
+        // Refresh cluster info while the task is still queued, so peekMaxQueueLatencyInQueueMillis() is
+        // guaranteed to observe the full queuing duration. Refreshing after latch.countDown() risks a race
+        // where the WRITE thread dequeues the task between getMaxQueueLatencyMillisSinceLastPollAndReset()
+        // and peekMaxQueueLatencyInQueueMillis(), causing the latency to be missed or underreported.
+        refreshClusterInfo();
         // Unblock the pool
         latch.countDown();
-
-        refreshClusterInfo();
         mostRecentQueueLatencyMetrics = getMostRecentQueueLatencyMetrics(dataNodes);
         assertThat(mostRecentQueueLatencyMetrics.keySet(), hasSize(dataNodes.size()));
         assertThat(mostRecentQueueLatencyMetrics.get(dataNodeToDelay), greaterThanOrEqualTo(delayMillis));
@@ -707,14 +709,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         refreshClusterInfo();
         mostRecentAverageWriteLoadMetrics = getMostRecentAverageWriteLoadMetrics();
 
-        final ThreadPool dataNodeThreadPool = internalCluster().getInstance(ThreadPool.class, randomFrom(dataNodes));
-        final int writePoolMaximumSize = asInstanceOf(ThreadPoolExecutor.class, dataNodeThreadPool.executor(ThreadPool.Names.WRITE))
-            .getMaximumPoolSize();
         assertThat(mostRecentAverageWriteLoadMetrics.keySet(), hasSize(dataNodes.size()));
-        assertThat(
-            mostRecentAverageWriteLoadMetrics.values(),
-            everyItem(Matchers.allOf(greaterThan(0d), lessThanOrEqualTo((double) writePoolMaximumSize)))
-        );
+        // Completed tasks contribute their full execution time to a poll interval, including time before the last
+        // utilization poll, so the reported write load can exceed the write thread pool size.
+        // As a result we can't assert the result will be <= writePoolMaximumSize
+        assertThat(mostRecentAverageWriteLoadMetrics.values(), everyItem(greaterThan(0d)));
     }
 
     public void testMaxSingleShardWriteLoadSetting() {
@@ -768,7 +767,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     private Map<String, Double> getMostRecentAverageWriteLoadMetrics() {
         final var telemetryPlugin = getTelemetryPluginForNode(internalCluster().getMasterName());
         telemetryPlugin.collect();
-        final var measurements = telemetryPlugin.getDoubleGaugeMeasurement(WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME);
+        final var measurements = telemetryPlugin.getDoubleAsyncGaugeMeasurement(WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME);
         return measurements.stream()
             .collect(
                 Collectors.toMap(
@@ -910,8 +909,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         String assignedShardNodeId
     ) {
         // Randomly distribute shards' peak write-loads so that we can check later that shard movements are prioritized correctly
-        final double writeLoadThreshold = maximumShardWriteLoad
-            * BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO;
+        final double writeLoadThreshold = maximumShardWriteLoad * PrioritiseByShardLoadComparator.THRESHOLD_RATIO;
         final List<Double> shardRecentWriteLoads = new ArrayList<>();
         // Need at least one with the maximum write-load
         shardRecentWriteLoads.add((double) maximumShardWriteLoad);
@@ -950,7 +948,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         shardRouting = shardRouting.initialize(assignedShardNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -958,7 +956,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         stats.docs = new DocsStats(100, 0, randomByteSizeValue().getBytes());
         stats.store = new StoreStats();
         stats.indexing = new IndexingStats(
-            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, recentWriteLoad, 0.123)
+            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, recentWriteLoad, 0.123)
         );
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
     }

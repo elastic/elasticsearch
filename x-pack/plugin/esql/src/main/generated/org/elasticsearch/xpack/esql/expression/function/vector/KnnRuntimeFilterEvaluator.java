@@ -18,7 +18,6 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -34,7 +33,7 @@ public final class KnnRuntimeFilterEvaluator implements ExpressionEvaluator {
 
   private final float[] queryVector;
 
-  private final DenseVectorFieldMapper.SimilarityFunction similarityFunction;
+  private final VectorSimilarityMetric similarityMetric;
 
   private final Float similarityThreshold;
 
@@ -45,12 +44,12 @@ public final class KnnRuntimeFilterEvaluator implements ExpressionEvaluator {
   private Warnings warnings;
 
   public KnnRuntimeFilterEvaluator(Source source, ExpressionEvaluator fieldBlock,
-      float[] queryVector, DenseVectorFieldMapper.SimilarityFunction similarityFunction,
-      Float similarityThreshold, float[] scratchVector, DriverContext driverContext) {
+      float[] queryVector, VectorSimilarityMetric similarityMetric, Float similarityThreshold,
+      float[] scratchVector, DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
     this.queryVector = queryVector;
-    this.similarityFunction = similarityFunction;
+    this.similarityMetric = similarityMetric;
     this.similarityThreshold = similarityThreshold;
     this.scratchVector = scratchVector;
     this.driverContext = driverContext;
@@ -74,7 +73,7 @@ public final class KnnRuntimeFilterEvaluator implements ExpressionEvaluator {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(Knn.runtimeFilter(p, fieldBlockBlock, this.queryVector, this.similarityFunction, this.similarityThreshold, this.scratchVector));
+          result.appendBoolean(Knn.runtimeFilter(p, fieldBlockBlock, this.queryVector, this.similarityMetric, this.similarityThreshold, this.scratchVector));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -86,7 +85,7 @@ public final class KnnRuntimeFilterEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "KnnRuntimeFilterEvaluator[" + "fieldBlock=" + fieldBlock + ", queryVector=" + queryVector + ", similarityFunction=" + similarityFunction + ", similarityThreshold=" + similarityThreshold + "]";
+    return "KnnRuntimeFilterEvaluator[" + "fieldBlock=" + fieldBlock + ", queryVector=" + queryVector + ", similarityMetric=" + similarityMetric + ", similarityThreshold=" + similarityThreshold + "]";
   }
 
   @Override
@@ -108,31 +107,31 @@ public final class KnnRuntimeFilterEvaluator implements ExpressionEvaluator {
 
     private final float[] queryVector;
 
-    private final DenseVectorFieldMapper.SimilarityFunction similarityFunction;
+    private final VectorSimilarityMetric similarityMetric;
 
     private final Float similarityThreshold;
 
     private final Function<DriverContext, float[]> scratchVector;
 
     public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, float[] queryVector,
-        DenseVectorFieldMapper.SimilarityFunction similarityFunction, Float similarityThreshold,
+        VectorSimilarityMetric similarityMetric, Float similarityThreshold,
         Function<DriverContext, float[]> scratchVector) {
       this.source = source;
       this.fieldBlock = fieldBlock;
       this.queryVector = queryVector;
-      this.similarityFunction = similarityFunction;
+      this.similarityMetric = similarityMetric;
       this.similarityThreshold = similarityThreshold;
       this.scratchVector = scratchVector;
     }
 
     @Override
     public KnnRuntimeFilterEvaluator get(DriverContext context) {
-      return new KnnRuntimeFilterEvaluator(source, fieldBlock.get(context), queryVector, similarityFunction, similarityThreshold, scratchVector.apply(context), context);
+      return new KnnRuntimeFilterEvaluator(source, fieldBlock.get(context), queryVector, similarityMetric, similarityThreshold, scratchVector.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "KnnRuntimeFilterEvaluator[" + "fieldBlock=" + fieldBlock + ", queryVector=" + queryVector + ", similarityFunction=" + similarityFunction + ", similarityThreshold=" + similarityThreshold + "]";
+      return "KnnRuntimeFilterEvaluator[" + "fieldBlock=" + fieldBlock + ", queryVector=" + queryVector + ", similarityMetric=" + similarityMetric + ", similarityThreshold=" + similarityThreshold + "]";
     }
   }
 }

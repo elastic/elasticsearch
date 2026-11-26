@@ -10,6 +10,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -44,6 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportFieldCapabilitiesActionTests extends ESTestCase {
 
@@ -52,6 +55,45 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
     @After
     public void closeThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
+    /**
+     * When no index answered and every failed index is being restored by a restore that reports its shards, the request fails with the
+     * restore, so that it is a 403.
+     */
+    public void testFailureWhenNoIndexAnsweredIsTheRestoreWhenEveryIndexIsRestoring() {
+        final var a = new ShardRestoringException("a", randomUUID());
+        final var b = new ShardRestoringException("b", randomUUID());
+
+        final Exception failure = TransportFieldCapabilitiesAction.failureWhenNoIndexAnswered(
+            List.of(new FieldCapabilitiesFailure(new String[] { "a" }, a), new FieldCapabilitiesFailure(new String[] { "b" }, b))
+        );
+
+        assertThat(failure, sameInstance(a));
+    }
+
+    /**
+     * When no index answered and any failed index is not being restored, or failed for another reason, waiting for the restores would
+     * not let the request succeed, so it fails with a failure that is not a restore.
+     */
+    public void testFailureWhenNoIndexAnsweredIsAFailureThatIsNotARestoreUnlessEveryIndexIsRestoring() {
+        final var restoring = new FieldCapabilitiesFailure(new String[] { "restoring" }, new ShardRestoringException("restoring", "uuid"));
+
+        final var red = new NoShardAvailableActionException(new ShardId("red", "_na_", 0));
+        assertThat(
+            TransportFieldCapabilitiesAction.failureWhenNoIndexAnswered(
+                List.of(restoring, new FieldCapabilitiesFailure(new String[] { "red" }, red))
+            ),
+            sameInstance(red)
+        );
+
+        final var unrelated = new IllegalArgumentException("unrelated");
+        assertThat(
+            TransportFieldCapabilitiesAction.failureWhenNoIndexAnswered(
+                List.of(restoring, new FieldCapabilitiesFailure(new String[] { "other" }, unrelated))
+            ),
+            sameInstance(unrelated)
+        );
     }
 
     public void testCCSCompatibilityCheck() {

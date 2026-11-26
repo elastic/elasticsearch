@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.eql;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 public class EqlIllegalArgumentException extends QlIllegalArgumentException {
-    public EqlIllegalArgumentException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
-        super(message, cause, enableSuppression, writableStackTrace);
-    }
 
     public EqlIllegalArgumentException(String message, Throwable cause) {
         super(message, cause);

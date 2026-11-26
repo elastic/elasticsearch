@@ -150,7 +150,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             successfulShards,
             skippedShards,
             tookInMillis,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             clusters
         );
     }

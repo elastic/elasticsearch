@@ -35,9 +35,10 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
     public static CompactInvalidMappedField mappedEverywhere(
         String name,
         Map<DataType, Set<String>> typesToIndices,
-        Map<Set<String>, Set<String>> indexDedupCache
+        Map<Set<String>, Set<String>> indexDedupCache,
+        TimeSeriesFieldType timeSeriesFieldType
     ) {
-        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), false);
+        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), false, timeSeriesFieldType);
     }
 
     public static CompactInvalidMappedField potentiallyUnmapped(
@@ -45,7 +46,7 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         Map<DataType, Set<String>> typesToIndices,
         Map<Set<String>, Set<String>> indexDedupCache
     ) {
-        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), true);
+        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), true, TimeSeriesFieldType.UNKNOWN);
     }
 
     private static Set<String> truncate(Set<String> indices) {
@@ -54,8 +55,13 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         return Collections.unmodifiableSet(truncated);
     }
 
-    private CompactInvalidMappedField(String name, Map<DataType, TruncatedIndices> typesToIndices, boolean isPotentiallyUnmapped) {
-        super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, TimeSeriesFieldType.UNKNOWN);
+    private CompactInvalidMappedField(
+        String name,
+        Map<DataType, TruncatedIndices> typesToIndices,
+        boolean isPotentiallyUnmapped,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, timeSeriesFieldType);
         this.typesToIndices = typesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }

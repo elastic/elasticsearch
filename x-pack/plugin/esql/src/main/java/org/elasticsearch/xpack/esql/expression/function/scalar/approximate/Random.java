@@ -15,6 +15,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NonDeterministic;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
@@ -36,12 +38,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * This function is used internally by {@link Approximation}, and is not exposed
  * to users via the {@link EsqlFunctionRegistry}.
  */
-public class Random extends UnaryScalarFunction implements AnyNullIsNull {
+public class Random extends UnaryScalarFunction implements AnyNullIsNull, NonDeterministic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Random", Random::new);
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "integer" },
+        signatures = { @Signature(params = { "integer" }, returnType = "integer") },
         briefSummary = "Returns a pseudorandom integer between 0 (inclusive) and a bound (exclusive).",
         description = "Returns a pseudorandom number, uniformly distributed between 0 (inclusive) and bound (exclusive).",
         type = FunctionType.SCALAR

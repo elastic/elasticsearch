@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -27,7 +28,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
             IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex("test-no-ilm-policy").build();
             Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
 
-            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(false));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, randomBoolean()), is(false));
         }
 
         {
@@ -38,7 +39,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
             ).build();
             Metadata metadata = Metadata.builder().build();
 
-            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(false));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, randomBoolean()), is(false));
         }
 
         {
@@ -48,7 +49,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
                 Settings.builder().put("index.lifecycle.name", "metrics").build()
             ).build();
             Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
-            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(true));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, randomBoolean()), is(true));
         }
 
         {
@@ -71,7 +72,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
             );
             Metadata metadata = Metadata.builder().put(indexMetadata, true).put(dataStream).build();
 
-            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(true));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, randomBoolean()), is(true));
         }
 
         {
@@ -94,8 +95,90 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
             );
             Metadata metadata = Metadata.builder().put(indexMetadata, true).put(dataStream).build();
 
-            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(false));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, randomBoolean()), is(false));
         }
+    }
+
+    public void testTimeSeriesDataStreamWithoutLifecycle() {
+        String dataStreamName = "metrics-prod";
+        {
+            // ILM policy configured and ILM preferred, ILM manages the index regardless of the flag
+            IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex(
+                DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+                Settings.builder().put("index.lifecycle.name", "metrics").build()
+            ).build();
+            Metadata metadata = Metadata.builder()
+                .put(indexMetadata, true)
+                .put(createDataStream(dataStreamName, indexMetadata, IndexMode.TIME_SERIES, null))
+                .build();
+
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, randomBoolean()), is(true));
+        }
+
+        {
+            // ILM policy configured but ILM not preferred, the flag enables the minimum lifecycle which takes over
+            IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex(
+                DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+                Settings.builder().put("index.lifecycle.name", "metrics").put(IndexSettings.PREFER_ILM, false).build()
+            ).build();
+            Metadata metadata = Metadata.builder()
+                .put(indexMetadata, true)
+                .put(createDataStream(dataStreamName, indexMetadata, IndexMode.TIME_SERIES, null))
+                .build();
+
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, false), is(true));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, true), is(false));
+        }
+    }
+
+    /**
+     * An explicitly configured lifecycle on a time series data stream is never overridden by the default lifecycle for time series flag.
+     */
+    public void testTimeSeriesDataStreamWithExplicitLifecycle() {
+        String dataStreamName = "metrics-prod";
+        IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            Settings.builder().put("index.lifecycle.name", "metrics").put(IndexSettings.PREFER_ILM, false).build()
+        ).build();
+        {
+            // disabled lifecycle, ILM manages the index
+            DataStreamLifecycle disabled = DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build();
+            Metadata metadata = Metadata.builder()
+                .put(indexMetadata, true)
+                .put(createDataStream(dataStreamName, indexMetadata, IndexMode.TIME_SERIES, disabled))
+                .build();
+
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, randomBoolean()), is(true));
+        }
+
+        {
+            // enabled lifecycle and ILM not preferred, data stream lifecycle manages the index
+            Metadata metadata = Metadata.builder()
+                .put(indexMetadata, true)
+                .put(createDataStream(dataStreamName, indexMetadata, IndexMode.TIME_SERIES, DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE))
+                .build();
+
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, randomBoolean()), is(false));
+        }
+    }
+
+    /**
+     * The default lifecycle for time series flag only applies to time series data streams.
+     */
+    public void testNonTimeSeriesDataStreamWithoutLifecycleIgnoresFlag() {
+        String dataStreamName = "logs-prod";
+        IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            Settings.builder().put("index.lifecycle.name", "logs").put(IndexSettings.PREFER_ILM, false).build()
+        ).build();
+        IndexMode indexMode = randomBoolean() ? null : randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+        Metadata metadata = Metadata.builder()
+            .put(indexMetadata, true)
+            .put(createDataStream(dataStreamName, indexMetadata, indexMode, null))
+            .build();
+
+        assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, true), is(true));
+        assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, false), is(true));
     }
 
     public void testLookupIndexIsNeverManagedByILM() {
@@ -105,7 +188,20 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
         ).build();
         Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
 
-        assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(false));
+        assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, randomBoolean()), is(false));
+    }
+
+    private static DataStream createDataStream(
+        String dataStreamName,
+        IndexMetadata backingIndex,
+        @Nullable IndexMode indexMode,
+        @Nullable DataStreamLifecycle lifecycle
+    ) {
+        return DataStream.builder(dataStreamName, List.of(backingIndex.getIndex()))
+            .setGeneration(1)
+            .setIndexMode(indexMode)
+            .setLifecycle(lifecycle)
+            .build();
     }
 
     public static IndexMetadata.Builder createIndexMetadataBuilderForIndex(String index) {

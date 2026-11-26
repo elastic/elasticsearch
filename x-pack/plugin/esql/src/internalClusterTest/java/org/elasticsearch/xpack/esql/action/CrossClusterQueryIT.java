@@ -30,9 +30,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster.Status;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,8 +44,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
@@ -138,50 +137,6 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testRemoteFetchTopNIsDisabledForCrossClusterSearch() throws Exception {
-        client(LOCAL_CLUSTER).admin()
-            .cluster()
-            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setPersistentSettings(Settings.builder().put(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey(), true))
-            .get();
-        try {
-            testRemoteFetchTopNIsDisabledForCrossClusterSearchWithSetting();
-        } finally {
-            client(LOCAL_CLUSTER).admin()
-                .cluster()
-                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                .setPersistentSettings(Settings.builder().putNull(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey()))
-                .get();
-        }
-    }
-
-    private void testRemoteFetchTopNIsDisabledForCrossClusterSearchWithSetting() throws Exception {
-        setupTwoClusters();
-        QueryPragmas pragmas = new QueryPragmas(
-            Settings.builder()
-                .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
-                .put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.SHARD)
-                .build()
-        );
-        // Test a pushable field sort and an expression sort that guarantees a coordinator TopN.
-        for (String sort : List.of("v", "v + 1")) {
-            EsqlQueryRequest request = syncEsqlQueryRequest(
-                "FROM logs-*," + REMOTE_CLUSTER_1 + ":logs-* | SORT " + sort + " DESC | LIMIT 5 | KEEP v, id"
-            ).acceptedPragmaRisks(true).pragmas(pragmas).profile(true);
-
-            try (EsqlQueryResponse response = runQuery(request)) {
-                assertThat(getValuesList(response), hasSize(5));
-                assertFalse(
-                    response.profile()
-                        .drivers()
-                        .stream()
-                        .flatMap(driver -> driver.operators().stream())
-                        .anyMatch(operator -> operator.status() instanceof RemoteFetchOperator.Status)
-                );
-            }
-        }
-    }
-
     public void testSearchesAgainstNonMatchingIndicesWithLocalOnly() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
@@ -255,7 +210,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                     assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                     assertExpectedClustersForMissingIndicesTests(
                         executionInfo,
-                        List.of(new ExpectedCluster(REMOTE_CLUSTER_1, emptyIndex, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0))
+                        List.of(new ExpectedCluster(REMOTE_CLUSTER_1, emptyIndex, Status.SUCCESSFUL, 0))
                     );
                 }
 
@@ -269,7 +224,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                     assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                     assertExpectedClustersForMissingIndicesTests(
                         executionInfo,
-                        List.of(new ExpectedCluster(REMOTE_CLUSTER_1, emptyIndex, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0))
+                        List.of(new ExpectedCluster(REMOTE_CLUSTER_1, emptyIndex, Status.SUCCESSFUL, 0))
                     );
                 }
             }
@@ -326,8 +281,8 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 assertExpectedClustersForMissingIndicesTests(
                     executionInfo,
                     List.of(
-                        new ExpectedCluster(LOCAL_CLUSTER, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, localNumShards),
-                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0)
+                        new ExpectedCluster(LOCAL_CLUSTER, "logs*", Status.SUCCESSFUL, localNumShards),
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch", Status.SKIPPED, 0)
                     )
                 );
 
@@ -347,13 +302,8 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                     executionInfo,
                     List.of(
                         // local cluster is never marked as SKIPPED even when no matcing indices - just marked as 0 shards searched
-                        new ExpectedCluster(LOCAL_CLUSTER, "nomatch*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0),
-                        new ExpectedCluster(
-                            REMOTE_CLUSTER_1,
-                            remote1IndexName,
-                            EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
-                            remote1NumShards
-                        )
+                        new ExpectedCluster(LOCAL_CLUSTER, "nomatch*", Status.SUCCESSFUL, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_1, remote1IndexName, Status.SUCCESSFUL, remote1NumShards)
                     )
                 );
             }
@@ -369,9 +319,9 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                     executionInfo,
                     List.of(
                         // local cluster is never marked as SKIPPED even when no matching indices - just marked as 0 shards searched
-                        new ExpectedCluster(LOCAL_CLUSTER, "nomatch*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0),
+                        new ExpectedCluster(LOCAL_CLUSTER, "nomatch*", Status.SUCCESSFUL, 0),
                         // LIMIT 0 searches always have total shards = 0
-                        new ExpectedCluster(REMOTE_CLUSTER_1, remote1IndexName, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0)
+                        new ExpectedCluster(REMOTE_CLUSTER_1, remote1IndexName, Status.SUCCESSFUL, 0)
                     )
                 );
             }
@@ -391,8 +341,8 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                     executionInfo,
                     List.of(
                         // local cluster is never marked as SKIPPED even when no matching indices - just marked as 0 shards searched
-                        new ExpectedCluster(LOCAL_CLUSTER, indexLoc, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, localNumShards),
-                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0)
+                        new ExpectedCluster(LOCAL_CLUSTER, indexLoc, Status.SUCCESSFUL, localNumShards),
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch*", Status.SUCCESSFUL, 0)
                     )
                 );
             }
@@ -408,8 +358,8 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                     executionInfo,
                     List.of(
                         // LIMIT 0 searches always have total shards = 0
-                        new ExpectedCluster(LOCAL_CLUSTER, indexLoc, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0),
-                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0)
+                        new ExpectedCluster(LOCAL_CLUSTER, indexLoc, Status.SUCCESSFUL, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch*", Status.SUCCESSFUL, 0)
                     )
                 );
             }
@@ -418,25 +368,25 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         // an error is thrown and skipped by remote if there is a concrete index that does not match
         try (var r = runQuery("FROM cluster-a:nomatch", requestIncludeMeta)) {
             assertThat(r.isPartial(), equalTo(true));
-            assertThat(r.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(r.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(Status.SKIPPED));
         }
 
         // no error is thrown if there are no matching indices at all
         try (var r = runQuery("FROM cluster-a:nomatch*", requestIncludeMeta)) {
             assertThat(r.isPartial(), equalTo(false));
-            assertThat(r.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(r.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(Status.SUCCESSFUL));
         }
 
         // an error is thrown and skipped if there is a concrete index that does not match
         try (var r = runQuery("FROM nomatch*,cluster-a:nomatch", requestIncludeMeta)) {
             assertThat(r.isPartial(), equalTo(true));
-            assertThat(r.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(r.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(Status.SKIPPED));
         }
 
         // no error is thrown if there are no matching indices at all - local with wildcard, remote with wildcard
         try (var r = runQuery("FROM nomatch*,cluster-a:nomatch*", requestIncludeMeta)) {
             assertThat(r.isPartial(), equalTo(false));
-            assertThat(r.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(r.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(Status.SUCCESSFUL));
         }
         {
             String q = "FROM nomatch,cluster-a:nomatch";
@@ -468,19 +418,9 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 assertExpectedClustersForMissingIndicesTests(
                     executionInfo,
                     List.of(
-                        new ExpectedCluster(
-                            LOCAL_CLUSTER,
-                            localIndexName + "*",
-                            EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
-                            localNumShards
-                        ),
-                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0),
-                        new ExpectedCluster(
-                            REMOTE_CLUSTER_2,
-                            remote2IndexName + "*",
-                            EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
-                            remote2NumShards
-                        )
+                        new ExpectedCluster(LOCAL_CLUSTER, localIndexName + "*", Status.SUCCESSFUL, localNumShards),
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch", Status.SKIPPED, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_2, remote2IndexName + "*", Status.SUCCESSFUL, remote2NumShards)
                     )
                 );
 
@@ -488,7 +428,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    record ExpectedCluster(String clusterAlias, String indexExpression, EsqlExecutionInfo.Cluster.Status status, Integer totalShards) {}
+    record ExpectedCluster(String clusterAlias, String indexExpression, Status status, Integer totalShards) {}
 
     /**
      * Runs the provided query, expecting a VerificationError. It then runs the same query with a "| LIMIT 0"
@@ -507,7 +447,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         long overallTookMillis = executionInfo.overallTook().millis();
         assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
 
-        Set<String> expectedClusterAliases = expected.stream().map(c -> c.clusterAlias()).collect(Collectors.toSet());
+        Set<String> expectedClusterAliases = expected.stream().map(c -> c.clusterAlias()).collect(toSet());
         assertThat(executionInfo.clusterAliases(), equalTo(expectedClusterAliases));
 
         boolean hasSkipped = false;
@@ -519,10 +459,10 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertThat(msg, cluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(msg, cluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
             assertThat(msg, cluster.getTotalShards(), equalTo(expectedCluster.totalShards()));
-            if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SUCCESSFUL) {
+            if (cluster.getStatus() == Status.SUCCESSFUL) {
                 assertThat(msg, cluster.getSuccessfulShards(), equalTo(expectedCluster.totalShards()));
                 assertThat(msg, cluster.getSkippedShards(), equalTo(0));
-            } else if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+            } else if (cluster.getStatus() == Status.SKIPPED) {
                 assertThat(msg, cluster.getSuccessfulShards(), equalTo(0));
                 assertThat(msg, cluster.getSkippedShards(), equalTo(expectedCluster.totalShards()));
                 assertThat(msg, cluster.getFailures().size(), equalTo(1));
@@ -702,7 +642,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(45L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(2)); // one coordinator and at least one data
                 localOnlyProfiles = drivers.size();
 
@@ -722,8 +666,12 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(285L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
-                assertThat(drivers.size(), greaterThanOrEqualTo(3)); // two coordinators and at least one data
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
+                assertThat(drivers.size(), greaterThanOrEqualTo(2)); // one cluster-level reduction and at least one data node
                 remoteOnlyProfiles = drivers.size();
 
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -746,7 +694,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(330L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(4)); // two coordinators and at least two data
                 allProfiles = drivers.size();
 

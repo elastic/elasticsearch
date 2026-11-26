@@ -87,7 +87,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         if (version.before(IndexVersions.V_8_0_0)) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> indicesAdmin().preparePutMapping("test").setSource(update, XContentType.JSON).get()
+                () -> indicesAdmin().preparePutMapping("test").setSource(update).get()
             );
             assertThat(
                 e.getMessage(),
@@ -96,7 +96,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         } else {
             MapperParsingException e = expectThrows(
                 MapperParsingException.class,
-                () -> indicesAdmin().preparePutMapping("test").setSource(update, XContentType.JSON).get()
+                () -> indicesAdmin().preparePutMapping("test").setSource(update).get()
             );
             assertThat(
                 e.getMessage(),

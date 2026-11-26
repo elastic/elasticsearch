@@ -1,0 +1,16 @@
+---
+description: PromQL sorting functions in Elasticsearch that sort instant-vector series by sample value or by label values.
+navigation_title: Sorting functions
+applies_to:
+  stack: ga 9.6
+  serverless: ga
+products:
+  - id: elasticsearch
+---
+
+# Sorting functions [promql-sorting-functions]
+
+These functions sort the series of an instant vector by sample value (`sort` and `sort_desc`) or by listed label values (`sort_by_label` and `sort_by_label_desc`). Ordering is observable only on instant queries. Range queries return the series in their input order, without applying the requested ordering.
+
+:::{include} ../_snippets/generated/x-pack-esql/functions/lists/sorting.md
+:::

@@ -369,7 +369,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 future.onFailure(e);
             }
         });

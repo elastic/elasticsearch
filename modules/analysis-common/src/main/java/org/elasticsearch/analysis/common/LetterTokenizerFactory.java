@@ -26,4 +26,9 @@ public class LetterTokenizerFactory extends AbstractTokenizerFactory {
     public Tokenizer create() {
         return new LetterTokenizer();
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

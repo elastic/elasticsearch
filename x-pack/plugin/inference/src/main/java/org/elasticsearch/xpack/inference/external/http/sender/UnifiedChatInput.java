@@ -61,7 +61,8 @@ public class UnifiedChatInput extends InferenceInputs {
     }
 
     public boolean isSingleInput() {
-        return request.messages().size() == 1;
+        // A template stands in for the whole conversation, so it counts as a single input.
+        return request.template() != null || request.messages().size() == 1;
     }
 
     @Override

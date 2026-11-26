@@ -369,6 +369,27 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    /**
+     * significant_terms rejects floating point fields as a bad request (400) rather than an internal error (500).
+     */
+    public void testFloatingPointFieldRejected() throws IOException {
+        NumberType numberType = randomFrom(NumberType.DOUBLE, NumberType.FLOAT, NumberType.HALF_FLOAT);
+        NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType("float_field", numberType);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            LuceneDocument doc = new LuceneDocument();
+            numberType.addFields(doc, "float_field", 1.5, IndexType.points(true, true), false);
+            w.addDocument(doc);
+            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_float").field("float_field");
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchAndReduce(reader, new AggTestConfig(sigAgg, fieldType))
+                );
+                assertThat(e.getMessage(), equalTo("Aggregation [sig_float] does not support floating point values"));
+            }
+        }
+    }
+
     public void testFieldAlias() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
         textFieldType.setFielddata(true);

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 161298
+summary: Charge inbound breaker per fragment while reading
+type: enhancement

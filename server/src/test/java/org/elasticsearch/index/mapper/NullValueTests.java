@@ -25,13 +25,14 @@ public class NullValueTests extends MapperServiceTestCase {
         String[] typesToTest = { "integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte", "geo_point" };
 
         for (String type : typesToTest) {
-            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type).nullField("null_value")));
+            MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", type).nullField("null_value")));
+            DocumentMapper mapper = mapperService.documentMapper();
 
             mapper.parse(source(b -> b.nullField("field")));
 
             ToXContent.Params params = new ToXContent.MapParams(Map.of("include_defaults", "true"));
             XContentBuilder b = JsonXContent.contentBuilder().startObject();
-            mapper.mapping().toXContent(b, params);
+            mappingToXContent(mapperService, b, params);
             b.endObject();
             assertThat(Strings.toString(b), containsString("\"null_value\":null"));
         }

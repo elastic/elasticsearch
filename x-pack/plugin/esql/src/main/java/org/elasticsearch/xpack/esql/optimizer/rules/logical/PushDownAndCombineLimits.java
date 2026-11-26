@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -66,6 +67,12 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 } else {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
                 }
+            } else if (unary instanceof TsInfo tsInfo) {
+                int rows = (int) limit.limit().fold(ctx.foldCtx());
+                if (tsInfo.limit() == null || tsInfo.limit() > rows) {
+                    return limit.replaceChild(tsInfo.withLimit(rows));
+                }
+                return limit;
             } else if (unary instanceof MvExpand) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down
                 // (we also have to preserve the LIMIT afterwards)

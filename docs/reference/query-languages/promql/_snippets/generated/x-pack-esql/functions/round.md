@@ -24,7 +24,3 @@
 ```
 round(rate(http_requests_total[5m]))
 ```
-
-**Differences from Prometheus**
-
-With a `to_nearest` argument, ties round up, matching Prometheus. Called with a single argument, a `NaN` input returns `0` instead of `NaN`.

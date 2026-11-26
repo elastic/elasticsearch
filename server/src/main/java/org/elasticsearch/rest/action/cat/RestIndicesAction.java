@@ -317,6 +317,16 @@ public class RestIndicesAction extends AbstractCatAction {
             "pri.indexing.index_failed_due_to_version_conflict",
             "default:false;text-align:right;desc:number of failed indexing ops due to version conflict"
         );
+        table.addCell(
+            "indexing.index_failed_due_to_too_many_docs",
+            "sibling:pri;alias:iiftmd,indexingIndexFailedDueToTooManyDocs;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to the shard reaching the maximum number of documents"
+        );
+        table.addCell(
+            "pri.indexing.index_failed_due_to_too_many_docs",
+            "default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to the shard reaching the maximum number of documents"
+        );
 
         table.addCell("merges.current", "sibling:pri;alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell("pri.merges.current", "default:false;text-align:right;desc:number of current merges");
@@ -693,6 +703,13 @@ public class RestIndicesAction extends AbstractCatAction {
             );
             table.addCell(
                 primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedDueToVersionConflictCount()
+            );
+
+            table.addCell(
+                totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedDueToTooManyDocsCount()
+            );
+            table.addCell(
+                primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedDueToTooManyDocsCount()
             );
 
             table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrent());

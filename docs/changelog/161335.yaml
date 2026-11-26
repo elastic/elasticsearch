@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 98271
+pr: 161335
+summary: Print field name in `BinaryDocValuesRangeQuery` description
+type: bug

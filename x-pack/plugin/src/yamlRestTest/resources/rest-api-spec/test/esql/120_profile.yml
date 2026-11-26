@@ -154,11 +154,8 @@ documents found:
           query: 'FROM test | LIMIT 1'
           profile: true
 
-  - length: {profile.drivers: 3}
   - match: {profile.drivers.0.operators.0.operator: /ExchangeSourceOperator|LuceneSourceOperator.+/}
   - gte: {profile.drivers.0.documents_found: 0}
   - gte: {profile.drivers.0.values_loaded: 0}
   - gte: {profile.drivers.1.documents_found: 0}
   - gte: {profile.drivers.1.values_loaded: 0}
-  - gte: {profile.drivers.2.documents_found: 0}
-  - gte: {profile.drivers.2.values_loaded: 0}

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionCreator;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
@@ -230,7 +231,7 @@ public class VoyageAIService extends SenderService<VoyageAIModel> implements Rer
             var modelId = serviceSettings.modelId();
             var rateLimitSettings = serviceSettings.rateLimitSettings();
             var embeddingType = serviceSettings.embeddingType();
-            var similarityToUse = Objects.requireNonNullElse(serviceSettings.similarity(), defaultSimilarity());
+            var similarityToUse = Objects.requireNonNullElse(serviceSettings.similarity(), defaultSimilarity(embeddingType));
             var maxInputTokens = serviceSettings.maxInputTokens();
             var dimensionSetByUser = serviceSettings.dimensionsSetByUser();
             var updatedServiceSettings = new VoyageAIEmbeddingsServiceSettings(
@@ -251,14 +252,18 @@ public class VoyageAIService extends SenderService<VoyageAIModel> implements Rer
 
     /**
      * Return the default similarity measure for the embedding type.
-     * VoyageAI embeddings are normalized to unit vectors therefore Dot
-     * Product similarity can be used and is the default for all VoyageAI
-     * models.
+     * Float embeddings default to cosine similarity since we cannot guarantee third-party providers
+     * return unit-length vectors. Non-float types (INT8, BYTE, BIT, BINARY) keep their existing
+     * dot_product default.
      *
+     * @param embeddingType the VoyageAI embedding type
      * @return The default similarity.
      */
-    static SimilarityMeasure defaultSimilarity() {
-        return SimilarityMeasure.DOT_PRODUCT;
+    static SimilarityMeasure defaultSimilarity(VoyageAIEmbeddingType embeddingType) {
+        return switch (embeddingType) {
+            case FLOAT -> SimilarityMeasure.COSINE;
+            case INT8, BYTE, BIT, BINARY -> SimilarityMeasure.DOT_PRODUCT;
+        };
     }
 
     @Override

@@ -67,7 +67,7 @@ public final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder
         closed = true;
         DoubleVector vector;
         if (values.length == 1) {
-            vector = blockFactory.newConstantDoubleBlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = blockFactory.newConstantDoubleVector(values[0], 1, preAdjustedBytes);
         } else {
             vector = blockFactory.newDoubleArrayVector(values, values.length, preAdjustedBytes);
         }
@@ -84,6 +84,7 @@ public final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

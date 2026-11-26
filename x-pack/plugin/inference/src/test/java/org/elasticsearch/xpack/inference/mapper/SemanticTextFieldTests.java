@@ -16,10 +16,10 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.EndpointMetadataTests;
 import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringTests;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -459,7 +459,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     public static InferenceString randomInferenceString() {
         return new InferenceString(
-            randomValueOtherThan(DataType.TEXT, () -> randomFrom(DataType.values())),
+            InferenceStringTests.randomDataTypeSupportingBase64(),
             "data:image/jpeg;base64," + randomAlphaOfLength(10)
         );
     }

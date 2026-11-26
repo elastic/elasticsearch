@@ -156,7 +156,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         ) {}
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
             // Abortion is a normal reaction to changes in allocation or node shutdown. Don't fail here.
             if (failureStrategy != ABORT) throw new AssertionError(e);
         }
@@ -712,6 +712,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 RecoveryState::new,
                 localNode,
                 sourceNode,
+                0,
                 indexSettings,
                 shardPath,
                 store,

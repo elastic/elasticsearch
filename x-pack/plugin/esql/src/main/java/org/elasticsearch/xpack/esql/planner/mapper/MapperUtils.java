@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.TopNPreFilter;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
@@ -48,7 +51,9 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EqlSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
@@ -68,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNPreFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
@@ -92,6 +98,19 @@ public class MapperUtils {
         // Commands
         if (p instanceof ShowInfo showInfo) {
             return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
+        }
+
+        if (p instanceof EqlRelation eql) {
+            return new EqlSourceExec(
+                eql.source(),
+                eql.query(),
+                eql.indexPattern().indexPattern(),
+                eql.options(),
+                eql.mode(),
+                eql.output(),
+                eql.pushedLimit(),
+                eql.preResolvedFieldCaps()
+            );
         }
 
         return unsupported(p);
@@ -196,6 +215,18 @@ public class MapperUtils {
             return new MvExpandExec(mvExpand.source(), child, mvExpand.target(), mvExpand.expanded());
         }
 
+        if (p instanceof Fetch fetch) {
+            return new FetchExec(
+                fetch.source(),
+                child,
+                fetch.doc(),
+                fetch.fetchedAttributes(),
+                fetch.indexPattern(),
+                fetch.originalIndices(),
+                null
+            );
+        }
+
         if (p instanceof Highlight highlight) {
             return new HighlightExec(
                 highlight.source(),
@@ -204,7 +235,9 @@ public class MapperUtils {
                 highlight.query(),
                 highlight.fields(),
                 highlight.options(),
-                highlight.generatedAttributes()
+                highlight.generatedAttributes(),
+                highlight.indexKey(),
+                highlight.fieldMappings()
             );
         }
 
@@ -239,6 +272,17 @@ public class MapperUtils {
 
         if (p instanceof Sample sample) {
             return new SampleExec(sample.source(), child, sample.probability());
+        }
+
+        if (p instanceof TopNPreFilter preFilter) {
+            return new TopNPreFilterExec(
+                preFilter.source(),
+                child,
+                preFilter.key(),
+                preFilter.limit(),
+                preFilter.asc(),
+                preFilter.nullsFirst()
+            );
         }
 
         if (p instanceof SparklineGenerateEmptyBuckets sparklineGenerateEmptyBuckets) {

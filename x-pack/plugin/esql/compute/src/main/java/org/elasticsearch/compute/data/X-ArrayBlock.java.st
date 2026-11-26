@@ -104,6 +104,11 @@ public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$
 
 $if(BytesRef)$
     @Override
+    public long estimateTotalValueBytes() {
+        return vector.estimateTotalValueBytes();
+    }
+
+    @Override
     public OrdinalBytesRefBlock asOrdinals() {
         return null;
     }
@@ -302,6 +307,13 @@ $endif$
         vector.allowPassingToDifferentDriver();
     }
 
+$if(int||long||double)$
+    @Override
+    public void enablePooling() {
+        vector.enablePooling();
+    }
+
+$endif$
     @Override
     public BlockFactory blockFactory() {
         return vector.blockFactory();

@@ -13,7 +13,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -27,13 +26,9 @@ import java.util.Collections;
 public class SizeFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_size";
 
-    private static SizeFieldMapper toType(FieldMapper in) {
-        return (SizeFieldMapper) in;
-    }
-
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam("enabled", m -> toType(m).enabled, false);
+        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam("enabled", false);
 
         private Builder() {
             super(NAME);
@@ -69,6 +64,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
                 false,
                 null,
                 null,
+                false,
                 false,
                 false,
                 false
@@ -111,11 +107,6 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         // TODO: Similar to source mapper optimize in case of not materialized.
         final int value = context.sourceToParse().source().originalBytes().length();
         NumberType.INTEGER.addFields(context.doc(), fullPath(), value, IndexType.points(true, true), true);
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder().init(this);
     }
 
     @Override

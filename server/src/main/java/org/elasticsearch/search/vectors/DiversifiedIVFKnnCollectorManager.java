@@ -15,14 +15,13 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitSet;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.LongAccumulator;
 
 public class DiversifiedIVFKnnCollectorManager extends AbstractIVFKnnVectorQuery.IVFCollectorManager {
     private final int k;
     private final BitSetProducer parentsFilter;
 
-    DiversifiedIVFKnnCollectorManager(int k, LongAccumulator longAccumulator, BitSetProducer parentsFilter) {
-        super(k, longAccumulator);
+    DiversifiedIVFKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore, BitSetProducer parentsFilter) {
+        super(k, sharedScore);
         this.k = k;
         this.parentsFilter = parentsFilter;
     }

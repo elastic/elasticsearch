@@ -1,0 +1,4 @@
+FROM employees, (FROM employees | KEEP salary)
+| EVAL salary = salary::keyword
+| KEEP salary
+| MV_EXPAND salary

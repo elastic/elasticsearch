@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -33,6 +34,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class DivTests extends AbstractScalarFunctionTestCase {
+    private static final List<String> DIV_BY_ZERO_WARNINGS = List.of(
+        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+        "Line 1:1: java.lang.ArithmeticException: / by zero"
+    );
+
     public DivTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -175,7 +181,7 @@ public class DivTests extends AbstractScalarFunctionTestCase {
             List<Float> left = randomDenseVector(dimensions);
             List<Float> right = randomDenseVector(dimensions);
             List<Float> expected = divVectors(left, right);
-            return new TestCaseSupplier.TestCase(
+            TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
@@ -184,6 +190,7 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                 DENSE_VECTOR,
                 equalTo(expected)
             );
+            return expected == null ? testCase.withWarnings(DIV_BY_ZERO_WARNINGS) : testCase;
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DENSE_VECTOR), () -> {
@@ -214,8 +221,7 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                 "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Div]",
                 DENSE_VECTOR,
                 equalTo(null)
-            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line 1:1: java.lang.ArithmeticException: / by zero");
+            ).withWarnings(DIV_BY_ZERO_WARNINGS);
         }));
 
         suppliers.addAll(denseVectorScalarCases("Div", (v, s) -> {
@@ -230,12 +236,7 @@ public class DivTests extends AbstractScalarFunctionTestCase {
             // Large scalars (e.g. randomInt/randomLong) divided by near-zero vector elements
             // can overflow to Infinity; the evaluator throws and returns null for the whole vector
             return result.stream().anyMatch(f -> Float.isInfinite(f) || Float.isNaN(f)) ? null : result;
-        },
-            List.of(
-                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.ArithmeticException: / by zero"
-            )
-        ));
+        }, DIV_BY_ZERO_WARNINGS));
 
         // Overflows
         suppliers.addAll(
@@ -352,10 +353,20 @@ public class DivTests extends AbstractScalarFunctionTestCase {
         return new Div(source, args.get(0), args.get(1));
     }
 
+    /**
+     * Element-wise division. Returns {@code null} if any element is not finite, because {@link Div} rejects
+     * non-finite elements with an {@link ArithmeticException} and {@link DenseVectorsEvaluator} then returns
+     * null for the whole vector.
+     */
+    @Nullable
     private static List<Float> divVectors(List<Float> left, List<Float> right) {
         List<Float> result = new ArrayList<>();
         for (int i = 0; i < left.size(); i++) {
-            result.add(left.get(i) / right.get(i));
+            float value = left.get(i) / right.get(i);
+            if (Float.isFinite(value) == false) {
+                return null;
+            }
+            result.add(value);
         }
         return result;
     }

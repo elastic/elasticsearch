@@ -54,7 +54,8 @@ public class CsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
             BWC_MATRIX_POLICY,
             "/csv-*.csv-spec",
             "/datasources/external-declared-schema.csv-spec",
-            "/datasources/external-heavy-aggregates.csv-spec"
+            "/datasources/external-heavy-aggregates.csv-spec",
+            "/datasources/external-metadata-collision.csv-spec"
         );
     }
 }

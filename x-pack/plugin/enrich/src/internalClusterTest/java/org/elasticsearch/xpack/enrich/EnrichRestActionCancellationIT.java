@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -38,6 +39,8 @@ import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.oneOf;
 
+// The test's REST client runs on HC4 jars that the enrich bundle also contains, so its threads and sockets are attributed to enrich
+@ESTestCase.WithoutEntitlements
 public class EnrichRestActionCancellationIT extends ESIntegTestCase {
 
     @Override

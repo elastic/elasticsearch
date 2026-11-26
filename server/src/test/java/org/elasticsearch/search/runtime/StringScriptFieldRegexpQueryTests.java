@@ -28,7 +28,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
 
     @Override
     protected StringScriptFieldRegexpQuery createTestInstance() {
-        int matchFlags = randomBoolean() ? 0 : RegExp.ASCII_CASE_INSENSITIVE;
+        int matchFlags = randomBoolean() ? 0 : RegExp.CASE_INSENSITIVE;
         return new StringScriptFieldRegexpQuery(
             randomScript(),
             leafFactory,
@@ -67,7 +67,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             case 1 -> fieldName += "modified";
             case 2 -> pattern += "modified";
             case 3 -> syntaxFlags = randomValueOtherThan(syntaxFlags, () -> randomInt(RegExp.ALL));
-            case 4 -> matchFlags = (matchFlags & RegExp.ASCII_CASE_INSENSITIVE) != 0 ? 0 : RegExp.ASCII_CASE_INSENSITIVE;
+            case 4 -> matchFlags = (matchFlags & RegExp.CASE_INSENSITIVE) != 0 ? 0 : RegExp.CASE_INSENSITIVE;
             default -> fail();
         }
         return new StringScriptFieldRegexpQuery(
@@ -109,7 +109,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             "test",
             "a.+b",
             0,
-            RegExp.ASCII_CASE_INSENSITIVE,
+            RegExp.CASE_INSENSITIVE,
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
             null
         );

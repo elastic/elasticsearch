@@ -12,6 +12,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,8 +24,11 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
@@ -45,18 +49,56 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Clamp.class).ternary(Clamp::new).name("clamp");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .ternaryValueTransformation(PromqlFunctionDefinition.MIN_SCALAR, PromqlFunctionDefinition.MAX_SCALAR, Clamp::new)
+        // Prometheus clamp returns an empty result (drops the series) when max < min, whereas ES|QL clamp would return
+        // the bound. Emit NULL in that case so applyNullOutputFilter drops the row, matching Prometheus.
+        .ternaryValueTransformation(
+            PromqlFunctionDefinition.MIN_SCALAR,
+            PromqlFunctionDefinition.MAX_SCALAR,
+            (source, field, min, max) -> new Case(
+                source,
+                new LessThan(source, max, min),
+                List.of(new Literal(source, null, NULL), new Clamp(source, field, min, max))
+            )
+        )
         .description("Clamps the sample values of all elements to be within [min, max].")
         .example("clamp(http_requests_total, 0, 100)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(
-            "Does not implement Prometheus's special case of returning an empty vector when `min` is greater than "
-                + "`max`; it always returns clamped values."
-        )
         .name("clamp");
 
     @FunctionInfo(
-        returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+        returnType = {
+            "double",
+            "integer",
+            "long",
+            "double",
+            "unsigned_long",
+            "keyword",
+            "ip",
+            "boolean",
+            "date",
+            "date_nanos",
+            "version" },
+        signatures = {
+            @Signature(params = { "boolean", "boolean", "boolean" }, returnType = "boolean"),
+            @Signature(params = { "date", "date", "date" }, returnType = "date"),
+            @Signature(params = { "date_nanos", "date_nanos", "date_nanos" }, returnType = "date_nanos"),
+            @Signature(params = { "integer", "integer", "integer" }, returnType = "integer"),
+            @Signature(params = { "long", "integer|long", "integer|long" }, returnType = "long"),
+            @Signature(params = { "integer", "long", "integer|long" }, returnType = "long"),
+            @Signature(params = { "integer", "integer", "long" }, returnType = "long"),
+            @Signature(params = { "double", "integer|long|double", "integer|long|double" }, returnType = "double"),
+            @Signature(params = { "integer|long", "double", "integer|long|double" }, returnType = "double"),
+            @Signature(params = { "integer|long", "integer|long", "double" }, returnType = "double"),
+            @Signature(params = { "double", "unsigned_long", "unsigned_long" }, returnType = "double"),
+            @Signature(params = { "integer", "unsigned_long", "unsigned_long" }, returnType = "unsigned_long"),
+            @Signature(params = { "ip", "ip", "ip" }, returnType = "ip"),
+            @Signature(params = { "STRING", "STRING", "STRING" }, returnType = "keyword"),
+            @Signature(params = { "long", "unsigned_long", "unsigned_long" }, returnType = "unsigned_long"),
+            @Signature(params = { "unsigned_long", "double", "double" }, returnType = "double"),
+            @Signature(params = { "unsigned_long", "integer", "integer" }, returnType = "unsigned_long"),
+            @Signature(params = { "unsigned_long", "long", "long" }, returnType = "long"),
+            @Signature(params = { "unsigned_long", "unsigned_long", "unsigned_long" }, returnType = "unsigned_long"),
+            @Signature(params = { "version", "version", "version" }, returnType = "version") },
         briefSummary = "Clamps values to a specified minimum and maximum range.",
         description = "Limits (or clamps) the values of all samples to have a lower limit of min and an upper limit of max.",
         examples = { @Example(file = "k8s-timeseries-clamp", tag = "clamp") },
@@ -67,17 +109,53 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
         Source source,
         @Param(
             name = "field",
-            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
-            description = "Numeric expression. If `null`, the function returns `null`."
+            type = {
+                "double",
+                "integer",
+                "long",
+                "double",
+                "unsigned_long",
+                "keyword",
+                "text",
+                "ip",
+                "boolean",
+                "date",
+                "date_nanos",
+                "version" },
+            description = "Expression to clamp. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
             name = "min",
-            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+            type = {
+                "double",
+                "integer",
+                "long",
+                "double",
+                "unsigned_long",
+                "keyword",
+                "text",
+                "ip",
+                "boolean",
+                "date",
+                "date_nanos",
+                "version" },
             description = "The min value to clamp data into."
         ) Expression min,
         @Param(
             name = "max",
-            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+            type = {
+                "double",
+                "integer",
+                "long",
+                "double",
+                "unsigned_long",
+                "keyword",
+                "text",
+                "ip",
+                "boolean",
+                "date",
+                "date_nanos",
+                "version" },
             description = "The max value to clamp data into."
         ) Expression max
     ) {
@@ -107,7 +185,13 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
             t -> t.isNumeric() || t == DataType.BOOLEAN || t.isDate() || DataType.isString(t) || t == DataType.IP || t == DataType.VERSION,
             sourceText(),
             TypeResolutions.ParamOrdinal.FIRST,
-            fieldDataType.typeName()
+            "boolean",
+            "date",
+            "date_nanos",
+            "ip",
+            "numeric",
+            "string",
+            "version"
         );
         if (resolution.unresolved()) {
             return resolution;
@@ -115,12 +199,13 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
         if (fieldDataType == NULL) {
             return new TypeResolution("'field' must not be null in clamp()");
         }
+        String boundType = fieldDataType.isNumeric() ? "numeric" : DataType.isString(fieldDataType) ? "string" : fieldDataType.typeName();
         resolution = TypeResolutions.isType(
             max,
             t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType.noText(),
             sourceText(),
             TypeResolutions.ParamOrdinal.SECOND,
-            fieldDataType.typeName()
+            boundType
         );
         if (resolution.unresolved()) {
             return resolution;
@@ -130,7 +215,7 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
             t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType.noText(),
             sourceText(),
             TypeResolutions.ParamOrdinal.THIRD,
-            fieldDataType.typeName()
+            boundType
         );
         if (resolution.unresolved()) {
             return resolution;

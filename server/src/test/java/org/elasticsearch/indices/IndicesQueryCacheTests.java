@@ -13,6 +13,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -26,6 +27,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -37,12 +39,20 @@ import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.lucene.search.cost.QueryCacheEntryCostEstimator;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -162,6 +172,156 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
     }
 
+    /**
+     * Matches every document, like {@link DummyQuery}, but a search asking for its scorer parks until {@code release} opens, after
+     * counting down {@code arrived}, so that concurrent searches can be held at that point. The scorer supplier also counts how it was
+     * asked for the scorer: the cache populates an entry through {@link ScorerSupplier#bulkScorer}, and a search that was denied
+     * population runs the query uncached through {@link ScorerSupplier#get}.
+     */
+    private static class ParkingQuery extends Query {
+
+        private final CountDownLatch arrived;
+        private final CountDownLatch release;
+        final AtomicInteger populatingScorers = new AtomicInteger();
+        final AtomicInteger uncachedScorers = new AtomicInteger();
+
+        ParkingQuery(CountDownLatch arrived, CountDownLatch release) {
+            this.arrived = arrived;
+            this.release = release;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+            return new ConstantScoreWeight(this, boost) {
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) {
+                    final int maxDoc = context.reader().maxDoc();
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) {
+                            uncachedScorers.incrementAndGet();
+                            return scorer();
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() {
+                            populatingScorers.incrementAndGet();
+                            return new Weight.DefaultBulkScorer(scorer());
+                        }
+
+                        private Scorer scorer() {
+                            arrived.countDown();
+                            safeAwait(release);
+                            return new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.all(maxDoc));
+                        }
+
+                        @Override
+                        public long cost() {
+                            return maxDoc;
+                        }
+                    };
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
+            };
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public String toString(String field) {
+            return "parking";
+        }
+
+        /** All instances are equal, so that concurrent searches ask the cache for the same entry. */
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
+        }
+    }
+
+    /**
+     * Concurrent searches that miss the cache on the same entry must not each build their own copy of it: one populates the cache while
+     * the others run uncached, and nothing of that is left behind once they are done. The searches are parked while getting their scorers
+     * so that they all overlap.
+     */
+    public void testConcurrentSearchesPopulateTheSameEntryOnce() throws Exception {
+        final int searches = randomIntBetween(2, 8);
+        final int docs = randomIntBetween(1, 100);
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        for (int i = 0; i < docs; i++) {
+            w.addDocument(new Document());
+        }
+        w.forceMerge(1);
+        DirectoryReader r = DirectoryReader.open(w);
+        w.close();
+        ShardId shard = new ShardId("index", "_na_", 0);
+        r = ElasticsearchDirectoryReader.wrap(r, shard);
+        assertThat(r.leaves().size(), equalTo(1));
+        IndexSearcher searcher = new IndexSearcher(r);
+        searcher.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
+
+        Settings settings = Settings.builder()
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
+        IndicesQueryCache cache = new IndicesQueryCache(settings);
+        searcher.setQueryCache(cache);
+
+        final CountDownLatch arrived = new CountDownLatch(searches);
+        final CountDownLatch release = new CountDownLatch(1);
+        final ParkingQuery query = new ParkingQuery(arrived, release);
+        final ExecutorService executor = Executors.newFixedThreadPool(searches);
+        final List<Future<Integer>> counts = new ArrayList<>();
+        try {
+            for (int i = 0; i < searches; i++) {
+                counts.add(executor.submit(() -> searcher.count(query)));
+            }
+
+            // every search is now getting its scorer: one of them is populating the cache, the others gave up on it
+            safeAwait(arrived);
+            assertThat(cache.inFlightPopulationCount(), equalTo(1));
+            assertThat(query.populatingScorers.get(), equalTo(1));
+            assertThat(query.uncachedScorers.get(), equalTo(searches - 1));
+        } finally {
+            // always unpark the searches, otherwise a failed assertion above would leave them hanging
+            release.countDown();
+            executor.shutdown();
+        }
+        assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        // assert on the results of the searches here rather than inside their threads
+        for (Future<Integer> count : counts) {
+            assertEquals(docs, safeGet(count).intValue());
+        }
+
+        // the one population made it to the cache and nothing is in flight anymore
+        assertThat(cache.inFlightPopulationCount(), equalTo(0));
+        QueryCacheStats stats = cache.getStats(shard, () -> 0L);
+        assertEquals(1L, stats.getCacheCount());
+        assertEquals(1L, stats.getCacheSize());
+        // a later search is answered from the cache without building anything
+        assertEquals(docs, searcher.count(query));
+        assertThat(query.populatingScorers.get(), equalTo(1));
+        assertThat(query.uncachedScorers.get(), equalTo(searches - 1));
+        assertEquals(1L, cache.getStats(shard, () -> 0L).getHitCount());
+
+        IOUtils.close(r, dir);
+        cache.onClose(shard);
+        cache.close(); // asserts nothing is in flight
+    }
+
     public void testBasics() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
@@ -276,6 +436,60 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard);
         cache.close();
         return cacheCount;
+    }
+
+    /**
+     * Before building an entry the cache asks the search to reserve the heap the entry takes, sized like Lucene sizes the entry, on
+     * the circuit breaker of the {@link ContextIndexSearcher} running it. The searcher is a real one, so what reaches the cache is the
+     * weight it wraps queries in for exactly this purpose. A granted reservation populates the cache; a refused one leaves the cache as
+     * it was while the search still gets its hits, from an uncached scorer.
+     */
+    public void testCachePopulationIsChargedToTheSearchersBreaker() throws IOException {
+        final int docs = randomIntBetween(1, 1000);
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        for (int i = 0; i < docs; i++) {
+            w.addDocument(new Document());
+        }
+        w.forceMerge(1);
+        DirectoryReader r = DirectoryReader.open(w);
+        w.close();
+        ShardId shard = new ShardId("index", "_na_", 0);
+        r = ElasticsearchDirectoryReader.wrap(r, shard);
+
+        Settings settings = Settings.builder()
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
+        IndicesQueryCache cache = new IndicesQueryCache(settings);
+        ContextIndexSearcher s = new ContextIndexSearcher(
+            r,
+            IndexSearcher.getDefaultSimilarity(),
+            cache,
+            TrivialQueryCachingPolicy.ALWAYS,
+            false
+        );
+
+        // DummyQuery reports a cost of maxDoc, so Lucene builds a dense entry and that is what the search is asked to reserve
+        final int maxDoc = r.leaves().get(0).reader().maxDoc();
+        final long denseBytes = new QueryCacheEntryCostEstimator(maxDoc, maxDoc).estimate();
+
+        TrackingCircuitBreaker refusing = new TrackingCircuitBreaker(denseBytes - 1);
+        s.setCircuitBreaker(refusing);
+        assertEquals(docs, s.count(new DummyQuery(0)));
+        assertEquals("a refused reservation leaves the cache as it was", 0L, cache.getStats(shard, () -> 0L).getCacheCount());
+        assertEquals("a refused reservation leaves nothing on the breaker", 0L, refusing.getUsed());
+
+        TrackingCircuitBreaker granting = new TrackingCircuitBreaker(denseBytes);
+        s.setCircuitBreaker(granting);
+        assertEquals(docs, s.count(new DummyQuery(1)));
+        assertEquals(1L, cache.getStats(shard, () -> 0L).getCacheCount());
+        assertEquals("the entry is reserved at the size Lucene builds it", denseBytes, granting.peak());
+        assertEquals("the reservation is released once the search is done", 0L, granting.getUsed());
+
+        IOUtils.close(r, dir);
+        cache.onClose(shard);
+        cache.close();
     }
 
     public void testTwoShards() throws IOException {

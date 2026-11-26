@@ -8,17 +8,25 @@
  */
 package org.elasticsearch.cluster.health;
 
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase<ClusterShardHealth> {
 
@@ -135,6 +143,109 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
             unassignedShards,
             unassignedPrimaryShards,
             primaryActive
+        );
+    }
+
+    public void testInactivePrimaryHealthWithoutLocalRecoveryRetries() {
+        for (var recoverySource : List.of(
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            RecoverySource.LocalShardsRecoverySource.INSTANCE
+        )) {
+            var routing = inactivePrimary(recoverySource, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+            assertThat(ClusterShardHealth.getInactivePrimaryHealth(routing, false), equalTo(ClusterHealthStatus.YELLOW));
+            assertThat(ClusterShardHealth.getInactivePrimaryHealth(routing), equalTo(ClusterHealthStatus.YELLOW));
+        }
+        var existingStore = inactivePrimary(
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null)
+        );
+        assertThat(ClusterShardHealth.getInactivePrimaryHealth(existingStore, false), equalTo(ClusterHealthStatus.RED));
+        assertThat(ClusterShardHealth.getInactivePrimaryHealth(existingStore), equalTo(ClusterHealthStatus.RED));
+    }
+
+    /// Local recovery retries are considered equivalent to failed allocations, so an inactive primary which would otherwise be `YELLOW`
+    /// (because it is in an unexceptional recovery) becomes `RED`.
+    public void testInactivePrimaryHealthWithLocalRecoveryRetries() {
+        List<ShardRouting> shardRoutings = List.of(
+            inactivePrimary(
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+            ),
+            inactivePrimary(
+                RecoverySource.LocalShardsRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+            ),
+            inactivePrimary(RecoverySource.ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null))
+        );
+        for (ShardRouting shardRouting : shardRoutings) {
+            assertThat(ClusterShardHealth.getInactivePrimaryHealth(shardRouting, true), equalTo(ClusterHealthStatus.RED));
+        }
+    }
+
+    /// Local recovery retries must have exactly the same effect as failed allocations on a reshard-split target, i.e. no effect, since it
+    /// stays `YELLOW` either way.
+    public void testInactivePrimaryHealthOfReshardSplitTargetIgnoresRetriesAndFailures() {
+        var recoverySource = new RecoverySource.ReshardSplitRecoverySource(new ShardId("index", "_na_", 1));
+        var unassignedInfos = List.of(
+            new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, null),
+            new UnassignedInfo(
+                UnassignedInfo.Reason.ALLOCATION_FAILED,
+                "failed",
+                null,
+                randomIntBetween(1, 5),
+                0L,
+                0L,
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Set.of(),
+                null
+            )
+        );
+        for (var unassignedInfo : unassignedInfos) {
+            var routing = inactivePrimary(recoverySource, unassignedInfo);
+            assertThat(ClusterShardHealth.getInactivePrimaryHealth(routing, randomBoolean()), equalTo(ClusterHealthStatus.YELLOW));
+        }
+    }
+
+    public void testInactivePrimaryHealthWithFailedAllocationsOrDecidersNo() {
+        var failedAllocations = new UnassignedInfo(
+            UnassignedInfo.Reason.ALLOCATION_FAILED,
+            "failed",
+            null,
+            randomIntBetween(1, 5),
+            0L,
+            0L,
+            false,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            Set.of(),
+            null
+        );
+        var decidersNo = new UnassignedInfo(
+            UnassignedInfo.Reason.INDEX_CREATED,
+            null,
+            null,
+            0,
+            0L,
+            0L,
+            false,
+            UnassignedInfo.AllocationStatus.DECIDERS_NO,
+            Set.of(),
+            null
+        );
+        for (var unassignedInfo : List.of(failedAllocations, decidersNo)) {
+            var routing = inactivePrimary(RecoverySource.EmptyStoreRecoverySource.INSTANCE, unassignedInfo);
+            assertThat(ClusterShardHealth.getInactivePrimaryHealth(routing, randomBoolean()), equalTo(ClusterHealthStatus.RED));
+        }
+    }
+
+    private static ShardRouting inactivePrimary(RecoverySource recoverySource, UnassignedInfo unassignedInfo) {
+        return ShardRouting.newUnassigned(
+            new ShardId("index", "_na_", 0),
+            true,
+            recoverySource,
+            unassignedInfo,
+            ShardRouting.Role.DEFAULT,
+            ShardRoutingHelper.recoveryPriorityForNewlyCreatedShard(true)
         );
     }
 }

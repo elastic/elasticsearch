@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.io.IOException;
 
@@ -33,31 +34,43 @@ public class PreparedEsqlQueryRequest extends EsqlQueryRequest {
 
     private final EsqlStatement statement;
     private final String queryDescription;
+    private final boolean analyzeOnly;
 
-    protected PreparedEsqlQueryRequest(boolean async, EsqlStatement statement, String queryDescription) {
+    protected PreparedEsqlQueryRequest(boolean async, EsqlStatement statement, String queryDescription, boolean analyzeOnly) {
         super(async, null);
         this.statement = statement;
         this.queryDescription = PREPARED_QUERY_PREFIX + queryDescription;
+        this.analyzeOnly = analyzeOnly;
     }
 
     private PreparedEsqlQueryRequest(EsqlQueryRequest source, EsqlStatement statement, String queryDescription) {
         super(source);
         this.statement = statement;
         this.queryDescription = PREPARED_QUERY_PREFIX + queryDescription;
+        this.analyzeOnly = false;
     }
 
     /**
      * Creates a synchronous request backed by the given pre-built statement.
      */
     public static PreparedEsqlQueryRequest sync(EsqlStatement statement, String queryDescription) {
-        return new PreparedEsqlQueryRequest(false, statement, queryDescription);
+        return new PreparedEsqlQueryRequest(false, statement, queryDescription, false);
     }
 
     /**
      * Creates an asynchronous request backed by the given pre-built statement.
      */
     public static PreparedEsqlQueryRequest async(EsqlStatement statement, String queryDescription) {
-        return new PreparedEsqlQueryRequest(true, statement, queryDescription);
+        return new PreparedEsqlQueryRequest(true, statement, queryDescription, false);
+    }
+
+    /**
+     * Creates a synchronous request that stops after analysis. The response carries the analyzed columns and no rows.
+     * Failures that a regular query would hit during analysis, such as unknown indices or columns, are reported as failures.
+     * It is meant for checking a query without running it, so it is not logged and does not count towards query metrics.
+     */
+    public static PreparedEsqlQueryRequest analyzeOnly(EsqlStatement statement, String queryDescription) {
+        return new PreparedEsqlQueryRequest(false, statement, queryDescription, true);
     }
 
     /**
@@ -90,6 +103,11 @@ public class PreparedEsqlQueryRequest extends EsqlQueryRequest {
         return queryDescription;
     }
 
+    @Override
+    public boolean analyzeOnly() {
+        return analyzeOnly;
+    }
+
     public String getIndex() {
         return null;
     }
@@ -107,7 +125,12 @@ public class PreparedEsqlQueryRequest extends EsqlQueryRequest {
      * Returns the pre-built statement directly, without invoking the parser, after validating its settings.
      */
     @Override
-    public EsqlStatement parse(EsqlParser parser, SettingsValidationContext settingsValidationCtx, InferenceSettings inferenceSettings) {
+    public EsqlStatement parse(
+        EsqlParser parser,
+        SettingsValidationContext settingsValidationCtx,
+        InferenceSettings inferenceSettings,
+        EsqlFlags flags
+    ) {
         QuerySettings.validate(statement, settingsValidationCtx);
         return statement;
     }

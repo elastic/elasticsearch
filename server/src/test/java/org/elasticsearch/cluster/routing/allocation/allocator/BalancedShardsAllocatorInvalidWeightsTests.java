@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -56,7 +57,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final var allocator = new BalancedShardsAllocator(
                 createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
-                balancingWeightsFactory
+                balancingWeightsFactory,
+                BalancedShardsAllocatorMetrics.NOOP
             );
 
             final int numberOfNodes = randomIntBetween(3, 5);
@@ -87,7 +89,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final var allocator = new BalancedShardsAllocator(
                 createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
-                balancingWeightsFactory
+                balancingWeightsFactory,
+                BalancedShardsAllocatorMetrics.NOOP
             );
 
             final int numberOfNodes = randomIntBetween(3, 5);
@@ -146,7 +149,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final var allocator = new BalancedShardsAllocator(
                 createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
-                balancingWeightsFactory
+                balancingWeightsFactory,
+                BalancedShardsAllocatorMetrics.NOOP
             );
 
             final ClusterState clusterState = failAllShards(ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1));
@@ -166,7 +170,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final var allocator = new BalancedShardsAllocator(
                 createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
-                balancingWeightsFactory
+                balancingWeightsFactory,
+                BalancedShardsAllocatorMetrics.NOOP
             );
 
             final int numberOfNodes = randomIntBetween(3, 5);
@@ -242,7 +247,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 routingNodes.failShard(
                     shardRouting,
                     new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "test"),
-                    RoutingChangesObserver.NOOP
+                    RoutingChangesObserver.NOOP,
+                    clusterState.metadata()
                 );
             }
         }
@@ -268,7 +274,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                     0L,
                     "test",
                     RoutingChangesObserver.NOOP,
-                    ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                    RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );
                 routingNodes.startShard(test.v2(), RoutingChangesObserver.NOOP, 0L);
             }

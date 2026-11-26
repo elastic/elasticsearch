@@ -10,6 +10,8 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -25,19 +27,23 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.ReleasableRef;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -59,14 +65,19 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -896,6 +907,194 @@ public class JobResultsProviderTests extends ESTestCase {
         verify(client).threadPool();
         verify(client).search(any(SearchRequest.class), any());
         verifyNoMoreInteractions(client);
+    }
+
+    public void testEsqlDatafeedSourceCheckpointShouldNotSearchWhenWriteAliasHoldsCheckpoint() throws IOException {
+        EsqlDatafeedSourceCheckpoint checkpoint = new EsqlDatafeedSourceCheckpoint("foo", "foo-df", 3_600_000L, "fp");
+        Client client = getBasicMockedClient();
+        GetRequest[] getRequestHolder = new GetRequest[1];
+        mockGet(client, getRequestHolder, existingGetResponse(checkpoint));
+        JobResultsProvider provider = createProvider(client);
+
+        SetOnce<EsqlDatafeedSourceCheckpoint> holder = new SetOnce<>();
+        provider.esqlDatafeedSourceCheckpoint("foo", holder::set, e -> { throw new AssertionError("unexpected failure", e); });
+
+        assertThat(holder.get(), equalTo(checkpoint));
+        assertThat(getRequestHolder[0].index(), equalTo(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
+        assertThat(getRequestHolder[0].id(), equalTo(EsqlDatafeedSourceCheckpoint.documentId("foo")));
+        assertThat(getRequestHolder[0].realtime(), equalTo(true));
+        verify(client, never()).search(any(), any());
+    }
+
+    public void testEsqlDatafeedSourceCheckpointShouldSearchReadAliasWhenWriteAliasMissesAfterRollover() throws IOException {
+        // The two source_end_ms values differ in digit count so a lexicographic (keyword) comparison would pick the older copy.
+        EsqlDatafeedSourceCheckpoint older = new EsqlDatafeedSourceCheckpoint("foo", "foo-df", 9_000_000L, "fp");
+        EsqlDatafeedSourceCheckpoint newest = new EsqlDatafeedSourceCheckpoint("foo", "foo-df", 10_800_000L, "fp");
+        EsqlDatafeedSourceCheckpoint[] holder = new EsqlDatafeedSourceCheckpoint[1];
+        SearchRequest[] searchRequestHolder = new SearchRequest[1];
+        Client client = clientWithMissingGetAndCheckpointSearch(searchRequestHolder, List.of(older, newest));
+        JobResultsProvider provider = createProvider(client);
+
+        provider.esqlDatafeedSourceCheckpoint("foo", c -> holder[0] = c, e -> { throw new AssertionError("unexpected failure", e); });
+
+        assertThat(holder[0], equalTo(newest));
+        assertThat(searchRequestHolder[0].indices(), equalTo(new String[] { AnomalyDetectorsIndex.jobResultsAliasedName("foo") }));
+        assertThat(searchRequestHolder[0].source().query().getName(), equalTo("ids"));
+        assertThat(
+            searchRequestHolder[0].source().query().toString().contains(EsqlDatafeedSourceCheckpoint.documentId("foo")),
+            equalTo(true)
+        );
+        assertThat(searchRequestHolder[0].source().size(), equalTo(1));
+        assertThat(searchRequestHolder[0].allowPartialSearchResults(), equalTo(false));
+        assertThat(searchRequestHolder[0].source().sorts(), hasSize(1));
+        assertThat(
+            searchRequestHolder[0].source().sorts().get(0).toString(),
+            containsString(EsqlDatafeedSourceCheckpoint.SOURCE_END_MS.getPreferredName())
+        );
+    }
+
+    public void testEsqlDatafeedSourceCheckpointShouldReturnNullWhenNoResultsIndexHoldsCheckpoint() throws IOException {
+        SearchRequest[] searchRequestHolder = new SearchRequest[1];
+        Client client = clientWithMissingGetAndCheckpointSearch(searchRequestHolder, List.of());
+        JobResultsProvider provider = createProvider(client);
+
+        SetOnce<EsqlDatafeedSourceCheckpoint> holder = new SetOnce<>();
+        provider.esqlDatafeedSourceCheckpoint("foo", holder::set, e -> { throw new AssertionError("unexpected failure", e); });
+
+        assertThat(holder.get(), nullValue());
+        verify(client).search(any(SearchRequest.class), any());
+    }
+
+    public void testEsqlDatafeedSourceCheckpointShouldFailWhenGetFailsWithNonIndexNotFoundException() {
+        Client client = getBasicMockedClient();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[1];
+            listener.onFailure(new RuntimeException("get failed"));
+            return null;
+        }).when(client).get(any(), any());
+        JobResultsProvider provider = createProvider(client);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        provider.esqlDatafeedSourceCheckpoint("foo", c -> { throw new AssertionError("unexpected success"); }, failure::set);
+
+        assertThat(failure.get(), instanceOf(RuntimeException.class));
+        verify(client, never()).search(any(), any());
+    }
+
+    public void testEsqlDatafeedSourceCheckpointShouldFailWhenFallbackSearchFails() throws IOException {
+        Client client = getBasicMockedClient();
+        mockGet(client, new GetRequest[1], missingGetResponse());
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
+        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client).setIndices(indexName));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
+            listener.onFailure(new RuntimeException("search failed"));
+            return null;
+        }).when(client).search(any(), any());
+        JobResultsProvider provider = createProvider(client);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        provider.esqlDatafeedSourceCheckpoint("foo", c -> { throw new AssertionError("unexpected success"); }, failure::set);
+
+        assertThat(failure.get(), instanceOf(RuntimeException.class));
+    }
+
+    public void testEsqlDatafeedSourceCheckpointShouldSearchReadAliasWhenWriteAliasIndexIsMissing() throws IOException {
+        EsqlDatafeedSourceCheckpoint checkpoint = new EsqlDatafeedSourceCheckpoint("foo", "foo-df", 3_600_000L, "fp");
+        SearchRequest[] searchRequestHolder = new SearchRequest[1];
+        Client client = getBasicMockedClient();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[1];
+            listener.onFailure(new IndexNotFoundException(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
+            return null;
+        }).when(client).get(any(), any());
+        mockCheckpointSearch(client, searchRequestHolder, List.of(checkpoint));
+        JobResultsProvider provider = createProvider(client);
+
+        SetOnce<EsqlDatafeedSourceCheckpoint> holder = new SetOnce<>();
+        provider.esqlDatafeedSourceCheckpoint("foo", holder::set, e -> { throw new AssertionError("unexpected failure", e); });
+
+        assertThat(holder.get(), equalTo(checkpoint));
+    }
+
+    private Client clientWithMissingGetAndCheckpointSearch(SearchRequest[] searchRequestHolder, List<EsqlDatafeedSourceCheckpoint> copies)
+        throws IOException {
+        Client client = getBasicMockedClient();
+        mockGet(client, new GetRequest[1], missingGetResponse());
+        mockCheckpointSearch(client, searchRequestHolder, copies);
+        return client;
+    }
+
+    private void mockCheckpointSearch(Client client, SearchRequest[] searchRequestHolder, List<EsqlDatafeedSourceCheckpoint> copies)
+        throws IOException {
+        List<EsqlDatafeedSourceCheckpoint> sortedCopies = new ArrayList<>(copies);
+        sortedCopies.sort((a, b) -> Long.compare(b.getSourceEndMs(), a.getSourceEndMs()));
+        List<Map<String, Object>> source = new ArrayList<>();
+        for (EsqlDatafeedSourceCheckpoint copy : sortedCopies) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("job_id", copy.getJobId());
+            map.put("datafeed_id", copy.getDatafeedId());
+            map.put("source_end_ms", copy.getSourceEndMs());
+            map.put("fingerprint", copy.getFingerprint());
+            source.add(map);
+        }
+        SearchResponse response = createSearchResponse(source);
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
+        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client).setIndices(indexName));
+        doAnswer(invocation -> {
+            searchRequestHolder[0] = (SearchRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
+            ActionListener.respondAndRelease(listener, response);
+            mockSearchResponsesPendingDecRef.remove(response);
+            return null;
+        }).when(client).search(any(), any());
+    }
+
+    private static void mockGet(Client client, GetRequest[] getRequestHolder, GetResponse response) {
+        doAnswer(invocation -> {
+            getRequestHolder[0] = (GetRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[1];
+            listener.onResponse(response);
+            return null;
+        }).when(client).get(any(), any());
+    }
+
+    private static GetResponse existingGetResponse(EsqlDatafeedSourceCheckpoint checkpoint) throws IOException {
+        BytesReference source = BytesReference.bytes(checkpoint.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
+        return new GetResponse(
+            new GetResult(
+                AnomalyDetectorsIndex.resultsWriteAlias(checkpoint.getJobId()),
+                EsqlDatafeedSourceCheckpoint.documentId(checkpoint.getJobId()),
+                0,
+                1,
+                1,
+                true,
+                source,
+                Collections.emptyMap(),
+                Collections.emptyMap()
+            )
+        );
+    }
+
+    private static GetResponse missingGetResponse() {
+        return new GetResponse(
+            new GetResult(
+                AnomalyDetectorsIndex.resultsWriteAlias("foo"),
+                EsqlDatafeedSourceCheckpoint.documentId("foo"),
+                -2,
+                0,
+                -1,
+                false,
+                null,
+                null,
+                null
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")

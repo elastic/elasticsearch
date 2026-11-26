@@ -103,7 +103,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             notifyCommits(indexEngine, searchEngine);
             searchTaskQueue.runAllRunnableTasks();
 
-            try (Searcher searcher = searchEngine.acquireSearcher("test")) {
+            try (Searcher searcher = searchEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 DirectoryReader reader = searcher.getDirectoryReader();
                 boolean sawCachingDir = false;
                 for (org.apache.lucene.index.LeafReaderContext leaf : reader.leaves()) {
@@ -373,7 +373,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
             {
                 // new searcher is recorded
-                var searcher = searchEngine.acquireSearcher("test");
+                var searcher = searchEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
                 assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(gen));
                 searcher.close();
             }
@@ -381,7 +381,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             {
                 // record is removed when all searchers are closed
                 var searchers = IntStream.range(0, randomIntBetween(2, 50))
-                    .mapToObj(i -> searchEngine.acquireSearcher("searcher#" + i))
+                    .mapToObj(i -> searchEngine.acquireSearcher("searcher#" + i, SplitShardCountSummary.IRRELEVANT))
                     .collect(Collectors.toCollection(ArrayList::new));
                 searchers.forEach(searcher -> assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(gen)));
 
@@ -424,7 +424,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
                     if (randomBoolean()) {
                         var key = new PrimaryTermAndGeneration(primaryTerm.get(), indexEngine.getCurrentGeneration());
-                        searchers.put(key, searchEngine.acquireSearcher("searcher#" + i));
+                        searchers.put(key, searchEngine.acquireSearcher("searcher#" + i, SplitShardCountSummary.IRRELEVANT));
                     }
                 }
 
@@ -626,7 +626,10 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 assertThat(checkIndex.checkIndex().clean, is(true));
 
                 if (randomBoolean()) {
-                    searchers.put(segmentsNFileName(generation), searchEngine.acquireSearcher("searcher#" + i));
+                    searchers.put(
+                        segmentsNFileName(generation),
+                        searchEngine.acquireSearcher("searcher#" + i, SplitShardCountSummary.IRRELEVANT)
+                    );
                 }
                 if (randomBoolean() && searchers.isEmpty() == false) {
                     var file = randomFrom(searchers.keySet());
@@ -798,11 +801,16 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             searchTaskQueue.runAllRunnableTasks();
             searchTaskQueue.advanceTime();
 
-            try (var ignored = searchEngine.acquireSearcher("test")) {
+            try (var ignored = searchEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 assertThat(searchEngine.getLastSearcherAcquiredTime(), is(0L));
             }
 
-            try (var ignored = searchEngine.acquireSearcher(randomFrom(Engine.CAN_MATCH_SEARCH_SOURCE, Engine.SEARCH_SOURCE))) {
+            try (
+                var ignored = searchEngine.acquireSearcher(
+                    randomFrom(Engine.CAN_MATCH_SEARCH_SOURCE, Engine.SEARCH_SOURCE),
+                    SplitShardCountSummary.IRRELEVANT
+                )
+            ) {
                 assertThat(searchEngine.getLastSearcherAcquiredTime(), is(searchTaskQueue.getCurrentTimeMillis()));
             }
         }

@@ -92,7 +92,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
 
         try (var masterService = createMasterService(threadPool)) {
             final var queue = masterService.createTaskQueue("snapshots-service-external-change", Priority.NORMAL, executor);
-            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, (e, m) -> {}, s -> {}, (e, v) -> {}));
+            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, s -> {}, (p, r, d) -> {}));
 
             batcher.get().processExternalChanges(false, false);
 
@@ -117,7 +117,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
 
         try (var masterService = createMasterService(threadPool)) {
             final var queue = masterService.createTaskQueue("snapshots-service-external-change", Priority.NORMAL, executor);
-            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, (e, m) -> {}, s -> {}, (e, v) -> {}));
+            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, s -> {}, (p, r, d) -> {}));
 
             final var expectedExecutedChanges = new ArrayList<Boolean>();
             final var firstQueued = randomBoolean();
@@ -185,7 +185,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
 
         try (var masterService = createMasterService(threadPool)) {
             final var queue = masterService.createTaskQueue("snapshots-service-external-change", Priority.NORMAL, executor);
-            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, (e, m) -> {}, s -> {}, (e, v) -> {}));
+            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, s -> {}, (p, r, d) -> {}));
 
             for (int i = 0; i < 10; i++) {
                 batcher.get().processExternalChanges(randomBoolean(), true);
@@ -199,6 +199,34 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                 assertThat(masterService.numberOfPendingTasks(), is(0));
             }
         }
+    }
+
+    // Resolve the repository notification against the published state to keep checking which work became ready.
+    private static SnapshotsService.RepositoryDataWriteTaskRunner repositoryWriteTaskRunner(
+        ClusterService clusterService,
+        List<SnapshotsInProgress.Entry> finalized,
+        Map<SnapshotDeletionsInProgress.Entry, IndexVersion> deleted
+    ) {
+        return (projectId, repository, repositoryData) -> {
+            assertNull(repositoryData);
+            final var state = clusterService.state();
+            boolean hasStartedDeletes = false;
+            for (var entry : SnapshotDeletionsInProgress.get(state).getEntries()) {
+                if (entry.projectId().equals(projectId)
+                    && entry.repository().equals(repository)
+                    && entry.state() == SnapshotDeletionsInProgress.State.STARTED) {
+                    deleted.put(entry, state.nodes().getMaxDataNodeCompatibleIndexVersion());
+                    hasStartedDeletes = true;
+                }
+            }
+            if (hasStartedDeletes == false) {
+                for (var entry : SnapshotsInProgress.get(state).forRepo(projectId, repository)) {
+                    if (entry.state().completed()) {
+                        finalized.add(entry);
+                    }
+                }
+            }
+        };
     }
 
     public void testStartedWaitingSnapshotClusterStateUpdate() {
@@ -215,9 +243,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(clusterService, finalized, deleted)
             );
 
             final var indexName = randomIndexName();
@@ -314,9 +341,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(clusterService, finalized, deleted)
             );
 
             final var indexName = randomIndexName();
@@ -400,9 +426,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> isInitializingClone,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(clusterService, finalized, deleted)
             );
 
             final var indexName = randomIndexName();
@@ -459,6 +484,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         }
     }
 
+    // Obsolete since 8.0: all compatible nodes use the snapshot initialization introduced by #55918, so UNKNOWN_REPO_GEN entries can no
+    // longer be created. TODO remove this and the corresponding branch in `SnapshotExternalChangesBatcher`
     public void testBwcUnknownRepoGenEntryCleanup() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = "repo-bwc";
@@ -471,9 +498,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(clusterService, finalized, deleted)
             );
 
             final var indexName = randomIndexName();
@@ -531,9 +557,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(clusterService, finalized, deleted)
             );
 
             final var indexName = randomIndexName();
@@ -590,6 +615,101 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         }
     }
 
+    public void testRunningDeletionInDifferentProjectDoesNotSuppressFinalization() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var repo = randomRepoName();
+        final var projectWithDelete = randomUniqueProjectId();
+        final var projectWithoutDelete = randomUniqueProjectId();
+
+        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var cloned = new AtomicReference<SnapshotsInProgress>();
+        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
+
+        try (var clusterService = createClusterService(deterministicTaskQueue)) {
+            final var batcher = new SnapshotExternalChangesBatcher(
+                clusterService,
+                ignored -> false,
+                cloned::set,
+                repositoryWriteTaskRunner(clusterService, finalized, deleted)
+            );
+
+            // Completed snapshot in the project that is running a delete. Finalization of this snapshot is deferred until the
+            // delete removes itself from cluster state.
+            final var indexNameWithDelete = randomIndexName();
+            final var completedInProjectWithDelete = snapshotEntry(
+                new Snapshot(projectWithDelete, repo, new SnapshotId("completed-with-delete", uuid())),
+                Map.of(indexNameWithDelete, new IndexId(indexNameWithDelete, uuid())),
+                Map.of(
+                    new ShardId(new Index(indexNameWithDelete, uuid()), 0),
+                    SnapshotsInProgress.ShardSnapshotStatus.success(
+                        MASTER_NODE.getId(),
+                        new ShardSnapshotResult(ShardGeneration.newGeneration(random()), ByteSizeValue.ZERO, 0)
+                    )
+                )
+            );
+            assertThat(completedInProjectWithDelete.state().completed(), is(true));
+
+            // Completed snapshot in a different project that happens to use the same repository name. A delete in the other
+            // project must not suppress its finalization.
+            final var indexNameWithoutDelete = randomIndexName();
+            final var completedInOtherProject = snapshotEntry(
+                new Snapshot(projectWithoutDelete, repo, new SnapshotId("completed-other-project", uuid())),
+                Map.of(indexNameWithoutDelete, new IndexId(indexNameWithoutDelete, uuid())),
+                Map.of(
+                    new ShardId(new Index(indexNameWithoutDelete, uuid()), 0),
+                    SnapshotsInProgress.ShardSnapshotStatus.success(
+                        MASTER_NODE.getId(),
+                        new ShardSnapshotResult(ShardGeneration.newGeneration(random()), ByteSizeValue.ZERO, 0)
+                    )
+                )
+            );
+            assertThat(completedInOtherProject.state().completed(), is(true));
+
+            final var deletionEntry = new SnapshotDeletionsInProgress.Entry(
+                projectWithDelete,
+                repo,
+                List.of(new SnapshotId("snap-to-delete", uuid())),
+                System.currentTimeMillis(),
+                1L,
+                SnapshotDeletionsInProgress.State.STARTED
+            );
+
+            updateClusterState(
+                clusterService,
+                deterministicTaskQueue,
+                currentState -> ClusterState.builder(currentState)
+                    .putCustom(
+                        SnapshotsInProgress.TYPE,
+                        SnapshotsInProgress.EMPTY.withAddedEntry(completedInProjectWithDelete).withAddedEntry(completedInOtherProject)
+                    )
+                    .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(List.of(deletionEntry)))
+                    .build()
+            );
+
+            batcher.processExternalChanges(randomBoolean(), true);
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
+
+            assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
+            assertThat(
+                "a running delete must not suppress finalization of a same-named repository in another project",
+                finalized.stream().map(SnapshotsInProgress.Entry::projectId).toList(),
+                equalTo(List.of(projectWithoutDelete))
+            );
+            assertThat(finalized.getFirst().snapshot().getSnapshotId().getName(), is("completed-other-project"));
+            assertThat("deletionStarter should fire for the running delete", deleted.entrySet(), hasSize(1));
+            assertNotNull(deleted.get(deletionEntry));
+
+            final var updatedInProjectWithDelete = updatedSnapshotsInProgress.forRepo(projectWithDelete, repo);
+            assertThat("snapshot in the project with the delete should be retained", updatedInProjectWithDelete, hasSize(1));
+            assertThat(updatedInProjectWithDelete.getFirst(), sameInstance(completedInProjectWithDelete));
+            final var updatedInOtherProject = updatedSnapshotsInProgress.forRepo(projectWithoutDelete, repo);
+            assertThat("snapshot in the other project should be retained", updatedInOtherProject, hasSize(1));
+            assertThat(updatedInOtherProject.getFirst(), sameInstance(completedInOtherProject));
+        }
+    }
+
     public void testCloneSnapshotWithOrWithoutShardSnapshotStatus() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repoClone = "repo-clone";
@@ -604,9 +724,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> isInitializingClone,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(clusterService, finalized, deleted)
             );
 
             // Clone with empty shardSnapshotStatusByRepoShardId -> retained only if isInitializingClone is true.
@@ -679,9 +798,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(clusterService, finalized, deleted)
             );
 
             final var indexName = randomIndexName();
@@ -740,9 +858,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(clusterService, finalized, deleted)
             );
 
             final var indexName = randomIndexName();
@@ -822,9 +939,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(clusterService, finalized, deleted)
             );
 
             final var indexName = randomIndexName();
@@ -912,9 +1028,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(clusterService, finalized, deleted)
             );
 
             final var indexName = randomIndexName();
@@ -960,9 +1075,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(clusterService, finalized, deleted)
             );
 
             final var indexName = randomIndexName();

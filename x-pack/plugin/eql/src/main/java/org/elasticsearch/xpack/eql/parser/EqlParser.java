@@ -20,6 +20,7 @@ import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
@@ -85,6 +86,7 @@ public class EqlParser {
         return new ParserPipeline(tokenStream, parser);
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private <T> T invokeParser(
         String eql,
         ParserParams params,
@@ -138,7 +140,7 @@ public class EqlParser {
             }
 
             return visitor.apply(new AstBuilder(params), tree);
-        } catch (StackOverflowError e) {
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new ParsingException(
                 "EQL statement is too large, " + "causing stack overflow when generating the parsing tree: [{}]",
                 eql

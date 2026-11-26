@@ -24,6 +24,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -45,6 +46,7 @@ import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
 public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
@@ -486,5 +488,18 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             "64kb",
             () -> new MultiMatchQueryBuilder("abc", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME).fuzziness(Fuzziness.ONE).prefixLength(3)
         );
+    }
+
+    public void testLongIllegalDateIsTruncatedInShardFailure() {
+        // Much longer than the stack trace the reason holds
+        String value = "x".repeat(100_000);
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> context.toQuery(new MultiMatchQueryBuilder(value, DATE_FIELD_NAME))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse date field [xxx"));
+        // Without the truncation the reason holds the value five times
+        assertThat(new ShardSearchFailure(e).reason().length(), lessThan(value.length()));
     }
 }

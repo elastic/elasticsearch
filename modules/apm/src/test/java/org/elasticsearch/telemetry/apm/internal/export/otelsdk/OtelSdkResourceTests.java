@@ -107,6 +107,34 @@ public class OtelSdkResourceTests extends ESTestCase {
         assertThat(OtelSdkResource.get(settings, NO_ENV).getAttribute(AttributeKey.stringKey("deployment.environment")), is("qa"));
     }
 
+    public void testLegacyAgentSettingsAsDefaults() {
+        Settings legacy = Settings.builder()
+            .put("node.name", "node-7")
+            .put("telemetry.agent.service_name", "my-es")
+            .put("telemetry.agent.service_node_name", "my-node")
+            .put("telemetry.agent.hostname", "my-host")
+            .put("telemetry.agent.global_labels.team", "search")
+            .build();
+        Resource resource = OtelSdkResource.get(legacy, Map.of("HOSTNAME", "env-host")::get);
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), is("my-es"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.instance.id")), is("my-node"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("host.name")), is("my-host"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("team")), is("search"));
+
+        Settings overridden = Settings.builder()
+            .put(legacy)
+            .put("telemetry.resource.service.name", "new-es")
+            .put("telemetry.resource.service.instance.id", "new-node")
+            .put("telemetry.resource.host.name", "new-host")
+            .put("telemetry.resource.team", "ingest")
+            .build();
+        resource = OtelSdkResource.get(overridden, NO_ENV);
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), is("new-es"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.instance.id")), is("new-node"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("host.name")), is("new-host"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("team")), is("ingest"));
+    }
+
     public void testParseContainerId() {
         String dockerId = "3741401135a8d27237e2fb9c0fb2ecd93922c0d1dd708345451e479613f8d4ae";
         assertThat(OtelSdkResource.parseContainerId("/docker/" + dockerId), is(dockerId));

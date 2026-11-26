@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 164529
+summary: Make OTLP metric names hash order-independent
+type: bug

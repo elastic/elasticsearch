@@ -54,6 +54,12 @@ import java.util.stream.Collectors;
  *       {@code doc_values} by default, so {@code index:false} still yields a non-NONE
  *       {@code IndexType} and {@code isSearchable()} returns {@code true}, while on the logsdb
  *       baseline the same field would be NONE and non-searchable. Stripped from both sides.</li>
+ *   <li>{@code ignore_above} – in {@code logsdb_columnar} at or after
+ *       {@code IGNORE_ABOVE_NO_OP_IN_COLUMNAR}, {@code ignore_above} is a no-op: all values are
+ *       stored in binary doc values regardless of length. On the {@code logsdb} baseline the limit
+ *       is still enforced, so values that exceed it are not indexed and term queries on those
+ *       values return 0 hits on the baseline but 1 hit on the contender. Stripped from both sides
+ *       so no values are dropped and queries produce consistent results.</li>
  *   <li>{@code doc_values: false} on non-text types – stripped so both sides fall back to
  *       their mode default ({@code true}); numeric/geo fields then take the doc-values-skippers
  *       path in columnar mode and remain searchable and aggregatable, matching the baseline.</li>
@@ -99,7 +105,7 @@ import java.util.stream.Collectors;
  */
 public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallengeRestIT {
 
-    private static final Set<String> STRIPPED_PARAMS = Set.of("store", "synthetic_source_keep", "subobjects", "copy_to");
+    private static final Set<String> STRIPPED_PARAMS = Set.of("store", "synthetic_source_keep", "subobjects", "copy_to", "ignore_above");
     private static final Set<String> SHAPE_TYPES = Set.of("geo_shape", "shape");
 
     private Set<String> shapeFieldPaths;

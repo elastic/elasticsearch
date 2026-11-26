@@ -456,14 +456,11 @@ public class FinalPipelineIT extends ESIntegTestCase {
                             // randomize over sync and async execution
                             randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
                                 if (exists != null) {
-                                    if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
+                                    if (ingestDocument.getSource().containsKey(exists) == false) {
                                         handler.accept(
                                             null,
                                             new IllegalStateException(
-                                                "expected document to contain ["
-                                                    + exists
-                                                    + "] but was ["
-                                                    + ingestDocument.getSourceAndMetadata()
+                                                "expected document to contain [" + exists + "] but was [" + ingestDocument.getSource()
                                             )
                                         );
                                     }
@@ -483,9 +480,9 @@ public class FinalPipelineIT extends ESIntegTestCase {
                         } else {
                             // this asserts that this pipeline is the final pipeline executed
                             if (exists != null) {
-                                if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
+                                if (ingestDocument.getSource().containsKey(exists) == false) {
                                     throw new AssertionError(
-                                        "expected document to contain [" + exists + "] but was [" + ingestDocument.getSourceAndMetadata()
+                                        "expected document to contain [" + exists + "] but was [" + ingestDocument.getSource()
                                     );
                                 }
                             }

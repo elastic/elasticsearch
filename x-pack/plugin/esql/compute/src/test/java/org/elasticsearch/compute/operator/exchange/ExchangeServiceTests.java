@@ -733,6 +733,55 @@ public class ExchangeServiceTests extends ESTestCase {
         assertThat(actualSeqNos, equalTo(expectedSeqNos));
     }
 
+    /**
+     * A {@code sourcesFinished} fetch is the coordinator closing the exchange. The sink must leave
+     * {@link ExchangeService#isEmpty()} immediately, a completion listener that also finishes the sink must still
+     * run, and the next compute lookup must observe the close instead of a missing exchange. A second close is a
+     * finished response.
+     */
+    public void testSourcesFinishedUnregistersSink() throws Exception {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            String exchangeId = "exchange-" + randomAlphaOfLength(8);
+            Task task = new Task(1, "", "", "", null, Collections.emptyMap());
+            ExchangeSinkHandler created = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
+            AtomicBoolean completionRan = new AtomicBoolean();
+            created.addCompletionListener(ActionListener.running(() -> {
+                completionRan.set(true);
+                exchange1.finishSinkHandler(exchangeId, null);
+            }));
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            PlainActionFuture<Void> closed = new PlainActionFuture<>();
+            exchange0.newRemoteSink(task, exchangeId, node0, connection).close(closed);
+            closed.actionGet(10, TimeUnit.SECONDS);
+            assertTrue(completionRan.get());
+            assertTrue(exchange1.isEmpty());
+            // The marker stays until it expires, so a retried compute request also sees the close.
+            assertNull(exchange1.getSinkHandlerIfOpen(exchangeId));
+            assertNull(exchange1.getSinkHandlerIfOpen(exchangeId));
+
+            PlainActionFuture<Void> closedAgain = new PlainActionFuture<>();
+            exchange0.newRemoteSink(task, exchangeId, node0, connection).close(closedAgain);
+            closedAgain.actionGet(10, TimeUnit.SECONDS);
+            assertTrue(exchange1.isEmpty());
+
+            // No completion listener: the transport handler itself must drop the sink after sourcesFinished.
+            String bareId = "exchange-bare-" + randomAlphaOfLength(8);
+            exchange1.createSinkHandler(bareId, randomExchangeBuffer());
+            PlainActionFuture<Void> bareClosed = new PlainActionFuture<>();
+            exchange0.newRemoteSink(task, bareId, node0, connection).close(bareClosed);
+            bareClosed.actionGet(10, TimeUnit.SECONDS);
+            assertTrue("sink with no completion listener must be unregistered", exchange1.isEmpty());
+            assertNull(exchange1.getSinkHandlerIfOpen(bareId));
+        }
+    }
+
     private MockTransportService newTransportService() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(ClusterModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);

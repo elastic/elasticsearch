@@ -9,7 +9,6 @@
 
 package org.elasticsearch.gradle.internal.esql;
 
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.util.PlatformUtils;
@@ -41,6 +40,7 @@ import java.util.Map;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
@@ -61,7 +61,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         boolean isCi = loadBuildParams(project).get().getCi();
 
         var dependencies = project.getDependencies();
@@ -179,7 +179,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
             } else {
                 test.systemProperty("generateDocs", "write");
                 FileTree snippetsTree = project.fileTree(snippetsFolder)
-                    .matching(p -> p.include("**/functions/**/*.md", "**/operators/**/*.md"));
+                    .matching(p -> p.include("**/functions/**/*.md", "**/operators/**/*.md", "**/syntax/*.md"));
                 FileTree typesTree = project.fileTree(snippetsFolder).matching(p -> p.include("**/types/*.md"));
                 FileTree settingsTree = project.fileTree(snippetsFolder).matching(p -> p.include("**/settings/*.md"));
                 FileTree commandsExamplesTree = project.fileTree(snippetsFolder).matching(p -> p.include("**/*.csv-spec/*.md"));
@@ -261,7 +261,8 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                             "**/operators/**/*.md",
                             "**/lists/*.md",
                             "**/commands/**/*.md",
-                            "**/common/**/*.md"
+                            "**/common/**/*.md",
+                            "**/syntax/*.md"
                         )
                     );
                 }

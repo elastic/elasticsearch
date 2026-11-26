@@ -612,8 +612,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         }
     }
 
-    /// Locations that reference the same blob share a single [Blob] instance once read from the transport layer, across the commit files and
-    /// the extra content.
+    /// Locations that reference the same blob share a single [Blob] instance once read from the transport layer, across the commit files
+    /// and the extra content.
     public void testReadFromTransportDeduplicatesBlobs() throws IOException {
         var blobName = BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000));
         long term = randomLongBetween(1, 10);

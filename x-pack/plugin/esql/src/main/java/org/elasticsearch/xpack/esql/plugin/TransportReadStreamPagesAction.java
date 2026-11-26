@@ -390,18 +390,23 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
     }
 
     /**
-     * The page that holds {@code row}, or the page that will hold it if it is not stored yet. A deleted copy of a page holds the
-     * same position as the live one, so liveness does not matter here.
+     * The page that holds {@code row}, or the page that will hold it if it is not stored yet. Fails if the stored pages start
+     * after the row, as it will never be stored. A deleted copy of a page holds the same position as the live one, so liveness
+     * does not matter here.
      */
     private static int seqForRow(PageReader reader, List<Run> runs, long row) throws IOException {
         // the last page starting at or before the row
         long seq = -1;
         long firstRow = -1;
         long rowCount = 0;
+        long firstStoredRow = -1;
         for (Run run : runs) {
             int pagesFrom = firstAbove(reader.seq, run, run.from, METADATA_SEQ);
             int doc = firstAbove(reader.firstRow, run, pagesFrom, row) - 1;
             if (doc < pagesFrom) {
+                if (pagesFrom < run.to) {
+                    firstStoredRow = value(reader.firstRow.load(run.leaf).getLongValues(), pagesFrom);
+                }
                 continue;
             }
             long s = value(reader.seq.load(run.leaf).getLongValues(), doc);
@@ -412,6 +417,9 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
             }
         }
         if (seq < 0) {
+            if (firstStoredRow >= 0) {
+                throw new IllegalArgumentException("row [" + row + "] is not stored, the stored rows start at [" + firstStoredRow + "]");
+            }
             return 0;
         }
         return row < firstRow + rowCount ? (int) seq : (int) seq + 1;

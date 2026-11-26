@@ -222,6 +222,27 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * A row before the first stored page is never stored: its read fails, also once it waits.
+     */
+    public void testReadFromRowBeforeStoredPages() {
+        String streamId = randomAlphaOfLength(12);
+        writeMetadata(running(streamId));
+        ActionFuture<TransportReadStreamPagesAction.Response> waiting = startWaitingRead(
+            streamId,
+            TransportReadStreamPagesAction.Request.fromRow(streamId, 5, 1, Long.MAX_VALUE, TimeValue.timeValueSeconds(30))
+        );
+        writePages(streamId, 3, randomBlobs(2));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> pagesOf(waiting));
+        assertThat(e.getMessage(), equalTo("row [5] is not stored, the stored rows start at [30]"));
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> read(TransportReadStreamPagesAction.Request.fromRow(streamId, 29, 1, Long.MAX_VALUE, TimeValue.ZERO))
+        );
+        assertThat(firstSeqFromRow(streamId, 30), equalTo(3));
+    }
+
+    /**
      * A read takes pages while they fit in its budget, and always the first.
      */
     public void testReadStopsAtByteBudget() {

@@ -1935,14 +1935,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         assertThat(firstResponse.getSnapshotInfo().snapshotId().getUUID(), equalTo(uuid));
                         // Simulate a TransportMasterNodeAction retry after the snapshot has already finalized: same UUID,
                         // name already in the repository, nothing left in SnapshotsInProgress.
-                        assertTrue(
-                            SnapshotsInProgress.get(testClusterNodes.randomMasterNodeSafe().clusterService().state()).isEmpty()
-                        );
+                        assertTrue(SnapshotsInProgress.get(testClusterNodes.randomMasterNodeSafe().clusterService().state()).isEmpty());
                         client().admin()
                             .cluster()
                             .createSnapshot(
-                                new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).uuid(uuid)
-                                    .waitForCompletion(true),
+                                new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).uuid(uuid).waitForCompletion(true),
                                 doneListener
                             );
                     }, doneListener::onFailure)

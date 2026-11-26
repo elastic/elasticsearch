@@ -2,6 +2,9 @@
 navigation_title: "Significant terms"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-significantterms-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Significant terms aggregation [search-aggregations-bucket-significantterms-aggregation]

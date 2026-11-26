@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -89,11 +89,14 @@ public class PrometheusLabelValuesRestAction extends BaseRestHandler {
         // limit+1 sentinel to detect and report truncation.
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
-        LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan(labelName, index, matchSelectors, start, end, limit);
-        EsqlStatement statement = new EsqlStatement(plan, PrometheusPlanBuilderUtils.QUERY_SETTINGS);
         PreparedEsqlQueryRequest esqlRequest = new PromqlQueryRequest(
             index,
-            statement,
+            () -> new PromqlStatementResult(
+                new EsqlStatement(
+                    PrometheusLabelValuesPlanBuilder.buildPlan(labelName, index, matchSelectors, start, end, limit),
+                    PrometheusPlanBuilderUtils.QUERY_SETTINGS
+                )
+            ),
             "prometheus_label_values",
             "name",
             labelName,

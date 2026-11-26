@@ -2,6 +2,9 @@
 navigation_title: "Diversified sampler"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-diversified-sampler-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Diversified sampler aggregation [search-aggregations-bucket-diversified-sampler-aggregation]

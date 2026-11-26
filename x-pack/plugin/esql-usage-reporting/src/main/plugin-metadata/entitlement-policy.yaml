@@ -1,0 +1,3 @@
+ALL-UNNAMED:
+  # The JDK HttpClient that sends usage records to the Usage API: observed NotEntitledException in HttpUsagePublisherTests.
+  - outbound_network

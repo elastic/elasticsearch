@@ -2,6 +2,9 @@
 navigation_title: "Boxplot"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-boxplot-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Boxplot aggregation [search-aggregations-metrics-boxplot-aggregation]

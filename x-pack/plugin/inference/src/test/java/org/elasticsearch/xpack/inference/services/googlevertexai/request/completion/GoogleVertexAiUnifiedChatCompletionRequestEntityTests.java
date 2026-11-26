@@ -1040,6 +1040,133 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         assertJsonEquals(jsonString, requestJson);
     }
 
+    public void testParseToolChoiceStringRequired_usesModeAnyWithoutAllowedFunctionNames() throws IOException {
+        assertToolChoiceStringMode("required", "ANY");
+    }
+
+    public void testParseToolChoiceStringNone_usesModeNone() throws IOException {
+        assertToolChoiceStringMode("none", "NONE");
+    }
+
+    private void assertToolChoiceStringMode(String toolChoice, String expectedMode) throws IOException {
+        String requestJson = Strings.format("""
+            {
+                "contents": [
+                    { "role": "user", "parts": [ { "text": "some text" } ] }
+                ],
+                "tools": [
+                    {
+                        "functionDeclarations": [
+                            {
+                                "name": "get_current_weather",
+                                "description": "Get the current weather in a given location",
+                                "parameters": { "type": "object", "description": "a description" }
+                            }
+                        ]
+                    }
+                ],
+                "toolConfig": { "functionCallingConfig": { "mode": "%s" } }
+            }
+            """, expectedMode);
+
+        var request = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),
+            "gemini-2.0",
+            null,
+            null,
+            null,
+            new ToolChoiceString(toolChoice),
+            List.of(weatherTool()),
+            null
+        );
+
+        var entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(new UnifiedChatInput(request, true), emptyThinkingConfig);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertJsonEquals(Strings.toString(builder), requestJson);
+    }
+
+    public void testParseToolChoiceStringNoneWithoutTools_usesModeNone() throws IOException {
+        String requestJson = """
+            {
+                "contents": [
+                    { "role": "user", "parts": [ { "text": "some text" } ] }
+                ],
+                "toolConfig": { "functionCallingConfig": { "mode": "NONE" } }
+            }
+            """;
+
+        var request = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),
+            "gemini-2.0",
+            null,
+            null,
+            null,
+            new ToolChoiceString("none"),
+            null,
+            null
+        );
+
+        var entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(new UnifiedChatInput(request, true), emptyThinkingConfig);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertJsonEquals(Strings.toString(builder), requestJson);
+    }
+
+    public void testParseToolChoiceObjectWithNullFunction_closesToolConfigAndKeepsSystemInstructionAtRoot() throws IOException {
+        String requestJson = """
+            {
+                "systemInstruction": { "parts": [ { "text": "instruction text" } ] },
+                "contents": [
+                    { "role": "user", "parts": [ { "text": "some text" } ] }
+                ],
+                "tools": [
+                    {
+                        "functionDeclarations": [
+                            {
+                                "name": "get_current_weather",
+                                "description": "Get the current weather in a given location",
+                                "parameters": { "type": "object", "description": "a description" }
+                            }
+                        ]
+                    }
+                ],
+                "toolConfig": { "functionCallingConfig": {} }
+            }
+            """;
+
+        var request = new UnifiedCompletionRequestBody(
+            List.of(
+                new Message(new ContentObjects(List.of(new ContentObjectText("instruction text"))), "system", null, null),
+                new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)
+            ),
+            "gemini-2.0",
+            null,
+            null,
+            null,
+            new ToolChoiceObject("function", null),
+            List.of(weatherTool()),
+            null
+        );
+
+        var entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(new UnifiedChatInput(request, true), emptyThinkingConfig);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertJsonEquals(Strings.toString(builder), requestJson);
+    }
+
+    private static Tool weatherTool() {
+        return new Tool(
+            "function",
+            new Tool.FunctionField(
+                "Get the current weather in a given location",
+                "get_current_weather",
+                Map.of("type", "object", "description", "a description"),
+                null
+            )
+        );
+    }
+
     public void testParseToolChoiceInvalid_throwElasticSearchStatusException() throws IOException {
         var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),

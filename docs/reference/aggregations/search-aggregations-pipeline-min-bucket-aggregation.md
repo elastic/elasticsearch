@@ -2,6 +2,9 @@
 navigation_title: "Min bucket"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-pipeline-min-bucket-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Min bucket aggregation [search-aggregations-pipeline-min-bucket-aggregation]

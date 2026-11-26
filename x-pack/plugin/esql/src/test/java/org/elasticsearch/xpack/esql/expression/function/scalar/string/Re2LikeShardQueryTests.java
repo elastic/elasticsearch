@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2L
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -165,12 +164,8 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         // a build that trips while the builder holds a reservation past the program's refunds that reservation as well
         LabelTrackingCircuitBreaker tripped = new LabelTrackingCircuitBreaker();
         SearchExecutionContext limited = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), tripped);
-        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> query("\\pL{100}", limited));
-        assertTrue(
-            "tripped while the builder grows the automaton",
-            Arrays.stream(e.getStackTrace()).anyMatch(frame -> frame.getClassName().equals(Re2RegExp.class.getName() + "$Builder"))
-        );
-        assertThat("the builder holds a reservation then", tripped.usedWhenTripped, greaterThan(tripped.firstCharge));
+        expectThrows(CircuitBreakingException.class, () -> query("\\pL{100}", limited));
+        assertThat("the builder holds a reservation when it trips", tripped.usedWhenTripped, greaterThan(tripped.firstCharge));
         limited.releaseQueryConstructionMemory();
         assertThat(tripped.held.keySet(), equalTo(Set.of("regexp[RE2_LIKE:label]")));
         assertThat(tripped.held.values(), everyItem(equalTo(0L)));

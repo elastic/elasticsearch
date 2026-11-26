@@ -225,7 +225,8 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A row before the first stored page is never stored: its read fails, also once it waits.
+     * A row before the first stored page is never stored: its read fails, also once it waits, and tells where the stored rows
+     * start in all segments.
      */
     public void testReadFromRowBeforeStoredPages() {
         String streamId = randomAlphaOfLength(12);
@@ -238,10 +239,15 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> pagesOf(waiting));
         assertThat(e.getMessage(), equalTo("row [5] is not stored, the stored rows start at [30]"));
 
-        expectThrows(
+        // the later pages in another segment
+        refreshPages();
+        writePages(streamId, 5, randomBlobs(2));
+        refreshPages();
+        e = expectThrows(
             IllegalArgumentException.class,
             () -> read(TransportReadStreamPagesAction.Request.fromRow(streamId, 29, 1, Long.MAX_VALUE, TimeValue.ZERO))
         );
+        assertThat(e.getMessage(), equalTo("row [29] is not stored, the stored rows start at [30]"));
         assertThat(firstSeqFromRow(streamId, 30), equalTo(3));
     }
 

@@ -592,6 +592,33 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testEvictNotCoveredByManifestConsidersTimestamps() throws Exception {
+        final long regionSize = size(100L);
+        try (var testCache = new ManifestTestCache(regionSize)) {
+            final var wholeRegion = ByteRange.of(0, regionSize);
+            final var sameTimestamp = generateCacheKey();
+            final var otherTimestamp = generateCacheKey();
+            final var waitingForTimestamp = generateCacheKey();
+
+            testCache.populate(sameTimestamp, 0, wholeRegion, 10L);
+            testCache.populate(otherTimestamp, 0, wholeRegion, 20L);
+            testCache.populate(waitingForTimestamp, 0, wholeRegion, BACKFILL_IN_PROGRESS_TIMESTAMP);
+            final var manifest = testCache.cacheService.captureManifest(key -> true);
+
+            // fetching into an existing region does not change its timestamp, so a region with the same ranges and another timestamp is
+            // evicted for the caller to fetch it again
+            testCache.cacheService.forceEvict(otherTimestamp::equals);
+            testCache.populate(otherTimestamp, 0, wholeRegion, 99L);
+
+            assertThat(testCache.cacheService.evictNotCoveredBy(manifest), equalTo(1));
+
+            assertThat(testCache.cacheService.captureManifest(otherTimestamp::equals).regionCount(), equalTo(0));
+            // a region that is still waiting for its timestamp is recorded as unknown, and is the same region when it is still waiting
+            assertThat(testCache.cacheService.captureManifest(waitingForTimestamp::equals).regionCount(), equalTo(1));
+            assertThat(testCache.cacheService.captureManifest(sameTimestamp::equals).regionCount(), equalTo(1));
+        }
+    }
+
     /**
      * A cache with three regions of a blob that is 3 regions long, filled through {@link SharedBlobCacheService#fetchRange}.
      */

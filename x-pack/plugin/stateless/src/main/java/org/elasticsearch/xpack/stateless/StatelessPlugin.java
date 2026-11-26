@@ -745,7 +745,6 @@ public class StatelessPlugin extends Plugin
         );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
-        components.add(new BlobCacheSnapshotService(cacheService, indicesService, threadPool));
         var fillCacheMemoryPressure = new FillCacheMemoryPressure(settings, meterRegistry, threadPool);
         var cacheBlobReaderService = setAndGet(
             this.cacheBlobReaderService,
@@ -812,6 +811,7 @@ public class StatelessPlugin extends Plugin
             commitService = null;
         }
         components.add(new StatelessCommitServiceProvider(commitService));
+        components.add(new BlobCacheSnapshotService(cacheService, indicesService, threadPool, commitService));
 
         if (hasIndexRole) {
             var uploadQueueControllerService = new UploadQueueControllerService(

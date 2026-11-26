@@ -48,8 +48,13 @@ public final class CacheManifest<KeyType extends SharedBlobCacheService.KeyBase>
          * @return {@code true} if every one of the given ranges lies inside one of the ranges of this region
          */
         public boolean covers(Collection<ByteRange> candidates) {
+            // both lists are sorted and disjoint, so one forward pass over the ranges of this region is enough
+            int next = 0;
             for (ByteRange candidate : normalize(candidates)) {
-                if (ranges.stream().noneMatch(candidate::isSubRangeOf)) {
+                while (next < ranges.size() && ranges.get(next).end() < candidate.end()) {
+                    next++;
+                }
+                if (next == ranges.size() || candidate.isSubRangeOf(ranges.get(next)) == false) {
                     return false;
                 }
             }
@@ -129,6 +134,16 @@ public final class CacheManifest<KeyType extends SharedBlobCacheService.KeyBase>
         return merged;
     }
 
+    /**
+     * The timestamp that a manifest records for a region with the given timestamp. A region that is waiting for its timestamp is recorded
+     * with an unknown one, because a restored region has no backfill pass to resolve it.
+     */
+    static long manifestTimestamp(long regionTimestampMillis) {
+        return regionTimestampMillis == SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
+            ? SharedBlobCacheService.UNKNOWN_TIMESTAMP
+            : regionTimestampMillis;
+    }
+
     public static final class Builder<KeyType extends SharedBlobCacheService.KeyBase> {
 
         private final Map<KeyType, SortedMap<Integer, Region>> regionsByKey = new HashMap<>();
@@ -141,10 +156,7 @@ public final class CacheManifest<KeyType extends SharedBlobCacheService.KeyBase>
         public Builder<KeyType> add(KeyType key, int region, long timestampMillis, Collection<ByteRange> populatedRanges) {
             final List<ByteRange> ranges = normalize(populatedRanges);
             if (ranges.isEmpty() == false) {
-                final long timestamp = timestampMillis == SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
-                    ? SharedBlobCacheService.UNKNOWN_TIMESTAMP
-                    : timestampMillis;
-                regionsByKey.computeIfAbsent(key, k -> new TreeMap<>()).put(region, new Region(timestamp, ranges));
+                regionsByKey.computeIfAbsent(key, k -> new TreeMap<>()).put(region, new Region(manifestTimestamp(timestampMillis), ranges));
             }
             return this;
         }

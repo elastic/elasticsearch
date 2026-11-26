@@ -983,9 +983,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /**
-     * Evicts every region that holds data the manifest does not describe: regions that are missing from the manifest, and regions that
-     * hold populated ranges beyond the manifest's ranges. Regions that hold the same or less than the manifest are kept, so the caller
-     * only has to fetch what is missing. Like the other forced evictions it bypasses the {@link EvictionPolicy}.
+     * Evicts every region that holds data the manifest does not describe: regions that are missing from the manifest, regions that
+     * hold populated ranges beyond the manifest's ranges, and regions with a different data timestamp, because fetching into an existing
+     * region does not change its timestamp. Regions that hold the same or less than the manifest are kept, so the caller only has to
+     * fetch what is missing. Like the other forced evictions it bypasses the {@link EvictionPolicy}.
      *
      * @return the number of regions evicted
      */
@@ -2613,7 +2614,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final List<LFUCacheEntry> matchingEntries = new ArrayList<>();
             keyMapping.forEach((regionKey, entry) -> {
                 final CacheManifest.Region wanted = manifest.get(regionKey.file, regionKey.region);
-                if (wanted == null || wanted.covers(entry.chunk.tracker.getCompletedRanges()) == false) {
+                if (wanted == null
+                    || wanted.covers(entry.chunk.tracker.getCompletedRanges()) == false
+                    || wanted.timestampMillis() != CacheManifest.manifestTimestamp(entry.chunk.timestampMillis())) {
                     matchingEntries.add(entry);
                 }
             });

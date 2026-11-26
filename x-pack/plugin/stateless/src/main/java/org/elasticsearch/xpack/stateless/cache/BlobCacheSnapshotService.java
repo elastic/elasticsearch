@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.stateless.cache;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.CacheManifest;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -25,7 +25,10 @@ import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -39,8 +42,8 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
@@ -83,22 +86,44 @@ public class BlobCacheSnapshotService {
      */
     public record RestoreSummary(int regionsEvicted, int rangesDownloaded, long bytesCopied, int shardsSkipped) {}
 
+    /**
+     * How many failures a failed restore keeps as suppressed exceptions, as one missing blob fails every range that is read from it.
+     */
+    private static final int MAX_REPORTED_FAILURES = 5;
+
     private final StatelessSharedBlobCacheService cacheService;
     private final Supplier<Map<ShardId, BlobStoreCacheDirectory>> localShardDirectories;
+    private final BiPredicate<ShardId, PrimaryTermAndGeneration> indexingBccUploaded;
     private final ThreadPool threadPool;
     private final Map<String, CacheManifest<FileCacheKey>> snapshots = new ConcurrentHashMap<>();
 
-    public BlobCacheSnapshotService(StatelessSharedBlobCacheService cacheService, IndicesService indicesService, ThreadPool threadPool) {
-        this(cacheService, () -> localShardDirectories(indicesService), threadPool);
+    /**
+     * @param commitService the commit service that knows what indexing shards have uploaded, or {@code null} on a node without the index
+     *                      role
+     */
+    public BlobCacheSnapshotService(
+        StatelessSharedBlobCacheService cacheService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        @Nullable StatelessCommitService commitService
+    ) {
+        this(
+            cacheService,
+            () -> localShardDirectories(indicesService),
+            (shardId, bcc) -> isUploaded(commitService, shardId, bcc),
+            threadPool
+        );
     }
 
     BlobCacheSnapshotService(
         StatelessSharedBlobCacheService cacheService,
         Supplier<Map<ShardId, BlobStoreCacheDirectory>> localShardDirectories,
+        BiPredicate<ShardId, PrimaryTermAndGeneration> indexingBccUploaded,
         ThreadPool threadPool
     ) {
         this.cacheService = cacheService;
         this.localShardDirectories = localShardDirectories;
+        this.indexingBccUploaded = indexingBccUploaded;
         this.threadPool = threadPool;
     }
 
@@ -110,25 +135,27 @@ public class BlobCacheSnapshotService {
      * @throws IllegalStateException if a recorded blob is not uploaded to the object store yet, so a restore could not download it
      */
     public SnapshotSummary snapshot(String name) {
+        final Map<ShardId, BlobStoreCacheDirectory> directories = localShardDirectories.get();
+        final Map<ShardId, BiPredicate<FileCacheKey, Integer>> obsoleteRegionPredicates = new HashMap<>();
         final CacheManifest.Builder<FileCacheKey> builder = CacheManifest.builder();
         final Set<String> notUploaded = new TreeSet<>();
-        int shards = 0;
-        for (var shard : localShardDirectories.get().entrySet()) {
-            final ShardId shardId = shard.getKey();
-            final BlobStoreCacheDirectory directory = shard.getValue();
-            final var isObsolete = directory.obsoleteRegionPredicate();
-            shards++;
-            for (var keyRegions : cacheService.captureManifest(key -> key.shardId().equals(shardId)).regions().entrySet()) {
-                final FileCacheKey key = keyRegions.getKey();
-                boolean referenced = false;
-                for (var regionEntry : keyRegions.getValue().entrySet()) {
-                    if (isObsolete.test(key, regionEntry.getKey()) == false) {
-                        final var region = regionEntry.getValue();
-                        builder.add(key, regionEntry.getKey(), region.timestampMillis(), region.ranges());
-                        referenced = true;
-                    }
+        final Set<ShardId> recordedShards = new HashSet<>();
+        // the cache is scanned once, however many shards the node has
+        for (var keyRegions : cacheService.captureManifest(key -> directories.containsKey(key.shardId())).regions().entrySet()) {
+            final FileCacheKey key = keyRegions.getKey();
+            final BlobStoreCacheDirectory directory = directories.get(key.shardId());
+            final var isObsolete = obsoleteRegionPredicates.computeIfAbsent(key.shardId(), shardId -> directory.obsoleteRegionPredicate());
+            boolean referenced = false;
+            for (var regionEntry : keyRegions.getValue().entrySet()) {
+                if (isObsolete.test(key, regionEntry.getKey()) == false) {
+                    final var region = regionEntry.getValue();
+                    builder.add(key, regionEntry.getKey(), region.timestampMillis(), region.ranges());
+                    referenced = true;
                 }
-                if (referenced && isUploaded(directory, key) == false) {
+            }
+            if (referenced) {
+                recordedShards.add(key.shardId());
+                if (isUploaded(directory, key) == false) {
                     notUploaded.add(key.fileName());
                 }
             }
@@ -144,7 +171,7 @@ public class BlobCacheSnapshotService {
         }
         final CacheManifest<FileCacheKey> manifest = builder.build();
         snapshots.put(name, manifest);
-        return new SnapshotSummary(shards, manifest.regionCount(), manifest.totalBytes());
+        return new SnapshotSummary(recordedShards.size(), manifest.regionCount(), manifest.totalBytes());
     }
 
     /**
@@ -171,12 +198,26 @@ public class BlobCacheSnapshotService {
             );
     }
 
-    // Blobs of indexing shards are only cached after they are uploaded, and their directory only references uploaded commits.
-    private static boolean isUploaded(BlobStoreCacheDirectory directory, FileCacheKey key) {
+    // An indexing shard warms its cache from a batched compound commit before it is uploaded, so the cache can hold blobs that a restore
+    // would not find in the object store.
+    private boolean isUploaded(BlobStoreCacheDirectory directory, FileCacheKey key) {
+        final PrimaryTermAndGeneration bcc = new BccBlob(key.fileName(), key.primaryTerm()).termAndGeneration();
         if (directory instanceof SearchDirectory searchDirectory) {
-            return searchDirectory.isBccUploaded(new BccBlob(key.fileName(), key.primaryTerm()).termAndGeneration());
+            return searchDirectory.isBccUploaded(bcc);
         }
-        return true;
+        return indexingBccUploaded.test(key.shardId(), bcc);
+    }
+
+    private static boolean isUploaded(@Nullable StatelessCommitService commitService, ShardId shardId, PrimaryTermAndGeneration bcc) {
+        if (commitService == null) {
+            return false;
+        }
+        try {
+            final BatchedCompoundCommit latestUploaded = commitService.getLatestUploadedBcc(shardId);
+            return latestUploaded != null && bcc.generation() <= latestUploaded.primaryTermAndGeneration().generation();
+        } catch (AlreadyClosedException e) {
+            return false;
+        }
     }
 
     private static Map<ShardId, BlobStoreCacheDirectory> localShardDirectories(IndicesService indicesService) {
@@ -199,8 +240,8 @@ public class BlobCacheSnapshotService {
         private final int regionsEvicted;
         private final ActionListener<RestoreSummary> listener;
         private final Set<ShardId> skippedShards = new HashSet<>();
-        private final AtomicReference<Exception> firstFailure = new AtomicReference<>();
         private final AtomicInteger failedRanges = new AtomicInteger();
+        private Exception firstFailure; // guarded by this
         private final AtomicInteger rangesDownloaded = new AtomicInteger();
         private final LongAdder bytesCopied = new LongAdder();
 
@@ -251,7 +292,10 @@ public class BlobCacheSnapshotService {
                                     )
                                 ),
                                 fetchExecutor,
-                                false,
+                                // The snapshot came from this cache and everything it does not describe was evicted, so there is room for
+                                // every region it needs. Without force, fetching more ranges into a region that took the last free slot
+                                // would be skipped, or would evict a region that the snapshot needs.
+                                true,
                                 regionEntry.getValue().timestampMillis(),
                                 true,
                                 ActionListener.releaseAfter(ActionListener.wrap(downloaded -> {
@@ -267,8 +311,18 @@ public class BlobCacheSnapshotService {
         }
 
         private void recordFailure(Exception e) {
-            failedRanges.incrementAndGet();
-            firstFailure.accumulateAndGet(e, (first, next) -> first == null ? next : ExceptionsHelper.useOrSuppress(first, next));
+            final int failures = failedRanges.incrementAndGet();
+            synchronized (this) {
+                if (firstFailure == null) {
+                    firstFailure = e;
+                } else if (failures <= MAX_REPORTED_FAILURES) {
+                    firstFailure.addSuppressed(e);
+                }
+            }
+        }
+
+        private synchronized Exception firstFailure() {
+            return firstFailure;
         }
 
         private void finish() {
@@ -283,7 +337,7 @@ public class BlobCacheSnapshotService {
                             + "] ranges failed to download and ["
                             + missingRegions
                             + "] regions are still missing data. The cache is only partly restored",
-                        firstFailure.get()
+                        firstFailure()
                     )
                 );
             } else {
@@ -300,7 +354,10 @@ public class BlobCacheSnapshotService {
                 }
                 for (var regionEntry : keyRegions.getValue().entrySet()) {
                     final var present = current.get(keyRegions.getKey(), regionEntry.getKey());
-                    if (present == null || present.covers(regionEntry.getValue().ranges()) == false) {
+                    final var wanted = regionEntry.getValue();
+                    if (present == null
+                        || present.covers(wanted.ranges()) == false
+                        || present.timestampMillis() != wanted.timestampMillis()) {
                         missing++;
                     }
                 }

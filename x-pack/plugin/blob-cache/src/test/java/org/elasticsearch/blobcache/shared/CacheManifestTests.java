@@ -11,6 +11,7 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP;
@@ -44,6 +45,28 @@ public class CacheManifestTests extends ESTestCase {
         assertFalse(region.covers(List.of(ByteRange.of(0, 25))));
         assertFalse(region.covers(List.of(ByteRange.of(15, 45))));
         assertFalse(region.covers(List.of(ByteRange.of(70, 80))));
+    }
+
+    public void testCoversAgreesWithCheckingEveryCandidateAgainstEveryRange() {
+        for (int iteration = 0; iteration < 200; iteration++) {
+            final var region = new CacheManifest.Region(0L, randomRanges(randomIntBetween(0, 8)));
+            final var candidates = randomRanges(randomIntBetween(0, 6));
+
+            final boolean expected = CacheManifest.normalize(candidates)
+                .stream()
+                .allMatch(candidate -> region.ranges().stream().anyMatch(candidate::isSubRangeOf));
+
+            assertThat(region.ranges() + " covers " + candidates, region.covers(candidates), equalTo(expected));
+        }
+    }
+
+    private static List<ByteRange> randomRanges(int count) {
+        final List<ByteRange> ranges = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            final long start = randomLongBetween(0, 100);
+            ranges.add(ByteRange.of(start, start + randomLongBetween(0, 30)));
+        }
+        return ranges;
     }
 
     public void testRegionJoinsRangesOnConstruction() {

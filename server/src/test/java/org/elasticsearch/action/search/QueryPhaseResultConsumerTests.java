@@ -319,6 +319,37 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         assertEquals("a result arriving after close must be released too", 2, released.get());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165747")
+    public void testFinalReduceWithOnlyBatchedResultsWithoutAggregations() throws Exception {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        int nodeResponses = randomIntBetween(1, 10);
+
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                NoopCircuitBreaker.INSTANCE,
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                nodeResponses,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            for (int i = 0; i < nodeResponses; i++) {
+                consumer.addBatchedPartialResult(
+                    new SearchPhaseController.TopDocsStats(0),
+                    new QueryPhaseResultConsumer.MergeResult(List.of(), null, null, 0L)
+                );
+            }
+
+            assertNull(consumer.reduce().aggregations());
+        }
+    }
+
     public void testBatchedTopHitsFromOldConnectionAreReleasedOnDiscard() throws IOException {
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.source(new SearchSourceBuilder().aggregation(new TopHitsAggregationBuilder("th").size(1)).size(0));

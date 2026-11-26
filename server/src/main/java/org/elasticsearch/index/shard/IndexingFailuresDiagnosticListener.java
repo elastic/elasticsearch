@@ -12,6 +12,7 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexOperationBatch;
@@ -19,32 +20,31 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * Logs indexing failures to help diagnose them. Real (non user) failures are logged at WARN for the first few failures
+ * per hour on the node, and at DEBUG after that, so a persistent problem is visible at the default log level
+ * without flooding the log.
+ */
 public class IndexingFailuresDiagnosticListener implements IndexingOperationListener {
 
     private static final Logger LOGGER = LogManager.getLogger(IndexingFailuresDiagnosticListener.class);
 
-    private static final int MAX_WARNINGS_PER_WINDOW = 5;
-    private static final long RATE_LIMIT_WINDOW_NANOS = TimeUnit.HOURS.toNanos(1);
+    private static final WindowedRateLimiter SHARED_WARN_LIMITER = new WindowedRateLimiter(5, TimeValue.ONE_HOUR);
 
     private final IndexShard indexShard;
-    private final LongSupplier nanoTimeSupplier;
-    // High 32 bits: index of the current rate limit window. Low 32 bits: permits used in that window.
-    private final AtomicLong windowAndPermitsUsed = new AtomicLong();
+    private final WindowedRateLimiter warnLimiter;
 
     public IndexingFailuresDiagnosticListener(IndexShard indexShard) {
-        this(indexShard, System::nanoTime);
+        this(indexShard, SHARED_WARN_LIMITER);
     }
 
     // Visible for testing
-    IndexingFailuresDiagnosticListener(IndexShard indexShard, LongSupplier nanoTimeSupplier) {
+    IndexingFailuresDiagnosticListener(IndexShard indexShard, WindowedRateLimiter warnLimiter) {
         this.indexShard = indexShard;
-        this.nanoTimeSupplier = nanoTimeSupplier;
+        this.warnLimiter = warnLimiter;
     }
 
     @Override
@@ -89,7 +89,7 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
      */
     @Override
     public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
-        if (LOGGER.isDebugEnabled() || mayHavePermit()) {
+        if (LOGGER.isDebugEnabled() || warnLimiter.mayHavePermit()) {
             for (int i = 0; i < results.size(); i++) {
                 Engine.IndexResult result = results.get(i);
                 if (result.getResultType() == Engine.Result.Type.FAILURE) {
@@ -111,38 +111,10 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace(getMessageSupplier("index-fail", batch, i), ex);
             }
-        } else if (withinRateLimit()) {
+        } else if (warnLimiter.tryAcquirePermit()) {
             LOGGER.warn(getMessageSupplier("real-index-fail", batch, i), ex);
         } else if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(getMessageSupplier("real-index-fail", batch, i), ex);
-        }
-    }
-
-    private int currentWindow() {
-        return (int) Math.floorDiv(nanoTimeSupplier.getAsLong(), RATE_LIMIT_WINDOW_NANOS);
-    }
-
-    /**
-     * Cheap read-only check that lets the batch path skip its loop once the permits are used. It must compare the window,
-     * because the counter is only reset by {@link #withinRateLimit()}, which this check guards.
-     */
-    private boolean mayHavePermit() {
-        long state = windowAndPermitsUsed.get();
-        return (int) (state >> 32) != currentWindow() || (int) state < MAX_WARNINGS_PER_WINDOW;
-    }
-
-    boolean withinRateLimit() {
-        int window = currentWindow();
-        while (true) {
-            long state = windowAndPermitsUsed.get();
-            int permitsUsed = (int) (state >> 32) == window ? (int) state : 0;
-            if (permitsUsed >= MAX_WARNINGS_PER_WINDOW) {
-                return false;
-            }
-            long newState = ((long) window << 32) | (permitsUsed + 1);
-            if (windowAndPermitsUsed.compareAndSet(state, newState)) {
-                return true;
-            }
         }
     }
 

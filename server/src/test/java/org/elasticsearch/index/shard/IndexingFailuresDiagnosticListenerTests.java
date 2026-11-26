@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -37,8 +38,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -49,7 +48,8 @@ import static org.mockito.Mockito.when;
 
 public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
 
-    private static final long WINDOW_NANOS = TimeUnit.HOURS.toNanos(1);
+    private static final TimeValue WARN_WINDOW = TimeValue.timeValueHours(1);
+    private static final long WINDOW_NANOS = TimeValue.timeValueHours(1).nanos();
     private static final int MAX_WARNINGS_PER_WINDOW = 5;
 
     static MockAppender appender;
@@ -74,6 +74,93 @@ public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
         appender.stop();
 
         Loggers.setLevel(testLogger1, origLogLevel);
+    }
+
+    private static long randomWindowIndex() {
+        return randomLongBetween(-1000, 1000);
+    }
+
+    private static Engine.IndexResult failedResult(Exception failure) {
+        Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
+        when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+        when(indexResult.getFailure()).thenReturn(failure);
+        return indexResult;
+    }
+
+    /**
+     * The shard is mocked because a real {@link IndexShard} needs a full node environment, and the listener only reads
+     * its routing entry, primary term and index settings.
+     */
+    private static IndexingFailuresDiagnosticListener listenerWithLimiter(WindowedRateLimiter limiter) {
+        var shardId = ShardId.fromString("[index][123]");
+        var mockShard = mock(IndexShard.class);
+        when(mockShard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED));
+        when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
+        return new IndexingFailuresDiagnosticListener(mockShard, limiter);
+    }
+
+    private static IndexingFailuresDiagnosticListener listenerWithClock(AtomicLong clock) {
+        return listenerWithLimiter(limiterWithClock(clock));
+    }
+
+    private static WindowedRateLimiter limiterWithClock(AtomicLong clock) {
+        return new WindowedRateLimiter(MAX_WARNINGS_PER_WINDOW, WARN_WINDOW, clock::get);
+    }
+
+    private static WindowedRateLimiter newLimiter() {
+        return new WindowedRateLimiter(MAX_WARNINGS_PER_WINDOW, WARN_WINDOW, System::nanoTime);
+    }
+
+    private static Exception randomUserError() {
+        var shardId = ShardId.fromString("[index][123]");
+        return randomFrom(
+            new DocumentMissingException(shardId, "doc-0"),
+            new VersionConflictEngineException(shardId, "[doc-0]", "explanation"),
+            new IllegalArgumentException("Number of documents in the shard cannot exceed [1]; for more information, see [url]")
+        );
+    }
+
+    private static LogEvent postIndexBatchFailure(Level level, Exception failure) {
+        var previousLevel = testLogger1.getLevel();
+        try {
+            Loggers.setLevel(testLogger1, level);
+            var shardId = ShardId.fromString("[index][123]");
+            var mockShard = mock(IndexShard.class);
+            var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
+            when(mockShard.routingEntry()).thenReturn(shardRouting);
+            when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+            when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
+            Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
+            when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+            when(indexResult.getFailure()).thenReturn(failure);
+            appender.getLastEventAndReset();
+            new IndexingFailuresDiagnosticListener(mockShard, newLimiter()).postIndexBatch(shardId, primaryBatch(1), List.of(indexResult));
+            return appender.getLastEventAndReset();
+        } finally {
+            Loggers.setLevel(testLogger1, previousLevel);
+        }
+    }
+
+    private static IndexOperationBatch primaryBatch(int docCount) {
+        final BulkItemRequest[] items = new BulkItemRequest[docCount];
+        for (int d = 0; d < docCount; d++) {
+            items[d] = new BulkItemRequest(
+                d,
+                new IndexRequest("index").id("doc-" + d).source(new BytesArray("{\"n\":" + d + "}"), XContentType.JSON)
+            );
+        }
+        return IndexOperationBatch.initFromBulk(
+            items,
+            0,
+            docCount,
+            null,
+            IndexMode.STANDARD,
+            Engine.Operation.Origin.PRIMARY,
+            1L,
+            0L,
+            null
+        );
     }
 
     public void testPostIndexException() {
@@ -171,7 +258,7 @@ public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
         when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        IndexingFailuresDiagnosticListener listener = new IndexingFailuresDiagnosticListener(mockShard);
+        IndexingFailuresDiagnosticListener listener = new IndexingFailuresDiagnosticListener(mockShard, newLimiter());
 
         IndexOperationBatch batch = primaryBatch(1);
         Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
@@ -302,128 +389,21 @@ public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
         }
     }
 
-    public void testPermitsResetInEachNewWindow() {
-        var clock = new AtomicLong();
-        var listener = listenerWithClock(clock);
-        long windowIndex = randomWindowIndex();
-
-        int windows = randomIntBetween(2, 5);
-        for (int w = 0; w < windows; w++) {
-            clock.set(windowIndex * WINDOW_NANOS + randomLongBetween(0, WINDOW_NANOS - 1));
-            for (int i = 0; i < MAX_WARNINGS_PER_WINDOW; i++) {
-                assertTrue("window " + w + " permit " + i, listener.withinRateLimit());
-            }
-            int extraCalls = randomIntBetween(1, 20);
-            for (int i = 0; i < extraCalls; i++) {
-                assertFalse("window " + w + " extra call " + i, listener.withinRateLimit());
-            }
-            windowIndex += randomLongBetween(1, 100);
-        }
-    }
-
-    public void testWindowBoundaryIsExact() {
-        long windowStart = randomWindowIndex() * WINDOW_NANOS;
-        var clock = new AtomicLong(windowStart);
-        var listener = listenerWithClock(clock);
-        for (int i = 0; i < MAX_WARNINGS_PER_WINDOW; i++) {
-            assertTrue(listener.withinRateLimit());
-        }
-
-        clock.set(windowStart + WINDOW_NANOS - 1);
-        assertFalse(listener.withinRateLimit());
-
-        clock.set(windowStart + WINDOW_NANOS);
-        assertTrue(listener.withinRateLimit());
-    }
-
-    public void testConcurrentCallsGrantExactlyOneWindowOfPermits() {
-        var listener = listenerWithClock(new AtomicLong(randomWindowIndex() * WINDOW_NANOS));
-        var granted = new AtomicInteger();
-        int callsPerThread = randomIntBetween(10, 200);
-
-        startInParallel(randomIntBetween(2, 8), thread -> {
-            for (int i = 0; i < callsPerThread; i++) {
-                if (listener.withinRateLimit()) {
-                    granted.incrementAndGet();
-                }
-            }
-        });
-
-        assertThat(granted.get(), equalTo(MAX_WARNINGS_PER_WINDOW));
-    }
-
-    private static long randomWindowIndex() {
-        return randomLongBetween(-1000, 1000);
-    }
-
-    private static Engine.IndexResult failedResult(Exception failure) {
-        Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
-        when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
-        when(indexResult.getFailure()).thenReturn(failure);
-        return indexResult;
-    }
-
-    /**
-     * The shard is mocked because a real {@link IndexShard} needs a full node environment, and the listener only reads
-     * its routing entry, primary term and index settings.
-     */
-    private static IndexingFailuresDiagnosticListener listenerWithClock(AtomicLong clock) {
+    public void testLimitIsSharedAcrossListeners() {
+        var limiter = limiterWithClock(new AtomicLong(randomWindowIndex() * WINDOW_NANOS));
         var shardId = ShardId.fromString("[index][123]");
-        var mockShard = mock(IndexShard.class);
-        when(mockShard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED));
-        when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
-        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        return new IndexingFailuresDiagnosticListener(mockShard, clock::get);
-    }
+        var result = failedResult(new RuntimeException("test exception"));
+        int listeners = randomIntBetween(2, 8);
 
-    private static Exception randomUserError() {
-        var shardId = ShardId.fromString("[index][123]");
-        return randomFrom(
-            new DocumentMissingException(shardId, "doc-0"),
-            new VersionConflictEngineException(shardId, "[doc-0]", "explanation"),
-            new IllegalArgumentException("Number of documents in the shard cannot exceed [1]; for more information, see [url]")
-        );
-    }
-
-    private static LogEvent postIndexBatchFailure(Level level, Exception failure) {
-        var previousLevel = testLogger1.getLevel();
-        try {
-            Loggers.setLevel(testLogger1, level);
-            var shardId = ShardId.fromString("[index][123]");
-            var mockShard = mock(IndexShard.class);
-            var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
-            when(mockShard.routingEntry()).thenReturn(shardRouting);
-            when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
-            when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-            Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
-            when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
-            when(indexResult.getFailure()).thenReturn(failure);
+        int warnings = 0;
+        for (int i = 0; i < listeners * MAX_WARNINGS_PER_WINDOW; i++) {
             appender.getLastEventAndReset();
-            new IndexingFailuresDiagnosticListener(mockShard).postIndexBatch(shardId, primaryBatch(1), List.of(indexResult));
-            return appender.getLastEventAndReset();
-        } finally {
-            Loggers.setLevel(testLogger1, previousLevel);
+            listenerWithLimiter(limiter).postIndexBatch(shardId, primaryBatch(1), List.of(result));
+            if (appender.getLastEventAndReset().getLevel() == Level.WARN) {
+                warnings++;
+            }
         }
-    }
 
-    private static IndexOperationBatch primaryBatch(int docCount) {
-        final BulkItemRequest[] items = new BulkItemRequest[docCount];
-        for (int d = 0; d < docCount; d++) {
-            items[d] = new BulkItemRequest(
-                d,
-                new IndexRequest("index").id("doc-" + d).source(new BytesArray("{\"n\":" + d + "}"), XContentType.JSON)
-            );
-        }
-        return IndexOperationBatch.initFromBulk(
-            items,
-            0,
-            docCount,
-            null,
-            IndexMode.STANDARD,
-            Engine.Operation.Origin.PRIMARY,
-            1L,
-            0L,
-            null
-        );
+        assertThat(warnings, equalTo(MAX_WARNINGS_PER_WINDOW));
     }
 }

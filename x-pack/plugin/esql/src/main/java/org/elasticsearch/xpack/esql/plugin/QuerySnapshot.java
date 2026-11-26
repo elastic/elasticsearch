@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  * The snapshot of a query: a point in time on the local indices it reads, so every read of a shard sees the same version.
  * Opened and closed by {@link QuerySnapshots}.
  */
-public final class QuerySnapshot {
+final class QuerySnapshot {
     private final BytesReference pointInTimeId;
     private final Map<ShardId, SearchContextIdForNode> shards;
     private final int totalShards;
@@ -115,7 +115,7 @@ public final class QuerySnapshot {
         if (reproducible(shardId) && routing != null) {
             for (ShardRouting copy : routing.shard(shardId.id()).assignedShards()) {
                 DiscoveryNode node = nodes.get(copy.currentNodeId());
-                if (copy.isSearchable() && node != null && node.equals(holder) == false) {
+                if (copy.active() && copy.isSearchable() && node != null && node.equals(holder) == false) {
                     copies.add(node);
                 }
             }

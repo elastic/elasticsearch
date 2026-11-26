@@ -67,7 +67,7 @@ public class QuerySnapshotIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Indices {@code old-*} hold 2020, {@code new-*} hold 2026, one shard each.
+     * Indices {@code old-*} hold 2020, {@code new-*} hold 2026, one shard each with one replica.
      */
     @Before
     public void createIndices() {
@@ -76,7 +76,7 @@ public class QuerySnapshotIT extends AbstractEsqlIntegTestCase {
         for (int i = 0; i < INDICES; i++) {
             for (String era : List.of("old", "new")) {
                 String index = era + "-" + i;
-                assertAcked(prepareCreate(index).setSettings(indexSettings(1, 0)).setMapping("@timestamp", "type=date"));
+                assertAcked(prepareCreate(index).setSettings(indexSettings(1, 1)).setMapping("@timestamp", "type=date"));
                 String timestamp = era.equals("old") ? "2020-01-01T00:00:00Z" : "2026-01-01T00:00:00Z";
                 for (int d = 0; d < 5; d++) {
                     docs.add(prepareIndex(index).setSource("@timestamp", timestamp));
@@ -154,9 +154,10 @@ public class QuerySnapshotIT extends AbstractEsqlIntegTestCase {
     public void testReadersOfAQueryWhoseNodeLeftExpire() throws Exception {
         String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         Query query = startQuery(coordinator);
-        QuerySnapshot snapshot = query.open(null, TimeValue.timeValueSeconds(5));
+        QuerySnapshot snapshot = query.open(null, TimeValue.timeValueSeconds(10));
         assertThat(activeContexts(), equalTo(snapshot.shards().size()));
         internalCluster().stopNode(coordinator);
+        assertThat("the readers outlive the query's node", activeContexts(), equalTo(snapshot.shards().size()));
         assertBusy(() -> assertThat("the readers expired", activeContexts(), equalTo(0)), 30, TimeUnit.SECONDS);
     }
 

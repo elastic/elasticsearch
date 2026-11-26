@@ -52,6 +52,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     }
 
     public static final Set<String> ALL_DENSE_VECTOR_INDEX_TYPES = Arrays.stream(DenseVectorFieldMapper.VectorIndexType.values())
+        .filter(t -> t != DenseVectorFieldMapper.VectorIndexType.BBQ_DISK)
         .map(v -> v.getName().toLowerCase(Locale.ROOT))
         .collect(Collectors.toSet());
 

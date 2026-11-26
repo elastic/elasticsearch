@@ -2,6 +2,9 @@
 navigation_title: "Value count"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-valuecount-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Value count aggregation [search-aggregations-metrics-valuecount-aggregation]

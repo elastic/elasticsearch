@@ -2,6 +2,9 @@
 navigation_title: "Auto-interval date histogram"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-autodatehistogram-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Auto-interval date histogram aggregation [search-aggregations-bucket-autodatehistogram-aggregation]

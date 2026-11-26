@@ -225,7 +225,11 @@ public record StatelessCompoundCommit(
         PrimaryTermAndGeneration primaryTermAndGeneration = primaryTermAndGeneration(in);
         long translogRecoveryStartFile = in.readVLong();
         String nodeEphemeralId = in.readString();
-        Map<String, BlobLocation> commitFiles = in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport);
+        final var deduplicatedBlobs = new HashMap<Blob, Blob>();
+        Map<String, BlobLocation> commitFiles = in.readImmutableMap(
+            StreamInput::readString,
+            i -> deduplicateBlob(BlobLocation.readFromTransport(i), deduplicatedBlobs)
+        );
         long sizeInBytes = in.readVLong();
         Set<String> internalFiles = in.readCollectionAsImmutableSet(StreamInput::readString);
         long headerSizeInBytes;
@@ -234,7 +238,10 @@ public record StatelessCompoundCommit(
         replicatedRanges = InternalFilesReplicatedRanges.from(
             in.readCollectionAsImmutableList(InternalFilesReplicatedRanges.InternalFileReplicatedRange::fromStream)
         );
-        Map<String, BlobLocation> extraContent = in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport);
+        Map<String, BlobLocation> extraContent = in.readImmutableMap(
+            StreamInput::readString,
+            i -> deduplicateBlob(BlobLocation.readFromTransport(i), deduplicatedBlobs)
+        );
         TimestampFieldValueRange timestampFieldValueRange = in.readOptionalWriteable(TimestampFieldValueRange::new);
         return new StatelessCompoundCommit(
             shardId,
@@ -298,7 +305,9 @@ public record StatelessCompoundCommit(
         for (String internalFile : internalFiles) {
             BlobLocation location = commitFiles.get(internalFile);
             assert location != null : "internal file [" + internalFile + "] does not exist as a commit file [" + commitFiles + "]";
-            return location.bccBlob();
+            if (location.blob() instanceof BccBlob bccBlob) {
+                return bccBlob;
+            }
         }
         assert false : "a commit should always have at least one internal file";
         return null;
@@ -328,8 +337,8 @@ public record StatelessCompoundCommit(
         return commitBoundary;
     }
 
-    public Set<BccBlob> getBlobFiles() {
-        return commitFiles.values().stream().map(BlobLocation::bccBlob).collect(Collectors.toSet());
+    public Set<Blob> getBlobs() {
+        return commitFiles.values().stream().map(BlobLocation::blob).collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -465,9 +474,10 @@ public record StatelessCompoundCommit(
                     version
                 );
 
+                final var deduplicatedBlobs = new HashMap<Blob, Blob>();
                 Map<String, BlobLocation> referencedBlobLocations = input.readMap(
                     StreamInput::readString,
-                    (is) -> readLegacyBlobLocationFromStore(is, version == VERSION_WITH_BLOB_LENGTH)
+                    (is) -> deduplicateBlob(readLegacyBlobLocationFromStore(is, version == VERSION_WITH_BLOB_LENGTH), deduplicatedBlobs)
                 );
                 List<InternalFile> internalFiles = input.readCollectionAsList(InternalFile::new);
                 long headerSize = input.readLong();
@@ -568,11 +578,10 @@ public record StatelessCompoundCommit(
                 PARSER.declareLong(constructorArg(), new ParseField("primary_term"));
                 PARSER.declareLong(optionalConstructorArg(), new ParseField(TRANSLOG_RECOVERY_START_FILE));
                 PARSER.declareString(constructorArg(), new ParseField("node_ephemeral_id"));
-                PARSER.declareObject(
-                    constructorArg(),
-                    (p, c) -> p.map(HashMap::new, BlobLocation::fromXContent),
-                    new ParseField("commit_files")
-                );
+                PARSER.declareObject(constructorArg(), (p, c) -> {
+                    final var deduplicatedBlobs = new HashMap<Blob, Blob>();
+                    return p.map(HashMap::new, xp -> deduplicateBlob(BlobLocation.fromXContent(xp), deduplicatedBlobs));
+                }, new ParseField("commit_files"));
                 PARSER.declareObjectArray(constructorArg(), InternalFile.PARSER, new ParseField("internal_files"));
                 PARSER.declareObjectArray(
                     optionalConstructorArg(),
@@ -651,6 +660,14 @@ public record StatelessCompoundCommit(
     ) {
         PrimaryTermAndGeneration bccTermAndGen = new PrimaryTermAndGeneration(primaryTerm, bccGenSupplier.apply(generation));
         var blobFile = new BccBlob(bccTermAndGen);
+        for (BlobLocation referencedBlobLocation : referencedBlobLocations.values()) {
+            if (referencedBlobLocation.blob().equals(blobFile)) {
+                // reuse the instance already held by the referenced locations (if any)
+                // so that all the locations of this blob share a single object
+                blobFile = (BccBlob) referencedBlobLocation.blob();
+                break;
+            }
+        }
         final var combinedCommitFilesResult = combineCommitFiles(
             blobFile,
             replicatedContentRanges,
@@ -739,5 +756,16 @@ public record StatelessCompoundCommit(
             previous = file;
         }
         return true;
+    }
+
+    /**
+     * Returns a {@link BlobLocation} equal to the given one whose {@link Blob} is the canonical instance held in the given map, so that
+     * locations pointing to the same blob share a single {@link Blob} instance instead of each holding its own copy.
+     *
+     * @param deduplicatedBlobs a map of blobs, which is populated with the location's blob if it is not there yet
+     */
+    private static BlobLocation deduplicateBlob(BlobLocation location, Map<Blob, Blob> deduplicatedBlobs) {
+        final Blob canonical = deduplicatedBlobs.computeIfAbsent(location.blob(), Function.identity());
+        return canonical == location.blob() ? location : new BlobLocation(canonical, location.offset(), location.fileLength());
     }
 }

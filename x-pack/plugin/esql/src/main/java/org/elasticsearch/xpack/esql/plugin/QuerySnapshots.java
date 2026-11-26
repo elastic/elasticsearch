@@ -30,7 +30,7 @@ import org.elasticsearch.tasks.TaskId;
 import java.util.function.Supplier;
 
 /**
- * Opens and closes the snapshot of a query, see {@link QuerySnapshot}: a point in time on the indices the query reads.
+ * Opens and closes the snapshot of a query, see {@link QuerySnapshot}.
  */
 final class QuerySnapshots {
     private static final Logger logger = LogManager.getLogger(QuerySnapshots.class);
@@ -38,14 +38,10 @@ final class QuerySnapshots {
     private QuerySnapshots() {}
 
     /**
-     * The point in time of a query's snapshot: on its indices, with the filter can_match skips shards with, and the slices
-     * it reads as {@link DataNodeRequestSender#searchShardsRequest} routes them. It fails if a shard fails to open.
+     * The point in time of a query's snapshot. can_match skips shards with {@code filter}, slices are routed as in
+     * {@link DataNodeRequestSender#searchShardsRequest}, and it fails if a shard fails.
      *
-     * @param indices         the indices the query reads
-     * @param filter          the filter can_match skips shards with, or {@code null} for none
-     * @param anySliceEnabled whether any of the indices is slice-enabled, without which slices aren't routed
-     * @param keepAlive       how long a reader lives without being used: it bounds how long the readers outlive a query
-     *                        whose node fails before it closes them, and a read after a longer pause fails
+     * @param keepAlive how long a reader lives without being used
      */
     static OpenPointInTimeRequest openRequest(
         String[] indices,
@@ -66,11 +62,8 @@ final class QuerySnapshots {
     }
 
     /**
-     * Opens the point in time of {@code request} as a child of the query's task, so it's authorized as the user who runs
-     * the query. The snapshot is closed when the task is cancelled, even if it was cancelled while the point in time
-     * opened; otherwise the caller closes it with {@link #close}.
-     *
-     * @param localNodeId the node the query's task runs on
+     * Opens the point in time as a child of the query's task. It's closed if the task is cancelled, otherwise by
+     * {@link #close}.
      */
     static void open(
         Client client,
@@ -97,8 +90,7 @@ final class QuerySnapshots {
     }
 
     /**
-     * Closes the point in time of the snapshot as the user who runs the query, without waiting for it. Only the first
-     * close acts; readers the close misses expire with the keep-alive.
+     * Closes the point in time as the user who runs the query, without waiting. Only the first close acts.
      */
     static void close(Client client, QuerySnapshot snapshot) {
         if (snapshot.markClosed() == false) {

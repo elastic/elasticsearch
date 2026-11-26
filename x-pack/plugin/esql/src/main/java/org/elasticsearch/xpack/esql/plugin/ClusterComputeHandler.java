@@ -310,7 +310,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final ExchangeSinkHandler exchangeSink;
         try {
             exchangeSink = exchangeService.getSinkHandlerIfOpen(globalSessionId);
-        } catch (ResourceNotFoundException e) {
+        } catch (ResourceNotFoundException | TaskCancelledException e) {
+            // not found, or removed by a cancelled fetch: the querying cluster may still count on the results of this request
             listener.onFailure(e);
             return;
         }

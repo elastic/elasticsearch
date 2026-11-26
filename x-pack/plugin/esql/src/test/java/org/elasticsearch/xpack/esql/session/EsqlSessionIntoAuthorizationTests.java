@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * What {@link EsqlSession#authorizeIntoDestinations} asks the authorizer, and the plan it hands on. That the authorization comes
  * before anything is reported about the destination, and the privilege rules themselves, are tested by {@code EsqlSecurityIntoIT}
- * and {@code HasPrivilegesIntoDestinationAuthorizerTests}.
+ * and {@code IntoDestinationAuthorizerTests}.
  */
 public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
     private static final String EXISTING = "existing";

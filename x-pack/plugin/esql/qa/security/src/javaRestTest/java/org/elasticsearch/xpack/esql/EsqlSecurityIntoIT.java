@@ -24,6 +24,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.action.EsqlIntoDestinationAction;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -159,9 +160,15 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         String missingBody = EntityUtils.toString(missing.getResponse().getEntity());
         assertThat(existingBody, existing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
         assertThat(missingBody, missing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
-        String format = "action [indices:data/write/index:op_type/create] is unauthorized for user [%s] on indices [%s]";
-        assertThat(existingBody, containsString(Strings.format(format, READ_ONLY_USER, EXISTING)));
-        assertThat(missingBody, containsString(Strings.format(format, READ_ONLY_USER, "into-missing")));
+        assertDeniedByTheFilter(existingBody, EXISTING);
+        assertDeniedByTheFilter(missingBody, "into-missing");
+    }
+
+    /** The denial is the one of the security filter, which audits it, and which names the roles and the privileges that grant it. */
+    private static void assertDeniedByTheFilter(String body, String destination) {
+        String action = "action [" + EsqlIntoDestinationAction.NAME + "] is unauthorized for user [test-admin] run as [";
+        assertThat(body, containsString(action + READ_ONLY_USER + "] with effective roles [into_read_only]"));
+        assertThat(body, containsString("on indices [" + destination + "], this action is granted by the index privileges ["));
     }
 
     /**

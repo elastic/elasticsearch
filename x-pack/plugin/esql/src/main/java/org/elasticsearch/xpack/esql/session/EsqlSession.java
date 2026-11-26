@@ -497,10 +497,7 @@ public class EsqlSession {
         this.clusterName = services.clusterService().getClusterName().value();
         this.localNodeName = services.clusterService().getNodeName();
         this.clusterUuid = resolveClusterUuid(services.clusterService());
-        this.intoDestinationAuthorizer = IntoDestinationAuthorizer.create(
-            services.transportService(),
-            threadPool.executor(ThreadPool.Names.SEARCH)
-        );
+        this.intoDestinationAuthorizer = IntoDestinationAuthorizer.create(services.client(), threadPool.executor(ThreadPool.Names.SEARCH));
         this.projectMetadata = projectMetadata;
         this.ipLocationService = services.ipLocationService();
     }

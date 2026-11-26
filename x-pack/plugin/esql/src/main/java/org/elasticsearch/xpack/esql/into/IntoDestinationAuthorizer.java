@@ -8,15 +8,11 @@
 package org.elasticsearch.xpack.esql.into;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.xpack.esql.action.EsqlIntoDestinationAction;
 
 import java.util.concurrent.Executor;
 
@@ -34,34 +30,28 @@ public interface IntoDestinationAuthorizer {
      */
     void authorize(String destination, ActionListener<Void> listener);
 
-    static IntoDestinationAuthorizer allowAll() {
-        return (destination, listener) -> listener.onResponse(null);
-    }
-
     /**
-     * Builds the authorizer for this node. Whether security is in effect is decided when a destination is authorized, by whether
-     * this node serves the {@code has_privileges} action: only a node with security enabled does, whatever its settings say
-     * (the setting defaults to {@code true} even where no security plugin is installed), so there is no setting to get wrong.
-     * The decision is delivered on {@code executor}, since the privileges reply arrives on a security thread.
+     * Authorizes through the security filter, with an {@link EsqlIntoDestinationAction} that runs as the caller, so that a denial is
+     * the filter's own, and is audited by it like the write would be. Without security the action succeeds.
+     * <p>
+     * The decision is delivered on {@code executor}, since the filter can answer on a security thread, and planning continues from it
+     * on the thread pool that it expects.
      */
-    static IntoDestinationAuthorizer create(TransportService transportService, Executor executor) {
-        IntoDestinationAuthorizer secured = new HasPrivilegesIntoDestinationAuthorizer(() -> {
-            var securityContext = new SecurityContext(Settings.EMPTY, transportService.getThreadPool().getThreadContext());
-            Authentication authentication = securityContext.getAuthentication();
-            return authentication == null ? null : authentication.getEffectiveSubject().getUser().principal();
-        },
-            (request, listener) -> transportService.sendRequest(
-                transportService.getLocalNode(),
-                HasPrivilegesAction.NAME,
-                request,
-                TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, HasPrivilegesResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-            ),
-            executor
-        );
+    static IntoDestinationAuthorizer create(Client client, Executor executor) {
         return (destination, listener) -> {
-            var authorizer = transportService.getRequestHandler(HasPrivilegesAction.NAME) != null ? secured : allowAll();
-            authorizer.authorize(destination, listener);
+            try {
+                // The filter would read a pattern as more than the one index the write targets. This is about the name alone, so it
+                // says nothing about any destination.
+                MetadataCreateIndexService.validateIndexOrAliasName(destination, InvalidIndexNameException::new);
+            } catch (InvalidIndexNameException e) {
+                listener.onFailure(e);
+                return;
+            }
+            client.execute(
+                EsqlIntoDestinationAction.TYPE,
+                new EsqlIntoDestinationAction.Request(destination),
+                new ThreadedActionListener<>(executor, true, listener.map(ignored -> null))
+            );
         };
     }
 }

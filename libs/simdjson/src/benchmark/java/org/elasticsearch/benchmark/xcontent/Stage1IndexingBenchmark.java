@@ -36,7 +36,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Measures native stage 1 (structural indexing and UTF-8 validation), in isolation or with
- * a walk (but with a no-op handler).
+ * a walk and a {@link MinimalHandler}.
  *
  * <p><strong>Running.</strong>
  * <pre>{@code
@@ -77,7 +77,7 @@ public class Stage1IndexingBenchmark {
     private StructuralIndexer indexer;
     private BitIndexes bitIndexes;
     private JsonDocumentParser docParser;
-    private final NoOpHandler noopHandler = new NoOpHandler();
+    private final MinimalHandler handler = new MinimalHandler();
 
     @Setup
     public void setUp() {
@@ -132,14 +132,14 @@ public class Stage1IndexingBenchmark {
     }
 
     /**
-     * Stage 1 plus the walk, with a handler that records nothing.
+     * Stage 1 plus the walk, with a handler that only copies the string values.
      */
     @Benchmark
     public long stage1AndWalk() {
         for (byte[] doc : docs) {
-            docParser.parseDocument(doc, doc.length, noopHandler);
+            docParser.parseDocument(doc, doc.length, handler);
         }
         docParser.publishFieldNames();
-        return noopHandler.checksum;
+        return handler.checksum;
     }
 }

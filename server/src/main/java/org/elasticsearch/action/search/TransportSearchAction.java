@@ -2373,21 +2373,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             // the results charge the query's breaker. A multi-search keeps the results it buffers charged after the search
             // completes, on the node's breaker, so they charge that breaker from the start.
-            final SearchPhaseResults<SearchPhaseResult> queryResultConsumer;
-            try {
-                queryResultConsumer = searchPhaseController.newSearchPhaseResults(
-                    executor,
-                    searchRequest.bufferSubSearchResponseForMultiSearch() ? circuitBreaker : coordination.breaker(),
-                    task::isCancelled,
-                    task.getProgressListener(),
-                    searchRequest,
-                    shardIterators.size(),
-                    exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
-                );
-            } catch (Exception e) {
-                coordination.close();
-                throw e;
-            }
+            final SearchPhaseResults<SearchPhaseResult> queryResultConsumer = searchPhaseController.newSearchPhaseResults(
+                executor,
+                searchRequest.bufferSubSearchResponseForMultiSearch() ? circuitBreaker : coordination.breaker(),
+                task::isCancelled,
+                task.getProgressListener(),
+                searchRequest,
+                shardIterators.size(),
+                exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
+            );
             boolean success = false;
             try {
                 final AbstractSearchAsyncAction<?> searchPhase;
@@ -2448,7 +2442,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchPhase.start();
             } finally {
                 if (success == false) {
-                    coordination.close();
                     queryResultConsumer.close();
                 }
             }

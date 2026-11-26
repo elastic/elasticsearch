@@ -138,7 +138,27 @@ public record TranslationContext(
         TranslationSchema schema = intersect(result.schema(), List.of(LabelMatcher.NAME));
         assert result.schema().isOpen() == false || schema.isOpen()
             : "invariant: a child translated without the metric name must carry a packing without it, got " + result.schema();
-        return result.with(result.plan(), schema, result.value());
+        return reshape(result, schema);
+    }
+
+    /**
+     * {@code table} under the narrower {@code schema}. With the label container functions a table carries one label container,
+     * the finest packing of its schema: when the finest packing changes, the container is rewritten to leave the further labels
+     * out and replaces the one it came from. A raw table has no container yet; its collapse builds the right one.
+     */
+    private IntermediateResult reshape(IntermediateResult table, TranslationSchema schema) {
+        Set<String> from = table.schema().finestSkip();
+        Set<String> to = schema.finestSkip();
+        Attribute container = from == null ? null : table.packed(from);
+        if (containerFunctions() == false || container == null || to == null || to.equals(from)) {
+            return table.with(table.plan(), schema, table.value());
+        }
+        NamedExpression packing = packing(table, to);
+        assert packing instanceof Alias : "invariant: packing " + to + " must be derived from the container " + from;
+        LogicalPlan plan = new Eval(cmd.source(), table.plan(), List.of((Alias) packing));
+        var output = new ArrayList<NamedExpression>(plan.output());
+        output.remove(container);
+        return table.with(new Project(cmd.source(), plan, output), schema, table.value());
     }
 
     /**
@@ -246,7 +266,7 @@ public record TranslationContext(
             return table.plan();
         }
         Attribute packed = table.packed(skip);
-        assert packed != null : "invariant: packing " + skip + " must be carried by the finished table";
+        assert packed != null : "invariant: packing " + skip + " must be carried by the finished table, got " + table.plan().output();
         Expression value = packed;
         if (containerFunctions()) {
             // A label the table outputs as a column of its own is left out of _timeseries, so each label shows once; a
@@ -511,18 +531,15 @@ public record TranslationContext(
         // Every packing is materialized under its derived name, finest first, and every label the relation has is a
         // key too. Every column is functionally dependent on the finest packing, so grouping by all of them
         // preserves per-series granularity while making the full schema available to the surrounding query.
-        // With the label container functions only the finest packing loads: each coarser one leaves more labels out of
-        // it after the aggregate, as the source loads one _timeseries per relation.
+        // With the label container functions the finest packing is the table's one label container: a node needing a
+        // coarser one leaves more labels out of it where it uses it (see #packing).
         var groupKeys = new ArrayList<NamedExpression>();
         var outKeys = new ArrayList<NamedExpression>();
         var derived = new ArrayList<Alias>();
         Set<String> finest = null;
-        Attribute finestPacking = null;
         for (Set<String> skip : finestFirst(schema.skips())) {
-            if (finestPacking != null && containerFunctions() && skip.containsAll(finest)) {
-                var extra = new TreeSet<>(skip);
-                extra.removeAll(finest);
-                derived.add(new Alias(source, mapOpen(skip), unset(finestPacking, extra.stream())));
+            if (finest != null && containerFunctions()) {
+                assert skip.containsAll(finest) : "invariant: packing " + skip + " must leave out the labels of " + finest;
                 continue;
             }
             List<Expression> excluded = skip.stream().<Expression>map(label -> {
@@ -532,9 +549,8 @@ public record TranslationContext(
             Alias packing = new Alias(source, mapOpen(skip), new TimeSeriesWithout(source, excluded));
             groupKeys.add(packing);
             outKeys.add(packing.toAttribute());
-            if (finestPacking == null) {
+            if (finest == null) {
                 finest = skip;
-                finestPacking = packing.toAttribute();
             }
         }
         for (String label : schema.labels()) {
@@ -559,6 +575,26 @@ public record TranslationContext(
             false
         );
         return derived.isEmpty() ? collapse : new Eval(source, collapse, derived);
+    }
+
+    /**
+     * The packing of every label of {@code table} but {@code skip}: the table's own column for it, or null when it lacks
+     * one. With the label container functions a table carries one label container, its finest packing, and every coarser
+     * packing is that container with the further labels left out of it, defined where it is used.
+     */
+    public NamedExpression packing(IntermediateResult table, Set<String> skip) {
+        Attribute carried = table.packed(skip);
+        if (carried != null || containerFunctions() == false) {
+            return carried;
+        }
+        Set<String> finest = table.schema().finestSkip();
+        Attribute container = finest == null ? null : table.packed(finest);
+        if (container == null || skip.containsAll(finest) == false) {
+            return null;
+        }
+        var extra = new TreeSet<>(skip);
+        extra.removeAll(finest);
+        return new Alias(cmd.source(), mapOpen(skip), unset(container, extra.stream()));
     }
 
     /**
@@ -607,25 +643,32 @@ public record TranslationContext(
         }
         List<Attribute> available = plan.output();
 
-        var nulls = new ArrayList<Alias>();
+        var defined = new ArrayList<Alias>();
         var keys = new ArrayList<Attribute>();
         for (Set<String> skip : finestFirst(schema.skips())) {
-            Attribute carrier = find(available, mapOpen(skip));
-            assert carrier != null : "invariant: packing " + skip + " must be carried by the child";
-            keys.add(carrier);
+            NamedExpression packing = packing(input, skip);
+            assert packing != null : "invariant: packing " + skip + " must be carried by the child";
+            if (packing instanceof Alias alias) {
+                defined.add(alias);
+            }
+            keys.add(packing.toAttribute());
+            if (containerFunctions()) {
+                // the finest packing is the result's one label container
+                break;
+            }
         }
         for (String label : schema.labels()) {
             Attribute carrier = carrier(input, label);
             if (carrier == null) {
                 // a declared label the child lacks is absent from every series: grouped under null, like Prometheus
-                nulls.add(emitNullExpression(mapToRef(label)));
-                carrier = nulls.getLast().toAttribute();
+                defined.add(emitNullExpression(mapToRef(label)));
+                carrier = defined.getLast().toAttribute();
             }
             keys.add(carrier);
         }
 
-        if (nulls.isEmpty() == false) {
-            plan = new Eval(source, plan, nulls);
+        if (defined.isEmpty() == false) {
+            plan = new Eval(source, plan, defined);
         }
 
         if (requiresPacking == false) {

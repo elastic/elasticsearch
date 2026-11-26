@@ -45,7 +45,7 @@ public class Re2Pattern extends AbstractStringPattern {
         try {
             return CircuitBreakingOperations.determinize(nfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, circuitBreaker, label);
         } finally {
-            circuitBreaker.addWithoutBreaking(-held);
+            circuitBreaker.addWithoutBreaking(-held, label);
         }
     }
 

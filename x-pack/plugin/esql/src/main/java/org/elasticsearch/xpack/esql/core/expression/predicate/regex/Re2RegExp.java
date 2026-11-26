@@ -139,7 +139,7 @@ public final class Re2RegExp {
                 builder.release();
             }
             if (programBytes > 0) {
-                breaker.addWithoutBreaking(-programBytes);
+                breaker.addWithoutBreaking(-programBytes, label);
             }
         }
     }
@@ -350,7 +350,7 @@ public final class Re2RegExp {
 
         void release() {
             if (reserved > 0) {
-                breaker.addWithoutBreaking(-reserved);
+                breaker.addWithoutBreaking(-reserved, label);
                 reserved = 0;
             }
         }

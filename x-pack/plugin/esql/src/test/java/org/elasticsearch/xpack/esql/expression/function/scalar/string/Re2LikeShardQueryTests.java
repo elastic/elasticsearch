@@ -30,10 +30,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2L
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -147,6 +151,17 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    /** Each charge is refunded under the label it was made under, so the held memory of each breaker category balances. */
+    public void testChargesAreRefundedUnderTheirLabel() throws IOException {
+        LabelTrackingCircuitBreaker breaker = new LabelTrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), breaker);
+
+        assertThat(query("(a|b)c.*", context), notNullValue());
+        context.releaseQueryConstructionMemory();
+        assertThat(breaker.held.keySet(), equalTo(Set.of("regexp[RE2_LIKE:label]")));
+        assertThat(breaker.held.values(), everyItem(equalTo(0L)));
+    }
+
     /** A field that can't build the query fails after the automaton is built, and nothing stays reserved for it. */
     public void testFailedQueryReleasesItsReservation() throws IOException {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
@@ -193,6 +208,33 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
 
     private static org.apache.lucene.search.Query query(String regex, SearchExecutionContext context) {
         return query("label", regex, context);
+    }
+
+    /** A breaker that keeps what each label holds, an unlabeled refund under its own key. */
+    private static class LabelTrackingCircuitBreaker extends TrackingCircuitBreaker {
+        private final Map<String, Long> held = new ConcurrentHashMap<>();
+
+        LabelTrackingCircuitBreaker() {
+            super(ByteSizeValue.ofMb(1).getBytes());
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+            held.merge(label, bytes, Long::sum);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            super.addWithoutBreaking(bytes);
+            held.merge("unlabeled", bytes, Long::sum);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes, String label) {
+            super.addWithoutBreaking(bytes);
+            held.merge(label, bytes, Long::sum);
+        }
     }
 
     private static org.apache.lucene.search.Query query(String field, String regex, SearchExecutionContext context) {

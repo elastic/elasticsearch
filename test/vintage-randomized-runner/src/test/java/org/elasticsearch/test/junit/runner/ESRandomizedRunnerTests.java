@@ -253,6 +253,32 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
         assertFlatChildren(runner.getDescription(), "testOne {p=a}", "testTwo {p=a}", "testTwo {p=b}");
     }
 
+    public void testFlatDescriptionKeepsTheRootOfTheOriginalOne() throws Exception {
+        ESRandomizedRunner runner = parameterizedFixtureRunner();
+
+        Description original = new RandomizedRunner(ParameterizedFixture.class).getDescription();
+
+        assertThat(runner.getDescription(), equalTo(original));
+    }
+
+    public void testDescriptionIsRebuiltWhenNoTestsRemain() throws Exception {
+        ESRandomizedRunner runner = parameterizedFixtureRunner();
+        runner.getDescription();
+
+        try {
+            runner.filter(new VintageLikeFilter("testOne {p=a}", "testOne {p=b}", "testTwo {p=a}", "testTwo {p=b}"));
+            Assert.fail("expected " + NoTestsRemainException.class + " to be thrown");
+        } catch (NoTestsRemainException ignored) {}
+
+        assertThat(leafNames(runner.getDescription()), containsInAnyOrder());
+    }
+
+    public void testDescriptionOfTestsWithoutParametersIsFlat() throws Exception {
+        ESRandomizedRunner runner = new ESRandomizedRunner(PlainFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
+
+        assertFlatChildren(runner.getDescription(), "testOne", "testTwo", "testThree");
+    }
+
     /** Every event {@link RandomizedRunner} fires must be about the suite or a test of the flat description the engine discovered. */
     public void testRunEventsOnlyUseDescriptionsOfTheFlatTree() throws Exception {
         ESRandomizedRunner runner = new ESRandomizedRunner(FailingFixture.class, VINTAGE_LIKE_FILTER_PREFIX);

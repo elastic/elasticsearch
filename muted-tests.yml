@@ -904,3 +904,9 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testDisableThrottlingUsingTheSetting
   issue: https://github.com/elastic/elasticsearch/issues/163114
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v9.5.8#yamlRestTest
+  method: "test {yaml=mapping/90_columnar_ignore_dynamic_beyond_limit/columnar: dynamic field beyond the limit is dropped and recorded in _ignored with
+    ignore_dynamic_beyond_limit}"
+  issue: https://github.com/elastic/elasticsearch/issues/167785

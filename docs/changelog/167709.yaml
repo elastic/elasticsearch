@@ -1,0 +1,6 @@
+area: Reindex
+issues:
+ - 167384
+pr: 167709
+summary: Preserve concurrency checks for scripted deletes in update-by-query
+type: bug

@@ -3447,13 +3447,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Returns the names of declared columns that are absent from the file (null columnInfo) and
-     * warrant an informational warning. Empty array when there is nothing to warn about.
-     * Used by {@link DeferredWarnProducer} and {@link ParquetColumnIterator} to defer the warning
-     * to the first page produced so that row-group-pruned files (zero rows) do not emit spurious
-     * absent-column warnings.
-     */
-    /**
      * {@code columns} and the parts of an expanded collection this file lacks, the collection or some of its leaves:
      * they read as null like an absent column, and are announced the same way, on the first page.
      */
@@ -3466,6 +3459,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return names.toArray(String[]::new);
     }
 
+    /**
+     * Returns the names of declared columns that are absent from the file (null columnInfo) and
+     * warrant an informational warning. Empty array when there is nothing to warn about.
+     * Used by {@link DeferredWarnProducer} and {@link ParquetColumnIterator} to defer the warning
+     * to the first page produced so that row-group-pruned files (zero rows) do not emit spurious
+     * absent-column warnings.
+     */
     private static String[] buildAbsentColumnWarnings(List<Attribute> attributes, ColumnInfo[] columnInfos) {
         List<String> names = null;
         for (int i = 0; i < columnInfos.length; i++) {
@@ -4758,7 +4758,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 } catch (CircuitBreakingException e) {
                     throw e;
                 } catch (Exception e) {
-                    throw ParquetReadFailures.wrap(e, expansionFailureContext());
+                    throw ParquetReadFailures.wrap(e, expansion.failureContext(rowGroupOrdinal, pageBatchIndexInRowGroup, fileLocation));
                 }
             }
             // Pre-decrement snapshot of the in-block index of this batch's first row. Used to
@@ -4868,7 +4868,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 } catch (CircuitBreakingException e) {
                     throw e;
                 } catch (Exception e) {
-                    throw ParquetReadFailures.wrap(e, expansionFailureContext());
+                    throw ParquetReadFailures.wrap(e, expansion.failureContext(rowGroupOrdinal, pageBatchIndexInRowGroup, fileLocation));
                 }
                 expansion.chargeDroppedParents(rowDropHelper, page);
             }
@@ -4894,19 +4894,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // should not warn about absent columns — no data was produced for this batch.
             emitAbsentColumnWarningsOnce();
             return page;
-        }
-
-        /** Where a failure to decode or expand the elements of this batch happened, for its message. */
-        private String expansionFailureContext() {
-            return "Failed to expand ["
-                + expansion.path()
-                + "] at row group ["
-                + (rowGroupOrdinal + 1)
-                + "] page batch ["
-                + pageBatchIndexInRowGroup
-                + "] in file ["
-                + fileLocation
-                + "]";
         }
 
         private void closeExpansion() {

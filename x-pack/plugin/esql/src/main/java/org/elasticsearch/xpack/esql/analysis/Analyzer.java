@@ -1091,8 +1091,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * A dataset shows its nested scope only to a plan that names {@code NESTED_EXPAND}, the one nested operator datasets
-         * support, and only for the paths it expands. {@code NESTED_ANY} over a dataset finds no scope in a plan that does not
-         * expand, and is refused by {@link HideNestedScopeFields} in one that does.
+         * support. Once the plan names one anywhere, even over an index in another branch, every dataset in it gets a scope
+         * for every one of its nested columns, not only for the paths expanded. {@code NESTED_ANY} over a dataset finds no
+         * scope in a plan that does not expand, and is refused by {@link HideNestedScopeFields} in one that does.
          */
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {

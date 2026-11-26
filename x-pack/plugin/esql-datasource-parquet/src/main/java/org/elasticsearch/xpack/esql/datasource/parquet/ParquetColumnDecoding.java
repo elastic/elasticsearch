@@ -371,7 +371,11 @@ final class ParquetColumnDecoding {
      */
     static void warnTimestampOutOfRange(ColumnInfo info, @Nullable Consumer<String> warningSink) {
         ColumnDescriptor descriptor = info.descriptor();
-        String column = descriptor == null ? "<unknown>" : String.join(".", descriptor.getPath());
+        warnTimestampOutOfRange(descriptor == null ? "<unknown>" : String.join(".", descriptor.getPath()), warningSink);
+    }
+
+    /** As {@link #warnTimestampOutOfRange(ColumnInfo, Consumer)}, for the column at the dotted {@code column} path. */
+    static void warnTimestampOutOfRange(String column, @Nullable Consumer<String> warningSink) {
         // The outcome is the same in every error_mode: no caller charges the budget or drops the row. A scalar is
         // nulled; a LIST element is dropped, and the list is null only when every element is out of range.
         String warning = "column [" + column + "]: timestamps outside the [date_nanos] range (1677-09-21 to 2262-04-11); returning null";

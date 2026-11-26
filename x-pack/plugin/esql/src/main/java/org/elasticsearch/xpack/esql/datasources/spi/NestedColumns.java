@@ -48,11 +48,6 @@ public record NestedColumns(Map<String, NestedColumn> columns) {
         public NestedColumn {
             leaves = new TreeMap<>(leaves);
         }
-
-        /** The leaf names, in order. */
-        public List<String> leafNames() {
-            return List.copyOf(leaves.keySet());
-        }
     }
 
     public static NestedColumns of(List<NestedColumn> columns) {

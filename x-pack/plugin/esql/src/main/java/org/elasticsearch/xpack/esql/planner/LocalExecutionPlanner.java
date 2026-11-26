@@ -2597,7 +2597,7 @@ public class LocalExecutionPlanner {
             .parallelism(instanceCount)
             .deferredExtraction(externalSource.deferredExtraction())
             .expandRead(
-                externalSource.expansion() == null ? null : externalSource.expansion().toExpandRead(true),
+                externalSource.expansion() == null ? null : externalSource.expansion().toExpandRead(),
                 externalSource.expansion() == null ? FormatReader.NO_LIMIT : externalSource.expansion().parentLimit()
             )
             .minTransportVersion(minTransportVersion)

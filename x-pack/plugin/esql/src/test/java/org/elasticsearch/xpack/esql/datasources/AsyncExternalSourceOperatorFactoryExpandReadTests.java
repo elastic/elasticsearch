@@ -63,7 +63,7 @@ import static org.mockito.Mockito.when;
 public class AsyncExternalSourceOperatorFactoryExpandReadTests extends ESTestCase {
 
     private static final BlockFactory BLOCKS = TestBlockFactory.getNonBreakingInstance();
-    private static final ExpandRead EXPAND = new ExpandRead("items", List.of(new ExpandRead.Leaf("qty", DataType.LONG)), true);
+    private static final ExpandRead EXPAND = new ExpandRead("items", List.of(new ExpandRead.Leaf("qty", DataType.LONG)));
     private static final int PARENT_LIMIT = 7;
     private static final List<Attribute> ATTRIBUTES = List.of(
         new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))

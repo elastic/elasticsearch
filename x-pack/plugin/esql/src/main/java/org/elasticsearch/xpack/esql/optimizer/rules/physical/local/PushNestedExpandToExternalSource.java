@@ -48,9 +48,11 @@ import java.util.Set;
  * deterministic {@link EvalExec} or {@link FilterExec}, {@link DissectExec}, {@link GrokExec}, the per-row enrichments
  * ({@link CompoundOutputEvalExec}), {@link EnrichExec}, the left side of a {@link LookupJoinExec}, and
  * {@link MvExpandExec}. Those nodes then run once per element rather than once per parent, which gives the same rows
- * at more cost. Any other node fails the query by name: sampling parents is not sampling elements, an inference command
- * would run once per element, a change point reads its neighbours, and a non-deterministic expression evaluated per
- * element is no longer evaluated per parent.
+ * at more cost. Any other node fails the query by name: sampling parents is not sampling elements, and a
+ * non-deterministic expression evaluated per element is no longer evaluated per parent. An inference command and a
+ * change point never reach this rule in a query: they run on the coordinator, so the {@code Mapper} refuses a
+ * {@code NESTED_EXPAND} after them first, on an index too. This rule refuses them only as a defence, for a plan built
+ * without the {@code Mapper}.
  * <p>
  * <b>Names.</b> Above the scan, an expanded column shadows a column of the same name its input carries, as it does on an
  * index. Moved below a node, the expanded column would be shadowed by that node's own field instead, so a node, or the

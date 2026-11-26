@@ -3974,7 +3974,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             } catch (CircuitBreakingException e) {
                 throw e;
             } catch (Exception e) {
-                throw ParquetReadFailures.wrap(e, expansionFailureContext());
+                throw ParquetReadFailures.wrap(e, expansion.failureContext(rowGroupOrdinal, pageBatchIndexInRowGroup, fileLocation));
             }
         }
         // Captured before the row counts are subtracted: the in-block index of the first row this
@@ -4017,7 +4017,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             } catch (CircuitBreakingException e) {
                 throw e;
             } catch (Exception e) {
-                throw ParquetReadFailures.wrap(e, expansionFailureContext());
+                throw ParquetReadFailures.wrap(e, expansion.failureContext(rowGroupOrdinal, pageBatchIndexInRowGroup, fileLocation));
             }
             expansion.chargeDroppedParents(rowDropHelper, result);
         }
@@ -4039,19 +4039,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             rowBudget -= parentRows;
         }
         return result;
-    }
-
-    /** Where a failure to decode or expand the elements of this batch happened, for its message. */
-    private String expansionFailureContext() {
-        return "Failed to expand ["
-            + expansion.path()
-            + "] at row group ["
-            + (rowGroupOrdinal + 1)
-            + "] page batch ["
-            + pageBatchIndexInRowGroup
-            + "] in file ["
-            + fileLocation
-            + "]";
     }
 
     /**

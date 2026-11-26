@@ -332,14 +332,17 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             ? AttributeSet.EMPTY
             : AttributeSet.of(externalExec.expansion().attributes());
         List<Expression> partitionConjuncts = new ArrayList<>();
+        List<Expression> elementConjuncts = new ArrayList<>();
         List<Expression> castConjuncts = new ArrayList<>();
         List<Expression> pushableCandidates = new ArrayList<>();
         if (partitionColumnNames.isEmpty() && castColumnNames.isEmpty() && elementColumns.isEmpty()) {
             pushableCandidates = filters;
         } else {
             for (Expression filter : filters) {
-                if (referencesAnyColumn(filter, partitionColumnNames) || filter.references().stream().anyMatch(elementColumns::contains)) {
+                if (referencesAnyColumn(filter, partitionColumnNames)) {
                     partitionConjuncts.add(filter);
+                } else if (filter.references().stream().anyMatch(elementColumns::contains)) {
+                    elementConjuncts.add(filter);
                 } else {
                     pushableCandidates.add(filter);
                     if (referencesAnyColumn(filter, castColumnNames)) {
@@ -393,9 +396,10 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 PhysicalNames.translateExpressionNames(result.pushedExpressions(), toLogical)
             );
 
-            // Combine partition conjuncts (always kept) with the SPI's remainder (mapped back to logical), if any,
-            // and the conjuncts over reconciliation-cast columns the SPI did not already hand back.
+            // Combine partition and element conjuncts (always kept) with the SPI's remainder (mapped back to logical), if
+            // any, and the conjuncts over reconciliation-cast columns the SPI did not already hand back.
             List<Expression> remainder = new ArrayList<>(partitionConjuncts);
+            remainder.addAll(elementConjuncts);
             if (result.hasRemainder()) {
                 List<Expression> spiRemainder = result.remainder().stream().filter(e -> derivedBounds.contains(e) == false).toList();
                 remainder.addAll(PhysicalNames.translateExpressionNames(spiRemainder, toLogical));

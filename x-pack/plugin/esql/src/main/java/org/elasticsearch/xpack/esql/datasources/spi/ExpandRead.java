@@ -31,12 +31,12 @@ import java.util.Set;
  * report file statistics or row counts (see {@link FormatReadContext}), and cannot carry row positions for deferred
  * extraction, which address file rows: a read description that asks for both is refused.
  * <p>
- * <b>Parent ordinals.</b> With {@code parentOrdinals}, every page ends with one more block, after the leaves: an
- * {@code IntBlock} holding, per row, the ordinal within the page of the file row it was expanded from. Ordinals start at
- * {@code 0} and step by one from one parent to the next, and a parent's rows never span two pages. A layer above the
- * reader that drops rows for a parent column's value drops every row of that parent; it reads the ordinals to charge its
- * error budget once per parent, as the reader does, rather than once per element. The caller removes the block before
- * the page leaves the source.
+ * <b>Parent ordinals.</b> Every page ends with one more block, after the leaves: an {@code IntBlock} holding, per
+ * row, the ordinal within the page of the file row it was expanded from. Ordinals start at {@code 0} and step by one
+ * from one parent to the next, and a parent's rows never span two pages. A layer above the reader that drops rows for
+ * a parent column's value drops every row of that parent; it reads the ordinals to charge its error budget once per
+ * parent, as the reader does, rather than once per element. The caller removes the block before the page leaves the
+ * source.
  * <p>
  * The leaves are named rather than the element as a whole, so a wide element costs the read only what is asked of it.
  * The list may be empty: the elements are then only counted, which a query that reads none of their fields still needs
@@ -45,11 +45,10 @@ import java.util.Set;
  * The {@code path} is the collection's name in the files, as schema discovery recorded it from their metadata, and not
  * a column name of the dataset: a declared rename does not apply to it.
  *
- * @param path           the collection's dotted name in the file's schema
- * @param leaves         the leaves to emit, by name relative to {@code path}, in output order
- * @param parentOrdinals whether each page carries the trailing parent-ordinal block
+ * @param path   the collection's dotted name in the file's schema
+ * @param leaves the leaves to emit, by name relative to {@code path}, in output order
  */
-public record ExpandRead(String path, List<Leaf> leaves, boolean parentOrdinals) {
+public record ExpandRead(String path, List<Leaf> leaves) {
 
     public ExpandRead {
         if (path == null || path.isEmpty()) {
@@ -67,14 +66,9 @@ public record ExpandRead(String path, List<Leaf> leaves, boolean parentOrdinals)
         }
     }
 
-    /** A read whose pages carry no parent ordinals. */
-    public ExpandRead(String path, List<Leaf> leaves) {
-        this(path, leaves, false);
-    }
-
-    /** The blocks each page carries after the projected columns: the leaves, then the parent ordinals if asked for. */
+    /** The blocks each page carries after the projected columns: the leaves, then the parent ordinals. */
     public int trailingBlocks() {
-        return leaves.size() + (parentOrdinals ? 1 : 0);
+        return leaves.size() + 1;
     }
 
     /**

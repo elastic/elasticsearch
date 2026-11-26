@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
@@ -82,6 +83,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -939,6 +941,164 @@ public class ParquetExpansionTests extends ESTestCase {
     }
 
     /**
+     * B1: a {@code TIMESTAMP(MICROS)} element value whose nanoseconds leave the {@code date_nanos} range reads as null
+     * with the warning a column of that type gives, rather than wrapping to another instant. In a list inside the element
+     * only the out-of-range value is left out; the element's in-range values stay.
+     */
+    public void testMicrosTimestampOutOfRangeIsNullWithAWarning() throws Exception {
+        MessageType micros = MessageTypeParser.parseMessageType("""
+            message t {
+              required int64 id;
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional int64 at (TIMESTAMP(MICROS, true));
+                    optional group ats (LIST) { repeated group list { optional int64 element (TIMESTAMP(MICROS, true)); } }
+                  }
+                }
+              }
+            }
+            """);
+        // 9999-12-31T23:59:59Z, the usual open-ended sentinel, has no nanosecond instant
+        long sentinel = 253_402_300_799_000_000L;
+        byte[] data = write(micros, factory -> {
+            Group r0 = factory.newGroup().append("id", 0L);
+            Group items = r0.addGroup("items");
+            Group e0 = items.addGroup("list").addGroup("element").append("at", sentinel);
+            Group ats = e0.addGroup("ats");
+            ats.addGroup("list").append("element", 5L);
+            ats.addGroup("list").append("element", sentinel);
+            items.addGroup("list").addGroup("element").append("at", 7L);
+            return List.of(r0);
+        });
+        List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+        Expanded read = read(
+            data,
+            context(List.of("id"), leaf("at", DataType.DATE_NANOS), leaf("ats", DataType.DATE_NANOS)).informationalWarningSink(
+                warnings::add
+            )
+        );
+        assertThat(read.rows, equalTo(List.of(Arrays.asList(0L, null, 5_000L), Arrays.asList(0L, 7_000L, null))));
+        assertThat(
+            warnings,
+            hasItem(containsString("timestamps outside the [date_nanos] range (1677-09-21 to 2262-04-11); returning null"))
+        );
+        assertThat(warnings, hasItem(containsString("column [items.list.element.at]")));
+    }
+
+    /**
+     * The audit of the other value conversions against their column twins, at the edges of their ranges: a date's days
+     * as milliseconds and an unsigned 32-bit value as a long are exact for every value the physical type holds, and a
+     * float widens to the same double a float column reads as.
+     */
+    public void testValueKindsAtTheirRangeEdges() throws Exception {
+        byte[] data = write(KINDS, factory -> {
+            Group r0 = factory.newGroup().append("id", 0L);
+            Group items = r0.addGroup("items");
+            items.addGroup("list").addGroup("element").append("d", Integer.MAX_VALUE).append("u", Integer.MIN_VALUE).append("f", 0.1f);
+            items.addGroup("list").addGroup("element").append("d", Integer.MIN_VALUE).append("u", 0).append("f", Float.MAX_VALUE);
+            return List.of(r0);
+        });
+        Expanded read = read(
+            data,
+            context(List.of("id"), leaf("d", DataType.DATETIME), leaf("u", DataType.LONG), leaf("f", DataType.DOUBLE))
+        );
+        assertThat(
+            read.rows,
+            equalTo(
+                List.of(
+                    Arrays.asList(0L, (long) Integer.MAX_VALUE * 86_400_000L, 2_147_483_648L, (double) 0.1f),
+                    Arrays.asList(0L, (long) Integer.MIN_VALUE * 86_400_000L, 0L, (double) Float.MAX_VALUE)
+                )
+            )
+        );
+    }
+
+    /**
+     * NIT: an element leaf is typed as a column of the same physical type is: an unsigned 32-bit integer needs a long,
+     * an unsigned 8 or 16-bit one fits an integer.
+     */
+    public void testUnsignedLeafTypesMatchTheirColumns() {
+        MessageType unsigned = MessageTypeParser.parseMessageType("""
+            message t {
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional int32 u8 (INTEGER(8, false));
+                    optional int32 u16 (INTEGER(16, false));
+                    optional int32 u32 (INTEGER(32, false));
+                  }
+                }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(unsigned),
+            equalTo(
+                List.of(
+                    new ParquetCollections.Collection(
+                        "items",
+                        List.of(
+                            new ParquetCollections.Leaf("u16", DataType.INTEGER),
+                            new ParquetCollections.Leaf("u32", DataType.LONG),
+                            new ParquetCollections.Leaf("u8", DataType.INTEGER)
+                        ),
+                        null
+                    )
+                )
+            )
+        );
+    }
+
+    /**
+     * S1: a collection is named by its dotted path, so a list of structures whose own name holds a dot is not described,
+     * and stays an unsupported column; a struct {@code my} holding a list {@code items} beside it is one collection.
+     */
+    public void testDottedCollectionNameIsNotDescribed() {
+        MessageType dotted = MessageTypeParser.parseMessageType("""
+            message t {
+              optional group my.items (LIST) { repeated group list { optional group element { optional int64 a; } } }
+              optional group my {
+                optional group items (LIST) { repeated group list { optional group element { optional int64 b; } } }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(dotted),
+            equalTo(List.of(new ParquetCollections.Collection("my.items", List.of(new ParquetCollections.Leaf("b", DataType.LONG)), null)))
+        );
+    }
+
+    /**
+     * S5: a failure inside the expansion is reported with where it happened, the collection, row group and batch. The
+     * failure is injected with a test double, a breaker that refuses the first block the read builds with an
+     * IllegalArgumentException; the elements are decoded first, so that block is the expansion's. A corrupt file would
+     * fail in the page reads before the expansion, and is not one parquet-mr will write.
+     */
+    public void testFailureInTheExpansionNamesWhereItHappened() throws Exception {
+        byte[] data = write(SCHEMA, factory -> {
+            Group r0 = factory.newGroup().append("id", 0L);
+            r0.addGroup("items").addGroup("list").addGroup("element").append("pid", 0L);
+            return List.of(r0);
+        });
+        blockFactory = new BlockFactory(new LimitedBreaker("test", ByteSizeValue.ofGb(1)) {
+            private boolean failed;
+
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                if (failed == false && label.equals("<esql_block_factory>") && bytes > 0) {
+                    failed = true;
+                    throw new IllegalArgumentException("injected");
+                }
+                super.addEstimateBytesAndMaybeBreak(bytes, label);
+            }
+        }, BigArrays.NON_RECYCLING_INSTANCE);
+        Exception e = expectThrows(Exception.class, () -> read(data, context(List.of("id"), leaf("pid", DataType.LONG))));
+        assertThat(causeMessages(e), containsString("Failed to expand [items] at row group [1] page batch [0] in file ["));
+        assertThat(causeMessages(e), containsString("injected"));
+    }
+
+    /**
      * An expanding read keeps the scan off two-phase I/O, which decodes a row group's predicate columns whole and so
      * could neither cut a batch at its budget nor decode the elements beside the rows. The positive control shows the
      * fixture does go two-phase without an expand read: from storage that advertises async reads it fetches fewer bytes
@@ -1006,7 +1166,7 @@ public class ParquetExpansionTests extends ESTestCase {
             List.of(new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG)),
             ErrorPolicy.STRICT
         );
-        range.setExpandRead(new ExpandRead("items", List.of(leaf("pid", DataType.LONG)), true));
+        range.setExpandRead(new ExpandRead("items", List.of(leaf("pid", DataType.LONG))));
         ParquetFormatReader reader = reader();
         reader.clearFooterCachesForTests();
         List<List<Object>> rows = new ArrayList<>();
@@ -1173,10 +1333,13 @@ public class ParquetExpansionTests extends ESTestCase {
                 Page page = pages.next();
                 try {
                     read.pageRows.add(page.getPositionCount());
-                    read.blockCounts.add(page.getBlockCount());
+                    // Every expanded page ends with the parent ordinals, which the rows below leave out
+                    int columns = page.getBlockCount() - 1;
+                    assertThat(page.getBlock(columns), instanceOf(IntBlock.class));
+                    read.blockCounts.add(columns);
                     for (int p = 0; p < page.getPositionCount(); p++) {
                         List<Object> row = new ArrayList<>();
-                        for (int b = 0; b < page.getBlockCount(); b++) {
+                        for (int b = 0; b < columns; b++) {
                             Block block = page.getBlock(b);
                             row.add(BlockUtils.toJavaObject(block, p));
                         }

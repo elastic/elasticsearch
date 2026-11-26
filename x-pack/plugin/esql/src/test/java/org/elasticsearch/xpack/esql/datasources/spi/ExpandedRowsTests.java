@@ -119,7 +119,7 @@ public class ExpandedRowsTests extends ESTestCase {
 
     /** S4: a batch whose every parent was dropped expands to an empty page, and releases everything it was handed. */
     public void testZeroSurvivors() {
-        Page out = ExpandedRows.expand(parents(), new int[0], 3, positions(0, 1, 2), new Block[] { longs(1, 2, 3) }, true, blockFactory);
+        Page out = ExpandedRows.expand(parents(), new int[0], 3, positions(0, 1, 2), new Block[] { longs(1, 2, 3) }, blockFactory);
         try {
             assertThat(out.getPositionCount(), equalTo(0));
             assertThat(out.getBlockCount(), equalTo(3));
@@ -131,17 +131,9 @@ public class ExpandedRowsTests extends ESTestCase {
 
     /** The parent ordinals number the page's parents from 0, a null row included, one value per row. */
     public void testParentOrdinals() {
-        Page out = ExpandedRows.expand(
-            parents(10, 11, 12),
-            null,
-            3,
-            positions(0, 0, 2),
-            new Block[] { longs(1, 2, 3) },
-            true,
-            blockFactory
-        );
+        Page out = ExpandedRows.expand(parents(10, 11, 12), null, 3, positions(0, 0, 2), new Block[] { longs(1, 2, 3) }, blockFactory);
         assertThat(
-            rows(out),
+            rowsWithOrdinals(out),
             equalTo(List.of(Arrays.asList(10L, 1L, 0), Arrays.asList(10L, 2L, 0), Arrays.asList(11L, null, 1), Arrays.asList(12L, 3L, 2)))
         );
         assertThat(breaker.getUsed(), equalTo(0L));
@@ -245,13 +237,22 @@ public class ExpandedRowsTests extends ESTestCase {
         }
     }
 
-    /** The rows of {@code page}, which this releases. */
+    /** The rows of {@code page} without the trailing parent ordinals, which this releases. */
     private static List<List<Object>> rows(Page page) {
+        return rows(page, page.getBlockCount() - 1);
+    }
+
+    /** The rows of {@code page} with the trailing parent ordinals, which this releases. */
+    private static List<List<Object>> rowsWithOrdinals(Page page) {
+        return rows(page, page.getBlockCount());
+    }
+
+    private static List<List<Object>> rows(Page page, int columns) {
         try {
             List<List<Object>> rows = new ArrayList<>();
             for (int p = 0; p < page.getPositionCount(); p++) {
                 List<Object> row = new ArrayList<>();
-                for (int b = 0; b < page.getBlockCount(); b++) {
+                for (int b = 0; b < columns; b++) {
                     row.add(BlockUtils.toJavaObject(page.getBlock(b), p));
                 }
                 rows.add(row);

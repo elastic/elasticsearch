@@ -61,7 +61,9 @@ final class ParquetCollections {
     }
 
     private static void describe(Type field, String path, List<Collection> out) {
-        if (field.isPrimitive()) {
+        if (field.isPrimitive() || field.getName().indexOf('.') >= 0) {
+            // A collection is named by its dotted path, so one whose own name, or whose structure's name, holds a dot
+            // would resolve to another field or to none; it is not described, and stays an unsupported column
             return;
         }
         GroupType group = field.asGroupType();
@@ -171,7 +173,8 @@ final class ParquetCollections {
                 if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
                     yield DataType.DATETIME;
                 }
-                if (logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation i && i.isSigned() == false) {
+                // As a column of the same type: only an unsigned 32-bit value needs a long; 8 and 16 bits fit an integer
+                if (logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation i && i.isSigned() == false && i.getBitWidth() == 32) {
                     yield DataType.LONG;
                 }
                 if (logical == null || logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation) {

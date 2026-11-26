@@ -187,17 +187,13 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             }
         }
 
-        public Expansion withParentLimit(int newParentLimit) {
-            return new Expansion(path, attributes, leaves, newParentLimit);
-        }
-
         /** The read that asks the reader for these leaves, at the types of their columns. */
-        public ExpandRead toExpandRead(boolean parentOrdinals) {
+        public ExpandRead toExpandRead() {
             List<ExpandRead.Leaf> read = new ArrayList<>(leaves.size());
             for (int i = 0; i < leaves.size(); i++) {
                 read.add(new ExpandRead.Leaf(leaves.get(i), attributes.get(i).dataType()));
             }
-            return new ExpandRead(path, read, parentOrdinals);
+            return new ExpandRead(path, read);
         }
     }
 

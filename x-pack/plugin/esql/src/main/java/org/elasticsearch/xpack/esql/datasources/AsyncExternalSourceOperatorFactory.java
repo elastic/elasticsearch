@@ -347,7 +347,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * The collection every read reads at element grain ({@code NESTED_EXPAND} over a dataset), or {@code null}. With one,
      * {@link #attributes} are the scan's own columns, and every page the reader emits carries, after them, one block per
-     * leaf and then the {@link ExpandRead#parentOrdinals() parent ordinals}: the wrappers above the reader carry those
+     * leaf and then the {@link ExpandRead parent ordinals}: the wrappers above the reader carry those
      * trailing blocks through (and filter them with any row they drop), and {@link #deliverPage} removes the ordinals
      * before the page leaves the source.
      */
@@ -528,9 +528,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (deferredExtraction) {
                 // A deferred column is re-read by row position, which addresses a file row, not an element
                 throw new IllegalArgumentException("a read that expands [" + expandRead.path() + "] cannot defer extraction");
-            }
-            if (expandRead.parentOrdinals() == false) {
-                throw new IllegalArgumentException("a read that expands [" + expandRead.path() + "] must carry parent ordinals");
             }
         }
         this.expandRead = expandRead;

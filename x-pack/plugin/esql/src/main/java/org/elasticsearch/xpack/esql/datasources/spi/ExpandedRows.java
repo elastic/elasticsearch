@@ -40,7 +40,8 @@ public final class ExpandedRows {
      * @param elementParents per element, the batch position of its parent, non-decreasing
      * @param elements       per element column, a block of one position per element; a {@code null} entry is a column
      *                       no element of this batch has, null on every row
-     * @return the parent blocks repeated per element followed by the element columns, in {@code elements} order
+     * @return the parent blocks repeated per element, the element columns in {@code elements} order, and the
+     *         {@link ExpandRead parent-ordinal} block: per row, the position in {@code parents} of the row it repeats
      */
     public static Page expand(
         Page parents,
@@ -48,27 +49,10 @@ public final class ExpandedRows {
         int batchRows,
         IntVector elementParents,
         Block[] elements,
-        BlockFactory blockFactory
-    ) {
-        return expand(parents, survivors, batchRows, elementParents, elements, false, blockFactory);
-    }
-
-    /**
-     * As {@link #expand(Page, int[], int, IntVector, Block[], BlockFactory)}, and with {@code parentOrdinals} the page ends
-     * with the {@link ExpandRead#parentOrdinals() parent-ordinal} block: per row, the position in {@code parents} of the
-     * row it repeats.
-     */
-    public static Page expand(
-        Page parents,
-        @Nullable int[] survivors,
-        int batchRows,
-        IntVector elementParents,
-        Block[] elements,
-        boolean parentOrdinals,
         BlockFactory blockFactory
     ) {
         long reserved = 0;
-        Block[] columns = new Block[elements.length + (parentOrdinals ? 1 : 0)];
+        Block[] columns = new Block[elements.length + 1];
         Page repeated = null;
         try {
             int parentCount = parents.getPositionCount();
@@ -105,9 +89,7 @@ public final class ExpandedRows {
                     columns[c] = select(block, elementPositions, blockFactory);
                 }
             }
-            if (parentOrdinals) {
-                columns[elements.length] = blockFactory.newIntArrayVector(parentPositions, rows).asBlock();
-            }
+            columns[elements.length] = blockFactory.newIntArrayVector(parentPositions, rows).asBlock();
             Page out = repeated.appendBlocks(columns);
             if (repeated == parents) {
                 parents = null;

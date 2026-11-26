@@ -396,7 +396,7 @@ final class ParquetExpansion {
             FailedElements failed = skipRow ? new FailedElements(elementParents.getPositionCount()) : null;
             for (int l = 0; l < leaves.length; l++) {
                 if (leaves[l] != null) {
-                    values[l] = leaves[l].finishValues(this::castWarnings, failed);
+                    values[l] = leaves[l].finishValues(this::castWarnings, failed, spec.warningSink());
                 }
             }
             if (failed != null && failed.any()) {
@@ -420,7 +420,7 @@ final class ParquetExpansion {
             }
             throw e;
         }
-        return ExpandedRows.expand(projected, survivors, rows, elementParents, values, spec.read().parentOrdinals(), blockFactory);
+        return ExpandedRows.expand(projected, survivors, rows, elementParents, values, blockFactory);
     }
 
     /**
@@ -554,6 +554,22 @@ final class ParquetExpansion {
         return castWarnings;
     }
 
+    /**
+     * Where a failure to decode or expand the elements of a batch happened, for its message: the same words from both
+     * iterators, so a failure reads alike whichever one the read took.
+     */
+    String failureContext(int rowGroupOrdinal, int pageBatchIndex, String fileLocation) {
+        return "Failed to expand ["
+            + path()
+            + "] at row group ["
+            + (rowGroupOrdinal + 1)
+            + "] page batch ["
+            + pageBatchIndex
+            + "] in file ["
+            + fileLocation
+            + "]";
+    }
+
     /** Drops the batch in progress, if any. */
     void discardBatch() {
         batchRows = -1;
@@ -652,6 +668,8 @@ final class ParquetExpansion {
         private final BytesRef scratch = new BytesRef();
 
         private boolean recordsParents;
+        /** Whether the batch held a value out of its type's range, read as null; see {@link #appendValue}. */
+        private boolean outOfRange;
         private ParquetColumnDecoding.ListColumnReader input;
         @Nullable
         private Block.Builder builder;
@@ -762,6 +780,21 @@ final class ParquetExpansion {
         }
 
         private void appendValue(ColumnReader reader) {
+            if (kind == ValueKind.MICROS_AS_NANOS) {
+                long micros = reader.getLong();
+                if (ParquetColumnDecoding.microsOverflowsNanos(micros)) {
+                    // As a column of the same type: the value has no nanosecond instant, so it is skipped, and an
+                    // element left without a value is null (closeElement)
+                    outOfRange = true;
+                    return;
+                }
+                if (valuesInElement == 0) {
+                    builder.beginPositionEntry();
+                }
+                valuesInElement++;
+                ((LongBlock.Builder) builder).appendLong(micros * ParquetColumnDecoding.NANOS_PER_MICRO);
+                return;
+            }
             if (valuesInElement == 0) {
                 builder.beginPositionEntry();
             }
@@ -772,7 +805,7 @@ final class ParquetExpansion {
                 case DAYS_AS_MILLIS -> ((LongBlock.Builder) builder).appendLong(TimeUnit.DAYS.toMillis(reader.getInteger()));
                 case UNSIGNED_INT_AS_LONG -> ((LongBlock.Builder) builder).appendLong(Integer.toUnsignedLong(reader.getInteger()));
                 case LONG -> ((LongBlock.Builder) builder).appendLong(reader.getLong());
-                case MICROS_AS_NANOS -> ((LongBlock.Builder) builder).appendLong(reader.getLong() * 1000L);
+                case MICROS_AS_NANOS -> throw new IllegalStateException("scaled above, with its range check");
                 case FLOAT_AS_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(reader.getFloat());
                 case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(reader.getDouble());
                 case BYTES -> ((BytesRefBlock.Builder) builder).appendBytesRef(bytes(reader.getBinary()));
@@ -818,7 +851,11 @@ final class ParquetExpansion {
          * The values of every element of the batch at the requested type; the caller owns the block. A value the cast
          * cannot represent is null, and its element is told to {@code failed} when one is given.
          */
-        Block finishValues(Supplier<SkipWarnings> castWarnings, @Nullable IntConsumer failed) {
+        Block finishValues(Supplier<SkipWarnings> castWarnings, @Nullable IntConsumer failed, @Nullable Consumer<String> warningSink) {
+            if (outOfRange) {
+                outOfRange = false;
+                ParquetColumnDecoding.warnTimestampOutOfRange(String.join(".", descriptor.getPath()), warningSink);
+            }
             Block.Builder values = builder;
             builder = null;
             if (values == null) {
@@ -846,6 +883,7 @@ final class ParquetExpansion {
         }
 
         void discard() {
+            outOfRange = false;
             Releasables.closeExpectNoException(builder, parentBuilder);
             builder = null;
             parentBuilder = null;

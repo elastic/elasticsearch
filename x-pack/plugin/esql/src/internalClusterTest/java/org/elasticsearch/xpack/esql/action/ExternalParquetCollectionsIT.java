@@ -942,6 +942,63 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
         );
     }
 
+    /**
+     * S1: a list of structures whose own name holds a dot is not a collection, since a collection is named by its dotted
+     * path; it stays an unsupported column, visible and null, as before nested columns existed.
+     */
+    public void testDottedListNameStaysAnUnsupportedColumn() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required int64 id;
+              optional group my.items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional int64 qty;
+                  }
+                }
+              }
+            }
+            """);
+        String dataset = registerDataset("dotted_list", StoragePath.fileUri(write("dotted", schema, List.of(g -> {
+            g.add("id", 1L);
+            g.addGroup("my.items").addGroup("list").addGroup("element").append("qty", 3L);
+        }))), Map.of());
+        assertRows("FROM " + dataset + " | KEEP id, `my.items`", row(1L, null));
+        assertQueryFails("FROM " + dataset + " | NESTED_EXPAND `my.items`", "NESTED_EXPAND requires a mapped nested field");
+    }
+
+    /**
+     * S5: a declared schema beside a list of structures. A non-strict declaration overlays its columns on the inferred
+     * schema, which still describes the list, so the expansion reads it. A strict declaration is the whole schema and
+     * reads no file to infer one, so the list is unknown to the dataset and the expansion has nothing to bind to.
+     */
+    public void testDeclaredSchemaBesideAListOfStructures() throws Exception {
+        LinkedHashMap<String, DatasetFieldMapping> overlay = new LinkedHashMap<>();
+        overlay.put("price", new DatasetFieldMapping("long", null));
+        String nonStrict = registerNonStrictDataset(
+            "orders_declared",
+            StoragePath.fileUri(write(createTempDir(), "orders_declared", ORDERS, orderRows(), 512)),
+            overlay,
+            Map.of()
+        );
+        assertRows(
+            "FROM " + nonStrict + " | WHERE id == 2 | NESTED_EXPAND items | KEEP id, price, items.qty",
+            row(2L, 10L, 2L),
+            row(2L, 10L, 102L)
+        );
+
+        LinkedHashMap<String, DatasetFieldMapping> whole = new LinkedHashMap<>();
+        whole.put("id", new DatasetFieldMapping("long", null));
+        whole.put("price", new DatasetFieldMapping("long", null));
+        String strict = registerStrictDataset(
+            "orders_strict",
+            StoragePath.fileUri(write(createTempDir(), "orders_strict", ORDERS, orderRows(), 512)),
+            whole,
+            Map.of()
+        );
+        assertQueryFails("FROM " + strict + " | NESTED_EXPAND items | KEEP id", "Unknown column [items]");
+    }
+
     private record Result(List<List<Object>> rows, List<String> warnings) {}
 
     /** Runs {@code query} on a random node and returns its rows and the warnings that node's response carried. */

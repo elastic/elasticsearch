@@ -17,7 +17,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
@@ -68,10 +67,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder()
-            .put(enrichNodeSettings(super.nodeSettings()))
-            .put(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey(), -1)
-            .build();
+        return enrichNodeSettings(super.nodeSettings());
     }
 
     @Before

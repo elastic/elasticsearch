@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -23,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_FORMAT;
@@ -33,10 +37,24 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_HEADER
  * as it is produced, one row per line. See {@link EsqlStreamResponseListener} for the response shape.
  *
  * <p>The body is the same as for {@code POST /_query}, except that {@code columnar} is not supported, plus three fields
- * that only this API has: {@code max_rows} and {@code max_bytes}, which end the response early, and {@code store}, where
- * only {@code none} is supported. {@code max_rows} must be a whole JSON number. {@code max_bytes} is either a whole JSON
- * number, which is a count of bytes, or a size string with a unit such as {@code "1mb"}. The query runs only for as long
- * as the response is open: a disconnect cancels it, and so does a response that ends at a limit.</p>
+ * that only this API has: {@code max_rows} and {@code max_bytes}, which end the response early, and {@code store}, which
+ * sets what is also kept in the stored results index:</p>
+ * <ul>
+ *   <li>{@code none}, the default: nothing is stored.</li>
+ *   <li>{@code overflow}: only the pages that are not sent to the client immediately, such as the rows beyond a limit.</li>
+ *   <li>{@code all}: every page.</li>
+ * </ul>
+ *
+ * <p>When anything is stored, the first line of the response carries a {@code stream_id}. The stored modes need the
+ * {@code esql_stream_results_stored} feature flag, which is on in snapshot builds; without it only {@code none} is accepted.
+ * With the flag on, {@code overflow} and {@code all} are still rejected unless batch indexing is supported, which needs both:
+ * the {@code indices.batch_indexing} cluster setting is enabled (it can only be enabled when the {@code batch_indexing} feature
+ * flag is on), and every node in the cluster can receive pre-built batches. Enabling the setting helps only in the first case.
+ * In the second, such as during a rolling upgrade, the request is accepted once all nodes support it.
+ * {@code max_rows} must be a whole JSON number. {@code max_bytes} is either a whole JSON number, which is a count of bytes,
+ * or a size string with a unit such as {@code "1mb"}. With {@code store} set to {@code none} the query runs only for as long
+ * as the response is open: a disconnect cancels it, and so does a response that ends at a limit. With the other modes a
+ * response that ends at a limit does not cancel the query, which goes on to store the remaining pages.</p>
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestEsqlStreamQueryAction extends BaseRestHandler {
@@ -54,8 +72,26 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
 
     private final EsqlCapabilities capabilities;
 
-    public RestEsqlStreamQueryAction(EsqlCapabilities capabilities) {
+    private final BooleanSupplier batchIndexingSupported;
+
+    private final EscfBulkService escfBulkService;
+
+    private final CircuitBreaker breaker;
+
+    private final ProjectResolver projectResolver;
+
+    public RestEsqlStreamQueryAction(
+        EsqlCapabilities capabilities,
+        BooleanSupplier batchIndexingSupported,
+        EscfBulkService escfBulkService,
+        CircuitBreaker breaker,
+        ProjectResolver projectResolver
+    ) {
         this.capabilities = capabilities;
+        this.batchIndexingSupported = batchIndexingSupported;
+        this.escfBulkService = escfBulkService;
+        this.breaker = breaker;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -79,18 +115,21 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             parsed = RequestXContent.parseStream(parser);
         }
-        return streamingChannelConsumer(parsed.request(), parsed.options(), request, client);
-    }
-
-    static RestChannelConsumer streamingChannelConsumer(EsqlQueryRequest esqlRequest, RestRequest request, NodeClient client) {
-        return streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, client);
+        StreamOptions.Store store = parsed.options().store();
+        if (store != StreamOptions.Store.NONE && batchIndexingSupported.getAsBoolean() == false) {
+            throw new IllegalArgumentException("[store] set to [" + store + "] requires batch indexing");
+        }
+        return streamingChannelConsumer(parsed.request(), parsed.options(), request, client, escfBulkService, breaker, projectResolver);
     }
 
     static RestChannelConsumer streamingChannelConsumer(
         EsqlQueryRequest esqlRequest,
         StreamOptions options,
         RestRequest request,
-        NodeClient client
+        NodeClient client,
+        EscfBulkService escfBulkService,
+        CircuitBreaker breaker,
+        ProjectResolver projectResolver
     ) {
         if (esqlRequest.columnar()) {
             throw new IllegalArgumentException("[columnar] cannot be used with [POST /_query/stream]");
@@ -110,6 +149,10 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
             EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(
                 channel,
                 client.threadPool().getThreadContext(),
+                client,
+                projectResolver.getProjectId(),
+                escfBulkService,
+                breaker,
                 options
             );
             EsqlStreamQueryRequest streamRequest = new EsqlStreamQueryRequest(

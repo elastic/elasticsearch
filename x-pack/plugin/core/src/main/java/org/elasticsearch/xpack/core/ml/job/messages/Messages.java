@@ -46,8 +46,6 @@ public final class Messages {
     /** Arg {0} of the ES|QL datafeed messages below: the subject without and with the datafeed id. */
     public static final String DATAFEED_ESQL_SUBJECT = "ES|QL datafeed";
     public static final String DATAFEED_ESQL_SUBJECT_WITH_ID = "ES|QL datafeed [{0}]";
-    public static final String DATAFEED_ESQL_DESCRIBE_UNAVAILABLE =
-        "{0} cannot be validated in this build. Validation uses the ES|QL DESCRIBE command, which is only available in snapshot builds.";
     public static final String DATAFEED_ESQL_OUTER_LIMIT_WARNING =
         "{0} query contains an outer LIMIT clause. It caps every extraction chunk and the delayed data check, so remove it.";
     public static final String DATAFEED_ESQL_TIME_COLUMN_NOT_DATE = "{0} time column [{1}] has type [{2}]. It must be date or date_nanos.";
@@ -111,9 +109,10 @@ public final class Messages {
     public static final String DATAFEED_ESQL_CREATE_UPGRADE_IN_PROGRESS =
         "Cannot create datafeed [{0}] while a cluster upgrade is in progress ({1}); "
             + "wait for the cluster to finish upgrading and try again.";
-    public static final String DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED =
-        "{0} reads remote cluster [{1}] through index expression [{2}]. "
-            + "ES|QL datafeeds do not support remote cluster sources. Remove the cluster prefix and query local indices only.";
+    public static final String DATAFEED_ESQL_START_CLUSTERS_UNAVAILABLE =
+        "Cannot start {0} because ES|QL skipped the clusters {1} and returned none of the required columns {2}. "
+            + "Make sure that the clusters are connected, that the indices in the query exist on them, "
+            + "and that the query returns the required columns.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
             + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "

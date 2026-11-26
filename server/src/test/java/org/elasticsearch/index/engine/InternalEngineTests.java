@@ -8568,6 +8568,40 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     /**
+     * A batch that creates an id more than once is split into sub-batches at every repeated id, as the engine cannot take the lock of
+     * an id twice. A repeat is a version conflict with the copy that the previous sub-batch indexed. When it shares its sub-batch with
+     * documents that are written, it must not be indexed as a document without any field either, which a search then counted. The id
+     * sequences are the ones of #164362.
+     */
+    public void testIndexBatchRepeatedCreatesWriteNoLuceneDocsForTheRepeats() throws IOException {
+        final List<List<String>> idSequences = List.of(List.of("a", "a", "b"), List.of("a", "b", "a", "c"), List.of("a", "a", "a", "b"));
+        final Map<String, Long> expectedSeqNos = new HashMap<>();
+        for (int sequence = 0; sequence < idSequences.size(); sequence++) {
+            // the ids carry the number of the sequence so that the sequences do not interact
+            final List<Engine.Index> ops = new ArrayList<>();
+            for (String id : idSequences.get(sequence)) {
+                ParsedDocument doc = createParsedDoc(sequence + "-" + id, null);
+                ops.add(new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED));
+            }
+
+            List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
+
+            assertThat(results, hasSize(ops.size()));
+            for (int i = 0; i < ops.size(); i++) {
+                String id = ops.get(i).id();
+                if (expectedSeqNos.containsKey(id)) {
+                    assertThat(id, results.get(i).getResultType(), equalTo(Engine.Result.Type.FAILURE));
+                    assertThat(id, results.get(i).getFailure(), instanceOf(VersionConflictEngineException.class));
+                } else {
+                    assertThat(id, results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                    expectedSeqNos.put(id, results.get(i).getSeqNo());
+                }
+            }
+            assertBatchLeftExactly(expectedSeqNos);
+        }
+    }
+
+    /**
      * Asserts that Lucene holds one document per entry of {@code expectedSeqNos}, with that id and seq#, and nothing else. The
      * count comes from the reader as a document without any field has no id to be listed under.
      */

@@ -962,3 +962,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testEvaluatorToString {TestCase=<date, 13 dates>}
   issue: https://github.com/elastic/elasticsearch/issues/167590
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFoldAnyNullIsNullWithoutFoldNull {TestCase=<long, 7 ints> null in 4}
+  issue: https://github.com/elastic/elasticsearch/issues/167592

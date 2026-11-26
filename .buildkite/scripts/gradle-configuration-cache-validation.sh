@@ -29,27 +29,19 @@ readonly CONFIGURATION_CACHE_ARGS=(
   "-Dorg.gradle.configuration-cache.inputs.unsafe.ignore.file-system-checks=build/*.tar.bz2"
 )
 
-# The third-party Deb tasks prevent Gradle from storing the checkPart1 cache entry
-# even with --dry-run. Exclude only these tasks until their configuration-cache
-# incompatibility is addressed separately; keep the other checkPart1 tasks covered.
-readonly EXCLUDED_TASKS=(
-  -x :distribution:packages:buildDeb
-  -x :distribution:packages:buildAarch64Deb
-)
-
 # Note: run-gradle.sh launches Gradle through the Tooling API, which rejects daemon
 # options such as --no-daemon.
 echo "--- Warm-up dry run without configuration cache: $*"
-.ci/scripts/run-gradle.sh --dry-run "${EXCLUDED_TASKS[@]}" "$@"
+.ci/scripts/run-gradle.sh --dry-run "$@"
 
 echo "--- First dry run with configuration cache (stores the entry): $*"
-.ci/scripts/run-gradle.sh --dry-run "${CONFIGURATION_CACHE_ARGS[@]}" "${EXCLUDED_TASKS[@]}" "$@"
+.ci/scripts/run-gradle.sh --dry-run "${CONFIGURATION_CACHE_ARGS[@]}" "$@"
 
 tmpOutputFile=$(mktemp)
 trap 'rm -f "$tmpOutputFile"' EXIT
 
 echo "--- Second dry run with configuration cache (must reuse the entry): $*"
-.ci/scripts/run-gradle.sh --dry-run "${CONFIGURATION_CACHE_ARGS[@]}" "${EXCLUDED_TASKS[@]}" "$@" | tee "$tmpOutputFile"
+.ci/scripts/run-gradle.sh --dry-run "${CONFIGURATION_CACHE_ARGS[@]}" "$@" | tee "$tmpOutputFile"
 
 if grep -q "Configuration cache entry reused." "$tmpOutputFile"; then
   echo "Gradle configuration cache reused"

@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
-import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 
 import java.util.Map;
@@ -73,11 +73,11 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
-    protected CacheBlobReader getCacheBlobReader(String fileName, BccBlob bccBlob) {
+    protected CacheBlobReader getCacheBlobReader(String fileName, Blob blob) {
         return createCacheBlobReader(
             fileName,
-            getBlobContainer(bccBlob.primaryTerm()),
-            bccBlob.blobName(),
+            getBlobContainer(blob.primaryTerm()),
+            blob.blobName(),
             getCacheService().getShardReadThreadPoolExecutor(),
             totalBytesReadFromObjectStore,
             BlobCacheMetrics.CachePopulationReason.CacheMiss
@@ -85,11 +85,11 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
-    public CacheBlobReader getCacheBlobReaderForWarming(BccBlob bccBlob) {
+    public CacheBlobReader getCacheBlobReaderForWarming(Blob blob) {
         return createCacheBlobReader(
-            bccBlob.blobName(),
-            getBlobContainer(bccBlob.primaryTerm()),
-            bccBlob.blobName(),
+            blob.blobName(),
+            getBlobContainer(blob.primaryTerm()),
+            blob.blobName(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             totalBytesWarmedFromObjectStore,
             BlobCacheMetrics.CachePopulationReason.Warming,
@@ -149,11 +149,11 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
             blobContainer.get()
         ) {
             @Override
-            protected CacheBlobReader getCacheBlobReader(String fileName, BccBlob bccBlob) {
+            protected CacheBlobReader getCacheBlobReader(String fileName, Blob blob) {
                 return createCacheBlobReader(
                     fileName,
-                    getBlobContainer(bccBlob.primaryTerm()),
-                    bccBlob.blobName(),
+                    getBlobContainer(blob.primaryTerm()),
+                    blob.blobName(),
                     getCacheService().getShardReadThreadPoolExecutor(),
                     // account for warming instead of cache miss when doing regular reads with a "prewarming" instance
                     totalBytesWarmedFromObjectStore,
@@ -184,11 +184,11 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
             blobContainer.get()
         ) {
             @Override
-            protected CacheBlobReader getCacheBlobReader(String fileName, BccBlob blobFile) {
+            protected CacheBlobReader getCacheBlobReader(String fileName, Blob blob) {
                 return createCacheBlobReader(
                     fileName,
-                    getBlobContainer(blobFile.primaryTerm()),
-                    blobFile.blobName(),
+                    getBlobContainer(blob.primaryTerm()),
+                    blob.blobName(),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     totalBytesWarmedFromObjectStore,
                     BlobCacheMetrics.CachePopulationReason.Warming

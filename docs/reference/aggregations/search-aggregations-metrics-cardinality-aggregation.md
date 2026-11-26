@@ -2,6 +2,9 @@
 navigation_title: "Cardinality"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Cardinality aggregation [search-aggregations-metrics-cardinality-aggregation]

@@ -162,7 +162,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
@@ -580,17 +579,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
             resolutions.addAll(context.lookupResolution().values());
-            Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
-            Map<NameId, Attribute> datasetColumns = ColumnSemantics.datasetColumns(describe.child());
-            Set<NameId> timeColumns = ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns);
             return describe.withTable(
-                describe.describe(
-                    semantics,
-                    datasetColumns,
-                    ColumnUnits.collect(describe.child(), semantics),
-                    timeColumns,
-                    ColumnIntervals.collect(describe.child(), context.configuration().newFoldContext())
-                )
+                describe.describe(ColumnDescription.collect(describe.child(), resolutions, context.configuration().newFoldContext()))
             );
         }
 

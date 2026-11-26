@@ -124,6 +124,7 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
@@ -328,6 +329,7 @@ public class LocalExecutionPlanner {
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final Settings settings;
+    private final boolean crossProjectEnabled;
     private final Configuration configuration;
     private final Supplier<ExchangeSource> exchangeSourceSupplier;
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
@@ -421,6 +423,7 @@ public class LocalExecutionPlanner {
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.settings = settings;
+        this.crossProjectEnabled = new CrossProjectModeDecider(settings).crossProjectEnabled();
         this.configuration = configuration;
         this.exchangeSourceSupplier = exchangeSourceSupplier;
         this.exchangeSinkSupplier = exchangeSinkSupplier;
@@ -2637,9 +2640,30 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planEqlSource(EqlSourceExec eqlSource) {
         Layout.Builder layout = new Layout.Builder();
         layout.append(eqlSource.output());
+        assert executionInfo != null : "an EQL source is planned on the coordinator, which has the execution info";
+        String[] pattern = Strings.splitStringByCommaToArray(eqlSource.indices());
+        String[] indices = EqlRequests.searchableIndices(pattern, executionInfo, crossProjectEnabled);
+        Set<String> searchedClusters = EqlRequests.searchedClusters(indices, executionInfo.clusterAliases(), crossProjectEnabled);
+        EqlSearchRequest request = indices.length == 0 ? null : eqlRequest(eqlSource, indices);
+        return PhysicalOperation.fromSource(
+            new EqlSourceOperator.Factory(
+                client,
+                request,
+                searchedClusters,
+                eqlSource.mode(),
+                eqlSource.output(),
+                eqlSource.source(),
+                request != null && EqlRequests.usesDefaultSize(eqlSource.options(), eqlSource.pushedLimit()),
+                executionInfo
+            ),
+            layout.build()
+        );
+    }
+
+    private EqlSearchRequest eqlRequest(EqlSourceExec eqlSource, String[] indices) {
         EqlSearchRequest request = EqlRequests.build(
             eqlSource.query(),
-            eqlSource.indices(),
+            String.join(",", indices),
             eqlSource.output(),
             eqlSource.options(),
             eqlSource.pushedLimit(),
@@ -2659,19 +2683,7 @@ public class LocalExecutionPlanner {
         if (preResolved != null) {
             request.preResolvedFieldCaps(preResolved);
         }
-        assert executionInfo != null : "an EQL source is planned on the coordinator, which has the execution info";
-        return PhysicalOperation.fromSource(
-            new EqlSourceOperator.Factory(
-                client,
-                request,
-                eqlSource.mode(),
-                eqlSource.output(),
-                eqlSource.source(),
-                EqlRequests.usesDefaultSize(eqlSource.options(), eqlSource.pushedLimit()),
-                executionInfo
-            ),
-            layout.build()
-        );
+        return request;
     }
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {

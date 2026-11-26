@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
+import org.elasticsearch.xpack.eql.action.RequestDefaults;
 
 import java.time.ZoneId;
 import java.util.List;
@@ -35,6 +36,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final int maxSamplesPerKey;
     private final boolean allowPartialSearchResults;
     private final boolean allowPartialSequenceResults;
+    private final boolean ccsMinimizeRoundtrips;
     private final String projectRouting;
     private final boolean crossProjectEnabled;
     private final ResolvedIndexExpressions resolvedIndexExpressions;
@@ -92,7 +94,8 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
             task,
             false,
             null,
-            null
+            null,
+            RequestDefaults.CCS_MINIMIZE_ROUNDTRIPS
         );
     }
 
@@ -117,7 +120,8 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         EqlSearchTask task,
         boolean crossProjectEnabled,
         ResolvedIndexExpressions resolvedIndexExpressions,
-        @Nullable FieldCapabilitiesResponse preResolvedFieldCaps
+        @Nullable FieldCapabilitiesResponse preResolvedFieldCaps,
+        boolean ccsMinimizeRoundtrips
     ) {
         super(zi, username, clusterName);
 
@@ -135,6 +139,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.maxSamplesPerKey = maxSamplesPerKey;
         this.allowPartialSearchResults = allowPartialSearchResults;
         this.allowPartialSequenceResults = allowPartialSequenceResults;
+        this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
         this.projectRouting = projectRouting;
         this.crossProjectEnabled = crossProjectEnabled;
         this.resolvedIndexExpressions = resolvedIndexExpressions;
@@ -185,6 +190,10 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public boolean allowPartialSequenceResults() {
         return allowPartialSequenceResults;
+    }
+
+    public boolean ccsMinimizeRoundtrips() {
+        return ccsMinimizeRoundtrips;
     }
 
     public QueryBuilder filter() {

@@ -149,6 +149,8 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
         client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
             pitId = r.getPointInTimeId();
+            // A remote skipped while opening the point in time is left out of it, so no later search reports it.
+            clustersConsumer.accept(r.getClusters());
             runnable.run();
         }));
     }

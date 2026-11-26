@@ -300,11 +300,13 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 request.getResolvedIndexExpressions(),
                 // Reuse the coordinator's already-resolved field-caps if the caller (e.g. the ES|QL EQL source command)
                 // supplied it, so the engine skips its own resolution; null (every other caller) means self-resolve.
-                request.takePreResolvedFieldCaps()
+                request.takePreResolvedFieldCaps(),
+                request.ccsMinimizeRoundtrips()
             );
             planExecutor.eql(cfg, request.query(), params, wrap(r -> {
                 EqlSearchResponse response = createResponse(r, task.getExecutionId());
                 response.setDirectoryMetrics(r.directoryMetrics());
+                response.setSkippedClusters(r.skippedClusters());
                 // Async: listener is wrapStoringListener → completion uses AsyncTaskManagementService.respondWithRelease (decRef after
                 // onResponse). Sync: release here so the response is not leaked after the REST/transport listener returns.
                 if (requestIsAsync(request)) {

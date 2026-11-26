@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.esql.eql;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.RequestDefaults;
 import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.ql.QlClientException;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -190,6 +194,76 @@ public final class EqlRequests {
         }
     }
 
+    // The expressions stay as written: a user's own -cluster:* fails once no expression before it includes that cluster.
+    public static String[] searchableIndices(String[] indices, EsqlExecutionInfo executionInfo, boolean crossProject) {
+        if (crossProject) {
+            return indices;
+        }
+        boolean planningSnapshot = executionInfo.hasPlanningClusterStatuses();
+        Set<String> searched = searchedClusters(indices, executionInfo.clusterAliases(), false);
+        List<String> skipped = new ArrayList<>();
+        for (String cluster : searched) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(cluster)) {
+                continue;
+            }
+            EsqlExecutionInfo.Cluster.Status status = planningSnapshot
+                ? executionInfo.planningClusterStatus(cluster)
+                : liveStatus(executionInfo, cluster);
+            if (status == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                skipped.add(cluster);
+            }
+        }
+        if (skipped.isEmpty()) {
+            return indices;
+        }
+        if (skipped.size() == searched.size()) {
+            return Strings.EMPTY_ARRAY;
+        }
+        List<String> searchable = new ArrayList<>(List.of(indices));
+        skipped.sort(null);
+        for (String cluster : skipped) {
+            searchable.add("-" + cluster + ":*");
+        }
+        return searchable.toArray(String[]::new);
+    }
+
+    // As cross-cluster search reads them: -cluster:* excludes the cluster, while -cluster:index includes it and excludes the index.
+    // Cross-project search can read any project for any expression, so none is known for sure.
+    public static Set<String> searchedClusters(String[] indices, Set<String> queryClusters, boolean crossProject) {
+        if (crossProject) {
+            return Set.of();
+        }
+        Set<String> clusters = new HashSet<>();
+        for (String index : indices) {
+            RemoteClusterAware.QualifiedIndexExpression expression = RemoteClusterAware.splitIndexName(index);
+            String cluster = expression.getClusterGroupingKey();
+            if (cluster.startsWith("-") && expression.indexExpression().equals("*")) {
+                clusters.removeAll(clustersMatching(cluster.substring(1), queryClusters));
+            } else {
+                clusters.addAll(clustersMatching(cluster.startsWith("-") ? cluster.substring(1) : cluster, queryClusters));
+            }
+        }
+        return clusters;
+    }
+
+    private static EsqlExecutionInfo.Cluster.Status liveStatus(EsqlExecutionInfo executionInfo, String cluster) {
+        EsqlExecutionInfo.Cluster info = executionInfo.getCluster(cluster);
+        return info == null ? null : info.getStatus();
+    }
+
+    private static List<String> clustersMatching(String cluster, Set<String> queryClusters) {
+        if (Regex.isSimpleMatchPattern(cluster) == false) {
+            return List.of(cluster);
+        }
+        List<String> matching = new ArrayList<>();
+        for (String alias : queryClusters) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(alias) == false && Regex.simpleMatch(cluster, alias)) {
+                matching.add(alias);
+            }
+        }
+        return matching;
+    }
+
     public static boolean readsFromHead(Map<String, Object> options) {
         return RESULT_POSITION_HEAD.equals(options.get(RESULT_POSITION_OPTION));
     }
@@ -224,6 +298,9 @@ public final class EqlRequests {
         // pin the same options here (the command surface differs from standalone _eql/search defaults). This is also the
         // prerequisite that makes reusing the resolved field-caps sound.
         request.indicesOptions(IndexResolver.DEFAULT_OPTIONS);
+        // Run every cross-cluster search here rather than hand a single-remote one to that cluster: only then does the response
+        // name the clusters its searches skipped and the cluster each failed shard belongs to.
+        request.ccsMinimizeRoundtrips(false);
         request.query(query);
         // Honor the enclosing ES|QL query's own partial-results contract: an event source then behaves exactly like a
         // FROM source under a shard failure. Sequences are a separate axis, left to the EQL cluster default unless WITH sets it.

@@ -446,11 +446,14 @@ public class EsqlCCSUtils {
             }
             Cluster cluster = executionInfo.getCluster(clusterAlias);
             if (cluster.getStatus() == Cluster.Status.RUNNING) {
-                Cluster.Status finalStatus = (Objects.requireNonNullElse(cluster.getFailedShards(), 0) > 0
-                    || cluster.getFailures().isEmpty() == false) ? Cluster.Status.PARTIAL : Cluster.Status.SUCCESSFUL;
-                executionInfo.swapCluster(clusterAlias, (k, v) -> new Cluster.Builder(v).setStatus(finalStatus).build());
+                executionInfo.swapCluster(clusterAlias, (k, v) -> new Cluster.Builder(v).setStatus(completedStatus(v)).build());
             }
         }
+    }
+
+    public static Cluster.Status completedStatus(Cluster cluster) {
+        boolean failed = Objects.requireNonNullElse(cluster.getFailedShards(), 0) > 0 || cluster.getFailures().isEmpty() == false;
+        return failed ? Cluster.Status.PARTIAL : Cluster.Status.SUCCESSFUL;
     }
 
     /**

@@ -51,6 +51,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -360,6 +361,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             performRequestWithAdminUserIgnoreNotFound(client, new Request("DELETE", "/employees"));
             performRequestWithAdminUserIgnoreNotFound(client, new Request("DELETE", "/employees2"));
             performRequestWithAdminUserIgnoreNotFound(client, new Request("DELETE", "/employees3"));
+            performRequestWithAdminUserIgnoreNotFound(client, new Request("DELETE", "/index_eql_events"));
             performRequestWithAdminUserIgnoreNotFound(client, new Request("DELETE", "/_enrich/policy/countries"));
         };
         wipe.accept(fulfillingClusterClient);
@@ -605,6 +607,13 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         List<List<Object>> dlsValues = (List<List<Object>>) entityAsMap(dls).get("values");
         assertThat(dlsValues.stream().map(row -> row.get(0)).collect(Collectors.toList()), containsInAnyOrder("21"));
 
+        Response dlsSequence = performRequestWithRemoteSearchUser(esqlRequest("""
+            EQL my_remote_cluster:index_eql_events "sequence by department [process where true] [process where true]" WITH {"size": 100}
+            | KEEP emp_id
+            | LIMIT 100"""));
+        assertOK(dlsSequence);
+        assertThat((List<List<Object>>) entityAsMap(dlsSequence).get("values"), empty());
+
         // Add FLS: grant only the EQL-required fields plus department, denying emp_id. METADATA _source must drop it.
         putRoleRequest.setJsonEntity("""
             {
@@ -631,6 +640,73 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         Map<String, Object> source = (Map<String, Object>) flsValues.get(0).get(0);
         assertFalse("FLS-hidden emp_id leaked into the cross-cluster EQL _source: " + source, source.containsKey("emp_id"));
         assertTrue("granted department must remain in _source: " + source, source.containsKey("department"));
+    }
+
+    public void testCrossClusterEqlCommandSequencesSamplesAndMixedPatterns() throws Exception {
+        assumeTrue("EQL command is snapshot-only", Build.current().isSnapshot());
+        configureRemoteCluster();
+        populateData();
+        createEqlEvents(fulfillingClusterClient, """
+            { "index": {} }
+            { "@timestamp": "2024-01-01T00:00:01Z", "event": { "category": "process" }, "user": "alice" }
+            { "index": {} }
+            { "@timestamp": "2024-01-01T00:00:02Z", "event": { "category": "network" }, "user": "alice" }
+            { "index": {} }
+            { "@timestamp": "2024-01-01T00:00:03Z", "event": { "category": "process" }, "user": "bob" }
+            """);
+        createEqlEvents(client(), """
+            { "index": {} }
+            { "@timestamp": "2024-01-01T00:00:04Z", "event": { "category": "process" }, "user": "carol" }
+            { "index": {} }
+            { "@timestamp": "2024-01-01T00:00:05Z", "event": { "category": "network" }, "user": "carol" }
+            """);
+        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
+            {
+              "indices": [{"names": ["index_eql_events"], "privileges": ["read"]}],
+              "remote_indices": [{"names": ["index_eql_events"], "privileges": ["read"], "clusters": ["my_remote_cluster"]}]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+
+        String remote = "my_remote_cluster:index_eql_events";
+        String both = "index_eql_events," + remote;
+        String sequence = "sequence by user [process where true] [network where true]";
+        String sample = "sample by user [process where true] [network where true]";
+        assertEqlEventsByUser(remote, sequence, List.of(List.of(2, "alice")));
+        assertEqlEventsByUser(remote, sample, List.of(List.of(2, "alice")));
+        assertEqlEventsByUser(both, sequence, List.of(List.of(2, "alice"), List.of(2, "carol")));
+        assertEqlEventsByUser(both, sample, List.of(List.of(2, "alice"), List.of(2, "carol")));
+        assertEqlEventsByUser(both, "process where true", List.of(List.of(1, "alice"), List.of(1, "bob"), List.of(1, "carol")));
+    }
+
+    private static void createEqlEvents(RestClient client, String events) throws IOException {
+        Request createIndex = new Request("PUT", "index_eql_events");
+        createIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "@timestamp": { "type": "date" },
+                  "event": { "properties": { "category": { "type": "keyword" } } },
+                  "user": { "type": "keyword" }
+                }
+              }
+            }""");
+        assertOK(performRequestWithAdminUser(client, createIndex));
+        Request bulk = new Request("POST", "/index_eql_events/_bulk?refresh=true");
+        bulk.setJsonEntity(events);
+        assertOK(performRequestWithAdminUser(client, bulk));
+    }
+
+    private void assertEqlEventsByUser(String pattern, String eql, List<List<Object>> expected) throws IOException {
+        Response response = performRequestWithRemoteSearchUser(esqlRequest(Strings.format("""
+            EQL %s "%s" WITH {"size": 100}
+            | STATS events = COUNT(*) BY user
+            | SORT user
+            | LIMIT 100""", pattern, eql)));
+        assertOK(response);
+        Map<String, Object> body = entityAsMap(response);
+        assertThat(pattern + " " + eql, body.get("values"), equalTo(expected));
+        assertThat(pattern + " " + eql, body.get("is_partial"), equalTo(false));
     }
 
     /**

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.assembler.Executable;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleCriterion;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest;
+import org.elasticsearch.xpack.eql.execution.search.FetchedHits;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
@@ -298,13 +299,14 @@ public class SampleIterator implements Executable {
         }
 
         // get results through search (to keep using PIT)
-        client.fetchHits(
-            hits(samples),
-            ActionListeners.map(
-                listener,
-                listOfHits -> new SamplePayload(samples, listOfHits, false, timeTook(), List.copyOf(shardFailures.values()))
-            )
-        );
+        client.fetchHits(hits(samples), ActionListeners.map(listener, listOfHits -> samplesFromFetch(samples, listOfHits)));
+    }
+
+    Payload samplesFromFetch(List<Sample> samples, List<List<SearchHit>> listOfHits) {
+        List<Sample> kept = new ArrayList<>();
+        List<List<SearchHit>> keptHits = new ArrayList<>();
+        int dropped = FetchedHits.dropIncomplete(samples, listOfHits, kept, keptHits);
+        return new SamplePayload(kept, keptHits, false, timeTook(), FetchedHits.reportDrops(shardFailures.values(), dropped));
     }
 
     Iterable<List<HitReference>> hits(List<Sample> samples) {

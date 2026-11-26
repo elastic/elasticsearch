@@ -1278,6 +1278,8 @@ public class ComputeService {
             for (Map.Entry<String, EsqlExecutionInfo.Cluster> entry : execInfo.clusterInfo.entrySet()) {
                 initialClusterStatuses.put(entry.getKey(), entry.getValue().getStatus());
             }
+            execInfo.clearClustersReturningEvents();
+            execInfo.capturePlanningClusterStatuses(initialClusterStatuses);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -1960,8 +1962,7 @@ public class ComputeService {
                         builder.setTook(execInfo.queryProfile().total().timeSinceStarted());
                     }
                     if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                        boolean failed = zeroIfNull(v.getFailedShards()) > 0 || v.getFailures().isEmpty() == false;
-                        builder.setStatus(failed ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                        builder.setStatus(EsqlCCSUtils.completedStatus(v));
                     }
                     return builder.build();
                 });
@@ -2063,16 +2064,23 @@ public class ComputeService {
         boolean receivedResults,
         Exception e
     ) {
+        markClusterAfterRuntimeBranchFailure(executionInfo, clusterAlias, receivedResults, List.of(new ShardSearchFailure(e)));
+    }
+
+    public static void markClusterAfterRuntimeBranchFailure(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        boolean receivedResults,
+        List<ShardSearchFailure> failures
+    ) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(executionInfo.queryProfile().total().timeSinceStarted())
                 .setTotalShards(zeroIfNull(v.getTotalShards()))
                 .setSuccessfulShards(zeroIfNull(v.getSuccessfulShards()))
                 .setSkippedShards(zeroIfNull(v.getSkippedShards()))
-                .setFailedShards(zeroIfNull(v.getFailedShards()));
-            if (e != null) {
-                builder.addFailures(List.of(new ShardSearchFailure(e)));
-            }
-            applyClusterStatusAfterBranch(builder, v, true, receivedResults);
+                .setFailedShards(zeroIfNull(v.getFailedShards()))
+                .addFailures(failures);
+            applyClusterStatusAfterBranch(builder, v, true, receivedResults || executionInfo.clusterReturnedEvents(clusterAlias));
             return builder.build();
         });
     }

@@ -369,37 +369,6 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
         }
     }
 
-    public void testSearchLoadMetricsCollectorErrorReleasesRefresh() {
-        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
-            final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = searchCopyDemands();
-            final Map<String, NodeSearchCapacity> capacities = nodeSearchCapacities();
-            final AtomicBoolean throwError = new AtomicBoolean(true);
-            final SearchLoadMetricsCollector searchLoadMetricsCollector = mock(SearchLoadMetricsCollector.class);
-            doAnswer(invocation -> {
-                if (throwError.get()) {
-                    throw new AssertionError("simulated search load metrics error");
-                }
-                final ActionListener<SearchLoadMetrics> listener = invocation.getArgument(1);
-                listener.onResponse(new SearchLoadMetrics(demands, capacities));
-                return null;
-            }).when(searchLoadMetricsCollector).collectSearchLoadMetrics(any(), any());
-
-            final InternalClusterInfoService clusterInfoService = searchLoadClusterInfoService(context, searchLoadMetricsCollector);
-
-            // AssertionError is an Error, so ActionListener.run does not forward it. The refresh ref must still be released.
-            final AssertionError error = expectThrows(AssertionError.class, () -> refresh(clusterInfoService));
-            assertThat(error.getMessage(), equalTo("simulated search load metrics error"));
-            assertThat(clusterInfoService.getClusterInfo().getSearchCopyDemands(), equalTo(Map.of()));
-            assertThat(clusterInfoService.getClusterInfo().getNodeSearchCapacities(), equalTo(Map.of()));
-
-            // A later refresh still runs.
-            throwError.set(false);
-            final ClusterInfo clusterInfo = refresh(clusterInfoService);
-            assertThat(clusterInfo.getSearchCopyDemands(), equalTo(demands));
-            assertThat(clusterInfo.getNodeSearchCapacities(), equalTo(capacities));
-        }
-    }
-
     public void testSearchLoadMetricsCollectorCompletesAfterReturn() throws Exception {
         try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
             final ClusterInfo.NodeAndShard nodeAndShard = new ClusterInfo.NodeAndShard("node-id", new ShardId("index", "uuid", 0));

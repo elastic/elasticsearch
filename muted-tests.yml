@@ -973,3 +973,8 @@ tests:
   method: testEvaluate {TestCase=<double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>,
     <double>, <double>, <null>, <double>, <double>}
   issue: https://github.com/elastic/elasticsearch/issues/167597
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFold {TestCase=<date, 13 dates> null in 5}
+  issue: https://github.com/elastic/elasticsearch/issues/167599

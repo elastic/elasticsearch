@@ -242,9 +242,9 @@ public class RestoreMetricsTests extends ESTestCase {
     }
 
     /**
-     * The gauges follow the cluster state as it changes: once the restoring shards finish, nothing is queued, restoring or retrying, no
-     * index is counted as restoring even though the restore has not yet been marked complete, and the oldest age is zero. An unassigned
-     * time ahead of this node's clock, which another master may have set, never gives a negative age.
+     * The gauges follow the cluster state as it changes: once the restoring shards finish, nothing is queued, restoring or retrying, and
+     * the oldest age is zero. An unassigned time ahead of this node's clock, which another master may have set, never gives a negative
+     * age.
      */
     public void testGaugesFollowClusterState() {
         final RestoreInProgress.Entry restoring = entry(RestoreInProgress.State.STARTED, inProgress(), inProgress(), inProgress());
@@ -275,9 +275,6 @@ public class RestoreMetricsTests extends ESTestCase {
         collect();
         assertThat(shardsInState("queued"), equalTo(0L));
         assertThat(shardsInState("succeeded"), equalTo((long) NUMBER_OF_SHARDS));
-        // the restore is still running, but its index has no shard left to restore
-        assertThat(gauge(RestoreMetrics.RESTORES_CURRENT, reportShardRestoringAttribute()), equalTo(1L));
-        assertThat(gauge(RestoreMetrics.RESTORES_INDICES_CURRENT, Map.of()), equalTo(0L));
         assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_RETRYING_CURRENT, Map.of()), equalTo(0L));
         assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_OLDEST_AGE_CURRENT, Map.of()), equalTo(0L));
     }
@@ -585,6 +582,83 @@ public class RestoreMetricsTests extends ESTestCase {
         assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_OLDEST_AGE_CURRENT, Map.of()), equalTo(youngestAgeMillis + elapsedMillis));
     }
 
+    /**
+     * In a restore of several indices, an index stops counting as soon as all of its shards are restored, while the restore goes on for
+     * the others, so the gauge shows the restore's progress rather than its size.
+     */
+    public void testIndicesGaugeCountsOnlyIndicesStillRestoring() {
+        final IndexMetadata otherIndex = IndexMetadata.builder(randomIndexName())
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            .build();
+        final ShardId otherShardId = new ShardId(otherIndex.getIndex(), 0);
+        final RecoverySource.SnapshotRecoverySource otherRecoverySource = new RecoverySource.SnapshotRecoverySource(
+            restoreUuid,
+            snapshot,
+            IndexVersion.current(),
+            new IndexId(otherIndex.getIndex().getName(), otherIndex.getIndexUUID())
+        );
+        final List<IndexMetadata> indices = List.of(indexMetadata, otherIndex);
+
+        ClusterServiceUtils.setState(
+            clusterService,
+            state(
+                true,
+                indices,
+                List.of(
+                    restoring(0, 0, nowMillis),
+                    queued(1, 0, nowMillis),
+                    queued(2, 0, nowMillis),
+                    restoring(otherShardId, otherRecoverySource, 0, nowMillis)
+                ),
+                new RestoreInProgress.Builder().add(twoIndexEntry(inProgress(), otherShardId, inProgress())).build()
+            )
+        );
+        collect();
+        assertThat(gauge(RestoreMetrics.RESTORES_INDICES_CURRENT, Map.of()), equalTo(2L));
+
+        // every shard of the first index is restored, and the restore goes on for the other index
+        ClusterServiceUtils.setState(
+            clusterService,
+            state(
+                true,
+                indices,
+                List.of(
+                    startedPrimary(0),
+                    startedPrimary(1),
+                    startedPrimary(2),
+                    restoring(otherShardId, otherRecoverySource, 0, nowMillis)
+                ),
+                new RestoreInProgress.Builder().add(twoIndexEntry(succeeded(), otherShardId, inProgress())).build()
+            )
+        );
+        collect();
+        assertThat(gauge(RestoreMetrics.RESTORES_CURRENT, reportShardRestoringAttribute()), equalTo(1L));
+        assertThat(gauge(RestoreMetrics.RESTORES_INDICES_CURRENT, Map.of()), equalTo(1L));
+        assertThat(shardsInState("succeeded"), equalTo((long) NUMBER_OF_SHARDS));
+        assertThat(shardsInState("restoring"), equalTo(1L));
+    }
+
+    /**
+     * A running restore of this test's index, whose shards all have {@code status}, and of a second index with the one shard
+     * {@code otherShardId}, which has {@code otherStatus}.
+     */
+    private RestoreInProgress.Entry twoIndexEntry(ShardRestoreStatus status, ShardId otherShardId, ShardRestoreStatus otherStatus) {
+        final Map<ShardId, ShardRestoreStatus> shards = new HashMap<>();
+        for (int i = 0; i < NUMBER_OF_SHARDS; i++) {
+            shards.put(shardId(i), status);
+        }
+        shards.put(otherShardId, otherStatus);
+        return new RestoreInProgress.Entry(
+            restoreUuid,
+            snapshot,
+            RestoreInProgress.State.STARTED,
+            false,
+            List.of(indexMetadata.getIndex().getName(), otherShardId.getIndexName()),
+            Map.copyOf(shards),
+            reportShardRestoring
+        );
+    }
+
     private static ClusterState withLocalNodeMaster(ClusterState state, boolean localNodeIsMaster) {
         return ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(localNodeIsMaster ? state.nodes().getLocalNodeId() : null))
@@ -633,9 +707,25 @@ public class RestoreMetricsTests extends ESTestCase {
     }
 
     private ClusterState state(boolean localNodeIsMaster, List<ShardRouting> primaries, RestoreInProgress restoreInProgress) {
+        return state(localNodeIsMaster, List.of(indexMetadata), primaries, restoreInProgress);
+    }
+
+    /** A cluster state with {@code indices} in the default project, whose primaries are {@code primaries}. */
+    private ClusterState state(
+        boolean localNodeIsMaster,
+        List<IndexMetadata> indices,
+        List<ShardRouting> primaries,
+        RestoreInProgress restoreInProgress
+    ) {
         final DiscoveryNode localNode = clusterService.localNode();
-        final IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
-        primaries.forEach(indexRoutingTable::addShard);
+        final ProjectMetadata.Builder project = ProjectMetadata.builder(PROJECT_ID);
+        final RoutingTable.Builder routingTable = RoutingTable.builder();
+        for (IndexMetadata index : indices) {
+            project.put(index, false);
+            final IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index.getIndex());
+            primaries.stream().filter(primary -> primary.index().equals(index.getIndex())).forEach(indexRoutingTable::addShard);
+            routingTable.add(indexRoutingTable);
+        }
         return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
                 DiscoveryNodes.builder()
@@ -643,8 +733,8 @@ public class RestoreMetricsTests extends ESTestCase {
                     .localNodeId(localNode.getId())
                     .masterNodeId(localNodeIsMaster ? localNode.getId() : null)
             )
-            .metadata(Metadata.builder().put(ProjectMetadata.builder(PROJECT_ID).put(indexMetadata, false)))
-            .putRoutingTable(PROJECT_ID, RoutingTable.builder().add(indexRoutingTable).build())
+            .metadata(Metadata.builder().put(project))
+            .putRoutingTable(PROJECT_ID, routingTable.build())
             .putCustom(RestoreInProgress.TYPE, restoreInProgress)
             .build();
     }

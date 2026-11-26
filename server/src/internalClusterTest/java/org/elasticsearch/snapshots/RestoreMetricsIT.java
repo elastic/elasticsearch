@@ -25,8 +25,10 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -45,6 +47,15 @@ public class RestoreMetricsIT extends AbstractSnapshotIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // read the wall clock on every poll rather than a cached value, so that ages from different nodes can be compared closely
+            .put(ESTIMATED_TIME_INTERVAL_SETTING.getKey(), "0s")
+            .build();
     }
 
     /**
@@ -165,13 +176,23 @@ public class RestoreMetricsIT extends AbstractSnapshotIntegTestCase {
 
         final String oldMaster = internalCluster().getMasterName();
         assertBusy(() -> assertRestoreInProgressReported(oldMaster, numberOfShards));
+        final long ageBeforeFailoverMillis = oldestAgeMillis(oldMaster);
+        final long beforeFailoverNanos = System.nanoTime();
 
         internalCluster().stopCurrentMasterNode();
         ensureStableCluster(3);
         final String newMaster = internalCluster().getMasterName();
         assertThat(newMaster, not(equalTo(oldMaster)));
 
+        final long elapsedBeforeNewMasterReportsMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - beforeFailoverNanos);
         assertBusy(() -> assertRestoreInProgressReported(newMaster, numberOfShards));
+        // the shards are still in the attempt that was blocked before the election, and the new master measures its age from the time in
+        // the cluster state, so the age carries on from where the old master left it rather than starting again; the margin allows for
+        // the two nodes reading the wall clock separately
+        assertThat(
+            oldestAgeMillis(newMaster),
+            greaterThanOrEqualTo(ageBeforeFailoverMillis + elapsedBeforeNewMasterReportsMillis - CLOCK_MARGIN_MILLIS)
+        );
         for (String node : internalCluster().getNodeNames()) {
             if (node.equals(newMaster) == false) {
                 assertNoRestoreGauges(node);
@@ -190,6 +211,14 @@ public class RestoreMetricsIT extends AbstractSnapshotIntegTestCase {
 
     private static final String REPOSITORY = "repository";
     private static final String SNAPSHOT = "snapshot";
+    private static final long CLOCK_MARGIN_MILLIS = 100;
+
+    /** The latest oldest-shard age that {@code node} reported, without collecting again. */
+    private static long oldestAgeMillis(String node) {
+        final Long age = latestGauges(node, RestoreMetrics.RESTORES_SHARDS_OLDEST_AGE_CURRENT).get(Map.of());
+        assertNotNull(node + " reported no oldest age", age);
+        return age;
+    }
 
     /**
      * Creates an index with enough documents that each shard has data files to read, snapshots it, and deletes it so it can be restored.

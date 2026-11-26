@@ -216,6 +216,26 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         return classified;
     }
 
+    /**
+     * Whether a page is queued without firing {@link #onPagePolled}. Tests use this to wait for
+     * overflow while LIMIT remaining is still positive: {@link #isBlocked()} and {@link #getOutput()}
+     * would count the previous page and can double the filtered-LIMIT ramp.
+     */
+    boolean hasQueuedPage() {
+        return buffer.size() > 0;
+    }
+
+    /**
+     * Surface a producer failure without firing {@link #onPagePolled}. {@link #isFinished()} stays
+     * false while a failure is pending, so waiters must check this instead of treating unfinished
+     * as still waiting for a page.
+     */
+    void throwIfFailed() {
+        if (buffer.failure() != null) {
+            throw propagateFailure(buffer.failure());
+        }
+    }
+
     @Override
     public boolean isFinished() {
         // Keep "not finished" while a failure is pending so the driver calls getOutput() and the

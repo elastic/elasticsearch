@@ -1723,12 +1723,12 @@ public final class GlobExpander {
                         maxDirectoryListings,
                         cancelled,
                         walkPathTemplate(partitionConfig),
+                        extents.maxFiles(),
                         diagnosticsOut
                     );
                 } catch (DiscoveredFilesLimitException e) {
-                    // Walk cannot stop at the file-set bound: the collector throws once matched.size()
-                    // exceeds maxDiscoveredFiles. A bound still needs some files, so fall through to
-                    // the bounded flat drain rather than failing FIRST_FILE_WINS on a large pruned set.
+                    // Unbounded walks still throw at max_discovered_files. A bounded walk stops there
+                    // instead; this catch is the leftover path if a collector still overflows.
                     if (extents.boundsFileSet() == false) {
                         throw e;
                     }
@@ -1748,6 +1748,16 @@ public final class GlobExpander {
             // yields zero matching rows; the resolver needs the file to infer schema. A probe miss falls
             // through to the flat listing with the value filter still on — Stage 2 keeps one excluded file.
             if (walk != null && walk.matched().isEmpty()) {
+                if (walk.truncated()) {
+                    // Listed-objects overflow with no glob match. Fail closed so the user can raise the
+                    // limit; a silent empty truncated listing looks like "no files".
+                    if (walk.listed() > maxListedObjects) {
+                        throw new ListedObjectsLimitException(walk.listed(), maxListedObjects, walkDiagnostics);
+                    }
+                    // Bound filled with non-keeps; a match may sit past it. Do not promote a stash or
+                    // inference anchor, and do not suppress the value filter.
+                    return emptyListing(pattern, null, true);
+                }
                 // _file.* rejected every glob match in surviving folders. Keep that stash — not a file
                 // from a pruned directory, which would be the partition-all-pruned inference path.
                 if (walk.fileKeepStash() != null && maxDiscoveredFiles > 0) {
@@ -1792,13 +1802,10 @@ public final class GlobExpander {
                         List<String> walkNotices = new ArrayList<>();
                         PartitionMetadata detected = detectPartitions(List.of(anchor), partitionConfig, walkNotices::add);
                         if (walkPruningProven(walk.prunedColumns(), detected)) {
-                            PartitionMetadata metadata = overlayWalkTypes(
-                                detected,
-                                walk.columnFullTypes(),
-                                List.of(anchor),
-                                partitionConfig,
-                                pattern
-                            );
+                            PartitionMetadata metadata = overlayWalkTypes(detected, walk.columnFullTypes());
+                            if (metadata != null) {
+                                metadata = metadata.valuedOver(fileListOf(List.of(anchor), pattern), partitionConfig);
+                            }
                             throwIfCancelled(cancelled);
                             reserveRetained(memory, 1, 0, true);
                             return inferenceAnchorListing(List.of(anchor), pattern, metadata, walkNotices);
@@ -1811,15 +1818,24 @@ public final class GlobExpander {
                 List<String> walkNotices = new ArrayList<>();
                 PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
                 if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
-                    if (walkTypesConsistent(walk, walkedMetadata)) {
+                    // A truncated sample can look narrower than folder-level types. Rejecting then
+                    // suppressValueFilter prefix-drains unfiltered. Keep the walked sample instead.
+                    if (walkTypesConsistent(walk, walkedMetadata) || walk.truncated()) {
                         // Prove the walk on the full matched set, then apply the file-set bound. Truncating first
                         // can hide a type-widening folder past the prefix and reject a correct walk, after which
                         // the bounded flat drain prefix-lists unfiltered.
-                        boolean truncated = extents.boundsFileSet() && walked.size() > extents.maxFiles();
-                        if (truncated) {
+                        boolean truncated = walk.truncated() || (extents.boundsFileSet() && walked.size() > extents.maxFiles());
+                        if (extents.boundsFileSet() && walked.size() > extents.maxFiles()) {
                             walked = new ArrayList<>(walked.subList(0, extents.maxFiles()));
                             walkedMetadata = detectPartitions(walked, partitionConfig, ignored -> {});
                         }
+                        // Overlay folder-level types only when the walk stopped early. A completed walk
+                        // that is then sliced to maxFiles must keep the sample schema: later folders
+                        // are outside partition_sample_size.
+                        if (walk.truncated()) {
+                            walkedMetadata = overlayWalkTypes(walkedMetadata, walk.columnFullTypes());
+                        }
+                        reserveRetained(memory, walked.size(), 0, true);
                         // globKeptCount is glob matches after exclusion, before _file.*, matching the flat path.
                         if (walk.excludedCount() > 0) {
                             String exclusionNotice = exclusionNotice(
@@ -2469,6 +2485,7 @@ public final class GlobExpander {
                         }
                     },
                     walkPathTemplate(partitionConfig),
+                    extents.maxFiles(),
                     diagnosticsOut
                 );
                 return;
@@ -3372,13 +3389,12 @@ public final class GlobExpander {
      * so a peeked {@code month=abc} keeps {@code month} KEYWORD rather than the leftover folder's INTEGER.
      */
     @Nullable
-    private static PartitionMetadata overlayWalkTypes(
-        @Nullable PartitionMetadata detected,
-        Map<String, DataType> walkFullTypes,
-        List<StorageEntry> files,
-        PartitionConfig config,
-        String pattern
-    ) {
+    /**
+     * Widens detected column types with folder values the walk saw. Never replaces a file-proven
+     * wider type with a narrower folder type. Type-only: truncated listings strip per-file values
+     * anyway, and the inference-anchor caller rehydrates values itself.
+     */
+    private static PartitionMetadata overlayWalkTypes(@Nullable PartitionMetadata detected, Map<String, DataType> walkFullTypes) {
         if (detected == null || walkFullTypes == null || walkFullTypes.isEmpty()) {
             return detected;
         }
@@ -3386,7 +3402,7 @@ public final class GlobExpander {
         boolean changed = false;
         for (Map.Entry<String, DataType> e : overlayed.entrySet()) {
             DataType walkType = walkFullTypes.get(e.getKey());
-            if (walkType != null && walkType != e.getValue()) {
+            if (walkType != null && shouldWidenWithWalk(e.getValue(), walkType)) {
                 overlayed.put(e.getKey(), walkType);
                 changed = true;
             }
@@ -3394,7 +3410,30 @@ public final class GlobExpander {
         if (changed == false) {
             return detected;
         }
-        return new PartitionMetadata(overlayed, Map.of()).valuedOver(fileListOf(files, pattern), config);
+        return new PartitionMetadata(overlayed, Map.of());
+    }
+
+    /**
+     * Whether {@code walkType} is a strictly wider Hive partition type than {@code detected}.
+     * KEYWORD is widest; INTEGER ⊂ LONG ⊂ DOUBLE. Incomparable pairs keep the file-proven type.
+     */
+    private static boolean shouldWidenWithWalk(DataType detected, DataType walkType) {
+        if (detected == walkType) {
+            return false;
+        }
+        if (detected == DataType.KEYWORD) {
+            return false;
+        }
+        if (walkType == DataType.KEYWORD) {
+            return true;
+        }
+        if (detected == DataType.INTEGER) {
+            return walkType == DataType.LONG || walkType == DataType.DOUBLE || walkType == DataType.UNSIGNED_LONG;
+        }
+        if (detected == DataType.LONG) {
+            return walkType == DataType.DOUBLE;
+        }
+        return false;
     }
 
     /**

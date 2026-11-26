@@ -262,6 +262,8 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
     private static boolean sameLanguage(Automaton a, String lucene, Source source) {
         // a fresh budget, discarded after the check, so the inputs it holds while the differences are built need no release
         CircuitBreaker breaker = FoldContext.small().circuitBreakerView(source);
+        // which holds the RE2 automaton too, as it stays live while the Lucene side and the differences are built
+        breaker.addEstimateBytesAndMaybeBreak(a.ramBytesUsed(), NAME);
         try {
             // the Lucene side is built as the old label matcher built it, every step charged to the budget
             Automaton nfa = new CircuitBreakingRegExp(lucene, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, 0).toAutomaton(breaker, NAME);

@@ -115,7 +115,10 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
         // same stored representation, so the raw path still matches the ground truth within tolerance.
         selectedElementType = randomFrom(ElementType.FLOAT, ElementType.BFLOAT16);
         selectedIndexType = randomFrom(
-            Arrays.stream(VectorIndexType.values()).filter(t -> t.supportsElementType(selectedElementType)).toList()
+            Arrays.stream(VectorIndexType.values())
+                .filter(t -> t != VectorIndexType.BBQ_DISK) // disk bbq needs a special plugin to run here
+                .filter(t -> t.supportsElementType(selectedElementType))
+                .toList()
         );
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()

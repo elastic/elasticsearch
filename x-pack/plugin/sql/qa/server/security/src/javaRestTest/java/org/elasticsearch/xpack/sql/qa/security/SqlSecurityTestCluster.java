@@ -13,13 +13,8 @@ import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 
 /**
  * Unified cluster configuration for SQL security tests.
@@ -53,18 +48,8 @@ public final class SqlSecurityTestCluster {
             throw new IllegalStateException("SSL is enabled but test-node.jks not found on classpath.");
         }
         try {
-            if ("file".equals(keystoreUrl.getProtocol())) {
-                return PathUtils.get(keystoreUrl.toURI()).toAbsolutePath().toString();
-            }
-            // The shared test classes are loaded from a JAR, so the resource may not
-            // be a filesystem path. REST/JDBC/CLI clients need a real file.
-            Path keyStore = Files.createTempFile("test-node", ".jks");
-            keyStore.toFile().deleteOnExit();
-            try (InputStream in = keystoreUrl.openStream()) {
-                Files.copy(in, keyStore, StandardCopyOption.REPLACE_EXISTING);
-            }
-            return keyStore.toAbsolutePath().toString();
-        } catch (URISyntaxException | IOException e) {
+            return PathUtils.get(keystoreUrl.toURI()).toAbsolutePath().toString();
+        } catch (URISyntaxException e) {
             throw new RuntimeException("Failed to get keystore path", e);
         }
     }

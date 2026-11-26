@@ -521,7 +521,8 @@ public class IndexResolver {
      * @param needsAnalyzerGroups whether the query has a HIGHLIGHT that uses the mapping analyzers. When {@code false}, a text
      *                            field whose indices disagree on the analyzer does not record which index uses which, since
      *                            only HIGHLIGHT reads it and the index names can be many.
-     * @param needsFieldSemantics whether the query has a DESCRIBE, the only reader of {@link EsIndex#fieldSemantics()}.
+     * @param needsFieldSemantics whether the query reads {@link EsIndex#fieldSemantics()}, as {@code DESCRIBE} and
+     *                            {@code column_metadata} do.
      *                            When {@code false}, they are not built.
      * @param flattenedDataTypeEnabled whether the {@code flattened} data type is enabled (the {@code esql.query.flattened.enabled}
      *                                 kill switch). When {@code false}, {@code flattened} fields are resolved as

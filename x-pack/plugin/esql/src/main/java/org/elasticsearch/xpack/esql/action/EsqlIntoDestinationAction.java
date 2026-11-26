@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
@@ -32,12 +33,13 @@ import java.util.Arrays;
  * {@code access_denied}. The same holds for an existing and a missing destination, since the filter decides by name. Without
  * security the action simply succeeds.
  * <p>
- * The name is what ties the action to the privileges: it starts with {@code indices:data/write/index[}, which the privileges that
- * allow indexing a document ({@code create_doc}, {@code create}, {@code index}, {@code write}) grant, and which {@code delete} and
- * {@code read} do not. {@code EsqlIntoDestinationActionTests} fails if a change to the privileges breaks that.
+ * It is named after the action that the filter authorizes for each document that a bulk creates, which is what the rows of an
+ * {@code INTO} are, so that exactly the callers whom a bulk would allow to create a document there pass, whatever privileges grant that,
+ * custom ones included, and a denial is audited under the same action as the write would be.
  */
 public class EsqlIntoDestinationAction extends TransportAction<EsqlIntoDestinationAction.Request, EsqlIntoDestinationAction.Response> {
-    public static final String NAME = "indices:data/write/index[esql/into_destination]";
+    // The name that AuthorizationService gives to the creation of a document by a bulk
+    public static final String NAME = TransportIndexAction.NAME + ":op_type/create";
     public static final ActionType<Response> TYPE = new ActionType<>(NAME);
 
     @Inject

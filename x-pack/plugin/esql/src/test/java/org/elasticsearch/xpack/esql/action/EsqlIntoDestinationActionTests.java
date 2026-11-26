@@ -18,6 +18,11 @@ import java.util.List;
  * refuse one who may write.
  */
 public class EsqlIntoDestinationActionTests extends ESTestCase {
+    /** What the filter authorizes for each document that a bulk creates, so that a custom privilege grants the same to both. */
+    public void testTheActionIsTheCreationOfADocumentByABulk() {
+        assertEquals("indices:data/write/index:op_type/create", EsqlIntoDestinationAction.NAME);
+    }
+
     public void testThePrivilegesThatAllowIndexingADocumentGrantTheAction() {
         for (String privilege : List.of("create_doc", "create", "index", "write", "all")) {
             assertTrue(privilege, IndexPrivilege.get(privilege).predicate().test(EsqlIntoDestinationAction.NAME));

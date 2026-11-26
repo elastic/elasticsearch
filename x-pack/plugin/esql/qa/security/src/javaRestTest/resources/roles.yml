@@ -676,3 +676,13 @@ into_create_doc_only:
       privileges: [ 'create_doc' ]
     - names: [ 'into-unrelated' ]
       privileges: [ 'read' ]
+
+# Can create documents, but in another index than the destinations, so INTO is denied. A check of whether the caller may write
+# anywhere would let this role through.
+into_create_doc_elsewhere:
+  cluster: []
+  indices:
+    - names: [ 'into-elsewhere' ]
+      privileges: [ 'create_doc' ]
+    - names: [ 'into-unrelated' ]
+      privileges: [ 'read' ]

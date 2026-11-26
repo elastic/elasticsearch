@@ -51,6 +51,7 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     private static final String EXISTING = "into-existing";
     private static final String READ_ONLY_USER = "into_read_only_user";
     private static final String CREATE_DOC_USER = "into_create_doc_user";
+    private static final String CREATE_DOC_ELSEWHERE_USER = "into_create_doc_elsewhere_user";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -68,6 +69,7 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         .user("into_maintainer_elsewhere", PASSWORD, "into_write_and_maintenance_elsewhere", false)
         .user(READ_ONLY_USER, PASSWORD, "into_read_only", false)
         .user(CREATE_DOC_USER, PASSWORD, "into_create_doc_only", false)
+        .user(CREATE_DOC_ELSEWHERE_USER, PASSWORD, "into_create_doc_elsewhere", false)
         .build();
 
     @Override
@@ -148,26 +150,32 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     }
 
     /**
-     * A read-only caller gets a 403 that is the same for an existing and a missing destination, and is told nothing about the
-     * existing one: its ingest pipeline is not reported.
+     * A caller who may not write to the destination gets a 403 that is the same for an existing and a missing destination, and is told
+     * nothing about the existing one: its ingest pipeline is not reported. That holds for a caller who may only read it, and for one
+     * who may write, but to another index.
      */
     public void testDestinationDeniedWithoutWriteAccess() throws IOException {
         createDestinationWithPipeline();
 
-        ResponseException existing = expectThrows(ResponseException.class, () -> intoDestination(READ_ONLY_USER, EXISTING));
-        ResponseException missing = expectThrows(ResponseException.class, () -> intoDestination(READ_ONLY_USER, "into-missing"));
+        assertDenied(READ_ONLY_USER, "into_read_only");
+        assertDenied(CREATE_DOC_ELSEWHERE_USER, "into_create_doc_elsewhere");
+    }
+
+    private static void assertDenied(String user, String role) throws IOException {
+        ResponseException existing = expectThrows(ResponseException.class, () -> intoDestination(user, EXISTING));
+        ResponseException missing = expectThrows(ResponseException.class, () -> intoDestination(user, "into-missing"));
         String existingBody = EntityUtils.toString(existing.getResponse().getEntity());
         String missingBody = EntityUtils.toString(missing.getResponse().getEntity());
         assertThat(existingBody, existing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
         assertThat(missingBody, missing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
-        assertDeniedByTheFilter(existingBody, EXISTING);
-        assertDeniedByTheFilter(missingBody, "into-missing");
+        assertDeniedByTheFilter(existingBody, user, role, EXISTING);
+        assertDeniedByTheFilter(missingBody, user, role, "into-missing");
     }
 
     /** The denial is the one of the security filter, which audits it, and which names the roles and the privileges that grant it. */
-    private static void assertDeniedByTheFilter(String body, String destination) {
+    private static void assertDeniedByTheFilter(String body, String user, String role, String destination) {
         String action = "action [" + EsqlIntoDestinationAction.NAME + "] is unauthorized for user [test-admin] run as [";
-        assertThat(body, containsString(action + READ_ONLY_USER + "] with effective roles [into_read_only]"));
+        assertThat(body, containsString(action + user + "] with effective roles [" + role + "]"));
         assertThat(body, containsString("on indices [" + destination + "], this action is granted by the index privileges ["));
     }
 

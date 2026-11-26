@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.into;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -58,7 +59,11 @@ class IntoTestUtils {
         /** Like {@link #REFUSED}, but the message is {@link #LONG_MESSAGE_LENGTH} characters long. */
         REFUSED_WITH_LONG_MESSAGE,
         /** The item fails with a transient 429, which says nothing about the row. */
-        REJECTED
+        REJECTED,
+        /** The caller may not write to the destination, which says nothing about the row. */
+        FORBIDDEN,
+        /** The item fails with a 500, which says nothing about the row. */
+        FAILED
     }
 
     static final int LONG_MESSAGE_LENGTH = 5000;
@@ -128,6 +133,17 @@ class IntoTestUtils {
                             RestStatus.TOO_MANY_REQUESTS
                         )
                     );
+                    case FORBIDDEN -> BulkItemResponse.failure(
+                        i,
+                        opType,
+                        new BulkItemResponse.Failure(
+                            DEST,
+                            "id-" + i,
+                            new ElasticsearchSecurityException("action [indices:data/write/bulk[s]] is unauthorized", RestStatus.FORBIDDEN),
+                            RestStatus.FORBIDDEN
+                        )
+                    );
+                    case FAILED -> refused(i, opType, new IllegalStateException("shard failed"));
                 };
             }
             listeners.removeFirst().onResponse(new BulkResponse(items, 1));

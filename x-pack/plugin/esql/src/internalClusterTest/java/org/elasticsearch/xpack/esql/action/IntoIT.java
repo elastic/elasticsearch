@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
@@ -360,9 +361,49 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             true,
             IntStream.range(0, 2000).mapToObj(i -> client().prepareIndex(SOURCE).setSource("k", wide + i)).collect(Collectors.toList())
         );
-        EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION);
+        try (EsqlQueryResponse response = run(requestWithManyWriters("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION))) {
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(2000L, 2000L, 0L, null))));
+            assertThat(countWriters(response), greaterThan(1L));
+        }
+        assertReadBack("STATS c = COUNT(*) BY k | STATS groups = COUNT(*), rows = SUM(c)", List.of(List.of(2000L, 2000L)));
+    }
+
+    /**
+     * Writers on several nodes each create some rows and refuse others, which is where the stats of the writers meet: the counts add up
+     * exactly, the details stop at the cap however many each writer reports, and every accepted row is there.
+     */
+    public void testKeepGoingAddsUpTheStatsOfEveryWriter() {
+        int rows = 600;
+        assertAcked(indicesAdmin().prepareCreate(SOURCE).setSettings(indexSettings(5, 0)).setMapping(MAPPING));
+        indexRandom(
+            true,
+            IntStream.range(0, rows)
+                .mapToObj(i -> client().prepareIndex(SOURCE).setSource("k", "k" + i, "l", i))
+                .collect(Collectors.toList())
+        );
+        // The rows with an even l are refused, since the mapping of the destination has no unmapped_col
+        String query = "FROM "
+            + SOURCE
+            + " | KEEP k, l | EVAL unmapped_col = CASE(l % 2 == 0, \"nope\", null) | INTO "
+            + DESTINATION
+            + " WITH {\"keep_going\": true}";
+        try (EsqlQueryResponse response = run(requestWithManyWriters(query))) {
+            List<Object> summary = singleValue(getValuesList(response));
+            assertThat(summary.subList(0, 3), equalTo(List.of(600L, 300L, 300L)));
+            List<?> details = (List<?>) summary.get(3);
+            assertThat(details, hasSize(IntoStats.MAX_FAILURE_DETAILS));
+            for (Object detail : details) {
+                assertThat(detail.toString(), allOf(startsWith("[400] "), containsString("unmapped_col")));
+            }
+            assertThat(countWriters(response), greaterThan(1L));
+        }
+        assertReadBack("STATS c = COUNT(*), s = SUM(l)", List.of(List.of(300L, 90_000L)));
+    }
+
+    /** A request with several slices per shard and several drivers, instead of whatever the randomized pragmas pick. */
+    private static EsqlQueryRequest requestWithManyWriters(String query) {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query);
         request.profile(true);
-        // Several slices per shard and several drivers, instead of whatever the randomized pragmas pick
         request.pragmas(
             new QueryPragmas(
                 Settings.builder()
@@ -373,17 +414,16 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             )
         );
         request.acceptedPragmaRisks(true);
-        try (EsqlQueryResponse response = run(request)) {
-            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(2000L, 2000L, 0L, null))));
-            long writers = response.profile()
-                .drivers()
-                .stream()
-                .filter(driver -> driver.description().equals(ComputeService.DATA_DESCRIPTION))
-                .filter(driver -> driver.operators().stream().anyMatch(op -> op.operator().contains("IntoOperator")))
-                .count();
-            assertThat(writers, greaterThan(1L));
-        }
-        assertReadBack("STATS c = COUNT(*) BY k | STATS groups = COUNT(*), rows = SUM(c)", List.of(List.of(2000L, 2000L)));
+        return request;
+    }
+
+    private static long countWriters(EsqlQueryResponse response) {
+        return response.profile()
+            .drivers()
+            .stream()
+            .filter(driver -> driver.description().equals(ComputeService.DATA_DESCRIPTION))
+            .filter(driver -> driver.operators().stream().anyMatch(op -> op.operator().contains("IntoOperator")))
+            .count();
     }
 
     public void testDestinationCannotAlsoBeRead() {

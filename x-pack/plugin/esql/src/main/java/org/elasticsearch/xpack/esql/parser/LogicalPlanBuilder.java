@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.into.IntoOptions;
+import org.elasticsearch.xpack.esql.into.IntoOptions.Option;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -631,8 +632,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
 
-        boolean refresh = booleanOption(optionExpressionsByName, IntoOptions.REFRESH, IntoOptions.DEFAULT.refresh());
-        boolean keepGoing = booleanOption(optionExpressionsByName, IntoOptions.KEEP_GOING, IntoOptions.DEFAULT.keepGoing());
+        boolean refresh = booleanOption(optionExpressionsByName, Option.REFRESH, IntoOptions.DEFAULT.refresh());
+        boolean keepGoing = booleanOption(optionExpressionsByName, Option.KEEP_GOING, IntoOptions.DEFAULT.keepGoing());
 
         if (optionExpressionsByName.isEmpty() == false) {
             throw new ParsingException(
@@ -640,22 +641,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 "Invalid option{} {} in INTO, expected one of {}",
                 optionExpressionsByName.size() > 1 ? "s" : "",
                 optionExpressionsByName.keySet(),
-                IntoOptions.NAMES
+                Option.NAMES
             );
         }
         return IntoOptions.builder().refresh(refresh).keepGoing(keepGoing).build();
     }
 
     /** Removes {@code name} from {@code optionExpressionsByName}, so that whatever remains afterwards is an unknown option. */
-    private static boolean booleanOption(Map<String, Expression> optionExpressionsByName, String name, boolean defaultValue) {
-        Expression expression = optionExpressionsByName.remove(name);
+    private static boolean booleanOption(Map<String, Expression> optionExpressionsByName, Option option, boolean defaultValue) {
+        Expression expression = optionExpressionsByName.remove(option.optionName());
         if (expression == null) {
             return defaultValue;
         }
         if (expression instanceof Literal lit && lit.value() instanceof Boolean value) {
             return value;
         }
-        throw new ParsingException(expression.source(), "Option [{}] must be a boolean literal", name);
+        throw new ParsingException(expression.source(), "Option [{}] must be a boolean literal", option.optionName());
     }
 
     @Override

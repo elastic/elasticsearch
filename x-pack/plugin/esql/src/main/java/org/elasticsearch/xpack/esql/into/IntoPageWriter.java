@@ -169,10 +169,12 @@ public final class IntoPageWriter {
             return null;
         }
 
-        /** Transient failures say nothing about the row, so they are never counted as the destination refusing it. */
+        /**
+         * Only a 400 says that the destination does not accept the row itself, such as a field that its mapping rejects. Any other
+         * status is about the caller, the destination or the cluster, so it fails the query instead of being counted as a refusal.
+         */
         private static boolean isRefusal(BulkItemResponse.Failure failure) {
-            RestStatus status = failure.getStatus();
-            return status != RestStatus.TOO_MANY_REQUESTS && status != RestStatus.SERVICE_UNAVAILABLE;
+            return failure.getStatus() == RestStatus.BAD_REQUEST;
         }
 
         private void recordRefusal(BulkItemResponse.Failure refusal) {

@@ -68,6 +68,8 @@ import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.DEST;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.IN_FLIGHT;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.FAILED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.FORBIDDEN;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WITHOUT_MESSAGE;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WITH_LONG_MESSAGE;
@@ -437,6 +439,29 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
         writer.consume(page("dropped"));
         assertThat(client.bulks, empty());
+    }
+
+    /** A caller who may not write has not sent a row the destination dislikes, so the query fails, whatever {@code keep_going} says. */
+    public void testKeepGoingStillFailsOnForbiddenItem() {
+        keepGoingSink();
+        writer.consume(page("ok", "denied"));
+        client.answer(CREATED, FORBIDDEN);
+        writer.finish();
+
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+        assertThat(failure.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(writer.stats().failures(), equalTo(0L));
+    }
+
+    public void testKeepGoingStillFailsOnServerErrorItem() {
+        keepGoingSink();
+        writer.consume(page("ok", "broken"));
+        client.answer(CREATED, FAILED);
+        writer.finish();
+
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+        assertThat(failure.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(writer.stats().failures(), equalTo(0L));
     }
 
     public void testKeepGoingStillFailsOnWholeBulkFailure() {

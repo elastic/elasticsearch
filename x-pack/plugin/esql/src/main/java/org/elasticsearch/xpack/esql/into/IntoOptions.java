@@ -14,7 +14,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * The {@code WITH { ... }} options of an {@code INTO} command. They travel with the plan to every node that writes or
@@ -24,11 +26,19 @@ import java.util.List;
  *                  when {@code false}, the first refused row fails the query
  */
 public record IntoOptions(boolean refresh, boolean keepGoing) implements Writeable {
-    public static final String REFRESH = "refresh";
-    public static final String KEEP_GOING = "keep_going";
+    /** The options that users can write in {@code WITH { ... }}. */
+    public enum Option {
+        REFRESH,
+        KEEP_GOING;
 
-    /** The names of every option, in the order error messages list them. */
-    public static final List<String> NAMES = List.of(REFRESH, KEEP_GOING);
+        /** The names of every option, in the order that error messages list them. */
+        public static final List<String> NAMES = Arrays.stream(values()).map(Option::optionName).toList();
+
+        /** The lower-case name that users write. */
+        public String optionName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
 
     public static final IntoOptions DEFAULT = new IntoOptions(true, false);
 
@@ -46,10 +56,10 @@ public record IntoOptions(boolean refresh, boolean keepGoing) implements Writeab
     public void appendNonDefault(StringBuilder sb) {
         List<String> nonDefault = new ArrayList<>();
         if (refresh != DEFAULT.refresh) {
-            nonDefault.add(REFRESH + "=" + refresh);
+            nonDefault.add(Option.REFRESH.optionName() + "=" + refresh);
         }
         if (keepGoing != DEFAULT.keepGoing) {
-            nonDefault.add(KEEP_GOING + "=" + keepGoing);
+            nonDefault.add(Option.KEEP_GOING.optionName() + "=" + keepGoing);
         }
         if (nonDefault.isEmpty() == false) {
             sb.append(',').append(Strings.collectionToCommaDelimitedString(nonDefault));

@@ -14,6 +14,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -410,14 +411,17 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             DOCUMENT_SHAPES,
             (configuration, mapperService, indexWriter, docs) -> {
                 final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
-                for (final boolean merged : new boolean[] { false, true }) {
-                    if (merged) {
+                for (final String stage : List.of("indexed", "deleted", "merged")) {
+                    if (stage.equals("deleted")) {
+                        indexWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId("d0")));
+                    } else if (stage.equals("merged")) {
                         indexWriter.forceMerge(1);
                     }
                     try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+                        assertEquals(configuration + " " + stage, stage.equals("deleted"), reader.numDeletedDocs() > 0);
                         final IndexSearcher searcher = new IndexSearcher(reader);
                         assertEquals(
-                            configuration + " merged=" + merged + " documents=" + docs,
+                            configuration + " " + stage + " documents=" + docs,
                             searcher.search(exists, docs.size()).scoreDocs.length,
                             searcher.count(exists)
                         );

@@ -25,11 +25,12 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 public class HistoricalFeaturesMetadataExtractor {
@@ -89,8 +90,10 @@ public class HistoricalFeaturesMetadataExtractor {
 
     void extractHistoricalFeatureMetadata(CheckedBiConsumer<Map<NodeFeature, Version>, Set<String>, IOException> metadataConsumer)
         throws IOException {
-        Map<NodeFeature, Version> historicalFeatures = new HashMap<>();
-        Set<String> featureNames = new HashSet<>();
+        // Sorted so the generated file is reproducible: feature sets and maps are usually Set.of(...) / Map.of(...), whose iteration
+        // order is randomized per JVM. The file is an input of REST/BWC test tasks, so a varying order would change their build cache keys.
+        Map<NodeFeature, Version> historicalFeatures = new TreeMap<>(Comparator.comparing(NodeFeature::id));
+        Set<String> featureNames = new TreeSet<>();
         ServiceLoader<FeatureSpecification> featureSpecLoader = ServiceLoader.load(FeatureSpecification.class, classLoader);
         for (FeatureSpecification featureSpecification : featureSpecLoader) {
             historicalFeatures.putAll(featureSpecification.getHistoricalFeatures());

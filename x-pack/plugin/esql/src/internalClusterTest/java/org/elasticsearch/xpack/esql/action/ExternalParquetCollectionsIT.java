@@ -17,6 +17,7 @@ import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -42,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -488,6 +491,11 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
      * file has several.
      */
     private String orders(String name) throws IOException {
+        return registerDataset(name, StoragePath.fileUri(write(createTempDir(), name, ORDERS, orderRows(), 512)), Map.of());
+    }
+
+    /** The orders fixture's rows, as {@link #orders} writes them. */
+    private static List<Consumer<Group>> orderRows() {
         List<Consumer<Group>> rows = new ArrayList<>();
         for (long id = 1; id <= ORDERS_PARENTS; id++) {
             long n = id;
@@ -508,7 +516,7 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
                 }
             });
         }
-        return registerDataset(name, StoragePath.fileUri(write(createTempDir(), name, ORDERS, rows, 512)), Map.of());
+        return rows;
     }
 
     /** The item quantities of order {@code id}, in list order; empty for orders 3 (an empty list) and 4 (no list). */
@@ -527,7 +535,7 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
     }
 
     /** The expanded rows of the orders fixture: one per item, or one null row for an order without items. */
-    private static long orderRows() {
+    private static long expandedOrderRows() {
         long rows = 0;
         for (long id = 1; id <= ORDERS_PARENTS; id++) {
             rows += Math.max(1, orderQuantities(id).size());
@@ -555,7 +563,7 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
         for (int limit : new int[] { 5, FIRST_ORDER_ITEMS + 10, 1000 }) {
             assertRows(
                 "FROM " + orders + " | NESTED_EXPAND items | LIMIT " + limit + " | STATS c = COUNT(*)",
-                row(Math.min(limit, orderRows()))
+                row(Math.min(limit, expandedOrderRows()))
             );
         }
     }
@@ -629,7 +637,7 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
         }
         assertRows(
             "FROM " + orders + " | NESTED_EXPAND items | STATS c = COUNT(*), n = COUNT(price), s = SUM(price)",
-            row(orderRows(), orderRows(), sum)
+            row(expandedOrderRows(), expandedOrderRows(), sum)
         );
         assertRows("FROM " + orders + " | STATS c = COUNT(*)", row((long) ORDERS_PARENTS));
     }
@@ -805,6 +813,133 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
             assertThat(externalScanNodeNames(response).size(), greaterThanOrEqualTo(2));
             assertThat(getValuesList(response), containsInAnyOrder(row(4L, 60L, "A"), row(4L, 64L, "CNAME")));
         }
+    }
+
+    /**
+     * S2, the query the N1 decision names: the reader answers {@code price > 100} itself, so the filter is pushed, the
+     * limit lands on the scan and becomes the parent limit, counted after the reader's filter. The first 40 parents fail
+     * the filter, and the file is one row group read in order, so the rows are exactly the first three of order 41 on.
+     */
+    public void testPushedFilterAndLimitBeforeExpansion() throws Exception {
+        String orders = registerDataset(
+            "orders_n1",
+            StoragePath.fileUri(write(createTempDir(), "orders_n1", ORDERS, orderRows(), ParquetWriter.DEFAULT_BLOCK_SIZE)),
+            Map.of()
+        );
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + orders + " | WHERE price > 100 | NESTED_EXPAND items | LIMIT 3 | KEEP id, items.qty")
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(row(41L, 41L), row(41L, 141L), row(42L, 42L))));
+        }
+    }
+
+    /**
+     * S1: a command below the expansion that defines a column named like an expanded one is refused by name. On an index
+     * the expanded column would shadow it; moved under that command in the scan, the command's column would shadow the
+     * expanded one instead.
+     */
+    public void testCommandDefiningAnExpandedColumnNameIsRefused() throws Exception {
+        String orders = orders("orders_shadow");
+        assertQueryFails(
+            "FROM " + orders + " | DISSECT msg \"%{items.sku}-%{n}\" | NESTED_EXPAND items | KEEP n, items.sku",
+            "which defines [items.sku]"
+        );
+        // Without the clash the same command reads fine
+        assertRows(
+            "FROM " + orders + " | DISSECT msg \"%{kind}-%{n}\" | WHERE id == 2 | NESTED_EXPAND items | KEEP n, items.sku",
+            row("2", "s2-2"),
+            row("2", "s2-102")
+        );
+    }
+
+    /** S3: a LOOKUP JOIN before the expansion joins the parents' rows, and its columns repeat on every element. */
+    public void testLookupJoinBeforeExpansion() throws Exception {
+        String orders = orders("orders_lookup");
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("order_labels")
+                .setSettings(Settings.builder().put("index.mode", "lookup").put("index.number_of_shards", 1))
+                .setMapping("id", "type=long", "label", "type=keyword")
+        );
+        client().prepareIndex("order_labels").setSource("id", 1L, "label", "first").get();
+        client().prepareIndex("order_labels").setSource("id", 2L, "label", "second").get();
+        client().admin().indices().prepareRefresh("order_labels").get();
+        assertRows(
+            "FROM " + orders + " | WHERE id <= 2 | LOOKUP JOIN order_labels ON id | NESTED_EXPAND items | STATS c = COUNT(*) BY label",
+            row((long) FIRST_ORDER_ITEMS, "first"),
+            row(2L, "second")
+        );
+    }
+
+    /** S5: a {@code _file.*} column is a constant beside the parents' columns, before the element columns. */
+    public void testFileMetadataBesideExpansion() throws Exception {
+        String orders = orders("orders_file_metadata");
+        assertRows(
+            "FROM " + orders + " METADATA _file.name | WHERE id == 2 | NESTED_EXPAND items | KEEP _file.name, id, items.qty",
+            row("orders_file_metadata.parquet", 2L, 2L),
+            row("orders_file_metadata.parquet", 2L, 102L)
+        );
+    }
+
+    /**
+     * S5: the parent limit applies per read, so with several files read on several nodes each read may take its own
+     * parents; the limit above still cuts the result to exactly the rows asked for.
+     */
+    public void testLimitAcrossFilesAndNodes() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        Path dir = createTempDir();
+        for (int f = 0; f < 4; f++) {
+            write(dir, "orders" + f, ORDERS, orderRows(), 512);
+        }
+        String dataset = registerDataset("orders_spread", StoragePath.fileUri(dir) + "/*.parquet", Map.of());
+        QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build());
+        for (int limit : new int[] { 5, FIRST_ORDER_ITEMS + 10, 4 * (int) expandedOrderRows() - 1 }) {
+            var request = syncEsqlQueryRequest("FROM " + dataset + " | NESTED_EXPAND items | LIMIT " + limit + " | STATS c = COUNT(*)");
+            request.pragmas(pragmas);
+            request.acceptedPragmaRisks(true);
+            request.profile(true);
+            try (var response = run(request)) {
+                assertThat(externalScanNodeNames(response).size(), greaterThanOrEqualTo(2));
+                assertThat(getValuesList(response), equalTo(List.of(row((long) limit))));
+            }
+        }
+    }
+
+    /**
+     * W5 end to end. A declared mapping cannot rename a column to or from a collection's name without failing before the
+     * expansion is planned, so the scan rule's own refusal is reached only by plans built by hand (unit tests). A declared
+     * column read from the collection fails on its type; a declared column named like the collection collides with
+     * the collection's own inferred column when the dataset is resolved.
+     */
+    public void testDeclaredRenameOfTheCollectionIsRefused() throws Exception {
+        LinkedHashMap<String, DatasetFieldMapping> fromCollection = new LinkedHashMap<>();
+        fromCollection.put("label", new DatasetFieldMapping("keyword", "items"));
+        String readsCollection = registerNonStrictDataset(
+            "orders_renamed_from",
+            StoragePath.fileUri(write(createTempDir(), "orders_renamed_from", ORDERS, orderRows(), 512)),
+            fromCollection,
+            Map.of()
+        );
+        assertQueryFails(
+            "FROM " + readsCollection + " | NESTED_EXPAND items | KEEP id, items.qty",
+            "declared type [keyword] for column [label] cannot be read from the file's type [unsupported]"
+        );
+
+        LinkedHashMap<String, DatasetFieldMapping> toCollection = new LinkedHashMap<>();
+        toCollection.put("items", new DatasetFieldMapping("keyword", "msg"));
+        String namedLikeCollection = registerNonStrictDataset(
+            "orders_renamed_to",
+            StoragePath.fileUri(write(createTempDir(), "orders_renamed_to", ORDERS, orderRows(), 512)),
+            toCollection,
+            Map.of()
+        );
+        assertQueryFails(
+            "FROM " + namedLikeCollection + " | NESTED_EXPAND items | KEEP id, items.qty",
+            "declared rename produces a duplicate column [items]"
+        );
     }
 
     private record Result(List<List<Object>> rows, List<String> warnings) {}

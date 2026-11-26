@@ -60,8 +60,9 @@ import java.util.function.Supplier;
  * plus one parent's elements; a single parent larger than the batch is held whole, charged to the breaker like every
  * other block. The filters, drops and row limit of the batch then apply to its parents, and only the survivors expand.
  * <p>
- * What an element is comes from {@link ParquetCollections.Shape}, the levels at which a list has an element and the element is not null: a null element is dropped and announced, an empty or null list has no elements, a leaf the
- * file lacks is null on every element, and a list inside the element is that leaf's multivalue.
+ * What an element is comes from {@link ParquetCollections.Shape}, the levels at which a list has an element and the
+ * element is not null: a null element is dropped and announced, an empty or null list has no elements, a leaf the file
+ * lacks is null on every element, and a list inside the element is that leaf's multivalue.
  */
 final class ParquetExpansion {
     private static final Logger logger = LogManager.getLogger(ParquetExpansion.class);
@@ -98,11 +99,17 @@ final class ParquetExpansion {
         /**
          * Resolves {@code read} against {@code fileSchema}. A leaf's requested type is the one schema discovery merged
          * across the files ({@link TypeWidening#join}): an inferred type, not a declared one. So a leaf is handled as an
-         * inferred column is ({@code ParquetFormatReader#validatePlannerTypesAgainstFile}), together with the
-         * reconciliation cast that merge implies ({@code ColumnMapping#alignToQuery}): a file storing a type that widens
-         * to the requested one converts each value, and a file storing any other type reads the leaf as null, with a
+         * inferred column is: a file storing a type that widens to the requested one converts each value, as the
+         * reconciliation cast the merge implies does, and a file storing any other type reads the leaf as null, with a
          * warning, under every error policy. A value the widening cannot represent is the error policy's; see
          * {@link #expand}.
+         * <p>
+         * For a type that does not widen, the precedent followed is the reader's for an inferred column
+         * ({@code ParquetFormatReader#validatePlannerTypesAgainstFile}, null with a warning), not the reconciliation
+         * adapter's ({@code ColumnMapping#alignToQuery}, which fails the read at open). The adapter's failure guards a
+         * pair the planner should never have produced for a column it maps; a leaf is chosen by the query from a merged
+         * description, and failing there would fail every query that expands the collection over a file that cannot
+         * supply one of the leaves, while the other leaves and the rows of that file read fine.
          */
         static Spec of(
             MessageType fileSchema,

@@ -33,7 +33,9 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Turns a {@code NESTED_EXPAND} over a dataset into the scan's own {@link ExternalSourceExec.Expansion}: a dataset has no
@@ -45,9 +47,15 @@ import java.util.List;
  * parent rows, so only a node that computes each row from that row alone may sit there: {@link ProjectExec}, a
  * deterministic {@link EvalExec} or {@link FilterExec}, {@link DissectExec}, {@link GrokExec}, the per-row enrichments
  * ({@link CompoundOutputEvalExec}), {@link EnrichExec}, the left side of a {@link LookupJoinExec}, and
- * {@link MvExpandExec}. Any other node fails the query by name: sampling parents is not sampling elements, an inference
- * command would run once per element, a change point reads its neighbours, and a non-deterministic expression evaluated
- * per element is no longer evaluated per parent.
+ * {@link MvExpandExec}. Those nodes then run once per element rather than once per parent, which gives the same rows
+ * at more cost. Any other node fails the query by name: sampling parents is not sampling elements, an inference command
+ * would run once per element, a change point reads its neighbours, and a non-deterministic expression evaluated per
+ * element is no longer evaluated per parent.
+ * <p>
+ * <b>Names.</b> Above the scan, an expanded column shadows a column of the same name its input carries, as it does on an
+ * index. Moved below a node, the expanded column would be shadowed by that node's own field instead, so a node, or the
+ * scan, that defines a column named like an expanded one fails the query by name rather than changing which column the
+ * query reads.
  * <p>
  * <b>Limits.</b> A {@link LimitExec} under the expansion is always a copy of the limit above it:
  * {@code PushDownAndCombineLimits} puts a local copy under a {@code NestedExpand}, and keeps the smaller of two limits
@@ -106,9 +114,31 @@ public final class PushNestedExpandToExternalSource extends PhysicalOptimizerRul
             }
         }
         refuseRenamedCollection(expand, scan);
+        Set<String> expandedNames = new HashSet<>();
+        for (Attribute attribute : expand.expanded()) {
+            expandedNames.add(attribute.name());
+        }
+        for (Attribute attribute : scan.attributes()) {
+            if (expandedNames.contains(attribute.name())) {
+                throw new VerificationException(
+                    "NESTED_EXPAND over a dataset cannot expand [{}]: the dataset has a column named [{}]",
+                    expand.path(),
+                    attribute.name()
+                );
+            }
+        }
         for (PhysicalPlan between : chain) {
             if (pushesThrough(between) == false) {
                 throw new VerificationException("NESTED_EXPAND over a dataset cannot follow [{}]", between.sourceText());
+            }
+            for (Attribute attribute : between.output()) {
+                if (expandedNames.contains(attribute.name())) {
+                    throw new VerificationException(
+                        "NESTED_EXPAND over a dataset cannot follow [{}], which defines [{}]",
+                        between.sourceText(),
+                        attribute.name()
+                    );
+                }
             }
         }
 
@@ -162,19 +192,20 @@ public final class PushNestedExpandToExternalSource extends PhysicalOptimizerRul
 
     /** Whether the expansion may move below {@code node}: it computes each row from that row alone. */
     private static boolean pushesThrough(PhysicalPlan node) {
-        return switch (node) {
-            case ProjectExec project -> true;
-            case EvalExec eval -> deterministic(eval.fields());
-            case FilterExec filter -> deterministic(List.of(filter.condition()));
-            case DissectExec dissect -> true;
-            case GrokExec grok -> true;
-            case CompoundOutputEvalExec enrichment -> true;
-            case EnrichExec enrich -> true;
-            case LookupJoinExec join -> true;
-            case MvExpandExec mvExpand -> true;
-            case LimitExec limit -> true;
-            default -> false;
-        };
+        if (node instanceof EvalExec eval) {
+            return deterministic(eval.fields());
+        }
+        if (node instanceof FilterExec filter) {
+            return deterministic(List.of(filter.condition()));
+        }
+        return node instanceof ProjectExec
+            || node instanceof DissectExec
+            || node instanceof GrokExec
+            || node instanceof CompoundOutputEvalExec
+            || node instanceof EnrichExec
+            || node instanceof LookupJoinExec
+            || node instanceof MvExpandExec
+            || node instanceof LimitExec;
     }
 
     /** Whether {@code node} emits each input row exactly once, so a limit on the rows below it bounds the rows above. */

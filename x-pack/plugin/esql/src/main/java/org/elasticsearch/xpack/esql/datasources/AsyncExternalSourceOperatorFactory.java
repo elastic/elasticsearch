@@ -2595,8 +2595,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     private static Page withoutParentOrdinals(Page page) {
         if (page.getBlockCount() == 0) {
-            // A read that produced no rows at all, such as a file whose every row group was pruned
-            return page;
+            // An expanding read ends every page with the ordinals; a page without them would be parents, unexpanded
+            page.releaseBlocks();
+            throw new IllegalStateException(
+                "an expanding read delivered a page of [" + page.getPositionCount() + "] rows without its parent ordinals"
+            );
         }
         int keep = page.getBlockCount() - 1;
         Block[] kept = new Block[keep];

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -29,16 +30,22 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
+import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
+import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
@@ -101,6 +108,90 @@ public class PushNestedExpandToExternalSourceTests extends ESTestCase {
         assertNotNull(folded.expansion());
         assertThat(folded.expansion().parentLimit(), equalTo(FormatReader.NO_LIMIT));
         assertTrue(result.output().containsAll(List.of(SKU, QTY)));
+    }
+
+    /**
+     * S3: the expansion moves down the left side of a lookup join, the rows being read, and never into the lookup side;
+     * an enrichment and a per-row enrichment pass it through as they are.
+     */
+    public void testPushesThroughJoinEnrichAndPerRowEnrichment() {
+        FieldAttribute key = field("key", DataType.LONG);
+        FieldAttribute name = field("name", DataType.KEYWORD);
+        EsQueryExec lookup = new EsQueryExec(Source.EMPTY, "lookup", IndexMode.LOOKUP, List.of(key, name), null, null, null, List.of());
+        LookupJoinExec join = new LookupJoinExec(Source.EMPTY, scan(), lookup, List.of(ID), List.of(key), List.of(name), null);
+        LookupJoinExec newJoin = as(belowReorder(apply(expand(join))), LookupJoinExec.class);
+        assertNotNull(as(newJoin.left(), ExternalSourceExec.class).expansion());
+        assertThat(newJoin.right(), equalTo(lookup));
+        assertTrue(newJoin.output().containsAll(List.of(SKU, QTY, name)));
+
+        ReferenceAttribute region = new ReferenceAttribute(Source.EMPTY, "region", DataType.KEYWORD);
+        EnrichExec enrich = enrich(scan(), region);
+        EnrichExec newEnrich = as(belowReorder(apply(expand(enrich))), EnrichExec.class);
+        assertNotNull(as(newEnrich.child(), ExternalSourceExec.class).expansion());
+        assertTrue(newEnrich.output().containsAll(List.of(ID, PRICE, SKU, QTY, region)));
+
+        ReferenceAttribute domain = new ReferenceAttribute(Source.EMPTY, "domain", DataType.KEYWORD);
+        RegisteredDomainExec perRow = new RegisteredDomainExec(Source.EMPTY, scan(), ID, List.of("domain"), List.of(domain));
+        RegisteredDomainExec newPerRow = as(belowReorder(apply(expand(perRow))), RegisteredDomainExec.class);
+        assertNotNull(as(newPerRow.child(), ExternalSourceExec.class).expansion());
+        assertTrue(newPerRow.output().containsAll(List.of(SKU, QTY, domain)));
+    }
+
+    /**
+     * S1: a node below the expansion that defines a column named like an expanded one would shadow it once the expansion
+     * sits under that node, where on an index the expanded column shadows the node's. Each such node is refused by name,
+     * as is a dataset column of that name.
+     */
+    public void testRefusesANodeThatDefinesAnExpandedColumnName() {
+        ReferenceAttribute shadow = new ReferenceAttribute(Source.EMPTY, SKU.name(), DataType.KEYWORD);
+        String pattern = "%{items.sku}-%{n}";
+        DissectExec dissect = new DissectExec(
+            new Source(1, 1, "DISSECT msg"),
+            scan(),
+            PRICE,
+            new Dissect.Parser(pattern, "", new DissectParser(pattern, "")),
+            List.of(shadow)
+        );
+        assertShadowRefused(dissect, "DISSECT msg");
+        EnrichExec enrich = enrich(scan(), shadow);
+        assertShadowRefused(enrich, "ENRICH p");
+        RegisteredDomainExec perRow = new RegisteredDomainExec(
+            new Source(1, 1, "REGISTERED_DOMAIN d = msg"),
+            scan(),
+            ID,
+            List.of(SKU.name()),
+            List.of(shadow)
+        );
+        assertShadowRefused(perRow, "REGISTERED_DOMAIN d = msg");
+
+        List<Attribute> withShadow = new ArrayList<>(scan().attributes());
+        withShadow.add(shadow);
+        VerificationException e = expectThrows(VerificationException.class, () -> apply(expand(scan().withAttributes(withShadow))));
+        assertThat(e.getMessage(), containsString("cannot expand [items]: the dataset has a column named [items.sku]"));
+    }
+
+    /** The plan under the projection the rule adds when the expanded columns moved in the output, or the plan itself. */
+    private static PhysicalPlan belowReorder(PhysicalPlan plan) {
+        return plan instanceof ProjectExec project ? project.child() : plan;
+    }
+
+    private static void assertShadowRefused(PhysicalPlan between, String text) {
+        VerificationException e = expectThrows(VerificationException.class, () -> apply(expand(between)));
+        assertThat(e.getMessage(), containsString("NESTED_EXPAND over a dataset cannot follow [" + text + "], which defines [items.sku]"));
+    }
+
+    private static EnrichExec enrich(PhysicalPlan child, Attribute field) {
+        return new EnrichExec(
+            new Source(1, 1, "ENRICH p"),
+            child,
+            Enrich.Mode.ANY,
+            "match",
+            ID,
+            "p",
+            "id",
+            Map.of("", "idx"),
+            List.<NamedExpression>of(field)
+        );
     }
 
     /** N1: a limit right above the scan bounds the parents; the scan's own pushed limit counted parents too. */

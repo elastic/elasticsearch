@@ -90,10 +90,19 @@ setup:
       catch: bad_request
       esql.query:
         body:
-          query: 'FROM test | EVAL x = TO_IP(id, {"unknown": "x"}) | LIMIT 10'
+          query: 'FROM test | EVAL x = TO_IP(name, {"unknown": "x"}) | LIMIT 10'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Invalid option [unknown]' }
+  # With an input the function doesn't convert too, the error is the one of the input, as it always was
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test | EVAL x = TO_IP(id, {"unknown": "x"}) | LIMIT 10'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'argument of [TO_IP(id, {"unknown": "x"})] must be [ip or string], found value [id] type [integer]' }
 
 ---
 "conversions that need the type of their input stay an error":

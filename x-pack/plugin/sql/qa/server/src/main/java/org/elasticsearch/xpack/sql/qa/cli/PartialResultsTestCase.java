@@ -59,38 +59,41 @@ public abstract class PartialResultsTestCase extends CliIntegrationTestCase {
         assertThat(
             result,
             startsWith(
-                "[?1l>[?1000l[?2004l[31;1mServer error [[3;33;22mServer sent bad type [search_phase_execution_exception]. "
+                EmbeddedCli.LINE_EDIT_END
+                    + "[31;1mServer error [[3;33;22mServer sent bad type [search_phase_execution_exception]. "
                     + "Original type was [Partial shards failure]. [Failed to execute phase [query], Partial shards failure;"
             )
         );
         consumeStackTrace();
 
         result = command("allow_partial_search_results = false");
-        assertEquals("[?1l>[?1000l[?2004lallow_partial_search_results set to [90mfalse[0m", result);
+        assertEquals(EmbeddedCli.LINE_EDIT_END + "allow_partial_search_results set to [90mfalse[0m", result);
         result = command("SELECT * FROM test WHERE bool = true");
         assertThat(
             result,
             startsWith(
-                "[?1l>[?1000l[?2004l[31;1mServer error [[3;33;22mServer sent bad type [search_phase_execution_exception]. "
+                EmbeddedCli.LINE_EDIT_END
+                    + "[31;1mServer error [[3;33;22mServer sent bad type [search_phase_execution_exception]. "
                     + "Original type was [Partial shards failure]. [Failed to execute phase [query], Partial shards failure;"
             )
         );
         consumeStackTrace();
 
         result = command("allow_partial_search_results = true");
-        assertEquals("[?1l>[?1000l[?2004lallow_partial_search_results set to [90mtrue[0m", result);
+        assertEquals(EmbeddedCli.LINE_EDIT_END + "allow_partial_search_results set to [90mtrue[0m", result);
         result = command("SELECT * FROM test WHERE bool = true");
-        assertEquals("[?1l>[?1000l[?2004l     bool      ", result);
+        assertEquals(EmbeddedCli.LINE_EDIT_END + "     bool      ", result);
         while (readLine().length() > 0)
             ;
 
         result = command("allow_partial_search_results = false");
-        assertEquals("[?1l>[?1000l[?2004lallow_partial_search_results set to [90mfalse[0m", result);
+        assertEquals(EmbeddedCli.LINE_EDIT_END + "allow_partial_search_results set to [90mfalse[0m", result);
         result = command("SELECT * FROM test WHERE bool = true");
         assertThat(
             result,
             startsWith(
-                "[?1l>[?1000l[?2004l[31;1mServer error [[3;33;22mServer sent bad type [search_phase_execution_exception]. "
+                EmbeddedCli.LINE_EDIT_END
+                    + "[31;1mServer error [[3;33;22mServer sent bad type [search_phase_execution_exception]. "
                     + "Original type was [Partial shards failure]. [Failed to execute phase [query], Partial shards failure;"
             )
         );
@@ -104,10 +107,10 @@ public abstract class PartialResultsTestCase extends CliIntegrationTestCase {
 
         String query = "SELECT * FROM test WHERE bool=true";
         String result = command("allow_partial_search_results=true");
-        assertEquals("[?1l>[?1000l[?2004lallow_partial_search_results set to [90mtrue[0m", result);
+        assertEquals(EmbeddedCli.LINE_EDIT_END + "allow_partial_search_results set to [90mtrue[0m", result);
 
         result = command(query);
-        assertEquals("[?1l>[?1000l[?2004l     bool      ", result);
+        assertEquals(EmbeddedCli.LINE_EDIT_END + "     bool      ", result);
         result = readLine();
         assertEquals("---------------", result);
         int rowCount = 0;

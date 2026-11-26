@@ -15,7 +15,7 @@ public abstract class ProjectRoutingTestCase extends CliIntegrationTestCase {
 
     public void testProjectRoutingCommand() throws IOException {
         index("test", body -> body.field("name", "foo"));
-        assertEquals("[?1l>[?1000l[?2004lproject_routing set to [90m_alias:foo[0m", command("project_routing = _alias:foo"));
+        assertEquals(EmbeddedCli.LINE_EDIT_END + "project_routing set to [90m_alias:foo[0m", command("project_routing = _alias:foo"));
         assertThat(
             command("SELECT * FROM test"),
             matchesRegex(".*\\s*\\[project_routing\\] is only allowed when cross-project search is enabled\\s*.*")
@@ -24,8 +24,8 @@ public abstract class ProjectRoutingTestCase extends CliIntegrationTestCase {
 
     public void testProjectRoutingResetCommand() throws IOException {
         index("test", body -> body.field("name", "foo"));
-        assertEquals("[?1l>[?1000l[?2004lproject_routing set to [90m_alias:foo[0m", command("project_routing = _alias:foo"));
-        assertEquals("[?1l>[?1000l[?2004lproject_routing set to [90mnull[0m", command("project_routing = null"));
+        assertEquals(EmbeddedCli.LINE_EDIT_END + "project_routing set to [90m_alias:foo[0m", command("project_routing = _alias:foo"));
+        assertEquals(EmbeddedCli.LINE_EDIT_END + "project_routing set to [90mnull[0m", command("project_routing = null"));
         assertThat(command("SELECT * FROM test"), matchesRegex(".*\\s*name\\s*\\.*"));
         assertThat(readLine(), containsString("----------"));
         assertThat(readLine(), matchesRegex(".*\\s*foo\\s*\\.*"));

@@ -1,0 +1,5 @@
+area: SQL
+issues: []
+pr: 167318
+summary: Upgrade JLine to 3.30.17 in the CLI
+type: upgrade

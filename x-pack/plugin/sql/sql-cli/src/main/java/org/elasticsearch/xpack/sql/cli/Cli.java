@@ -14,6 +14,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cli.terminal.Terminal;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.sql.cli.command.AllowPartialResultsCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ClearScreenCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.CliCommand;
@@ -31,9 +32,11 @@ import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.jline.terminal.TerminalBuilder;
+import org.jline.utils.InfoCmp;
 
 import java.io.IOException;
 import java.net.ConnectException;
+import java.nio.charset.Charset;
 import java.sql.SQLInvalidAuthorizationSpecException;
 import java.util.Arrays;
 import java.util.List;
@@ -56,6 +59,8 @@ public class Cli extends Command {
      */
     public static void main(String[] args) throws Exception {
         configureJLineLogging();
+        silenceJnaDeprecationNotice();
+        preferBundledTerminalDescriptions();
         final Cli cli = new Cli(
             new JLineTerminal(
                 TerminalBuilder.builder()
@@ -63,6 +68,13 @@ public class Cli extends Command {
                     // remove jansi since it has issues on Windows in closing terminals
                     // the CLI uses JNA anyway
                     .jansi(false)
+                    // jline would otherwise replace the JVM's signal handling even while no line is being read
+                    .nativeSignals(false)
+                    // jline would otherwise move to stderr when stdout is redirected, leaving the redirected output empty
+                    .systemOutput(TerminalBuilder.SystemOutput.SysOut)
+                    // jline would otherwise follow the locale, and a C locale turns non-ASCII input and output into '?'
+                    .stdinEncoding(Charset.defaultCharset())
+                    .stdoutEncoding(Charset.defaultCharset())
                     .build(),
                 true
             )
@@ -70,6 +82,26 @@ public class Cli extends Command {
         int status = cli.main(args, Terminal.DEFAULT, ProcessInfo.fromSystem());
         if (status != ExitCodes.OK) {
             exit(status);
+        }
+    }
+
+    @SuppressForbidden(reason = "a system property is the only switch jline offers for this notice")
+    private static void silenceJnaDeprecationNotice() {
+        // the CLI ships the JNA provider on purpose, so the notice is nothing a user can act on
+        System.setProperty(TerminalBuilder.PROP_DISABLE_DEPRECATED_PROVIDER_WARNING, "true");
+    }
+
+    /**
+     * jLine asks the infocmp command for a terminal's description before using the one it bundles, and it reads
+     * infocmp's backspace key in a way that breaks backspace on Windows shells that come with infocmp.
+     */
+    private static void preferBundledTerminalDescriptions() {
+        // jLine swaps xterm-256color in for xterm under Cygwin and MSYS
+        for (String type : Arrays.asList(TerminalBuilder.builder().computeType(), "xterm-256color")) {
+            String bundled = InfoCmp.getDefaultInfoCmp(type);
+            if (bundled != null) {
+                InfoCmp.setLoadedInfoCmp(type, bundled);
+            }
         }
     }
 

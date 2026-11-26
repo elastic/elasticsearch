@@ -1,0 +1,2 @@
+# JLine loads terminal providers from this directory, and jline-terminal-jna does not register itself here.
+org.jline.terminal.impl.jna.JnaTerminalProvider

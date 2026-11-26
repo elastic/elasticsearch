@@ -12,6 +12,7 @@ import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.UserInterruptException;
+import org.jline.terminal.Attributes;
 import org.jline.terminal.Terminal;
 import org.jline.utils.AttributedString;
 import org.jline.utils.AttributedStringBuilder;
@@ -52,6 +53,12 @@ public class JLineTerminal implements CliTerminal {
         this.reader = reader;
         if (false == enableMatchBracket) {
             reader.setVariable(LineReader.BLINK_MATCHING_PAREN, 0L);
+        }
+        if (isDumb()) {
+            // a script with CRLF line ends would otherwise yield an empty line after each of its lines
+            Attributes attributes = terminal.getAttributes();
+            attributes.setInputFlag(Attributes.InputFlag.IGNCR, true);
+            terminal.setAttributes(attributes);
         }
     }
 
@@ -104,7 +111,7 @@ public class JLineTerminal implements CliTerminal {
     @Override
     public String readPassword(String prompt) throws UserException {
         try {
-            String password = reader.readLine(prompt, (char) 0);
+            String password = isDumb() ? readPasswordUnmasked(prompt) : reader.readLine(prompt, (char) 0);
             if (password == null) {
                 /*
                  * The docs say this can't return null but they lie. Lies, I tell you!
@@ -116,6 +123,26 @@ public class JLineTerminal implements CliTerminal {
             return password;
         } catch (UserInterruptException | EndOfFileException ex) {
             throw new UserException(ExitCodes.NOPERM, "password required");
+        }
+    }
+
+    private boolean isDumb() {
+        String type = terminal.getType();
+        return Terminal.TYPE_DUMB.equals(type) || Terminal.TYPE_DUMB_COLOR.equals(type);
+    }
+
+    /**
+     * Reads a password from a terminal that cannot hide input. Asking jLine to mask it there starts a thread
+     * that keeps rewriting the prompt, and jLine does not stop that thread once the password is read.
+     */
+    private String readPasswordUnmasked(String prompt) {
+        // a masked line never reaches the history, so this one must not either
+        Object historyDisabled = reader.getVariable(LineReader.DISABLE_HISTORY);
+        reader.setVariable(LineReader.DISABLE_HISTORY, true);
+        try {
+            return reader.readLine(prompt);
+        } finally {
+            reader.setVariable(LineReader.DISABLE_HISTORY, historyDisabled);
         }
     }
 

@@ -51,7 +51,7 @@ final class ArrowDocsSupport {
             reference.append("` | ").append(multivalued).append(" |\n");
         }
         reference.append("\n");
-        reference.append("### Type details\n\n");
+        reference.append("### Detailed type mappings\n\n");
         for (var type : types) {
             var formatter = ArrowResponse.ESQL_FORMATTERS.get(type);
             reference.append("::::::{dropdown} ").append(type.outputType()).append("\n\n");

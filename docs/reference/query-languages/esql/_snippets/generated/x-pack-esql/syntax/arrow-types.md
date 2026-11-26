@@ -38,7 +38,7 @@
 | `unsupported` | `null` | yes |
 | `version` | `utf8` | yes |
 
-### Type details
+### Detailed type mappings
 
 ::::::{dropdown} _source
 

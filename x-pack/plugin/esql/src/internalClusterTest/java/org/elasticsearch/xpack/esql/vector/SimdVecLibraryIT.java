@@ -15,16 +15,17 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
-import org.elasticsearch.xpack.esql.DenseVectorFieldTypeIT;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
@@ -98,7 +99,6 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
     private final String functionName;
     private final DenseVectorFieldMapper.SimilarityFunction similarityFunction;
     private final ElementType elementType;
-    private final double delta;
     private int numDims;
 
     public SimdVecLibraryIT(
@@ -109,10 +109,6 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
         this.functionName = functionName;
         this.similarityFunction = similarityFunction;
         this.elementType = elementType;
-        this.delta = switch (elementType) {
-            case BYTE, BIT, FLOAT -> DenseVectorFieldTypeIT.DELTA;
-            case BFLOAT16 -> DenseVectorFieldTypeIT.BFLOAT16_DELTA;
-        };
     }
 
     @SuppressWarnings("unchecked")
@@ -134,7 +130,7 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
                 } else {
                     assertNotNull(similarity);
                     double expectedSimilarity = similarityFunction.calculateSimilarity(left, right);
-                    assertEquals(expectedSimilarity, similarity, delta);
+                    assertEquals(expectedSimilarity, similarity, 1e-4);
                 }
             });
         }
@@ -158,14 +154,17 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
                     assertNull(similarity);
                 } else {
                     assertNotNull(similarity);
-                    double expectedSimilarity = calculateSimilarity(similarityFunction, randomVector, leftAsList);
-                    assertEquals(expectedSimilarity, similarity, delta);
+                    double expectedSimilarity = calculateSimilarity(
+                        similarityFunction,
+                        randomVector,
+                        truncateToBFloat16IfNeeded(leftAsList)
+                    );
+                    assertEquals(expectedSimilarity, similarity, 1e-4);
                 }
             });
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testSimilarityWithOneDimVector() {
         var randomVector = randomVector(elementType == ElementType.BIT ? Byte.SIZE : 1);
         var query = String.format(Locale.ROOT, """
@@ -182,8 +181,12 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
                     assertNull(similarity);
                 } else {
                     assertNotNull(similarity);
-                    double expectedSimilarity = calculateSimilarity(similarityFunction, randomVector, vecAsList);
-                    assertEquals(expectedSimilarity, similarity, delta);
+                    double expectedSimilarity = calculateSimilarity(
+                        similarityFunction,
+                        randomVector,
+                        truncateToBFloat16IfNeeded(vecAsList)
+                    );
+                    assertEquals(expectedSimilarity, similarity, 1e-4);
                 }
             });
         }
@@ -205,7 +208,16 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
         return result;
     }
 
-    @SuppressWarnings("unchecked")
+    private List<Number> truncateToBFloat16IfNeeded(List<Number> vector) {
+        if (vector != null && elementType == ElementType.BFLOAT16) {
+            vector = new ArrayList<>(vector);
+            for (int i = 0; i < vector.size(); i++) {
+                vector.set(i, BFloat16.truncateToBFloat16(vector.get(i).floatValue()));
+            }
+        }
+        return vector;
+    }
+
     public void testTopNSimilarityBetweenConstantVectorAndField() {
         var randomVector = randomVector();
         var query = String.format(Locale.ROOT, """
@@ -219,7 +231,7 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             List<Double> orderedSimilarity = leftVectors.stream()
-                .map(v -> calculateSimilarity(similarityFunction, v, randomVector))
+                .map(v -> calculateSimilarity(similarityFunction, randomVector, truncateToBFloat16IfNeeded(v)))
                 .sorted((d1, d2) -> {
                     if (d1 == null && d2 == null) {
                         return 0;
@@ -240,7 +252,7 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
                 if (similarity == null) {
                     assertNull("Expected " + orderedSimilarity + " but got " + valuesList, expectedSimilarity);
                 } else {
-                    assertEquals("Expected " + orderedSimilarity + " but got " + valuesList, expectedSimilarity, similarity, delta);
+                    assertEquals("Expected " + orderedSimilarity + " but got " + valuesList, expectedSimilarity, similarity, 1e-4);
                 }
             }
         }
@@ -280,7 +292,6 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
         assertThat(iae.getMessage(), containsString("vector dimensions differ"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testSimilarityBetweenConstantVectors() {
         var vectorLeft = randomVector();
         var vectorRight = randomVector();
@@ -300,7 +311,7 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
             } else {
                 assertNotNull(similarity);
                 final double expectedSimilarity = calculateSimilarity(similarityFunction, vectorLeft, vectorRight);
-                assertEquals(expectedSimilarity, similarity, delta);
+                assertEquals(expectedSimilarity, similarity, 1e-4);
             }
         }
     }
@@ -359,7 +370,7 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
             switch (elementType) {
                 case FLOAT, BFLOAT16 -> {
                     if (dimensions == 1) {
-                        vector.add(randomValueOtherThan(0f, () -> randomFloat()));
+                        vector.add(randomValueOtherThan(0f, ESTestCase::randomFloat));
                     } else {
                         vector.add(randomFloat());
                     }

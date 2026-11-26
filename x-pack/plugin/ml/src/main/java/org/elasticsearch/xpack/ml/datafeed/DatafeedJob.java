@@ -70,8 +70,8 @@ class DatafeedJob {
     private static final int NEXT_TASK_DELAY_MS = 100;
     private static final long INCOMPLETE_CHUNK_AUDIT_INTERVAL_MS = TimeValue.timeValueHours(24).millis();
     private static final long NO_INCOMPLETE_CHUNK_AUDIT = -1L;
-    // Advancing time over a longer empty gap writes one bucket result per bucket span in a single refresh window.
-    // Around 300,000 of them have exhausted the heap of the results index shard.
+    // Bounds the empty bucket results one advance flush writes into a single refresh window of the results index.
+    // A larger flood can exhaust the heap of the shard.
     static final long MAX_EMPTY_BUCKETS_TO_MATERIALISE = 10_000;
 
     private final AnomalyDetectionAuditor auditor;
@@ -286,6 +286,7 @@ class DatafeedJob {
             request.setSkipTime(String.valueOf(startTime));
             request.setRefreshRequired(false);
             FlushJobAction.Response flushResponse = flushJob(request);
+            recordFinalizedBucketEnd(flushResponse);
             LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
             return flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
         }
@@ -676,10 +677,7 @@ class DatafeedJob {
                     // A catch-up window can end long after its last record, for example after an extraction failure.
                     skipLongEmptyGapBefore(end);
                 }
-                Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
-                if (lastFinalizedBucketEnd != null) {
-                    this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
-                }
+                recordFinalizedBucketEnd(flushJob(flushRequest));
 
                 if (scopeChange != null) {
                     handleFieldConflictsAfterScopeChange(scopeChange);

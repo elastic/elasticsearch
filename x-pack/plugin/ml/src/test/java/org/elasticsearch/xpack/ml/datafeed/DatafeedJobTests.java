@@ -92,6 +92,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -1572,7 +1573,7 @@ public class DatafeedJobTests extends ESTestCase {
 
     public void testFirstRealtimeAfterLongGapShouldFinalizeLastRecordBucketThenSkipGap() throws Exception {
         // Raw row inside a bucket: autodetect has finalized only up to floor(record), so the bucket [10m, 11m) is still open.
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
 
         runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
 
@@ -1581,7 +1582,7 @@ public class DatafeedJobTests extends ESTestCase {
 
     public void testBucketStampedLastRecordShouldBeFinalizedBeforeSkip() throws Exception {
         // A bucket-stamped row sits on the bucket start, which equals the finalized end while its bucket is still open.
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS, 10 * MINUTE_MS);
 
         runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
 
@@ -1590,7 +1591,7 @@ public class DatafeedJobTests extends ESTestCase {
 
     public void testJobLatencyShouldExtendAdvanceBeforeSkip() throws Exception {
         latencyMs = 2 * MINUTE_MS;
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 8 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 8 * MINUTE_MS);
 
         runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
 
@@ -1598,7 +1599,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testUnalignedRealtimeStartShouldSkipOnlyToStartOfItsBucket() throws Exception {
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 30_000, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 30_000, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
 
         runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
 
@@ -1608,7 +1609,7 @@ public class DatafeedJobTests extends ESTestCase {
     public void testAdvanceOverExactlyMaxEmptyBucketsShouldNotSkip() throws Exception {
         // The real-time advance target is 10,000 buckets after 11m, the end of the last record's bucket.
         long realtimeEnd = 11 * MINUTE_MS + 10_000 * MINUTE_MS;
-        DatafeedJob datafeedJob = esqlJobAfterLookback(realtimeEnd - 2 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(realtimeEnd - 2 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
 
         runFirstRealtime(datafeedJob, realtimeEnd);
 
@@ -1617,7 +1618,7 @@ public class DatafeedJobTests extends ESTestCase {
 
     public void testAdvanceOverOneBucketMoreThanMaxShouldSkip() throws Exception {
         long realtimeEnd = 11 * MINUTE_MS + 10_001 * MINUTE_MS;
-        DatafeedJob datafeedJob = esqlJobAfterLookback(realtimeEnd - 2 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(realtimeEnd - 2 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
 
         runFirstRealtime(datafeedJob, realtimeEnd);
 
@@ -1625,7 +1626,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testDslDatafeedAfterLongGapShouldNotSkip() throws Exception {
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS, false);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS, false);
 
         runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
 
@@ -1633,7 +1634,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testJobWithoutRecordsShouldNotSkip() throws Exception {
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, -1, 0);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, -1, 0);
 
         runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
 
@@ -1642,7 +1643,7 @@ public class DatafeedJobTests extends ESTestCase {
 
     public void testRestartWithNoNewRecordsShouldSkipFromJobLatestRecord() throws Exception {
         // Restart state: last finalized bucket starts at 9m (inclusive end 10m - 1), latest record at 10m30s.
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, 10 * MINUTE_MS - 1, 10 * MINUTE_MS + 30_000, -1, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, 10 * MINUTE_MS - 1, 10 * MINUTE_MS + 30_000, -1, 10 * MINUTE_MS);
 
         runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
 
@@ -1651,7 +1652,7 @@ public class DatafeedJobTests extends ESTestCase {
 
     public void testRestartWithModelClockNearNowShouldNotSkip() throws Exception {
         // Earlier real-time runs already advanced the model clock to a minute ago, long after the last record.
-        DatafeedJob datafeedJob = esqlJobAfterLookback(
+        DatafeedJob datafeedJob = jobAfterLookback(
             SPARSE_NOW,
             0,
             SPARSE_NOW - MINUTE_MS - 1,
@@ -1682,7 +1683,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testFailedSkipShouldRetryBeforeAdvancingToEnd() throws Exception {
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
         when(flushJobFuture.actionGet()).thenThrow(new RuntimeException("flush failed"))
             .thenReturn(flushAck(11 * MINUTE_MS), flushAck(SPARSE_NOW), flushAck(SPARSE_NOW + 4 * MINUTE_MS));
 
@@ -1695,7 +1696,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testFailedSkipShouldNameGapAndBucketSpanAndKeepShouldStop() throws Exception {
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
         when(flushJobFuture.actionGet()).thenThrow(new ElasticsearchStatusException("job is closed", RestStatus.CONFLICT));
 
         currentTime = SPARSE_NOW + 2 * MINUTE_MS;
@@ -1709,7 +1710,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testDelayedDataWindowShouldKeepCheckWindowBucketsOutOfSkip() throws Exception {
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
         when(delayedDataDetector.getWindow()).thenReturn(5 * MINUTE_MS);
 
         runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
@@ -1720,7 +1721,7 @@ public class DatafeedJobTests extends ESTestCase {
 
     public void testLatencyLongerThanGapShouldNotSkip() throws Exception {
         latencyMs = SPARSE_NOW - 20 * MINUTE_MS;
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
 
         runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
 
@@ -1729,7 +1730,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testSkipShouldAuditGapAndRange() throws Exception {
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
 
         runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
 
@@ -1745,7 +1746,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testFailedSkipAfterSuccessfulAdvanceShouldRetrySkipBeforePostingData() throws Exception {
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
         // The lookback posted once. Real-time has a batch ready on each cycle.
         when(dataExtractor.hasNext()).thenReturn(true, false, true, false);
         when(dataExtractor.next()).thenAnswer(
@@ -1774,7 +1775,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testSecondRealtimeCycleAfterSkipShouldNotSkipAgain() throws Exception {
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
         givenFlushAcks(11 * MINUTE_MS, SPARSE_NOW, SPARSE_NOW + 2 * MINUTE_MS, SPARSE_NOW + 4 * MINUTE_MS);
         runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
 
@@ -1786,8 +1787,27 @@ public class DatafeedJobTests extends ESTestCase {
         );
     }
 
+    public void testRestartWithStartNowAfterLongGapShouldOnlySkipToStartTime() throws Exception {
+        skipLongEmptyGaps = true;
+        bucketSpanMs = MINUTE_MS;
+        when(delayedDataDetector.getWindow()).thenReturn(TimeValue.timeValueHours(2).millis());
+        // No lookback range exists, so only skipToStartTime tells the datafeed where the model clock is.
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(new DataCounts(jobId)));
+        currentTime = SPARSE_NOW;
+        givenFlushAcks(SPARSE_NOW, SPARSE_NOW + 2 * MINUTE_MS);
+        DatafeedJob datafeedJob = createDatafeedJob(MINUTE_MS, 0, 10 * MINUTE_MS - 1, 10 * MINUTE_MS + 30_000, true);
+
+        datafeedJob.runLookBack(SPARSE_NOW, null);
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("skip " + SPARSE_NOW, "advance " + (SPARSE_NOW + 2 * MINUTE_MS))));
+        ArgumentCaptor<String> messages = ArgumentCaptor.forClass(String.class);
+        verify(auditor, atLeastOnce()).info(eq(jobId), messages.capture());
+        assertThat(messages.getAllValues().toString(), not(containsString("Datafeed skipped")));
+    }
+
     public void testIsolatedDatafeedAfterLongGapShouldNotFlush() throws Exception {
-        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
         datafeedJob.isolate();
 
         runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
@@ -1795,7 +1815,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(flushes(), equalTo(List.of("interim")));
     }
 
-    private DatafeedJob esqlJobAfterLookback(
+    private DatafeedJob jobAfterLookback(
         long nowMs,
         long queryDelayMs,
         long jobFinalizedEndMs,
@@ -1803,7 +1823,7 @@ public class DatafeedJobTests extends ESTestCase {
         long lookbackLatestRecordMs,
         long lookbackFinalizedEndMs
     ) throws Exception {
-        return esqlJobAfterLookback(
+        return jobAfterLookback(
             nowMs,
             queryDelayMs,
             jobFinalizedEndMs,
@@ -1818,16 +1838,16 @@ public class DatafeedJobTests extends ESTestCase {
      * Runs a continuous lookback that ends at {@code nowMs - queryDelayMs} and posts records up to {@code lookbackLatestRecordMs}
      * (none if negative). The lookback flush acknowledges {@code lookbackFinalizedEndMs}, as autodetect does after the last record.
      */
-    private DatafeedJob esqlJobAfterLookback(
+    private DatafeedJob jobAfterLookback(
         long nowMs,
         long queryDelayMs,
         long jobFinalizedEndMs,
         long jobLatestRecordMs,
         long lookbackLatestRecordMs,
         long lookbackFinalizedEndMs,
-        boolean esql
+        boolean skipLongEmptyGaps
     ) throws Exception {
-        skipLongEmptyGaps = esql;
+        this.skipLongEmptyGaps = skipLongEmptyGaps;
         bucketSpanMs = MINUTE_MS;
         when(delayedDataDetector.getWindow()).thenReturn(0L);
         currentTime = nowMs;

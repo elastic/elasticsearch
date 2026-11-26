@@ -30,8 +30,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
@@ -154,7 +156,21 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
             : context.collapse(ir, union(ir.schema(), finite(keys)), ir.value());
 
         Source source = source();
-        Alias key = new Alias(source, label, groupingKey(table.valueColumn()));
+        // an unresolved key is found by name, so it takes a name no other column of the result shares
+        String keyName = label;
+        if (table.valueColumn().resolved() == false) {
+            Set<String> taken = new HashSet<>(List.of(label, table.valueColumn().name()));
+            for (Attribute a : table.plan().output()) {
+                // the regroup finds a key by its canonical label name, which drops a physical field prefix
+                taken.add(a.name());
+                taken.add(TranslationContext.mapFinite(a));
+            }
+            keyName = label + "$key";
+            while (taken.contains(keyName)) {
+                keyName += "$";
+            }
+        }
+        Alias key = new Alias(source, keyName, groupingKey(table.valueColumn()));
         LogicalPlan keyed = new Eval(source, table.plan(), List.of(key));
         // the key replaces a stored label of the same name, which the regroup would otherwise prefer as its backing field
         List<Attribute> shadowed = keyed.output()
@@ -166,16 +182,30 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
         }
 
         List<String> regroupKeys = new ArrayList<>(keys);
-        regroupKeys.add(label);
+        regroupKeys.add(keyName);
         IntermediateResult counted = context.regroup(
-            table.with(keyed, union(table.schema(), finite(List.of(label))), table.value()),
+            table.with(keyed, union(table.schema(), finite(List.of(keyName))), table.value()),
             finite(regroupKeys),
             false,
             new Count(source, key.toAttribute())
         );
         counted = context.eval(counted, TranslationContext.zeroCountAsNull(counted.valueColumn()));
-        Alias formatted = new Alias(source, valueLabel.name(), new FloatToLabelValue(source, counted.label(label)), valueLabel.id());
-        return counted.with(new Eval(source, counted.plan(), List.of(formatted)), counted.schema(), counted.value());
+        Alias formatted = new Alias(source, valueLabel.name(), new FloatToLabelValue(source, counted.label(keyName)), valueLabel.id());
+        List<String> labels = new ArrayList<>(keys);
+        labels.add(label);
+        LogicalPlan plan = new Eval(source, counted.plan(), List.of(formatted));
+        if (keyName.equals(label) == false) {
+            // The key was only the grouping column: left in the output, a set operation would merge it by name with a label.
+            // The label is an unresolved attribute while the key is, which a set operation cannot align, so it is typed here.
+            List<Attribute> projections = new ArrayList<>();
+            for (Attribute attribute : plan.output()) {
+                if (attribute.name().equals(keyName) == false) {
+                    projections.add(attribute.name().equals(valueLabel.name()) ? valueLabel : attribute);
+                }
+            }
+            plan = new Project(source, plan, projections);
+        }
+        return counted.with(plan, finite(labels), counted.value());
     }
 
     /**
@@ -207,17 +237,20 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
     }
 
     private Expression asDouble(Expression value) {
-        return value.dataType() == DataType.DOUBLE ? value : new ToDouble(source(), value);
+        return value.resolved() && value.dataType() == DataType.DOUBLE ? value : new ToDouble(source(), value);
     }
 
     /**
      * The value as a double grouping key. Packed multi-key hashing compares a double's raw bits, so a value that can be
      * NaN maps every NaN payload to the one canonical NaN; a whole number never converts to NaN.
+     * <p>
+     * A value still unresolved here reads a metric the index does not map. Its type is known only once the analyzer resolves
+     * it, so the key stays tied to the value and is converted then: null where the missing field reads as null, whatever
+     * the value computes otherwise (such as {@code absent}, which is 1), and a verification failure elsewhere.
      */
     private Expression groupingKey(Attribute value) {
         Expression asDouble = asDouble(value);
-        DataType type = value.dataType();
-        if (type.noCounter().isWholeNumber()) {
+        if (value.resolved() && value.dataType().noCounter().isWholeNumber()) {
             return asDouble;
         }
         Source source = source();

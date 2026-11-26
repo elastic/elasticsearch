@@ -53,6 +53,7 @@ public final class RangeReadContext {
     @Nullable
     private Object fileContext;
     private Map<String, List<CollectionSchema.Leaf>> collections = Map.of();
+    private List<ChildRelationRead> childRelations = List.of();
 
     public RangeReadContext(
         List<String> projectedColumns,
@@ -234,6 +235,15 @@ public final class RangeReadContext {
 
     public void setCollections(Map<String, List<CollectionSchema.Leaf>> collections) {
         this.collections = Map.copyOf(collections);
+    }
+
+    /** As {@link FormatReadContext#childRelations()}. */
+    public List<ChildRelationRead> childRelations() {
+        return childRelations;
+    }
+
+    public void setChildRelations(List<ChildRelationRead> childRelations) {
+        this.childRelations = List.copyOf(childRelations);
     }
 
     public void setFileContext(@Nullable Object fileContext) {

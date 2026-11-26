@@ -66,7 +66,7 @@ public final class NullSpliceRowPositionStrategy implements RowPositionStrategy 
      * Splices an all-null {@link org.elasticsearch.compute.data.LongBlock} into every page at the
      * {@code _rowPosition} output slot.
      */
-    private static final class NullSplicingIterator implements CloseableIterator<Page>, Describable {
+    private static final class NullSplicingIterator implements CloseableIterator<Page>, Describable, ChildRelationPages {
         private final CloseableIterator<Page> inner;
         private final int rowPosSlot;
         private final BlockFactory blockFactory;
@@ -151,6 +151,12 @@ public final class NullSpliceRowPositionStrategy implements RowPositionStrategy 
         @Override
         public void close() throws IOException {
             inner.close();
+        }
+
+        /** The splice adds a column and keeps every row, so the inner windows address this page as they are. */
+        @Override
+        public ChildWindows children(String path) {
+            return ChildRelationPages.forward(inner, path);
         }
 
         @Override

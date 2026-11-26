@@ -11,6 +11,8 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.spi.ChildRelationPages;
+import org.elasticsearch.xpack.esql.datasources.spi.ChildWindows;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 
@@ -41,7 +43,7 @@ import java.util.function.Consumer;
  * {@code AsyncExternalSourceOperatorFactory#wrapWithEncoderIfNeeded}, breaking {@code _rowPosition}
  * encoding whenever stats capture and deferred extraction are both active on the same read.
  */
-public final class StatsCapturingIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
+public final class StatsCapturingIterator implements CloseableIterator<Page>, ColumnExtractorProducer, ChildRelationPages {
 
     private final CloseableIterator<Page> delegate;
     private final ConcurrentMap<String, List<Map<String, Object>>> sink;
@@ -119,6 +121,11 @@ public final class StatsCapturingIterator implements CloseableIterator<Page>, Co
      * extraction was wired to a reader that does not support it — fail loudly so callers don't
      * silently lose data.
      */
+    @Override
+    public ChildWindows children(String path) {
+        return ChildRelationPages.forward(delegate, path);
+    }
+
     private ColumnExtractorProducer innerProducer() {
         if (delegate instanceof ColumnExtractorProducer producer) {
             return producer;

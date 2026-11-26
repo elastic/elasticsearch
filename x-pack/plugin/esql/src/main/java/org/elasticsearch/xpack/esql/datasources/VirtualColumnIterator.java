@@ -17,6 +17,8 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ChildRelationPages;
+import org.elasticsearch.xpack.esql.datasources.spi.ChildWindows;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 
 import java.io.IOException;
@@ -38,7 +40,7 @@ import java.util.Set;
  *
  * @see AsyncExternalSourceOperatorFactory for where this iterator is attached.
  */
-final class VirtualColumnIterator implements CloseableIterator<Page> {
+final class VirtualColumnIterator implements CloseableIterator<Page>, ChildRelationPages {
 
     private final CloseableIterator<Page> delegate;
     private final List<Attribute> fullOutput;
@@ -143,6 +145,12 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     @Override
     public void close() throws IOException {
         delegate.close();
+    }
+
+    /** One page out per page in, every row kept, so the delegate's windows address this page as they are. */
+    @Override
+    public ChildWindows children(String path) {
+        return ChildRelationPages.forward(delegate, path);
     }
 
     /**

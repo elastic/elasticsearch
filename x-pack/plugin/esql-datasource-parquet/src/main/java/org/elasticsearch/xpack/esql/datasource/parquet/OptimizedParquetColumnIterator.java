@@ -51,6 +51,9 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
+import org.elasticsearch.xpack.esql.datasources.spi.ChildRelationPages;
+import org.elasticsearch.xpack.esql.datasources.spi.ChildRelationRead;
+import org.elasticsearch.xpack.esql.datasources.spi.ChildWindows;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
@@ -133,7 +136,7 @@ import java.util.function.IntConsumer;
  * that mix selective and non-selective row groups (e.g., time-bucketed data with skewed
  * filter selectivity).
  */
-final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
+final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, ColumnExtractorProducer, ChildRelationPages {
 
     private static final Logger logger = LogManager.getLogger(OptimizedParquetColumnIterator.class);
     private static final AtomicBoolean PHASE2_SHORTFALL_WARNED = new AtomicBoolean();
@@ -168,6 +171,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     @Nullable
     private final ColumnarRowDropHelper rowDropHelper;
     private final ColumnInfo[] columnInfos;
+    /**
+     * The child relations this read decodes beside its rows. Kept apart from {@link #columnInfos}, which is
+     * index-parallel to {@link #attributes} and so to the page's blocks: a child relation adds no block to the page.
+     */
+    private final ParquetChildRelations childRelations;
+    /**
+     * The rows the last late-materialized batch kept, ascending, or {@code null} when it kept them all; what
+     * {@link ParquetChildRelations#retainParents} narrows that batch's elements to.
+     */
+    @Nullable
+    private int[] lateMaterializationSurvivors;
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
     private final ParquetStorageObjectAdapter adapter;
@@ -528,7 +542,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         @Nullable ParquetReaderCounters counters,
         ErrorPolicy errorPolicy,
         @Nullable Consumer<String> warningSink,
-        @Nullable SharedErrorBudget sharedErrorBudget
+        @Nullable SharedErrorBudget sharedErrorBudget,
+        List<ChildRelationRead> childRelations
     ) {
         this.errorPolicy = errorPolicy;
         this.warningSink = warningSink;
@@ -599,12 +614,22 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // the trivially-passes check is gated by a single condition below.
         this.triviallyPassesPredicate = lateMaterialization ? triviallyPassesPredicate : null;
 
-        this.projectedColumnPaths = buildProjectedColumnPaths(columnInfos);
-        this.listColumnPaths = buildListColumnPaths(columnInfos);
+        this.childRelations = ParquetChildRelations.of(
+            projectedSchema,
+            childRelations,
+            blockFactory,
+            this::coercionWarnings,
+            path -> nullListElementWarnings().addOnce(ParquetColumnDecoding.nullListElementsMessage(path))
+        );
+        Set<String> childColumnPaths = childColumnPaths(this.childRelations, columnInfos);
+        this.projectedColumnPaths = union(buildProjectedColumnPaths(columnInfos), childColumnPaths);
+        // Every element leaf is repeated, so its rows synchronize under page filtering only through an OffsetIndex
+        this.listColumnPaths = union(buildListColumnPaths(columnInfos), childColumnPaths);
         this.predicateColumnPaths = buildColumnPaths(columnInfos, isPredicateColumn, true);
         this.projectionOnlyColumnPaths = buildColumnPaths(columnInfos, isPredicateColumn, false);
         this.useTwoPhase = shouldUseTwoPhase(
             lateMaterialization,
+            this.childRelations.isEmpty() == false,
             storageObject,
             columnInfos,
             reader.getRowGroups(),
@@ -1700,6 +1725,32 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         return paths;
     }
 
+    /**
+     * The dotted paths of the element leaves {@code childRelations} decodes. Refuses one the row's own columns read too:
+     * the column-read store holds a single stateful page reader per column, which two decodes cannot share.
+     */
+    private static Set<String> childColumnPaths(ParquetChildRelations childRelations, ColumnInfo[] columnInfos) {
+        Set<String> rowColumns = buildProjectedColumnPaths(columnInfos);
+        Set<String> paths = new HashSet<>();
+        for (ColumnDescriptor descriptor : childRelations.descriptors()) {
+            String path = String.join(".", descriptor.getPath());
+            if (rowColumns.contains(path)) {
+                throw new IllegalArgumentException("column [" + path + "] cannot be read both as a column and as an element leaf");
+            }
+            paths.add(path);
+        }
+        return paths;
+    }
+
+    private static Set<String> union(Set<String> a, Set<String> b) {
+        if (b.isEmpty()) {
+            return a;
+        }
+        Set<String> union = new HashSet<>(a);
+        union.addAll(b);
+        return union;
+    }
+
     private static Set<String> buildListColumnPaths(ColumnInfo[] columnInfos) {
         Set<String> paths = new HashSet<>();
         for (ColumnInfo info : columnInfos) {
@@ -1758,6 +1809,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      */
     private static boolean shouldUseTwoPhase(
         boolean lateMaterialization,
+        boolean readsChildRelations,
         StorageObject storageObject,
         ColumnInfo[] columnInfos,
         List<BlockMetaData> rowGroups,
@@ -1767,6 +1819,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         String fileLocation
     ) {
         if (lateMaterialization == false) {
+            return false;
+        }
+        if (readsChildRelations) {
+            // Two-phase decodes a row group's predicate columns whole before the first batch, so it cannot end a
+            // batch where the elements reach their budget; nor does it build the column-read store they decode from
             return false;
         }
         if (projectionOnlyColumnPaths.isEmpty() || predicateColumnPaths.isEmpty()) {
@@ -3267,13 +3324,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 break;
             }
         }
-        if (hasListColumns) {
+        if (hasListColumns || childRelations.isEmpty() == false) {
             ColumnReadStoreImpl store = new ColumnReadStoreImpl(
                 rowGroup,
                 new ParquetColumnDecoding.NoOpGroupConverter(projectedSchema),
                 projectedSchema,
                 createdBy
             );
+            // One store for the row's repeated columns and the elements: it hands out each column's one page reader once
+            childRelations.bind(store, listCorruptionHandler, fileLocation, rowGroupOrdinal, rowsBeforeCurrentGroup);
             columnReaders = new ColumnReader[columnInfos.length];
             listColumnReaders = new ParquetColumnDecoding.ListColumnReader[columnInfos.length];
             for (int i = 0; i < columnInfos.length; i++) {
@@ -3888,6 +3947,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     private Page emitReadyPage() {
         if (twoPhase != null) {
+            if (childRelations.isEmpty() == false) {
+                throw new IllegalStateException("child relations cannot be read on the two-phase path");
+            }
             // Captured before nextTwoPhaseBatch decrements rowsRemainingInGroup: the in-block index
             // of the first source row this batch is about to emit. Same shape as the standard /
             // late-mat paths, just computed in the two-phase branch where the source-row delta is
@@ -3900,18 +3962,39 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             effectiveBatch = Math.min(effectiveBatch, rowBudget);
         }
         int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
+        if (childRelations.isEmpty() == false) {
+            // The elements are decoded first so a batch whose elements reach the budget ends at that row, and every
+            // column below then reads that many rows
+            rowsToRead = childRelations.decodeBatch(rowsToRead);
+        }
         // Captured before the row counts are subtracted: the in-block index of the first row this
         // batch is about to emit. The row-position injector uses it to compute file-global ids.
         int firstRowOfBatchInRG = (int) (reader.getRowGroups().get(rowGroupOrdinal).getRowCount() - rowsRemainingInGroup);
 
         boolean useLateMaterialization = lateMaterialization && currentRowGroupTriviallyPasses == false;
-        Page result = useLateMaterialization
-            ? nextWithLateMaterialization(rowsToRead, firstRowOfBatchInRG)
-            : nextStandard(rowsToRead, firstRowOfBatchInRG);
+        Page result;
+        try {
+            result = useLateMaterialization
+                ? nextWithLateMaterialization(rowsToRead, firstRowOfBatchInRG)
+                : nextStandard(rowsToRead, firstRowOfBatchInRG);
+        } catch (RuntimeException e) {
+            childRelations.discardBatch();
+            throw e;
+        }
         int droppedRows = useLateMaterialization == false && rowDropHelper != null ? rowDropHelper.failedCount() : 0;
         try {
+            if (childRelations.isEmpty() == false) {
+                // The elements follow the rows the batch kept: the late-materialization survivors, or the rows a
+                // skip_row drop did not remove
+                int[] survivors = useLateMaterialization
+                    ? lateMaterializationSurvivors
+                    : (rowDropHelper != null ? rowDropHelper.survivorPositions() : null);
+                childRelations.finishBatch(rowsToRead);
+                childRelations.retainParents(survivors, result.getPositionCount());
+            }
             listCorruptionHandler.completeBatch(rowsToRead, droppedRows);
         } catch (RuntimeException e) {
+            childRelations.close();
             result.releaseBlocks();
             throw e;
         }
@@ -3922,6 +4005,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             try {
                 validateListColumnsExhausted();
             } catch (RuntimeException e) {
+                childRelations.releaseCurrent();
                 result.releaseBlocks();
                 throw e;
             }
@@ -4261,11 +4345,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
             int survivorCount = rowsToRead;
             int[] positions = null;
+            lateMaterializationSurvivors = null;
             if (mask != null) {
                 survivorCount = mask.popCount();
                 rowsEliminatedByLateMaterialization += (rowsToRead - survivorCount);
                 if (survivorCount < rowsToRead) {
                     positions = mask.survivingPositions();
+                    lateMaterializationSurvivors = positions;
                     // Compact predicate blocks
                     for (int col = 0; col < columnInfos.length; col++) {
                         if (isPredicateColumn[col] && blocks[col] != null) {
@@ -4448,6 +4534,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     private void validateListColumnsExhausted() {
+        childRelations.validateExhausted();
         if (listColumnReaders == null) {
             return;
         }
@@ -4493,6 +4580,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             nullListElementWarnings = new SkipWarnings(ParquetColumnDecoding.NULL_LIST_ELEMENTS_SUMMARY, warningSink);
         }
         return nullListElementWarnings;
+    }
+
+    @Override
+    public ChildWindows children(String path) {
+        return childRelations.children(path);
     }
 
     @Override
@@ -4553,6 +4645,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             } finally {
                 dropCurrentGroupHold();
                 finishRemainingLeases();
+                childRelations.close();
                 reader.close();
             }
         }

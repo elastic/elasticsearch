@@ -1063,6 +1063,32 @@ final class ParquetColumnDecoding {
             );
         }
 
+        /**
+         * A reader of a leaf no {@link ColumnInfo} describes, such as an element leaf of a collection, whose levels come
+         * from its descriptor. It shares {@code corruptionHandler} with the row's columns, so its recoveries draw on the
+         * read's one error budget.
+         */
+        static ListColumnReader bind(
+            ColumnReader reader,
+            ColumnDescriptor descriptor,
+            ListCorruptionHandler corruptionHandler,
+            String columnName,
+            String fileLocation,
+            int rowGroupOrdinal,
+            long rowsBeforeGroup
+        ) {
+            return new ListColumnReader(
+                reader,
+                descriptor.getMaxDefinitionLevel(),
+                descriptor.getMaxRepetitionLevel(),
+                corruptionHandler,
+                columnName,
+                fileLocation,
+                rowGroupOrdinal,
+                rowsBeforeGroup
+            );
+        }
+
         private ListColumnReader(
             ColumnReader reader,
             int maxDefLevel,

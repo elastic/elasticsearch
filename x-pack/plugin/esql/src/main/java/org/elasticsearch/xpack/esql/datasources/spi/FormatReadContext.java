@@ -109,6 +109,8 @@ import java.util.function.Consumer;
  *                         {@code max_error_ratio} budget is enforced against the combined total rather than
  *                         independently per layer. {@code null} for text-based readers (CSV, NDJSON) and
  *                         for non-{@code SKIP_ROW} policies.
+ * @param childRelations   the collections whose element leaves the read decodes in the same pass as the rows, handed
+ *                         out per parent page through {@link ChildRelationPages}; empty when the read decodes none.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -131,7 +133,8 @@ public record FormatReadContext(
     @Nullable CircuitBreaker breaker,
     @Nullable SharedErrorBudget sharedErrorBudget,
     @Nullable FormatReadCounters readCounters,
-    Map<String, List<CollectionSchema.Leaf>> collections
+    Map<String, List<CollectionSchema.Leaf>> collections,
+    List<ChildRelationRead> childRelations
 ) {
 
     public FormatReadContext {
@@ -142,6 +145,7 @@ public record FormatReadContext(
             throw new IllegalArgumentException("maxRecordBytes must be positive, got: " + maxRecordBytes);
         }
         collections = collections == null ? Map.of() : Map.copyOf(collections);
+        childRelations = childRelations == null ? List.of() : List.copyOf(childRelations);
         if (statsColumnScope == null) {
             statsColumnScope = StripeColumnScope.PROJECTED;
         }
@@ -183,7 +187,8 @@ public record FormatReadContext(
             breaker,
             sharedErrorBudget,
             readCounters,
-            collections
+            collections,
+            childRelations
         );
     }
 
@@ -212,7 +217,8 @@ public record FormatReadContext(
             breaker,
             sharedErrorBudget,
             readCounters,
-            collections
+            collections,
+            childRelations
         );
     }
 
@@ -241,7 +247,8 @@ public record FormatReadContext(
             breaker,
             sharedErrorBudget,
             readCounters,
-            collections
+            collections,
+            childRelations
         );
     }
 
@@ -281,6 +288,7 @@ public record FormatReadContext(
         @Nullable
         private FormatReadCounters readCounters = null;
         private Map<String, List<CollectionSchema.Leaf>> collections = Map.of();
+        private List<ChildRelationRead> childRelations = List.of();
 
         private Builder() {}
 
@@ -422,6 +430,16 @@ public record FormatReadContext(
             return this;
         }
 
+        /**
+         * The collections whose element leaves the reader decodes beside the rows and hands out through
+         * {@link ChildRelationPages}. Independent of {@link #collections}: a child relation adds no column to the
+         * page.
+         */
+        public Builder childRelations(List<ChildRelationRead> childRelations) {
+            this.childRelations = childRelations;
+            return this;
+        }
+
         public Builder readCounters(@Nullable FormatReadCounters readCounters) {
             this.readCounters = readCounters;
             return this;
@@ -452,7 +470,8 @@ public record FormatReadContext(
                 breaker,
                 sharedErrorBudget,
                 readCounters,
-                collections
+                collections,
+                childRelations
             );
         }
     }

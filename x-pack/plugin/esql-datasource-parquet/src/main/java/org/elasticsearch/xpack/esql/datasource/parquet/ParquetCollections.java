@@ -187,6 +187,84 @@ final class ParquetCollections {
     }
 
     /**
+     * Where a collection's elements sit in the levels of its leaves: the repetition level that starts a new element, the
+     * definition level at which the list has an element at all, and the one at which that element is not null. Shared by
+     * every decode of a collection so they cannot disagree about what an element is.
+     *
+     * @param elementPath the path of the element group, whose descendants are the leaves
+     */
+    record Shape(CollectionSchema collection, String[] elementPath, int collectionRep, int existsDef, int elementDef) {
+
+        /** The leaf named {@code name} relative to the element, or {@code null} when this file's element lacks it. */
+        @Nullable
+        CollectionSchema.Leaf leaf(String name) {
+            return collection.leaves().stream().filter(c -> c.name().equals(name)).findFirst().orElse(null);
+        }
+
+        /** The descriptor of leaf {@code relative} in {@code schema}, which holds the collection at this shape's path. */
+        ColumnDescriptor descriptor(MessageType schema, String relative) {
+            return ParquetCollections.descriptor(schema, elementPath, relative);
+        }
+    }
+
+    /**
+     * The shape of the collection at {@code path} of {@code schema}, or {@code null} when the schema holds no readable
+     * collection there.
+     */
+    @Nullable
+    static Shape shape(MessageType schema, String path) {
+        CollectionSchema collection = describe(schema).stream().filter(c -> c.path().equals(path)).findFirst().orElse(null);
+        if (collection == null) {
+            return null;
+        }
+        String[] parts = path.split("\\.");
+        Type node = schema;
+        for (String part : parts) {
+            node = node.asGroupType().getType(part);
+        }
+        GroupType group = node.asGroupType();
+        GroupType element = element(group);
+        String[] repeatedPath = Arrays.copyOf(parts, parts.length + 1);
+        repeatedPath[parts.length] = group.getType(0).getName();
+        int collectionRep = schema.getMaxRepetitionLevel(repeatedPath);
+        int existsDef = schema.getMaxDefinitionLevel(repeatedPath);
+        int elementDef = existsDef;
+        String[] elementPath = repeatedPath;
+        if (element != group.getType(0)) {
+            elementPath = Arrays.copyOf(repeatedPath, repeatedPath.length + 1);
+            elementPath[repeatedPath.length] = element.getName();
+            elementDef = schema.getMaxDefinitionLevel(elementPath);
+        }
+        return new Shape(collection, elementPath, collectionRep, existsDef, elementDef);
+    }
+
+    /** The descriptor of the leaf under the element whose name, relative to the element, is {@code relative}. */
+    static ColumnDescriptor descriptor(MessageType schema, String[] elementPath, String relative) {
+        String[] relativeParts = relative.split("\\.");
+        for (ColumnDescriptor column : schema.getColumns()) {
+            String[] columnPath = column.getPath();
+            if (columnPath.length < elementPath.length + relativeParts.length
+                || Arrays.equals(columnPath, 0, elementPath.length, elementPath, 0, elementPath.length) == false) {
+                continue;
+            }
+            // A leaf that is itself a list holds its value further down; match the named groups only
+            int at = elementPath.length;
+            boolean matches = true;
+            for (String part : relativeParts) {
+                if (at >= columnPath.length || columnPath[at].equals(part) == false) {
+                    matches = false;
+                    break;
+                }
+                at++;
+            }
+            if (matches) {
+                return column;
+            }
+        }
+        throw new IllegalStateException("no Parquet column for collection leaf [" + relative + "]");
+    }
+
+    /**
      * Reads one collection column of a row group into its carrier. Built per read from the projected schema, then bound to each
      * row group's column readers.
      */
@@ -205,36 +283,18 @@ final class ParquetCollections {
          */
         @Nullable
         static Decoder of(MessageType schema, String path, List<CollectionSchema.Leaf> wanted) {
-            CollectionSchema collection = describe(schema).stream().filter(c -> c.path().equals(path)).findFirst().orElse(null);
-            if (collection == null) {
+            Shape shape = shape(schema, path);
+            if (shape == null) {
                 // A file without the collection has no elements for it, as a file without a column has nulls for it
                 return null;
             }
-            if (collection.unsupported() != null) {
-                throw new IllegalArgumentException(collection.unsupported());
-            }
-            String[] parts = path.split("\\.");
-            Type node = schema;
-            for (String part : parts) {
-                node = node.asGroupType().getType(part);
-            }
-            GroupType group = node.asGroupType();
-            GroupType element = element(group);
-            String[] repeatedPath = Arrays.copyOf(parts, parts.length + 1);
-            repeatedPath[parts.length] = group.getType(0).getName();
-            int collectionRep = schema.getMaxRepetitionLevel(repeatedPath);
-            int existsDef = schema.getMaxDefinitionLevel(repeatedPath);
-            int elementDef = existsDef;
-            String[] elementPath = repeatedPath;
-            if (element != group.getType(0)) {
-                elementPath = Arrays.copyOf(repeatedPath, repeatedPath.length + 1);
-                elementPath[repeatedPath.length] = element.getName();
-                elementDef = schema.getMaxDefinitionLevel(elementPath);
+            if (shape.collection().unsupported() != null) {
+                throw new IllegalArgumentException(shape.collection().unsupported());
             }
             Leaf[] leaves = new Leaf[wanted.size()];
             for (int l = 0; l < leaves.length; l++) {
                 String name = wanted.get(l).name();
-                CollectionSchema.Leaf leaf = collection.leaves().stream().filter(c -> c.name().equals(name)).findFirst().orElse(null);
+                CollectionSchema.Leaf leaf = shape.leaf(name);
                 if (leaf != null) {
                     // The carrier holds each leaf in the dataset's type, which the operators decode it as
                     if (leaf.type() != wanted.get(l).type()) {
@@ -250,36 +310,16 @@ final class ParquetCollections {
                                 + "] in the dataset, and an element's fields cannot be converted yet"
                         );
                     }
-                    leaves[l] = new Leaf(leaf.type(), descriptor(schema, elementPath, name), collectionRep, existsDef, elementDef);
+                    leaves[l] = new Leaf(
+                        leaf.type(),
+                        shape.descriptor(schema, name),
+                        shape.collectionRep(),
+                        shape.existsDef(),
+                        shape.elementDef()
+                    );
                 }
             }
             return new Decoder(path, leaves);
-        }
-
-        /** The descriptor of the leaf under the element whose name, relative to the element, is {@code relative}. */
-        private static ColumnDescriptor descriptor(MessageType schema, String[] elementPath, String relative) {
-            String[] relativeParts = relative.split("\\.");
-            for (ColumnDescriptor column : schema.getColumns()) {
-                String[] columnPath = column.getPath();
-                if (columnPath.length < elementPath.length + relativeParts.length
-                    || Arrays.equals(columnPath, 0, elementPath.length, elementPath, 0, elementPath.length) == false) {
-                    continue;
-                }
-                // A leaf that is itself a list holds its value further down; match the named groups only
-                int at = elementPath.length;
-                boolean matches = true;
-                for (String part : relativeParts) {
-                    if (at >= columnPath.length || columnPath[at].equals(part) == false) {
-                        matches = false;
-                        break;
-                    }
-                    at++;
-                }
-                if (matches) {
-                    return column;
-                }
-            }
-            throw new IllegalStateException("no Parquet column for collection leaf [" + relative + "]");
         }
 
         String name() {

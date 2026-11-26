@@ -196,6 +196,57 @@ class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest
         server.stop(0)
     }
 
+    def "version list does not depend on branches.json"() {
+        given:
+        writeBwcVersionSource()
+        buildFile.text = """
+            import org.elasticsearch.gradle.internal.info.DevelopmentBranchesValueSource
+
+            plugins {
+              id 'elasticsearch.global-build-info'
+            }
+
+            tasks.register("printVersions") {
+              def allVersions = buildParams.allVersionsProvider
+              def developmentBranches = DevelopmentBranchesValueSource.developmentBranches(project)
+              doLast {
+                println("VERSIONS=" + allVersions.get().join(','))
+                println("BRANCHES=" + developmentBranches.get().collect { it.name() }.join(','))
+              }
+            }
+        """.stripIndent()
+
+        AtomicInteger requests = new AtomicInteger()
+        byte[] body = branchesJsonBody().getBytes(StandardCharsets.UTF_8)
+        HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        server.createContext(
+            "/branches.json", { exchange ->
+            requests.incrementAndGet()
+            exchange.sendResponseHeaders(200, body.length)
+            exchange.responseBody.withCloseable { os -> os.write(body) }
+            exchange.close()
+        } as com.sun.net.httpserver.HttpHandler
+        )
+        server.start()
+        String url = branchesUrl(server)
+
+        when:
+        def result = gradleRunner(
+            "printVersions",
+            "-Porg.elasticsearch.build.branches-file-location=${url}",
+            "-DBWC_VERSION_SOURCE=${file("Version.java").absolutePath}"
+        ).build()
+
+        then:
+        assertOutputContains(result.output, "VERSIONS=9.0.0,9.1.0")
+        assertOutputContains(result.output, "BRANCHES=main,9.0")
+        // only the execution time value source loads branches.json, resolving the version list must not trigger another download
+        requests.get() == 1
+
+        cleanup:
+        server.stop(0)
+    }
+
     private static String branchesUrl(HttpServer server) {
         String host = server.address.address.hostAddress
         return new URI("http", null, host, server.address.port, "/branches.json", null, null).toString()

@@ -124,9 +124,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         Version elasticsearchVersionProperty = Version.fromString(versionProperties.getProperty("elasticsearch"));
 
         RuntimeJava runtimeJavaHome = findRuntimeJavaHome();
+        AtomicReference<List<Version>> versionsCache = new AtomicReference<>();
+        Provider<List<Version>> versionsProvider = providers.provider(
+            () -> versionsCache.updateAndGet(val -> val == null ? resolveVersions() : val)
+        );
         AtomicReference<BwcVersions> cache = new AtomicReference<>();
         Provider<BwcVersions> bwcVersionsProvider = providers.provider(
-            () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(elasticsearchVersionProperty) : val)
+            () -> cache.updateAndGet(
+                val -> val == null ? new BwcVersions(elasticsearchVersionProperty, versionsProvider.get(), getDevelopmentBranches()) : val
+            )
         );
 
         BuildParameterExtension buildParams = project.getExtensions()
@@ -147,6 +153,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null,
                 ParallelDetector.findDefaultParallel(project),
                 Util.getBooleanProperty("build.snapshot", true),
+                versionsProvider,
                 bwcVersionsProvider
             );
 
@@ -186,14 +193,13 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     /* Introspect all versions of ES that may be tested against for backwards
      * compatibility. It is *super* important that this logic is the same as the
      * logic in VersionUtils.java. */
-    private BwcVersions resolveBwcVersions(Version currentElasticsearchVersion) {
+    private List<Version> resolveVersions() {
         String versionsFilePath = elvis(
             System.getProperty("BWC_VERSION_SOURCE"),
             new File(Util.locateElasticsearchWorkspace(project.getGradle()), DEFAULT_VERSION_JAVA_FILE_PATH).getPath()
         );
         try (var is = new FileInputStream(versionsFilePath)) {
-            List<String> versionLines = IOUtils.readLines(is, "UTF-8");
-            return new BwcVersions(currentElasticsearchVersion, parseVersionLines(versionLines), getDevelopmentBranches());
+            return parseVersionLines(IOUtils.readLines(is, "UTF-8"));
         } catch (IOException e) {
             throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);
         }

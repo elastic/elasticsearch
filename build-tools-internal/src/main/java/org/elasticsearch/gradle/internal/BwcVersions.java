@@ -95,14 +95,6 @@ public class BwcVersions implements Serializable {
     }
 
     /**
-     * Returns all known versions, including the current one. Allows recreating an instance with different development branches,
-     * e.g. at execution time, as the version list is not serialized with the configuration cache.
-     */
-    public List<Version> getAllVersions() {
-        return versions;
-    }
-
-    /**
      * Returns info about the unreleased version, or {@code null} if the version is released.
      */
     public UnreleasedVersionInfo unreleasedInfo(Version version) {

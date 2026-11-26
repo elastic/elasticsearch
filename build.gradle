@@ -239,9 +239,10 @@ tasks.register("updateCIBwcVersions") {
 tasks.register("verifyVersions") {
   // Capture everything needed at execution time during configuration to stay compatible with the configuration cache
   boolean offline = gradle.startParameter.offline
-  // BwcVersions does not serialize its full version list, so capture the plain version data
-  def currentVersionProvider = buildParams.bwcVersionsProvider.map { it.currentVersion }
-  def allVersionsProvider = buildParams.bwcVersionsProvider.map { it.allVersions }
+  // BwcVersions does not serialize its full version list, so capture the plain version data. Use the version list that does not
+  // depend on branches.json, as this task loads the development branches itself below.
+  Version currentVersion = VersionProperties.elasticsearchVersion
+  def allVersionsProvider = buildParams.allVersionsProvider
   // branches.json is a remote file that can change without any local change. Querying this provider only at execution time
   // makes Gradle fetch it on every run, also when reusing the configuration cache, so we always validate the latest state.
   def developmentBranchesProvider = DevelopmentBranchesValueSource.developmentBranches(project)
@@ -253,7 +254,7 @@ tasks.register("verifyVersions") {
     if (offline) {
       throw new GradleException("Must run in online mode to verify versions")
     }
-    def bwcVersions = new BwcVersions(currentVersionProvider.get(), allVersionsProvider.get(), developmentBranchesProvider.get())
+    def bwcVersions = new BwcVersions(currentVersion, allVersionsProvider.get(), developmentBranchesProvider.get())
     // Read the list from maven central.
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).

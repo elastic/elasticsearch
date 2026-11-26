@@ -2108,9 +2108,8 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         assertEquals(java.util.Set.of("url"), pushed.predicateColumnNames());
     }
 
-    // Shape-detection unit tests live in WildcardLikeShapeTests now that the parser is a shared
-    // utility. The evaluator tests below cross-check that ParquetPushedExpressions actually
-    // dispatches through the shared shape on representative LIKE patterns.
+    // Shape-detection unit tests live in StringPatternTests now that Parquet maps
+    // WildcardPattern.shape(). The evaluator tests below cross-check dispatch on representative LIKE patterns.
 
     public void testWildcardLikeContainsLiteralOrdinalDictionaryAgreesWithAutomaton() {
         // Cross-checks the SIMD contains path against the per-row scalar path on a dictionary
@@ -2134,7 +2133,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         Block ordinalsBlock = ordinalBlock(dict, randomOrdinals, null);
         Block plainBlock = plainBytesRefBlock(dict, randomOrdinals);
         try (ordinalsBlock; plainBlock) {
-            // Each entry exercises a distinct WildcardLikeShape branch through the affix-contains
+            // Each entry exercises a distinct WildcardPattern.shape() branch through the affix-contains
             // dispatch (or its automaton fallback). The shape is a pre-existing cache key so the
             // dispatch is exercised end-to-end for every pattern; ordinal vs plain must agree on
             // every row, every pattern.
@@ -2264,7 +2263,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
     }
 
     public void testWildcardLikePrefixOnlyShapeUsesByteMatchers() {
-        // Functional pin for the prefix*-shape dispatch through the WildcardLikeShape decomposition.
+        // Functional pin for the prefix*-shape dispatch through WildcardPattern.shape().
         // Equivalent semantics to a plain StartsWith but reaches the affix-contains path through
         // WildcardLike, exercising the shared ByteMatchers#startsWith primitive on both prefixes
         // shorter and longer than the JDK partial-inline window.
@@ -2378,10 +2377,9 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
     }
 
     public void testWildcardLikeContainsLiteralEscapeStillCorrect() {
-        // *foo\*bar* (literal "foo*bar") must NOT take the SIMD path — WildcardLikeShape.of
-        // returns null when the middle contains '\\'. The automaton fallback still produces the
-        // right answer; this test pins that behavior so a future "smarter" un-escape doesn't
-        // regress correctness.
+        // *foo\*bar* unescapes in WildcardPattern.shape() to Contains("foo*bar") and DOES take
+        // the affixContains fast path. Survivors stay the same: only the value with a literal '*'
+        // matches. This used to stay on the automaton because the DF parser rejected any '\\'.
         try (var builder = blockFactory.newBytesRefBlockBuilder(2)) {
             builder.appendBytesRef(new BytesRef("xfoo*barx"));
             builder.appendBytesRef(new BytesRef("xfooXbarx"));

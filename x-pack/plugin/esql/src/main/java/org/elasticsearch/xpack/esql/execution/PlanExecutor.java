@@ -435,6 +435,15 @@ public class PlanExecutor {
         return ActionListener.releaseBefore(reservation, listener);
     }
 
+    private void recordQuery(
+        EsqlQueryRequest request,
+        PlanTelemetry planTelemetry,
+        EsqlExecutionInfo executionInfo,
+        QueryMetricsListener.Outcome outcome
+    ) {
+        planTelemetryManager.recordQuery(planTelemetry, request.requestedTimeRange(), outcome, executionInfo.tookOrElapsed());
+    }
+
     private void onQuerySuccess(
         EsqlQueryRequest request,
         ActionListener<Versioned<Result>> listener,
@@ -446,6 +455,7 @@ public class PlanExecutor {
         String client
     ) {
         planTelemetryManager.publish(planTelemetry, true);
+        recordQuery(request, planTelemetry, executionInfo, QueryMetricsListener.Outcome.SUCCESS);
         boolean partial = result != null && result.inner().completionInfo().partial();
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
@@ -483,6 +493,7 @@ public class PlanExecutor {
         // X-elastic-product-origin header instead (see clientOf), so the two families can differ for the same query.
         metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
+        recordQuery(request, planTelemetry, executionInfo, outcomeOf(ex));
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
             queryLabels(client, planTelemetry),

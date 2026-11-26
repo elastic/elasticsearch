@@ -1,0 +1,63 @@
+{
+  "prometheus.query_exemplars": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/reference/query-languages/promql/promql-http-api#promql-http-api-query-exemplars",
+      "description": "Query Prometheus exemplars"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/x-www-form-urlencoded"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_prometheus/api/v1/query_exemplars",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/_prometheus/{index}/api/v1/query_exemplars",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "An index expression that restricts which indices are considered. Defaults to `metrics-*`"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "query": {
+        "type": "string",
+        "description": "The PromQL expression that selects the series",
+        "required": true
+      },
+      "start": {
+        "type": "string",
+        "description": "The start of the range, as an RFC 3339 timestamp or Unix time in seconds",
+        "required": true
+      },
+      "end": {
+        "type": "string",
+        "description": "The end of the range, as an RFC 3339 timestamp or Unix time in seconds",
+        "required": true
+      },
+      "timeout": {
+        "type": "string",
+        "description": "The evaluation timeout, as a number of seconds or a duration such as `30s`. Capped by `xpack.prometheus.query.timeout`"
+      }
+    }
+  }
+}

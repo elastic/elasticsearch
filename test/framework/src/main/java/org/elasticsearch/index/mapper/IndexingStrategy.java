@@ -9,12 +9,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.escf.EscfBatch;
@@ -79,7 +83,8 @@ public enum IndexingStrategy {
     // are the ones the engine uses. It falls back to document indexing on any Exception and only logs it. A refused resolution and the
     // UnsupportedOperationException that mappers throw to ask for the fallback fall back here too. The logged exception of any other
     // failure, which is a mapper bug, fails the test instead of being hidden by document indexing. A fallback parses the rows of the
-    // encoded batch, as the shard does, and not the original JSON, so that it also covers what the row parser does with a null.
+    // encoded batch, as the shard does, and not the original JSON, so that it also covers what the row parser does with a null. The logger
+    // is raised to WARN while it runs, because the warning carries the exception and a test run can set a higher level.
     private static Outcome indexAsBatch(MapperService mapperService, IndexWriter indexWriter, List<String> sources, int firstSeqNo)
         throws IOException {
         final int count = sources.size();
@@ -98,6 +103,12 @@ public enum IndexingStrategy {
             }
             final FailureRecorder failure = new FailureRecorder();
             final EngineBatch engineBatch;
+            final Logger logger = LogManager.getLogger(ShardBatchMapper.class);
+            final Level level = logger.getLevel();
+            final boolean raiseLevel = logger.isWarnEnabled() == false;
+            if (raiseLevel) {
+                Loggers.setLevel(logger, Level.WARN);
+            }
             try (MockLog mockLog = MockLog.capture(ShardBatchMapper.class)) {
                 mockLog.addExpectation(failure);
                 engineBatch = ShardBatchMapper.mapColumnBatch(
@@ -112,6 +123,10 @@ public enum IndexingStrategy {
                     DocumentParsingProvider.EMPTY_INSTANCE
                 );
                 mockLog.assertAllExpectationsMatched();
+            } finally {
+                if (raiseLevel) {
+                    Loggers.setLevel(logger, level);
+                }
             }
             if (engineBatch == null) {
                 if (failure.thrown instanceof UnsupportedOperationException) {

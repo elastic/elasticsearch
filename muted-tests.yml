@@ -622,11 +622,6 @@ tests:
   - :x-pack:plugin:vector-tile:test
   method: testDegeneratedPolygon
   issue: https://github.com/elastic/elasticsearch/issues/165844
-- class: org.elasticsearch.xpack.downsample.DownsampleResilienceIT
-  tasks:
-  - :x-pack:plugin:downsample:internalClusterTest
-  method: testConcurrentRequestsForDifferentTargets
-  issue: https://github.com/elastic/elasticsearch/issues/165848
 - class: org.elasticsearch.snapshots.DedicatedClusterSnapshotRestoreIT
   tasks:
   - :server:internalClusterTest
@@ -962,3 +957,142 @@ tests:
   - :x-pack:plugin:esql:test
   method: testEvaluatorToString {TestCase=<date, 13 dates>}
   issue: https://github.com/elastic/elasticsearch/issues/167590
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFoldAnyNullIsNullWithoutFoldNull {TestCase=<long, 7 ints> null in 4}
+  issue: https://github.com/elastic/elasticsearch/issues/167592
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluate {TestCase=<double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>, <double>,
+    <double>, <double>, <null>, <double>, <double>}
+  issue: https://github.com/elastic/elasticsearch/issues/167597
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<date, 19 dates> null in 16}
+  issue: https://github.com/elastic/elasticsearch/issues/167600
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateBlockWithoutNulls {TestCase=<date_nanos, 13 date_nanos> null in 10}
+  issue: https://github.com/elastic/elasticsearch/issues/167603
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testSerializationOfSimple {TestCase=<long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <null>, <long>, <long>, <long>, <long>, <long>, <long>}
+  issue: https://github.com/elastic/elasticsearch/issues/167607
+- class: org.elasticsearch.datastreams.TSDBPassthroughIndexingIT
+  tasks:
+  - :modules:data-streams:internalClusterTest
+  method: testIndexingGettingAndSearching
+  issue: https://github.com/elastic/elasticsearch/issues/167611
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateInManyThreads {TestCase=<long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>,
+    <long>, <long>, <long>, <long>, <null>}
+  issue: https://github.com/elastic/elasticsearch/issues/167613
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double>, <double>, <double>, <double>, <double>, <null>, <double>, <double>, <double>, <double>,
+    <double>, <double>}
+  issue: https://github.com/elastic/elasticsearch/issues/167615
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testSnapshotPrimaryRelocations
+  issue: https://github.com/elastic/elasticsearch/issues/167619
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testTypeResolved {TestCase=<long, 18 doubles> null in 5}
+  issue: https://github.com/elastic/elasticsearch/issues/167622
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithReadFromObjectStoreTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testSnapshotPrimaryRelocations
+  issue: https://github.com/elastic/elasticsearch/issues/167626
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateBlockWithNulls {TestCase=<long, 17 longs> null in 15}
+  issue: https://github.com/elastic/elasticsearch/issues/167630
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateInManyThreads {TestCase=<int, 8 ints> null in 3}
+  issue: https://github.com/elastic/elasticsearch/issues/167632
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFactoryToString {TestCase=<null>, <long>, <long>, <long>, <long>, <long>}
+  issue: https://github.com/elastic/elasticsearch/issues/167634
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFold {TestCase=<date_nanos, 14 date_nanos> null in 8}
+  issue: https://github.com/elastic/elasticsearch/issues/167637
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateBlockWithNulls {TestCase=<datetime>, <null>, <datetime>, <datetime>, <datetime>, <datetime>}
+  issue: https://github.com/elastic/elasticsearch/issues/167639
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double, 11 longs> null in 3}
+  issue: https://github.com/elastic/elasticsearch/issues/167643
+- class: org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactoryTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFilteredLimitRampStaysParkedOnDenseFirstPage
+  issue: https://github.com/elastic/elasticsearch/issues/167649
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testStress
+  issue: https://github.com/elastic/elasticsearch/issues/166620
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testSerializationOfSimple {TestCase=<integer>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <null>, <long>,
+    <long>, <long>, <long>, <long>, <long>, <long>}
+  issue: https://github.com/elastic/elasticsearch/issues/167652
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateBlockWithoutNulls {TestCase=<long, 18 ints> null in 11}
+  issue: https://github.com/elastic/elasticsearch/issues/167654
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  tasks:
+  - :qa:rolling-upgrade:bcUpgradeTest
+  method: testIndexSortForNumericTypes {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/167667
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  tasks:
+  - :qa:rolling-upgrade:bcUpgradeTest
+  method: testIndexSortForNumericTypes {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/167674
+- class: org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactoryTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFilteredLimitRampStaysParkedOnDenseFirstPageWithK1
+  issue: https://github.com/elastic/elasticsearch/issues/167690
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchFailuresIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testStopFetchesTheRowsSelectedSoFar
+  issue: https://github.com/elastic/elasticsearch/issues/167692
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  tasks:
+  - :qa:rolling-upgrade:bcUpgradeTest
+  method: testIndexSortForNumericTypes {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/167695
+- class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactoryTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFilteredLimitRampSkipsParkedWhenRemainingHitsZero
+  issue: https://github.com/elastic/elasticsearch/issues/167700

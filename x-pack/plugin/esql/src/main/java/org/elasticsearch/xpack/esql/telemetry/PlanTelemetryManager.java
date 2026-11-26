@@ -157,9 +157,9 @@ public class PlanTelemetryManager {
     public static final String SOURCE_COMMAND = "es_esql_source_command";
 
     /**
-     * Attribute of {@link #QUERY_DURATION_HISTOGRAM} and {@link #QUERY_TOTAL}: the age of the lower bound of the request filter's
-     * {@code @timestamp} range when the query started, bucketed by {@link TimeRangeBucket}. Absent if the request filter has no such
-     * range. Shared with the search metrics, which bucket a Query DSL search's time range the same way, so one filter covers both.
+     * Attribute of {@link #QUERY_DURATION_HISTOGRAM} and {@link #QUERY_TOTAL}: the age of the lower bound of the {@code @timestamp}
+     * range the query asks for when it started, bucketed by {@link TimeRangeBucket}. Absent if the range has no lower bound.
+     * Shared with the search metrics, which bucket a Query DSL search's time range the same way, so one filter covers both.
      */
     public static final String TIME_RANGE_FILTER_FROM = SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE;
 
@@ -256,7 +256,7 @@ public class PlanTelemetryManager {
     /**
      * Records a query, once per query: counts it by its outcome, and records its duration if it succeeded.
      *
-     * @param requestedTimeRange the {@code @timestamp} range the request filter asks for, with the now its age is relative to, or
+     * @param requestedTimeRange the {@code @timestamp} range the query asks for, with the now its age is relative to, or
      *                           {@code null} if unknown
      */
     public void recordQuery(
@@ -265,7 +265,7 @@ public class PlanTelemetryManager {
         QueryMetricsListener.Outcome outcome,
         TimeValue took
     ) {
-        Map<String, Object> attributes = requestedTimeRange == null
+        Map<String, Object> attributes = requestedTimeRange == null || requestedTimeRange.from() == null
             ? Map.of(SOURCE_COMMAND, metrics.sourceCommand().name())
             : Map.of(SOURCE_COMMAND, metrics.sourceCommand().name(), TIME_RANGE_FILTER_FROM, timeRangeFilterFrom(requestedTimeRange));
         queryCounter.incrementBy(1, Maps.copyMapWithAddedEntry(attributes, OUTCOME, outcome.name().toLowerCase(Locale.ROOT)));
@@ -279,7 +279,7 @@ public class PlanTelemetryManager {
      * Query DSL searches. A range that starts in the future lands in the first bucket.
      */
     private static String timeRangeFilterFrom(RequestedTimeRange requestedTimeRange) {
-        Duration age = Duration.between(requestedTimeRange.bounds().start(), requestedTimeRange.now());
+        Duration age = Duration.between(requestedTimeRange.from(), requestedTimeRange.now());
         long ageMillis;
         try {
             ageMillis = age.toMillis();

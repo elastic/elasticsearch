@@ -30,7 +30,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * A master-eligible or data node that cannot persist the project encryption key cannot persist any cluster state, so once the key is
- * installed such a node is not allowed to join, and it can't reload its password away. Installing the key only once every such node can persist it is covered by {@code MissingPasswordRolloutIT}.
+ * installed such a node is not allowed to join, and it can't reload its password away. Installing the key only once every such node
+ * can persist it is covered by {@code MissingPasswordRolloutIT}.
  *
  * <p>Passwords are added with a secure settings reload rather than at startup, so that a restart drops them.
  */

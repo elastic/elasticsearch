@@ -182,6 +182,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     private final Map<ShardId, ShardMemoryMetrics> shardMemoryMetrics = new ConcurrentHashMap<>();
     private final AtomicReference<IndexingOperationsMemoryRequirements> indexingOperationsHeapMemoryRequirementsRef =
         new AtomicReference<>();
+    private final AtomicReference<LargestIndexingOperation> largestIndexingOperationRef = new AtomicReference<>();
 
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile boolean indexingOperationsMemoryMetricsEnabled;
@@ -363,6 +364,26 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return indexingHeapMemoryRequirements.minimumRequiredHeapInBytes();
     }
 
+    /**
+     * Largest raw indexing operation size still inside its validity window, or {@code 0} when none is stored or it has expired.
+     */
+    public long largestRecentIndexingOpSize() {
+        if (indexingOperationsMemoryMetricsEnabled == false) {
+            return 0;
+        }
+        final Long operationSize = largestOperationSize(relativeTimeInNanos());
+        return operationSize == null ? 0L : operationSize;
+    }
+
+    private Long largestOperationSize(long now) {
+        var largestOperation = largestIndexingOperationRef.get();
+        if (largestOperation == null || largestOperation.validUntil() < now) {
+            largestIndexingOperationRef.compareAndSet(largestOperation, null);
+            return null;
+        }
+        return largestOperation.operationSizeInBytes();
+    }
+
     public long mergeMemoryEstimation() {
         if (mergeMemoryEstimateEnabled == false) {
             return 0;
@@ -494,6 +515,23 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     }
 
     /**
+     * Record the largest raw indexing operation size published by a data node. The maximum is kept until
+     * {@link #INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING} elapses
+     */
+    public void updateLargestIndexingOperationSize(long operationSizeInBytes) {
+        long nowInNanos = relativeTimeInNanosSupplier.getAsLong();
+        largestIndexingOperationRef.accumulateAndGet(
+            new LargestIndexingOperation(operationSizeInBytes, nowInNanos + indexingOperationsMemoryMetricsValidityDuration.nanos()),
+            (existing, proposed) -> {
+                if (existing == null || existing.validUntil() < nowInNanos) {
+                    return proposed;
+                }
+                return existing.compareTo(proposed) >= 0 ? existing : proposed;
+            }
+        );
+    }
+
+    /**
      * Update our map of {@link ShardMemoryMetrics} to represent the new cluster state. This includes:
      *
      * <ul>
@@ -513,6 +551,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             shardMemoryMetrics.clear();
             indexingOperationsHeapMemoryRequirementsRef.set(null);
+            largestIndexingOperationRef.set(null);
             maxShardMergeMemoryEstimatePerNode.clear();
             initialized = false;
             // Set the cluster state to unknown so we don't ignore valid updates that arrive during our next promotion
@@ -647,6 +686,17 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             return null;
         }
         return reqs;
+    }
+
+    private record LargestIndexingOperation(long operationSizeInBytes, long validUntil) implements Comparable<LargestIndexingOperation> {
+        private static final Comparator<LargestIndexingOperation> COMPARATOR = Comparator.comparingLong(
+            LargestIndexingOperation::operationSizeInBytes
+        ).thenComparingLong(LargestIndexingOperation::validUntil);
+
+        @Override
+        public int compareTo(LargestIndexingOperation o) {
+            return COMPARATOR.compare(this, o);
+        }
     }
 
     /**

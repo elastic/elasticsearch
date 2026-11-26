@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.memory;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -34,6 +35,13 @@ public class TransportPublishIndexingOperationsHeapMemoryRequirements extends Tr
 
     public static final String NAME = "cluster:monitor/stateless/autoscaling/publish_indexing_operations_heap_memory_requirements";
     public static final ActionType<ActionResponse.Empty> INSTANCE = new ActionType<>(NAME);
+
+    /**
+     * Adds the raw indexing operation size
+     */
+    public static final TransportVersion PUBLISH_LARGEST_INDEXING_OPERATION_SIZE = TransportVersion.fromName(
+        "publish_largest_indexing_operation_size"
+    );
 
     private final StatelessMemoryMetricsService memoryMetricsService;
 
@@ -63,6 +71,7 @@ public class TransportPublishIndexingOperationsHeapMemoryRequirements extends Tr
         throws Exception {
         ActionListener.completeWith(listener, () -> {
             memoryMetricsService.updateIndexingOperationsHeapMemoryRequirements(request.getMinimumRequiredHeapInBytes());
+            memoryMetricsService.updateLargestIndexingOperationSize(request.getLargestOperationSizeInBytes());
             return ActionResponse.Empty.INSTANCE;
         });
     }
@@ -74,25 +83,50 @@ public class TransportPublishIndexingOperationsHeapMemoryRequirements extends Tr
 
     public static class Request extends MasterNodeRequest<Request> {
         private final long minimumRequiredHeapInBytes;
+        private final long largestOperationSizeInBytes;
 
+        /**
+         * A publication from a node that only knows how to send a precomputed heap requirement.
+         */
         public Request(long minimumRequiredHeapInBytes) {
+            this(minimumRequiredHeapInBytes, 0L);
+        }
+
+        /**
+         * @param minimumRequiredHeapInBytes  heap computed on the publishing node
+         * @param largestOperationSizeInBytes raw size of the largest indexing operation
+         */
+        public Request(long minimumRequiredHeapInBytes, long largestOperationSizeInBytes) {
             super(TimeValue.MINUS_ONE);
             this.minimumRequiredHeapInBytes = minimumRequiredHeapInBytes;
+            this.largestOperationSizeInBytes = largestOperationSizeInBytes;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.minimumRequiredHeapInBytes = in.readVLong();
+            if (in.getTransportVersion().supports(PUBLISH_LARGEST_INDEXING_OPERATION_SIZE)) {
+                this.largestOperationSizeInBytes = in.readVLong();
+            } else {
+                this.largestOperationSizeInBytes = 0L;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVLong(minimumRequiredHeapInBytes);
+            if (out.getTransportVersion().supports(PUBLISH_LARGEST_INDEXING_OPERATION_SIZE)) {
+                out.writeVLong(largestOperationSizeInBytes);
+            }
         }
 
         public long getMinimumRequiredHeapInBytes() {
             return minimumRequiredHeapInBytes;
+        }
+
+        public long getLargestOperationSizeInBytes() {
+            return largestOperationSizeInBytes;
         }
 
         @Override
@@ -104,12 +138,13 @@ public class TransportPublishIndexingOperationsHeapMemoryRequirements extends Tr
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return minimumRequiredHeapInBytes == request.minimumRequiredHeapInBytes;
+            return minimumRequiredHeapInBytes == request.minimumRequiredHeapInBytes
+                && largestOperationSizeInBytes == request.largestOperationSizeInBytes;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(minimumRequiredHeapInBytes);
+            return Objects.hash(minimumRequiredHeapInBytes, largestOperationSizeInBytes);
         }
     }
 }

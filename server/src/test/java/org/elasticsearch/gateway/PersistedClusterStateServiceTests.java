@@ -1980,8 +1980,12 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().add(localNode).localNodeId(nodeId)).build();
     }
 
-    private static final String REWRITING_STATE_WARNING = "rewriting on-disk state as master and/or data roles have been removed from node";
+    private static final String REWRITING_STATE_MESSAGE = "rewriting on-disk state as master and/or data roles have been removed from node";
 
+    @TestLogging(
+        value = "org.elasticsearch.gateway.PersistedClusterStateService:INFO",
+        reason = "verifying the INFO-level message about rewriting on-disk state"
+    )
     public void testPersistNodeIdWithoutOverwritingStateOnFreshDataPaths() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
@@ -1993,7 +1997,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "no warning",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.INFO,
-                        REWRITING_STATE_WARNING
+                        REWRITING_STATE_MESSAGE
                     )
                 );
                 persistedClusterStateService.persistNodeIdWithoutOverwritingState(0L, emptyState);
@@ -2007,6 +2011,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.gateway.PersistedClusterStateService:INFO",
+        reason = "verifying the INFO-level message about rewriting on-disk state"
+    )
     public void testPersistNodeIdWithoutOverwritingStateReplacesStateWithoutVotes() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
@@ -2029,7 +2037,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "no warning",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.INFO,
-                        REWRITING_STATE_WARNING
+                        REWRITING_STATE_MESSAGE
                     )
                 );
                 persistedClusterStateService.persistNodeIdWithoutOverwritingState(
@@ -2046,6 +2054,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.gateway.PersistedClusterStateService:INFO",
+        reason = "verifying the INFO-level message about rewriting on-disk state"
+    )
     public void testPersistNodeIdWithoutOverwritingStateRetainsStateWithVotes() throws IOException {
         final var allDataPaths = createDataPaths();
 
@@ -2114,7 +2126,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             "warning",
                             PersistedClusterStateService.class.getCanonicalName(),
                             Level.INFO,
-                            REWRITING_STATE_WARNING
+                            REWRITING_STATE_MESSAGE
                         )
                     );
                     persistedClusterStateService.persistNodeIdWithoutOverwritingState(

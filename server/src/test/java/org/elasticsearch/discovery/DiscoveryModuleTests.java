@@ -41,6 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -226,12 +227,32 @@ public class DiscoveryModuleTests extends ESTestCase {
     public void testCollectsJoinAttributesFromEveryPlugin() {
         assertEquals(
             Map.of("a", "1", "b", "2"),
-            DiscoveryModule.collectJoinAttributes(List.of(joinAttributesPlugin(Map.of("a", "1")), joinAttributesPlugin(Map.of("b", "2"))))
+            DiscoveryModule.collectJoinAttributes(
+                List.of(joinAttributesPlugin(Map.of("a", "1")), joinAttributesPlugin(Map.of("b", "2"))),
+                key -> fail("unexpected duplicate key [" + key + "]")
+            )
         );
+    }
+
+    public void testLeavesOutJoinAttributesSetByMoreThanOnePlugin() {
+        List<String> duplicateKeys = new ArrayList<>();
+        assertEquals(
+            Map.of("b", "2"),
+            DiscoveryModule.collectJoinAttributes(
+                List.of(joinAttributesPlugin(Map.of("a", "1", "b", "2")), joinAttributesPlugin(Map.of("a", "3"))),
+                duplicateKeys::add
+            )
+        );
+        assertEquals(List.of("a"), duplicateKeys);
+    }
+
+    public void testJoinAttributeSetByMoreThanOnePluginFailsStartup() {
         assertThat(
             expectThrows(
                 IllegalStateException.class,
-                () -> DiscoveryModule.collectJoinAttributes(
+                () -> newModule(
+                    Settings.EMPTY,
+                    List.of(),
                     List.of(joinAttributesPlugin(Map.of("a", "1")), joinAttributesPlugin(Map.of("a", "2")))
                 )
             ).getMessage(),

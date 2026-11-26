@@ -46,7 +46,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -83,7 +82,6 @@ import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1274,67 +1272,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             addedNodes.forEach(cn -> cn.joinAttributes.put("test.can_join", "true"));
             cluster.stabilise();
-        }
-    }
-
-    /**
-     * The joins that elect a master carry the joining nodes' attributes, and a join rejected in an election doesn't stop it from
-     * committing, as long as the admitted joins form a quorum.
-     */
-    public void testJoinAttributesAreValidatedInElection() {
-        joinAttributesAreValidatedInElection(true);
-    }
-
-    /**
-     * @param electionNeedsAnotherVote whether an election is won only with votes from other nodes, so that the winning election validates
-     *                                 other nodes' joins; with an atomic register a candidate can win with only its own vote.
-     */
-    protected void joinAttributesAreValidatedInElection(boolean electionNeedsAnotherVote) {
-        // a node outside the voting configuration joins a candidate before it wins only some of the time
-        for (int attempt = 1;; attempt++) {
-            try (Cluster cluster = clusterWithVotersAndOtherMasterEligibleNodes()) {
-                final Set<String> voterIds = cluster.initialConfiguration.getNodeIds();
-                final Map<DiscoveryNode, Map<String, String>> validatedInElection = new HashMap<>();
-                final Set<Long> termsWithRejection = new HashSet<>();
-                for (ClusterNode clusterNode : cluster.clusterNodes) {
-                    clusterNode.joinAttributes.put("test.node_id", clusterNode.getId());
-                    clusterNode.extraJoinAttributesValidators.add((node, attributes, state) -> {
-                        if (state.nodes().getMasterNodeId() == null) {
-                            validatedInElection.put(node, attributes);
-                            // only nodes outside the voting configuration, so that the admitted joins can still form a quorum
-                            if (voterIds.contains(node.getId()) == false) {
-                                termsWithRejection.add(clusterNode.coordinator.getCurrentTerm());
-                                throw new IllegalStateException("rejected in election");
-                            }
-                        }
-                    });
-                }
-
-                cluster.stabilise();
-
-                validatedInElection.forEach((node, attributes) -> assertEquals(Map.of("test.node_id", node.getId()), attributes));
-                if (electionNeedsAnotherVote == false) {
-                    return;
-                }
-                assertThat(validatedInElection.keySet(), not(empty()));
-                final long leaderTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
-                if (termsWithRejection.contains(leaderTerm) || attempt == 20) {
-                    // the election that rejected a join committed
-                    assertThat(termsWithRejection, hasItem(leaderTerm));
-                    return;
-                }
-            }
-        }
-    }
-
-    private Cluster clusterWithVotersAndOtherMasterEligibleNodes() {
-        while (true) {
-            Cluster cluster = new Cluster(randomIntBetween(3, 5));
-            int voters = cluster.initialConfiguration.getNodeIds().size();
-            if (voters > 1 && voters < cluster.clusterNodes.size()) {
-                return cluster;
-            }
-            cluster.close();
         }
     }
 

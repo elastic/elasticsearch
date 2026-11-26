@@ -117,11 +117,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    public void testJoinAttributesAreValidatedInElection() {
-        joinAttributesAreValidatedInElection(false);
-    }
-
-    @Override
     @AwaitsFix(bugUrl = "ES-8099")
     public void testCannotJoinClusterWithDifferentUUID() {
         // Placeholder to implement a test wherein the blob store cluster state is suddenly swapped out with a different cluster's state

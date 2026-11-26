@@ -3325,3 +3325,35 @@ result:double | step:datetime            | pod:keyword | v:keyword
 913.0         | 2024-05-10T01:00:00.000Z | two         | 812
 913.0         | 2024-05-10T01:00:00.000Z | two         | 913
 ;
+
+// limit_ratio over a without samples the groups by their label set.
+limit_ratio_over_without
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: promql_nested_without
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(limit_ratio(0.5, sum without (pod) (last_over_time(network.eth0.tx[5m]))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+1068.0        | "{""cluster"":""prod"",""region"":[""eu"",""us""]}"
+1914.0        | "{""cluster"":""qa""}"
+;
+
+// An enclosing without regroups the sample of limit_ratio_over_without; it does not change which groups are kept.
+limit_ratio_under_without_keeps_its_sample
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: promql_nested_without
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(sum without (region) (limit_ratio(0.5, sum without (pod) (last_over_time(network.eth0.tx[5m])))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+1068.0        | "{""cluster"":""prod""}"
+1914.0        | "{""cluster"":""qa""}"
+;

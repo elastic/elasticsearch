@@ -169,6 +169,21 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
     }
 
     /**
+     * An enclosing {@code without} asks the input for a coarser packing of its own. The sample hashes only the input's
+     * grain, its finest packing, so it keeps the series it keeps on its own whatever regroups it.
+     */
+    public void testLimitRatioUnderOuterWithoutHashesItsGrain() {
+        assumeTrue("Nested without requires the label container functions", containerFunctions());
+        var bare = hashOffset("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum without (pod) (network.bytes_in)))");
+        var nested = hashOffset(
+            "PROMQL index=k8s step=1h result=(sum without (region) (limit_ratio(0.5, sum without (pod) (network.bytes_in))))"
+        );
+
+        assertThat(samplingKeyNames(nested), equalTo(samplingKeyNames(bare)));
+        assertThat(nested.children(), hasSize(1));
+    }
+
+    /**
      * Grouping-key order must not change the hashed identity: the label-derived keys sort by
      * name, so {@code sum by (pod, cluster)} and {@code sum by (cluster, pod)} sample identically.
      */

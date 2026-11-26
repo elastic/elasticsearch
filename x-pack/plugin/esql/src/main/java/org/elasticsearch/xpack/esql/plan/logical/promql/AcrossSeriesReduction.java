@@ -202,31 +202,25 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             addIfMissing(keys, series);
         } else {
             // No series blob: the rows are groups. Their identity is the concrete grouping
-            // underneath -- packed label sets when the schema packs labels away (for example
-            // sum without), else the grain label columns. Packings hold only dimensions, never
-            // the step, so the identity is stable across steps.
-            var resolvedSkips = new ArrayList<Set<String>>();
-            for (Set<String> skip : TranslationContext.finestFirst(table.schema().skips())) {
-                Attribute packing = table.packed(skip);
-                if (packing != null) {
-                    addIfMissing(keys, packing);
-                    resolvedSkips.add(skip);
-                }
+            // underneath -- the finest packed label set when the schema packs labels away (for
+            // example sum without), else the grain label columns. A coarser packing an enclosing
+            // node asks for adds no identity and would tie the sample to that node, so it is not
+            // hashed. Packings hold only dimensions, never the step, so the identity is stable
+            // across steps.
+            Set<String> finest = table.schema().finestSkip();
+            Attribute packing = finest == null ? null : table.packed(finest);
+            if (packing != null) {
+                addIfMissing(keys, packing);
             }
-            // A finite label carried inside any packing adds no identity: the packing already
+            // A finite label carried inside the packing adds no identity: the packing already
             // determines it (for example pod inside _timeseries$region). The surviving labels
             // sort by name so grouping-key order cannot change the hashed bytes.
-            table.schema()
-                .labels()
-                .stream()
-                .filter(label -> resolvedSkips.stream().allMatch(skip -> skip.contains(label)))
-                .sorted()
-                .forEach(label -> {
-                    Attribute carrier = table.label(label);
-                    // Guaranteed by emitRegroup, which resolves every schema label (null-filling missing ones).
-                    assert carrier != null : "invariant: grouping label [" + label + "] must be carried by the input";
-                    addIfMissing(keys, carrier);
-                });
+            table.schema().labels().stream().filter(label -> packing == null || finest.contains(label)).sorted().forEach(label -> {
+                Attribute carrier = table.label(label);
+                // Guaranteed by emitRegroup, which resolves every schema label (null-filling missing ones).
+                assert carrier != null : "invariant: grouping label [" + label + "] must be carried by the input";
+                addIfMissing(keys, carrier);
+            });
         }
         // Validated at analysis (ResolvePromqlFunctions): a foldable numeric non-NaN literal.
         double ratio = ((Number) parameters().getFirst().fold(FoldContext.small())).doubleValue();

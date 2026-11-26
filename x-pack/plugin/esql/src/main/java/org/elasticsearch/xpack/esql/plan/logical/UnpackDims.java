@@ -25,7 +25,7 @@ public class UnpackDims extends UnaryPlan {
 
     private final Attribute packed;
     private final List<Attribute> dims;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public UnpackDims(Source source, LogicalPlan child, Attribute packed, List<Attribute> dims) {
         super(source, child);

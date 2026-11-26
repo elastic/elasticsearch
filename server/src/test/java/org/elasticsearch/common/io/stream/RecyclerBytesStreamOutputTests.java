@@ -87,6 +87,26 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         out.close();
     }
 
+    public void testAllocatedBytes() throws Exception {
+        int pageSize = recycler.pageSize();
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        // a stream starts with a page
+        assertEquals(pageSize, out.allocatedBytes());
+        int length = between(0, 4 * pageSize);
+        out.writeBytes(randomByteArrayOfLength(length));
+        long pages = Math.max(1, (length + pageSize - 1) / pageSize);
+        assertEquals(pages * pageSize, out.allocatedBytes());
+        // the pages stay allocated when the stream seeks back
+        out.seek(between(0, length));
+        assertEquals(pages * pageSize, out.allocatedBytes());
+        if (randomBoolean()) {
+            out.close();
+        } else {
+            out.moveToBytesReference().close();
+        }
+        assertEquals(0, out.allocatedBytes());
+    }
+
     public void testSingleByte() throws Exception {
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
         assertEquals(0, out.size());
@@ -115,6 +135,31 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
         assertEquals(expectedSize, out.size());
         assertArrayEquals(expectedData, BytesReference.toBytes(out.bytes()));
+
+        out.close();
+    }
+
+    public void testUnreserveGivesBackTheUnusedPartOfADirectPageWrite() throws Exception {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        byte[] prefix = randomizedByteArrayWithSize(between(0, 100));
+        out.writeBytes(prefix, 0, prefix.length);
+
+        int reserved = between(1, 200);
+        int used = between(0, reserved);
+        byte[] value = randomizedByteArrayWithSize(used);
+        BytesRef page = out.tryGetPageForWrite(reserved);
+        assertNotNull(page);
+        System.arraycopy(value, 0, page.bytes, page.offset, used);
+        out.unreserve(reserved - used);
+        assertEquals(prefix.length + used, out.size());
+
+        byte[] suffix = randomizedByteArrayWithSize(between(0, 100));
+        out.writeBytes(suffix, 0, suffix.length);
+        byte[] expected = new byte[prefix.length + used + suffix.length];
+        System.arraycopy(prefix, 0, expected, 0, prefix.length);
+        System.arraycopy(value, 0, expected, prefix.length, used);
+        System.arraycopy(suffix, 0, expected, prefix.length + used, suffix.length);
+        assertArrayEquals(expected, BytesReference.toBytes(out.bytes()));
 
         out.close();
     }

@@ -12,12 +12,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -27,15 +27,14 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 
 /**
- * Emits the documents a fetch asks one shard for, as {@code _doc} pages for {@link ValuesSourceReaderOperator}. Each
- * page holds documents of a single segment: a constant shard, a constant segment and strictly increasing docs. That is
- * the shape the reader loads fastest, with one reader per page and no sorting or copying.
+ * Emits the slices a fetch driver takes from a {@link FetchSliceQueue}, as {@code _doc} pages for
+ * {@link ValuesSourceReaderOperator}. Each page holds the documents of one slice: a constant shard, a constant segment and
+ * strictly increasing docs. That is the shape the reader loads fastest, with one reader per page and no sorting or
+ * copying. The second block of a page is the {@link FetchSliceQueue.Slice#position} of its slice, constant over the
+ * page, so the rows of the slices that several drivers load can go back to request order.
  */
 public final class FetchDocsSourceOperator extends SourceOperator {
     /**
@@ -44,83 +43,11 @@ public final class FetchDocsSourceOperator extends SourceOperator {
      * of failing, so the constructor checks it. The arrays belong to this object once it is built, and nobody may
      * change them.
      *
-     * @param shard the slot of the shard in {@link ShardDocsProvider#refCounteds()}
+     * @param shard the slot of the shard in the shard references the operator takes its pages' references from
      */
     public record ShardDocs(int shard, int[] segments, int[] docs) {
-        /**
-         * The fewest documents in a piece of a split. Fewer would read their stored fields one document at a time, also when
-         * they sit next to each other.
-         */
-        static final int MIN_PIECE_DOCS = ValuesFromSingleReader.SEQUENTIAL_BOUNDARY;
-
         public ShardDocs {
             checkSorted(segments, docs);
-        }
-
-        /**
-         * Splits these documents into at most {@code maxPieces} pieces that separate drivers can load at the same time. The
-         * pieces keep the order of these documents, so their rows put one after the other are the rows of the shard. Each
-         * piece holds at least {@link #MIN_PIECE_DOCS} documents, so a dense run in it still reads its stored fields
-         * sequentially, and the pieces are about the same size. A cut falls between two segment runs when one is within a
-         * quarter of a piece of the even cut, and inside a run otherwise, so a shard whose documents sit in one segment
-         * splits too.
-         */
-        public List<ShardDocs> split(int maxPieces) {
-            if (maxPieces < 1) {
-                throw new IllegalArgumentException("maxPieces must be positive but was [" + maxPieces + "]");
-            }
-            int count = docs.length;
-            int pieces = Math.min(maxPieces, count / MIN_PIECE_DOCS);
-            if (pieces < 2) {
-                return List.of(this);
-            }
-            int quarterOfAPiece = count / (4 * pieces);
-            List<ShardDocs> split = new ArrayList<>(pieces);
-            int start = 0;
-            for (int p = 1; p < pieces; p++) {
-                int evenCut = (int) ((long) p * count / pieces);
-                int cut = nearestRunBoundary(evenCut, quarterOfAPiece);
-                if (leavesEnoughDocs(start, cut) == false) {
-                    cut = evenCut;
-                }
-                if (leavesEnoughDocs(start, cut)) {
-                    split.add(slice(start, cut));
-                    start = cut;
-                }
-            }
-            split.add(slice(start, count));
-            return split;
-        }
-
-        /**
-         * Whether a cut at {@code cut} leaves at least {@link #MIN_PIECE_DOCS} documents on both sides, from {@code start}.
-         */
-        private boolean leavesEnoughDocs(int start, int cut) {
-            return cut - start >= MIN_PIECE_DOCS && docs.length - cut >= MIN_PIECE_DOCS;
-        }
-
-        /**
-         * The position nearest to {@code position} where a segment run starts, at most {@code distance} away, or
-         * {@code position} itself when there is none.
-         */
-        private int nearestRunBoundary(int position, int distance) {
-            for (int d = 0; d <= distance; d++) {
-                if (startsARun(position - d)) {
-                    return position - d;
-                }
-                if (startsARun(position + d)) {
-                    return position + d;
-                }
-            }
-            return position;
-        }
-
-        private boolean startsARun(int position) {
-            return position > 0 && position < segments.length && segments[position] != segments[position - 1];
-        }
-
-        private ShardDocs slice(int from, int to) {
-            return new ShardDocs(shard, Arrays.copyOfRange(segments, from, to), Arrays.copyOfRange(docs, from, to));
         }
 
         /**
@@ -166,55 +93,15 @@ public final class FetchDocsSourceOperator extends SourceOperator {
         }
     }
 
-    /**
-     * Hands out the documents of one fetch request, one shard or one {@link ShardDocs#split piece} of a shard per driver.
-     * The drivers of the request share it.
-     */
-    public interface ShardDocsProvider {
-        /**
-         * The documents the driver of {@code driverContext} loads, or {@code null} once all of them have a driver. Called
-         * once per driver, from the thread that builds the drivers of the request.
-         */
-        @Nullable
-        ShardDocs claim(DriverContext driverContext);
-
-        /**
-         * The shard references the pages take, by {@link ShardDocs#shard()}.
-         */
-        IndexedByShardId<? extends RefCounted> refCounteds();
-    }
-
-    /**
-     * @param maxPageSize the most rows in one page. A segment run longer than that spans several pages.
-     */
-    public record Factory(ShardDocsProvider provider, int maxPageSize) implements SourceOperatorFactory {
-        public Factory {
-            checkMaxPageSize(maxPageSize);
-        }
-
-        @Override
-        public SourceOperator get(DriverContext driverContext) {
-            return new FetchDocsSourceOperator(
-                driverContext.blockFactory(),
-                provider.refCounteds(),
-                provider.claim(driverContext),
-                maxPageSize
-            );
-        }
-
-        @Override
-        public String describe() {
-            return "FetchDocsSourceOperator[maxPageSize=" + maxPageSize + "]";
-        }
-    }
-
     private final BlockFactory blockFactory;
     private final IndexedByShardId<? extends RefCounted> refCounteds;
-    @Nullable
-    private final ShardDocs shardDocs;
-    private final int maxPageSize;
+    private final FetchSliceQueue slices;
 
-    private int cursor;
+    /**
+     * The slice of the last page. The next page follows it, unless another driver took the slice after it.
+     */
+    @Nullable
+    private FetchSliceQueue.Slice last;
     private boolean finished;
 
     private int pagesEmitted;
@@ -222,26 +109,12 @@ public final class FetchDocsSourceOperator extends SourceOperator {
     private int segmentRuns;
 
     /**
-     * @param shardDocs the documents to emit, {@code null} for a driver that got no shard
+     * @param slices the slices of a request, which the sources of all its drivers share
      */
-    public FetchDocsSourceOperator(
-        BlockFactory blockFactory,
-        IndexedByShardId<? extends RefCounted> refCounteds,
-        @Nullable ShardDocs shardDocs,
-        int maxPageSize
-    ) {
+    public FetchDocsSourceOperator(BlockFactory blockFactory, IndexedByShardId<? extends RefCounted> refCounteds, FetchSliceQueue slices) {
         this.blockFactory = blockFactory;
         this.refCounteds = refCounteds;
-        this.shardDocs = shardDocs;
-        this.maxPageSize = checkMaxPageSize(maxPageSize);
-    }
-
-    private static int checkMaxPageSize(int maxPageSize) {
-        // an empty page would never move the cursor, and the driver would spin
-        if (maxPageSize < 1) {
-            throw new IllegalArgumentException("maxPageSize must be positive but was [" + maxPageSize + "]");
-        }
-        return maxPageSize;
+        this.slices = slices;
     }
 
     @Override
@@ -251,46 +124,42 @@ public final class FetchDocsSourceOperator extends SourceOperator {
 
     @Override
     public boolean isFinished() {
-        return finished || shardDocs == null || cursor >= shardDocs.docCount();
+        return finished;
     }
 
     @Override
     public Page getOutput() {
-        if (isFinished()) {
+        if (finished) {
             return null;
         }
-        int[] segments = shardDocs.segments();
-        int segment = segments[cursor];
-        int end = cursor;
-        while (end < segments.length && segments[end] == segment && end - cursor < maxPageSize) {
-            end++;
+        FetchSliceQueue.Slice slice = slices.nextSlice(last);
+        if (slice == null) {
+            finished = true;
+            return null;
         }
-        int positions = end - cursor;
+        int positions = slice.docs().length;
         IntVector shard = null;
-        IntVector segmentVector = null;
+        IntVector segment = null;
         IntVector docs = null;
+        Block position = null;
         Page page = null;
         try {
-            shard = blockFactory.newConstantIntVector(shardDocs.shard(), positions);
-            segmentVector = blockFactory.newConstantIntVector(segment, positions);
-            try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(positions)) {
-                for (int p = cursor; p < end; p++) {
-                    builder.appendInt(shardDocs.docs()[p]);
-                }
-                docs = builder.build();
-            }
+            shard = blockFactory.newConstantIntVector(slice.shard(), positions);
+            segment = blockFactory.newConstantIntVector(slice.segment(), positions);
+            docs = blockFactory.newIntArrayVector(slice.docs(), positions);
+            position = blockFactory.newConstantIntBlockWith(slice.position(), positions);
             // the vector takes one reference on its shard and returns it when the page is released
-            DocVector vector = new DocVector(refCounteds, shard, segmentVector, docs, DocVector.config().singleSegmentNonDecreasing(true));
-            page = new Page(positions, vector.asBlock());
+            DocVector vector = new DocVector(refCounteds, shard, segment, docs, DocVector.config().singleSegmentNonDecreasing(true));
+            page = new Page(positions, vector.asBlock(), position);
         } finally {
             if (page == null) {
-                Releasables.closeExpectNoException(shard, segmentVector, docs);
+                Releasables.closeExpectNoException(shard, segment, docs, position);
             }
         }
-        if (cursor == 0 || segments[cursor - 1] != segment) {
+        if (last == null || last.shard() != slice.shard() || last.segment() != slice.segment()) {
             segmentRuns++;
         }
-        cursor = end;
+        last = slice;
         pagesEmitted++;
         docsEmitted += positions;
         return page;
@@ -306,12 +175,13 @@ public final class FetchDocsSourceOperator extends SourceOperator {
 
     @Override
     public String toString() {
-        return "FetchDocsSourceOperator[maxPageSize=" + maxPageSize + "]";
+        return "FetchDocsSourceOperator";
     }
 
     /**
-     * Pages, documents and segment runs a fetch driver emitted. The query phase already counted these documents, so the
-     * totals of a profile don't count them again.
+     * Pages, documents and segment runs a fetch driver emitted. A segment run starts with every page from another shard or
+     * segment than the page before, so it counts how often the driver moved. The query phase already counted these
+     * documents, so the totals of a profile don't count them again.
      */
     public static final class Status implements Operator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

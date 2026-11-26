@@ -440,6 +440,15 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
+    /**
+     * Gives back the last {@code bytes} of the space just taken with {@link #tryGetPageForWrite}, for a write whose exact size is
+     * only known once it is done. Must directly follow that call and the write into the returned page.
+     */
+    public void unreserve(int bytes) {
+        assert bytes >= 0 && currentOffset - bytes >= 0 : "cannot unreserve " + bytes + " bytes at offset " + currentOffset;
+        this.currentOffset -= bytes;
+    }
+
     // overridden with some code duplication the same way other write methods in this class are overridden to bypass StreamOutput's
     // intermediary buffers
     @Override
@@ -610,6 +619,14 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     public void skip(int length) {
         seek(position() + length);
+    }
+
+    /**
+     * The bytes of the recycled pages this stream holds: {@code 0} once it is closed or its bytes are moved out.
+     */
+    public long allocatedBytes() {
+        var pages = this.pages;
+        return pages == null ? 0 : (long) pageSize * pages.size();
     }
 
     @Override

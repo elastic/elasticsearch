@@ -13,6 +13,7 @@ import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.retries.api.BackoffStrategy;
 import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -169,6 +170,23 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertFalse(eue.throttling());
     }
 
+    public void testPermanentRedirectMapsToActionableClientException() {
+        S3Client mockS3 = mock(S3Client.class);
+        SdkHttpResponse response = SdkHttpResponse.builder().statusCode(301).appendHeader("x-amz-bucket-region", "ca-central-1").build();
+        S3Exception redirect = (S3Exception) S3Exception.builder()
+            .statusCode(301)
+            .message("PermanentRedirect")
+            .awsErrorDetails(AwsErrorDetails.builder().errorCode("PermanentRedirect").sdkHttpResponse(response).build())
+            .build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(redirect);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException thrown = expectThrows(ExternalClientException.class, obj::newStream);
+        assertThat(thrown.getMessage(), containsString("set region on the dataset"));
+        assertThat(thrown.getMessage(), containsString("ca-central-1"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(thrown));
+    }
+
     public void testSdkClientExceptionWithoutIoCauseStaysClientError() {
         S3Client mockS3 = mock(S3Client.class);
         SdkClientException credentials = SdkClientException.create("Could not load credentials");
@@ -304,6 +322,49 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("not found"));
         assertThat(ex.getMessage(), containsString(PATH.objectName()));
         assertSame(missing, ex.getCause());
+    }
+
+    /**
+     * A bodyless HTTP 404 is what some fixtures and gateways return for a missing key. The SDK then raises a generic
+     * {@link S3Exception} rather than {@link NoSuchKeyException}; that must still be the not-found condition, or a
+     * deleted object under a cached listing fails the query as an opaque range-read error.
+     */
+    public void testBodyless404IsObjectNotFound() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception missing = (S3Exception) S3Exception.builder().statusCode(404).message("Not Found").build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(missing);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
+        assertEquals(Condition.OBJECT_NOT_FOUND, ex.condition());
+        assertThat(ex.getMessage(), containsString("not found"));
+        assertSame(missing, ex.getCause());
+    }
+
+    public void testCodedNoSuchKey404IsObjectNotFound() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception missing = s3Error(404, "NoSuchKey");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(missing);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
+        assertEquals(Condition.OBJECT_NOT_FOUND, ex.condition());
+        assertSame(missing, ex.getCause());
+    }
+
+    /**
+     * A missing bucket is a 404 with a different error code. Treating it as a gone object would drop
+     * listings and retry, which cannot find a bucket that is not there.
+     */
+    public void testNoSuchBucket404IsNotObjectNotFound() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception missingBucket = s3Error(404, "NoSuchBucket");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(missingBucket);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        IOException thrown = expectThrows(IOException.class, obj::newStream);
+        assertNull(ExceptionsHelper.unwrap(thrown, ExternalClientException.class));
+        assertSame(missingBucket, thrown.getCause());
     }
 
     /**

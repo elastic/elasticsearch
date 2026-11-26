@@ -31,6 +31,7 @@ public class ParquetReaderCountersTests extends ESTestCase {
         // Row-group filter
         assertEquals(0L, snap.rowGroupsTotal());
         assertEquals(0L, snap.rowGroupsKept());
+        assertEquals(0L, snap.rowGroupsDictionaryFilterSkipped());
         // Page index
         assertEquals(false, snap.pageIndexUsed());
         assertEquals(0L, snap.rowsInKeptRowGroups());
@@ -75,6 +76,16 @@ public class ParquetReaderCountersTests extends ESTestCase {
         var snap = c.snapshot();
         assertEquals(3L, snap.rowGroupsTotal());
         assertEquals(1L, snap.rowGroupsKept());
+        assertEquals(0L, snap.rowGroupsDictionaryFilterSkipped());
+    }
+
+    public void testRowGroupsDictionaryFilterSkippedAccumulates() {
+        ParquetReaderCounters c = new ParquetReaderCounters();
+        c.addRowGroupsDictionaryFilterSkipped(2);
+        c.addRowGroupsDictionaryFilterSkipped(0);
+        c.addRowGroupsDictionaryFilterSkipped(5);
+
+        assertEquals(7L, c.snapshot().rowGroupsDictionaryFilterSkipped());
     }
 
     public void testPageIndexCounters() {

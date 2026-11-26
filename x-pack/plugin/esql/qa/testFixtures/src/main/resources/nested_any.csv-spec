@@ -1,0 +1,184 @@
+// NESTED_ANY over nested_orders: order 1 has items a (qty 1) and b (qty 2) and one event, order 2 has neither, order 3 has item c
+// (qty 5) and two events.
+
+anyChildMatches
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items.qty > 1)
+| KEEP id
+| SORT id
+;
+
+id:keyword
+1
+3
+;
+
+conditionsInOneCallHoldForTheSameChild
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items.sku == "a" AND items.qty == 1)
+| KEEP id
+;
+
+id:keyword
+1
+;
+
+conditionsInOneCallDoNotSpanChildren
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items.sku == "a" AND items.qty == 2)
+| KEEP id
+;
+
+id:keyword
+;
+
+separateCallsMayMatchDifferentChildren
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items.sku == "a") AND NESTED_ANY(items.sku == "b")
+| KEEP id
+;
+
+id:keyword
+1
+;
+
+twoCollections
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items.qty > 1) AND NESTED_ANY(events.start > 20)
+| KEEP id
+;
+
+id:keyword
+3
+;
+
+negatedKeepsParentsWithoutAMatchOrWithoutChildren
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NOT NESTED_ANY(items.qty > 1)
+| KEEP id
+;
+
+id:keyword
+2
+;
+
+anyChildAtAll
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items, true)
+| KEEP id
+| SORT id
+;
+
+id:keyword
+1
+3
+;
+
+anyChildAtAllInEval
+required_capability: fn_nested_any
+
+FROM nested_orders
+| EVAL has = NESTED_ANY(items, true)
+| KEEP id, has
+| SORT id
+;
+
+id:keyword | has:boolean
+1          | true
+2          | false
+3          | true
+;
+
+besideAParentCondition
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE id != "3" AND NESTED_ANY(items.qty > 1)
+| KEEP id
+;
+
+id:keyword
+1
+;
+
+stackedFiltersEachReadTheChildren
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items.sku == "a")
+| WHERE NESTED_ANY(items.qty > 1)
+| KEEP id
+;
+
+id:keyword
+1
+;
+
+inADisjunctionWithAParentCondition
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE id == "2" OR NESTED_ANY(items.sku == "a")
+| KEEP id
+| SORT id
+;
+
+id:keyword
+1
+2
+;
+
+evalFlagsEveryParent
+required_capability: fn_nested_any
+
+FROM nested_orders
+| EVAL has = NESTED_ANY(items.qty > 1)
+| KEEP id, has
+| SORT id
+;
+
+id:keyword | has:boolean
+1          | true
+2          | false
+3          | true
+;
+
+groupByTheFlag
+required_capability: fn_nested_any
+
+FROM nested_orders
+| EVAL has = NESTED_ANY(items.qty > 1)
+| STATS orders = COUNT(*) BY has
+| SORT has
+;
+
+orders:long | has:boolean
+1           | false
+2           | true
+;
+
+constantsAreFolded
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items.sku == CONCAT("a", "") AND items.qty > 2 - 1 - 1)
+| KEEP id
+;
+
+id:keyword
+1
+;

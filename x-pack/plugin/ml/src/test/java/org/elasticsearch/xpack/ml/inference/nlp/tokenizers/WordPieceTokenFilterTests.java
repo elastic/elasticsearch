@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 
+@RunWith(ESRandomizedRunner.class)
 public class WordPieceTokenFilterTests extends BaseTokenStreamTestCase {
 
     public static final String UNKNOWN_TOKEN = "[UNK]";

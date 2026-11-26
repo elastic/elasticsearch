@@ -44,6 +44,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.SortedMap;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
@@ -235,7 +236,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     private static final IndexableFieldType TSID_DV_FIELD_TYPE = new SortedDocValuesField("", new BytesRef()).fieldType();
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // Support only the modern coordinator-tsid world:
         // - TIME_SERIES_ROUTING_HASH_IN_ID: routing hash is in _id, so routingBuilder is null in
         // createField and routing() on SourceToParse carries the pre-computed hash. This also

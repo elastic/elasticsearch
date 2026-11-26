@@ -61,9 +61,9 @@ class ValidateJsonAgainstSchemaFuncTest extends AbstractGradleInternalPluginFunc
         result.task(":validateJson").outcome == TaskOutcome.FAILED
 
         and: "problems report contains json-validation group"
-        assertProblemsReportContains("json-validation")
-        assertProblemsReportContainsProblem("schema-violation")
-        assertProblemsReportSeverity("schema-violation", "ERROR")
+        assertProblemsReportContains("JSON Validation")
+        assertProblemsReportContainsProblem("Schema violation")
+        assertProblemsReportSeverity("Schema violation", "ERROR")
     }
 
     def "passes with valid JSON files"() {

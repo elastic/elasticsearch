@@ -29,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -176,6 +177,71 @@ public class SourceRowXContentParserTests extends ESTestCase {
             }
         }
         assertAccessorsMatch(XContentType.CBOR, sources);
+    }
+
+    private static final Set<String> TYPED_ACCESSORS = Set.of(
+        "booleanValue",
+        "shortValue",
+        "intValue",
+        "longValue",
+        "floatValue",
+        "doubleValue",
+        "numberValue",
+        "numberType"
+    );
+
+    /**
+     * The typed accessors only make sense on a value token of the right type, and on every other token they have to throw, as the JSON
+     * parser does, rather than return something left over from an earlier value. The other tests read each accessor on a value token only,
+     * so this one reads them on every token of a document with nested objects and arrays, including the tokens that follow a number.
+     */
+    public void testTypedAccessorsMatchTheJsonParserOnEveryToken() throws IOException {
+        // The object comes first because the encoder lists the nested objects of a row before its leaves.
+        final BytesReference source = new BytesArray("{\"o\":{\"c\":\"x\"},\"a\":5,\"d\":[7,[1],{\"e\":1}]}");
+        final List<String> differences = new ArrayList<>();
+        try (EscfBatch batch = EscfEncoder.encode(List.of(source), XContentType.JSON)) {
+            final SourceRowXContentParser.SchemaNode tree = SourceRowXContentParser.buildSchemaTree(batch.schema());
+            final int tokens = countTokens(source);
+            for (int position = 1; position <= tokens; position++) {
+                for (String name : TYPED_ACCESSORS) {
+                    // A fresh pair of parsers per accessor and position, for the reason given in assertAccessorsMatch.
+                    try (
+                        XContentParser json = XContentHelper.createParserNotCompressed(
+                            XContentParserConfiguration.EMPTY,
+                            source,
+                            XContentType.JSON
+                        );
+                        SourceRowXContentParser row = new SourceRowXContentParser(tree, batch.row(0))
+                    ) {
+                        for (int i = 0; i < position; i++) {
+                            json.nextToken();
+                            row.nextToken();
+                        }
+                        assertEquals("token " + position, json.currentToken(), row.currentToken());
+                        final String problem = compare(name, Outcome.of(json, ACCESSORS.get(name)), Outcome.of(row, ACCESSORS.get(name)));
+                        if (problem != null) {
+                            differences.add("token " + position + " (" + json.currentToken() + ") -> " + name + ": " + problem);
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue(
+            "typed accessors differing from the JSON parser (" + differences.size() + "):\n" + String.join("\n", differences),
+            differences.isEmpty()
+        );
+    }
+
+    private static int countTokens(BytesReference source) throws IOException {
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, XContentType.JSON)
+        ) {
+            int count = 0;
+            while (parser.nextToken() != null) {
+                count++;
+            }
+            return count;
+        }
     }
 
     /**
@@ -372,6 +438,31 @@ public class SourceRowXContentParserTests extends ESTestCase {
                 assertTrue(parser.booleanValue());
                 assertToken(parser, Token.END_OBJECT);
                 assertNull(parser.nextToken());
+            }
+        }
+    }
+
+    /**
+     * A scalar double that is the midpoint between two floats reads as the float the JSON parser parses from the client's text,
+     * not the even float a cast gives (https://github.com/elastic/elasticsearch/issues/165790).
+     */
+    public void testFloatValueOfMidpointDouble() throws IOException {
+        String[] texts = { "1.0000001788139343261718749", "1.0000001788139343261718751", "1.0000001788139343" };
+        StringBuilder json = new StringBuilder("{");
+        for (int i = 0; i < texts.length; i++) {
+            json.append(i > 0 ? "," : "").append("\"f").append(i).append("\":").append(texts[i]);
+        }
+        BytesReference source = new BytesArray(json.append('}').toString());
+        try (EscfBatch batch = EscfEncoder.encode(List.of(source), XContentType.JSON)) {
+            SourceRowXContentParser.SchemaNode tree = SourceRowXContentParser.buildSchemaTree(batch.schema());
+            try (SourceRowXContentParser parser = new SourceRowXContentParser(tree, batch.row(0))) {
+                assertToken(parser, Token.START_OBJECT);
+                for (int i = 0; i < texts.length; i++) {
+                    assertFieldName(parser, "f" + i);
+                    assertToken(parser, Token.VALUE_NUMBER);
+                    assertEquals(texts[i], Float.parseFloat(texts[i]), parser.floatValue(), 0f);
+                }
+                assertToken(parser, Token.END_OBJECT);
             }
         }
     }

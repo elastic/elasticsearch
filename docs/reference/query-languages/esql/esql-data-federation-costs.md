@@ -3,7 +3,7 @@ navigation_title: "Costs"
 description: "Understand the costs of querying external data with ES|QL Data Federation, from your storage provider and from Elastic."
 applies_to:
   stack: preview 9.6+
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---

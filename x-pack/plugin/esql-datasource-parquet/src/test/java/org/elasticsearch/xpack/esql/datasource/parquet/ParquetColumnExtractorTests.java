@@ -14,9 +14,11 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.OutputFile;
+import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -24,6 +26,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -38,6 +41,7 @@ import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -48,6 +52,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -148,6 +154,37 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         StorageObject so = createStorageObject(data);
         try (ColumnExtractor extractor = newFullFileExtractor(so)) {
             assertEquals(100, extractor.rowCount());
+        }
+    }
+
+    public void testDecodeBucketFailureNamesColumnAndFile() throws IOException {
+        byte[] damaged = corruptColumnPayload(writeSnappyIntFile(20_000));
+        StorageObject so = createStorageObject(damaged, StoragePath.of("memory://bucket/test.parquet"));
+        try (
+            ParquetColumnExtractor extractor = new ParquetColumnExtractor(
+                so,
+                new ParquetFormatReader(blockFactory),
+                loadFooter(so),
+                ErrorPolicy.STRICT
+            )
+        ) {
+            ParquetDecodingException thrown = expectThrows(
+                ParquetDecodingException.class,
+                () -> extractor.extract("v", new long[] { 0 }, blockFactory)
+            );
+            assertThat(
+                thrown.getMessage(),
+                allOf(
+                    containsString("Failed to read Parquet column [v]"),
+                    containsString("test.parquet"),
+                    containsString("Could not decompress"),
+                    containsString("codec SNAPPY")
+                )
+            );
+            RuntimeException classified = ExternalFailures.classify(thrown);
+            assertThat(classified, instanceOf(ExternalClientException.class));
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+            assertThat(classified.getMessage(), allOf(containsString("test.parquet"), containsString("SNAPPY")));
         }
     }
 
@@ -283,10 +320,10 @@ public class ParquetColumnExtractorTests extends ESTestCase {
 
     public void testDeferredInferredIntegerOverInt64NullFillsWholeColumn() throws IOException {
         // The deferred-extraction twin of ParquetFormatReaderTests.testInt64InferredIntegerNullFillsWholeColumn. After a
-        // TopN, an INFERRED INTEGER target over an int64 column must null-fill via coerceToTarget — never downcast —
-        // otherwise the column reads differently depending on whether extraction was deferred. supports(LONG, INTEGER) is
-        // true, so a plain (non-declared) reader here pins the deferred branch of the gate split: dropping the
-        // isDeclaredTypeColumn guard in coerceToTarget coerces here and this fails.
+        // TopN, an INFERRED INTEGER target over an int64 column must null-fill via nullFillUncoercible — never
+        // downcast — otherwise the column reads differently depending on whether extraction was deferred.
+        // supports(LONG, INTEGER) is true, so a plain (non-declared) reader here pins the deferred branch of the gate
+        // split: dropping the isDeclaredTypeColumn guard in coercionAdmissible retypes the view and this fails.
         byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
         StorageObject so = createStorageObject(data);
         try (ColumnExtractor extractor = newFullFileExtractor(so)) { // plain reader => "v" is inferred
@@ -308,9 +345,10 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     }
 
     public void testDeferredDeclaredIntegerOverInt64Coerces() throws IOException {
-        // The declared contrast to the above on the SAME deferred path: when "v"'s INTEGER target is declared, the escape
-        // is licensed and coerceToTarget narrows per value (values in range => Integer results, not null) — proving the
-        // deferred gate distinguishes declared from inferred, exactly like the eager pair.
+        // The declared contrast to the above on the SAME deferred path: when "v"'s INTEGER target is declared the
+        // escape is licensed, extract retypes the view, and the decode loop narrows per value (values in range =>
+        // Integer results, not null) — proving the deferred gate distinguishes declared from inferred, exactly like
+        // the eager pair.
         byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
         StorageObject so = createStorageObject(data);
         ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
@@ -1268,6 +1306,45 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         }, /* rowGroupBytes = */ 64 * 1024 * 1024L);
     }
 
+    /** SNAPPY-compressed single-int column, dictionary encoding off so the payload is a data page. */
+    private byte[] writeSnappyIntFile(int rows) throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("v").named("ints");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        OutputFile outputFile = inMemoryOutputFile(out);
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.SNAPPY)
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(64 * 1024 * 1024L)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                writer.write(factory.newGroup().append("v", i * 1_000_003));
+            }
+        }
+        return out.toByteArray();
+    }
+
+    private byte[] corruptColumnPayload(byte[] parquet) throws IOException {
+        ColumnChunkMetaData col = loadFooter(createStorageObject(parquet)).getBlocks().get(0).getColumns().get(0);
+        long dataPageOffset = col.getFirstDataPageOffset();
+        int start = Math.toIntExact(dataPageOffset > 0 ? dataPageOffset : col.getStartingPos());
+        int end = Math.toIntExact(col.getStartingPos() + col.getTotalSize());
+        // Skip the page header (thrift, typically a few dozen bytes). Trailing CRC is not verified
+        // by PrefetchedPageReader, so scrambling only the tail would not fail decompression.
+        int from = start + 32;
+        assertTrue("column chunk too small to scramble a data-page payload", end - from > 8);
+        byte[] damaged = parquet.clone();
+        for (int i = from; i < end; i++) {
+            damaged[i] ^= 0x5A;
+        }
+        return damaged;
+    }
+
     /** Single-int-column file with sequential values 0..rows-1. One row group. */
     private byte[] writeIntFile(int rows) throws IOException {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("v").named("ints");
@@ -1554,6 +1631,10 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     }
 
     private static StorageObject createStorageObject(byte[] data) {
+        return createStorageObject(data, StoragePath.of("memory://test.parquet"));
+    }
+
+    private static StorageObject createStorageObject(byte[] data, StoragePath path) {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
@@ -1597,7 +1678,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
 
             @Override
             public StoragePath path() {
-                return StoragePath.of("memory://test.parquet");
+                return path;
             }
         };
     }

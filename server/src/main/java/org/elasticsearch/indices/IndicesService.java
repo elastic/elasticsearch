@@ -107,6 +107,7 @@ import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -304,6 +305,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexingStatsSettings indexStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final FlushMetrics flushMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
     private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     private final ThrottlingRecoveryService throttlingRecoveryService;
@@ -384,6 +386,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.queryRewriteInterceptor = builder.queryRewriteInterceptor;
         this.mapperMetrics = builder.mapperMetrics;
         this.mergeMetrics = builder.mergeMetrics;
+        this.flushMetrics = builder.flushMetrics;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -667,7 +670,7 @@ public class IndicesService extends AbstractLifecycleComponent
         long[] totals = new long[ids.size()];
         long[] charged = new long[ids.size()];
         long[] weights = new long[ids.size()];
-        return (nanos, finishNanos) -> {
+        return (nanos, cpuNanos, finishNanos) -> {
             synchronized (charged) {
                 boolean grew = false;
                 for (int i = 0; i < totals.length; i++) {
@@ -680,7 +683,7 @@ public class IndicesService extends AbstractLifecycleComponent
                         charged[i] = Math.max(charged[i], totals[i]);
                     }
                 }
-                ShardSearchStats.charge(shards, weights, nanos, finishNanos);
+                ShardSearchStats.charge(shards, weights, nanos, cpuNanos, finishNanos);
             }
         };
     }
@@ -893,6 +896,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexStatsSettings,
             searchStatsSettings,
             mergeMetrics,
+            flushMetrics,
             storeMetricHolder
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
@@ -994,6 +998,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexStatsSettings,
             searchStatsSettings,
             mergeMetrics,
+            flushMetrics,
             storeMetricHolder
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
@@ -1089,11 +1094,7 @@ public class IndicesService extends AbstractLifecycleComponent
             final var store = indexShard.store();
             if (store.tryIncRef() == false) {
                 assert indexShard.state() == IndexShardState.CLOSED : indexShard.state();
-                listener.onRecoveryFailure(
-                    indexShard.recoveryState(),
-                    new RecoveryFailedException(indexShard.recoveryState(), "index shard closed", null),
-                    ABORT
-                );
+                listener.onRecoveryFailure(new RecoveryFailedException(indexShard.recoveryState(), "index shard closed", null), ABORT);
                 return;
             }
             final var releaseStoreRef = Releasables.assertOnce(Releasables.releaseOnce(store::decRef));

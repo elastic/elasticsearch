@@ -441,6 +441,25 @@ public final class ExternalFailures {
     }
 
     /**
+     * Attaches {@code recorded} onto {@code surface} as suppressed when they are different objects and
+     * {@code recorded} already carries an HTTP status. A terminal external read reports two facts: the
+     * <em>surface</em> type (why retrying stopped — HTTP status and query {@code error_type}) and the
+     * <em>recorded</em> type (what was failing — {@code storage.errors} / {@code storage.throttled}).
+     * Query telemetry walks the cause chain and ignores suppressed failures, so putting the store fault
+     * in the cause of a 429 would mislabel the query {@code storage_unavailable}. {@link #classify} copies
+     * suppressed {@link ElasticsearchException}s and drops everything else, including a raw
+     * {@link IOException}: do not convert raw I/O just to keep it on the wire.
+     *
+     * @return {@code surface}, possibly with {@code recorded} suppressed on it
+     */
+    public static Exception attachRecorded(Exception surface, Throwable recorded) {
+        if (recorded instanceof ElasticsearchException ese && recorded != surface) {
+            surface.addSuppressed(ese);
+        }
+        return surface;
+    }
+
+    /**
      * Surfaces a worker-side stored failure as a typed ES|QL exception that already carries the right HTTP
      * status, instead of a status-neutral {@link RuntimeException} wrapper. Called at the throw site inside
      * parallel parsing coordinators and page iterators (the boundary between the worker that stored the

@@ -26,14 +26,26 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.REST_TIMEOUT_PARAM;
 import static org.elasticsearch.rest.RestUtils.getTimeout;
 import static org.elasticsearch.rest.Scope.INTERNAL;
 
 @ServerlessScope(INTERNAL)
 public class RestListTasksAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        "detailed",
+        "nodes",
+        "actions",
+        "parent_task_id",
+        "wait_for_completion",
+        REST_TIMEOUT_PARAM,
+        "group_by"
+    );
 
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
@@ -49,6 +61,11 @@ public class RestListTasksAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "list_tasks_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

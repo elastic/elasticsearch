@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -41,6 +42,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.UpdateForV10.Owner.STORAGE_ENGINE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
@@ -53,6 +55,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>, ToXContentObject {
 
+    // This feature flag can only be removed in v10.0.0 as it was accidentally used in v9.4.0's wire protocol inside DataStreamLifecycle
+    // and will break BWC if removed before then. Be sure to also clean up the BWC test hack in DefaultSystemPropertyProvider.java
+    @UpdateForV10(owner = STORAGE_ENGINE)
     public static final FeatureFlag DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG = new FeatureFlag("dlm_searchable_snapshots");
 
     // Versions over the wire

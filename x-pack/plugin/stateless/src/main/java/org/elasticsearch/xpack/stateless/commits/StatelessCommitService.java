@@ -557,6 +557,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     protected void doStop() {
         scheduledShardInactivityMonitorFuture.cancel();
         scheduledUploadMonitor.close();
+        // The node stops the ObjectStoreService before it closes shards, so pending uploads can never succeed from here on, yet they are
+        // retried until their shard's commit state is closed. Mark all commit states closed now: this stops the retries and fails anything
+        // waiting for an upload, which otherwise may hold an engine ref (e.g. a translog recovery's flush) and block the shard close.
+        shardsCommitsStates.values().forEach(ShardCommitState::markClosedOnNodeStop);
     }
 
     @Override
@@ -3011,6 +3015,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return Stream.concat(local, full).collect(Collectors.toList());
         }
 
+        /**
+         * Like {@link #markRelocated()}, moves to {@link State#CLOSED} while the engine may still be open, which stops upload retries and
+         * fails anything waiting for an upload. Releasing the VBCCs is left to {@link #close()} once the shard is actually closed.
+         */
+        private void markClosedOnNodeStop() {
+            failListenersAsClosed(closeAndGetListeners(), "shard [" + shardId + "] closed because the node is stopping");
+        }
+
         private void close() {
             List<ActionListener<Void>> listenersToFail = closeAndGetListeners();
             final var virtualBcc = currentVirtualBcc;
@@ -3029,16 +3041,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             assert recentlyUploadedVbccs.isEmpty();
 
+            failListenersAsClosed(listenersToFail, "shard [" + shardId + "] has already been closed");
+        }
+
+        private void failListenersAsClosed(List<ActionListener<Void>> listenersToFail, String message) {
             if (listenersToFail.isEmpty() == false) {
                 // Have to fork, because we are on applier thread and thus if a listener uses cluster state it will fail.
                 // using generic is safe, since we close all shards (but not the stores) before shutting down thread pools.
-                threadPool.generic()
-                    .execute(
-                        () -> ActionListener.onFailure(
-                            listenersToFail,
-                            new AlreadyClosedException("shard [" + shardId + "] has already been closed")
-                        )
-                    );
+                threadPool.generic().execute(() -> ActionListener.onFailure(listenersToFail, new AlreadyClosedException(message)));
             }
         }
 

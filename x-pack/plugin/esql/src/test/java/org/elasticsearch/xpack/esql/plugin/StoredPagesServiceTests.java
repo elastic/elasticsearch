@@ -61,6 +61,7 @@ public class StoredPagesServiceTests extends ESTestCase {
     private List<StoredPage> visible = List.of();
     private boolean ended;
     private int unreleased;
+    private int reads;
 
     {
         service.setWaitingListener(waiting::add);
@@ -182,15 +183,17 @@ public class StoredPagesServiceTests extends ESTestCase {
     }
 
     /**
-     * A read woken after it found nothing but before it set its timeout answers once, and does not say it waits.
+     * A read woken while its read after the first refresh is queued answers once, and the queued read neither reads nor says it
+     * waits.
      */
-    public void testWokenBeforeTimeoutIsSet() throws Exception {
+    public void testWokenBeforeReadAfterRefresh() throws Exception {
         Answers answers = read(SHARD, TIMEOUT);
         completeRefreshes();
         service.wake(RESULT);
         queue.runAllRunnableTasks();
         assertThat(waiting, equalTo(List.of()));
         assertThat(answers.count, equalTo(0));
+        assertThat(reads, equalTo(1));
 
         completeRefreshes();
         queue.runAllTasksInTimeOrder();
@@ -251,6 +254,7 @@ public class StoredPagesServiceTests extends ESTestCase {
     private Answers read(ShardId shardId, TimeValue timeout) throws Exception {
         Answers answers = new Answers();
         service.read(shardId, RESULT, () -> {
+            reads++;
             unreleased++;
             return new Response(visible, ended, () -> unreleased--);
         }, timeout, answers);

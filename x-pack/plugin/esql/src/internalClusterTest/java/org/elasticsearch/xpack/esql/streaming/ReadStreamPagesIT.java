@@ -141,9 +141,12 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
             new TransportReadStreamPagesAction.Request(streamId, nextSeq + next.size(), 10, Long.MAX_VALUE, TimeValue.timeValueMillis(100))
         );
         assertThat(timedOut.size(), equalTo(0));
-        for (StoredPagesService service : internalCluster().getInstances(StoredPagesService.class)) {
-            assertThat(service.waitingReads(), equalTo(0));
-        }
+        // a read frees its slot once it has answered
+        assertBusy(() -> {
+            for (StoredPagesService service : internalCluster().getInstances(StoredPagesService.class)) {
+                assertThat(service.waitingReads(), equalTo(0));
+            }
+        });
     }
 
     /**

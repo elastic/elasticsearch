@@ -107,13 +107,19 @@ public class ReadStreamPagesRequestTests extends ESTestCase {
 
     /**
      * Pages that trip the breaker of the reading node fail the read there, holding nothing, instead of being read again from
-     * another copy.
+     * another copy. The pages after the one that trips are skipped.
      */
     public void testResponseThatTripsBreakerFailsRead() throws IOException {
-        byte[] content = randomByteArrayOfLength(between(2, 1024));
-        StoredPage page = new StoredPage(1, 0, between(1, 100), TransportVersionUtils.randomVersion(), new BytesArray(content));
-        Response response = new Response(List.of(page), randomBoolean(), () -> {});
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(content.length - 1));
+        List<StoredPage> pages = new ArrayList<>();
+        long bytes = 0;
+        for (int seq = 0, count = between(1, 4); seq < count; seq++) {
+            byte[] content = randomByteArrayOfLength(between(1, 1024));
+            pages.add(new StoredPage(seq, seq * 10L, 10, TransportVersionUtils.randomVersion(), new BytesArray(content)));
+            bytes += content.length;
+        }
+        boolean ended = randomBoolean();
+        Response response = new Response(pages, ended, () -> {});
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(between(0, (int) bytes - 1)));
         Response copy;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
@@ -124,6 +130,7 @@ public class ReadStreamPagesRequestTests extends ESTestCase {
             response.decRef();
         }
         assertThat(copy.pages(), empty());
+        assertThat(copy.resultEnded(), equalTo(ended));
         assertThat(breaker.getUsed(), equalTo(0L));
         PlainActionFuture<Response> future = new PlainActionFuture<>();
         TransportReadStreamPagesAction.failOnTrip(future).onResponse(copy);

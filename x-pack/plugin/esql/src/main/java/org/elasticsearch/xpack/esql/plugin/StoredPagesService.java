@@ -251,6 +251,10 @@ public final class StoredPagesService implements IndexingOperationListener, Inde
             return new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
+                    if (done.get()) {
+                        // a wake-up or the timeout answers
+                        return;
+                    }
                     Response response = read.get();
                     try {
                         if (response.answers() == false) {

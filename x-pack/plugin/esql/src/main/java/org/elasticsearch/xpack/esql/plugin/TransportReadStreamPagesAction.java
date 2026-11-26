@@ -500,10 +500,6 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
         implements
             Writeable {
 
-        StoredPage(StreamInput in) throws IOException {
-            this(in.readVInt(), in.readVLong(), in.readVInt(), TransportVersion.readVersion(in), in.readBytesReference());
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(seq);
@@ -645,28 +641,53 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
         }
 
         /**
-         * Reads a response from another node, charging its pages to {@code breaker} of this node until it is released. Pages
-         * that trip the breaker are dropped and the response holds the trip, see {@link #failOnTrip}.
+         * Reads a response from another node, charging each page to {@code breaker} of this node before reading its bytes, until
+         * the response is released. Once a page trips the breaker, the pages are dropped and the response holds the trip, see
+         * {@link #failOnTrip}.
          */
         Response(StreamInput in, CircuitBreaker breaker) throws IOException {
-            List<StoredPage> read = in.readCollectionAsList(StoredPage::new);
-            this.resultEnded = in.readBoolean();
-            long bytes = 0;
-            for (StoredPage page : read) {
-                bytes += page.bytes.length();
-            }
+            int count = in.readVInt();
+            List<StoredPage> read = new ArrayList<>();
+            long charged = 0;
             CircuitBreakingException trip = null;
             try {
-                breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
-            } catch (CircuitBreakingException e) {
-                trip = e;
+                for (int i = 0; i < count; i++) {
+                    int seq = in.readVInt();
+                    long firstRow = in.readVLong();
+                    int rowCount = in.readVInt();
+                    TransportVersion transportVersion = TransportVersion.readVersion(in);
+                    int length = in.readVInt();
+                    if (length < 0) {
+                        throw new IOException("invalid page length [" + length + "]");
+                    }
+                    if (trip == null) {
+                        try {
+                            breaker.addEstimateBytesAndMaybeBreak(length, BREAKER_LABEL);
+                            charged += length;
+                        } catch (CircuitBreakingException e) {
+                            trip = e;
+                        }
+                    }
+                    if (trip == null) {
+                        read.add(new StoredPage(seq, firstRow, rowCount, transportVersion, in.readBytesReference(length)));
+                    } else {
+                        in.skipNBytes(length);
+                    }
+                }
+                this.resultEnded = in.readBoolean();
+            } catch (Exception e) {
+                breaker.addWithoutBreaking(-charged);
+                throw e;
+            }
+            if (trip != null) {
+                breaker.addWithoutBreaking(-charged);
+                charged = 0;
                 read = List.of();
-                bytes = 0;
             }
             this.pages = read;
             this.tripped = trip;
-            long charged = bytes;
-            this.refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> breaker.addWithoutBreaking(-charged)));
+            long toRelease = charged;
+            this.refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> breaker.addWithoutBreaking(-toRelease)));
         }
 
         /**

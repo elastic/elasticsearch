@@ -101,6 +101,11 @@ public class DatafeedJobBuilder {
         return restartTimeInfo.getLatestRecordTimeMs() == null ? -1 : restartTimeInfo.getLatestRecordTimeMs();
     }
 
+    private static long latencyMs(Job job) {
+        TimeValue latency = job.getAnalysisConfig().getLatency();
+        return latency == null ? 0 : latency.millis();
+    }
+
     private static long latestFinalBucketEndMs(Job job, RestartTimeInfo restartTimeInfo) {
         return restartTimeInfo.getLatestFinalBucketTimeMs() == null
             ? -1
@@ -290,7 +295,7 @@ public class DatafeedJobBuilder {
             lastEndTimeForRecord(datafeedConfig),
             datafeedConfig.getEsqlQuery() != null,
             job.getAnalysisConfig().getBucketSpan().millis(),
-            job.getAnalysisConfig().getLatency() == null ? 0 : job.getAnalysisConfig().getLatency().millis()
+            latencyMs(job)
         );
         listener.onResponse(datafeedJob);
     }

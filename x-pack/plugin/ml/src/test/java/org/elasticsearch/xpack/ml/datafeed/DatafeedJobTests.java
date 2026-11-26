@@ -89,6 +89,7 @@ import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.xpack.ml.MachineLearning.DELAYED_DATA_CHECK_FREQ;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -97,6 +98,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -1667,6 +1669,7 @@ public class DatafeedJobTests extends ESTestCase {
         // A failed lookback leaves real-time to read the whole range. Its window ends long after the last record.
         skipLongEmptyGaps = true;
         bucketSpanMs = MINUTE_MS;
+        when(delayedDataDetector.getWindow()).thenReturn(0L);
         currentTime = SPARSE_NOW;
         when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(countsWithLatestRecord(10 * MINUTE_MS + 30_000)));
         when(dataExtractor.getEndTime()).thenReturn(SPARSE_NOW);
@@ -1702,6 +1705,72 @@ public class DatafeedJobTests extends ESTestCase {
         String message = ExceptionsHelper.unwrapCause(e).getMessage();
         assertThat(message, containsString("could not skip 1439989 empty bucket spans of 1m"));
         assertThat(message, containsString("from 1970-01-01T00:11:00.000Z to 1972-09-27T00:00:00.000Z"));
+        assertThat(message, containsString("The cause is: job is closed."));
+    }
+
+    public void testDelayedDataWindowShouldKeepCheckWindowBucketsOutOfSkip() throws Exception {
+        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        when(delayedDataDetector.getWindow()).thenReturn(5 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        // The skip stops 5 minutes before the real-time start, so those buckets are written for the delayed data check.
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86399700000", "advance 86400120000")));
+    }
+
+    public void testLatencyLongerThanGapShouldNotSkip() throws Exception {
+        latencyMs = SPARSE_NOW - 20 * MINUTE_MS;
+        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        // The last record's bucket only finalizes at its end plus latency, which leaves fewer than the limit of empty buckets.
+        assertThat(flushes(), equalTo(List.of("interim", "advance 86400120000")));
+    }
+
+    public void testSkipShouldAuditGapAndRange() throws Exception {
+        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        ArgumentCaptor<String> messages = ArgumentCaptor.forClass(String.class);
+        verify(auditor, atLeastOnce()).info(eq(jobId), messages.capture());
+        assertThat(
+            messages.getAllValues(),
+            hasItem(
+                "Datafeed skipped 1439989 empty bucket spans of 1m from 1970-01-01T00:11:00.000Z to 1972-09-27T00:00:00.000Z."
+                    + " The job has no results for this period. Detectors such as count and low_count do not report it."
+            )
+        );
+    }
+
+    public void testFailedSkipAfterSuccessfulAdvanceShouldRetrySkipBeforePostingData() throws Exception {
+        DatafeedJob datafeedJob = esqlJobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        // The lookback posted once. Real-time has a batch ready on each cycle.
+        when(dataExtractor.hasNext()).thenReturn(true, false, true, false);
+        when(dataExtractor.next()).thenAnswer(
+            invocation -> new DataExtractor.Result(
+                new SearchInterval(SPARSE_NOW, SPARSE_NOW + 1000L),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            )
+        );
+        when(dataExtractor.getEndTime()).thenReturn(SPARSE_NOW + 4 * MINUTE_MS);
+        when(flushJobFuture.actionGet()).thenReturn(flushAck(11 * MINUTE_MS))
+            .thenThrow(new RuntimeException("skip failed"))
+            .thenReturn(flushAck(SPARSE_NOW), flushAck(SPARSE_NOW + 4 * MINUTE_MS));
+
+        currentTime = SPARSE_NOW + 2 * MINUTE_MS;
+        expectThrows(DatafeedJob.AnalysisProblemException.class, datafeedJob::runRealtime);
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86400000000")));
+        verify(postDataFuture, times(1)).actionGet();
+
+        currentTime = SPARSE_NOW + 4 * MINUTE_MS;
+        datafeedJob.runRealtime();
+
+        // The advance is not repeated: its acknowledgement was recorded. The retried skip comes before the second post.
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86400000000", "skip 86400000000", "advance 86400240000")));
+        verify(postDataFuture, times(2)).actionGet();
     }
 
     public void testSecondRealtimeCycleAfterSkipShouldNotSkipAgain() throws Exception {
@@ -1760,6 +1829,7 @@ public class DatafeedJobTests extends ESTestCase {
     ) throws Exception {
         skipLongEmptyGaps = esql;
         bucketSpanMs = MINUTE_MS;
+        when(delayedDataDetector.getWindow()).thenReturn(0L);
         currentTime = nowMs;
         DataCounts counts = lookbackLatestRecordMs < 0 ? new DataCounts(jobId) : countsWithLatestRecord(lookbackLatestRecordMs);
         when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(counts));

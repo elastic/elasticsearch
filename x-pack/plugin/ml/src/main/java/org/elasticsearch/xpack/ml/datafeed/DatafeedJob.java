@@ -321,47 +321,66 @@ class DatafeedJob {
         long lastRecordBucketEndMs = Intervals.alignToCeil(lastRecordMs + 1, bucketSpanMs);
         // The builder passes an inclusive end (bucket start + span - 1). Flush acknowledgements are exclusive and aligned.
         long finalizedEndMs = Intervals.alignToCeil(Math.max(latestFinalBucketEndTimeMs, 0), bucketSpanMs);
-        long gapStartMs = Math.max(lastRecordBucketEndMs, finalizedEndMs);
-        // Autodetect rounds a skip time up to the next bucket, which would skip the bucket that holds timeMs.
-        long gapEndMs = Intervals.alignToFloor(timeMs, bucketSpanMs);
+        // Autodetect finalizes the last record's bucket only after its end plus latency, so the gap starts there. With this start
+        // a latency longer than the gap leaves no gap, and the advance flush below can never pass the skip time.
+        long advanceTimeMs = lastRecordBucketEndMs + latencyMs;
+        long gapStartMs = Math.max(advanceTimeMs, finalizedEndMs);
+        // Keep the delayed data check window written: that check compares source counts with finalized bucket results.
+        // Autodetect rounds a skip time up to the next bucket, so floor it to keep the bucket that holds the target.
+        long gapEndMs = Intervals.alignToFloor(timeMs - delayedDataDetector.getWindow(), bucketSpanMs);
         long gapBuckets = (gapEndMs - gapStartMs) / bucketSpanMs;
         if (gapBuckets > MAX_EMPTY_BUCKETS_TO_MATERIALISE) {
+            String gapStart = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(gapStartMs);
+            String gapEnd = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(gapEndMs);
+            String bucketSpan = TimeValue.timeValueMillis(bucketSpanMs).toString();
             try {
                 if (lastRecordBucketEndMs > finalizedEndMs) {
-                    // Skipping alone would drop the still open bucket that holds the last record. Autodetect finalizes
-                    // a bucket only once time passes its end plus latency.
+                    // Skipping alone would drop the still open bucket that holds the last record.
                     FlushJobAction.Request advanceRequest = new FlushJobAction.Request(jobId);
-                    advanceRequest.setAdvanceTime(String.valueOf(lastRecordBucketEndMs + latencyMs));
+                    advanceRequest.setAdvanceTime(String.valueOf(advanceTimeMs));
                     advanceRequest.setWaitForNormalization(false);
                     advanceRequest.setRefreshRequired(false);
-                    flushJob(advanceRequest);
+                    recordFinalizedBucketEnd(flushJob(advanceRequest));
                 }
                 FlushJobAction.Request skipRequest = new FlushJobAction.Request(jobId);
                 skipRequest.setSkipTime(String.valueOf(gapEndMs));
                 skipRequest.setRefreshRequired(false);
-                Instant lastFinalizedBucketEnd = flushJob(skipRequest).getLastFinalizedBucketEnd();
-                if (lastFinalizedBucketEnd != null) {
-                    latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
-                }
+                recordFinalizedBucketEnd(flushJob(skipRequest));
             } catch (AnalysisProblemException e) {
                 throw new AnalysisProblemException(
                     e.nextDelayInMsSinceEpoch,
                     e.shouldStop,
                     new ElasticsearchException(
-                        "Datafeed [{}] for job [{}] could not skip {} empty bucket spans of {} from {} to {}. "
-                            + "The datafeed retries the skip on the next real-time search before it sends more data to the job. "
-                            + "If the error persists, check that the job is opened, then restart the datafeed.",
-                        e.getCause(),
-                        datafeedId,
-                        jobId,
-                        gapBuckets,
-                        TimeValue.timeValueMillis(bucketSpanMs),
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(gapStartMs),
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(gapEndMs)
+                        Messages.getMessage(
+                            Messages.DATAFEED_SKIP_EMPTY_GAP_FAILED,
+                            datafeedId,
+                            jobId,
+                            String.valueOf(gapBuckets),
+                            bucketSpan,
+                            gapStart,
+                            gapEnd,
+                            e.getCause().getMessage()
+                        ),
+                        e.getCause()
                     )
                 );
             }
-            LOGGER.info("[{}] Skipped [{}] empty buckets between [{}] and [{}]", jobId, gapBuckets, gapStartMs, gapEndMs);
+            String msg = Messages.getMessage(
+                Messages.JOB_AUDIT_DATAFEED_SKIPPED_EMPTY_GAP,
+                String.valueOf(gapBuckets),
+                bucketSpan,
+                gapStart,
+                gapEnd
+            );
+            auditor.info(jobId, msg);
+            LOGGER.info("[{}] {}", jobId, msg);
+        }
+    }
+
+    private void recordFinalizedBucketEnd(FlushJobAction.Response flushResponse) {
+        Instant lastFinalizedBucketEnd = flushResponse.getLastFinalizedBucketEnd();
+        if (lastFinalizedBucketEnd != null) {
+            latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
         }
     }
 

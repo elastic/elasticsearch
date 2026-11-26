@@ -224,6 +224,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(buckets.get(0).getEventCount(), equalTo((long) lastBucketRecords));
         assertThat(getJobStats(jobId).get(0).getState(), equalTo(JobState.OPENED));
         assertThat(fetchAllAuditMessages(jobId).toString(), not(containsString("could not skip")));
+        assertThat(fetchAllAuditMessages(jobId).toString(), containsString("Datafeed skipped"));
 
         stopDatafeed(datafeedId);
         closeJob(jobId);

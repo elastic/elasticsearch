@@ -46,6 +46,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -82,6 +83,7 @@ import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1240,6 +1242,84 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             cluster.getAnyLeader().extraJoinValidators.clear();
             cluster.stabilise();
+        }
+    }
+
+    public void testNodeCannotJoinIfJoinAttributesValidationFailsOnMaster() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final Set<DiscoveryNode> rejectedNodes = new HashSet<>();
+            final JoinAttributesValidator validator = (node, attributes, state) -> {
+                if ("true".equals(attributes.get("test.can_join")) == false) {
+                    rejectedNodes.add(node);
+                    throw new IllegalStateException("node cannot join");
+                }
+            };
+            cluster.clusterNodes.forEach(cn -> {
+                cn.joinAttributes.put("test.can_join", "true");
+                cn.extraJoinAttributesValidators.add(validator);
+            });
+            List<ClusterNode> addedNodes = cluster.addNodes(randomIntBetween(1, 2));
+            addedNodes.forEach(cn -> {
+                cn.joinAttributes.put("test.can_join", "false");
+                cn.extraJoinAttributesValidators.add(validator);
+            });
+            cluster.runFor(10000, "failing join attributes validation");
+            assertEquals(addedNodes.stream().map(ClusterNode::getLocalNode).collect(Collectors.toSet()), rejectedNodes);
+            assertTrue(addedNodes.stream().allMatch(ClusterNode::isCandidate));
+            final DiscoveryNodes leaderNodes = cluster.getAnyLeader().getLastAppliedClusterState().nodes();
+            assertTrue(addedNodes.stream().noneMatch(cn -> leaderNodes.nodeExists(cn.getLocalNode())));
+
+            addedNodes.forEach(cn -> cn.joinAttributes.put("test.can_join", "true"));
+            cluster.stabilise();
+        }
+    }
+
+    /** The joins that elect a master carry the joining nodes' attributes, and a rejected node doesn't stop the election. */
+    public void testJoinAttributesAreValidatedInElection() {
+        joinAttributesAreValidatedInElection(true);
+    }
+
+    /**
+     * @param electionNeedsAnotherVote whether the first election is won only with a vote from another node, so that it validates at least
+     *                                 one join; with an atomic register a candidate can win with only its own vote.
+     */
+    protected void joinAttributesAreValidatedInElection(boolean electionNeedsAnotherVote) {
+        try (
+            Cluster cluster = electionNeedsAnotherVote ? clusterWhoseFirstElectionNeedsAnotherVote() : new Cluster(randomIntBetween(2, 5))
+        ) {
+            final Map<DiscoveryNode, Map<String, String>> validatedInElection = new HashMap<>();
+            final Set<String> rejectedOnce = new HashSet<>();
+            for (ClusterNode clusterNode : cluster.clusterNodes) {
+                clusterNode.joinAttributes.put("test.node_id", clusterNode.getId());
+                clusterNode.extraJoinAttributesValidators.add((node, attributes, state) -> {
+                    if (state.nodes().getMasterNodeId() == null) {
+                        validatedInElection.put(node, attributes);
+                        if (rejectedOnce.add(node.getId())) {
+                            throw new IllegalStateException("rejected once");
+                        }
+                    }
+                });
+            }
+
+            cluster.stabilise();
+
+            if (electionNeedsAnotherVote) {
+                assertThat(validatedInElection.keySet(), not(empty()));
+            }
+            validatedInElection.forEach((node, attributes) -> assertEquals(Map.of("test.node_id", node.getId()), attributes));
+        }
+    }
+
+    private Cluster clusterWhoseFirstElectionNeedsAnotherVote() {
+        while (true) {
+            Cluster cluster = new Cluster(randomIntBetween(2, 5));
+            if (cluster.initialConfiguration.getNodeIds().size() > 1) {
+                return cluster;
+            }
+            cluster.close();
         }
     }
 

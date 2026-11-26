@@ -209,9 +209,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                             node.getMaxIndexVersion(),
                             initialState.getMetadata()
                         );
-                        for (JoinAttributesValidator validator : joinAttributesValidators) {
-                            validator.validate(node, nodeJoinTask.joinAttributes(), baseState);
-                        }
+                        validateJoinAttributes(node, nodeJoinTask.joinAttributes(), baseState);
 
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
@@ -304,6 +302,24 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             // we must return a new cluster state instance to force publishing. This is important
             // for the joining node to finalize its join and set us as a master
             return newState.build();
+        }
+    }
+
+    private void validateJoinAttributes(DiscoveryNode node, Map<String, String> joinAttributes, ClusterState state) {
+        for (JoinAttributesValidator validator : joinAttributesValidators) {
+            try {
+                validator.validate(node, joinAttributes, state);
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                throw e;
+            } catch (RuntimeException e) {
+                // rejects only this node: failing the batch would also fail an election
+                final String message = Strings.format(
+                    "failed to validate the join attributes of [%s]",
+                    node.descriptionWithoutAttributes()
+                );
+                logger.warn(message, e);
+                throw new IllegalStateException(message, e);
+            }
         }
     }
 

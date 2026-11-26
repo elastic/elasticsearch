@@ -74,6 +74,8 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -212,7 +214,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             clusterAlias,
             configuration.allowPartialResults(),
             maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster,
-            configuration.pragmas().unavailableShardResolutionAttempts()
+            configuration.pragmas().unavailableShardResolutionAttempts(),
+            TimeValue.ZERO
         ) {
             @Override
             protected void sendRequest(
@@ -228,12 +231,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 final AtomicLong pagesFetched = new AtomicLong();
                 final AtomicBoolean requestSent = new AtomicBoolean();
-                // A node that was sent an INTO may have written rows before it failed, without a page for the coordinator to have
-                // fetched, and another copy of the shard would write the same rows again
-                var listener = ActionListener.wrap(
-                    nodeListener::onResponse,
-                    e -> nodeListener.onFailure(e, pagesFetched.get() > 0 || (writesInto && requestSent.get()))
-                );
+                // Set once the open succeeded, to what the failure of the data node request, if any, says about the node. A failure
+                // of the open reaches the listener as the transport delivered it and is classified there. One of the compute comes
+                // out of a ComputeListener, unwrapped and possibly another one than the request's, so it is classified on arrival.
+                final AtomicReference<DataNodeRequestSender.NodeFailure> computeNodeFailure = new AtomicReference<>();
+                var listener = nodeRequestListener(nodeListener, pagesFetched, writesInto, requestSent, computeNodeFailure);
                 final Transport.Connection connection;
                 try {
                     connection = transportService.getConnection(node);
@@ -245,6 +247,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 var childSessionId = computeService.newChildSession(sessionId);
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
+                // A node that is shutting down may turn the open away, and this sender then retries the shards elsewhere (see
+                // DataNodeRequestSender).
                 ExchangeService.openExchange(
                     transportService,
                     connection,
@@ -252,6 +256,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     queryPragmas.exchangeBufferSize(),
                     searchExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
+                        computeNodeFailure.set(DataNodeRequestSender.NodeFailure.OTHER);
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (configuration.allowPartialResults()) {
@@ -300,18 +305,26 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
                             final var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
-                            requestSent.set(true);
-                            transportService.sendChildRequest(
+                            final ActionListener<DataNodeComputeResponse> dataNodeListener = ComputeService.finishRemoteSinkIfNotSent(
+                                remoteSink,
+                                computeListener.acquireCompute().map(r -> {
+                                    nodeResponseRef.set(r);
+                                    return r.completionInfo();
+                                })
+                            );
+                            sendDataNodeRequest(
+                                transportService,
                                 connection,
-                                ComputeService.DATA_ACTION_NAME,
                                 dataNodeRequest,
                                 groupTask,
                                 computeService.planRequestOptions(),
+                                requestSent,
                                 new ActionListenerResponseHandler<>(
-                                    ComputeService.finishRemoteSinkIfNotSent(remoteSink, computeListener.acquireCompute().map(r -> {
-                                        nodeResponseRef.set(r);
-                                        return r.completionInfo();
-                                    })),
+                                    classifyingDataRequestFailure(
+                                        dataNodeListener,
+                                        computeNodeFailure,
+                                        configuration.allowPartialResults()
+                                    ),
                                     in -> new DataNodeComputeResponse(in, threadContext),
                                     searchExecutor
                                 )
@@ -697,6 +710,76 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     static boolean writesInto(PhysicalPlan plan) {
         return plan.anyMatch(p -> p instanceof FragmentExec f && f.fragment().anyMatch(Into.class::isInstance));
+    }
+
+    /**
+     * Whether a data node whose request failed may hold results of the query already, so that another copy of its shards must not be
+     * asked. A node that was sent an INTO may have written rows before it failed, without a page for the coordinator to have
+     * fetched, and another copy of the shard would write the same rows again.
+     */
+    static boolean mayHaveReceivedData(long pagesFetched, boolean writesInto, boolean requestSent) {
+        return pagesFetched > 0 || (writesInto && requestSent);
+    }
+
+    /**
+     * Sends the data node request, marking it as sent before it leaves: from then on the node may have run the plan, and a failure
+     * of the request must find it {@link #mayHaveReceivedData marked} whenever it is reported.
+     */
+    static void sendDataNodeRequest(
+        TransportService transportService,
+        Transport.Connection connection,
+        DataNodeRequest request,
+        Task parentTask,
+        TransportRequestOptions options,
+        AtomicBoolean requestSent,
+        TransportResponseHandler<DataNodeComputeResponse> handler
+    ) {
+        requestSent.set(true);
+        transportService.sendChildRequest(connection, ComputeService.DATA_ACTION_NAME, request, parentTask, options, handler);
+    }
+
+    /**
+     * Wraps the listener of the data node request so that a failure of the request is classified as the transport delivered it,
+     * before it goes on into a {@link ComputeListener}; {@link #nodeRequestListener} reads the result.
+     */
+    static <T> ActionListener<T> classifyingDataRequestFailure(
+        ActionListener<T> listener,
+        AtomicReference<DataNodeRequestSender.NodeFailure> computeNodeFailure,
+        boolean allowPartialResults
+    ) {
+        return listener.delegateResponse((l, e) -> {
+            computeNodeFailure.set(DataNodeRequestSender.classifyDataRequestFailure(e, allowPartialResults));
+            l.onFailure(e);
+        });
+    }
+
+    /**
+     * The listener of the shard path for the request to one data node. On failure it tells the sender whether the node
+     * {@link #mayHaveReceivedData may hold results already}, and what the failure says about the node.
+     *
+     * @param pagesFetched       the pages fetched from the node so far
+     * @param requestSent        whether the data node request was sent
+     * @param computeNodeFailure empty until the exchange was opened: the failure is then the one of the open, as the transport
+     *                           delivered it, and the sender classifies it. Afterwards, what the failure of the data node request, if
+     *                           any, said about the node: the failure that arrives here went through a {@link ComputeListener}, which
+     *                           unwraps it and may pick another one, so it cannot be classified any more.
+     */
+    static ActionListener<DataNodeComputeResponse> nodeRequestListener(
+        DataNodeRequestSender.NodeListener nodeListener,
+        AtomicLong pagesFetched,
+        boolean writesInto,
+        AtomicBoolean requestSent,
+        AtomicReference<DataNodeRequestSender.NodeFailure> computeNodeFailure
+    ) {
+        return ActionListener.wrap(nodeListener::onResponse, e -> {
+            final boolean receivedData = mayHaveReceivedData(pagesFetched.get(), writesInto, requestSent.get());
+            final DataNodeRequestSender.NodeFailure nodeFailure = computeNodeFailure.get();
+            if (nodeFailure == null) {
+                nodeListener.onFailure(e, receivedData);
+            } else {
+                nodeListener.onFailure(e, receivedData, nodeFailure);
+            }
+        });
     }
 
     /**

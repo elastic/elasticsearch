@@ -52,10 +52,6 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
         .user("x_pack_rest_user", "x-pack-test-password")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        // The test cluster randomly turns the indices.batch_indexing kill switch off, which the INTO tests (230_into.yml) cannot run
-        // with. A feature flag has to be on for the setting to be accepted at all.
-        .feature(FeatureFlag.BATCH_INDEXING)
-        .setting("indices.batch_indexing", "true")
         // _test connectivity probe is FeatureFlag-gated (release-off); enable so 210_data_source.yml cases run.
         .feature(FeatureFlag.ESQL_DATA_SOURCE_TEST_CONNECTION)
         .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))

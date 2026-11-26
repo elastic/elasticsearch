@@ -8,6 +8,13 @@ setup:
           parameters: []
           capabilities: [into_command]
       reason: "INTO is only available in snapshot builds"
+  # Test clusters randomly turn this kill switch off, and INTO only writes through batch indexing. It is dynamic, so the test sets it
+  # instead of every suite that runs this file having to configure its cluster.
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            indices.batch_indexing: true
   # INTO never creates its destination, so it must exist. The mapping is explicit so that the rows are searchable right away.
   - do:
       indices.create:
@@ -23,6 +30,14 @@ setup:
                 type: keyword
               n:
                 type: long
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            indices.batch_indexing: null
 
 ---
 "INTO writes the rows of a query to an existing index":

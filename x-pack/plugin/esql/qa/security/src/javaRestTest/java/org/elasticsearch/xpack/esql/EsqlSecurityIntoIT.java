@@ -197,13 +197,14 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
                     Map<String, Object> event = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, false);
                     if ("access_denied".equals(event.get("event.action"))
                         && EsqlIntoDestinationAction.NAME.equals(event.get("action"))
-                        && READ_ONLY_USER.equals(event.get("user.name"))) {
+                        && READ_ONLY_USER.equals(event.get("user.name"))
+                    // The cluster is shared with the other tests, which are denied the same action as this user
+                        && List.of("into-audited").equals(event.get("indices"))) {
                         denials.add(event);
                     }
                 }
                 assertThat(denials, hasSize(1));
                 assertThat(denials.getFirst().get("user.run_by.name"), equalTo("test-admin"));
-                assertThat(denials.getFirst().get("indices"), equalTo(List.of("into-audited")));
             }
         });
     }

@@ -8,8 +8,8 @@
  */
 
 
-import org.apache.tools.ant.filters.FixCrLfFilter
-import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.conventions.filters.FixCrLfFilter
+import org.elasticsearch.gradle.internal.conventions.filters.ReplaceTokens
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
@@ -486,7 +486,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           with copySpec {
             from '../src/bin'
             include '*.bat'
-            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+            filter(FixCrLfFilter, eol: 'crlf')
             filter("tokens": expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
           }
           with copySpec {

@@ -8,7 +8,7 @@
  */
 
 
-import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.conventions.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
@@ -26,8 +26,8 @@ dependencies {
   api 'com.google.cloud:google-cloud-storage:2.13.1'
   api 'com.google.cloud:google-cloud-core:2.8.28'
   api 'com.google.cloud:google-cloud-core-http:2.8.28'
-  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
-  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
+  runtimeOnly 'com.google.guava:guava:33.7.2-jre'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.3'
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
@@ -87,20 +87,12 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.MessageSchema',
     'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
     'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
   )
 
   ignoreMissingClasses(
@@ -239,7 +231,7 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyUnitTest", Test) {
   include '**/GoogleCloudStorageThirdPartyTests.class'
   systemProperty 'test.google.bucket', gcsBucket
   systemProperty 'test.google.fixture', Boolean.toString(useFixture)
-  nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + buildParams.testSeed
+  nonInputProperties.systemProperty 'test.google.base', buildParams.testSeedProvider.map { seed -> gcsBasePath + "_third_party_tests_" + seed }
   if (useFixture == false) {
     nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
   }

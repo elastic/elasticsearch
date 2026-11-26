@@ -1106,3 +1106,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testCancelAtARandomMoment
   issue: https://github.com/elastic/elasticsearch/issues/167735
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchCancellationIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testCancelBetweenTheQueryPhaseAndTheFetch
+  issue: https://github.com/elastic/elasticsearch/issues/167737

@@ -551,7 +551,7 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
                 );
                 doc.updateSeqID(0, 0);
                 doc.version().setLongValue(0);
-                try (RandomIndexWriter iw = indexWriterForSyntheticSource(directory)) {
+                try (RandomIndexWriter iw = indexWriterForSyntheticSource(mapperService, directory)) {
                     iw.addDocuments(doc.docs());
                 }
                 try (DirectoryReader reader = DirectoryReader.open(directory)) {

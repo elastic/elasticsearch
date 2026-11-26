@@ -88,10 +88,32 @@ public class ZstdCompressionMode extends CompressionMode {
         public void close() throws IOException {}
     }
 
+    /**
+     * Zstd can only decompress a whole block, while Lucene's stored fields reader asks for one document at a time, so reading
+     * several documents of the same block would decompress it once per document. To avoid this, once an instance is asked for
+     * part of the same block twice in a row, it keeps that block decompressed on heap and copies the following documents out of
+     * it. From then on it keeps every block that it is asked for part of, reusing one buffer sized for the largest such block
+     * (blocks are smaller than twice the chunk size of the stored fields format). An instance that is never asked for part of
+     * the same block twice in a row, e.g. for a get or for scattered search hits, retains nothing and decompresses off-heap.
+     * <p>
+     * A block is identified by the input it is read from, its file pointer and its decompressed length. This assumes that the
+     * bytes at a given file pointer of an input never change, which holds because Lucene files are write-once. An instance must
+     * only be used by one thread at a time, like the other state of a stored fields reader: Lucene clones the decompressor
+     * along with its input for each reader.
+     */
     static final class ZstdDecompressor extends Decompressor {
 
         // we can safely store and share a single Zstd instance, since we only use thread-safe decompress
         static final Zstd ZSTD = Zstd.instance();
+
+        // the last block decompressed on heap, valid only while cachedInput is not null
+        private byte[] cachedBlock;
+        private IndexInput cachedInput;
+        private long cachedFilePointer;
+        private int cachedLength;
+        // the block of the last partial read that was decompressed off-heap
+        private IndexInput lastInput;
+        private long lastFilePointer;
 
         private ZstdDecompressor() {}
 
@@ -106,9 +128,52 @@ public class ZstdCompressionMode extends CompressionMode {
             if (bytes.bytes.length >= originalLength || isFullDecompress(offset, length, originalLength)) {
                 bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, originalLength);
                 decompressDirect(in, compressedLength, originalLength, offset, length, bytes);
+            } else if (in instanceof IndexInput indexIn) {
+                decompressCached(indexIn, compressedLength, originalLength, offset, length, bytes);
             } else {
                 decompressSlice(in, compressedLength, originalLength, offset, length, bytes);
             }
+        }
+
+        /**
+         * Copies {@code [off, off+len)} of the block whose compressed bytes {@code in} is positioned at into bytes.bytes,
+         * decompressing the block on heap unless it is the one already held there. Falls back to {@link #decompressSlice} for
+         * the first partial read of a block.
+         */
+        private void decompressCached(IndexInput in, int cLen, int origLen, int off, int len, BytesRef bytes) throws IOException {
+            // identifies the block: the same block is always read from the same file pointer, and other blocks never are
+            final long filePointer = in.getFilePointer();
+            if (in == cachedInput && filePointer == cachedFilePointer && origLen == cachedLength) {
+                in.seek(filePointer + cLen); // leave the input where decompressing the block would have
+            } else if (cachedBlock != null || (in == lastInput && filePointer == lastFilePointer)) {
+                cachedInput = null; // so that a failure cannot leave a partly overwritten block behind
+                cachedBlock = ArrayUtil.growNoCopy(cachedBlock == null ? BytesRef.EMPTY_BYTES : cachedBlock, origLen);
+                MemorySegment dst = MemorySegment.ofArray(cachedBlock).asSlice(0, origLen);
+                int decompressedLen = decompressInput(in, cLen, dst);
+                checkLength(decompressedLen, origLen, in);
+                cachedInput = in;
+                cachedFilePointer = filePointer;
+                cachedLength = origLen;
+            } else {
+                lastInput = in;
+                lastFilePointer = filePointer;
+                decompressSlice(in, cLen, origLen, off, len, bytes);
+                return;
+            }
+            bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, len);
+            System.arraycopy(cachedBlock, off, bytes.bytes, 0, len);
+            bytes.offset = 0;
+            bytes.length = len;
+        }
+
+        // visible for testing
+        boolean hasCachedBlock() {
+            return cachedInput != null;
+        }
+
+        // visible for testing
+        int retainedBytes() {
+            return cachedBlock == null ? 0 : cachedBlock.length;
         }
 
         private static boolean isFullDecompress(int offset, int length, int originalLength) {
@@ -167,7 +232,7 @@ public class ZstdCompressionMode extends CompressionMode {
 
         @Override
         public Decompressor clone() {
-            return new ZstdDecompressor();
+            return new ZstdDecompressor(); // starts without a cached block
         }
     }
 }

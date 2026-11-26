@@ -60,8 +60,11 @@ import java.util.concurrent.TimeUnit;
  * - SNAP: zero-copy via DirectAccessInput (blob-cache backed)
  * - STATELESS_INDEX_LOCAL: heap copy, via a ReopeningIndexInput that implements neither (opt in with -p)
  *
+ * <p>Each operation reads one document. In SLICE mode {@code hitsPerBlock} consecutive documents are read from each block
+ * through the same decompressor before it moves on to the next block, like search hits that share a stored fields block.
+ *
  * <p>Uses random (incompressible) data by default. To benchmark with real compressible data,
- * pass -DdataFile=/path/to/file (e.g. a Project Gutenberg text file).
+ * pass -DdataFile=/path/to/file (e.g. a Project Gutenberg text file). Add {@code -prof gc} to report allocations per document.
  */
 @Fork(value = 1, jvmArgsPrepend = { "--enable-native-access=ALL-UNNAMED", "--add-modules=jdk.incubator.vector" })
 @Warmup(iterations = 3, time = 3)
@@ -85,12 +88,17 @@ public class ZstdDecompressBenchmark {
     @Param({ "FULL", "SLICE" })
     String decompressMode;
 
+    // 1 is a scattered hit or a get; larger values are search hits that share a block
+    @Param({ "1", "2", "3", "32" })
+    int hitsPerBlock;
+
     Directory dir;
     IndexInput input;
     long[] blockOffsets;
     byte[][] originalBlocks;
     private Decompressor decompressor;
     private BytesRef bytes;
+    private long docCount;
     private Path tempDir;
 
     @Setup(Level.Trial)
@@ -147,28 +155,34 @@ public class ZstdDecompressBenchmark {
         IOUtils.rm(tempDir);
     }
 
-    /** Decompresses all blocks sequentially, reporting per-block throughput. */
+    /** Reads {@code NUM_BLOCKS} documents, visiting the blocks sequentially, reporting per-document throughput. */
     @Benchmark
     @OperationsPerInvocation(NUM_BLOCKS)
     public void decompress(Blackhole bh) throws IOException {
-        bh.consume(decompressAll());
+        for (int i = 0; i < NUM_BLOCKS; i++) {
+            bh.consume(readNextDocument());
+        }
     }
 
-    /** Core loop: seeks to each block and decompresses. Extracted for testability. */
-    byte[] decompressAll() throws IOException {
-        int off, len;
+    /**
+     * Seeks to the block of the next document and decompresses it. A FULL document is the whole block. In SLICE mode the
+     * {@code hitsPerBlock} documents of a block split its middle half. Extracted for testability.
+     */
+    BytesRef readNextDocument() throws IOException {
+        final int block = (int) (docCount / hitsPerBlock % NUM_BLOCKS);
+        final int hit = (int) (docCount % hitsPerBlock);
+        docCount++;
+        final int off, len;
         if (decompressMode.equals("FULL")) {
             off = 0;
             len = blockSize;
         } else {
-            off = blockSize / 4;
-            len = blockSize / 2;
+            len = blockSize / 2 / hitsPerBlock;
+            off = blockSize / 4 + hit * len;
         }
-        for (int i = 0; i < NUM_BLOCKS; i++) {
-            input.seek(blockOffsets[i]);
-            decompressor.decompress(input, blockSize, off, len, bytes);
-        }
-        return bytes.bytes;
+        input.seek(blockOffsets[block]);
+        decompressor.decompress(input, blockSize, off, len, bytes);
+        return bytes;
     }
 
     private Directory newDirectory() throws IOException {

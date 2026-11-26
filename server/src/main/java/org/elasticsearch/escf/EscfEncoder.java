@@ -60,7 +60,9 @@ import java.util.Set;
  * <ol>
  *   <li>JSON, no larger than {@link JsonDocumentParser#maxDocumentBytes()}, and
  *       {@link #isSimdEnabled()}: this thread's {@link JsonDocumentParser} (native SIMD stage 1 +
- *       fused stage 2/walk). Falls back to Jackson on any failure.</li>
+ *       fused stage 2/walk). Falls back to Jackson on any failure during the walk. String values the walk
+ *       stages without reading are checked when {@link #commitScratchTo} copies them, which throws if one
+ *       is malformed.</li>
  *   <li>Otherwise: Jackson stream parser.</li>
  * </ol>
  */
@@ -289,6 +291,12 @@ public final class EscfEncoder implements SourceBatchEncoder {
         return scratch;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * @throws JsonParsingException if a string value staged without reading it is malformed; the row is discarded, and the
+     *     partition is left as it was before this call
+     */
     @Override
     public int commitScratchTo(int partitionKey) {
         return backend.commit(partitionKey);

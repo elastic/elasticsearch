@@ -29,8 +29,8 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.isStruc
  * {@link SimdJsonParser} and emits events to a {@link JsonDocumentHandler}, without
  * building an intermediate representation.
  *
- * <p>Strings go from the source buffer directly into the name cache or as raw byte slices
- * to the handler; numbers are parsed inline.
+ * <p>Field names go from the source buffer directly into the name cache. String values go to the
+ * handler unread, as {@link Utf8Value}s bounded by the next structural index; numbers are parsed inline.
  *
  * <p>Field name resolution uses a {@link FieldNameLookup} which freezes into a
  * compact hash table after the first document. Lookups use a prefix-8 fast
@@ -118,7 +118,7 @@ public final class SimdJsonDirectWalker {
         try {
             walkDocumentBody(buffer, bitIndexes, handler);
         } catch (ArrayIndexOutOfBoundsException e) {
-            // Scalar scanning (numbers, literals, strings, escaped names) trusts that a well-formed
+            // Scalar scanning (numbers, literals, field names) trusts that a well-formed
             // document is terminated by a structural character, and so reads without bounds checks
             // beyond the value. A truncated document that ends exactly at the end of the buffer
             // violates that and runs off the array. Checking on every byte would cost the hot path,
@@ -215,19 +215,7 @@ public final class SimdJsonDirectWalker {
                         walkArray(buffer, bi, handler);
                         handler.endArray();
                     }
-                    case '"' -> {
-                        // One stringField call site on purpose. With a call in each branch, C2 inlines the handler twice,
-                        // which doubles the compiled size of this method and slows the field loop.
-                        byte[] strBuf = buffer;
-                        int strOff = valIdx + 1;
-                        int len = stringParser.scanUnescapedLength(buffer, valIdx);
-                        if (len < 0) {
-                            strBuf = unescapeString(buffer, valIdx);
-                            len = unescapedLength;
-                            strOff = 0;
-                        }
-                        handler.stringField(fieldName, strBuf, strOff, len);
-                    }
+                    case '"' -> handler.rawStringField(fieldName, rawString(buffer, valIdx, bi.peek()));
                     case 't' -> {
                         validateTrue(buffer, valIdx);
                         handler.booleanField(fieldName, true, buffer, valIdx, 4);
@@ -271,17 +259,7 @@ public final class SimdJsonDirectWalker {
             byte b = buffer[idx];
 
             switch (b) {
-                case '"' -> {
-                    int len = stringParser.scanUnescapedLength(buffer, idx);
-                    if (len >= 0) {
-                        handler.arrayElemString(buffer, idx + 1, len);
-                    } else {
-                        int rawLen = scalarStringLength(buffer, idx + 1);
-                        byte[] unescaped = new byte[rawLen + SimdJsonSupport.DESTINATION_PADDING];
-                        int parsed = stringParser.parseString(buffer, idx, unescaped);
-                        handler.arrayElemString(unescaped, 0, parsed);
-                    }
-                }
+                case '"' -> handler.rawArrayElemString(rawString(buffer, idx, bi.peek()));
                 case 't' -> {
                     validateTrue(buffer, idx);
                     handler.arrayElemBoolean(true);
@@ -354,17 +332,7 @@ public final class SimdJsonDirectWalker {
             byte valByte = buffer[valIdx];
 
             switch (valByte) {
-                case '"' -> {
-                    byte[] strBuf = buffer;
-                    int strOff = valIdx + 1;
-                    int len = stringParser.scanUnescapedLength(buffer, valIdx);
-                    if (len < 0) {
-                        strBuf = unescapeString(buffer, valIdx);
-                        len = unescapedLength;
-                        strOff = 0;
-                    }
-                    handler.stringField(fieldName, strBuf, strOff, len);
-                }
+                case '"' -> handler.rawStringField(fieldName, rawString(buffer, valIdx, bi.peek()));
                 case 't' -> {
                     validateTrue(buffer, valIdx);
                     handler.booleanField(fieldName, true, buffer, valIdx, 4);
@@ -1080,14 +1048,20 @@ public final class SimdJsonDirectWalker {
     // String helpers
     // ------------------------------------------------------------------
 
-    private int unescapedLength;
-
-    /** Unescapes a string value into a new buffer, leaving the length in {@link #unescapedLength}. Kept out of the field loop. */
-    private byte[] unescapeString(byte[] buffer, int valIdx) {
-        int rawLen = scalarStringLength(buffer, valIdx + 1);
-        byte[] out = new byte[rawLen + SimdJsonSupport.DESTINATION_PADDING];
-        unescapedLength = stringParser.parseString(buffer, valIdx, out);
-        return out;
+    /**
+     * Wraps the string value opening at {@code valIdx} without reading it. {@code nextStructural} is the index of
+     * the structural character after the string (the {@code ,}, {@code }} or {@code ]} following the closing quote), so
+     * {@code nextStructural - valIdx - 2} bounds its raw and therefore its unescaped length.
+     */
+    private static Utf8Value rawString(byte[] buffer, int valIdx, int nextStructural) {
+        int maxLength = nextStructural - valIdx - 2;
+        if (maxLength < 0) {
+            // nextStructural is the sentinel after the document's window, which points before the string: the document ends
+            // inside it, and its closing quote is in a later document of the batch stage 1 ran over.
+            // We reject it before a handler that copies the value is given a negative bound.
+            throw new JsonParsingException("Unexpected end of document");
+        }
+        return new RawJsonUtf8Value(buffer, valIdx, maxLength);
     }
 
     private static int scalarStringLength(byte[] buffer, int start) {

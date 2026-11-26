@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -143,6 +144,83 @@ public class EscfColumnBuilderTests extends ESTestCase {
         assertEquals(2.5, col.getDoubleValue(2), 0.0);
         assertEquals(SourceValueType.STRING, col.getTypeByte(3));
         assertEquals("more", col.getStringValue(3).string());
+    }
+
+    /** A string row discarded with {@link EscfColumnBuilder#discardRow} leaves the column as if it had never been written. */
+    public void testDiscardRowUndoesUtf8String() {
+        assertDiscardRowUndoes(EscfColumnBuilderTests::randomUtf8StringRow);
+    }
+
+    /** A string array row discarded with {@link EscfColumnBuilder#discardRow} leaves the column as if it had never been written. */
+    public void testDiscardRowUndoesUtf8StringArray() {
+        assertDiscardRowUndoes(EscfColumnBuilderTests::randomUtf8StringArrayRow);
+    }
+
+    /**
+     * Writes the same rows to two builders, except for one row from {@code valueRows} that only {@code actual} gets and then
+     * discards, and checks that both finish identically. The column already has the kind that row needs, the kind of
+     * {@code valueRows} or a union, so that the discarded write does not change it.
+     */
+    private static void assertDiscardRowUndoes(Supplier<RowWriter> valueRows) {
+        boolean union = randomBoolean();
+        Supplier<RowWriter> otherRows = () -> switch (between(0, 2)) {
+            case 0 -> (b, row) -> b.addAbsent();
+            case 1 -> union ? randomRowWriter(0) : valueRows.get();
+            default -> valueRows.get();
+        };
+        List<RowWriter> before = new ArrayList<>();
+        if (union) {
+            before.add(randomRowWriter(0));
+        }
+        before.add(valueRows.get());
+        for (int i = between(0, 20); i > 0; i--) {
+            before.add(otherRows.get());
+        }
+        RowWriter discarded = valueRows.get();
+        List<RowWriter> after = new ArrayList<>();
+        for (int i = between(0, 20); i > 0; i--) {
+            after.add(otherRows.get());
+        }
+        try (EscfColumnBuilder expected = builder(); EscfColumnBuilder actual = builder()) {
+            int rows = 0;
+            for (RowWriter writer : before) {
+                writer.write(expected, rows);
+                writer.write(actual, rows);
+                rows++;
+            }
+            discarded.write(actual, rows);
+            actual.discardRow(rows);
+            for (RowWriter writer : after) {
+                writer.write(expected, rows);
+                writer.write(actual, rows);
+                rows++;
+            }
+            assertSameColumnData("discarded row " + before.size(), expected.finish(rows), actual.finish(rows));
+        }
+    }
+
+    /** Sometimes long enough to cross stream pages. */
+    private static String randomPageCrossingString() {
+        return randomRealisticUnicodeOfLengthBetween(0, rarely() ? 3 * PageCacheRecycler.BYTE_PAGE_SIZE : 50);
+    }
+
+    private static RowWriter randomUtf8StringRow() {
+        String value = randomPageCrossingString();
+        return (b, row) -> b.addUtf8String(utf8Value(value));
+    }
+
+    private static RowWriter randomUtf8StringArrayRow() {
+        String[] values = new String[between(1, 5)];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = randomPageCrossingString();
+        }
+        return (b, row) -> {
+            Utf8Value[] elements = new Utf8Value[values.length];
+            for (int i = 0; i < values.length; i++) {
+                elements[i] = utf8Value(values[i]);
+            }
+            b.addUtf8StringArray(elements);
+        };
     }
 
     public void testUtf8ValueMergesIntoStringArrayColumn() {

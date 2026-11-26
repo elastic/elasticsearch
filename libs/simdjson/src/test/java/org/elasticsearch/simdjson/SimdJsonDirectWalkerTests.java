@@ -227,6 +227,76 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals(List.of("x\ny", "p\nq", "r\ns"), decoded);
     }
 
+    /**
+     * String values and array elements are handed over unread, and copying them after the walk, while the document bytes
+     * are unchanged, unescapes them.
+     */
+    public void testRawStringsAreReadWhenCopied() {
+        List<Utf8Value> values = new ArrayList<>();
+        walkKeepingRawStrings(
+            "{\"a\":\"x\\ny\" , \"arr\":[\"p\\u0041q\" ,\"r\",\n\"\"],\"o\":{\"b\":\"t\\\"u\"},\"objs\":[{\"c\":\"v\\/w\" }]}",
+            values
+        );
+        assertEquals(List.of("x\ny", "pAq", "r", "", "t\"u", "v/w"), copyAll(values));
+    }
+
+    /** Nothing reads a string value during the walk, so a malformed escape is only found when the value is copied. */
+    public void testMalformedEscapeIsFoundWhenCopied() {
+        String json = randomFrom("{\"a\":\"x\\qy\"}", "{\"arr\":[\"ok\",\"x\\u12G4y\"]}", "{\"objs\":[{\"a\":\"x\\qy\"}]}");
+        List<Utf8Value> values = new ArrayList<>();
+        walkKeepingRawStrings(json, values);
+        expectThrows(JsonParsingException.class, () -> copyAll(values));
+        // The default handler methods copy the value as soon as they get it, so the walk fails.
+        expectThrows(JsonParsingException.class, () -> walkJson(json));
+    }
+
+    /**
+     * Stage 1 runs over a whole batch, so a document that ends inside a string can have the closing quote in the next document.
+     * Its window then has no structural index after the string to bound it, and the handler never gets the value.
+     */
+    public void testDocumentEndingInsideAStringInABatch() {
+        String first = randomFrom("{\"a\":\"x", "{\"arr\":[\"x");
+        String second = first.contains("[") ? "\"]}" : "\"}";
+        List<Utf8Value> values = new ArrayList<>();
+        expectThrows(JsonParsingException.class, () -> walkKeepingRawStrings(first + second, first.length(), values));
+        assertEquals(List.of(), values);
+    }
+
+    private void walkKeepingRawStrings(String json, List<Utf8Value> values) {
+        walkKeepingRawStrings(json, json.length(), values);
+    }
+
+    /** Runs stage 1 over all of {@code json}, and walks its first {@code documentLength} bytes as a document. */
+    private void walkKeepingRawStrings(String json, int documentLength, List<Utf8Value> values) {
+        RecordingHandler handler = new RecordingHandler() {
+            @Override
+            public void rawStringField(String fieldName, Utf8Value value) {
+                values.add(value);
+            }
+
+            @Override
+            public void rawArrayElemString(Utf8Value value) {
+                values.add(value);
+            }
+        };
+        byte[] buffer = json.getBytes(UTF_8);
+        try (SimdJsonParser parser = newParser(buffer.length)) {
+            SimdJsonDirectWalker walker = new SimdJsonDirectWalker(new FrozenFieldNameTable().makeChild());
+            parser.stage1(buffer, 0, buffer.length);
+            parser.prepareDocumentWindow(0, documentLength);
+            walker.walkDocument(buffer, parser, handler);
+        }
+    }
+
+    private static List<String> copyAll(List<Utf8Value> values) {
+        List<String> copied = new ArrayList<>();
+        for (Utf8Value value : values) {
+            byte[] dst = new byte[value.maxLength() + SimdJsonSupport.DESTINATION_PADDING];
+            copied.add(new String(dst, 0, value.copyTo(dst, 0), UTF_8));
+        }
+        return copied;
+    }
+
     // Root must be an object; top-level arrays are rejected.
     public void testDocumentStartingWithArray() {
         expectThrows(JsonParsingException.class, () -> walkJson("[1,2]"));

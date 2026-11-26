@@ -38,12 +38,21 @@ public final class EscfRowBuffer {
     private static final int INITIAL_CAPACITY = 16;
     private static final int INITIAL_PARENT_STACK_DEPTH = 8;
 
+    /**
+     * The {@link #scratchType} of a string array staged as its elements, a {@code Utf8Value[]}; see {@link #utf8StringArrayField}.
+     * Only staged, never encoded, so it is outside the {@link SourceValueType} values.
+     */
+    static final byte UTF8_STRING_ARRAY = 0x40;
+
     private final SourceSchema schema;
 
     private byte[] scratchType;
     private long[] scratchNumeric;
     private Object[] scratchVar;
     private FixedBitSet columnsSet;
+    /** The columns staged with a string or {@link #UTF8_STRING_ARRAY} in this row, in staging order. */
+    private int[] stringColumns = new int[INITIAL_CAPACITY];
+    private int stringColumnCount;
 
     private int[] parentStack;
     private int parentDepth;
@@ -78,6 +87,7 @@ public final class EscfRowBuffer {
         Arrays.fill(scratchType, 0, Math.min(columnCountBefore, scratchType.length), (byte) 0);
         Arrays.fill(scratchVar, 0, Math.min(columnCountBefore, scratchVar.length), null);
         columnsSet.clear();
+        stringColumnCount = 0;
         parentDepth = 0;
         predictedLeaf = 0;
         predictedNonLeaf = 1;
@@ -155,7 +165,28 @@ public final class EscfRowBuffer {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = SourceValueType.STRING;
         scratchVar[colIdx] = value;
+        addStringColumn(colIdx);
         return colIdx;
+    }
+
+    /**
+     * Stages a non-empty string array as its elements, each copied into the column on {@link EscfBatchBuilder#commit}, so their
+     * bytes must not change before then. Returns the leaf column index.
+     */
+    int utf8StringArrayField(String name, Utf8Value[] elements) {
+        assert elements.length > 0 : "an empty array has no string elements to stage";
+        int colIdx = addLeaf(name);
+        scratchType[colIdx] = UTF8_STRING_ARRAY;
+        scratchVar[colIdx] = elements;
+        addStringColumn(colIdx);
+        return colIdx;
+    }
+
+    private void addStringColumn(int colIdx) {
+        if (stringColumnCount == stringColumns.length) {
+            stringColumns = Arrays.copyOf(stringColumns, ArrayUtil.oversize(stringColumnCount + 1, Integer.BYTES));
+        }
+        stringColumns[stringColumnCount++] = colIdx;
     }
 
     /** Stages a UTF-8 string value. Returns the leaf column index. */
@@ -235,6 +266,15 @@ public final class EscfRowBuffer {
 
     Object scratchVar(int col) {
         return scratchVar[col];
+    }
+
+    /** The columns staged with a string or {@link #UTF8_STRING_ARRAY} in this row are {@code stringColumns()[0, stringColumnCount())}. */
+    int[] stringColumns() {
+        return stringColumns;
+    }
+
+    int stringColumnCount() {
+        return stringColumnCount;
     }
 
     boolean isStarted() {

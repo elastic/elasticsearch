@@ -31,6 +31,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.simdjson.JsonParsingException;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
@@ -193,6 +194,12 @@ final class BulkBatchEncoders implements Releasable {
         try {
             int rowIndex = state.encoder.commitScratchTo(shardIdInt);
             state.pendingByShard.computeIfAbsent(destShardId, k -> new ArrayList<>()).add(new PendingAttachment(request, rowIndex));
+        } catch (JsonParsingException e) {
+            // A string value the encoder staged without reading turned out malformed when it was copied. The encoder discarded
+            // the row, so this is a failed parse, handled like a parseToScratch failure.
+            logger.debug("batch encoding failed on commit; abandoning batch for the rest of this bulk", e);
+            disabled = true;
+            return NOT_BATCHABLE;
         } catch (Exception e) {
             // commitScratchTo failure indicates internal-state corruption (IO error on the
             // underlying stream). Surface it; the per-item catch in groupRequestsByShards turns it

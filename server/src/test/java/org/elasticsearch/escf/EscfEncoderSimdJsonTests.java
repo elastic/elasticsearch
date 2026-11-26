@@ -17,7 +17,9 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.simdjson.JsonParsingException;
 import org.elasticsearch.simdjson.SimdJsonParserPool;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
@@ -506,6 +508,131 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
                 "Direct walk failed*"
             )
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Strings staged unread, copied on commit
+    // -----------------------------------------------------------------------
+
+    /**
+     * A malformed escape in a string value or string array element is only found when commit copies it. Commit then throws
+     * and leaves the partition as it was: the rows around the malformed document match Jackson's encoding of those rows alone.
+     */
+    public void testMalformedStringFoundOnCommitIsDiscarded() throws IOException {
+        assumeTrue("strings are staged unread only on the simdjson path", EscfEncoder.isSimdEnabled());
+        String longValue = "x".repeat(12_000);
+        String before = "{\"s\":\"" + longValue + "\"," + """
+            "n":1,"t":["x","y\\n"],"u":"plain","o":{"v":"w"}}""";
+        String malformed = randomFrom(
+            // the second string column fails after the first was copied
+            """
+                {"s":"c","u":"bad\\qescape"}""",
+            // a string array element fails after the elements before it were copied
+            """
+                {"t":["ok","bad\\u12G4"]}""",
+            // the string meets a long column, which it promotes to a union before failing
+            """
+                {"n":"bad\\qescape"}""",
+            // a column only the malformed document has
+            """
+                {"fresh":"bad\\qescape"}""",
+            // a string in an object fails after a long value that does not fit in the rest of its column's page was copied
+            "{\"s\":\"" + longValue + "\",\"o\":{\"v\":\"bad\\qescape\"}}"
+        );
+        String after = """
+            {"s":"b","n":2,"t":["z"],"u":"more","o":{"v":"x"}}""";
+
+        Recycler<BytesRef> recycler = newRecycler();
+        try (EscfEncoder simdEncoder = new EscfEncoder(recycler, true); EscfEncoder jacksonEncoder = new EscfEncoder(recycler, false)) {
+            simdEncoder.addDocument(new BytesArray(before), XContentType.JSON, 0);
+            simdEncoder.parseToScratch(new BytesArray(malformed), XContentType.JSON, LeafSink.NO_OP);
+            expectThrows(JsonParsingException.class, () -> simdEncoder.commitScratchTo(0));
+            assertEquals(1, simdEncoder.docCount(0));
+            simdEncoder.addDocument(new BytesArray(after), XContentType.JSON, 0);
+
+            jacksonEncoder.addDocument(new BytesArray(before), XContentType.JSON, 0);
+            jacksonEncoder.addDocument(new BytesArray(after), XContentType.JSON, 0);
+            try (EscfBatch simdBatch = simdEncoder.buildPartition(0); EscfBatch jacksonBatch = jacksonEncoder.buildPartition(0)) {
+                assertEquals(2, simdBatch.docCount());
+                for (int i = 0; i < 2; i++) {
+                    assertEquals("row " + i, reconstruct(jacksonBatch, i), reconstruct(simdBatch, i));
+                }
+            }
+        }
+    }
+
+    /** A partition that only a malformed document would have created does not exist afterwards. */
+    public void testMalformedStringFoundOnCommitLeavesNoPartition() throws IOException {
+        assumeTrue("strings are staged unread only on the simdjson path", EscfEncoder.isSimdEnabled());
+        try (EscfEncoder encoder = new EscfEncoder(newRecycler(), true)) {
+            encoder.addDocument(new BytesArray("{\"s\":\"a\"}"), XContentType.JSON, 0);
+            encoder.parseToScratch(new BytesArray("{\"s\":\"bad\\qescape\"}"), XContentType.JSON, LeafSink.NO_OP);
+            expectThrows(JsonParsingException.class, () -> encoder.commitScratchTo(1));
+            assertFalse(encoder.hasPartition(1));
+            assertEquals(0, encoder.docCount(1));
+            assertEquals(1, encoder.docCount(0));
+        }
+    }
+
+    /**
+     * Arrays that are packed, and objects in arrays that are serialized, while the document is walked copy their strings there,
+     * so a malformed one fails the walk, and the encoder falls back to Jackson, which rejects the document too.
+     */
+    public void testMalformedStringCopiedDuringTheWalkFailsTheParse() throws IOException {
+        String json = randomFrom("""
+            {"m":[1,"bad\\qescape"]}""", """
+            {"n":[["ok"],["bad\\qescape"]]}""", """
+            {"k":[{"a":["bad\\qescape"]}]}""", """
+            {"k":[{"s":"bad\\qescape"}]}""", """
+            {"k":[{"o":{"s":"bad\\qescape"}}]}""");
+        try (
+            EscfEncoder simdEncoder = new EscfEncoder(newRecycler(), true);
+            EscfEncoder jacksonEncoder = new EscfEncoder(newRecycler(), false)
+        ) {
+            expectThrows(Exception.class, () -> simdEncoder.parseToScratch(new BytesArray(json), XContentType.JSON, LeafSink.NO_OP));
+            expectThrows(Exception.class, () -> jacksonEncoder.parseToScratch(new BytesArray(json), XContentType.JSON, LeafSink.NO_OP));
+        }
+    }
+
+    /** Top-level string arrays are staged as their elements; whitespace around elements only loosens the bound on each. */
+    public void testStringArraysStagedAsElements() throws IOException {
+        assertSameOutputAllSourceShapes("""
+            {"t":[ "a" , "b\\n" ,"\\u00e9" , ""  ],"u":["x"]}""", """
+            {"t":["c"],"u":["y","z"]}""");
+    }
+
+    /** A string array column that later gets a scalar, or an array of another kind, becomes a union. */
+    public void testStringArraysInUnionColumns() throws IOException {
+        assertSameOutputAllSourceShapes("""
+            {"t":["a","b"],"u":"scalar","v":[1,2]}""", """
+            {"t":"scalar","u":["c","d\\t"],"v":["e","f"]}""", """
+            {"t":["g"],"u":["h"],"v":["i"]}""");
+    }
+
+    /** Raw string elements of arrays that are packed during the walk: mixed, nested, and in objects in arrays. */
+    public void testRawStringElementsOfPackedArrays() throws IOException {
+        assertSameOutputAllSourceShapes("""
+            {"m":["a\\n",1,"b",true,null],"n":[["c","d\\""],["e"]],"k":[{"a":["f","g\\/"],"s":"h"}]}""");
+    }
+
+    /**
+     * Enough long string array elements, some escaped, that the elements of later rows do not fit in the page they start in.
+     * Each document stays below the size above which the encoder falls back to Jackson.
+     */
+    public void testStringArrayElementsAcrossPages() throws IOException {
+        List<String> docs = new ArrayList<>();
+        int totalBytes = 0;
+        while (totalBytes < 3 * PageCacheRecycler.BYTE_PAGE_SIZE) {
+            StringBuilder doc = new StringBuilder("{\"t\":[");
+            for (int i = between(1, 4); i > 0; i--) {
+                String element = randomAlphaOfLength(between(0, 2500)) + (randomBoolean() ? "\\n" : "");
+                totalBytes += element.length();
+                doc.append('"').append(element).append('"').append(i > 1 ? "," : "");
+            }
+            docs.add(doc.append("],\"s\":\"").append(randomAlphaOfLength(between(0, 2500))).append("\\t\"}").toString());
+        }
+        assertTrue(docs.stream().allMatch(doc -> doc.length() < MAX_DOC_BYTES));
+        assertSameOutput(docs.toArray(String[]::new));
     }
 
     // -----------------------------------------------------------------------

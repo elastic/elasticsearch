@@ -1055,3 +1055,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testView
   issue: https://github.com/elastic/elasticsearch/issues/167647
+- class: org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactoryTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFilteredLimitRampStaysParkedOnDenseFirstPage
+  issue: https://github.com/elastic/elasticsearch/issues/167649

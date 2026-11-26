@@ -492,11 +492,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      */
     public void updateLargestIndexingOperationSize(long operationSizeInBytes) {
         long nowInNanos = relativeTimeInNanosSupplier.getAsLong();
-        largestIndexingOperation.update(
-            operationSizeInBytes,
-            nowInNanos,
-            indexingOperationsMemoryMetricsValidityDuration.nanos()
-        );
+        largestIndexingOperation.update(operationSizeInBytes, nowInNanos, indexingOperationsMemoryMetricsValidityDuration.nanos());
     }
 
     /**

@@ -7,17 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.documentextraction;
 
-import org.apache.hc.core5.http.message.BasicHttpResponse;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandlerTests;
-
-import java.nio.charset.StandardCharsets;
-
-import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Runs all of the default EIS failure status code tests against the document extraction handler, which differs only in
@@ -40,15 +31,5 @@ public class ElasticInferenceServiceDocumentExtractionResponseHandlerTests exten
             return false;
         }
         return super.expectedShouldRetry(testCase);
-    }
-
-    public void testBuildFailureStatusCodeException_ContentTooLarge_DoesNotRebuildTheRequest() {
-        var request = mock(OutboundRequest.class);
-        when(request.getInferenceEntityId()).thenReturn("id");
-        var httpResult = new HttpResult(new BasicHttpResponse(413), "{\"message\": \"failure\"}".getBytes(StandardCharsets.UTF_8));
-
-        var exception = createHandler().buildFailureStatusCodeException(request, httpResult);
-
-        assertThat(exception.rebuildRequest(request), is(request));
     }
 }

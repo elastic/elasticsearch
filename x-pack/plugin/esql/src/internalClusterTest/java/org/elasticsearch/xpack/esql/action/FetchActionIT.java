@@ -67,7 +67,8 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * The fetch action between two nodes. A node that didn't run the query phase asks the node that holds the documents for
  * their columns, over the wire. The data node finds the reader contexts the query phase kept open, loads the documents
- * in one driver, and returns their rows in request order. The contexts stay open until the coordinator frees them.
+ * of its shards in parallel, and returns their rows in request order. The contexts stay open until the coordinator frees
+ * them.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
 public class FetchActionIT extends AbstractEsqlIntegTestCase {

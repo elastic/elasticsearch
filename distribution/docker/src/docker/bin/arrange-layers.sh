@@ -31,25 +31,26 @@ move_to_layer() {
     fi
 }
 
-# Prints the checksums of the jars below the given paths, without duplicates.
-jar_checksums() {
-    find "$@" -type f -name '*.jar' -exec sha256sum {} + | cut -d' ' -f1 | sort -u
+# Prints the inodes of the jars below the given paths that have other hard links, without duplicates.
+linked_jar_inodes() {
+    find "$@" -type f -name '*.jar' -links +1 -exec stat -c %i {} + | sort -u
 }
 
-# A hard link cannot span two layers: if the copies of a jar were split between layers, each layer would store its
-# own copy. So no jar may have a copy with identical content in another layer or in what is left in the home.
-check_no_jar_is_split() {
-    split_checksums=$({
+# A hard link cannot span two layers: if the links to a file were split between layers, each layer would store its
+# own copy. So no hard-linked jar may have a link in another layer or in what is left in the home. Jars with
+# identical content but different modes are not linked by `hardlink`, so they may be in different layers.
+check_no_hard_link_is_split() {
+    split_inodes=$({
         for layer in /layers/*; do
             # The status of a group is that of its last command, so a failure here would otherwise go unnoticed
-            jar_checksums "$layer" || exit 1
+            linked_jar_inodes "$layer" || exit 1
         done
-        jar_checksums lib modules plugins
+        linked_jar_inodes lib modules plugins
     } | sort | uniq -d)
-    if [ -n "$split_checksums" ]; then
-        echo >&2 "Jars with identical content would end up in different layers, listed by checksum and path:"
-        # Each line of $split_checksums is a pattern, so this keeps the jars that have one of those checksums
-        find /layers lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | grep -F "$split_checksums" >&2
+    if [ -n "$split_inodes" ]; then
+        echo >&2 "Hard-linked jars would end up in different layers, listed by inode and path:"
+        # Each line of $split_inodes is a pattern, so this keeps the jars that have one of those inodes
+        find /layers lib modules plugins -type f -name '*.jar' -exec stat -c '%i %n' {} + | sort | grep -wF "$split_inodes" >&2
         exit 1
     fi
 }
@@ -62,4 +63,4 @@ for paths_command in "$@"; do
     layer_number=$((layer_number + 1))
 done
 
-check_no_jar_is_split
+check_no_hard_link_is_split

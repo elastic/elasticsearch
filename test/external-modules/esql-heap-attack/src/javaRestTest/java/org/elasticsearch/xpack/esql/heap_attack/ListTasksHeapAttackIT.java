@@ -9,11 +9,7 @@
 
 package org.elasticsearch.xpack.esql.heap_attack;
 
-import org.apache.http.HttpHost;
-import org.apache.http.HttpStatus;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -21,7 +17,6 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -41,10 +36,9 @@ import static org.hamcrest.Matchers.greaterThan;
  * holds none of them. The coordinating node holds the replies of all the other nodes until it has them, so it must trip a circuit breaker
  * and fail to take those replies. Without a breaker on the replies it receives, the same load ran nodes of the cluster out of memory.
  */
-public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
+public class ListTasksHeapAttackIT extends ListTasksHeapAttackTestCase {
 
     private static final int NODES = 5;
-    private static final int LITERAL_LENGTH = 900_000;
     private static final int HELD_QUERIES = 24;
     private static final int CLIENTS = 8;
     private static final int CALLS_PER_CLIENT = 10;
@@ -61,26 +55,21 @@ public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
     }
 
     @Override
-    protected String getTestRestCluster() {
-        String[] addresses = Clusters.testRestCluster(cluster).split(",");
-        return addresses.length == 1 ? addresses[0] : String.join(",", Arrays.copyOfRange(addresses, 1, addresses.length));
+    protected ElasticsearchCluster testCluster() {
+        return cluster;
     }
 
     public void testListingTheTasksOfManyNodesDoesNotExhaustTheHeapOfTheCoordinatingNode() throws Exception {
         assumeFalse("serverless does not allow changing the number of nodes", isServerless());
-        String coordinatingAddress = cluster.getHttpAddresses().split(",")[0];
-        int portSeparator = coordinatingAddress.lastIndexOf(':');
-        String host = coordinatingAddress.substring(0, portSeparator).replace("[", "").replace("]", "");
-        int port = Integer.parseInt(coordinatingAddress.substring(portSeparator + 1));
         List<String> asyncIds = new ArrayList<>();
         ExecutorService executor = Executors.newFixedThreadPool(CLIENTS);
-        try (RestClient coordinatingClient = buildClient(restClientSettings(), new HttpHost[] { new HttpHost(host, port, "http") })) {
-            createPausableIndex(coordinatingNodeId(coordinatingClient));
+        try (RestClient coordinatingClient = buildCoordinatingClient()) {
+            createPausableIndex(1, coordinatingNodeId(coordinatingClient));
             blockPauseField();
             try {
                 final long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(3);
                 for (int i = 0; i < HELD_QUERIES; i++) {
-                    asyncIds.add(submitAsyncQuery(queryWithLongLiteral("q" + i + "-" + "€".repeat(LITERAL_LENGTH))));
+                    asyncIds.add(submitHeldQuery(i));
                 }
                 logger.info("--> submitted {} held queries", HELD_QUERIES);
                 AtomicInteger listed = new AtomicInteger();
@@ -119,24 +108,18 @@ public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
                     equalTo(NODES)
                 );
                 assertThat("listings that tripped the breaker on the replies", tripped.get(), greaterThan(0));
-            } finally {
-                executor.shutdownNow();
-                unblockPauseField();
-                for (String id : asyncIds) {
-                    deleteAsyncQuery(id);
+            } catch (Exception | Error e) {
+                try {
+                    cleanUp(asyncIds);
+                } catch (Exception cleanUpFailure) {
+                    e.addSuppressed(cleanUpFailure);
                 }
-                for (String id : asyncIds) {
-                    ensureAsyncQueryCompleted(id);
-                }
+                throw e;
             }
+            cleanUp(asyncIds);
+        } finally {
+            executor.shutdownNow();
         }
-    }
-
-    private String coordinatingNodeId(RestClient coordinatingClient) throws IOException {
-        Request request = new Request("GET", "/_nodes/_local");
-        request.addParameter("filter_path", "nodes.*.name");
-        Map<?, ?> nodes = (Map<?, ?>) entityAsMap(coordinatingClient.performRequest(request)).get("nodes");
-        return nodes.keySet().iterator().next().toString();
     }
 
     private boolean listTasksTrips(RestClient coordinatingClient, Queue<String> unexpectedNodeFailures) throws IOException {
@@ -161,90 +144,5 @@ public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
             }
         }
         return tripped;
-    }
-
-    private void createPausableIndex(String coordinatingNodeId) throws IOException {
-        Request createIndex = new Request("PUT", "/pause_test");
-        createIndex.setJsonEntity("""
-            {
-                "settings": {
-                    "number_of_shards": 1,
-                    "number_of_replicas": 0,
-                    "index.routing.allocation.exclude._id": "%s"
-                },
-                "mappings": {
-                    "runtime": {
-                        "pause_long_field": {
-                            "type": "long",
-                            "script": {
-                                "source": "",
-                                "lang": "pause"
-                            }
-                        }
-                    },
-                    "properties": {
-                        "tag": {
-                            "type": "keyword"
-                        }
-                    }
-                }
-            }""".formatted(coordinatingNodeId));
-        client().performRequest(createIndex);
-        Request bulk = new Request("POST", "/pause_test/_bulk?refresh=true");
-        StringBuilder body = new StringBuilder();
-        for (int i = 0; i < 30; i++) {
-            body.append("{\"index\":{}}\n").append("{\"tag\":\"tag-").append(i).append("\"}\n");
-        }
-        bulk.setJsonEntity(body.toString());
-        client().performRequest(bulk);
-        ensureGreen("pause_test");
-    }
-
-    private String queryWithLongLiteral(String literal) {
-        return "FROM pause_test | WHERE tag != \\\"" + literal + "\\\" | STATS SUM(pause_long_field) | LIMIT 1";
-    }
-
-    private String submitAsyncQuery(String query) throws IOException {
-        Request request = new Request("POST", "/_query/async");
-        request.setJsonEntity("{\"query\": \"" + query + "\", \"wait_for_completion_timeout\": \"10ms\", \"keep_on_completion\": false}");
-        Response response = client().performRequest(request);
-        return (String) entityAsMap(response).get("id");
-    }
-
-    private void deleteAsyncQuery(String id) throws Exception {
-        assertBusy(() -> {
-            try {
-                client().performRequest(new Request("DELETE", "/_query/async/" + id));
-            } catch (ResponseException ex) {
-                if (ex.getResponse().getStatusLine().getStatusCode() != HttpStatus.SC_NOT_FOUND) {
-                    throw ex;
-                }
-            }
-        });
-    }
-
-    private void ensureAsyncQueryCompleted(String id) throws Exception {
-        assertBusy(() -> {
-            try {
-                client().performRequest(new Request("GET", "/_query/async/" + id));
-            } catch (ResponseException ex) {
-                int statusCode = ex.getResponse().getStatusLine().getStatusCode();
-                if (statusCode == HttpStatus.SC_NOT_FOUND) {
-                    return;
-                }
-                if (statusCode != HttpStatus.SC_TOO_MANY_REQUESTS) {
-                    throw ex;
-                }
-            }
-            fail("expected async query [" + id + "] to be gone");
-        });
-    }
-
-    private void blockPauseField() throws IOException {
-        client().performRequest(new Request("POST", "/_pause_field/block"));
-    }
-
-    private void unblockPauseField() throws IOException {
-        client().performRequest(new Request("POST", "/_pause_field/unblock"));
     }
 }

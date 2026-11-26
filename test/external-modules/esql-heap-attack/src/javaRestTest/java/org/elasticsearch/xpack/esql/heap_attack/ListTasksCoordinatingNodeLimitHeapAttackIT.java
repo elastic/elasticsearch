@@ -9,11 +9,7 @@
 
 package org.elasticsearch.xpack.esql.heap_attack;
 
-import org.apache.http.HttpHost;
-import org.apache.http.HttpStatus;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -21,7 +17,6 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -37,10 +32,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * to take those replies, instead of exhausting its heap. The queries are held through the other nodes, so that the coordinating node does
  * not hold any of them itself.
  */
-public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHelpers {
+public class ListTasksCoordinatingNodeLimitHeapAttackIT extends ListTasksHeapAttackTestCase {
 
-    private static final int LITERAL_LENGTH = 900_000;
     private static final int HELD_QUERIES = 8;
+    private static final int DATA_NODES = 2;
     private static final int LIST_CALLS = 5;
     private static final String COORDINATING_NODE_LIMIT = "30mb";
     private static final long IN_FLIGHT_SLACK_BYTES = 1024 * 1024;
@@ -60,53 +55,47 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
     }
 
     @Override
-    protected String getTestRestCluster() {
-        String[] addresses = Clusters.testRestCluster(cluster).split(",");
-        return addresses.length == 1 ? addresses[0] : String.join(",", Arrays.copyOfRange(addresses, 1, addresses.length));
+    protected ElasticsearchCluster testCluster() {
+        return cluster;
     }
 
     public void testRepliesOfSeveralNodesTripCircuitBreakerOfCoordinatingNode() throws Exception {
         assumeFalse("serverless does not allow changing the number of nodes", isServerless());
         List<String> asyncIds = new ArrayList<>();
-        String coordinatingAddress = cluster.getHttpAddresses().split(",")[0];
-        int portSeparator = coordinatingAddress.lastIndexOf(':');
-        String host = coordinatingAddress.substring(0, portSeparator).replace("[", "").replace("]", "");
-        int port = Integer.parseInt(coordinatingAddress.substring(portSeparator + 1));
-        try (RestClient coordinatingClient = buildClient(restClientSettings(), new HttpHost[] { new HttpHost(host, port, "http") })) {
-            createPausableIndex(coordinatingNodeId(coordinatingClient));
+        try (RestClient coordinatingClient = buildCoordinatingClient()) {
+            createPausableIndex(3, coordinatingNodeId(coordinatingClient));
             blockPauseField();
-            for (int i = 0; i < HELD_QUERIES; i++) {
-                asyncIds.add(submitAsyncQuery(queryWithLongLiteral("q" + i + "-" + "\u20ac".repeat(LITERAL_LENGTH))));
-            }
-
-            for (String nodeId : remoteNodeIds(coordinatingClient)) {
-                assertReplyOfNodeFits(coordinatingClient, nodeId);
-            }
-
-            long inFlightBefore = inFlightBytes(coordinatingClient);
-            int tripped = 0;
-            for (int call = 0; call < LIST_CALLS; call++) {
-                if (listTasksTripsCoordinatingNodeBreaker(coordinatingClient)) {
-                    tripped++;
+            try {
+                for (int i = 0; i < HELD_QUERIES; i++) {
+                    asyncIds.add(submitHeldQuery(i));
                 }
-                assertBusy(() -> assertThat(inFlightBytes(coordinatingClient), lessThanOrEqualTo(inFlightBefore + IN_FLIGHT_SLACK_BYTES)));
-            }
-            assertThat(tripped, equalTo(LIST_CALLS));
-        } finally {
-            unblockPauseField();
-            for (String id : asyncIds) {
-                deleteAsyncQuery(id);
-            }
-            for (String id : asyncIds) {
-                ensureAsyncQueryCompleted(id);
-            }
-        }
-    }
+                awaitDataNodeTasksOfHeldQueries(coordinatingClient, HELD_QUERIES * DATA_NODES);
 
-    private String coordinatingNodeId(RestClient coordinatingClient) throws IOException {
-        Request local = new Request("GET", "/_nodes/_local");
-        local.addParameter("filter_path", "nodes.*.name");
-        return ((Map<?, ?>) entityAsMap(coordinatingClient.performRequest(local)).get("nodes")).keySet().iterator().next().toString();
+                for (String nodeId : remoteNodeIds(coordinatingClient)) {
+                    assertReplyOfNodeFits(coordinatingClient, nodeId);
+                }
+
+                long inFlightBefore = inFlightBytes(coordinatingClient);
+                int tripped = 0;
+                for (int call = 0; call < LIST_CALLS; call++) {
+                    if (listTasksTripsCoordinatingNodeBreaker(coordinatingClient)) {
+                        tripped++;
+                    }
+                    assertBusy(
+                        () -> assertThat(inFlightBytes(coordinatingClient), lessThanOrEqualTo(inFlightBefore + IN_FLIGHT_SLACK_BYTES))
+                    );
+                }
+                assertThat(tripped, equalTo(LIST_CALLS));
+            } catch (Exception | Error e) {
+                try {
+                    cleanUp(asyncIds);
+                } catch (Exception cleanUpFailure) {
+                    e.addSuppressed(cleanUpFailure);
+                }
+                throw e;
+            }
+            cleanUp(asyncIds);
+        }
     }
 
     private long inFlightBytes(RestClient coordinatingClient) throws IOException {
@@ -127,7 +116,7 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
                 remote.add(nodeId.toString());
             }
         }
-        assertThat(remote, hasSize(2));
+        assertThat(remote, hasSize(DATA_NODES));
         return remote;
     }
 
@@ -146,6 +135,10 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
         assertThat(((Map<?, ?>) node.get("tasks")).size(), greaterThan(0));
     }
 
+    /**
+     * Every node failure of the listing must be the trip of the in-flight breaker on a reply. Both replies are rejected if they arrive
+     * together, and only the second one if they do not, so the number of failures is not asserted.
+     */
     private boolean listTasksTripsCoordinatingNodeBreaker(RestClient coordinatingClient) throws IOException {
         Request request = new Request("GET", "/_tasks");
         request.addParameter("detailed", "true");
@@ -153,97 +146,18 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
         request.addParameter("filter_path", "node_failures");
         Map<String, Object> response = entityAsMap(coordinatingClient.performRequest(request));
         List<?> nodeFailures = (List<?>) response.get("node_failures");
-        return nodeFailures != null
-            && nodeFailures.stream()
-                .anyMatch(
-                    failure -> "circuit_breaking_exception".equals(XContentMapValues.extractValue("caused_by.type", (Map<?, ?>) failure))
-                        && String.valueOf(XContentMapValues.extractValue("caused_by.reason", (Map<?, ?>) failure))
-                            .startsWith("[inflight_requests] Data too large, data for [<node_tasks_response>]")
-                );
-    }
-
-    private void createPausableIndex(String coordinatingNodeId) throws IOException {
-        Request createIndex = new Request("PUT", "/pause_test");
-        createIndex.setJsonEntity("""
-            {
-                "settings": {
-                    "number_of_shards": 3,
-                    "number_of_replicas": 0,
-                    "index.routing.allocation.exclude._id": "%s"
-                },
-                "mappings": {
-                    "runtime": {
-                        "pause_long_field": {
-                            "type": "long",
-                            "script": {
-                                "source": "",
-                                "lang": "pause"
-                            }
-                        }
-                    },
-                    "properties": {
-                        "tag": {
-                            "type": "keyword"
-                        }
-                    }
-                }
-            }""".formatted(coordinatingNodeId));
-        client().performRequest(createIndex);
-        Request bulk = new Request("POST", "/pause_test/_bulk?refresh=true");
-        StringBuilder body = new StringBuilder();
-        for (int i = 0; i < 30; i++) {
-            body.append("{\"index\":{}}\n").append("{\"tag\":\"tag-").append(i).append("\"}\n");
+        if (nodeFailures == null) {
+            return false;
         }
-        bulk.setJsonEntity(body.toString());
-        client().performRequest(bulk);
-        ensureGreen("pause_test");
+        for (Object failure : nodeFailures) {
+            assertTrue("node failure other than a trip of the in-flight breaker on a reply: " + failure, isReplyBreakerTrip(failure));
+        }
+        return true;
     }
 
-    private String queryWithLongLiteral(String literal) {
-        return "FROM pause_test | WHERE tag != \\\"" + literal + "\\\" | STATS SUM(pause_long_field) | LIMIT 1";
-    }
-
-    private String submitAsyncQuery(String query) throws IOException {
-        Request request = new Request("POST", "/_query/async");
-        request.setJsonEntity("{\"query\": \"" + query + "\", \"wait_for_completion_timeout\": \"10ms\", \"keep_on_completion\": false}");
-        Response response = client().performRequest(request);
-        return (String) entityAsMap(response).get("id");
-    }
-
-    private void deleteAsyncQuery(String id) throws Exception {
-        assertBusy(() -> {
-            try {
-                client().performRequest(new Request("DELETE", "/_query/async/" + id));
-            } catch (ResponseException ex) {
-                if (ex.getResponse().getStatusLine().getStatusCode() != HttpStatus.SC_NOT_FOUND) {
-                    throw ex;
-                }
-            }
-        });
-    }
-
-    private void ensureAsyncQueryCompleted(String id) throws Exception {
-        assertBusy(() -> {
-            try {
-                client().performRequest(new Request("GET", "/_query/async/" + id));
-            } catch (ResponseException ex) {
-                int statusCode = ex.getResponse().getStatusLine().getStatusCode();
-                if (statusCode == HttpStatus.SC_NOT_FOUND) {
-                    return;
-                }
-                if (statusCode != HttpStatus.SC_TOO_MANY_REQUESTS) {
-                    throw ex;
-                }
-            }
-            fail("expected async query [" + id + "] to be gone");
-        });
-    }
-
-    private void blockPauseField() throws IOException {
-        client().performRequest(new Request("POST", "/_pause_field/block"));
-    }
-
-    private void unblockPauseField() throws IOException {
-        client().performRequest(new Request("POST", "/_pause_field/unblock"));
+    private static boolean isReplyBreakerTrip(Object failure) {
+        return "circuit_breaking_exception".equals(XContentMapValues.extractValue("caused_by.type", (Map<?, ?>) failure))
+            && String.valueOf(XContentMapValues.extractValue("caused_by.reason", (Map<?, ?>) failure))
+                .startsWith("[inflight_requests] Data too large, data for [<node_tasks_response>]");
     }
 }

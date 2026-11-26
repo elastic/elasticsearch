@@ -221,39 +221,48 @@ public final class DataExtractorUtils {
 
     /**
      * Per-cluster state of an ES|QL response, for the remote clusters only. Empty when the response has no cluster metadata, which is
-     * the case for a query that ran on the local cluster only.
+     * the case for a query that ran on the local cluster only. A {@code PARTIAL} remote returned incomplete data, so it counts as
+     * skipped.
      */
     public static List<LinkedClusterState> extractLinkedClusterStates(EsqlResponse response) {
         List<LinkedClusterState> result = new ArrayList<>();
-        for (EsqlClusterInfo cluster : response.clusters()) {
-            String alias = cluster.clusterAlias();
-            if (alias.equals(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS) || alias.equals(ProjectRoutingResolver.ORIGIN)) {
-                continue;
-            }
+        for (EsqlClusterInfo cluster : remoteClusters(response)) {
             LinkedClusterState.Status status = switch (cluster.status()) {
-                case SUCCESSFUL, RUNNING, PARTIAL -> LinkedClusterState.Status.AVAILABLE;
-                case SKIPPED -> LinkedClusterState.Status.SKIPPED;
+                case SUCCESSFUL, RUNNING -> LinkedClusterState.Status.AVAILABLE;
+                case SKIPPED, PARTIAL -> LinkedClusterState.Status.SKIPPED;
                 case FAILED -> LinkedClusterState.Status.FAILED;
             };
-            result.add(new LinkedClusterState(alias, status, null, 0L));
+            result.add(new LinkedClusterState(cluster.clusterAlias(), status, null, 0L));
         }
         return List.copyOf(result);
     }
 
     /**
-     * Check whether an ES|QL query skipped remote clusters, as {@link #checkForSkippedClusters(SearchResponse)} does for a search.
+     * Check whether an ES|QL query skipped remote clusters, as {@link #checkForSkippedClusters(SearchResponse)} does for a search. A
+     * {@code PARTIAL} remote is treated as skipped, because with {@code skip_unavailable} it returns incomplete rows even when partial
+     * results are not allowed. Only remote clusters are counted, as in {@link #extractLinkedClusterStates(EsqlResponse)}.
      * @throws ResourceNotFoundException if any remote cluster was skipped, as this could cause anomalies to be spuriously detected.
      */
     public static void checkForSkippedClusters(EsqlResponse response) {
-        List<EsqlClusterInfo> clusters = response.clusters();
-        long skipped = clusters.stream().filter(c -> c.status() == EsqlClusterInfo.Status.SKIPPED).count();
+        List<EsqlClusterInfo> remotes = remoteClusters(response);
+        long skipped = remotes.stream()
+            .filter(c -> c.status() == EsqlClusterInfo.Status.SKIPPED || c.status() == EsqlClusterInfo.Status.PARTIAL)
+            .count();
         if (skipped > 0) {
             throw new ResourceNotFoundException(
                 "[{}] remote clusters out of [{}] were skipped when performing datafeed search",
                 skipped,
-                clusters.size()
+                remotes.size()
             );
         }
+    }
+
+    private static List<EsqlClusterInfo> remoteClusters(EsqlResponse response) {
+        return response.clusters()
+            .stream()
+            .filter(c -> c.clusterAlias().equals(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS) == false)
+            .filter(c -> c.clusterAlias().equals(ProjectRoutingResolver.ORIGIN) == false)
+            .toList();
     }
 
     public enum CloudCredentialFailureKind {

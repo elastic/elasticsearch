@@ -114,11 +114,15 @@ public class ChunkedDataExtractor implements DataExtractor {
         try {
             dataSummary = summaryExtractor.getSummary();
         } catch (ResourceNotFoundException e) {
-            List<LinkedClusterState> failedStates = summaryExtractor.getLinkedClusterStates();
-            if (failedStates.isEmpty() == false) {
-                lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, failedStates);
-            }
+            recordFailedExtractorStates(summaryExtractor);
             throw e;
+        }
+        if (context.hasEsqlQuery()) {
+            // A cycle that only runs the summary (no data) returns these states, so a recovered remote is not reported as skipped.
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                summaryExtractor.getLinkedClusterStates()
+            );
         }
         if (dataSummary.hasData()) {
             long earliestTime = context.timeAligner().alignToFloor(dataSummary.earliestTime());
@@ -170,6 +174,21 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
     }
 
+    /**
+     * Remembers the cluster states of an extractor whose query failed. For ES|QL the failed query's states replace the earlier ones, so
+     * a remote that was available in a previous chunk but skipped in the failing one is still reported as skipped. The richer-state
+     * preference stays for other extractors, where it keeps a newly linked remote visible.
+     */
+    private void recordFailedExtractorStates(DataExtractor failed) {
+        List<LinkedClusterState> failedStates = failed.getLinkedClusterStates();
+        if (failedStates.isEmpty()) {
+            return;
+        }
+        lastLinkedClusterStates = context.hasEsqlQuery()
+            ? List.copyOf(failedStates)
+            : DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, failedStates);
+    }
+
     private Result getNextStream() throws IOException {
         SearchInterval lastSearchInterval = new SearchInterval(context.start(), context.end());
         while (hasNext()) {
@@ -187,12 +206,8 @@ public class ChunkedDataExtractor implements DataExtractor {
             } catch (IOException | RuntimeException e) {
                 // Capture states from the inner extractor before rethrowing so that
                 // getLinkedClusterStates() gives accurate data to DatafeedJob's catch block.
-                DataExtractor delegate = currentExtractor;
-                if (delegate != null) {
-                    List<LinkedClusterState> innerStates = delegate.getLinkedClusterStates();
-                    if (innerStates.isEmpty() == false) {
-                        lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, innerStates);
-                    }
+                if (currentExtractor != null) {
+                    recordFailedExtractorStates(currentExtractor);
                 }
                 throw e;
             }

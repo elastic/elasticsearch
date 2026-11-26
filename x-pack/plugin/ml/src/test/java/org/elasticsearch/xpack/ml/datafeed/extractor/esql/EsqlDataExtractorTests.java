@@ -721,6 +721,30 @@ public class EsqlDataExtractorTests extends ESTestCase {
         );
     }
 
+    public void testPartialRemoteClusterShouldFailTheDataQueryAndBeExposedAsSkipped() {
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueResponse(
+            wrapResponse(
+                mockEsqlResponse(
+                    List.of(column(TIME_FIELD, DATE)),
+                    singleRow(isoAtEpochMillis(1500L)),
+                    List.of(
+                        new EsqlClusterInfo(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS, "logs", EsqlClusterInfo.Status.SUCCESSFUL),
+                        new EsqlClusterInfo("east", "logs", EsqlClusterInfo.Status.PARTIAL)
+                    )
+                )
+            )
+        );
+
+        ResourceNotFoundException failure = expectThrows(ResourceNotFoundException.class, extractor::next);
+
+        assertThat(failure.getMessage(), containsString("[1] remote clusters out of [1] were skipped"));
+        assertThat(
+            extractor.getLinkedClusterStates(),
+            equalTo(List.of(new LinkedClusterState("east", LinkedClusterState.Status.SKIPPED, null, 0L)))
+        );
+    }
+
     private RecordingSyncQuery createExtractor(long start, long end, String esqlQuery, String timeField) {
         return createExtractor(start, end, esqlQuery, timeField, null);
     }

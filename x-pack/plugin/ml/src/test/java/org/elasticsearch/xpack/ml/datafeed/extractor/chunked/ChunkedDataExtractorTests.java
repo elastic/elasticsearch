@@ -520,6 +520,39 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(extractor.getLinkedClusterStates(), equalTo(skippedStates));
     }
 
+    public void testEsqlSummaryOnlyCycleShouldReturnTheSummaryClusterStates() throws IOException {
+        chunkSpan = null;
+        final long start = 1_000L;
+        final long end = 5_000L;
+        DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(start, end));
+        List<LinkedClusterState> recovered = List.of(new LinkedClusterState("east", LinkedClusterState.Status.AVAILABLE, null, 0L));
+        when(dataExtractorFactory.newExtractor(start, end)).thenReturn(
+            new StubSummaryExtractorWithClusterStates(new DataSummary(null, null, 0L), recovered)
+        );
+
+        DataExtractor.Result result = extractor.next();
+
+        assertThat(result.data().isPresent(), is(false));
+        assertThat(result.linkedClusterStates(), equalTo(recovered));
+    }
+
+    public void testEsqlFailedChunkShouldReplaceEarlierAvailableClusterStates() {
+        chunkSpan = null;
+        final long start = 100_000L;
+        final long end = 450_000L;
+        DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(start, end));
+        List<LinkedClusterState> available = List.of(new LinkedClusterState("east", LinkedClusterState.Status.AVAILABLE, null, 0L));
+        List<LinkedClusterState> skipped = List.of(new LinkedClusterState("east", LinkedClusterState.Status.SKIPPED, null, 0L));
+        DataExtractor summaryExtractor = new StubSummaryExtractorWithClusterStates(new DataSummary(100_000L, 400_000L, 3_000L), available);
+        // The first extractor is the summary probe; any later one is a chunk query, which fails.
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(summaryExtractor)
+            .thenReturn(new StubChunkExtractorThrowingWithClusterStates(skipped));
+
+        expectThrows(ResourceNotFoundException.class, extractor::next);
+
+        assertThat(extractor.getLinkedClusterStates(), equalTo(skipped));
+    }
+
     public void testNoDataSummaryHasNoData() {
         DataSummary summary = new DataSummary(null, null, 0L);
         assertFalse(summary.hasData());
@@ -1589,6 +1622,37 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         @Override
         public long getEndTime() {
             return 0;
+        }
+    }
+
+    private static class StubSummaryExtractorWithClusterStates extends StubSubExtractor {
+        private final List<LinkedClusterState> linkedClusterStates;
+
+        StubSummaryExtractorWithClusterStates(DataSummary summary, List<LinkedClusterState> linkedClusterStates) {
+            super(new SearchInterval(0L, 0L), summary);
+            this.linkedClusterStates = linkedClusterStates;
+        }
+
+        @Override
+        public List<LinkedClusterState> getLinkedClusterStates() {
+            return linkedClusterStates;
+        }
+    }
+
+    /** A chunk extractor whose query fails because a remote cluster was skipped. */
+    private static class StubChunkExtractorThrowingWithClusterStates extends StubSummaryExtractorThrowingWithClusterStates {
+        StubChunkExtractorThrowingWithClusterStates(List<LinkedClusterState> linkedClusterStates) {
+            super(linkedClusterStates);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return true;
+        }
+
+        @Override
+        public Result next() {
+            throw new ResourceNotFoundException("remote cluster skipped");
         }
     }
 }

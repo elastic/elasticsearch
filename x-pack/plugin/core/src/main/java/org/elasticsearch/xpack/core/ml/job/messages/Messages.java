@@ -55,7 +55,8 @@ public final class Messages {
             + "Use a fixed interval such as [1 hour] or [1 day].";
     public static final String DATAFEED_ESQL_TIME_BUCKET_NOT_UTC =
         "{0} time column [{1}] is bucketed in the time zone [{2}]. ML requires the time zone UTC. "
-            + "Remove the time zone setting from the query.";
+            + "Set the time zone of the query to UTC explicitly, for example with SET time_zone=\"UTC\";, "
+            + "because the cluster default time zone may not be UTC.";
     public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
         "The final output of {0} query is missing the configured job data_description.time_field [{1}]; "
             + "project [{1}] in the final ES|QL output.";

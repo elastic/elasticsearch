@@ -117,6 +117,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure, instanceOf(ElasticsearchStatusException.class));
         assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(failure.getMessage(), containsString("time zone [Europe/Berlin]"));
+        assertThat(failure.getMessage(), containsString("Set the time zone of the query to UTC explicitly"));
     }
 
     public void testBucketWithoutReportedTimeZoneShouldPassValidation() {

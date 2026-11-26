@@ -356,10 +356,25 @@ public class EsqlDatafeedQueryValidator {
     }
 
     private static boolean isCalendarUnit(String interval) {
-        String[] parts = interval.trim().split(" +");
-        String unit = parts[parts.length - 1];
-        unit = unit.endsWith("s") ? unit.substring(0, unit.length() - 1) : unit;
-        return unit.equals("month") || unit.equals("quarter") || unit.equals("year");
+        ParsedInterval parsed = ParsedInterval.parse(interval);
+        return parsed != null && (parsed.unit.equals("month") || parsed.unit.equals("quarter") || parsed.unit.equals("year"));
+    }
+
+    /** The singular unit of an interval as {@code DESCRIBE} writes it, and its size, or -1 when the form is not {@code <size> <unit>}. */
+    private record ParsedInterval(long size, String unit) {
+        static ParsedInterval parse(String interval) {
+            String[] parts = interval.trim().split(" +");
+            String unit = parts[parts.length - 1];
+            unit = unit.endsWith("s") ? unit.substring(0, unit.length() - 1) : unit;
+            if (parts.length != 2) {
+                return new ParsedInterval(-1, unit);
+            }
+            try {
+                return new ParsedInterval(Long.parseLong(parts[0]), unit);
+            } catch (NumberFormatException e) {
+                return new ParsedInterval(-1, unit);
+            }
+        }
     }
 
     /**
@@ -369,18 +384,8 @@ public class EsqlDatafeedQueryValidator {
      * {@link #timeBucketMillis} rejects a bucket that is not in UTC.
      */
     static OptionalLong fixedIntervalMillis(String interval) {
-        String[] parts = interval.trim().split(" +");
-        if (parts.length != 2) {
-            return OptionalLong.empty();
-        }
-        long size;
-        try {
-            size = Long.parseLong(parts[0]);
-        } catch (NumberFormatException e) {
-            return OptionalLong.empty();
-        }
-        String unit = parts[1].endsWith("s") ? parts[1].substring(0, parts[1].length() - 1) : parts[1];
-        long unitMillis = switch (unit) {
+        ParsedInterval parsed = ParsedInterval.parse(interval);
+        long unitMillis = switch (parsed.unit) {
             case "millisecond" -> 1;
             case "second" -> TimeUnit.SECONDS.toMillis(1);
             case "minute" -> TimeUnit.MINUTES.toMillis(1);
@@ -389,7 +394,7 @@ public class EsqlDatafeedQueryValidator {
             case "week" -> TimeUnit.DAYS.toMillis(7);
             default -> 0;
         };
-        return unitMillis == 0 || size <= 0 ? OptionalLong.empty() : OptionalLong.of(Math.multiplyExact(size, unitMillis));
+        return unitMillis == 0 || parsed.size <= 0 ? OptionalLong.empty() : OptionalLong.of(Math.multiplyExact(parsed.size, unitMillis));
     }
 
     /**

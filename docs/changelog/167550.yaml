@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 167550
-summary: Warn on unreferenced ES|QL named subqueries
-type: enhancement

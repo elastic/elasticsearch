@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
@@ -93,6 +94,29 @@ public class ColumnIntervalsTests extends ESTestCase {
             Source.EMPTY,
             new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY),
             List.of(completion, date, bucket)
+        );
+        assertThat(ColumnIntervals.collect(plan, FoldContext.small()).get(bucket.id()).interval(), equalTo("1 hour"));
+    }
+
+    public void testFoldsABoundThatIsAlsoTheDates() {
+        Alias date = new Alias(Source.EMPTY, "d", Literal.dateTime(Source.EMPTY, Instant.EPOCH));
+        Alias bucket = new Alias(
+            Source.EMPTY,
+            "b",
+            new Bucket(
+                Source.EMPTY,
+                date.toAttribute(),
+                Literal.integer(Source.EMPTY, 24),
+                date.toAttribute(),
+                Literal.dateTime(Source.EMPTY, Instant.EPOCH.plus(Duration.ofDays(1))),
+                null,
+                EsqlTestUtils.TEST_CFG
+            )
+        );
+        LogicalPlan plan = new Eval(
+            Source.EMPTY,
+            new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY),
+            List.of(date, bucket)
         );
         assertThat(ColumnIntervals.collect(plan, FoldContext.small()).get(bucket.id()).interval(), equalTo("1 hour"));
     }

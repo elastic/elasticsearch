@@ -27,8 +27,10 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -110,6 +112,10 @@ public final class ColumnIntervals {
          */
         @Nullable
         private Literal value(NameId id) {
+            Optional<Literal> cached = folded.get(id);
+            if (cached != null) {
+                return cached.orElse(null);
+            }
             Deque<NameId> pending = new ArrayDeque<>();
             pending.push(id);
             while (pending.isEmpty() == false) {
@@ -142,10 +148,10 @@ public final class ColumnIntervals {
 
     private static Bucketing of(Expression e, Constants constants, FoldContext foldContext) {
         e = switch (e) {
-            case Bucket bucket -> resolveInterval(bucket, bucket.field(), constants);
-            case TBucket tbucket -> resolveInterval(tbucket, tbucket.timestamp(), constants);
-            case TStep tstep -> resolveInterval(tstep, tstep.timestamp(), constants);
-            case DateTrunc dateTrunc -> resolveInterval(dateTrunc, dateTrunc.field(), constants);
+            case Bucket bucket -> resolveInterval(bucket, 0, constants);
+            case TBucket tbucket -> resolveInterval(tbucket, 1, constants);
+            case TStep tstep -> resolveInterval(tstep, 1, constants);
+            case DateTrunc dateTrunc -> resolveInterval(dateTrunc, 1, constants);
             default -> e;
         };
         if (e instanceof Bucket bucket) {
@@ -170,11 +176,17 @@ public final class ColumnIntervals {
     }
 
     /**
-     * {@code bucket} with the constant aliases its interval arguments read replaced by their values. The dates it buckets
-     * are left as they are, since they don't change the interval and may not fold yet.
+     * {@code bucket} with the constant aliases its interval arguments read replaced by their values. The dates it buckets,
+     * its child at {@code datesIndex}, are left as they are, since they don't change the interval and may not fold yet.
      */
-    private static Expression resolveInterval(Expression bucket, Expression dates, Constants constants) {
-        return bucket.replaceChildrenSameSize(bucket.children().stream().map(c -> c == dates ? c : constants.resolve(c)).toList());
+    private static Expression resolveInterval(Expression bucket, int datesIndex, Constants constants) {
+        List<Expression> children = new ArrayList<>(bucket.children());
+        for (int i = 0; i < children.size(); i++) {
+            if (i != datesIndex) {
+                children.set(i, constants.resolve(children.get(i)));
+            }
+        }
+        return bucket.replaceChildrenSameSize(children);
     }
 
     /**

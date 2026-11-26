@@ -42,6 +42,14 @@ public class AggregateMetricDoubleColumnarNullContractTests extends AbstractColu
         assertExistsMatchesOnlyDocumentsWithValue(aggregateMetricDouble(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testAggregateMetricDoubleSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(aggregateMetricDouble(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testAggregateMetricDoubleSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(aggregateMetricDouble(), IndexingStrategy.BATCH);
+    }
+
     public void testAggregateMetricDoubleExistsBatch() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(aggregateMetricDouble(), IndexingStrategy.BATCH);
     }

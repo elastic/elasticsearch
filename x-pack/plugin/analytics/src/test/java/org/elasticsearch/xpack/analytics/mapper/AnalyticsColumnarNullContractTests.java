@@ -62,6 +62,14 @@ public class AnalyticsColumnarNullContractTests extends AbstractColumnarNullCont
         assertExistsMatchesOnlyDocumentsWithValue(histogram(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testHistogramSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(histogram(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testHistogramSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(histogram(), IndexingStrategy.BATCH);
+    }
+
     public void testHistogramExistsBatch() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(histogram(), IndexingStrategy.BATCH);
     }
@@ -86,6 +94,14 @@ public class AnalyticsColumnarNullContractTests extends AbstractColumnarNullCont
         assertExistsMatchesOnlyDocumentsWithValue(tdigest(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testTdigestSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(tdigest(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testTdigestSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(tdigest(), IndexingStrategy.BATCH);
+    }
+
     public void testTdigestExistsBatch() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(tdigest(), IndexingStrategy.BATCH);
     }
@@ -108,6 +124,14 @@ public class AnalyticsColumnarNullContractTests extends AbstractColumnarNullCont
 
     public void testExponentialHistogramExistsDocument() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(exponentialHistogram(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testExponentialHistogramSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(exponentialHistogram(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testExponentialHistogramSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(exponentialHistogram(), IndexingStrategy.BATCH);
     }
 
     public void testExponentialHistogramExistsBatch() throws IOException {

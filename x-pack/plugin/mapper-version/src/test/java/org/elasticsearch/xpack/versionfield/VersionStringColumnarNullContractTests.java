@@ -33,6 +33,14 @@ public class VersionStringColumnarNullContractTests extends AbstractColumnarNull
         assertExistsMatchesOnlyDocumentsWithValue(version(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testVersionSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(version(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testVersionSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(version(), IndexingStrategy.BATCH);
+    }
+
     public void testVersionExistsBatch() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(version(), IndexingStrategy.BATCH);
     }

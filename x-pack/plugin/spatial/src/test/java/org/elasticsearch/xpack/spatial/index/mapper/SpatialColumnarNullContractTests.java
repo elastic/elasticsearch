@@ -49,6 +49,14 @@ public class SpatialColumnarNullContractTests extends AbstractColumnarNullContra
         assertExistsMatchesOnlyDocumentsWithValue(point(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testPointSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(point(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testPointSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(point(), IndexingStrategy.BATCH);
+    }
+
     public void testPointExistsBatch() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(point(), IndexingStrategy.BATCH);
     }
@@ -73,6 +81,14 @@ public class SpatialColumnarNullContractTests extends AbstractColumnarNullContra
         assertExistsMatchesOnlyDocumentsWithValue(geoShape(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testGeoShapeSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(geoShape(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testGeoShapeSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(geoShape(), IndexingStrategy.BATCH);
+    }
+
     public void testGeoShapeExistsBatch() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(geoShape(), IndexingStrategy.BATCH);
     }
@@ -95,6 +111,14 @@ public class SpatialColumnarNullContractTests extends AbstractColumnarNullContra
 
     public void testShapeExistsDocument() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(shape(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testShapeSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(shape(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testShapeSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(shape(), IndexingStrategy.BATCH);
     }
 
     public void testShapeExistsBatch() throws IOException {

@@ -36,6 +36,14 @@ public class WildcardColumnarNullContractTests extends AbstractColumnarNullContr
         assertExistsMatchesOnlyDocumentsWithValue(wildcard(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testWildcardSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(wildcard(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testWildcardSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(wildcard(), IndexingStrategy.BATCH);
+    }
+
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)
     public void testWildcardExistsBatch() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(wildcard(), IndexingStrategy.BATCH);

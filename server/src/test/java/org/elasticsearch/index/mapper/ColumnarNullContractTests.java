@@ -368,6 +368,24 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         }
     }
 
+    private void assertAllSourceModesAgree(IndexingStrategy strategy) throws IOException {
+        for (final String type : ORDERED_TYPES) {
+            assertSourceModesAgree(plain(type), strategy);
+        }
+        assertSourceModesAgree(geoPoint(), strategy);
+        for (final String type : RANGES) {
+            assertSourceModesAgree(range(type), strategy);
+        }
+    }
+
+    public void testSourceModesAgreeDocument() throws IOException {
+        assertAllSourceModesAgree(IndexingStrategy.DOCUMENT);
+    }
+
+    public void testSourceModesAgreeBatch() throws IOException {
+        assertAllSourceModesAgree(IndexingStrategy.BATCH);
+    }
+
     public void testNullValueReplacesNullDocument() throws IOException {
         assertNullValueSubstitution(IndexingStrategy.DOCUMENT);
     }

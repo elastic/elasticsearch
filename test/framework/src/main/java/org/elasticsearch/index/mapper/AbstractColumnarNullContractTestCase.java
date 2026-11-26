@@ -523,6 +523,56 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         );
     }
 
+    // NOTE: compares the two source modes as they behave today, nulls included. It does not depend on the null contract, so it passes
+    // while the tests of that contract are muted, and it fails if `columnar_stored` returns a source that differs from the synthetic one.
+    protected final void assertSourceModesAgree(Scenario scenario, IndexingStrategy strategy) throws IOException {
+        final List<List<TestDocument>> groups = documentGroups(scenario);
+        forEachConfiguration(
+            scenario,
+            strategy,
+            COLUMNAR_STORED_SOURCE,
+            groups,
+            DOCUMENT_SHAPES,
+            (configuration, stored, storedWriter, docs) -> {
+                final Settings syntheticSettings = Settings.builder()
+                    .put(configuration.settings())
+                    .put(SOURCE_MODE, SourceFieldMapper.Mode.SYNTHETIC.toString())
+                    .build();
+                final MapperService synthetic = createMapperService(
+                    scenario,
+                    new Configuration(configuration.mode(), configuration.indexed(), syntheticSettings)
+                );
+                try (
+                    Directory directory = new MockDirectoryWrapper(random(), new ByteBuffersDirectory());
+                    IndexWriter syntheticWriter = new IndexWriter(directory, indexWriterConfig(synthetic))
+                ) {
+                    int firstSeqNo = 0;
+                    for (final List<TestDocument> group : groups) {
+                        strategy.index(synthetic, syntheticWriter, sources(group), firstSeqNo);
+                        syntheticWriter.commit();
+                        firstSeqNo += group.size();
+                    }
+                    for (final boolean merged : new boolean[] { false, true }) {
+                        if (merged) {
+                            storedWriter.forceMerge(1);
+                            syntheticWriter.forceMerge(1);
+                        }
+                        final List<String> storedSources = sourcesOfAllSegments(stored, storedWriter, merged);
+                        final List<String> syntheticSources = sourcesOfAllSegments(synthetic, syntheticWriter, merged);
+                        assertEquals("documents", syntheticSources.size(), storedSources.size());
+                        for (int i = 0; i < docs.size(); i++) {
+                            assertEquals(
+                                configuration + " merged=" + merged + " document=" + docs.get(i),
+                                XContentHelper.convertToMap(JsonXContent.jsonXContent, syntheticSources.get(i), false),
+                                XContentHelper.convertToMap(JsonXContent.jsonXContent, storedSources.get(i), false)
+                            );
+                        }
+                    }
+                }
+            }
+        );
+    }
+
     protected final void assertSourceHoldsTheValues(Scenario scenario, IndexingStrategy strategy) throws IOException {
         forEachConfiguration(
             scenario,

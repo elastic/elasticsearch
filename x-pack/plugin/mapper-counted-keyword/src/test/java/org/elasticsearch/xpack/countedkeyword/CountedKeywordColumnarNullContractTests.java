@@ -32,6 +32,14 @@ public class CountedKeywordColumnarNullContractTests extends AbstractColumnarNul
         assertExistsMatchesOnlyDocumentsWithValue(countedKeyword(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testCountedKeywordSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(countedKeyword(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testCountedKeywordSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(countedKeyword(), IndexingStrategy.BATCH);
+    }
+
     public void testCountedKeywordExistsBatch() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(countedKeyword(), IndexingStrategy.BATCH);
     }

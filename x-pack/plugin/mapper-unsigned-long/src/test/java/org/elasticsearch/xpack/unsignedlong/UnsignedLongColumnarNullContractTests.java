@@ -36,6 +36,14 @@ public class UnsignedLongColumnarNullContractTests extends AbstractColumnarNullC
         assertExistsMatchesOnlyDocumentsWithValue(unsignedLong(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testUnsignedLongSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(unsignedLong(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testUnsignedLongSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(unsignedLong(), IndexingStrategy.BATCH);
+    }
+
     public void testUnsignedLongExistsBatch() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(unsignedLong(), IndexingStrategy.BATCH);
     }

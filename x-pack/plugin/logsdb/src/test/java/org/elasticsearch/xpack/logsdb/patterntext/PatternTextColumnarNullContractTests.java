@@ -38,6 +38,14 @@ public class PatternTextColumnarNullContractTests extends AbstractColumnarNullCo
         assertExistsMatchesOnlyDocumentsWithValue(patternText(), IndexingStrategy.BATCH);
     }
 
+    public void testSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(patternText(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(patternText(), IndexingStrategy.BATCH);
+    }
+
     public void testExistsCountAgreesWithHitsDocument() throws IOException {
         assertExistsCountAgreesWithHits(patternText(), IndexingStrategy.DOCUMENT);
     }

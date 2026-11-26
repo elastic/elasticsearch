@@ -46,6 +46,14 @@ public class MapperExtrasColumnarNullContractTests extends AbstractColumnarNullC
         assertExistsMatchesOnlyDocumentsWithValue(matchOnlyText(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testMatchOnlyTextSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(matchOnlyText(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testMatchOnlyTextSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(matchOnlyText(), IndexingStrategy.BATCH);
+    }
+
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)
     public void testMatchOnlyTextExistsBatch() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(matchOnlyText(), IndexingStrategy.BATCH);
@@ -81,6 +89,14 @@ public class MapperExtrasColumnarNullContractTests extends AbstractColumnarNullC
 
     public void testScaledFloatExistsMatchesOnlyDocumentsWithValueDocument() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(scaledFloat(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testScaledFloatSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(scaledFloat(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testScaledFloatSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(scaledFloat(), IndexingStrategy.BATCH);
     }
 
     public void testScaledFloatExistsMatchesOnlyDocumentsWithValueBatch() throws IOException {

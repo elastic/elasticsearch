@@ -34,6 +34,14 @@ public class AnnotatedTextColumnarNullContractTests extends AbstractColumnarNull
         assertExistsMatchesOnlyDocumentsWithValue(annotatedText(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testAnnotatedTextSourceModesAgreeDocument() throws IOException {
+        assertSourceModesAgree(annotatedText(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testAnnotatedTextSourceModesAgreeBatch() throws IOException {
+        assertSourceModesAgree(annotatedText(), IndexingStrategy.BATCH);
+    }
+
     public void testAnnotatedTextExistsBatch() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(annotatedText(), IndexingStrategy.BATCH);
     }

@@ -2655,13 +2655,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Like {@link #readRange(StorageObject, RangeReadContext, long)} for the one row group {@code rowGroup} of {@code footer}, which the
-     * caller already holds. {@code readRange} finds the row groups of a byte range by the midpoint of every row group of the file, and
-     * each midpoint sums the sizes of all the column chunks of its group, so a caller that scans one row group after another, such as a
-     * doc values iterator, would pay that for every scan. The context's range must be the byte range of the group; it only sizes the
-     * reads.
+     * Like {@link #readRange(StorageObject, RangeReadContext, long)} for one row group of {@code footer}. It skips the search for the
+     * groups of the byte range, which sums the column chunk sizes of every group of the file. The range must be the group's bytes.
      *
-     * @param footer the unranged footer of exactly this file; it is shared and never modified
+     * @param footer the unranged footer of exactly this file
      */
     CloseableIterator<Page> readRowGroup(
         StorageObject object,
@@ -2687,12 +2684,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return iterator;
     }
 
-    /** Stands for "the row groups of the range", as the {@code rowGroup} argument of {@link #readRangeFromStart}. */
+    /** The {@code rowGroup} argument of {@link #readRangeFromStart} for the row groups of the range. */
     private static final int NO_ROW_GROUP = -1;
 
     /**
-     * @param knownFooter the unranged footer, when the caller has it, which saves the lookup of the footer; {@code null} to find it
-     * @param rowGroup    the one row group to read, or {@link #NO_ROW_GROUP} for the row groups whose midpoint is in the range
+     * @param knownFooter the unranged footer, or {@code null} to look it up
+     * @param rowGroup    the one row group to read, or {@link #NO_ROW_GROUP} for the groups of the range
      */
     private CloseableIterator<Page> readRangeFromStart(
         StorageObject object,

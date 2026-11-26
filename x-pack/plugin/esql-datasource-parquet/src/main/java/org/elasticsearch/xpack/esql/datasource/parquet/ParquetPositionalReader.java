@@ -191,8 +191,7 @@ public final class ParquetPositionalReader implements Closeable {
      */
     public CloseableIterator<Page> scanRowGroup(String column, int rowGroup, long startRow, int batchSize) throws IOException {
         BlockMetaData block = footer.getBlocks().get(rowGroup);
-        // The range is the group's own bytes. The reader is told the group and the footer, so that it does not search the footer for the
-        // groups of the range, which sums the column chunk sizes of every group of the file for every scan.
+        // The range is the group's bytes; naming the group saves the reader a search of the footer on every scan.
         long start = block.getStartingPos();
         long end = start + block.getCompressedSize();
         return formatReader.readRowGroup(

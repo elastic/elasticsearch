@@ -26,10 +26,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * and on the timer of the plugin, see {@link #sweep()}. Evicting is always safe: the window of the evicted scan only reopens it at its
  * next load. The registry is shared by all segments of the node, because the budget is.
  *
- * <p>A touch takes no lock. Every driver thread touches a scan for each page that it loads, and a lock for the registry as a whole
- * made the threads of one query wait for each other (in a wall clock profile of the ClickBench queries, up to a third of the samples of a
- * driver). The window keeps the time of its last touch, and only the rare operations (a scan that opens or closes, and the sweep) take
- * the lock of the set of open scans.
+ * <p>A touch takes no lock: a registry-wide lock made the driver threads of one query wait for each other. The window keeps the time of
+ * its last touch, and only a scan that opens or closes, and the sweep, take the lock of the set of open scans.
  */
 public final class ScanRegistry {
 
@@ -37,13 +35,13 @@ public final class ScanRegistry {
 
     private static final long IDLE_NANOS = TimeUnit.SECONDS.toNanos(2);
 
-    /** How often the touches look for idle scans: often enough that a scan is closed soon after its idle time, and rare enough to be free. */
+    /** The least time between two sweeps that touches start. */
     private static final long SWEEP_EVERY_NANOS = IDLE_NANOS / 4;
 
-    /** The windows with an open scan. It is guarded by itself, and a window is in it from its scan opens until its scan closes. */
+    /** The windows with an open scan, guarded by itself. */
     private final Set<ColumnWindow> open = new HashSet<>();
 
-    /** The time, as {@link System#nanoTime()}, from which a touch may sweep the idle scans. */
+    /** The time, as {@link System#nanoTime()}, from which a touch may sweep. */
     private final AtomicLong nextTouchSweep = new AtomicLong(System.nanoTime());
 
     private ScanRegistry() {}
@@ -93,13 +91,10 @@ public final class ScanRegistry {
         closeAll(victims);
     }
 
-    /** A scan of the calling thread, with the time of its last touch as it was when the registry looked at it. */
+    /** A scan of the calling thread, with its last touch time. */
     private record OwnScan(ColumnWindow window, long lastTouch) {}
 
-    /**
-     * Closes the scans that nobody used for the idle time. The plugin calls this on a timer, because a node that stops reading would
-     * keep the row group chunks of its last scans on the heap.
-     */
+    /** Closes the scans that nobody used for the idle time. The plugin calls this on a timer. */
     public void sweep() {
         closeAll(evictIdle());
     }
@@ -112,7 +107,7 @@ public final class ScanRegistry {
         }
     }
 
-    /** Records that the window's open scan is in use. This takes no lock, except for the rare sweep of the idle scans. */
+    /** Records that the window's open scan is in use. */
     void touch(ColumnWindow window) {
         long now = System.nanoTime();
         window.touchedAt(now);

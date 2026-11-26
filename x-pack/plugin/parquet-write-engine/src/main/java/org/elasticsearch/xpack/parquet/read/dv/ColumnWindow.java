@@ -66,7 +66,7 @@ abstract class ColumnWindow {
     private long scanNextRow;
     /** The thread that opened the scan, to recognize the scans that a thread leaves behind when it moves to a new iterator. */
     private volatile Thread scanThread;
-    /** When the open scan was last used, as {@link System#nanoTime()}. The registry reads it to find the scans that nobody uses. */
+    /** The last use of the open scan, as {@link System#nanoTime()}. */
     private volatile long lastTouchNanos;
 
     ColumnWindow(
@@ -111,7 +111,7 @@ abstract class ColumnWindow {
         return scanThread == thread;
     }
 
-    /** Records the time of the last use of the open scan. It takes no lock, and the registry calls it on every page that is loaded. */
+    /** Records the last use of the open scan. It takes no lock. */
     void touchedAt(long nanos) {
         lastTouchNanos = nanos;
     }

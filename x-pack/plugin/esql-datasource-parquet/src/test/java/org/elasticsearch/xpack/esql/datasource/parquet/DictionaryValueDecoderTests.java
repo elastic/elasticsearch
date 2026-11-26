@@ -287,11 +287,6 @@ public class DictionaryValueDecoderTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> decoder.readIndices(out, 0, indices.length));
     }
 
-    /**
-     * {@code skip} moves over whole bit-packed groups without unpacking them, and unpacks only the group that it ends in. A random mix of
-     * {@code skip}, {@code readIndices} and {@code nextIndex} must give the values at the positions that the calls reach, for every bit width,
-     * for runs of both kinds, and for skips that end on, before and after a group boundary and a run boundary.
-     */
     public void testSkipsReadsAndSingleValuesInAnyOrderGiveTheValuesAtTheirPositions() throws IOException {
         for (int iteration = 0; iteration < 200; iteration++) {
             int bitWidth = randomFrom(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 16, 20, 31);
@@ -335,7 +330,7 @@ public class DictionaryValueDecoderTests extends ESTestCase {
         }
     }
 
-    /** Values in runs that the encoder writes as RLE (the same value many times) and as bit-packed groups (values that change). */
+    // runs of one value (RLE) and runs of changing values (bit-packed)
     private int[] indicesWithRunsOfBothKinds(int length, int maxValue) {
         int[] indices = new int[length];
         int i = 0;

@@ -135,10 +135,6 @@ public class ParquetPositionalReaderTests extends ESTestCase {
         }
     }
 
-    /**
-     * A scan names its row group and does not search the footer for the groups of a byte range. It must read what the byte range of the
-     * group reads, for every group and every start row, so that the shortcut changes nothing.
-     */
     public void testScanRowGroupReadsWhatTheByteRangeOfTheGroupReads() throws IOException {
         StorageObject file = file();
         try (

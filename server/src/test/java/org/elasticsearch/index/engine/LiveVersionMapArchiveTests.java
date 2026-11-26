@@ -93,21 +93,28 @@ public class LiveVersionMapArchiveTests extends IndexShardTestCase {
         assertEquals(archived.size(), 1);
     }
 
-    /** An archive that returns whatever the test puts in {@link #entries}, to stand in for an archive holding a stale entry. */
-    private static class FixedArchive implements LiveVersionMapArchive {
-        final Map<BytesRef, VersionValue> entries = new ConcurrentHashMap<>();
+    public void testWritesIgnoreStaleArchiveEntry() throws Exception {
+        final FixedArchive archive = new FixedArchive();
+        final IndexShard shard = newStartedShard(archive);
+        try {
+            final long term = shard.getOperationPrimaryTerm();
+            final Engine.IndexResult first = indexDoc(shard, "_doc", "1", "{\"f\":\"v1\"}");
+            final Engine.IndexResult second = indexDoc(shard, "_doc", "1", "{\"f\":\"v2\"}");
+            // the refresh moves the doc out of the live maps, so lookups fall through to the archive and the internal reader
+            shard.refresh("test");
+            // Poison the archive with a wrong entry. Due to a bug in LVM, it could skip a put.
+            // See https://github.com/elastic/elasticsearch/issues/149677
+            final Translog.OperationLocation firstLocation = new Translog.OperationLocation(first.getTranslogLocation());
+            archive.entries.put(uid("1"), new IndexVersionValue(firstLocation, first.getVersion(), first.getSeqNo(), term));
 
-        @Override
-        public void afterRefresh(LiveVersionMap.VersionLookup old) {}
-
-        @Override
-        public VersionValue get(BytesRef uid) {
-            return entries.get(uid);
-        }
-
-        @Override
-        public long getMinDeleteTimestamp() {
-            return Long.MAX_VALUE;
+            assertThat(getForUpdateSource(shard, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM), equalTo("{\"f\":\"v2\"}"));
+            assertThat(getForUpdateSource(shard, "1", second.getSeqNo(), term), equalTo("{\"f\":\"v2\"}"));
+            final Engine.IndexResult stale = index(shard, "1", "{\"f\":\"v3\"}", Versions.MATCH_ANY, first.getSeqNo(), term);
+            assertThat(stale.getFailure(), instanceOf(VersionConflictEngineException.class));
+            final Engine.IndexResult current = index(shard, "1", "{\"f\":\"v3\"}", Versions.MATCH_ANY, second.getSeqNo(), term);
+            assertThat(current.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        } finally {
+            closeShards(shard);
         }
     }
 
@@ -146,28 +153,21 @@ public class LiveVersionMapArchiveTests extends IndexShardTestCase {
         }
     }
 
-    public void testWritesIgnoreStaleArchiveEntry() throws Exception {
-        final FixedArchive archive = new FixedArchive();
-        final IndexShard shard = newStartedShard(archive);
-        try {
-            final long term = shard.getOperationPrimaryTerm();
-            final Engine.IndexResult first = indexDoc(shard, "_doc", "1", "{\"f\":\"v1\"}");
-            final Engine.IndexResult second = indexDoc(shard, "_doc", "1", "{\"f\":\"v2\"}");
-            // the refresh moves the doc out of the live maps, so lookups fall through to the archive and the internal reader
-            shard.refresh("test");
-            // Poison the archive with a wrong entry. Due to a bug in LVM, it could skip a put.
-            // See https://github.com/elastic/elasticsearch/issues/149677
-            final Translog.OperationLocation firstLocation = new Translog.OperationLocation(first.getTranslogLocation());
-            archive.entries.put(uid("1"), new IndexVersionValue(firstLocation, first.getVersion(), first.getSeqNo(), term));
+    /** An archive that returns whatever the test puts in {@link #entries}, to stand in for an archive holding a stale entry. */
+    private static class FixedArchive implements LiveVersionMapArchive {
+        final Map<BytesRef, VersionValue> entries = new ConcurrentHashMap<>();
 
-            assertThat(getForUpdateSource(shard, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM), equalTo("{\"f\":\"v2\"}"));
-            assertThat(getForUpdateSource(shard, "1", second.getSeqNo(), term), equalTo("{\"f\":\"v2\"}"));
-            final Engine.IndexResult stale = index(shard, "1", "{\"f\":\"v3\"}", Versions.MATCH_ANY, first.getSeqNo(), term);
-            assertThat(stale.getFailure(), instanceOf(VersionConflictEngineException.class));
-            final Engine.IndexResult current = index(shard, "1", "{\"f\":\"v3\"}", Versions.MATCH_ANY, second.getSeqNo(), term);
-            assertThat(current.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
-        } finally {
-            closeShards(shard);
+        @Override
+        public void afterRefresh(LiveVersionMap.VersionLookup old) {}
+
+        @Override
+        public VersionValue get(BytesRef uid) {
+            return entries.get(uid);
+        }
+
+        @Override
+        public long getMinDeleteTimestamp() {
+            return Long.MAX_VALUE;
         }
     }
 }

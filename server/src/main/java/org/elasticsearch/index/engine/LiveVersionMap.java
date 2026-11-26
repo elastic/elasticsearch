@@ -311,10 +311,10 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         if (value != null) {
             return value;
         }
-        // We first check the tombstones (via `getForWriteUnderLock`), then the archive, since the archive accumulates versions from the
-        // old map even beyond refresh. We clean up `current` and `old` in `putDeleteUnderLock` so we can trust them above, but we don't
-        // clean up the archive (it is needed for archive logic).
-        // Therefore, tombstones have priority over archive or we could read a stale version from the archive.
+        // `getForWriteUnderLock` above checks `current`, `old`, and `tombstones` before we fall back to `archive` here.
+        // We clean up `current` and `old` in `putDeleteUnderLock` so we can trust them, but we don't clean up the archive
+        // (it accumulates versions from `old` even beyond refresh, which is needed for archive logic).
+        // Therefore, tombstones must be checked before the archive or we could read a stale version from the archive.
         return archive.get(uid);
     }
 

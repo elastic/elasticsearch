@@ -983,3 +983,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testEvaluateBlockWithoutNulls {TestCase=<date_nanos, 13 date_nanos> null in 10}
   issue: https://github.com/elastic/elasticsearch/issues/167603
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateBlockWithoutNulls {TestCase=<long, 9 longs> null in 2}
+  issue: https://github.com/elastic/elasticsearch/issues/167609

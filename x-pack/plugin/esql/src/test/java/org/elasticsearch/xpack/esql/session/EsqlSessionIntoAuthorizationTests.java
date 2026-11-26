@@ -10,8 +10,13 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.RestStatus;
@@ -24,6 +29,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -75,6 +81,26 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
         assertThat(asked, contains("nothing"));
     }
 
+    /** A view or a dataset is not something a bulk can write to, and a caller who may write to its name must not learn that it exists. */
+    public void testViewsAndDatasetsAreNotExistingDestinations() {
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(index(EXISTING), false)
+            .putCustom(ViewMetadata.TYPE, new ViewMetadata(Map.of("a-view", new View("a-view", "FROM existing"))))
+            .putCustom(
+                DatasetMetadata.TYPE,
+                new DatasetMetadata(Map.of("a-dataset", new Dataset("a-dataset", new DataSourceReference("ds"), "*", null, Map.of())))
+            )
+            .build();
+        for (String name : List.of("a-view", "a-dataset", "nothing")) {
+            ElasticsearchStatusException e = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> authorize(grantingAuthorizer(), "ROW x = 1 | INTO " + name, true, project)
+            );
+            assertThat(name, e.status(), equalTo(RestStatus.NOT_FOUND));
+            assertThat(name, e.getMessage(), containsString("INTO destination [" + name + "] does not exist"));
+        }
+    }
+
     public void testDestinationIsAuthorizedByItsResolvedNameAndTheResolvedNameReplacesTheTypedOne() throws Exception {
         // A fixed date, as now/d could roll over to the next day between the name and the query
         String query = "ROW x = 1 | INTO \"<logs-{2026.01.01||/d}>\" WITH {\"refresh\": false}";
@@ -108,6 +134,15 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
             .put(index(EXISTING), false)
             .put(index(DATE_MATH_RESOLVED), false)
             .build();
+        return authorize(authorizer, query, requireExisting, project);
+    }
+
+    private static LogicalPlan authorize(
+        IntoDestinationAuthorizer authorizer,
+        String query,
+        boolean requireExisting,
+        ProjectMetadata project
+    ) throws Exception {
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
         EsqlSession.authorizeIntoDestinations(authorizer, TEST_PARSER.parseQuery(query), project, requireExisting, future);
         try {

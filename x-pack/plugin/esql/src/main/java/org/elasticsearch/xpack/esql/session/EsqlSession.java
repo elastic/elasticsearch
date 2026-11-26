@@ -3828,7 +3828,7 @@ public class EsqlSession {
             into -> into.withDestination(IndexNameExpressionResolver.resolveDateMathExpression(into.destination()))
         );
         String target = resolved.collect(Into.class).getFirst().destination();
-        boolean exists = project.getIndicesLookup().containsKey(target);
+        boolean exists = isWritableDestination(project.getIndicesLookup().get(target));
         authorizer.authorize(target, listener.map(ignored -> {
             // TODO: the design allows a destination that a composable template matches, which the first bulk creates. Let it through
             // here once that is supported, and have the authorizer ask for the privileges that create it.
@@ -3837,6 +3837,20 @@ public class EsqlSession {
             }
             return resolved;
         }));
+    }
+
+    /**
+     * Whether the name is something that a bulk can write to. The indices lookup also holds views and datasets, which it cannot, and
+     * which a caller who may write to such a name is not entitled to know exist, so they count as missing, as an absent name does.
+     */
+    private static boolean isWritableDestination(@Nullable IndexAbstraction abstraction) {
+        if (abstraction == null) {
+            return false;
+        }
+        return switch (abstraction.getType()) {
+            case CONCRETE_INDEX, ALIAS, DATA_STREAM -> true;
+            case VIEW, DATASET -> false;
+        };
     }
 
     /**

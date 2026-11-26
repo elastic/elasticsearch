@@ -232,7 +232,10 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
         assertThat(leafNames(runner.getDescription()), containsInAnyOrder("testOne", "testThree"));
     }
 
-    /** The Vintage engine is quadratic in the number of tests under suites that are not the root, so the tests must be its direct children. */
+    /**
+     * The Vintage engine is quadratic in the number of tests under suites that are not the root, so the tests must be its direct
+     * children.
+     */
     public void testDescriptionIsFlat() throws Exception {
         ESRandomizedRunner runner = parameterizedFixtureRunner();
 

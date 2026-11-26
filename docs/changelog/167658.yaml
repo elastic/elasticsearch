@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 167658
+summary: Refuse nodes that can't persist the cluster state encryption key on the elected master
+type: bug

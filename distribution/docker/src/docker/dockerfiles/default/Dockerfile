@@ -33,7 +33,7 @@ def separateLayers = dockerHub ? [] : ['jdk', 'modules/x-pack-ml/platform/*/lib'
 
 FROM ${base_image} AS builder
 
-RUN microdnf install -y findutils tar gzip util-linux-core gnupg2
+RUN microdnf install -y findutils tar gzip util-linux-core
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -65,9 +65,7 @@ RUN \\<% } else { %>
   Images built locally copy in the distribution instead (`local_distribution`), so that building an image does not
   require the tarballs of all architectures.
 */ %>
-# Download the Elasticsearch distribution and verify it against its SHA-512 checksum and against Elastic's
-# signature. The signing key is not fetched from a keyserver: the signature must have been made by the key
-# with the pinned fingerprint.
+# Download the Elasticsearch distribution and verify it against its SHA-512 checksum.
 RUN set -eux; \\
     arch="\$(rpm --query --queryformat='%{ARCH}' rpm)"; \\
     case "\$arch" in \\
@@ -75,17 +73,8 @@ RUN set -eux; \\
         x86_64)  es_sha512='@es_sha512_x86_64@' ;; \\
         *) echo >&2 "Unsupported architecture \$arch"; exit 1 ;; \\
     esac; \\
-    es_url="https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz"; \\
-    curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz "\$es_url"; \\
-    curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz.asc "\$es_url.asc"; \\
-    echo "\$es_sha512  /tmp/elasticsearch.tar.gz" | sha512sum -c -; \\
-    export GNUPGHOME="\$(mktemp -d)"; \\
-    curl -f --retry 10 -S -L --output "\$GNUPGHOME/GPG-KEY-elasticsearch" https://artifacts-no-kpi.elastic.co/GPG-KEY-elasticsearch; \\
-    gpg --batch --import "\$GNUPGHOME/GPG-KEY-elasticsearch"; \\
-    gpg --batch --status-fd 1 --verify /tmp/elasticsearch.tar.gz.asc /tmp/elasticsearch.tar.gz \\
-        | grep '^\\[GNUPG:\\] VALIDSIG .* 46095ACC8548582C1A2699A9D27D666CD88E42B4\$'; \\
-    gpgconf --kill all; \\
-    rm -rf "\$GNUPGHOME" /tmp/elasticsearch.tar.gz.asc
+    curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz; \\
+    echo "\$es_sha512  /tmp/elasticsearch.tar.gz" | sha512sum -c -
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\<% } %>
 # Configure the distribution for Docker
     sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\

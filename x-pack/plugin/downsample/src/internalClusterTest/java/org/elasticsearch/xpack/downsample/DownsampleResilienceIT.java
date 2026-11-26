@@ -394,7 +394,7 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
     }
 
     private static void assertDownsampleSucceeds(ActionFuture<AcknowledgedResponse> downsample) {
-        assertTrue(safeGet(downsample).isAcknowledged());
+        assertTrue(downsample.actionGet(TimeValue.timeValueSeconds(30)).isAcknowledged());
     }
 
     /**

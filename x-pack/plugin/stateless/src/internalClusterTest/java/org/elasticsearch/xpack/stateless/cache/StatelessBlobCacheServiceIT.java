@@ -146,7 +146,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
             // let's have an empty cache
             cacheService.forceEvict(key -> true);
             FileCacheKey cacheKey = new FileCacheKey(indexShard.shardId(), maxBlobLocation.primaryTerm(), maxBlobLocation.blobName());
-            CacheBlobReader blobReader = searchDirectory.getCacheBlobReaderForWarming(maxBlobLocation.bccBlob());
+            CacheBlobReader blobReader = searchDirectory.getCacheBlobReaderForWarming(maxBlobLocation.blob());
             // aligning the writer offset to be a factor of page size when writing to the cache
             int writerOffset = randomFrom(PAGE_SIZE, 2 * PAGE_SIZE, 3 * PAGE_SIZE);
             logger.info("-> writer offset: {}, blob file: {}", writerOffset, maxBlobLocation);

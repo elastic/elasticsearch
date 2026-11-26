@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -474,10 +474,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
-    public CacheBlobReader getCacheBlobReader(String fileName, BccBlob bccBlob) {
+    public CacheBlobReader getCacheBlobReader(String fileName, Blob blob) {
         return getCacheBlobReader(
             fileName,
-            bccBlob,
+            blob,
             objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.CacheMiss,
             cacheService.getShardReadThreadPoolExecutor(),
@@ -486,11 +486,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
-    public CacheBlobReader getCacheBlobReaderForWarming(BccBlob bccBlob) {
+    public CacheBlobReader getCacheBlobReaderForWarming(Blob blob) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         return getCacheBlobReader(
-            bccBlob.blobName(),
-            bccBlob,
+            blob.blobName(),
+            blob,
             objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.Warming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -506,13 +506,13 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * We allow creating this reader from any thread but the actual downloading of
      * bytes will happen on the stateless_prewarm pool.
      *
-     * @param bccBlob the blob file
+     * @param blob the blob file
      * @return a CacheBlobReader for reading the specified file
      */
-    public CacheBlobReader getCacheBlobReaderForSearchOnlineWarming(BccBlob bccBlob) {
+    public CacheBlobReader getCacheBlobReaderForSearchOnlineWarming(Blob blob) {
         return getCacheBlobReader(
-            bccBlob.blobName(),
-            bccBlob,
+            blob.blobName(),
+            blob,
             objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.OnlinePrewarming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -528,17 +528,17 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * We allow creating this reader from any thread but the actual downloading of
      * bytes will happen on the stateless_prewarm pool.
      *
-     * @param bccBlob   blob file
+     * @param blob      the blob containing the file
      * @param isUploaded when {@code true} the file's BCC generation is known to be uploaded (from the notification), so the blob-store
      *                   reader is used directly rather than relying on the upload tracker — which may not yet reflect the upload because
      *                   {@code updateLatestUploadedBcc} is deferred until after prefetch completes
      * @return a CacheBlobReader for reading the specified file
      */
-    public CacheBlobReader getCacheBlobReaderForPreFetching(BccBlob bccBlob, boolean isUploaded) {
+    public CacheBlobReader getCacheBlobReaderForPreFetching(Blob blob, boolean isUploaded) {
         var tracker = isUploaded ? MutableObjectStoreUploadTracker.ALWAYS_UPLOADED : objectStoreUploadTracker;
         return getCacheBlobReader(
-            bccBlob.blobName(),
-            bccBlob,
+            blob.blobName(),
+            blob,
             tracker,
             BlobCacheMetrics.CachePopulationReason.PreFetchingNewCommit,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -548,7 +548,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     private CacheBlobReader getCacheBlobReader(
         String fileName,
-        BccBlob bccBlob,
+        Blob blob,
         MutableObjectStoreUploadTracker tracker,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
         Executor executor,
@@ -557,7 +557,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
             this::getBlobContainer,
-            bccBlob,
+            blob,
             tracker,
             totalBytesWarmedFromObjectStore::add,
             totalBytesWarmedFromIndexing::add,
@@ -620,12 +620,12 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             }
 
             @Override
-            protected CacheBlobReader getCacheBlobReader(String fileName, BccBlob bccBlob) {
+            protected CacheBlobReader getCacheBlobReader(String fileName, Blob blob) {
                 // feeds CacheFileReader (demand reads a warming thread blocks on): accounted as warming, but must bypass
                 // the fill-memory budget to avoid queuing behind the speculative region fetches
                 return SearchDirectory.this.getCacheBlobReader(
                     fileName,
-                    bccBlob,
+                    blob,
                     objectStoreUploadTracker,
                     BlobCacheMetrics.CachePopulationReason.Warming,
                     getCacheService().getShardReadThreadPoolExecutor(),
@@ -634,10 +634,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             }
 
             @Override
-            public CacheBlobReader getCacheBlobReaderForWarming(BccBlob bccBlob) {
+            public CacheBlobReader getCacheBlobReaderForWarming(Blob blob) {
                 return SearchDirectory.this.getCacheBlobReader(
-                    bccBlob.blobName(),
-                    bccBlob,
+                    blob.blobName(),
+                    blob,
                     objectStoreUploadTracker,
                     BlobCacheMetrics.CachePopulationReason.Warming,
                     getCacheService().getShardReadThreadPoolExecutor(),

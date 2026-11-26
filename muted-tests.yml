@@ -622,11 +622,6 @@ tests:
   - :x-pack:plugin:vector-tile:test
   method: testDegeneratedPolygon
   issue: https://github.com/elastic/elasticsearch/issues/165844
-- class: org.elasticsearch.xpack.downsample.DownsampleResilienceIT
-  tasks:
-  - :x-pack:plugin:downsample:internalClusterTest
-  method: testConcurrentRequestsForDifferentTargets
-  issue: https://github.com/elastic/elasticsearch/issues/165848
 - class: org.elasticsearch.snapshots.DedicatedClusterSnapshotRestoreIT
   tasks:
   - :server:internalClusterTest
@@ -1050,11 +1045,6 @@ tests:
   - :x-pack:plugin:esql:test
   method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double, 11 longs> null in 3}
   issue: https://github.com/elastic/elasticsearch/issues/167643
-- class: org.elasticsearch.xpack.esql.session.EsqlSessionQueryTimeFilterTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testView
-  issue: https://github.com/elastic/elasticsearch/issues/167647
 - class: org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactoryTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -1081,3 +1071,28 @@ tests:
   - :qa:rolling-upgrade:bcUpgradeTest
   method: testIndexSortForNumericTypes {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/167667
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  tasks:
+  - :qa:rolling-upgrade:bcUpgradeTest
+  method: testIndexSortForNumericTypes {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/167674
+- class: org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactoryTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFilteredLimitRampStaysParkedOnDenseFirstPageWithK1
+  issue: https://github.com/elastic/elasticsearch/issues/167690
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchFailuresIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testStopFetchesTheRowsSelectedSoFar
+  issue: https://github.com/elastic/elasticsearch/issues/167692
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  tasks:
+  - :qa:rolling-upgrade:bcUpgradeTest
+  method: testIndexSortForNumericTypes {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/167695
+- class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactoryTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFilteredLimitRampSkipsParkedWhenRemainingHitsZero
+  issue: https://github.com/elastic/elasticsearch/issues/167700

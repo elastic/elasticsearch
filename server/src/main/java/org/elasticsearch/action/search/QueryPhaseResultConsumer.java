@@ -247,7 +247,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             batchedResults = this.batchedResults;
         }
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1) + batchedResults.size();
-        final boolean hasBatchedResults = batchedResults.isEmpty() == false;
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
         final Deque<DelayableWriteable<InternalAggregations>> localAggsList = hasAggs
             ? new ArrayDeque<>(mergeResult != null ? 1 : 0)
@@ -285,8 +284,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 AggregationReduceContext aggReduceContext = performFinalReduce
                     ? aggReduceContextBuilder.forFinalReduction(topHitsToRelease)
                     : aggReduceContextBuilder.forPartialReduction(topHitsToRelease);
-                aggReduceContext.setHasBatchedResult(hasBatchedResults);
-                aggs = aggregate(buffer.iterator(), localAggsList.iterator(), remoteAggsList.iterator(), resultSize, aggReduceContext);
+                // a merge result without aggregations (its shards all failed or were skipped) adds nothing to the lists,
+                // so it neither marks the reduce as batched nor counts toward aggsCount
+                aggReduceContext.setHasBatchedResult(remoteAggsList.isEmpty() == false);
+                final int aggsCount = buffer.size() + localAggsList.size() + remoteAggsList.size();
+                aggs = aggregate(buffer.iterator(), localAggsList.iterator(), remoteAggsList.iterator(), aggsCount, aggReduceContext);
             } else {
                 aggs = null;
             }
@@ -404,15 +406,17 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             // we have to merge here in the same way we collect on a shard
             newTopDocs = topDocsList == null ? null : mergeTopDocs(topDocsList, topNSize, 0);
-            Iterator<DelayableWriteable<InternalAggregations>> localPartials = (lastMerge != null && lastMerge.reducedAggs != null)
+            final boolean hasLocalPartialAggs = lastMerge != null && lastMerge.reducedAggs != null;
+            Iterator<DelayableWriteable<InternalAggregations>> localPartials = hasLocalPartialAggs
                 ? Iterators.single(lastMerge.reducedAggs)
                 : Collections.emptyIterator();
+            final int aggsCount = toConsume.size() + (hasLocalPartialAggs ? 1 : 0);
             newAggs = hasAggs
                 ? aggregate(
                     toConsume.iterator(),
                     localPartials,
                     Collections.emptyIterator(),
-                    resultSetSize,
+                    aggsCount,
                     aggReduceContextBuilder.forPartialReduction(topHitsToRelease)
                 )
                 : null;
@@ -457,12 +461,15 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      * <strong>Remote partial results</strong> are from the wire; their top_hits are added via
      * {@link AggregationReduceContext#addTopHitsFromAggregationTree} so the coordinator takes ownership for release.
      * </p>
+     *
+     * @param aggsCount the number of aggregations the three iterators yield together, which
+     *                  {@link InternalAggregations#topLevelReduce(Iterator, int, AggregationReduceContext)} needs to be exact
      */
     private static InternalAggregations aggregate(
         Iterator<QuerySearchResult> toConsume,
         Iterator<DelayableWriteable<InternalAggregations>> localPartialResults,
         Iterator<DelayableWriteable<InternalAggregations>> remotePartialResults,
-        int resultSetSize,
+        int aggsCount,
         AggregationReduceContext reduceContext
     ) {
         try {
@@ -485,7 +492,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 return aggs;
             });
             Iterator<InternalAggregations> combined = Iterators.concat(localMapped, remoteMapped, toConsumeMapped);
-            return InternalAggregations.topLevelReduce(combined, resultSetSize, reduceContext);
+            return InternalAggregations.topLevelReduce(combined, aggsCount, reduceContext);
         } finally {
             toConsume.forEachRemaining(QuerySearchResult::releaseAggs);
         }
@@ -841,6 +848,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
     }
 
+    /**
+     * The result of a partial reduce, either built on this node or sent by a data node with the batched query phase.
+     *
+     * @param reducedAggs the partially reduced aggregations. Null when the request has no aggregations, or when no shard result reached
+     *                    the reduce, as on a data node whose shards all failed or were skipped. A later reduce must not count such a
+     *                    result, since it adds no aggregations.
+     */
     record MergeResult(
         List<SearchShard> processedShards,
         @Nullable TopDocs reducedTopDocs,

@@ -433,9 +433,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexingStatsSettings,
             threadPool.info(WRITE).getMax()
         );
-        var indexingFailuresDebugListener = new IndexingFailuresDebugListener(this);
+        var indexingFailuresDiagnosticListener = new IndexingFailuresDiagnosticListener(this);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(
-            CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
+            CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDiagnosticListener),
             logger
         );
         this.bulkOperationListener = new ShardBulkStats();

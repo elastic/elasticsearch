@@ -25,9 +25,9 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class IndexingFailuresDebugListener implements IndexingOperationListener {
+public class IndexingFailuresDiagnosticListener implements IndexingOperationListener {
 
-    private static final Logger LOGGER = LogManager.getLogger(IndexingFailuresDebugListener.class);
+    private static final Logger LOGGER = LogManager.getLogger(IndexingFailuresDiagnosticListener.class);
 
     private static final int MAX_WARNINGS_PER_WINDOW = 5;
     private static final long RATE_LIMIT_WINDOW_NANOS = TimeUnit.HOURS.toNanos(1);
@@ -37,12 +37,12 @@ public class IndexingFailuresDebugListener implements IndexingOperationListener 
     // High 32 bits: index of the current rate limit window. Low 32 bits: permits used in that window.
     private final AtomicLong windowAndPermitsUsed = new AtomicLong();
 
-    public IndexingFailuresDebugListener(IndexShard indexShard) {
+    public IndexingFailuresDiagnosticListener(IndexShard indexShard) {
         this(indexShard, System::nanoTime);
     }
 
     // Visible for testing
-    IndexingFailuresDebugListener(IndexShard indexShard, LongSupplier nanoTimeSupplier) {
+    IndexingFailuresDiagnosticListener(IndexShard indexShard, LongSupplier nanoTimeSupplier) {
         this.indexShard = indexShard;
         this.nanoTimeSupplier = nanoTimeSupplier;
     }

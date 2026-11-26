@@ -47,13 +47,13 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class IndexingFailuresDebugListenerTests extends ESTestCase {
+public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
 
     private static final long WINDOW_NANOS = TimeUnit.HOURS.toNanos(1);
     private static final int MAX_WARNINGS_PER_WINDOW = 5;
 
     static MockAppender appender;
-    static Logger testLogger1 = LogManager.getLogger(IndexingFailuresDebugListener.class);
+    static Logger testLogger1 = LogManager.getLogger(IndexingFailuresDiagnosticListener.class);
     static Level origLogLevel = testLogger1.getLevel();
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
@@ -83,11 +83,11 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
         when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        IndexingFailuresDebugListener indexingFailuresDebugListener = new IndexingFailuresDebugListener(mockShard);
+        IndexingFailuresDiagnosticListener indexingFailuresDiagnosticListener = new IndexingFailuresDiagnosticListener(mockShard);
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
         Engine.Index index = new Engine.Index(Uid.encodeId("doc_id"), 1, doc);
-        indexingFailuresDebugListener.postIndex(shardId, index, new RuntimeException("test exception"));
+        indexingFailuresDiagnosticListener.postIndex(shardId, index, new RuntimeException("test exception"));
         String message = appender.getLastEventAndReset().getMessage().getFormattedMessage();
         assertThat(
             message,
@@ -109,11 +109,11 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
             when(mockShard.routingEntry()).thenReturn(shardRouting);
             when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
             when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-            IndexingFailuresDebugListener indexingFailuresDebugListener = new IndexingFailuresDebugListener(mockShard);
+            IndexingFailuresDiagnosticListener indexingFailuresDiagnosticListener = new IndexingFailuresDiagnosticListener(mockShard);
 
             ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
             Engine.Index index = new Engine.Index(Uid.encodeId("doc_id"), 1, doc);
-            indexingFailuresDebugListener.postIndex(shardId, index, new RuntimeException("test exception"));
+            indexingFailuresDiagnosticListener.postIndex(shardId, index, new RuntimeException("test exception"));
             assertThat(appender.getLastEventAndReset(), nullValue());
         } finally {
             Loggers.setLevel(testLogger1, previousLevel);
@@ -127,14 +127,14 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
         when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        IndexingFailuresDebugListener indexingFailuresDebugListener = new IndexingFailuresDebugListener(mockShard);
+        IndexingFailuresDiagnosticListener indexingFailuresDiagnosticListener = new IndexingFailuresDiagnosticListener(mockShard);
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
         Engine.Index index = new Engine.Index(Uid.encodeId("doc_id"), 1, doc);
         Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
         when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
         when(indexResult.getFailure()).thenReturn(new RuntimeException("test exception"));
-        indexingFailuresDebugListener.postIndex(shardId, index, indexResult);
+        indexingFailuresDiagnosticListener.postIndex(shardId, index, indexResult);
         String message = appender.getLastEventAndReset().getMessage().getFormattedMessage();
         assertThat(
             message,
@@ -153,14 +153,14 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
         when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        IndexingFailuresDebugListener indexingFailuresDebugListener = new IndexingFailuresDebugListener(mockShard);
+        IndexingFailuresDiagnosticListener indexingFailuresDiagnosticListener = new IndexingFailuresDiagnosticListener(mockShard);
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
         Engine.Index index = new Engine.Index(Uid.encodeId("doc_id"), 1, doc);
         Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
         when(indexResult.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
         when(indexResult.getFailure()).thenReturn(new RuntimeException("test exception"));
-        indexingFailuresDebugListener.postIndex(shardId, index, indexResult);
+        indexingFailuresDiagnosticListener.postIndex(shardId, index, indexResult);
         assertThat(appender.getLastEventAndReset(), nullValue());
     }
 
@@ -171,7 +171,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
         when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        IndexingFailuresDebugListener listener = new IndexingFailuresDebugListener(mockShard);
+        IndexingFailuresDiagnosticListener listener = new IndexingFailuresDiagnosticListener(mockShard);
 
         IndexOperationBatch batch = primaryBatch(1);
         Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
@@ -196,7 +196,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
         when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        IndexingFailuresDebugListener listener = new IndexingFailuresDebugListener(mockShard);
+        IndexingFailuresDiagnosticListener listener = new IndexingFailuresDiagnosticListener(mockShard);
 
         final int docCount = randomIntBetween(1, 8);
         IndexOperationBatch batch = primaryBatch(docCount);
@@ -222,7 +222,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         when(mockShard.routingEntry()).thenReturn(shardRouting);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
         when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        IndexingFailuresDebugListener listener = new IndexingFailuresDebugListener(mockShard);
+        IndexingFailuresDiagnosticListener listener = new IndexingFailuresDiagnosticListener(mockShard);
 
         IndexOperationBatch batch = primaryBatch(1);
         Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
@@ -332,13 +332,13 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
      * The shard is mocked because a real {@link IndexShard} needs a full node environment, and the listener only reads
      * its routing entry, primary term and index settings.
      */
-    private static IndexingFailuresDebugListener listenerWithClock(AtomicLong clock) {
+    private static IndexingFailuresDiagnosticListener listenerWithClock(AtomicLong clock) {
         var shardId = ShardId.fromString("[index][123]");
         var mockShard = mock(IndexShard.class);
         when(mockShard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED));
         when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
         when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        return new IndexingFailuresDebugListener(mockShard, clock::get);
+        return new IndexingFailuresDiagnosticListener(mockShard, clock::get);
     }
 
     private static Exception randomUserError() {
@@ -364,7 +364,7 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
             when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
             when(indexResult.getFailure()).thenReturn(failure);
             appender.getLastEventAndReset();
-            new IndexingFailuresDebugListener(mockShard).postIndexBatch(shardId, primaryBatch(1), List.of(indexResult));
+            new IndexingFailuresDiagnosticListener(mockShard).postIndexBatch(shardId, primaryBatch(1), List.of(indexResult));
             return appender.getLastEventAndReset();
         } finally {
             Loggers.setLevel(testLogger1, previousLevel);

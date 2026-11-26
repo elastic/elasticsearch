@@ -63,9 +63,10 @@ final class WindowedRateLimiter {
      * @return true if a permit was taken, false if the current window has none left
      */
     boolean tryAcquirePermit() {
-        long window = currentWindow();
         while (true) {
             WindowUsage current = usage.get();
+            // read the clock after the usage, so a stale window read cannot overwrite a newer window's usage
+            long window = currentWindow();
             int permitsUsed = current.window() == window ? current.permitsUsed() : 0;
             if (permitsUsed >= permitsPerWindow) {
                 return false;

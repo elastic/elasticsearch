@@ -13,8 +13,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -70,7 +72,7 @@ public class WindowedRateLimiterTests extends ESTestCase {
         var granted = new AtomicInteger();
         int callsPerThread = randomIntBetween(10, 200);
 
-        startInParallel(randomIntBetween(2, 8), thread -> {
+        startInParallel(randomIntBetween(2, 8), _ -> {
             for (int i = 0; i < callsPerThread; i++) {
                 if (limiter.tryAcquirePermit()) {
                     granted.incrementAndGet();
@@ -79,6 +81,31 @@ public class WindowedRateLimiterTests extends ESTestCase {
         });
 
         assertThat(granted.get(), equalTo(permitsPerWindow));
+    }
+
+    /**
+     * The first clock read stalls. While it stalls, other callers use every permit in the next window, and then the read
+     * returns the old time. The stale caller must not reset the next window's usage.
+     */
+    public void testStaleClockReadCannotMoveTheWindowBackwards() {
+        long oldWindowTime = randomWindowIndex() * windowNanos;
+        long newWindowTime = oldWindowTime + windowNanos;
+        var limiterRef = new AtomicReference<WindowedRateLimiter>();
+        var stallNextRead = new AtomicBoolean(true);
+        var limiter = new WindowedRateLimiter(permitsPerWindow, TimeValue.timeValueNanos(windowNanos), () -> {
+            if (stallNextRead.getAndSet(false)) {
+                for (int i = 0; i < permitsPerWindow; i++) {
+                    assertTrue(limiterRef.get().tryAcquirePermit());
+                }
+                return oldWindowTime;
+            }
+            return newWindowTime;
+        });
+        limiterRef.set(limiter);
+
+        assertFalse(limiter.tryAcquirePermit());
+        assertFalse(limiter.mayHavePermit());
+        assertFalse(limiter.tryAcquirePermit());
     }
 
     public void testWindowIndexBeyondIntRangeDoesNotWrap() {

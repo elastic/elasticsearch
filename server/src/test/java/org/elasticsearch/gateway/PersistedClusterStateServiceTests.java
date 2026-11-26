@@ -2047,19 +2047,46 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     }
 
     public void testPersistNodeIdWithoutOverwritingStateRetainsStateWithVotes() throws IOException {
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
-            final long term = randomLongBetween(1, Long.MAX_VALUE - 1);
-            final long version = randomLongBetween(1, Long.MAX_VALUE - 1);
-            final String clusterUUID = UUIDs.randomBase64UUID(random());
-            final var votingConfiguration = new CoordinationMetadata.VotingConfiguration(Set.of("node-a", "node-b", "node-c"));
-            final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder()
-                .term(term)
-                .lastAcceptedConfiguration(votingConfiguration)
-                .lastCommittedConfiguration(votingConfiguration)
-                .build();
+        final var allDataPaths = createDataPaths();
 
-            try (Writer writer = persistedClusterStateService.createWriter()) {
+        final var nonemptyDataPaths = new Path[between(1, allDataPaths.length)];
+        final var updatedDataPaths = new Path[between(1, nonemptyDataPaths.length)];
+        final var shuffledDataPaths = shuffledList(allDataPaths);
+        for (int i = 0; i < nonemptyDataPaths.length; i++) {
+            final var path = shuffledDataPaths.get(i);
+            nonemptyDataPaths[i] = path;
+            if (i < updatedDataPaths.length) {
+                updatedDataPaths[i] = path;
+            }
+        }
+
+        // Create some empty state paths
+        for (var path : allDataPaths) {
+            if (randomBoolean()) {
+                Files.createDirectory(path.resolve(METADATA_DIRECTORY_NAME));
+            }
+        }
+
+        // Populate some of the paths with a zero-term state
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(nonemptyDataPaths)) {
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                writer.writeFullStateAndCommit(0L, ClusterState.builder(ClusterName.DEFAULT).build());
+            }
+        }
+
+        final long term = randomLongBetween(1, Long.MAX_VALUE - 1);
+        final long version = randomLongBetween(1, Long.MAX_VALUE - 1);
+        final String clusterUUID = UUIDs.randomBase64UUID(random());
+        final var votingConfiguration = new CoordinationMetadata.VotingConfiguration(Set.of("node-a", "node-b", "node-c"));
+        final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder()
+            .term(term)
+            .lastAcceptedConfiguration(votingConfiguration)
+            .lastCommittedConfiguration(votingConfiguration)
+            .build();
+
+        // Update some of those paths with a nonzero term and meaningful state
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(updatedDataPaths)) {
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
                 writer.writeFullStateAndCommit(
                     term,
                     ClusterState.builder(ClusterName.DEFAULT)
@@ -2073,6 +2100,11 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         .build()
                 );
             }
+        }
+
+        // Verify that loading from this state (which may include some empty paths or state directories too) always detects the nonzero term
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(allDataPaths)) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
 
             // repeated, since the node may restart without any roles several times
             for (int i = between(1, 3); i > 0; i--) {

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParsingException;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.eql.analysis.AnalyzerTestUtils.analyzer;
@@ -101,6 +103,21 @@ public class VerifierTests extends ESTestCase {
 
     public void testMisspelledColumnWithMultipleOptions() {
         assertEquals("1:11: Unknown column [pib], did you mean any of [pid, ppid]?", error("foo where pib == 1"));
+    }
+
+    public void testVerificationExceptionKeepsEachProblem() {
+        VerificationException e = expectThrows(VerificationException.class, () -> accept("foo where xxx == 100 and pib == 1"));
+        assertEquals(
+            List.of(
+                new EqlClientException.Problem(1, 11, "Unknown column [xxx]"),
+                new EqlClientException.Problem(1, 26, "Unknown column [pib], did you mean any of [pid, ppid]?")
+            ),
+            e.problems()
+        );
+        assertEquals(
+            "Found 2 problems\nline 1:11: Unknown column [xxx]\nline 1:26: Unknown column [pib], did you mean any of [pid, ppid]?",
+            e.getMessage()
+        );
     }
 
     public void testProcessRelationshipsUnsupported() {

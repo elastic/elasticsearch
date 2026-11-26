@@ -7,17 +7,19 @@
 package org.elasticsearch.xpack.esql.core.plugin;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.ReservingResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,6 +38,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     private final String actionName;
     private final AsyncResultsService<AsyncTask, StoredAsyncResponse<Response>> resultsService;
     private final TransportService transportService;
+    private final CircuitBreaker circuitBreaker;
 
     @SuppressWarnings("this-escape")
     public AbstractTransportQlAsyncGetResultsAction(
@@ -47,11 +50,22 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
         Client client,
         ThreadPool threadPool,
         BigArrays bigArrays,
+        CircuitBreakerService circuitBreakerService,
         Class<? extends AsyncTask> asynkTaskClass
     ) {
-        super(actionName, transportService, actionFilters, GetAsyncResultRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        // Charges the reply this node serializes for a relayed request until it is written.
+        super(
+            actionName,
+            true,
+            transportService,
+            actionFilters,
+            GetAsyncResultRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+        );
         this.actionName = actionName;
         this.transportService = transportService;
+        this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.resultsService = createResultsService(
             transportService,
             clusterService,
@@ -115,10 +129,20 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
                 node,
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, responseReader(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                // Only reserves the response while it arrives, since the pages read from it are charged until it is released.
+                new ReservingResponseHandler<>(
+                    listener,
+                    responseReader(),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    circuitBreaker,
+                    relayedResponseBreakerLabel()
+                )
             );
         }
     }
 
     public abstract Writeable.Reader<Response> responseReader();
+
+    /** Breaker label for a response relayed from the node that runs the query. */
+    protected abstract String relayedResponseBreakerLabel();
 }

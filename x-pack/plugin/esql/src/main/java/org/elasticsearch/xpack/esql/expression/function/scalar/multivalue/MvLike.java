@@ -159,6 +159,9 @@ public class MvLike extends MvRegexMatch {
                 MvLikeAffixMatch.Shape.CONTAINS,
                 new BytesRef(literal)
             );
+            // Affix (prefix*suffix / prefix*middle*suffix) stays on the automaton until
+            // MvLikeAffixMatch grows a three-segment path. LIKE itself takes the Affix evaluator.
+            case WildcardPattern.Shape.Affix ignored -> MvAutomataMatch.toEvaluator(source(), field, pattern.createAutomaton(false));
             case WildcardPattern.Shape.General ignored -> MvAutomataMatch.toEvaluator(source(), field, pattern.createAutomaton(false));
         };
     }

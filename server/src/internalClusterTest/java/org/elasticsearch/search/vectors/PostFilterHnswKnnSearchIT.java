@@ -249,6 +249,7 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
             .field("type", "hnsw")
             .field("m", 16)
             .field("ef_construction", 200)
+            .field("flat_index_threshold", 0)   // always build a graph
             .endObject()
             .endObject()
             .startObject(TAG_FIELD)

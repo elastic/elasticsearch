@@ -843,9 +843,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
     /// Search shards draining off a shutting-down node get their warming info from the source, and the share sizes each timeout.
     /// The shards are pinned to the source until after the shutdown is registered, so joining the target does not move them first.
-    /// Incoming and outgoing recovery throttling is lifted so both shards relocate at once. Warming is held until both plans are
-    /// computed, which keeps both copies on the source, so each share is that shard's bytes over the sum of both. That fraction of
-    /// the remaining grace beats the equal share (a quarter of a half) and the data volume (a few KB against a 4MB warming cache).
+    /// Incoming and outgoing recovery throttling is lifted so both shards relocate at once. Both recoveries wait at a barrier until
+    /// both source responses have arrived before planning, keeping both copies on the source so each share is that shard's bytes over
+    /// the sum of both. That fraction of the remaining grace beats the equal share (a quarter of a half) and the data volume (a few KB
+    /// against a 4MB warming cache).
     public void testSearchRecoveryWarmingTimeoutUsesSourceShardWarmingInfo() throws Exception {
         final int numberOfShards = 2;
         final var nodeSettings = Settings.builder()
@@ -857,7 +858,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 1.0d)
             .put(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING.getKey(), true)
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.25d)
-            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), TimeValue.timeValueSeconds(30))
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(unthrottledIncomingRecoveryNodeSettings())
             .put(unthrottledOutgoingRecoveryNodeSettings())
@@ -880,12 +880,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         indexDocs(indexName, numberOfShards * randomIntBetween(500, 1_000));
         flushAndRefresh(indexName);
         ensureGreen(indexName);
-        for (int shardIndex = 0; shardIndex < numberOfShards; shardIndex++) {
-            assertThat(
-                findSearchShard(resolveIndex(indexName), shardIndex).routingEntry().currentNodeId(),
-                equalTo(getNodeId(sourceSearchNode))
-            );
-        }
 
         final var targetSearchNode = startSearchNode(nodeSettings);
         ensureStableCluster(3);
@@ -895,52 +889,29 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 equalTo(getNodeId(sourceSearchNode))
             );
         }
+
         final var warmingServiceOnTargetNode = getSharedBlobCacheWarmingService(targetSearchNode);
-        warmingServiceOnTargetNode.setAwaitSourceShardWarmingInfo(true);
-        // Held so neither relocation completes, and drops out of the sum, before the other shard's warming info is computed.
-        warmingServiceOnTargetNode.holdSearchWarmingCompletion();
-        try {
-            markNodeForSigtermShutdown(sourceSearchNode);
-            // The shutdown is registered, but the include filter still pins the shards. Lifting it is what starts the relocations.
-            updateIndexSettings(Settings.builder().putNull("index.routing.allocation.include._name"), indexName);
-            assertBusy(() -> {
-                final var evaluations = warmingServiceOnTargetNode.searchRecoveryTimeoutEvaluations();
-                assertThat(evaluations, hasSize(numberOfShards));
-                for (var evaluation : evaluations) {
-                    assertThat(
-                        evaluation.shardId() + " planned as " + evaluation.plan().timeoutContext(),
-                        evaluation.sourceShardWarmingInfo(),
-                        notNullValue()
-                    );
-                }
-            });
-
-            final var evaluations = warmingServiceOnTargetNode.searchRecoveryTimeoutEvaluations();
-            final long sourceBytesToWarm = evaluations.getFirst().sourceShardWarmingInfo().sourceBytesToWarm();
-            long totalShardBytesToWarm = 0L;
-            for (var evaluation : evaluations) {
-                final var warmingInfo = evaluation.sourceShardWarmingInfo();
-                assertNotNull("the source answered before the plan was computed", warmingInfo);
-                assertThat(warmingInfo.shardBytesToWarm(), greaterThan(0L));
-                assertThat(warmingInfo.sourceBytesToWarm(), equalTo(sourceBytesToWarm));
-                assertThat(warmingInfo.sourceBytesToWarm(), greaterThan(warmingInfo.shardBytesToWarm()));
-                totalShardBytesToWarm += warmingInfo.shardBytesToWarm();
-                assertThat(evaluation.plan().timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT));
-            }
-            assertThat(sourceBytesToWarm, equalTo(totalShardBytesToWarm));
-        } finally {
-            warmingServiceOnTargetNode.releaseSearchWarmingCompletion();
-        }
-
+        warmingServiceOnTargetNode.sourceWarmingInfoBarrier = new CountDownLatch(numberOfShards);
+        markNodeForSigtermShutdown(sourceSearchNode);
+        // The shutdown is registered, but the include filter still pins the shards. Lifting it is what starts the relocations.
+        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.include._name"), indexName);
+        internalCluster().awaitNodeVacated(indexName, sourceSearchNode);
         ensureGreen(indexName);
-        final String targetNodeId = getNodeId(targetSearchNode);
-        for (int shardIndex = 0; shardIndex < numberOfShards; shardIndex++) {
-            assertThat(
-                "shard " + shardIndex + " should have relocated to the target node",
-                findSearchShard(resolveIndex(indexName), shardIndex).routingEntry().currentNodeId(),
-                equalTo(targetNodeId)
-            );
+
+        final var evaluations = warmingServiceOnTargetNode.searchRecoveryTimeoutEvaluations();
+        assertThat(evaluations, hasSize(numberOfShards));
+        long totalShardBytesToWarm = 0L;
+        final List<Long> sourceBytesToWarmPerShard = new ArrayList<>(evaluations.size());
+        for (var evaluation : evaluations) {
+            final var warmingInfo = evaluation.sourceShardWarmingInfo();
+            assertNotNull("no source shard warming info for " + evaluation.shardId(), warmingInfo);
+            assertThat(warmingInfo.shardBytesToWarm(), greaterThan(0L));
+            assertThat(warmingInfo.sourceBytesToWarm(), greaterThan(warmingInfo.shardBytesToWarm()));
+            assertThat(evaluation.plan().timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT));
+            totalShardBytesToWarm += warmingInfo.shardBytesToWarm();
+            sourceBytesToWarmPerShard.add(warmingInfo.sourceBytesToWarm());
         }
+        assertThat(sourceBytesToWarmPerShard, everyItem(equalTo(totalShardBytesToWarm)));
     }
 
     /// How many times [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout] has been called for each shard recovering on a node.
@@ -2194,7 +2165,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         private volatile boolean awaitWarmingForSearchRecovery = false;
         private volatile boolean awaitWarmingForIndexingRecovery = false;
-        private volatile boolean awaitSourceShardWarmingInfo = false;
+        private volatile CountDownLatch sourceWarmingInfoBarrier;
 
         private final RecordingSearchRecoveryTimeoutCalculationService recordingTimeoutCalculationService;
 
@@ -2249,11 +2220,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         void setAwaitWarmingForIndexingRecovery(boolean await) {
             this.awaitWarmingForIndexingRecovery = await;
-        }
-
-        /** When set, search recovery warming starts, and so plans its timeout, only once requested source warming info has arrived. */
-        void setAwaitSourceShardWarmingInfo(boolean await) {
-            this.awaitSourceShardWarmingInfo = await;
         }
 
         List<TimeoutEvaluation> searchRecoveryTimeoutEvaluations() {
@@ -2324,11 +2290,20 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             SourceShardWarmingInfo sourceShardWarmingInfo,
             ActionListener<Void> resumeRecoveryListener
         ) {
-            if (awaitSourceShardWarmingInfo && sourceShardWarmingInfo.isRequested() && sourceShardWarmingInfo.isDone() == false) {
-                // Forked so that the waiting never blocks the thread that delivers the warming info
+            final var barrier = sourceWarmingInfoBarrier;
+            if (barrier != null && sourceShardWarmingInfo.isRequested()) {
+                // Forked so waiting never blocks the thread delivering the warming info.
                 threadPool.generic().execute(() -> {
-                    assertTrue(waitUntil(sourceShardWarmingInfo::isDone));
-                    warmCacheForSearchShardRecovery(
+                    try {
+                        final boolean ready = waitUntil(sourceShardWarmingInfo::isDone);
+                        barrier.countDown();
+                        assertTrue("timed out waiting for source shard warming info for " + indexShard.shardId(), ready);
+                        safeAwait(barrier);
+                    } catch (Throwable t) {
+                        resumeRecoveryListener.onResponse(null);
+                        throw t;
+                    }
+                    super.warmCacheForSearchShardRecovery(
                         clusterStateSupplier,
                         indexShard,
                         commit,

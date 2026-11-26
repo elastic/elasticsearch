@@ -26,25 +26,13 @@ import java.util.regex.Pattern;
 public final class LoadAllFromLoad {
 
     /**
-     * Tests with {@code ROW}, which the command allow-list of {@code LOAD_ALL} does not have yet.
-     * See <a href="https://github.com/elastic/elasticsearch/issues/164812">#164812</a>.
-     */
-    private static final Set<String> NEEDS_ROW = Set.of(
-        "in_subquery.forkFoldableLHSUnmappedEvalLoadShouldNotLeakConst",
-        "in_subquery.forkMarkJoinUnmappedEvalLoadShouldNotLeakMark",
-        "in_subquery.unionAllFoldableLHSUnmappedEvalLoadShouldNotLeakConst",
-        "in_subquery.unionAllMarkJoinUnmappedEvalLoadShouldNotLeakMark",
-        "unmapped-load.loadUnmappedFieldReferencedOnlyAboveIndexAndRowUnion",
-        "unmapped-load.loadViewRowConstantsLoadMode",
-        "unmapped-load.loadViewRowEvalLoadMode"
-    );
-
-    /**
      * Tests where {@code LOAD_ALL} is meant to differ: a field that one branch of a subquery names is loaded in that branch only by
      * {@code LOAD}, which null-fills it in the others, and in all of them by {@code LOAD_ALL}. Their expected results cannot be reused, so
      * each has its own {@code LOAD_ALL} version in {@code unmapped-load-all.csv-spec}.
      */
     private static final Set<String> DIFFERS_BY_DESIGN = Set.of(
+        "flattened-keys.keyInSubqueryUnderLoadNotNamedByMainBranch",
+        "flattened-keys.keyUnderLoadNotNamedBySubquery",
         "unmapped-load.fillNullAllColumnsInSubqueryBranchWithDifferentColumnsUnderLoad",
         "unmapped-load.loadSubquerySortRefInOneBranchTrailingWildcardKeepSurfacesUnmapped",
         "unmapped-load.loadUnmappedFieldInOneSubqueryBranchNoOuterKeep"
@@ -72,9 +60,6 @@ public final class LoadAllFromLoad {
 
     /** Why the test is not run with {@code LOAD_ALL}, or {@code null} if it is. */
     public static String skipReason(String testId) {
-        if (NEEDS_ROW.contains(testId)) {
-            return "LOAD_ALL does not support ROW";
-        }
         if (DIFFERS_BY_DESIGN.contains(testId)) {
             return "LOAD_ALL differs from LOAD by design here: it loads the field in the other branches too";
         }

@@ -237,11 +237,7 @@ public class PerFieldFormatSupplier {
             // but based on dimension fields and timestamp field, so during indexing
             // version/seq_no/term needs to be looked up and having a bloom filter
             // can speed this up significantly.
-            // An explicit index setting wins; otherwise time series indices always use the bloom filter.
-            boolean useForDataStream = IndexSettings.DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING.exists(indexSettings.getSettings())
-                ? indexSettings.isBloomFilterIdFieldWithDataStreamTimestampEnabled()
-                : indexSettings.getMode().isTsdb() || indexSettings.isBloomFilterIdFieldWithDataStreamTimestampEnabled();
-            return useForDataStream
+            return (indexSettings.getMode().isTsdb() || indexSettings.isBloomFilterIdFieldWithDataStreamTimestampEnabled())
                 && IdFieldMapper.NAME.equals(field)
                 && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
         } else {

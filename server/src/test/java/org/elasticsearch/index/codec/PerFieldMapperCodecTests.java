@@ -261,11 +261,11 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene104PostingsFormat.class));
     }
 
-    public void testUseBloomFilterWithTimestampFieldEnabled_timeSeriesMode_indexSettingDisabled() throws IOException {
+    public void testUseBloomFilterWithTimestampFieldEnabled_timeSeriesMode_indexSettingIgnored() throws IOException {
         Settings indexSettings = Settings.builder().put(IndexSettings.DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING.getKey(), false).build();
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, false, false, Settings.EMPTY, indexSettings);
-        assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
     }
 
     public void testUseBloomFilterLogsdbWithTimestampFieldEnabled_dataStreamTimestampSettingEnabled() throws IOException {

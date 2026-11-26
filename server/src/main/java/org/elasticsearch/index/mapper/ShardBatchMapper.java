@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
@@ -672,34 +671,9 @@ public final class ShardBatchMapper {
         Recycler<BytesRef> recycler,
         DocumentParsingProvider documentParsingProvider
     ) {
-        // TODO: the engine cannot write the nested children yet, so a chunk with nested values goes to the sequential path.
-        return mapColumnBatch(items, batch, shard, chunkStart, chunkEnd, resolution, origin, recycler, documentParsingProvider, false);
-    }
-
-    /**
-     * @param mapNestedChildren whether to map the nested values of the chunk to children of the documents. When {@code false}, a
-     *                          chunk with nested values is refused, as the engine cannot write the children yet; the compatibility
-     *                          tests map them to compare them with the sequential path.
-     */
-    static EngineBatch mapColumnBatch(
-        BulkItemRequest[] items,
-        SourceBatch batch,
-        BatchMappingShardContext shard,
-        int chunkStart,
-        int chunkEnd,
-        BatchMapperResolution resolution,
-        Engine.Operation.Origin origin,
-        Recycler<BytesRef> recycler,
-        DocumentParsingProvider documentParsingProvider,
-        boolean mapNestedChildren
-    ) {
         final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
 
         final SourceBatch chunkSource = batch.slice(chunkStart, chunkEnd);
-        if (mapNestedChildren == false && hasNestedValues(resolution.nestedGroups(), chunkSource)) {
-            logger.debug("columnar batch mapping disabled: the chunk has values for nested objects");
-            return null;
-        }
         final long[] normalizedSizes;
         try {
             normalizedSizes = meterRows(documentParsingProvider, chunkSource);
@@ -875,30 +849,6 @@ public final class ShardBatchMapper {
             }
         }
         return mappers;
-    }
-
-    /** Whether any row of {@code chunk} has a value, also {@code null}, for a leaf that a nested mapper owns. */
-    private static boolean hasNestedValues(NestedGroupResolution[] nestedGroups, SourceBatch chunk) {
-        if (nestedGroups.length == 0) {
-            return false;
-        }
-        if (chunk instanceof EscfBatch == false) {
-            return true;
-        }
-        final EscfBatch escf = (EscfBatch) chunk;
-        for (NestedGroupResolution group : nestedGroups) {
-            for (int leaf : group.valueLeaves()) {
-                if (escf.column(leaf).presentDocs().nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                    return true;
-                }
-            }
-            for (int leaf : group.objectSpellingLeaves()) {
-                if (escf.column(leaf).presentDocs().nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     /**

@@ -4352,19 +4352,18 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     /**
-     * A mapping with a {@code nested} field keeps batch indexing for a batch that has no value for it, and sends a batch with nested
-     * values to the sequential path, because the batch path cannot write child documents yet (Phase 1 of
-     * elastic/elasticsearch#167077). The next steps of Phase 1 turn the second expectation around.
+     * A mapping with a {@code nested} field keeps batch indexing, for a batch that has nested values and for one that has none
+     * (Phase 1 of elastic/elasticsearch#167077).
      */
-    public void testNestedMappingFallsBackFromBatchMode() throws IOException {
+    public void testNestedMappingTakesBatchMode() throws IOException {
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
         final SourceFieldMapper.Mode sourceMode = randomFrom(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED);
-        final String withNested = "test-nested-fallback";
+        final String withNested = "test-nested-batched-values";
         final String rootOnly = "test-nested-root-only";
         createNestedIndex(withNested, mode, sourceMode);
         createNestedIndex(rootOnly, mode, sourceMode);
 
-        assertNestedBulkFallsBack(withNested, nestedSources(mode, 20));
+        assertNestedBulkIsBatched(withNested, nestedSources(mode, 20));
         final Map<String, String> rootOnlySources = new LinkedHashMap<>();
         for (int i = 0; i < 20; i++) {
             rootOnlySources.put("doc-" + i, withTimestamp(mode, "\"host\":\"host-" + i + "\""));
@@ -4384,8 +4383,8 @@ public class BatchBulkIT extends ESIntegTestCase {
     /**
      * What a nested mapping does on the sequential path, which the batch path must match once it takes nested values: {@code _source},
      * nested queries and {@code inner_hits}. The second index is written with batch indexing off, so the write path is the one thing
-     * that changes between the two, and the sequential path is the oracle. Today both go through it, so the test passes; it is the net
-     * for Phase 1 of elastic/elasticsearch#167077, and it carries no log expectation for that reason.
+     * that changes between the two, and the sequential path is the oracle. The batch path must take the first index, which the test
+     * asserts through its log.
      */
     public void testNestedBatchMatchesRowPath() throws IOException {
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
@@ -4398,7 +4397,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         final Map<String, String> sources = nestedSources(mode, 50);
         sources.put("doc-control", crossChildControlSource(mode));
         final String coordinatingNode = findCoordinatingNode();
-        assertNoFailures(client(coordinatingNode).bulk(bulkOf(batched, sources)).actionGet());
+        assertNestedBulkIsBatched(batched, sources);
         updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false));
         try {
             assertNoFailures(client(coordinatingNode).bulk(bulkOf(sequential, sources)).actionGet());
@@ -4473,45 +4472,6 @@ public class BatchBulkIT extends ESIntegTestCase {
             }
         });
         return result;
-    }
-
-    /**
-     * Bulk-indexes {@code sources} and asserts that the batch path refused them because they have nested values. Later steps of
-     * Phase 1 replace this assertion with one that batch indexing is enabled.
-     */
-    private void assertNestedBulkFallsBack(String index, Map<String, String> sources) {
-        final Logger mapperLogger = LogManager.getLogger(ShardBatchMapper.class);
-        final Logger indexerLogger = LogManager.getLogger(ShardBatchIndexer.class);
-        final Level origMapperLevel = mapperLogger.getLevel();
-        final Level origIndexerLevel = indexerLogger.getLevel();
-        Loggers.setLevel(mapperLogger, Level.DEBUG);
-        Loggers.setLevel(indexerLogger, Level.TRACE);
-        try (var mapperLog = MockLog.capture(ShardBatchMapper.class); var indexerLog = MockLog.capture(ShardBatchIndexer.class)) {
-            mapperLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "nested values disable the batch path",
-                    ShardBatchMapper.class.getName(),
-                    Level.DEBUG,
-                    "columnar batch mapping disabled: the chunk has values for nested objects"
-                )
-            );
-            indexerLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "no batch indexed on primary",
-                    ShardBatchIndexer.class.getName(),
-                    Level.TRACE,
-                    "batch indexed * operations on primary shard *"
-                )
-            );
-            final BulkResponse response = client(findCoordinatingNode()).bulk(bulkOf(index, sources)).actionGet();
-            assertNoFailures(response);
-            assertThat(response.getItems().length, equalTo(sources.size()));
-            mapperLog.assertAllExpectationsMatched();
-            indexerLog.assertAllExpectationsMatched();
-        } finally {
-            Loggers.setLevel(mapperLogger, origMapperLevel);
-            Loggers.setLevel(indexerLogger, origIndexerLevel);
-        }
     }
 
     /** Bulk-indexes {@code sources} and asserts that the batch path indexed them, without a failed batch mapping. */

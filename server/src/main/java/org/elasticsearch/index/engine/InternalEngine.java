@@ -1597,11 +1597,14 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Returns true if any doc in this sub-batch requires Lucene update or stale-op semantics, which
+     * Returns true if any doc in this sub-batch requires Lucene update or stale-op semantics, or has nested children, which
      * the columnar {@code addBatch} path cannot express. The entire sub-batch must then fall back to
      * the row path.
      */
-    private static boolean requiresRowPath(IndexingStrategy[] plans, int subBatchSize) {
+    private static boolean requiresRowPath(MappedColumns colSlice, IndexingStrategy[] plans, int subBatchSize) {
+        if (colSlice.hasChildren()) {
+            return true;
+        }
         for (int i = 0; i < subBatchSize; i++) {
             final IndexingStrategy plan = plans[i];
             if (plan.useLuceneUpdateDocument || plan.addStaleOpToLucene) {
@@ -1622,12 +1625,13 @@ public class InternalEngine extends Engine {
     // n.b. the discerning eye will notice that this very much echoes the implementation of EscfColumn.windowValidity
     @Nullable
     private static FixedBitSet buildColumnBatchFilter(
+        MappedColumns colSlice,
         IndexingStrategy[] plans,
         IndexResult[] allResults,
         int subBatchIdx,
         int subBatchSize
     ) {
-        assert requiresRowPath(plans, subBatchSize) == false;
+        assert requiresRowPath(colSlice, plans, subBatchSize) == false;
         FixedBitSet filter = null; // assume we don't have to allocate by default
         for (int i = 0; i < subBatchSize; i++) {
             if (allResults[subBatchIdx + i] == null && plans[i].indexIntoLucene) {
@@ -1698,12 +1702,21 @@ public class InternalEngine extends Engine {
         long[] assignedSeqNos,
         IndexResult[] allResults
     ) throws IOException {
-        final MappedColumns.RowCursor cursor = colSlice.rowCursor();
+        // A document with nested children is a block of Lucene documents, children first; Lucene indexes a block together.
+        final boolean withChildren = colSlice.hasChildren();
+        final MappedColumns.RowCursor cursor = withChildren ? null : colSlice.rowCursor();
+        final MappedColumns.BlockCursor blocks = withChildren ? colSlice.blockCursor() : null;
 
         for (int i = 0; i < subBatchSize; i++) {
             // advance() must be called unconditionally to keep all column cursors correctly positioned,
             // even for documents that will not be written to Lucene.
-            cursor.advance();
+            final List<LuceneDocument> block;
+            if (withChildren) {
+                block = blocks.advance();
+            } else {
+                cursor.advance();
+                block = null;
+            }
 
             final int originalIdx = subBatchIdx + i;
             if (allResults[originalIdx] != null) {
@@ -1716,7 +1729,11 @@ public class InternalEngine extends Engine {
             final Index op = subBatch.toIndexOp(i);
 
             if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
-                allResults[originalIdx] = writeLuceneDocuments(op, plan, List.of(new LuceneDocument(cursor.fields())));
+                allResults[originalIdx] = writeLuceneDocuments(
+                    op,
+                    plan,
+                    withChildren ? block : List.of(new LuceneDocument(cursor.fields()))
+                );
             } else {
                 allResults[originalIdx] = new IndexResult(
                     plan.versionForIndexing,
@@ -1739,6 +1756,7 @@ public class InternalEngine extends Engine {
         final boolean fromTranslog = subBatch.origin().isFromTranslog();
         final Operation.Origin origin = subBatch.origin();
         final long primaryTerm = subBatch.primaryTerm();
+        final MappedColumns colSlice = engineBatch.columns().slice(subBatchIdx, subBatchIdx + subBatchSize);
         final IndexingStrategy[] plans = new IndexingStrategy[subBatchSize];
         // Tracks assigned sequence numbers; set in the seqNo-assignment loop below.
         final long[] assignedSeqNos = new long[subBatchSize];
@@ -1760,7 +1778,7 @@ public class InternalEngine extends Engine {
 
             if (origin == Operation.Origin.PRIMARY) {
                 // Primary: resolve all version IDs in a single Lucene reader acquisition, then plan.
-                final IndexingStrategy[] batchPlans = planPrimarySubBatch(subBatch, subBatchSize);
+                final IndexingStrategy[] batchPlans = planPrimarySubBatch(subBatch, colSlice, subBatchSize);
                 for (int i = 0; i < subBatchSize; i++) {
                     plans[i] = batchPlans[i];
                     reservedDocs += plans[i].reservedDocs;
@@ -1821,7 +1839,6 @@ public class InternalEngine extends Engine {
             }
 
             // Lucene
-            final MappedColumns colSlice = engineBatch.columns().slice(subBatchIdx, subBatchIdx + subBatchSize);
             colSlice.fillPrimaryTerm(primaryTerm);
             for (int i = 0; i < subBatchSize; i++) {
                 if (allResults[subBatchIdx + i] == null) {
@@ -1829,11 +1846,11 @@ public class InternalEngine extends Engine {
                     colSlice.setVersion(i, plans[i].versionForIndexing);
                 }
             }
-            if (requiresRowPath(plans, subBatchSize)) {
+            if (requiresRowPath(colSlice, plans, subBatchSize)) {
                 // Sub-batch contains a doc needing update or stale-op semantics; fall back to per-doc row path.
                 indexColumnRowSubBatch(colSlice, subBatch, plans, subBatchIdx, subBatchSize, assignedSeqNos, allResults);
             } else {
-                final FixedBitSet filter = buildColumnBatchFilter(plans, allResults, subBatchIdx, subBatchSize);
+                final FixedBitSet filter = buildColumnBatchFilter(colSlice, plans, allResults, subBatchIdx, subBatchSize);
                 if (filter != null && filter.cardinality() == 0) {
                     // Every doc is excluded (all have preflight errors or indexIntoLucene == false).
                     // No Lucene write is needed; set any remaining results directly.
@@ -1949,7 +1966,7 @@ public class InternalEngine extends Engine {
      * versionMap lookups are performed per operation, but any operations that miss the versionMap are resolved in a
      * single {@link #performActionWithDirectoryReader} call, amortizing reader acquisition overhead across the batch.
      */
-    private IndexingStrategy[] planPrimarySubBatch(IndexOperationBatch subBatch, int count) {
+    private IndexingStrategy[] planPrimarySubBatch(IndexOperationBatch subBatch, MappedColumns colSlice, int count) {
         final VersionValue[] resolvedVersions = new VersionValue[count];
         final boolean[] optimizeAppendOnly = new boolean[count];
         final boolean[] needsLucene = new boolean[count];
@@ -2048,7 +2065,8 @@ public class InternalEngine extends Engine {
                 subBatch.toIndexOp(i),
                 resolvedVersions[i],
                 optimizeAppendOnly[i],
-                1,
+                // the document and its nested children, which count against the limit of documents of the shard
+                1 + colSlice.childCount(i),
                 enforceSafeAccessCalled
             );
         }

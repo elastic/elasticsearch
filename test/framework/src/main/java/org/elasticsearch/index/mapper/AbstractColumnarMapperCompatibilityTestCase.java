@@ -568,9 +568,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 resolution,
                 Engine.Operation.Origin.PRIMARY,
                 new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)),
-                DocumentParsingProvider.EMPTY_INSTANCE,
-                // map the nested values, so that the pins test the rules of the nested mapping and not the temporary refusal of them
-                true
+                DocumentParsingProvider.EMPTY_INSTANCE
             );
             if (mapped != null) {
                 mapped.close();

@@ -111,6 +111,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
+import org.elasticsearch.index.shard.IndexShardRelocatedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -4565,63 +4566,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         checkNumberOfShardsSetting(sourceNode, indexName, 2);
     }
 
-    // public void testTargetShardSurvivesSourceShardFailure() {
-    // final var masterNode = startMasterOnlyNode();
-    // final var sourceNode = startIndexNode();
-    // ensureStableCluster(2);
-    //
-    // final var indexName = randomIndexName();
-    // createIndex(
-    // indexName,
-    // indexSettings(1, 0).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
-    // );
-    // ensureGreen(indexName);
-    //
-    // // Keep the existing primary on sourceNode
-    // updateClusterSettings(
-    // Settings.builder()
-    // .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-    // );
-    // startIndexNode();
-    // ensureStableCluster(3);
-    //
-    // final var index = resolveIndex(indexName);
-    // final var sourceShardId = new ShardId(index, 0);
-    // final var targetShardId = new ShardId(index, 1);
-    //
-    // final var targetShardFailure = new CountDownLatch(1);
-    // MockTransportService.getInstance(masterNode)
-    // .addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
-    // if (request instanceof FailedShardEntry failedShard
-    // && failedShard.getShardId().equals(targetShardId)) {
-    // targetShardFailure.countDown();
-    // }
-    // handler.messageReceived(request, channel, task);
-    // });
-    //
-    // // On the first START_SPLIT, fail and close the source shard and then respond with what SplitSourceService#setupTargetShard
-    // // sees when the source shard closes after its state checks but before it acquires a primary operation permit.
-    // final var sourceShardClosed = new AtomicBoolean(false);
-    // MockTransportService.getInstance(sourceNode)
-    // .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
-    // if (sourceShardClosed.compareAndSet(false, true)) {
-    // final var sourceShard = findIndexShard(index, 0);
-    // sourceShard.failShard("simulated failure during start split", new Exception("boom"));
-    // assertBusy(() -> assertThat(sourceShard.state(), equalTo(IndexShardState.CLOSED)));
-    // channel.sendResponse(new IndexShardClosedException(sourceShardId));
-    // } else {
-    // handler.messageReceived(request, channel, task);
-    // }
-    // });
-    //
-    // client(sourceNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
-    //
-    // safeAwait(targetShardFailure);
-    // waitForReshardCompletion(indexName);
-    // ensureGreen(indexName);
-    // checkNumberOfShardsSetting(sourceNode, indexName, 2);
-    // }
-
     public void testSourceShardMonitoringSucceedsWhenTargetsAreAlreadyDone() throws InterruptedException, BrokenBarrierException {
         startMasterOnlyNode();
         String indexNode = startIndexNode();
@@ -5646,6 +5590,55 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertFalse(splitSourceService.isPreparingForHandoff(shardId));
 
         waitForReshardCompletion(indexName);
+    }
+
+    public void testTargetShardRetriesStartSplitWithoutRecoveryFailure() {
+        var masterNode = startMasterOnlyNode();
+        var indexNodeA = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        // Disable rebalancing so the target shard doesn't get moved
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false)
+        );
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        final Index index = resolveIndex(indexName);
+
+        int numDocs = 100;
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+
+        // Spin up new index node which will host the target shard
+        var indexNodeB = startIndexNode();
+        ensureStableCluster(4);
+
+        // Fail the start split request two times and then proceed.
+        var receivedStartSplits = new AtomicInteger(0);
+        MockTransportService.getInstance(indexNodeA)
+            .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
+                if (receivedStartSplits.getAndIncrement() < 2) {
+                    channel.sendResponse(new IndexShardRelocatedException(new ShardId(index, 0)));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        client(indexNodeA).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+
+        // Target performed retries without failing the recovery.
+        var targetPrimaryTerm = internalCluster().clusterService(masterNode).state().metadata().findIndex(index).get().primaryTerm(1);
+        assertEquals(1, targetPrimaryTerm);
     }
 
     @Override

@@ -33,7 +33,10 @@ import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
@@ -41,6 +44,7 @@ import java.util.concurrent.locks.LockSupport;
 import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCase {
 
@@ -199,29 +203,47 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         }
     }
 
-    public void testIndexCloseCompletesOnceWhenAfterIndexShardClosingThrows() throws Exception {
-        final AtomicInteger hookCalls = new AtomicInteger();
-        assertIndexCloseCompletesOnce(hookCalls, new IndexEventListener() {
+    public void testIndexCloseCompletesOnceWhenAfterIndexShardClosingThrowsAndShardCloseIsImmediate() throws Exception {
+        assertIndexCloseCompletesOnce(afterIndexShardClosingThrows(), false);
+    }
+
+    public void testIndexCloseCompletesOnceWhenAfterIndexShardClosingThrowsAndShardCloseIsQueued() throws Exception {
+        assertIndexCloseCompletesOnce(afterIndexShardClosingThrows(), true);
+    }
+
+    public void testIndexCloseCompletesOnceWhenAfterIndexShardClosedThrowsAndShardCloseIsImmediate() throws Exception {
+        assertIndexCloseCompletesOnce(afterIndexShardClosedThrows(), false);
+    }
+
+    public void testIndexCloseCompletesOnceWhenAfterIndexShardClosedThrowsAndShardCloseIsQueued() throws Exception {
+        assertIndexCloseCompletesOnce(afterIndexShardClosedThrows(), true);
+    }
+
+    private static ThrowingListener afterIndexShardClosingThrows() {
+        return new ThrowingListener() {
             @Override
             public void afterIndexShardClosing(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
                 hookCalls.incrementAndGet();
                 throw new IllegalStateException("simulated failure in afterIndexShardClosing");
             }
-        });
+        };
     }
 
-    public void testIndexCloseCompletesOnceWhenAfterIndexShardClosedThrows() throws Exception {
-        final AtomicInteger hookCalls = new AtomicInteger();
-        assertIndexCloseCompletesOnce(hookCalls, new IndexEventListener() {
+    private static ThrowingListener afterIndexShardClosedThrows() {
+        return new ThrowingListener() {
             @Override
             public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
                 hookCalls.incrementAndGet();
                 throw new IllegalStateException("simulated failure in afterIndexShardClosed");
             }
-        });
+        };
     }
 
-    private void assertIndexCloseCompletesOnce(AtomicInteger hookCalls, IndexEventListener throwingListener) throws Exception {
+    private abstract static class ThrowingListener implements IndexEventListener {
+        final AtomicInteger hookCalls = new AtomicInteger();
+    }
+
+    private void assertIndexCloseCompletesOnce(ThrowingListener throwingListener, boolean queueShardClose) throws Exception {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         ensureGreen();
@@ -247,17 +269,25 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 0
             );
 
-            // The shard close may complete before the hook throws; the index close must still complete exactly once.
+            // When the shard close is queued, the index close must stay pending until the queued task runs, whether or not the hook has
+            // already thrown by then; either way it must complete exactly once.
+            final List<Runnable> queuedShardCloses = new ArrayList<>();
+            final Executor shardCloseExecutor = queueShardClose ? queuedShardCloses::add : EsExecutors.DIRECT_EXECUTOR_SERVICE;
             final AtomicInteger indexClosed = new AtomicInteger();
             index.close(
                 "test",
                 false,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                shardCloseExecutor,
                 ActionListener.wrap(ignored -> indexClosed.incrementAndGet(), e -> fail(e, "index close should succeed"))
             );
 
-            assertThat(hookCalls.get(), equalTo(1));
             assertThat(shard.state(), equalTo(IndexShardState.CLOSED));
+            if (queueShardClose) {
+                assertThat(queuedShardCloses, hasSize(1));
+                assertThat(indexClosed.get(), equalTo(0));
+                queuedShardCloses.forEach(Runnable::run);
+            }
+            assertThat(throwingListener.hookCalls.get(), equalTo(1));
             assertThat(indexClosed.get(), equalTo(1));
         } finally {
             indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, () -> {});

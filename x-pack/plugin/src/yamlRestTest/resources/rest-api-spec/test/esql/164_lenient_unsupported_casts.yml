@@ -45,7 +45,8 @@ setup:
       esql.query:
         body:
           query: 'FROM lenient_unsupported | EVAL x = value::long | KEEP value, x | LIMIT 10'
-  - match: { columns: [ { name: value, type: unsupported }, { name: x, type: long } ] }
+  # The unsupported column reports its original types, see https://github.com/elastic/elasticsearch/issues/167297
+  - match: { columns: [ { name: value, type: unsupported, original_types: [ rank_feature ] }, { name: x, type: long } ] }
   - match: { values: [ [ null, null ] ] }
 
   - do:

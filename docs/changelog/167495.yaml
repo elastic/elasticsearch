@@ -1,5 +1,12 @@
 area: Mapping
+breaking:
+  area: Mapping
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Don't expand dots in `exponential_histogram` values
 issues: []
 pr: 167495
 summary: Don't expand dots in `exponential_histogram` values
-type: bug
+type: "breaking, bug"

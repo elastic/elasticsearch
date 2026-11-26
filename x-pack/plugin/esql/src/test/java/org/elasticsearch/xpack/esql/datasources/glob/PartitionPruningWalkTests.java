@@ -57,7 +57,9 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.W
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_START;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_GLOB;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_FILES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_FINISH_PAGES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_PREFIX;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_PREFIXES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_END;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS;
@@ -75,6 +77,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk
 import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk.cheaperToFinish;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -616,6 +619,12 @@ public class PartitionPruningWalkTests extends ESTestCase {
             );
             assertNotNull("879 listings must complete the 1-day walk", result);
             assertEquals(WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES, provider.listChildrenRequests());
+            assertThat(
+                "finish listObjects must not count against the directory ceiling",
+                provider.listObjectPages(),
+                greaterThanOrEqualTo(WIDE_HIVE_ONE_DAY_FINISH_PAGES)
+            );
+            assertFalse(provider.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
         } finally {
             terminate(threadPool);
         }
@@ -906,6 +915,156 @@ public class PartitionPruningWalkTests extends ESTestCase {
         }
     }
 
+    public void testDirectExecutorFinishStaysSequential() throws Exception {
+        ListingWalkHarness provider = new ListingWalkHarness(wideHiveTree());
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        PartitionPruningWalk.WalkResult result = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> tryWalkAsync(provider, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 8, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+        );
+        assertNotNull(result);
+        assertEquals(1, provider.maxListChildrenInFlight());
+        assertEquals(1, provider.maxListObjectsInFlight());
+        assertThat(provider.listObjectPages(), greaterThanOrEqualTo(WIDE_HIVE_ONE_DAY_FINISH_PAGES));
+    }
+
+    public void testParallelFinishInFlightNeverExceedsConcurrency() throws Exception {
+        ListingWalkHarness provider = new ListingWalkHarness(wideHiveTree());
+        CountDownLatch overlapped = new CountDownLatch(2);
+        AtomicBoolean skipProbe = new AtomicBoolean(true);
+        provider.setListObjectsDelayNanos(() -> {
+            if (skipProbe.getAndSet(false)) {
+                return 0L;
+            }
+            overlapped.countDown();
+            awaitQuietly(overlapped);
+            return 0L;
+        });
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        int concurrency = 4;
+        int poolSize = concurrency * 2;
+        ExecutorService executor = Executors.newFixedThreadPool(poolSize);
+        try {
+            PartitionPruningWalk.WalkResult result = PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> tryWalkAsync(provider, WIDE_HIVE_GLOB, List.of(), pred, () -> false, concurrency, executor)
+            );
+            assertNotNull(result);
+            assertEquals(WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES, provider.listChildrenRequests());
+            assertThat(provider.maxListObjectsInFlight(), lessThanOrEqualTo(concurrency));
+            assertThat(
+                "finish listObjects must overlap when the pool is larger than concurrency",
+                provider.maxListObjectsInFlight(),
+                greaterThan(1)
+            );
+            assertThat(provider.listObjectPages(), greaterThanOrEqualTo(WIDE_HIVE_ONE_DAY_FINISH_PAGES));
+            assertEquals(0, provider.listObjectsInFlight());
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testParallelFinishCancelSkipsUnstarted() throws Exception {
+        ListingWalkHarness provider = new ListingWalkHarness(wideHiveTree());
+        CountDownLatch firstRemaining = new CountDownLatch(1);
+        CountDownLatch releaseFinish = new CountDownLatch(1);
+        AtomicBoolean skipProbe = new AtomicBoolean(true);
+        provider.setListObjectsDelayNanos(() -> {
+            if (skipProbe.getAndSet(false)) {
+                return 0L;
+            }
+            firstRemaining.countDown();
+            awaitQuietly(releaseFinish);
+            return 0L;
+        });
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        AtomicBoolean cancelled = new AtomicBoolean();
+        int concurrency = 4;
+        ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+        try {
+            PlainActionFuture<PartitionPruningWalk.WalkResult> future = new PlainActionFuture<>();
+            PartitionPruningWalk.withFinishMode(PartitionPruningWalk.FinishMode.ALWAYS_FINISH, () -> {
+                startWalkAsync(provider, WIDE_HIVE_GLOB, List.of(), pred, cancelled::get, concurrency, executor, future);
+                return null;
+            });
+            assertTrue("finish remaining batch must start", firstRemaining.await(30, TimeUnit.SECONDS));
+            cancelled.set(true);
+            int issuedAtCancel = provider.listObjectsRequests();
+            releaseFinish.countDown();
+            expectThrows(TaskCancelledException.class, future::actionGet);
+            int issuedAtComplete = provider.listObjectsRequests();
+            assertThat(issuedAtComplete, lessThanOrEqualTo(issuedAtCancel + concurrency));
+            assertThat(issuedAtComplete, lessThan(WIDE_HIVE_PREFIXES));
+            assertFalse(provider.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
+            assertEquals(0, provider.listObjectsInFlight());
+        } finally {
+            releaseFinish.countDown();
+            terminate(executor);
+        }
+    }
+
+    public void testParallelFinishFailedChildFailsClosed() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        String failFragment = "aws-account-id=000000000002";
+        String prefixListing = WIDE_HIVE_PREFIX + "/";
+
+        ListingWalkHarness sequential = new ListingWalkHarness(wideHiveTree());
+        sequential.setFailListObjectsContaining(failFragment);
+        Exception sync = expectThrows(
+            Exception.class,
+            () -> PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> tryWalk(sequential, WIDE_HIVE_GLOB, List.of(), pred, () -> false)
+            )
+        );
+        assertFinishFailureWithoutFlatListing(sync, sequential, prefixListing);
+
+        ListingWalkHarness parallel = new ListingWalkHarness(wideHiveTree());
+        parallel.setFailListObjectsContaining(failFragment);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            Exception async = expectThrows(
+                Exception.class,
+                () -> PartitionPruningWalk.withFinishMode(
+                    PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                    () -> tryWalkAsync(parallel, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 4, executor)
+                )
+            );
+            assertFinishFailureWithoutFlatListing(async, parallel, prefixListing);
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testParallelFinishMatchesSequentialUnderJitter() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        ListingWalkHarness sequentialProvider = new ListingWalkHarness(wideHiveTree());
+        PartitionPruningWalk.WalkResult sequential = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> tryWalk(sequentialProvider, WIDE_HIVE_GLOB, List.of(), pred, () -> false)
+        );
+        assertNotNull(sequential);
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            for (int i = 0; i < 5; i++) {
+                ListingWalkHarness parallelProvider = new ListingWalkHarness(wideHiveTree());
+                parallelProvider.setListObjectsDelayNanos(() -> TimeUnit.MILLISECONDS.toNanos(randomIntBetween(0, 2)));
+                int concurrency = randomIntBetween(2, 8);
+                PartitionPruningWalk.WalkResult parallel = PartitionPruningWalk.withFinishMode(
+                    PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                    () -> tryWalkAsync(parallelProvider, WIDE_HIVE_GLOB, List.of(), pred, () -> false, concurrency, executor)
+                );
+                assertEquals(sequential, parallel);
+                assertEquals(sequentialProvider.listChildrenRequests(), parallelProvider.listChildrenRequests());
+                assertEquals(sequentialProvider.listObjectPages(), parallelProvider.listObjectPages());
+                assertEquals(sequentialProvider.listObjectsRequests(), parallelProvider.listObjectsRequests());
+                assertThat(parallelProvider.maxListObjectsInFlight(), lessThanOrEqualTo(concurrency));
+            }
+        } finally {
+            terminate(executor);
+        }
+    }
+
     private void assertListenerCompletesOnce(Executor executor) throws Exception {
         ListingWalkHarness provider = new ListingWalkHarness(fieldShapedTree());
         List<Expression> filters = List.of(window(LAST_DAY, NOW));
@@ -967,6 +1126,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
             for (int i = 0; i < iterations; i++) {
                 ListingWalkHarness parallelProvider = new ListingWalkHarness(tree);
                 parallelProvider.setListChildrenDelayNanos(() -> TimeUnit.MILLISECONDS.toNanos(randomIntBetween(0, 1)));
+                parallelProvider.setListObjectsDelayNanos(() -> TimeUnit.MILLISECONDS.toNanos(randomIntBetween(0, 1)));
                 int concurrency = randomIntBetween(2, 16);
                 PartitionPruningWalk.WalkResult parallel = PartitionPruningWalk.withFinishMode(
                     PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
@@ -974,10 +1134,20 @@ public class PartitionPruningWalkTests extends ESTestCase {
                 );
                 assertEquals(sequential, parallel);
                 assertEquals(expectedListings, parallelProvider.listChildrenRequests());
+                assertEquals(sequentialProvider.listObjectPages(), parallelProvider.listObjectPages());
             }
         } finally {
             terminate(threadPool);
         }
+    }
+
+    private static void assertFinishFailureWithoutFlatListing(Exception thrown, ListingWalkHarness provider, String prefixListing) {
+        Throwable io = thrown instanceof IOException ? thrown : ExceptionsHelper.unwrap(thrown, IOException.class);
+        assertNotNull("expected IOException, got " + thrown, io);
+        assertEquals("injected listing failure", io.getMessage());
+        assertFalse("failed finish must not prefix-list the dataset", provider.listedPrefixes().contains(prefixListing));
+        assertThat(provider.listObjectsRequests(), greaterThan(1));
+        assertEquals(0, provider.listObjectsInFlight());
     }
 
     private static void assertInjectedListingFailureWithoutFlatListing(CheckedRunnable<Exception> walk, ListingWalkHarness provider) {

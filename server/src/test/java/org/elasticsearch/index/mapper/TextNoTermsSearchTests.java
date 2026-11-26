@@ -18,6 +18,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -819,8 +820,12 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
         final MapperService mapperService = mapper(indexed, analyzer);
         final List<List<Integer>> perQuery = new ArrayList<>();
         withLuceneIndex(mapperService, iw -> {
-            for (List<String> doc : docs) {
-                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.array("body", doc.toArray(String[]::new)))).rootDoc());
+            for (int id = 0; id < docs.size(); id++) {
+                final String[] values = docs.get(id).toArray(String[]::new);
+                final LuceneDocument document = mapperService.documentMapper().parse(source(b -> b.array("body", values))).rootDoc();
+                // The writer may order documents differently on each side, so a hit is identified by this, not by its doc id.
+                document.add(new StoredField("test_id", id));
+                iw.addDocument(document);
             }
         }, reader -> {
             final SearchExecutionContext context = createSearchExecutionContext(mapperService);
@@ -830,7 +835,7 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
                 // Every matching document, not a page of them: the two sides weigh a hit differently by design, so
                 // what is compared is which documents answer, not the order they come back in.
                 for (ScoreDoc hit : searcher.search(query.toQuery(context), Math.max(10, docs.size())).scoreDocs) {
-                    hits.add(hit.doc);
+                    hits.add(searcher.storedFields().document(hit.doc).getField("test_id").numericValue().intValue());
                 }
                 hits.sort(null);
                 perQuery.add(hits);

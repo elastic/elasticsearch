@@ -223,7 +223,7 @@ public class MetadataIndexAliasesService {
                     NO_LONGER_ASSIGNED,
                     "created for alias processing",
                     CloseUtils.NO_SHARDS_CREATED_EXECUTOR,
-                    ActionListener.noop()
+                    () -> {}
                 );
             }
         }

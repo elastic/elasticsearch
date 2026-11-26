@@ -44,6 +44,11 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private final LeafSink sink;
     private final boolean rawTextMode;
     private final boolean firePathSink;
+    /**
+     * Where the canonical rendering of a floating-point value is written, to compare it with the value's token.
+     * It belongs to the encoder, which hands the same buffer to the handler of every document.
+     */
+    private final StringBuilder doubleBuffer;
 
     /** See {@link EscfEncoder#EscfEncoder(org.elasticsearch.common.recycler.Recycler, Set)}. */
     private final Set<String> floatElementPaths;
@@ -89,17 +94,25 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private int[] kvInlineArrayDepthStack;
     private int kvInlineArrayStackDepth;
 
-    EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode) {
-        this(row, backend, sink, rawTextMode, Set.of());
+    EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode, StringBuilder doubleBuffer) {
+        this(row, backend, sink, rawTextMode, Set.of(), doubleBuffer);
     }
 
-    EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode, Set<String> floatElementPaths) {
+    EscfDocumentHandler(
+        EscfRowBuffer row,
+        EscfBatchBuilder backend,
+        LeafSink sink,
+        boolean rawTextMode,
+        Set<String> floatElementPaths,
+        StringBuilder doubleBuffer
+    ) {
         this.row = row;
         this.backend = backend;
         this.sink = sink;
         this.rawTextMode = rawTextMode;
         this.firePathSink = sink != LeafSink.NO_OP;
         this.floatElementPaths = floatElementPaths;
+        this.doubleBuffer = doubleBuffer;
     }
 
     /** The full path of {@code fieldName} in the current row-level object, or {@code null} when paths are not tracked. */
@@ -154,10 +167,9 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvWriter.writeStringField(fieldName, buf, off, len);
             return;
         }
-        var text = new XContentString.UTF8Bytes(buf, off, len);
-        int colIdx = row.stringField(fieldName, text);
+        int colIdx = row.stringField(fieldName, buf, off, len);
         if (firePathSink) {
-            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, text);
+            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, new XContentString.UTF8Bytes(buf, off, len));
         }
     }
 
@@ -186,10 +198,14 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvWriter.writeStringField(fieldName, srcBuf, srcOff, srcLen);
             return;
         }
-        var text = new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen);
-        int colIdx = row.stringField(fieldName, text);
+        int colIdx = row.stringField(fieldName, srcBuf, srcOff, srcLen);
         if (firePathSink) {
-            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, text);
+            sink.onTextPrimitive(
+                colIdx,
+                backend.columnPath(colIdx),
+                SourceValueType.STRING,
+                new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen)
+            );
         }
     }
 
@@ -341,16 +357,17 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
      * readers fall back to; else {@code null}, so that nothing is stored for the common case.
      */
     @Nullable
-    private static XContentString.UTF8Bytes lexicalForm(double value, byte[] srcBuf, int srcOff, int srcLen) {
+    private XContentString.UTF8Bytes lexicalForm(double value, byte[] srcBuf, int srcOff, int srcLen) {
         // Check if we need to store the spelling, comparing the rendering against the token bytes in place.
-        if (isCanonical(Double.toString(value), srcBuf, srcOff, srcLen)) {
+        doubleBuffer.setLength(0);
+        if (isCanonical(doubleBuffer.append(value), srcBuf, srcOff, srcLen)) {
             return null;
         }
         return new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen);
     }
 
     /** Whether the {@code len} ASCII bytes at {@code off} read exactly as {@code canonical}. */
-    private static boolean isCanonical(String canonical, byte[] bytes, int off, int len) {
+    private static boolean isCanonical(CharSequence canonical, byte[] bytes, int off, int len) {
         if (canonical.length() != len) {
             return false;
         }

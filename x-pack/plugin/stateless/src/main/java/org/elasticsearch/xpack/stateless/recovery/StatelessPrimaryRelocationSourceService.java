@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowCommitMetadata;
@@ -588,7 +589,13 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                     assert latestBcc != null : "no uploaded BCC for shard " + shardId;
                     final long blobLength = latestBcc.calculateBccBlobLength();
                     final BccBlob latestBccBlob = latestBcc.toBccBlob();
-                    final var lastCommitBlobs = latestBcc.lastCompoundCommit().getBlobFiles();
+                    final Set<BccBlob> lastCommitBlobs = new HashSet<>();
+                    for (Blob blob : latestBcc.lastCompoundCommit().getBlobs()) {
+                        // TODO(merge-blobs) Ignoring merge blobs here until the feature is fully supported
+                        if (blob instanceof BccBlob bccBlob) {
+                            lastCommitBlobs.add(bccBlob);
+                        }
+                    }
                     final var lastCommitIsHollow = latestBcc.lastCompoundCommit().hollow();
                     // This happens after markRelocating() has triggered the listener. The latest uploaded BCC will be the last. No new
                     // BCCs will be uploaded after that. However, there could still be VBCCs after the last BCC that we need to ignore.

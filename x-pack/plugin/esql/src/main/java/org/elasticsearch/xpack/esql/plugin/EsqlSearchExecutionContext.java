@@ -82,6 +82,14 @@ public class EsqlSearchExecutionContext extends SearchExecutionContext {
     }
 
     /**
+     * Whether this shard maps the field {@code name} itself, as a field or as the key of a {@code flattened} field, and not only
+     * reads it from {@code _source} or from the container of the unmapped fields.
+     */
+    public boolean mapsField(String name) {
+        return super.fieldType(name) != null;
+    }
+
+    /**
      * Whether this shard reads the field {@code name} as the key of a {@code flattened} field it maps, a {@code keyword}. Field-level
      * security hides a key as it hides a mapped field.
      */

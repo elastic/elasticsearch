@@ -419,9 +419,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (!(potentiallyUnmapped instanceof AbstractConvertFunction convert)) {
                 return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
             }
-            if (shardContext.readsFromSource(fieldName) == false) {
+            if (shardContext.mapsField(fieldName)) {
                 // The shard maps the field as a type the union has no conversion for, like one that a node knows and the coordinator
-                // doesn't. The conversion of the values of the unmapped indices doesn't apply: they're not read from _source.
+                // doesn't. The conversion of the values of the unmapped indices doesn't apply: they're not read from _source, nor from
+                // the container of the unmapped fields.
                 return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
             }
             fieldName = getFieldName((Attribute) convert.field());
@@ -945,6 +946,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         /** Whether this shard reads the field {@code name} from {@code _source}, as it maps no field and keeps no key of that name. */
         boolean readsFromSource(String name) {
             return ctx instanceof EsqlSearchExecutionContext esql && esql.readsFromSource(name);
+        }
+
+        /** Whether this shard maps the field {@code name}, as a field of its own or as the key of a {@code flattened} field. */
+        boolean mapsField(String name) {
+            return ctx instanceof EsqlSearchExecutionContext esql && esql.mapsField(name);
         }
 
         /** Whether this shard reads the field {@code name} as the key of a {@code flattened} field, a {@code keyword}. */

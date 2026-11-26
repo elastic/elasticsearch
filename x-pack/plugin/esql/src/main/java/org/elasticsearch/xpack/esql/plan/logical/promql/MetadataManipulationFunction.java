@@ -233,24 +233,20 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         LogicalPlan plan = new Eval(context.cmd().source(), aggregated.plan(), List.of(computed, derived));
         boolean opaque = aggregated.schema().isOpen();
         if (context.containerFunctions() && opaque) {
-            // The label is written into every packing holding it too, so the series' identity is the relabeled one.
-            var packings = new ArrayList<Alias>();
-            for (var skip : aggregated.schema().skips()) {
-                if (skip.contains(name) == false) {
-                    Attribute packing = aggregated.packed(skip);
-                    var written = new TimeSeriesMetadataSet(
-                        source,
-                        packing,
-                        Literal.keyword(source, context.labelName(name)),
-                        derived.toAttribute(),
-                        context.labelPath(name),
-                        context.roots()
-                    );
-                    packings.add(new Alias(source, packing.name(), written));
-                }
-            }
-            if (packings.isEmpty() == false) {
-                plan = new Eval(context.cmd().source(), plan, packings);
+            // The label is written into the table's label container, its finest packing, when it holds the label, so the
+            // series' identity is the relabeled one; every coarser packing derives from it.
+            Set<String> finest = aggregated.schema().finestSkip();
+            if (finest.contains(name) == false) {
+                Attribute packing = aggregated.packed(finest);
+                var written = new TimeSeriesMetadataSet(
+                    source,
+                    packing,
+                    Literal.keyword(source, context.labelName(name)),
+                    derived.toAttribute(),
+                    context.labelPath(name),
+                    context.roots()
+                );
+                plan = new Eval(context.cmd().source(), plan, List.of(new Alias(source, packing.name(), written)));
             }
         }
         var unshadowed = new ArrayList<NamedExpression>();

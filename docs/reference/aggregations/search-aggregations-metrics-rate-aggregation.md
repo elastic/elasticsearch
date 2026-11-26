@@ -18,7 +18,7 @@ For `composite` aggregations, there must be exactly one `date_histogram` source 
 
 ## Counter fields in time series aggregations
 ```{applies_to}
-stack: deprecated 9.7+
+stack: deprecated 9.7+, preview 9.0-9.6
 serverless:
   elasticsearch: deprecated
   observability: deprecated

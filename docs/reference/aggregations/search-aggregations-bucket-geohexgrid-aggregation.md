@@ -12,7 +12,7 @@ applies_to:
 
 A multi-bucket aggregation that groups [`geo_point`](/reference/elasticsearch/mapping-reference/geo-point.md) and [`geo_shape`](/reference/elasticsearch/mapping-reference/geo-shape.md) values into buckets that represent a grid. The resulting grid can be sparse and only contains cells that have matching data. Each cell corresponds to a [H3 cell index](https://h3geo.org/docs/core-library/h3Indexing#h3-cell-indexp) and is labeled using the [H3Index representation](https://h3geo.org/docs/core-library/h3Indexing#h3index-representation).
 
-In {{stack}}, this aggregation is available with a Gold, Platinum, or Enterprise license. Gold is available on {{ech}} and through existing self-managed Gold subscriptions.
+In {{stack}}, this aggregation is available with a Gold, Platinum, or Enterprise license.
 
 See [the table of cell areas for H3 resolutions](https://h3geo.org/docs/core-library/restable) on how precision (zoom) correlates to size on the ground. Precision for this aggregation can be between 0 and 15, inclusive.
 

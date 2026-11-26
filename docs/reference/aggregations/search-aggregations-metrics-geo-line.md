@@ -12,7 +12,7 @@ applies_to:
 
 The `geo_line` aggregation aggregates all `geo_point` values within a bucket into a `LineString` ordered by the chosen `sort` field. This `sort` can be a date field, for example. The bucket returned is a valid [GeoJSON Feature](https://tools.ietf.org/html/rfc7946#section-3.2) representing the line geometry.
 
-In {{stack}}, this aggregation is available with a Gold, Platinum, or Enterprise license. Gold is available on {{ech}} and through existing self-managed Gold subscriptions.
+In {{stack}}, this aggregation is available with a Gold, Platinum, or Enterprise license.
 
 $$$search-aggregations-metrics-geo-line-simple$$$
 

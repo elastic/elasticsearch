@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -123,7 +124,10 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
             createPitSearchRequest(),
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
 
         paginatedHitSource.resume(resumeInfo);
@@ -159,7 +163,10 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
             createPitSearchRequest(),
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
 
         paginatedHitSource.start();
@@ -191,7 +198,10 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
             createPitSearchRequest(),
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
 
         // Initially: no search_after -> false
@@ -216,7 +226,10 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             e -> fail(),
             new ParentTaskAssigningClient(new MockClient(threadPool), new TaskId("n", randomInt())),
             createPitSearchRequest(),
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
         assertThat(paginatedHitSource.getPitId(), equalTo(PIT_ID));
     }
@@ -237,7 +250,10 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
             createPitSearchRequest(),
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
 
         paginatedHitSource.start();
@@ -270,7 +286,10 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
             createPitSearchRequest(),
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
 
         paginatedHitSource.setSearchAfterValues(searchAfterValues);
@@ -310,7 +329,10 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
                     e -> {},
                     assigningClient,
                     request,
-                    new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+                    new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+                    new NoopCircuitBreaker("test"),
+                    "test_search_hits",
+                    () -> 0L
                 )
             );
         }
@@ -353,7 +375,10 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
                     }
                 },
                 createPitSearchRequest(),
-                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+                new NoopCircuitBreaker("test"),
+                "test_search_hits",
+                () -> 0L
             );
         }
 

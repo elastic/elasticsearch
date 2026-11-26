@@ -1088,18 +1088,25 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         // whether or not it coordinated. Park it in its coordinator rewrite instead and check while it is in flight.
         OpenPointInTimeRequest request = new OpenPointInTimeRequest("pit-index").keepAlive(TimeValue.timeValueMinutes(1));
         request.indexFilter(new FailOnRewriteQueryBuilder());
-        PlainActionFuture<BytesReference> pitId = new PlainActionFuture<>();
+        PlainActionFuture<BytesReference> openedPitId = new PlainActionFuture<>();
         Thread openThread = new Thread(() -> {
-            client().execute(TransportOpenPointInTimeAction.TYPE, request, pitId.map(r -> r.getPointInTimeId()));
+            client().execute(TransportOpenPointInTimeAction.TYPE, request, openedPitId.map(r -> r.getPointInTimeId()));
         }, "blocking-rewrite-open-pit");
+        final int queriesWhileOpening;
         try (var pause = FailOnRewriteQueryBuilder.pauseCoordinatorRewrite()) {
             openThread.start();
             pause.awaitReached();
-            assertThat(searchService.queryScheduler().queries(), equalTo(0));
+            // sampled rather than asserted here, so that closing the pause always leads to closing the point in time
+            queriesWhileOpening = searchService.queryScheduler().queries();
         } finally {
             openThread.join();
         }
-        client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId.actionGet())).actionGet();
+        BytesReference pitId = openedPitId.actionGet();
+        try {
+            assertThat(queriesWhileOpening, equalTo(0));
+        } finally {
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
+        }
     }
 
     public void testRankFeaturePhaseUsingClient() {

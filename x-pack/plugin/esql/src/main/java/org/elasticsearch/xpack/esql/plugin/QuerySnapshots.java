@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -80,20 +79,14 @@ final class QuerySnapshots {
             TransportOpenPointInTimeAction.TYPE,
             request,
             listener.delegateFailureAndWrap((l, response) -> {
-                QuerySnapshot snapshot;
-                try {
-                    SearchContextId id = SearchContextId.decode(registry, response.getPointInTimeId());
-                    snapshot = new QuerySnapshot(
-                        response.getPointInTimeId(),
-                        id.shards(),
-                        response.getTotalShards(),
-                        response.getSkippedShards(),
-                        owner
-                    );
-                } catch (Exception e) {
-                    close(client, owner, response.getPointInTimeId());
-                    throw e;
-                }
+                SearchContextId id = SearchContextId.decode(registry, response.getPointInTimeId());
+                QuerySnapshot snapshot = new QuerySnapshot(
+                    response.getPointInTimeId(),
+                    id.shards(),
+                    response.getTotalShards(),
+                    response.getSkippedShards(),
+                    owner
+                );
                 task.addListener(() -> close(client, snapshot));
                 if (task.notifyIfCancelled(l) == false) {
                     l.onResponse(snapshot);
@@ -106,16 +99,13 @@ final class QuerySnapshots {
      * Closes the point in time as the user who runs the query, without waiting. Only the first close acts.
      */
     static void close(Client client, QuerySnapshot snapshot) {
-        if (snapshot.markClosed()) {
-            close(client, snapshot.owner(), snapshot.pointInTimeId());
+        if (snapshot.markClosed() == false) {
+            return;
         }
-    }
-
-    private static void close(Client client, Supplier<ThreadContext.StoredContext> owner, BytesReference pointInTimeId) {
-        try (ThreadContext.StoredContext ignored = owner.get()) {
+        try (ThreadContext.StoredContext ignored = snapshot.owner().get()) {
             client.execute(
                 TransportClosePointInTimeAction.TYPE,
-                new ClosePointInTimeRequest(pointInTimeId),
+                new ClosePointInTimeRequest(snapshot.pointInTimeId()),
                 ActionListener.wrap(r -> {}, e -> logger.debug("failed to close the point in time of a query's snapshot", e))
             );
         }

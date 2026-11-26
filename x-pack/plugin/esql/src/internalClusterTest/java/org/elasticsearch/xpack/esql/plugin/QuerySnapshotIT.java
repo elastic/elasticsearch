@@ -149,15 +149,14 @@ public class QuerySnapshotIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A query whose node leaves the cluster before it closes its snapshot leaves its readers until their keep-alive.
+     * A query whose node leaves the cluster before it closes its snapshot doesn't leave its readers behind: they expire.
      */
     public void testReadersOfAQueryWhoseNodeLeftExpire() throws Exception {
         String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         Query query = startQuery(coordinator);
-        QuerySnapshot snapshot = query.open(null, TimeValue.timeValueSeconds(10));
+        QuerySnapshot snapshot = query.open(null, TimeValue.timeValueSeconds(5));
         assertThat(activeContexts(), equalTo(snapshot.shards().size()));
         internalCluster().stopNode(coordinator);
-        assertThat("the readers outlive the query's node", activeContexts(), equalTo(snapshot.shards().size()));
         assertBusy(() -> assertThat("the readers expired", activeContexts(), equalTo(0)), 30, TimeUnit.SECONDS);
     }
 

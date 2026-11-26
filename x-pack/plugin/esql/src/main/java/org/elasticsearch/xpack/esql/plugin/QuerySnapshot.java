@@ -113,9 +113,10 @@ final class QuerySnapshot {
         }
         IndexRoutingTable routing = project.routingTable().index(shardId.getIndex());
         if (reproducible(shardId) && routing != null) {
-            for (ShardRouting copy : routing.shard(shardId.id()).assignedShards()) {
+            // the copies a search on a point in time falls back to
+            for (ShardRouting copy : routing.shard(shardId.id()).activeInitializingShardsRandomIt()) {
                 DiscoveryNode node = nodes.get(copy.currentNodeId());
-                if (copy.active() && copy.isSearchable() && node != null && node.equals(holder) == false) {
+                if (copy.isSearchable() && node != null && node.equals(holder) == false) {
                     copies.add(node);
                 }
             }

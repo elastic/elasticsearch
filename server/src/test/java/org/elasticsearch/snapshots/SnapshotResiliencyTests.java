@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupReposi
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -60,6 +61,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
@@ -1850,6 +1852,63 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 Level.INFO,
                 "*failed to create snapshot*the following indices have unassigned primary shards*"
             )
+        );
+    }
+
+    public void testCreateSnapshotIdempotentWhenSameUuidAlreadyInProgress() {
+        final var sequencer = new ShardSnapshotUpdatesSequencer();
+        setupTestCluster(
+            1,
+            1,
+            node -> node.isMasterNode() ? sequencer.newTransportInterceptor() : TransportService.NOOP_TRANSPORT_INTERCEPTOR
+        );
+
+        final String repoName = "repo";
+        final String snapshotName = "snapshot";
+        final String index = "test";
+        final String uuid = UUIDs.randomBase64UUID();
+        final SubscribableListener<Void> doneListener = new SubscribableListener<>();
+
+        continueOrDie(createRepoAndIndex(repoName, index, 1), ignored -> {
+            client().admin()
+                .cluster()
+                .createSnapshot(
+                    new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).uuid(uuid).waitForCompletion(false),
+                    ActionListener.wrap(firstResponse -> {
+                        // Snapshot is started but shard updates are blocked, so it remains in-progress.
+                        client().admin()
+                            .cluster()
+                            .createSnapshot(
+                                new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).waitForCompletion(false),
+                                ActionListener.wrap(
+                                    response -> fail("different UUID should not start while name is in-progress"),
+                                    e -> {
+                                        assertThat(
+                                            ExceptionsHelper.unwrapCause(e),
+                                            instanceOf(SnapshotNameAlreadyInUseException.class)
+                                        );
+                                        client().admin()
+                                            .cluster()
+                                            .createSnapshot(
+                                                new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).uuid(uuid)
+                                                    .waitForCompletion(false),
+                                                ActionListener.wrap(sameUuidResponse -> {
+                                                    sequencer.releaseBlock(snapshotName, index);
+                                                    doneListener.onResponse(null);
+                                                }, doneListener::onFailure)
+                                            );
+                                    }
+                                )
+                            );
+                    }, doneListener::onFailure)
+                );
+        });
+
+        runUntil(doneListener::isDone, TimeUnit.MINUTES.toMillis(1L));
+        safeAwait(doneListener);
+        runUntil(
+            () -> SnapshotsInProgress.get(testClusterNodes.randomMasterNodeSafe().clusterService().state()).isEmpty(),
+            TimeUnit.MINUTES.toMillis(1L)
         );
     }
 

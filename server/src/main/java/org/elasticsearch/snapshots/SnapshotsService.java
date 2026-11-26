@@ -2128,6 +2128,17 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final String snapshotName = snapshot.getSnapshotId().getName();
             final var projectState = currentState.projectState(snapshot.getProjectId());
             SnapshotsServiceUtils.ensureRepositoryExists(repositoryName, projectState.metadata());
+            // TransportMasterNodeAction retries create-snapshot on FailedToCommitClusterStateException, including when the
+            // publication already reached a quorum (committed=true). In that case SnapshotsInProgress may already contain an
+            // entry for this request's UUID. Treat that as a successful start so the retry is idempotent; a different UUID
+            // with the same name remains a real conflict via ensureSnapshotNameNotRunning below.
+            if (snapshotsInProgress.snapshot(snapshot) != null) {
+                taskContext.success(() -> {
+                    logger.info("snapshot [{}] already in-progress, treating create request as successful", snapshot);
+                    createSnapshotTask.listener.onResponse(snapshot);
+                });
+                return snapshotsInProgress;
+            }
             final Repository repository = createSnapshotTask.repository;
             SnapshotsServiceUtils.ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
             SnapshotsServiceUtils.ensureSnapshotNameNotRunning(snapshotsInProgress, snapshot.getProjectId(), repositoryName, snapshotName);

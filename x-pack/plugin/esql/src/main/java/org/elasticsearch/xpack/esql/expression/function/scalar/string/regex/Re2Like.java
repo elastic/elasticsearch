@@ -44,6 +44,9 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -192,8 +195,8 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
     @Override
     public Expression forTransportVersion(TransportVersion minTransportVersion) {
         if (minTransportVersion.supports(ESQL_RE2_LIKE) == false) {
-            RLikePattern lucene = new RLikePattern(pattern().pattern());
-            if (sameLanguage(pattern(), lucene, source()) == false) {
+            RLikePattern lucene = luceneReading(pattern(), source());
+            if (lucene == null) {
                 throw new IllegalArgumentException(
                     "regex ["
                         + pattern().pattern()
@@ -207,17 +210,19 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
     }
 
     /**
-     * Whether both syntaxes give the pattern the same strings, false if Lucene can't parse it. The automata and the
-     * differences between them are built within a fold budget, as a label matcher's automaton is, so that the check is
-     * bounded on the coordinator. A pattern whose own automaton is too complex is refused as it would be once every node
-     * is upgraded; one past the budget otherwise, such as {@code @a.{20}} whose {@code @} Lucene reads as any string, is
-     * refused as one that can't be checked, which it is told apart from.
+     * The pattern as a Lucene regexp that gives the same strings, or null if there is none. Either matches the whole value,
+     * so a leading {@code ^} or a trailing {@code $}, which Lucene reads as a literal, as in {@code ^prod-.*}, is also tried
+     * without, as label matchers took them off before; the comparison decides, so one that is escaped or quantified, as
+     * in {@code prod\$}, is never taken off. The automata and the differences between them are built within a fold budget,
+     * as a label matcher's automaton is, so that the check is bounded on the coordinator. A pattern whose own automaton
+     * is too complex is refused as it would be once every node is upgraded; one past the budget otherwise, such as
+     * {@code @a.{20}} whose {@code @} Lucene reads as any string, is refused as one that can't be checked, which it is
+     * told apart from.
      */
-    private static boolean sameLanguage(Re2Pattern re2, RLikePattern lucene, Source source) {
-        // a fresh budget, discarded after the check, so the inputs it holds while the differences are built need no release
-        CircuitBreaker breaker = FoldContext.small().circuitBreakerView(source);
+    private static RLikePattern luceneReading(Re2Pattern re2, Source source) {
         Automaton a;
         try {
+            CircuitBreaker breaker = FoldContext.small().circuitBreakerView(source);
             a = re2.createAutomaton(false, breaker, NAME);
             breaker.addEstimateBytesAndMaybeBreak(a.ramBytesUsed(), NAME);
         } catch (TooComplexToDeterminizeException e) {
@@ -225,12 +230,41 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
         } catch (FoldContext.FoldTooMuchMemoryException e) {
             throw tooComplexToCheck(re2, e);
         }
+        String regex = re2.pattern();
+        String unanchored = regex.startsWith("^") ? regex.substring(1) : regex;
+        Set<String> readings = new LinkedHashSet<>();
+        readings.add(regex);
+        readings.add(unanchored);
+        for (String reading : List.of(regex, unanchored)) {
+            if (reading.endsWith("$")) {
+                readings.add(reading.substring(0, reading.length() - 1));
+            }
+        }
+        RuntimeException tooComplex = null;
+        for (String reading : readings) {
+            try {
+                if (sameLanguage(a, reading, source)) {
+                    return new RLikePattern(reading);
+                }
+            } catch (TooComplexToDeterminizeException | FoldContext.FoldTooMuchMemoryException e) {
+                tooComplex = e;
+            }
+        }
+        if (tooComplex != null) {
+            throw tooComplexToCheck(re2, tooComplex);
+        }
+        return null;
+    }
+
+    /**
+     * Whether Lucene reads {@code lucene} as the strings of {@code a}, false if it can't parse it.
+     */
+    private static boolean sameLanguage(Automaton a, String lucene, Source source) {
+        // a fresh budget, discarded after the check, so the inputs it holds while the differences are built need no release
+        CircuitBreaker breaker = FoldContext.small().circuitBreakerView(source);
         try {
-            // the Lucene side is built as the old label matcher built it, every step charged to the same budget
-            Automaton nfa = new CircuitBreakingRegExp(lucene.pattern(), RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, 0).toAutomaton(
-                breaker,
-                NAME
-            );
+            // the Lucene side is built as the old label matcher built it, every step charged to the budget
+            Automaton nfa = new CircuitBreakingRegExp(lucene, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, 0).toAutomaton(breaker, NAME);
             breaker.addEstimateBytesAndMaybeBreak(nfa.ramBytesUsed(), NAME);
             Automaton b = CircuitBreakingOperations.determinize(nfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, NAME);
             breaker.addEstimateBytesAndMaybeBreak(b.ramBytesUsed(), NAME);
@@ -238,8 +272,6 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
                 && Operations.isEmpty(CircuitBreakingOperations.minus(b, a, breaker, NAME));
         } catch (IllegalArgumentException e) {
             return false;
-        } catch (TooComplexToDeterminizeException | FoldContext.FoldTooMuchMemoryException e) {
-            throw tooComplexToCheck(re2, e);
         }
     }
 

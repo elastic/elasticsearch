@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 
+import java.util.Map;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.hamcrest.Matchers.containsString;
@@ -44,6 +46,30 @@ public class Re2LikeTransportVersionTests extends ESTestCase {
         assertThat(rLike.field(), equalTo(re2Like.field()));
         assertThat(rLike.pattern().pattern(), equalTo(re2Like.pattern().pattern()));
         assertFalse(rLike.caseInsensitive());
+    }
+
+    /**
+     * Lucene reads {@code ^} and {@code $} as literals, but a match is of the whole value either way, so an anchored pattern
+     * is matched on an older node without its anchors, as label matchers matched it before. An escaped {@code $} is a
+     * literal in both, so it stays.
+     */
+    public void testFallsBackToRLikeWithoutAnchors() {
+        Map<String, String> readings = Map.of(
+            "^prod-.*",
+            "prod-.*",
+            ".*-dev$",
+            ".*-dev",
+            "^prod-[0-9]+$",
+            "prod-[0-9]+",
+            "prod\\$",
+            "prod\\$"
+        );
+        TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(ESQL_RE2_LIKE);
+        for (var reading : readings.entrySet()) {
+            Re2Like re2Like = new Re2Like(Source.EMPTY, getFieldAttribute("label"), new Re2Pattern(reading.getKey()));
+            RLike rLike = as(re2Like.forTransportVersion(version), RLike.class);
+            assertThat(reading.getKey(), rLike.pattern().pattern(), equalTo(reading.getValue()));
+        }
     }
 
     /**

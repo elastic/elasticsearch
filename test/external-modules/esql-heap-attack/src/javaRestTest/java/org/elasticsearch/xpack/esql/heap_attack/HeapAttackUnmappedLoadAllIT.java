@@ -14,12 +14,14 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -458,8 +460,8 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         setRequestBreakerLimit(CONCURRENT_REQUEST_BREAKER);
         assertLoadAllSingleColumn(index, docs);
 
-        List<RestClient> nodes = new ArrayList<>();
-        try {
+        try (NodeClients clientsOfNodes = new NodeClients()) {
+            List<RestClient> nodes = clientsOfNodes.clients;
             for (HttpHost host : getClusterHosts()) {
                 nodes.add(buildClient(restClientSettings(), new HttpHost[] { host }));
             }
@@ -471,6 +473,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
                 try {
                     CountDownLatch go = new CountDownLatch(1);
                     List<Future<Boolean>> outcomes = new ArrayList<>(clients);
+                    boolean allSubmitted = false;
                     try {
                         for (int c = 0; c < clients; c++) {
                             RestClient node = nodes.get(c % nodes.size());
@@ -480,10 +483,10 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
                                 return abandoned.get() == false && loadAllBrokeTheCircuit(node, index, docs);
                             }));
                         }
-                    } catch (RuntimeException e) {
-                        abandoned.set(true);
-                        throw e;
+                        allSubmitted = true;
                     } finally {
+                        // Whatever stopped the submission, also an Error, the workers at the gate are released only to give up.
+                        abandoned.set(allSubmitted == false);
                         go.countDown();
                     }
                     for (Future<Boolean> outcome : outcomes) {
@@ -509,27 +512,19 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
             for (RestClient node : nodes) {
                 assertLoadAllSingleColumn(node, index, docs);
             }
-        } finally {
-            closeAll(nodes);
         }
     }
 
-    /** Closes every client, also when closing one fails, and then throws the first failure with the others added to it. */
-    private static void closeAll(List<RestClient> clients) throws IOException {
-        IOException failure = null;
-        for (RestClient client : clients) {
-            try {
-                client.close();
-            } catch (IOException e) {
-                if (failure == null) {
-                    failure = e;
-                } else {
-                    failure.addSuppressed(e);
-                }
-            }
-        }
-        if (failure != null) {
-            throw failure;
+    /**
+     * The clients of a test, closed together by try-with-resources: a client that cannot be closed adds to the failure of the test as a
+     * suppressed exception, and does not replace it.
+     */
+    private static final class NodeClients implements Closeable {
+        private final List<RestClient> clients = new ArrayList<>();
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(clients);
         }
     }
 

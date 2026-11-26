@@ -34,6 +34,10 @@ artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
+// MultiClusterWithSecurityYamlTestSuiteIT runs remote_cluster tests first to index the data that the multi_cluster
+// tests read, so a passing remote_cluster test must still run when a multi_cluster test is retried.
+smartRetry.pruneIndividualTests.set(false)
+
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("transform yaml rest tests require the default distribution")
   usesBwcDistribution(buildParams.bwcVersions.minimumWireCompatibleVersion)

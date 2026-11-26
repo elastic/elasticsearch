@@ -232,6 +232,9 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         }
         // wait for the merge call to return
         safeGet(forceMergeFuture);
+        // the force merge call returns as soon as the IndexWriter completes the merge, but the merge thread updates the merge stats and
+        // telemetry only after that, so also wait for the merge executor to be done with the merge task
+        assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(indexName).setMerge(true).get();
         // assert index stats reports no merging in progress (after force merge returned)
         long currentMergeCount = indicesStatsResponse.getIndices().get(indexName).getPrimaries().merge.getCurrent();

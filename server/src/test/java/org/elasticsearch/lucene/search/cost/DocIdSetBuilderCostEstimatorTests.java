@@ -57,6 +57,53 @@ public class DocIdSetBuilderCostEstimatorTests extends ESTestCase {
         assertThat(estimator.estimate(), greaterThanOrEqualTo((long) FixedBitSet.bits2words(maxDoc) * Long.BYTES));
     }
 
+    /** {@code forPoints} turns the doc count estimate back into points: twice it plus one, times the average values per doc. */
+    public void testForPointsGrowsCostByValuesPerDoc() {
+        int maxDoc = between(1, 1 << 20);
+        int docCount = between(1, maxDoc);
+        int valuesPerDoc = between(1, 8);
+        long cost = randomLongBetween(0, docCount);
+        assertEquals(
+            new DocIdSetBuilderCostEstimator(2 * (cost + 1) * valuesPerDoc, maxDoc).estimate(),
+            DocIdSetBuilderCostEstimator.forPoints(cost, (long) docCount * valuesPerDoc, docCount, maxDoc).estimate()
+        );
+    }
+
+    public void testForPointsOnFieldWithoutDocsAssumesOneValuePerDoc() {
+        int maxDoc = between(1, 1 << 20);
+        long cost = randomLongBetween(0, maxDoc);
+        assertEquals(
+            new DocIdSetBuilderCostEstimator(2 * (cost + 1), maxDoc).estimate(),
+            DocIdSetBuilderCostEstimator.forPoints(cost, 0, 0, maxDoc).estimate()
+        );
+    }
+
+    /** The doc count estimate that leaves a single-valued builder sparse can mean enough points to upgrade a multivalued one. */
+    public void testForPointsMultiValuedLeafCanUpgrade() {
+        int maxDoc = 1 << 20;
+        int docCount = maxDoc / 2;
+        long threshold = maxDoc >>> 7;
+        long lastSparse = (threshold - DocIdSetBuilderCostEstimator.MIN_BUFFER_SLACK) / (DocIdSetBuilderCostEstimator.ALLOCATION_FACTOR
+            + 1);
+        // a single-valued leaf grows 2 * (cost + 1) = lastSparse points, two values per doc grow twice that
+        long cost = lastSparse / 2 - 1;
+        assertFalse(DocIdSetBuilderCostEstimator.forPoints(cost, docCount, docCount, maxDoc).isDense());
+        assertTrue(DocIdSetBuilderCostEstimator.forPoints(cost, 2L * docCount, docCount, maxDoc).isDense());
+    }
+
+    public void testForPointsHugeCostSaturatesToDense() {
+        int maxDoc = between(1, Integer.MAX_VALUE);
+        int docCount = between(1, maxDoc);
+        DocIdSetBuilderCostEstimator estimator = DocIdSetBuilderCostEstimator.forPoints(
+            Long.MAX_VALUE - 1,
+            (long) docCount * between(1, 8),
+            docCount,
+            maxDoc
+        );
+        assertTrue(estimator.isDense());
+        assertThat(estimator.estimate(), greaterThanOrEqualTo(FixedBitSetCost.bytes(maxDoc)));
+    }
+
     /**
      * Fills a real {@link DocIdSetBuilder} the way a BKD intersection does, growing by a block of points and then adding some
      * of them, and checks that the estimate for the total grown is a ceiling on what the builder holds before {@code build()}

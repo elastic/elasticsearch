@@ -12,11 +12,16 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.LongRange;
+import org.apache.lucene.document.ShapeField.QueryRelation;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.XYPointField;
+import org.apache.lucene.document.XYShape;
 import org.apache.lucene.geo.Polygon;
+import org.apache.lucene.geo.XYPolygon;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -36,19 +41,23 @@ import java.io.IOException;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.search.internal.BreakerWeightTestUtils.conjunction;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Searches with the queries sized by {@link PointsExecutionEstimator} and {@link SpatialExecutionEstimator} (set, range field and
- * geo point queries) through a {@link ContextIndexSearcher} with a request breaker, and checks what is charged and that it is
- * released.
+ * Searches with the queries sized by {@link PointsExecutionEstimator} and {@link SpatialExecutionEstimator} (set, range field,
+ * geo and cartesian point, and geo and cartesian shape queries) through a {@link ContextIndexSearcher} with a request breaker, and
+ * checks what is charged and that it is released.
  */
 public class PointsExecutionBreakerTests extends ESTestCase {
 
     private static final String POINT_FIELD = "p";
     private static final String RANGE_FIELD = "r";
     private static final String GEO_FIELD = "g";
+    private static final String XY_FIELD = "xy";
+    private static final String GEO_SHAPE_FIELD = "gs";
+    private static final String XY_SHAPE_FIELD = "xys";
     private static final String KEYWORD_FIELD = "k";
     private static final String RARE_TERM = "rare";
     private static final int RARE_DOCS = 5;
@@ -66,7 +75,16 @@ public class PointsExecutionBreakerTests extends ESTestCase {
                 doc.add(new LongPoint(POINT_FIELD, docId));
                 doc.add(new SortedNumericDocValuesField(POINT_FIELD, docId));
                 doc.add(new LongRange(RANGE_FIELD, new long[] { docId }, new long[] { docId + 10 }));
-                doc.add(new LatLonPoint(GEO_FIELD, docId % 20 - 10, docId / 100 - 10));
+                int x = docId % 20 - 10;
+                int y = docId / 100 - 10;
+                doc.add(new LatLonPoint(GEO_FIELD, x, y));
+                doc.add(new XYPointField(XY_FIELD, x, y));
+                for (Field field : LatLonShape.createIndexableFields(GEO_SHAPE_FIELD, x, y)) {
+                    doc.add(field);
+                }
+                for (Field field : XYShape.createIndexableFields(XY_SHAPE_FIELD, x, y)) {
+                    doc.add(field);
+                }
                 // A rare term gives a cheap lead clause that drives IndexOrDocValuesQuery onto its doc-values side.
                 if (docId < RARE_DOCS) {
                     doc.add(new StringField(KEYWORD_FIELD, RARE_TERM, Field.Store.NO));
@@ -103,8 +121,19 @@ public class PointsExecutionBreakerTests extends ESTestCase {
     }
 
     public void testSpatialQueryChargesAndReleases() throws IOException {
-        Polygon polygon = new Polygon(new double[] { -5, -5, 5, 5, -5 }, new double[] { -5, 5, 5, -5, -5 });
-        assertChargesThenReleases(LatLonPoint.newPolygonQuery(GEO_FIELD, polygon));
+        assertChargesThenReleases(LatLonPoint.newPolygonQuery(GEO_FIELD, geoSquare()));
+    }
+
+    public void testXYPointInGeometryQueryChargesAndReleases() throws IOException {
+        assertChargesThenReleases(XYPointField.newPolygonQuery(XY_FIELD, xySquare()));
+    }
+
+    public void testLatLonShapeQueryChargesAndReleases() throws IOException {
+        assertChargesThenReleases(LatLonShape.newGeometryQuery(GEO_SHAPE_FIELD, matchingRelation(), geoSquare()));
+    }
+
+    public void testXYShapeQueryChargesAndReleases() throws IOException {
+        assertChargesThenReleases(XYShape.newGeometryQuery(XY_SHAPE_FIELD, matchingRelation(), xySquare()));
     }
 
     public void testIndexOrDocValuesSetQueryChargesWhenPointsSideSelected() throws IOException {
@@ -126,8 +155,22 @@ public class PointsExecutionBreakerTests extends ESTestCase {
     }
 
     public void testExpensiveSetQueryTripsBreakerWithoutLeaking() throws IOException {
+        assertTripsWithoutLeaking(denseSetQuery());
+    }
+
+    public void testExpensiveShapeQueryTripsBreakerWithoutLeaking() throws IOException {
+        assertTripsWithoutLeaking(
+            randomFrom(
+                LatLonShape.newGeometryQuery(GEO_SHAPE_FIELD, matchingRelation(), geoSquare()),
+                XYShape.newGeometryQuery(XY_SHAPE_FIELD, matchingRelation(), xySquare())
+            )
+        );
+    }
+
+    private void assertTripsWithoutLeaking(Query query) {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(1L);
-        expectThrows(CircuitBreakingException.class, () -> runSearch(denseSetQuery(), breaker));
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> runSearch(query, breaker));
+        assertThat(e.getMessage(), containsString(PointsExecutionEstimator.BREAKER_LABEL));
         assertThat("a tripped reservation must not leak onto the breaker", breaker.getUsed(), equalTo(0L));
     }
 
@@ -153,5 +196,20 @@ public class PointsExecutionBreakerTests extends ESTestCase {
 
     private static long[] denseSet() {
         return LongStream.range(0, NUM_DOCS).filter(v -> v % 2 == 0).toArray();
+    }
+
+    /** A square holding some of the indexed points and leaving others out. */
+    private static Polygon geoSquare() {
+        return new Polygon(new double[] { -5, -5, 5, 5, -5 }, new double[] { -5, 5, 5, -5, -5 });
+    }
+
+    /** The cartesian twin of {@link #geoSquare()}. */
+    private static XYPolygon xySquare() {
+        return new XYPolygon(new float[] { -5, 5, 5, -5, -5 }, new float[] { -5, -5, 5, 5, -5 });
+    }
+
+    /** A relation under which the indexed points match the squares, so the scorer runs. {@code CONTAINS} matches no point. */
+    private static QueryRelation matchingRelation() {
+        return randomFrom(QueryRelation.INTERSECTS, QueryRelation.WITHIN, QueryRelation.DISJOINT);
     }
 }

@@ -197,8 +197,8 @@ public class EqlCommandCpsIT extends AbstractEsqlIntegTestCase {
                             EQL_PITS.add(captured);
                         } else if (TransportSearchAction.TYPE.name().equals(action)
                             && captured.indicesOptions().resolveCrossProjectIndexExpression()) {
-                            EQL_EVENT_SEARCHES.add(captured);
-                        }
+                                EQL_EVENT_SEARCHES.add(captured);
+                            }
                     }
                     chain.proceed(task, action, request, listener);
                 }

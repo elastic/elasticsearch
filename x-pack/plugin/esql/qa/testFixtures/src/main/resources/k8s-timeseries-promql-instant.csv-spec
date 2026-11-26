@@ -578,3 +578,34 @@ result:double | step:datetime            | zone:keyword
 10.0          | 2024-05-10T01:00:00.000Z | eu
 2.0           | 2024-05-10T01:00:00.000Z | null
 ;
+
+// The last network.cost sample of qa/two is at 00:20:46, within the 5m lookback of 00:25.
+instant_absent_present
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_absent
+PROMQL index=k8s time="2024-05-10T00:25:00.000Z" result=(absent(network.cost{cluster="qa", pod="two"}));
+
+result:double | step:datetime | cluster:keyword | pod:keyword
+;
+
+instant_absent_missing
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_absent
+PROMQL index=k8s time="2024-05-10T00:26:00.000Z" result=(absent(network.cost{cluster="qa", pod="two"}));
+
+result:double | step:datetime            | cluster:keyword | pod:keyword
+1.0           | 2024-05-10T00:26:00.000Z | qa              | two
+;
+
+instant_sort_absent
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort
+required_capability: promql_absent
+PROMQL index=k8s time="2024-05-10T00:10:00.000Z" result=(sort(absent(no_such_metric)));
+
+result:double | step:datetime
+1.0           | 2024-05-10T00:10:00.000Z
+;

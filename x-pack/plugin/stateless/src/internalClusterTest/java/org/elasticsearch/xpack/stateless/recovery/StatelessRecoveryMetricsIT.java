@@ -77,15 +77,15 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
         var indexingNode2 = startIndexNode(indexingNodeSettings);
 
         var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-
-        // ensure that index shard is allocated on `indexingNode1` and not on `indexingNode2`
-        assertAcked(
-            admin().indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode2))
+        // Keep the relocation target's cache cold by allocating the shard on indexingNode1 from the start.
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(indexSettings(1, 0).build())
+                .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode2)
+                .build()
         );
+        ensureGreen(indexName);
 
         int numDocs = randomIntBetween(100, 1000);
         indexDocs(indexName, numDocs);

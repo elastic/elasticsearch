@@ -190,6 +190,9 @@ Use the following pages to configure, query, and administer federated data:
 [Datasets](esql-data-federation-datasets.md)
 :   Design datasets, select which files to query, and make them available to {{esql}}.
 
+[AWS logs in S3](esql-data-federation-aws-logs.md)
+:   Register a dataset over VPC Flow Logs, CloudTrail, or Application Load Balancer logs, including delivery lag.
+
 [Supported file formats](esql-data-federation-file-formats.md)
 :   Review supported extensions, compression codecs, and schema sources.
 
@@ -201,6 +204,9 @@ Use the following pages to configure, query, and administer federated data:
 
 [Query datasets](esql-data-federation-querying.md)
 :   Learn how the engine reduces storage reads, query external and indexed data together, review current limitations, and troubleshoot common issues.
+
+[Amazon S3 sizing and performance](esql-data-federation-sizing-s3.md)
+:   Size heap and cores for your query concurrency, lay out files for parallel reads, and scale out.
 
 [Costs](esql-data-federation-costs.md)
 :   Understand the storage provider and Elastic costs of querying external data.

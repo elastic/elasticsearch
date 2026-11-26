@@ -1040,6 +1040,133 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         assertJsonEquals(jsonString, requestJson);
     }
 
+    public void testParseToolChoiceStringRequired_usesModeAnyWithoutAllowedFunctionNames() throws IOException {
+        assertToolChoiceStringMode("required", "ANY");
+    }
+
+    public void testParseToolChoiceStringNone_usesModeNone() throws IOException {
+        assertToolChoiceStringMode("none", "NONE");
+    }
+
+    private void assertToolChoiceStringMode(String toolChoice, String expectedMode) throws IOException {
+        String requestJson = Strings.format("""
+            {
+                "contents": [
+                    { "role": "user", "parts": [ { "text": "some text" } ] }
+                ],
+                "tools": [
+                    {
+                        "functionDeclarations": [
+                            {
+                                "name": "get_current_weather",
+                                "description": "Get the current weather in a given location",
+                                "parameters": { "type": "object", "description": "a description" }
+                            }
+                        ]
+                    }
+                ],
+                "toolConfig": { "functionCallingConfig": { "mode": "%s" } }
+            }
+            """, expectedMode);
+
+        var request = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),
+            "gemini-2.0",
+            null,
+            null,
+            null,
+            new ToolChoiceString(toolChoice),
+            List.of(weatherTool()),
+            null
+        );
+
+        var entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(new UnifiedChatInput(request, true), emptyThinkingConfig);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertJsonEquals(Strings.toString(builder), requestJson);
+    }
+
+    public void testParseToolChoiceStringNoneWithoutTools_usesModeNone() throws IOException {
+        String requestJson = """
+            {
+                "contents": [
+                    { "role": "user", "parts": [ { "text": "some text" } ] }
+                ],
+                "toolConfig": { "functionCallingConfig": { "mode": "NONE" } }
+            }
+            """;
+
+        var request = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),
+            "gemini-2.0",
+            null,
+            null,
+            null,
+            new ToolChoiceString("none"),
+            null,
+            null
+        );
+
+        var entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(new UnifiedChatInput(request, true), emptyThinkingConfig);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertJsonEquals(Strings.toString(builder), requestJson);
+    }
+
+    public void testParseToolChoiceObjectWithNullFunction_closesToolConfigAndKeepsSystemInstructionAtRoot() throws IOException {
+        String requestJson = """
+            {
+                "systemInstruction": { "parts": [ { "text": "instruction text" } ] },
+                "contents": [
+                    { "role": "user", "parts": [ { "text": "some text" } ] }
+                ],
+                "tools": [
+                    {
+                        "functionDeclarations": [
+                            {
+                                "name": "get_current_weather",
+                                "description": "Get the current weather in a given location",
+                                "parameters": { "type": "object", "description": "a description" }
+                            }
+                        ]
+                    }
+                ],
+                "toolConfig": { "functionCallingConfig": {} }
+            }
+            """;
+
+        var request = new UnifiedCompletionRequestBody(
+            List.of(
+                new Message(new ContentObjects(List.of(new ContentObjectText("instruction text"))), "system", null, null),
+                new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)
+            ),
+            "gemini-2.0",
+            null,
+            null,
+            null,
+            new ToolChoiceObject("function", null),
+            List.of(weatherTool()),
+            null
+        );
+
+        var entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(new UnifiedChatInput(request, true), emptyThinkingConfig);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertJsonEquals(Strings.toString(builder), requestJson);
+    }
+
+    private static Tool weatherTool() {
+        return new Tool(
+            "function",
+            new Tool.FunctionField(
+                "Get the current weather in a given location",
+                "get_current_weather",
+                Map.of("type", "object", "description", "a description"),
+                null
+            )
+        );
+    }
+
     public void testParseToolChoiceInvalid_throwElasticSearchStatusException() throws IOException {
         var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),
@@ -1807,10 +1934,11 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     /**
-     * A user message right after a tool result must join the tool result's {@code user} content. As two adjacent
-     * {@code user} contents, Gemini 2.5 answers with an empty response.
+     * A user message right after a tool result must not join the tool result's {@code user} content. Gemini 3.6 and
+     * later reject a content that has a {@code text} part after a {@code functionResponse} part with a 400, and
+     * Gemini 3.1 Pro answers it with an empty response.
      */
-    public void testSerialization_ToolResultFollowedByUserMessage_MergedIntoOneUserTurn() throws IOException {
+    public void testSerialization_ToolResultFollowedByUserMessage_SplitIntoTwoUserTurns() throws IOException {
         var messages = List.of(
             assistantToolCall(GOOGLE_TOOL_CALL_ID),
             toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON),
@@ -1838,7 +1966,12 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                                     "id": "%s",
                                     "response": %s
                                 }
-                            },
+                            }
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
                             { "text": "%s" }
                         ]
                     }
@@ -1848,10 +1981,112 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     /**
-     * The functionResponse parts of a parallel function call step and the user message after them all belong to one
-     * {@code user} content, in message order.
+     * Only the boundary between the tool result and the user text splits the turn. The user messages after it are
+     * still merged into one {@code user} content.
      */
-    public void testSerialization_ParallelToolResultsFollowedByUserMessage_MergedIntoOneUserTurn() throws IOException {
+    public void testSerialization_ToolResultFollowedByTwoUserMessages_UserMessagesShareOneTurn() throws IOException {
+        var secondQuestion = "And when will it arrive?";
+        var messages = List.of(
+            assistantToolCall(GOOGLE_TOOL_CALL_ID),
+            toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON),
+            userMessage(FOLLOW_UP_QUESTION),
+            userMessage(secondQuestion)
+        );
+
+        assertJsonEquals(
+            serialize(requestOf(messages), emptyThinkingConfig),
+            Strings.format(
+                """
+                    {
+                        "contents": [
+                            {
+                                "role": "model",
+                                "parts": [
+                                    {
+                                        "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                        "thoughtSignature": "skip_thought_signature_validator"
+                                    }
+                                ]
+                            },
+                            {
+                                "role": "user",
+                                "parts": [
+                                    {
+                                        "functionResponse": {
+                                            "name": "%s",
+                                            "id": "%s",
+                                            "response": %s
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "role": "user",
+                                "parts": [
+                                    { "text": "%s" },
+                                    { "text": "%s" }
+                                ]
+                            }
+                        ]
+                    }
+                    """,
+                FUNCTION_NAME,
+                GOOGLE_TOOL_CALL_ID,
+                FUNCTION_NAME,
+                GOOGLE_TOOL_CALL_ID,
+                TOOL_RESULT_JSON,
+                FOLLOW_UP_QUESTION,
+                secondQuestion
+            )
+        );
+    }
+
+    /**
+     * A user message before a tool result stays in the tool result's {@code user} content. Gemini accepts a
+     * {@code text} part followed by a {@code functionResponse} part; only the opposite order is rejected.
+     */
+    public void testSerialization_UserMessageFollowedByToolResult_MergedIntoOneUserTurn() throws IOException {
+        var messages = List.of(
+            assistantToolCall(GOOGLE_TOOL_CALL_ID),
+            userMessage(FOLLOW_UP_QUESTION),
+            toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON)
+        );
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
+                            { "text": "%s" },
+                            {
+                                "functionResponse": {
+                                    "name": "%s",
+                                    "id": "%s",
+                                    "response": %s
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, FOLLOW_UP_QUESTION, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON));
+    }
+
+    /**
+     * The functionResponse parts of a parallel function call step share one {@code user} content, and the user
+     * message after them gets a {@code user} content of its own.
+     */
+    public void testSerialization_ParallelToolResultsFollowedByUserMessage_UserMessageInItsOwnTurn() throws IOException {
         var messages = List.of(
             parallelAssistantToolCalls(),
             toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON),
@@ -1893,7 +2128,12 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                                             "id": "%s",
                                             "response": %s
                                         }
-                                    },
+                                    }
+                                ]
+                            },
+                            {
+                                "role": "user",
+                                "parts": [
                                     { "text": "%s" }
                                 ]
                             }

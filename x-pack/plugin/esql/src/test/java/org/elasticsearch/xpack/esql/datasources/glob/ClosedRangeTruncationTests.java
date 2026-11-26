@@ -30,12 +30,34 @@ import java.util.NoSuchElementException;
 import static org.elasticsearch.xpack.esql.datasources.glob.GlobExpander.doExpandGlob;
 
 /**
- * {@code expand} declines a listing bound whenever any hint is present, so the truncated-then-filtered empty return
- * is only reachable through {@link GlobExpander#doExpandGlob}.
+ * {@code expand} accepts a bounded glob with filter hints. These tests call
+ * {@link GlobExpander#doExpandGlob} to inspect the first pass before any retry.
  */
 public class ClosedRangeTruncationTests extends ESTestCase {
 
+    /**
+     * Closed-range (value-filter) rejects do not consume {@code maxFiles}. Ten out-of-range years with
+     * bound 3 drain the whole listing and keep one schema anchor instead of a truncated empty set.
+     */
     public void testClosedRangeOnTruncatedListingStaysTruncatedWhenEmpty() throws IOException {
+        FileList result = expandClosedRange("s3://bucket/data/year=*/*.parquet");
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertFalse(result.isTruncated());
+    }
+
+    /**
+     * A two-segment wildcard glob does not bind {@code year} in the drain, so the bound fills with
+     * out-of-range files. The closed-range post-filter then drops them. That empty result must stay
+     * truncated so {@code expand} retries instead of caching a complete miss.
+     */
+    public void testClosedRangePostFilterOnTruncatedListingStaysEmpty() throws IOException {
+        FileList result = expandClosedRange("s3://bucket/data/*/*.parquet");
+        assertEquals(0, result.fileCount());
+        assertTrue(result.isTruncated());
+    }
+
+    private static FileList expandClosedRange(String glob) throws IOException {
         List<StorageEntry> entries = new ArrayList<>();
         for (int year = 1990; year < 2000; year++) {
             entries.add(new StorageEntry(StoragePath.of("s3://bucket/data/year=" + year + "/a.parquet"), 100, Instant.EPOCH));
@@ -44,9 +66,8 @@ public class ClosedRangeTruncationTests extends ESTestCase {
             new PartitionFilterHint("year", Operator.GREATER_THAN_OR_EQUAL, List.of(2024)),
             new PartitionFilterHint("year", Operator.LESS_THAN_OR_EQUAL, List.of(2026))
         );
-
-        FileList result = doExpandGlob(
-            "s3://bucket/data/year=*/*.parquet",
+        return doExpandGlob(
+            glob,
             new FixedListing(entries),
             hints,
             PartitionConfig.fromConfig(Map.of()),
@@ -58,9 +79,6 @@ public class ClosedRangeTruncationTests extends ESTestCase {
             new ListingExtents(3),
             PlanningMemory.NONE
         );
-
-        assertEquals(0, result.fileCount());
-        assertTrue(result.isTruncated());
     }
 
     private static final class FixedListing implements StorageProvider {

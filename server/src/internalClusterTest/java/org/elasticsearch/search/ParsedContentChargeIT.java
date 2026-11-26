@@ -143,7 +143,7 @@ public class ParsedContentChargeIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(indexSettings(6, 0)).setMapping("k", "type=keyword"));
         indexRandom(true, prepareIndex("test").setSource("k", "v"));
         ensureGreen("test");
-        long tripsBefore = requestBreakerTrips();
+        long tripsBefore = getRequestBreakerTrippedCount();
         String limit = HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey();
         updateClusterSettings(Settings.builder().put(limit, "512kb"));
         try {
@@ -156,7 +156,7 @@ public class ParsedContentChargeIT extends ESIntegTestCase {
         } finally {
             updateClusterSettings(Settings.builder().putNull(limit));
         }
-        assertThat(requestBreakerTrips(), greaterThan(tripsBefore));
+        assertThat(getRequestBreakerTrippedCount(), greaterThan(tripsBefore));
     }
 
     /**
@@ -191,15 +191,5 @@ public class ParsedContentChargeIT extends ESIntegTestCase {
             }
             return reservation.reservedBytes();
         }
-    }
-
-    private long requestBreakerTrips() {
-        return clusterAdmin().prepareNodesStats()
-            .setBreaker(true)
-            .get()
-            .getNodes()
-            .stream()
-            .mapToLong(node -> node.getBreaker().getStats(CircuitBreaker.REQUEST).getTrippedCount())
-            .sum();
     }
 }

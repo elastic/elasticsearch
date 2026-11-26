@@ -50,8 +50,11 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -71,6 +74,7 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
     }
 
     public void testLastSearcherAcquiredTimeIsSetWhenAddingReplica() throws Exception {
+        long testStartTime = System.currentTimeMillis();
         startMasterAndIndexNode();
         String firstNode = startSearchNode();
         String indexName = "my-index";
@@ -79,7 +83,7 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
 
         IndexShard searchShard = findSearchShard(indexName);
         final long lastAcquiredTime = searchShard.tryWithEngineOrNull(e -> ((SearchEngine) e).getLastSearcherAcquiredTime());
-        assertThat(lastAcquiredTime, greaterThan(0L));
+        assertThat(lastAcquiredTime, greaterThan(testStartTime));
 
         // increase replica count
         String secondNode = startSearchNode();
@@ -105,6 +109,7 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
     }
 
     public void testLastSearcherAcquiredTimeIsSetWhenRecovering() throws Exception {
+        long testStartTime = System.currentTimeMillis();
         startMasterAndIndexNode();
         String firstNode = startSearchNode();
         String indexName = "my-index";
@@ -113,7 +118,7 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
 
         IndexShard searchShard = findSearchShard(indexName);
         final long lastAcquiredTime = searchShard.tryWithEngineOrNull(e -> ((SearchEngine) e).getLastSearcherAcquiredTime());
-        assertThat(lastAcquiredTime, greaterThan(0L));
+        assertThat(lastAcquiredTime, greaterThan(testStartTime));
 
         String secondNode = startSearchNode();
 
@@ -217,8 +222,16 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
         assertThat(shard.routingEntry().role(), equalTo(ShardRouting.Role.SEARCH_ONLY));
 
         long searchShardLastAcquiredTime = shard.tryWithEngineOrNull(e -> ((SearchEngine) e).getLastSearcherAcquiredTime());
-        assertThat(searchShardLastAcquiredTime, greaterThan(0L));
-        assertThat(searchShardLastAcquiredTime, equalTo(expectedLastAcquiredTime));
+        // Each node tracks the time of the last search on its relative clock and converts it to and from the wall clock, and both clocks
+        // are cached and only updated periodically, so the timestamp is only preserved approximately.
+        final long toleranceMillis = TimeValue.timeValueSeconds(5).millis();
+        assertThat(
+            searchShardLastAcquiredTime,
+            allOf(
+                greaterThanOrEqualTo(expectedLastAcquiredTime - toleranceMillis),
+                lessThanOrEqualTo(expectedLastAcquiredTime + toleranceMillis)
+            )
+        );
     }
 
     private void indexRandomDocs(String indexName, int docs) {

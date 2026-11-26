@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -75,6 +76,12 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
     static final Response NO_OTHER_SHARDS_FOUND_RESPONSE = new Response(-1);
     static final Response SHARD_HAS_MOVED_RESPONSE = new Response(-2);
 
+    /// Before this version a positive value in a [Response] was a timestamp of the sending node's relative clock, which no other node
+    /// can use. Nodes on either side of this version can only share the non-positive values, i.e. not the time of the last search.
+    static final TransportVersion SEARCH_SHARD_INFORMATION_ABSOLUTE_TIME = TransportVersion.fromName(
+        "search_shard_information_absolute_time"
+    );
+
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final IndicesService indicesService;
@@ -114,8 +121,10 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
 
         // specific data stream handling
         // if this is the latest write index of a data stream, shortcut and not even send the request to another node
-        // Our basic assumption here is, that latest datastreams backing indices are always eligible
-        // for caching with the prefetcher, no need to query around in the cluster
+        // Our basic assumption here is, that latest datastreams backing indices are eligible for caching with the prefetcher, no need to
+        // query around in the cluster. They are treated as if they had just been searched, so the regular search idle timeout
+        // (stateless.search.prefetch_commits.search_idle_time) applies from the time the shard copy is recovered. If no search arrives
+        // within it, the shard copy stops prefetching new commits, even if the index is still being written to.
         Optional<ProjectMetadata> projectMetadataOptional = clusterService.state()
             .metadata()
             .lookupProject(request.getShardId().getIndex());
@@ -274,7 +283,12 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         }
 
         public Response(StreamInput in) throws IOException {
-            lastSearcherAcquiredTime = in.readZLong();
+            long value = in.readZLong();
+            if (value > 0 && in.getTransportVersion().supports(SEARCH_SHARD_INFORMATION_ABSOLUTE_TIME) == false) {
+                // older nodes send a timestamp of their relative clock, which is meaningless on this node
+                value = 0;
+            }
+            lastSearcherAcquiredTime = value;
         }
 
         public long getLastSearcherAcquiredTime() {
@@ -283,7 +297,12 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeZLong(lastSearcherAcquiredTime);
+            if (lastSearcherAcquiredTime > 0 && out.getTransportVersion().supports(SEARCH_SHARD_INFORMATION_ABSOLUTE_TIME) == false) {
+                // older nodes would treat an epoch timestamp as one of their relative clock, and they ignore values <= 0
+                out.writeZLong(0);
+            } else {
+                out.writeZLong(lastSearcherAcquiredTime);
+            }
         }
 
         @Override

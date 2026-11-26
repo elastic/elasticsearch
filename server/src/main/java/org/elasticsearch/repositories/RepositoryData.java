@@ -283,6 +283,14 @@ public final class RepositoryData {
     }
 
     /**
+     * Returns the {@link SnapshotId} for the given snapshot UUID, or {@code null} if this instance does not contain that UUID.
+     */
+    @Nullable
+    public SnapshotId getSnapshotId(String snapshotUUID) {
+        return snapshotIds.get(snapshotUUID);
+    }
+
+    /**
      * @return the number of index snapshots (i.e. the sum of the index count of each snapshot)
      */
     public long getIndexSnapshotCount() {

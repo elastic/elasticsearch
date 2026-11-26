@@ -1882,15 +1882,26 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                 new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).waitForCompletion(false),
                                 ActionListener.wrap(response -> fail("different UUID should not start while name is in-progress"), e -> {
                                     assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(SnapshotNameAlreadyInUseException.class));
+                                    // Same UUID with a different resolved name must still be treated as the in-progress snapshot
+                                    // (date-math retries must not create a second repo key for the same UUID).
                                     client().admin()
                                         .cluster()
                                         .createSnapshot(
-                                            new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).uuid(uuid)
+                                            new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, "other-name").uuid(uuid)
                                                 .waitForCompletion(false),
-                                            ActionListener.wrap(sameUuidResponse -> {
-                                                sequencer.releaseBlock(snapshotName, index);
-                                                doneListener.onResponse(null);
-                                            }, doneListener::onFailure)
+                                            ActionListener.wrap(
+                                                differentNameResponse -> client().admin()
+                                                    .cluster()
+                                                    .createSnapshot(
+                                                        new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).uuid(uuid)
+                                                            .waitForCompletion(false),
+                                                        ActionListener.wrap(sameUuidResponse -> {
+                                                            sequencer.releaseBlock(snapshotName, index);
+                                                            doneListener.onResponse(null);
+                                                        }, doneListener::onFailure)
+                                                    ),
+                                                doneListener::onFailure
+                                            )
                                         );
                                 })
                             );
@@ -1904,6 +1915,45 @@ public class SnapshotResiliencyTests extends ESTestCase {
             () -> SnapshotsInProgress.get(testClusterNodes.randomMasterNodeSafe().clusterService().state()).isEmpty(),
             TimeUnit.MINUTES.toMillis(1L)
         );
+    }
+
+    public void testCreateSnapshotIdempotentWhenSameUuidAlreadyCompleted() {
+        setupTestCluster(1, 1);
+
+        final String repoName = "repo";
+        final String snapshotName = "snapshot";
+        final String uuid = UUIDs.randomBase64UUID();
+        final SubscribableListener<CreateSnapshotResponse> doneListener = new SubscribableListener<>();
+
+        continueOrDie(createRepoAndIndex(repoName, "test", 1), ignored -> {
+            client().admin()
+                .cluster()
+                .createSnapshot(
+                    new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).uuid(uuid).waitForCompletion(true),
+                    ActionListener.wrap(firstResponse -> {
+                        assertThat(firstResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+                        assertThat(firstResponse.getSnapshotInfo().snapshotId().getUUID(), equalTo(uuid));
+                        // Simulate a TransportMasterNodeAction retry after the snapshot has already finalized: same UUID,
+                        // name already in the repository, nothing left in SnapshotsInProgress.
+                        assertTrue(
+                            SnapshotsInProgress.get(testClusterNodes.randomMasterNodeSafe().clusterService().state()).isEmpty()
+                        );
+                        client().admin()
+                            .cluster()
+                            .createSnapshot(
+                                new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).uuid(uuid)
+                                    .waitForCompletion(true),
+                                doneListener
+                            );
+                    }, doneListener::onFailure)
+                );
+        });
+
+        runUntil(doneListener::isDone, TimeUnit.MINUTES.toMillis(1L));
+        final CreateSnapshotResponse retryResponse = safeResult(doneListener);
+        assertThat(retryResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(retryResponse.getSnapshotInfo().snapshotId().getUUID(), equalTo(uuid));
+        assertThat(retryResponse.getSnapshotInfo().snapshotId().getName(), equalTo(snapshotName));
     }
 
     @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")

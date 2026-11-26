@@ -3,5 +3,5 @@ issues:
  - 167619
  - 167626
 pr: 167743
-summary: Snapshot idempotency should be based on ID
+summary: Make create-snapshot retries idempotent by snapshot UUID
 type: bug

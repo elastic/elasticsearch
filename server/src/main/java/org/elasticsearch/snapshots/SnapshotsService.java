@@ -326,10 +326,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final CreateSnapshotRequest request,
         final ActionListener<SnapshotInfo> listener
     ) {
-        final ActionListener<Snapshot> snapshotStartListener = request.waitForCompletion()
-            ? listener.delegateFailureAndWrap((l, snapshot) -> addSnapshotFinalizationListener(snapshot, l))
-            : listener.safeMap(ignored -> null);
-
         final String repositoryName = request.repository();
         final String snapshotName = IndexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         SnapshotsServiceUtils.validate(repositoryName, snapshotName);
@@ -357,7 +353,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
         submitCreateSnapshotTask(
             request,
-            snapshotStartListener,
+            listener,
             repository,
             new Snapshot(projectId, repositoryName, snapshotId),
             repository.getMetadata()
@@ -368,31 +364,66 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     /// [CreateSnapshotRequest]. This task carries the repository's [RepositoryData] captured at submission time. If the [RepositoryData]
     /// changes before the task is executed, it will resubmit itself.
     ///
-    /// @param listener Completed successfully when the new [SnapshotsInProgress.Entry] has been committed in the [ClusterState].
+    /// @param listener Completed with the resulting [SnapshotInfo] when [CreateSnapshotRequest#waitForCompletion()] is true, or with
+    ///                 {@code null} when the snapshot has started (or is recognized as an idempotent retry of an already-started or
+    ///                 already-completed create with the same UUID).
     private void submitCreateSnapshotTask(
         CreateSnapshotRequest request,
-        ActionListener<Snapshot> listener,
+        ActionListener<SnapshotInfo> listener,
         Repository repository,
         Snapshot snapshot,
         RepositoryMetadata initialRepositoryMetadata
     ) {
         repository.getRepositoryData(
             EsExecutors.DIRECT_EXECUTOR_SERVICE, // Listener is lightweight, only submits a cluster state update task, no need to fork
-            listener.delegateFailure(
-                (l, repositoryData) -> masterServiceTaskQueue.submitTask(
+            listener.delegateFailure((l, repositoryData) -> {
+                // Idempotent retry after the snapshot already finalized (e.g. FailedToCommit with committed=true, then completion
+                // before TransportMasterNodeAction retries). Match on UUID only: the repository uses it as the storage key.
+                final SnapshotId existingInRepo = repositoryData.getSnapshotId(snapshot.getSnapshotId().getUUID());
+                if (existingInRepo != null) {
+                    logger.info(
+                        "snapshot [{}] already exists in repository as [{}], treating create request as successful",
+                        snapshot,
+                        existingInRepo
+                    );
+                    completeWithExistingRepositorySnapshot(repository, existingInRepo, request.waitForCompletion(), l);
+                    return;
+                }
+                masterServiceTaskQueue.submitTask(
                     "create_snapshot [" + snapshot.getSnapshotId().getName() + ']',
                     new CreateSnapshotTask(repository, repositoryData, l, snapshot, request, initialRepositoryMetadata),
                     request.masterNodeTimeout()
-                )
-            )
+                );
+            })
         );
+    }
+
+    private static void completeWithExistingRepositorySnapshot(
+        Repository repository,
+        SnapshotId snapshotId,
+        boolean waitForCompletion,
+        ActionListener<SnapshotInfo> listener
+    ) {
+        if (waitForCompletion) {
+            repository.getSnapshotInfo(snapshotId, listener);
+        } else {
+            listener.onResponse(null);
+        }
+    }
+
+    private void onCreateSnapshotStarted(CreateSnapshotTask task, Snapshot snapshot) {
+        if (task.createSnapshotRequest.waitForCompletion()) {
+            addSnapshotFinalizationListener(snapshot, task.listener);
+        } else {
+            task.listener.onResponse(null);
+        }
     }
 
     /// [ClusterState] update task to insert a [SnapshotsInProgress.Entry] for the given [CreateSnapshotRequest].
     private record CreateSnapshotTask(
         Repository repository,
         RepositoryData repositoryData,
-        ActionListener<Snapshot> listener,
+        ActionListener<SnapshotInfo> listener,
         Snapshot snapshot,
         CreateSnapshotRequest createSnapshotRequest,
         RepositoryMetadata initialRepositoryMetadata
@@ -2068,14 +2099,20 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             continue;
                         }
 
-                        registeredPolicySnapshotsBuilders.computeIfAbsent(
-                            projectMetadata.id(),
-                            ignored -> projectMetadata.custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY).builder()
-                        ).addIfSnapshotIsSLMInitiated(task.createSnapshotRequest.userMetadata(), task.snapshot.getSnapshotId());
                         if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
+                            final SnapshotsInProgress beforeCreate = snapshotsInProgress;
                             snapshotsInProgress = createSnapshot(task, taskContext, state, snapshotsInProgress);
-                            if (task.createSnapshotRequest.encryptedData() != null && snapshotsInProgress.snapshot(task.snapshot) != null) {
-                                encryptedData.put(task.snapshot, task.createSnapshotRequest.encryptedData());
+                            // Only associate SLM / encryption metadata with creates that actually insert a new entry. Idempotent
+                            // retries (same UUID already in-progress or already in the repository) must not overwrite that state.
+                            if (snapshotsInProgress != beforeCreate) {
+                                registeredPolicySnapshotsBuilders.computeIfAbsent(
+                                    projectMetadata.id(),
+                                    ignored -> projectMetadata.custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY)
+                                        .builder()
+                                ).addIfSnapshotIsSLMInitiated(task.createSnapshotRequest.userMetadata(), task.snapshot.getSnapshotId());
+                                if (task.createSnapshotRequest.encryptedData() != null) {
+                                    encryptedData.put(task.snapshot, task.createSnapshotRequest.encryptedData());
+                                }
                             }
                         } else {
                             // Repository data changed in between starting the task and executing this cluster state update.
@@ -2128,18 +2165,40 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final String snapshotName = snapshot.getSnapshotId().getName();
             final var projectState = currentState.projectState(snapshot.getProjectId());
             SnapshotsServiceUtils.ensureRepositoryExists(repositoryName, projectState.metadata());
+            final Repository repository = createSnapshotTask.repository;
             // TransportMasterNodeAction retries create-snapshot on FailedToCommitClusterStateException, including when the
-            // publication already reached a quorum (committed=true). In that case SnapshotsInProgress may already contain an
-            // entry for this request's UUID. Treat that as a successful start so the retry is idempotent; a different UUID
-            // with the same name remains a real conflict via ensureSnapshotNameNotRunning below.
-            if (snapshotsInProgress.snapshot(snapshot) != null) {
+            // publication already reached a quorum (committed=true). Match in-progress entries by UUID only so date-math name
+            // re-resolution on retry cannot miss the original entry; a different UUID with the same name remains a conflict.
+            final SnapshotsInProgress.Entry existingInProgress = findInProgressByUuid(
+                snapshotsInProgress,
+                snapshot.getProjectId(),
+                repositoryName,
+                snapshot.getSnapshotId().getUUID()
+            );
+            if (existingInProgress != null) {
                 taskContext.success(() -> {
-                    logger.info("snapshot [{}] already in-progress, treating create request as successful", snapshot);
-                    createSnapshotTask.listener.onResponse(snapshot);
+                    logger.info(
+                        "snapshot [{}] already in-progress as [{}], treating create request as successful",
+                        snapshot,
+                        existingInProgress.snapshot()
+                    );
+                    onCreateSnapshotStarted(createSnapshotTask, existingInProgress.snapshot());
                 });
                 return snapshotsInProgress;
             }
-            final Repository repository = createSnapshotTask.repository;
+            // Same UUID already finalized into RepositoryData (e.g. completed between FailedToCommit and the retry).
+            final SnapshotId existingInRepo = repositoryData.getSnapshotId(snapshot.getSnapshotId().getUUID());
+            if (existingInRepo != null) {
+                taskContext.success(
+                    () -> completeWithExistingRepositorySnapshot(
+                        repository,
+                        existingInRepo,
+                        createSnapshotTask.createSnapshotRequest.waitForCompletion(),
+                        createSnapshotTask.listener
+                    )
+                );
+                return snapshotsInProgress;
+            }
             SnapshotsServiceUtils.ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
             SnapshotsServiceUtils.ensureSnapshotNameNotRunning(snapshotsInProgress, snapshot.getProjectId(), repositoryName, snapshotName);
             SnapshotsServiceUtils.validate(repositoryName, snapshotName, projectState.metadata());
@@ -2311,7 +2370,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     repository.getMetadata()
                 );
                 snapshotMetrics.snapshotsStartedCounter().incrementBy(1, attributes);
-                createSnapshotTask.listener.onResponse(snapshot);
+                onCreateSnapshotStarted(createSnapshotTask, snapshot);
                 if (newEntry.state().completed()) {
                     ensureRepositoryDataWriteTaskRunning(
                         snapshot.getProjectId(),
@@ -2321,6 +2380,21 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
             });
             return res;
+        }
+
+        @Nullable
+        private static SnapshotsInProgress.Entry findInProgressByUuid(
+            SnapshotsInProgress snapshotsInProgress,
+            ProjectId projectId,
+            String repositoryName,
+            String snapshotUUID
+        ) {
+            for (final SnapshotsInProgress.Entry entry : snapshotsInProgress.forRepo(projectId, repositoryName)) {
+                if (entry.snapshot().getSnapshotId().getUUID().equals(snapshotUUID)) {
+                    return entry;
+                }
+            }
+            return null;
         }
     }
 

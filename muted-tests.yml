@@ -1081,3 +1081,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testFilteredLimitRampStaysParkedOnDenseFirstPageWithK1
   issue: https://github.com/elastic/elasticsearch/issues/167690
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchFailuresIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testStopFetchesTheRowsSelectedSoFar
+  issue: https://github.com/elastic/elasticsearch/issues/167692

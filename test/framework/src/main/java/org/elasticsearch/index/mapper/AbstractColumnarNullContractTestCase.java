@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -344,6 +346,9 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                     indexWriter.commit();
                     firstSeqNo += groups.get(g).size();
                 }
+                try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+                    assertEquals("one segment per group", groups.size(), reader.leaves().size());
+                }
                 try {
                     assertion.accept(configuration, mapperService, indexWriter, documents);
                 } catch (AssertionError e) {
@@ -457,15 +462,21 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
     }
 
     /**
-     * Force merges the index to one segment, which changes the segments of {@code indexWriter}, and returns the reconstructed
-     * {@code _source} of the first {@code count} documents in index order.
+     * Returns the reconstructed {@code _source} of every document in index order, reading each segment with its own document ids.
+     * It does not merge: a caller that passes {@code merged} has force merged the index to one segment first.
      */
-    protected final List<String> reconstructedSources(MapperService mapperService, IndexWriter indexWriter, int count) throws IOException {
-        indexWriter.forceMerge(1);
+    protected final List<String> sourcesOfAllSegments(MapperService mapperService, IndexWriter indexWriter, boolean merged)
+        throws IOException {
         try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
-            final List<String> sources = new ArrayList<>(count);
-            for (int i = 0; i < count; i++) {
-                sources.add(syntheticSource(mapperService.documentMapper(), reader, i));
+            if (merged) {
+                assertEquals("segments after the merge", 1, reader.leaves().size());
+            }
+            final SourceProvider provider = SourceProvider.fromLookup(mapperService.mappingLookup(), null, SourceFieldMetrics.NOOP, null);
+            final List<String> sources = new ArrayList<>();
+            for (final LeafReaderContext leaf : reader.leaves()) {
+                for (int doc = 0; doc < leaf.reader().maxDoc(); doc++) {
+                    sources.add(provider.getSource(leaf, doc).internalSourceRef().utf8ToString());
+                }
             }
             return sources;
         }
@@ -478,17 +489,23 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         List<TestDocument> documents,
         boolean ordered
     ) throws IOException {
-        final List<String> sources = reconstructedSources(mapperService, indexWriter, documents.size());
         final List<String> failures = new ArrayList<>();
-        for (int i = 0; i < documents.size(); i++) {
-            try {
-                assertSourceHoldsOnly(scenario, scenario.expected(documents.get(i)), sources.get(i), ordered);
-            } catch (AssertionError e) {
-                failures.add("document=" + documents.get(i) + " source=" + sources.get(i) + " " + e.getMessage());
+        for (final boolean merged : new boolean[] { false, true }) {
+            if (merged) {
+                indexWriter.forceMerge(1);
+            }
+            final List<String> sources = sourcesOfAllSegments(mapperService, indexWriter, merged);
+            assertEquals("documents", documents.size(), sources.size());
+            for (int i = 0; i < documents.size(); i++) {
+                try {
+                    assertSourceHoldsOnly(scenario, scenario.expected(documents.get(i)), sources.get(i), ordered);
+                } catch (AssertionError e) {
+                    failures.add("merged=" + merged + " document=" + documents.get(i) + " source=" + sources.get(i) + " " + e.getMessage());
+                }
             }
         }
         if (failures.isEmpty() == false) {
-            fail(failures.size() + " of " + documents.size() + " documents failed:\n" + String.join("\n", failures));
+            fail(failures.size() + " documents failed:\n" + String.join("\n", failures));
         }
     }
 

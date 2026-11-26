@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.action.search.TimeRangeBucket;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -68,10 +69,12 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         // A short range a week ago reads old data.
         Instant weekAgo = START.minus(Duration.ofDays(7));
         assertTimeRangeFilterFrom(weekAgo, weekAgo.plusSeconds(60), "7_days");
-        // Ages at a threshold land in the bucket named after it.
+        // Ages at a threshold, or up to the tolerance past it, land in the bucket named after it.
         Instant fifteenMinutesAgo = START.minus(Duration.ofMinutes(15));
+        Instant atTolerance = fifteenMinutesAgo.minusMillis(TimeRangeBucket.TELEMETRY_THRESHOLD_TOLERANCE.millis());
         assertTimeRangeFilterFrom(fifteenMinutesAgo, START, "15_minutes");
-        assertTimeRangeFilterFrom(fifteenMinutesAgo.minusMillis(1), START, "1_hour");
+        assertTimeRangeFilterFrom(atTolerance, START, "15_minutes");
+        assertTimeRangeFilterFrom(atTolerance.minusMillis(1), START, "1_hour");
         // Only the lower bound counts, a range without one has no age.
         assertTimeRangeFilterFrom(fifteenMinutesAgo, null, "15_minutes");
         assertTimeRangeFilterFrom(null, START, null);

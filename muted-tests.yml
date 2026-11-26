@@ -1060,3 +1060,24 @@ tests:
   - :x-pack:plugin:esql:test
   method: testFilteredLimitRampStaysParkedOnDenseFirstPage
   issue: https://github.com/elastic/elasticsearch/issues/167649
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testStress
+  issue: https://github.com/elastic/elasticsearch/issues/166620
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testSerializationOfSimple {TestCase=<integer>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <null>, <long>,
+    <long>, <long>, <long>, <long>, <long>, <long>}
+  issue: https://github.com/elastic/elasticsearch/issues/167652
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateBlockWithoutNulls {TestCase=<long, 18 ints> null in 11}
+  issue: https://github.com/elastic/elasticsearch/issues/167654
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  tasks:
+  - :qa:rolling-upgrade:bcUpgradeTest
+  method: testIndexSortForNumericTypes {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/167667

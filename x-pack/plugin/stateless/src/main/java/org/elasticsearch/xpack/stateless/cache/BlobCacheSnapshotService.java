@@ -36,10 +36,10 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
@@ -57,6 +57,10 @@ import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE
  * the manifest and re-downloads entries that may have been evicted since the snapshot was taken.
  * <p>
  * Snapshot manifests are kept in memory on the node, and are lost on restart.
+ * <p>
+ * A snapshot only describes the node and its shards as they were when it was taken, so a restore does not work after the cluster has
+ * changed shape: a shard that moved away is skipped, a shard that moved in is evicted as the manifest does not describe it, and a node
+ * that restarted or joined has no snapshot at all. In those cases take a new snapshot.
  * <p>
  * Both snapshot and restore expect that the cache is static while they execute - no indexing,
  * merging or querying should be running.
@@ -91,11 +95,18 @@ public class BlobCacheSnapshotService {
      */
     private static final int MAX_REPORTED_FAILURES = 5;
 
+    /**
+     * How many snapshots a node keeps. Each one holds a manifest in memory for as long as the node runs, so the oldest is dropped when
+     * another is taken.
+     */
+    static final int MAX_SNAPSHOTS = 5;
+
     private final StatelessSharedBlobCacheService cacheService;
     private final Supplier<Map<ShardId, BlobStoreCacheDirectory>> localShardDirectories;
     private final BiPredicate<ShardId, PrimaryTermAndGeneration> indexingBccUploaded;
     private final ThreadPool threadPool;
-    private final Map<String, CacheManifest<FileCacheKey>> snapshots = new ConcurrentHashMap<>();
+    // ordered from the oldest snapshot to the newest, guarded by itself
+    private final Map<String, CacheManifest<FileCacheKey>> snapshots = new LinkedHashMap<>();
 
     /**
      * @param commitService the commit service that knows what indexing shards have uploaded, or {@code null} on a node without the index
@@ -129,8 +140,9 @@ public class BlobCacheSnapshotService {
 
     /**
      * Records the populated ranges of the regions referenced by the current commits of this node's shards, and keeps the record under
-     * {@code name}. An earlier snapshot with the same name is replaced. Regions of blobs that are no longer referenced by a live commit
-     * are skipped, as a restore could not download them.
+     * {@code name}. An earlier snapshot with the same name is replaced. Only the {@value #MAX_SNAPSHOTS} most recent snapshots are kept,
+     * so taking another one drops the oldest. Regions of blobs that are no longer referenced by a live commit are skipped, as a restore
+     * could not download them.
      *
      * @throws IllegalStateException if a recorded blob is not uploaded to the object store yet, so a restore could not download it
      */
@@ -170,7 +182,7 @@ public class BlobCacheSnapshotService {
             );
         }
         final CacheManifest<FileCacheKey> manifest = builder.build();
-        snapshots.put(name, manifest);
+        keep(name, manifest);
         return new SnapshotSummary(recordedShards.size(), manifest.regionCount(), manifest.totalBytes());
     }
 
@@ -183,9 +195,16 @@ public class BlobCacheSnapshotService {
      * this node are skipped.
      */
     public void restore(String name, ActionListener<RestoreSummary> listener) {
-        final CacheManifest<FileCacheKey> manifest = snapshots.get(name);
+        final CacheManifest<FileCacheKey> manifest;
+        synchronized (snapshots) {
+            manifest = snapshots.get(name);
+        }
         if (manifest == null) {
-            listener.onFailure(new ResourceNotFoundException("no blob cache snapshot named [" + name + "]"));
+            listener.onFailure(
+                new ResourceNotFoundException(
+                    "no blob cache snapshot named [" + name + "]. Only the " + MAX_SNAPSHOTS + " most recent snapshots are kept"
+                )
+            );
             return;
         }
         // the directories only create blob readers for warming on a generic thread
@@ -196,6 +215,19 @@ public class BlobCacheSnapshotService {
                     restoreListener -> new Restore(name, manifest, cacheService.evictNotCoveredBy(manifest), restoreListener).run()
                 )
             );
+    }
+
+    private void keep(String name, CacheManifest<FileCacheKey> manifest) {
+        synchronized (snapshots) {
+            // taking a snapshot again under the same name makes it the newest
+            snapshots.remove(name);
+            snapshots.put(name, manifest);
+            while (snapshots.size() > MAX_SNAPSHOTS) {
+                final var oldest = snapshots.keySet().iterator();
+                oldest.next();
+                oldest.remove();
+            }
+        }
     }
 
     // An indexing shard warms its cache from a batched compound commit before it is uploaded, so the cache can hold blobs that a restore

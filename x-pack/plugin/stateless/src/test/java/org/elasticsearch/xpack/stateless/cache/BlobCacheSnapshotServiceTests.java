@@ -467,4 +467,40 @@ public class BlobCacheSnapshotServiceTests extends ESTestCase {
             assertThat(e, instanceOf(ResourceNotFoundException.class));
         }
     }
+
+    public void testOnlyTheMostRecentSnapshotsAreKept() throws Exception {
+        try (var node = createNode()) {
+            final var service = serviceFor(node);
+            for (int i = 0; i <= BlobCacheSnapshotService.MAX_SNAPSHOTS; i++) {
+                service.snapshot("snapshot-" + i);
+            }
+
+            // the oldest snapshot is gone, and the message says why
+            final var e = safeAwaitFailure(RestoreSummary.class, listener -> service.restore("snapshot-0", listener));
+            assertThat(e, instanceOf(ResourceNotFoundException.class));
+            assertThat(e.getMessage(), containsString("Only the " + BlobCacheSnapshotService.MAX_SNAPSHOTS + " most recent snapshots"));
+            for (int i = 1; i <= BlobCacheSnapshotService.MAX_SNAPSHOTS; i++) {
+                restoreSnapshot(service, "snapshot-" + i);
+            }
+        }
+    }
+
+    public void testTakingASnapshotAgainMakesItTheNewest() throws Exception {
+        try (var node = createNode()) {
+            final var service = serviceFor(node);
+            final var names = List.of("a", "b", "c", "d", "e");
+            assertThat(names.size(), equalTo(BlobCacheSnapshotService.MAX_SNAPSHOTS));
+            names.forEach(service::snapshot);
+
+            // "a" was the oldest, but it is the newest again, so the next snapshot drops "b" instead
+            service.snapshot("a");
+            service.snapshot("f");
+
+            final var e = safeAwaitFailure(RestoreSummary.class, listener -> service.restore("b", listener));
+            assertThat(e, instanceOf(ResourceNotFoundException.class));
+            for (String name : List.of("a", "c", "d", "e", "f")) {
+                restoreSnapshot(service, name);
+            }
+        }
+    }
 }

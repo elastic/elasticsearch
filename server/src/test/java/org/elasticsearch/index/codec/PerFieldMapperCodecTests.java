@@ -261,6 +261,13 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene104PostingsFormat.class));
     }
 
+    public void testUseBloomFilterWithTimestampFieldEnabled_timeSeriesMode_indexSettingDisabled() throws IOException {
+        Settings indexSettings = Settings.builder().put(IndexSettings.DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING.getKey(), false).build();
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, false, false, Settings.EMPTY, indexSettings);
+        assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
+    }
+
     public void testUseBloomFilterLogsdbWithTimestampFieldEnabled_dataStreamTimestampSettingEnabled() throws IOException {
         Settings indexSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
         MapperService mapperService = MapperTestUtils.newMapperService(

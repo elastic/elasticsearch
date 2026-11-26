@@ -666,9 +666,11 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
     public void testReadFromStoreDeduplicatesBlobs() throws IOException {
         var shardId = randomShardId();
         long generation = randomLongBetween(1, 1000);
+        // the generation of the BCC containing the commit differs from the commit generation when the commit is not the last of the batch
+        long bccGeneration = generation + randomLongBetween(1, 10);
         long term = randomLongBetween(1, 10);
         var blobName = BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000));
-        var containingBlobName = BccBlob.blobNameFromGeneration(generation);
+        var containingBlobName = BccBlob.blobNameFromGeneration(bccGeneration);
         // equal but distinct blob instances, including some that reference the blob containing the commit itself
         var commitFiles = Map.of(
             "file_1",
@@ -719,10 +721,13 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 }
 
                 try (StreamInput in = output.bytes().streamInput()) {
-                    var copy = StatelessCompoundCommit.readFromStore(in);
+                    var copy = StatelessCompoundCommit.readFromStoreAtOffset(in, 0, commitGeneration -> {
+                        assertThat(commitGeneration, equalTo(generation));
+                        return bccGeneration;
+                    });
 
                     for (var entry : commitFiles.entrySet()) {
-                        assertThat(copy.commitFiles().get(entry.getKey()).blob(), equalTo(entry.getValue().blob()));
+                        assertThat(copy.commitFiles().get(entry.getKey()), equalTo(entry.getValue()));
                     }
                     assertSame(copy.commitFiles().get("file_1").blob(), copy.commitFiles().get("file_2").blob());
                     assertSame(copy.commitFiles().get("file_1").blob(), copy.commitFiles().get("file_3").blob());

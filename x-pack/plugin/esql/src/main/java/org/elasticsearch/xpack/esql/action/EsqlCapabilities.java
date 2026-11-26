@@ -4442,7 +4442,7 @@ public class EsqlCapabilities {
          * PromQL {@code and} and {@code unless}, and {@code or} with {@code on(...)}/{@code ignoring(...)} or below the top
          * level: {@code or} keeps every left series and the right series no left series matches.
          */
-        PROMQL_SET_OPERATOR_MATCHING(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_SET_OPERATOR_MATCHING(PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled()),
 
         /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,

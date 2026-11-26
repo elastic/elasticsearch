@@ -5166,7 +5166,7 @@ public class EsqlCapabilities {
          * Stops folding a constant collected below a LEFT hash join or a union into the plan above it, where the column takes
          * other values: a PromQL {@code vector(1) or x} filtered on {@code result == 1.0} kept every series of {@code x}.
          */
-        FIX_FOLDING_AT_LEFT_JOIN_AND_UNION,
+        FIX_FOLDING_AT_LEFT_JOIN_AND_UNION(PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

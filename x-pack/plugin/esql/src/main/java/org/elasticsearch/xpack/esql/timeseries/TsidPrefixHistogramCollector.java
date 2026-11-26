@@ -181,6 +181,7 @@ public final class TsidPrefixHistogramCollector {
                     throw new IllegalStateException("shard " + shardId + " has a segment without tsid prefix");
                 }
                 TsidPrefixHistogram histogram = collectOneLeaf(
+                     task,
                     partitions,
                     partitioned.prefixPartitionBits(),
                     leaf.reader().maxDoc(),
@@ -197,6 +198,7 @@ public final class TsidPrefixHistogramCollector {
     }
 
     static TsidPrefixHistogram collectOneLeaf(
+        CancellableTask task,
         PartitionedDocValues.PrefixPartitions partitions,
         int prefixBits,
         int maxDoc,
@@ -218,6 +220,9 @@ public final class TsidPrefixHistogramCollector {
         int lastOrd = -1;
         int doc = -1;
         for (int partition = 0; partition < numPartitions; partition++) {
+            if ((partition & 0xFF) == 0) {
+                task.ensureNotCancelled();
+            }
             final int startDoc = startDocs[partition];
             final int endDoc = startDoc(partitions, partition + 1, maxDoc);
             if (doc < startDoc) {

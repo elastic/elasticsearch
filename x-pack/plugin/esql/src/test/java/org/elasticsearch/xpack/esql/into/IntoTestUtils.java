@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -19,6 +21,7 @@ import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.bulk.EscfBulkWriter;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -53,6 +56,10 @@ class IntoTestUtils {
     static class CapturingClient extends NoOpClient {
         final List<BulkRequest> bulks = new ArrayList<>();
         final List<ActionListener<BulkResponse>> listeners = new ArrayList<>();
+        final List<RefreshRequest> refreshes = new ArrayList<>();
+        final List<ActionListener<BroadcastResponse>> refreshListeners = new ArrayList<>();
+        /** The {@code x-caller} header visible when each refresh was sent, to check the caller's context is restored. */
+        final List<String> refreshHeaders = new ArrayList<>();
 
         CapturingClient(ThreadPool threadPool) {
             super(threadPool);
@@ -65,9 +72,29 @@ class IntoTestUtils {
             Request request,
             ActionListener<Response> listener
         ) {
+            if (action == RefreshAction.INSTANCE) {
+                refreshes.add((RefreshRequest) request);
+                refreshHeaders.add(threadPool().getThreadContext().getHeader("x-caller"));
+                refreshListeners.add((ActionListener<BroadcastResponse>) listener);
+                return;
+            }
             assertThat(action, equalTo(TransportBulkAction.TYPE));
             bulks.add((BulkRequest) request);
             listeners.add((ActionListener<BulkResponse>) listener);
+        }
+
+        void answerRefresh() {
+            answerRefresh(new BroadcastResponse(1, 1, 0, List.of()));
+        }
+
+        void answerRefresh(BroadcastResponse response) {
+            refreshes.removeFirst();
+            refreshListeners.removeFirst().onResponse(response);
+        }
+
+        void failRefresh(Exception e) {
+            refreshes.removeFirst();
+            refreshListeners.removeFirst().onFailure(e);
         }
 
         void answer(Outcome... outcomes) {

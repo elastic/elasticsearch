@@ -660,6 +660,49 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Document extraction requests can't be truncated, so retrying a 413 would resend the identical oversized request.
+     * Retries are enabled (default settings) and a successful response is queued after the 413, so a retry would
+     * show up as a second HTTP request and a successful result.
+     */
+    public void testExecute_DoesNotRetryContentTooLarge_ForDocumentExtractionAction() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            webServer.enqueue(new MockResponse().setResponseCode(413).setBody("""
+                {
+                    "message": "request entity too large"
+                }
+                """));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("""
+                {
+                    "results": [
+                        {
+                            "content": "# Annual Report 2025",
+                            "format": "markdown",
+                            "metadata": {}
+                        }
+                    ]
+                }
+                """));
+
+            var documents = List.of(
+                new InferenceString(DataType.PDF, DataFormat.BASE64, "data:application/pdf;base64," + randomAlphanumericOfLength(16))
+            );
+            var model = ElasticInferenceServiceDocumentExtractionModelTests.createModel(getUrl(webServer), "my-model-id");
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new DocumentExtractionInputs(documents), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+            assertThat(thrownException.getMessage(), containsString("Received a content too large status code"));
+
+            assertThat(webServer.requests(), hasSize(1));
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public void testExecute_ReturnsSuccessfulResponse_ForRerankAction_WithAuthHeader() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);

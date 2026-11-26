@@ -166,6 +166,25 @@ public class LenientUnionCastAnalyzerTests extends AnalyzerTestCase {
         assertWarnings(warning("ip", "foo", "LONG"));
     }
 
+    /**
+     * The small numerics (short, byte, float, half_float) are widened when loaded, so a cast that doesn't accept them is lenient on
+     * them too.
+     */
+    public void testSmallNumericTypeTheCastDoesNotAccept() {
+        for (String type : List.of("short", "byte", "float", "half_float")) {
+            TestAnalyzer analyzer = analyzerWithUnion(type, "keyword");
+            String query = "FROM foo, bar | EVAL x = value::ip | KEEP x | LIMIT 1";
+            if (lenient() == false) {
+                analyzer.error(query, ambiguous());
+                continue;
+            }
+            LogicalPlan plan = analyzer.query(query);
+            assertTrue(plan.resolved());
+            assertThat(plan.output().getLast().dataType(), equalTo(DataType.IP));
+            assertWarnings(warning(type, "foo", "IP"));
+        }
+    }
+
     public void testEveryTypeTheCastDoesNotAccept() {
         TestAnalyzer analyzer = analyzerWithUnion("ip", "boolean");
         String query = "FROM foo, bar | EVAL x = TO_RADIANS(value) | KEEP x | LIMIT 1";

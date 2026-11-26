@@ -4965,7 +4965,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 .allMatch(
                     // An unsupported type is any type some node can't read, or ES|QL doesn't have: its leg is null, without reading it.
                     type -> type == DataType.UNSUPPORTED
-                        || (DataType.isRepresentableInOutput(type)
+                        // Small numerics are widened when loaded: it's the widened type that a query can return.
+                        || (DataType.isRepresentableInOutput(type.widenSmallNumeric())
                             && type.supportedVersion().supportedOn(context.minimumVersion(), isSnapshot))
                 );
         }

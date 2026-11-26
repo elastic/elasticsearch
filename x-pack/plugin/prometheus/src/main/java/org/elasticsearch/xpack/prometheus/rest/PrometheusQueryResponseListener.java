@@ -40,6 +40,7 @@ import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Listens for an {@link EsqlQueryResponse}, converts its columnar result into the
@@ -97,11 +98,18 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     }
 
     private final RestChannel channel;
-    private final String resultType;
+    private final Supplier<String> resultType;
     private final QueryMode mode;
     private final int limit;
 
     PrometheusQueryResponseListener(RestChannel channel, String resultType, QueryMode mode, int limit) {
+        this(channel, () -> resultType, mode, limit);
+    }
+
+    /**
+     * @param resultType supplies the result type once the query has run, as it is only known once the query is parsed
+     */
+    PrometheusQueryResponseListener(RestChannel channel, Supplier<String> resultType, QueryMode mode, int limit) {
         this.channel = channel;
         this.resultType = resultType;
         this.mode = mode;
@@ -128,7 +136,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 queryResponse.pages(),
                 queryResponse.columns(),
                 queryResponse.zoneId(),
-                resultType,
+                resultType.get(),
                 mode,
                 limit
             );

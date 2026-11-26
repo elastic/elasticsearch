@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -89,6 +90,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -98,6 +100,10 @@ import static org.hamcrest.Matchers.startsWith;
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
     public void testCanUpdateClusterStateAfterStabilisation() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+            for (int i = randomIntBetween(0, 3); i > 0; i--) {
+                cluster.addMasterIneligibleDataNode();
+            }
+
             cluster.runRandomly();
             cluster.stabilise();
 
@@ -2157,6 +2163,101 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 assertNotNull(state);
                 safeAwait(barrier);
             });
+        }
+    }
+
+    public void testMasterIneligibleDataNodePersistsStateAsynchronously() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+            final var dataNodeId = cluster.addMasterIneligibleDataNode().getId();
+            cluster.runRandomly();
+            cluster.stabilise();
+            final ClusterNode dataNode = cluster.getNodeById(dataNodeId); // random reboots may have replaced it
+
+            final ClusterNode leader = cluster.getAnyLeader();
+            final long finalValue = randomLong();
+            leader.submitValue(finalValue);
+            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+
+            assertThat(
+                "data node is not in the voting configuration",
+                leader.getLastAppliedClusterState().getLastCommittedConfiguration().getNodeIds(),
+                not(hasItem(dataNode.getId()))
+            );
+
+            final long currentTerm = dataNode.persistedState.getCurrentTerm();
+            final long lastAcceptedVersion = dataNode.persistedState.getLastAcceptedState().version();
+            assertThat(value(dataNode.persistedState.getLastAcceptedState()), is(finalValue));
+
+            dataNode.close();
+            final ClusterNode restartedNode = dataNode.restartedNode();
+            cluster.clusterNodes.replaceAll(cn -> cn == dataNode ? restartedNode : cn);
+
+            // the restarted node has loaded everything that the original node accepted
+            final ClusterState loadedState = restartedNode.persistedState.getLastAcceptedState();
+            assertThat(restartedNode.persistedState.getCurrentTerm(), equalTo(currentTerm));
+            assertThat(loadedState.version(), equalTo(lastAcceptedVersion));
+            assertThat(value(loadedState), is(finalValue));
+
+            // the voting configuration is not persisted, since this node's state may not be up to date and it must not win an election
+            final var staleConfiguration = new VotingConfiguration(Set.of(GatewayMetaState.STALE_STATE_CONFIG_NODE_ID));
+            assertThat(loadedState.getLastAcceptedConfiguration(), equalTo(staleConfiguration));
+            assertThat(loadedState.getLastCommittedConfiguration(), equalTo(staleConfiguration));
+
+            cluster.stabilise();
+        }
+    }
+
+    public void testMasterIneligibleDataNodeRestartedBeforeAsynchronousWritesRun() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+            final var dataNodeId = cluster.addMasterIneligibleDataNode().getId();
+            cluster.runRandomly();
+            cluster.stabilise();
+            final ClusterNode dataNode = cluster.getNodeById(dataNodeId); // random reboots may have replaced it
+
+            final long versionBefore = dataNode.persistedState.getLastAcceptedState().version();
+            cluster.getAnyLeader().submitValue(randomLong());
+
+            // Run tasks one at a time until the data node accepts the new state, which is before the asynchronous write of it can run.
+            final var submitValueTimeMillis = cluster.deterministicTaskQueue.getCurrentTimeMillis();
+            while (dataNode.persistedState.getLastAcceptedState().version() == versionBefore) {
+                if (cluster.deterministicTaskQueue.hasRunnableTasks()) {
+                    cluster.deterministicTaskQueue.runRandomTask();
+                } else {
+                    cluster.deterministicTaskQueue.advanceTime();
+                    assertThat(
+                        cluster.deterministicTaskQueue.getCurrentTimeMillis(),
+                        lessThanOrEqualTo(submitValueTimeMillis + DEFAULT_STABILISATION_TIME)
+                    );
+                }
+            }
+            final long acceptedVersion = dataNode.persistedState.getLastAcceptedState().version();
+
+            // closing the node discards the pending write; we don't care here whether it sent the PublishResponse without waiting for this
+            dataNode.close();
+            final ClusterNode restartedNode = dataNode.restartedNode(
+                // sometimes modify the metadata to trigger a rewrite on startup, ensuring that we don't write the published state
+                md -> randomBoolean() ? md : Metadata.builder(md).build(),
+                Function.identity(),
+                dataNode.nodeSettings
+            );
+            cluster.clusterNodes.replaceAll(cn -> cn == dataNode ? restartedNode : cn);
+
+            assertThat(
+                "restarted from the older state on disk",
+                restartedNode.persistedState.getLastAcceptedState().version(),
+                lessThan(acceptedVersion)
+            );
+            assertThat(
+                restartedNode.persistedState.getLastAcceptedState().getLastAcceptedConfiguration(),
+                equalTo(new VotingConfiguration(Set.of(GatewayMetaState.STALE_STATE_CONFIG_NODE_ID)))
+            );
+
+            cluster.stabilise();
+            assertThat(
+                "catches up",
+                value(restartedNode.getLastAppliedClusterState()),
+                is(value(cluster.getAnyLeader().getLastAppliedClusterState()))
+            );
         }
     }
 

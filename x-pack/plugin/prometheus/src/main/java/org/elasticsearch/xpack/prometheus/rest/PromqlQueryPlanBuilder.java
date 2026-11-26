@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -46,12 +47,18 @@ class PromqlQueryPlanBuilder {
     static final long MAX_POINTS_PER_SERIES = 11_000;
 
     /**
-     * The statement to run and the Prometheus result type of its response. A string literal query has no statement: its
-     * response is the literal itself ({@code stringValue}), which Prometheus renders as {@code [<unix_time>, "<string>"]}.
+     * The statement to run and the Prometheus result type of its response. The response to a string literal query is the
+     * literal itself ({@code stringValue}), which Prometheus renders as {@code [<unix_time>, "<string>"]}; its statement is a
+     * {@code ROW} of it, which reads no index but still runs as a query, so that it is only answered to who may run one.
      */
     record PromqlStatementResult(EsqlStatement esqlStatement, String resultType, String stringValue) {
         PromqlStatementResult(EsqlStatement esqlStatement, String resultType) {
             this(esqlStatement, resultType, null);
+        }
+
+        /** The statement of an endpoint whose response has no Prometheus result type, such as {@code series}. */
+        PromqlStatementResult(EsqlStatement esqlStatement) {
+            this(esqlStatement, null);
         }
     }
 
@@ -152,7 +159,17 @@ class PromqlQueryPlanBuilder {
             if (mode == QueryMode.RANGE) {
                 throw new IllegalArgumentException("invalid expression type \"string\" for range query, must be Scalar or instant Vector");
             }
-            return new PromqlStatementResult(null, "string", BytesRefs.toString(literal.literal().value()));
+            // limited, as ES|QL warns about a query without a limit
+            LogicalPlan row = new Limit(
+                Source.EMPTY,
+                new Literal(Source.EMPTY, 1, DataType.INTEGER),
+                new Row(Source.EMPTY, List.of(new Alias(Source.EMPTY, PrometheusQueryResponseListener.VALUE_COLUMN, literal.literal())))
+            );
+            return new PromqlStatementResult(
+                new EsqlStatement(row, PrometheusPlanBuilderUtils.QUERY_SETTINGS),
+                "string",
+                BytesRefs.toString(literal.literal().value())
+            );
         }
 
         PromqlCommand promqlCommand = new PromqlCommand(

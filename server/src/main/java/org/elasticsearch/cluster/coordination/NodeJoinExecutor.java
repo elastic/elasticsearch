@@ -133,10 +133,11 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         final DiscoveryNodes currentNodes = initialState.nodes();
         boolean nodesChanged = false;
         ClusterState.Builder newState;
+        final boolean electing = currentNodes.getMasterNode() == null && isBecomingMaster;
         // the state the joining nodes are added to
         ClusterState baseState = initialState;
 
-        if (currentNodes.getMasterNode() == null && isBecomingMaster) {
+        if (electing) {
             assert initialState.term() < term : "there should be at most one become master task per election (= by term)";
             // use these joins to try and become the master.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
@@ -209,7 +210,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                             node.getMaxIndexVersion(),
                             initialState.getMetadata()
                         );
-                        validateJoinAttributes(node, nodeJoinTask.joinAttributes(), baseState);
+                        validateJoinAttributes(node, nodeJoinTask.joinAttributes(), baseState, electing);
 
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
@@ -305,11 +306,15 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
     }
 
-    private void validateJoinAttributes(DiscoveryNode node, Map<String, String> joinAttributes, ClusterState state) {
+    private void validateJoinAttributes(DiscoveryNode node, Map<String, String> joinAttributes, ClusterState state, boolean electing) {
         for (JoinAttributesValidator validator : joinAttributesValidators) {
             try {
                 validator.validate(node, joinAttributes, state);
             } catch (IllegalArgumentException | IllegalStateException e) {
+                if (electing) {
+                    // if this election's publication fails, the joining node only gets the publication failure
+                    logger.info("rejecting join of [{}] in election: {}", node.descriptionWithoutAttributes(), e.getMessage());
+                }
                 throw e;
             } catch (RuntimeException e) {
                 // rejects only this node: failing the batch would also fail an election

@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
@@ -827,6 +828,28 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         parse("FROM idx", "v");
     }
 
+    /**
+     * A view definition is validated without query parameters, so it can't contain any, and it is never parsed with the parameters of
+     * a caller's request. The reserved value of {@code param_any_value}, which a parameter holds to stand for "Any", relies on that:
+     * views have no reserved value, as they have no parameters to apply it to. If views get parameters, decide first what
+     * {@code param_any_value} means inside a view, and what it means for a view called with a different value.
+     */
+    public void testViewDefinitionCannotHaveParameters() {
+        Map<String, String> queryToError = Map.of(
+            "FROM idx | WHERE a == ?x",
+            "Unknown query parameter [x]",
+            "FROM idx | KEEP ??x",
+            "Unknown query parameter [x]",
+            "FROM idx | WHERE a == ?",
+            "Not enough actual parameters 0"
+        );
+        queryToError.forEach((query, error) -> {
+            RuntimeException e = expectThrows(RuntimeException.class, () -> addView("v", query));
+            assertThat(query, e.getCause(), instanceOf(ParsingException.class));
+            assertThat(query, e.getCause().getMessage(), containsString(error));
+        });
+    }
+
     public void testMixedViewAndIndexMergedUnresolvedRelation() {
         addView("view1", "FROM emp");
         addIndex("index1");
@@ -1578,6 +1601,110 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("ts_view", "TS emp | STATS count(*)");
         LogicalPlan rewritten = replaceViews(query("FROM ts_view"));
         assertThat(rewritten, matchesPlan(query("TS emp | STATS count(*)")));
+    }
+
+    public void testViewNextToIndexInEqlTargetIsRejected() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        addView("view_b", "FROM emp");
+        expectThrows(
+            VerificationException.class,
+            containsString("line 1:1: Views are not supported in EQL command, found view(s) [view_b]; use FROM view_b instead"),
+            () -> replaceViews(query("EQL emp,view_b,-view_a \"process where true\""))
+        );
+    }
+
+    public void testViewAsEqlTargetInViewBodyIsRejected() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("inner_view", "FROM emp");
+        addView("outer_view", "EQL inner_view \"process where true\"");
+        expectThrows(
+            VerificationException.class,
+            containsString(
+                "line 1:1 (in view [outer_view]): Views are not supported in EQL command, found view(s) [inner_view]; "
+                    + "use FROM inner_view instead"
+            ),
+            () -> replaceViews(query("FROM outer_view"))
+        );
+    }
+
+    public void testViewAsEqlTargetInSubqueryIsRejected() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        expectThrows(
+            VerificationException.class,
+            containsString("line 1:12: Views are not supported in EQL command, found view(s) [view_a]; use FROM view_a instead"),
+            () -> replaceViews(query("FROM emp, (EQL view_a \"process where true\")"))
+        );
+    }
+
+    public void testViewRepeatedInEqlTargetIsReportedOnce() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        expectThrows(
+            VerificationException.class,
+            containsString("Views are not supported in EQL command, found view(s) [view_a]; use FROM view_a instead"),
+            () -> replaceViews(query("EQL view_a,view_a \"process where true\""))
+        );
+    }
+
+    public void testEveryViewInEqlTargetIsReported() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        addView("view_b", "FROM emp");
+        expectThrows(
+            VerificationException.class,
+            containsString("found view(s) [view_a, view_b]; use FROM view_a, view_b instead"),
+            () -> replaceViews(query("EQL view_a,emp,view_b \"process where true\""))
+        );
+    }
+
+    public void testEqlTargetMatchingAViewOnlyThroughAWildcardIsLeftAlone() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        assertThat(eqlTarget(replaceViews(query("EQL view_* \"process where true\""), true)), equalTo("view_*"));
+    }
+
+    public void testViewExcludedFromEqlTargetIsLeftAlone() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        for (String pattern : List.of("emp,-view_a", "emp,view_a,-view_a", "emp,view_a,-view_*")) {
+            assertThat(eqlTarget(replaceViews(query("EQL " + pattern + " \"any where true\""))), equalTo(pattern));
+        }
+    }
+
+    public void testRemoteEqlTargetIsNotLookedUpOutsideCrossProjectMode() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        for (String pattern : List.of("remote:view_a", "*:view_a", "remote:view_a,remote:-view_a")) {
+            InMemoryViewResolver resolver = viewService.getViewResolver();
+            assertThat(eqlTarget(replaceViews(query("EQL " + pattern + " \"process where true\""), resolver)), equalTo(pattern));
+            assertThat(pattern, resolver.requestedIndices(), empty());
+        }
+    }
+
+    public void testRemoteNameNextToAViewInEqlTargetIsNotLookedUp() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        InMemoryViewResolver resolver = viewService.getViewResolver();
+        expectThrows(
+            VerificationException.class,
+            containsString("found view(s) [view_a]; use FROM view_a instead"),
+            () -> replaceViews(query("EQL remote:logs,view_a \"process where true\""), resolver)
+        );
+        assertThat(resolver.requestedIndices(), contains(List.of("view_a")));
+    }
+
+    public void testRemoteEqlTargetIsLookedUpInCrossProjectMode() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        InMemoryViewResolver resolver = cpsViewResolver();
+        assertThat(eqlTarget(replaceViews(query("EQL remote:view_a \"process where true\""), resolver)), equalTo("remote:view_a"));
+        assertThat(resolver.requestedIndices(), contains(List.of("remote:view_a")));
+    }
+
+    private static String eqlTarget(LogicalPlan plan) {
+        return as(plan, UnresolvedEqlRelation.class).indexPattern().indexPattern();
     }
 
     /**

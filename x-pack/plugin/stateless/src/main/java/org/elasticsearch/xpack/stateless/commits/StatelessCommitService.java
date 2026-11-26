@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitC
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -501,10 +500,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * runs independently, and will call this function for itself.
      * @param sourceShardId the source shard ID. Commits uploaded from this shard will be copied to the target shard.
      * @param targetShardId the target shard ID.
+     * @return a runnable that calls {@link #markSplitEnding}. This is used to handle the case where a shard relocates from and back to its
+     *         original node, and a new split clashes with the original one. This ensures the split ends on the right
+     *         {@link ShardCommitState}. TODO: remove when we transition to a source shard state machine.
      */
-    public void markSplitting(ShardId sourceShardId, ShardId targetShardId) {
+    public Runnable markSplitting(ShardId sourceShardId, ShardId targetShardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, sourceShardId);
         commitState.markSplitting(targetShardId);
+        return () -> commitState.markSplitEnding(targetShardId, true);
     }
 
     /**
@@ -954,8 +957,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // we should acquire a reference to avoid deleting the commit before notifying the unpromotable shards.
         // todo: reevaluate this.
         blobReference.incRef();
-        final TimeValue hotThreadsLogInterval = clusterService.getClusterSettings()
-            .get(ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL);
         var bccUpload = new BatchedCompoundCommitUploadTask(
             threadPool,
             cacheWarmingService,
@@ -965,7 +966,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             commitState::runUploadWhenCommitIsReady,
             virtualBcc,
             TimeValue.timeValueMillis(50),
-            hotThreadsLogInterval,
             newUploadTaskListener(commitState, virtualBcc, blobReference)
         );
         metrics.recordBccUpload(
@@ -1220,18 +1220,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         if (bccUploadSlowLogThresholdMillis <= 0 || uploadResult.totalUploadTimeMs() < bccUploadSlowLogThresholdMillis) {
             return;
         }
+        // the total time spans every attempt and the delays between them, the other fields describe the successful attempt
+        final var timing = uploadResult.timing();
         final var message = new ESLogMessage(
             "{} batched compound commit [{}] upload took [{}]ms over [{}] attempt(s): {}",
             virtualBcc.getShardId(),
             virtualBcc.getPrimaryTermAndGeneration().generation(),
             uploadResult.totalUploadTimeMs(),
-            uploadResult.uploadAttempts(),
-            uploadResult.attemptsToLogString()
+            timing.attempt(),
+            timing.toLogString()
         ).field("elasticsearch.primary.bcc_upload_time", uploadResult.totalUploadTimeMs())
-            .field("elasticsearch.primary.bcc_upload_attempts", uploadResult.uploadAttempts())
-            .field("elasticsearch.primary.bcc_generation_queue_time", uploadResult.totalGenerationQueueWaitMs())
-            .field("elasticsearch.primary.bcc_object_store_queue_time", uploadResult.totalObjectStoreQueueWaitMs())
-            .field("elasticsearch.primary.bcc_upload_throughput_mib_per_sec", uploadResult.uploadThroughputMiBPerSec());
+            .field("elasticsearch.primary.bcc_upload_attempts", timing.attempt())
+            .field("elasticsearch.primary.bcc_generation_queue_time", timing.generationQueueWaitMs())
+            .field("elasticsearch.primary.bcc_object_store_queue_time", timing.objectStoreQueueWaitMs())
+            .field("elasticsearch.primary.bcc_upload_throughput_mib_per_sec", timing.uploadThroughputMiBPerSec());
         logger.info(message);
     }
 
@@ -2280,8 +2282,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         return new CommitAndBlobLocation(blobReference, blobLocation);
                     } else {
                         assert StatelessCompoundCommit.isGenerationalFile(fileName)
-                            && existing.blobLocation.compoundFileGeneration() < blobLocation.compoundFileGeneration()
-                            : fileName + ':' + existing + ':' + blobLocation;
+                            && existing.blobLocation.blob() instanceof BccBlob existingBlob
+                            && blobLocation.blob() instanceof BccBlob newBlob
+                            && existingBlob.generation() < newBlob.generation() : fileName + ':' + existing + ':' + blobLocation;
                         logger.trace(
                             "{} ignoring generational file [{}] updated location [{}]->[{}], keeping [{}]",
                             shardId,

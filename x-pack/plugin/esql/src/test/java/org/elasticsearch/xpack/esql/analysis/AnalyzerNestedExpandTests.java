@@ -256,6 +256,22 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         assertLoadedFromParent(plan);
     }
 
+    /**
+     * The {@code LOAD_ALL} command allow-list checks a view body under the view's own mode, not the caller's: a command that
+     * {@code LOAD_ALL} does not support, here {@code NESTED_EXPAND}, is allowed in a view the caller reads with {@code LOAD_ALL}, but
+     * still rejected in a plain subquery next to it, which the caller's mode does reach. It is tested here because this is the
+     * fixture that has a command that {@code LOAD_ALL} does not support, now that {@code ROW} and {@code TS} are supported.
+     */
+    public void testLoadAllCommandAllowListStopsAtView() {
+        String body = "FROM ne | NESTED_EXPAND items";
+        nestedAnalyzer().addView("v", body).statement("SET unmapped_fields=\"load_all\"; FROM v");
+        nestedAnalyzer().addView("v", body)
+            .statementError(
+                "SET unmapped_fields=\"load_all\"; FROM v, (" + body + ")",
+                containsString(Verifier.loadAllUnsupportedCommandMessage("NestedExpand"))
+            );
+    }
+
     public void testLoadAllRejectsNestedExpandWithUndeclaredNameBeforeExpansion() {
         nestedAnalyzer().statementError(
             "SET unmapped_fields=\"load_all\"; FROM ne | EVAL u = items.undeclared | NESTED_EXPAND items | KEEP id, u",
@@ -495,7 +511,7 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         for (IndexFieldCapabilities field : fields) {
             byName.put(field.name(), field);
         }
-        return new FieldCapabilitiesIndexResponse(name, name, byName, true, mode, 1, 0, 1L, 1L);
+        return new FieldCapabilitiesIndexResponse(name, name, byName, true, mode, 1, 0, 1L, 1L, null);
     }
 
     private static IndexFieldCapabilities field(String name, String type) {

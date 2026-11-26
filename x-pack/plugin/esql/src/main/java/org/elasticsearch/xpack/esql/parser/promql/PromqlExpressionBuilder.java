@@ -67,16 +67,28 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
     private final Literal start, end;
     private final QueryParams params;
+    @Nullable
+    private final String anyParamValue;
 
-    PromqlExpressionBuilder(Literal start, Literal end, QueryParams params, @Nullable String viewName) {
+    /**
+     * @param anyParamValue the reserved value of the enclosing ES|QL query, which a parameter can't have where PromQL reads it, or
+     *                      {@code null} if none is recognized
+     */
+    PromqlExpressionBuilder(Literal start, Literal end, QueryParams params, @Nullable String anyParamValue, @Nullable String viewName) {
         super(viewName);
         this.start = start;
         this.end = end;
         this.params = params;
+        this.anyParamValue = anyParamValue;
     }
 
     protected QueryParams params() {
         return params;
+    }
+
+    @Nullable
+    protected String anyParamValue() {
+        return anyParamValue;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -126,7 +138,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         if (param == null) {
             throw new ParsingException(paramSource, "Parameter [{}] value not found", paramNode.getText());
         }
-        ExpressionBuilder.rejectAnyParam(params, param, paramSource, paramNode.getText());
+        ExpressionBuilder.rejectAnyParam(params, anyParamValue, param, paramSource, paramNode.getText());
         if (param.classification() == PATTERN) {
             throw new ParsingException(
                 paramSource,
@@ -444,7 +456,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         if (param == null) {
             throw new ParsingException(source, "No value found for parameter [{}]", node.getText());
         }
-        ExpressionBuilder.rejectAnyParam(params, param, source, node.getText());
+        ExpressionBuilder.rejectAnyParam(params, anyParamValue, param, source, node.getText());
         if (param.type() != DataType.KEYWORD && param.type() != DataType.TEXT) {
             throw new ParsingException(
                 source,

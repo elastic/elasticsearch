@@ -161,7 +161,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
@@ -188,6 +187,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
@@ -204,6 +204,7 @@ import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
@@ -223,7 +224,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -237,6 +238,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AbsentFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -272,6 +274,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -413,13 +416,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public Analyzer(AnalyzerContext context, Verifier verifier) {
         super(context);
         this.verifier = verifier;
-    }
-
-    /**
-     * Runs the analysis rules and returns the plan without verification, so a test can record that plan.
-     */
-    public LogicalPlan analyzeWithoutVerification(LogicalPlan plan) {
-        return replaceDescribe(execute(plan));
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -586,17 +582,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
             resolutions.addAll(context.lookupResolution().values());
-            Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
-            Map<NameId, Attribute> datasetColumns = ColumnSemantics.datasetColumns(describe.child());
-            Set<NameId> timeColumns = ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns);
             return describe.withTable(
-                describe.describe(
-                    semantics,
-                    datasetColumns,
-                    ColumnUnits.collect(describe.child(), semantics),
-                    timeColumns,
-                    ColumnIntervals.collect(describe.child(), context.configuration().newFoldContext())
-                )
+                describe.describe(ColumnDescription.collect(describe.child(), resolutions, context.configuration().newFoldContext()))
             );
         }
 
@@ -1222,10 +1209,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             List<Attribute> mapped = mappingAsAttributes(plan.source(), resolution.get().mapping());
             List<Attribute> synthetics = EqlRelation.syntheticColumns(plan.source(), plan.mode());
-            // A mapped field whose name collides with a synthetic (_sequence/_sequence_stage/join_keys) or a declared
-            // metadata column would produce two output columns of the same name. Values stay correct (the converter
-            // dispatches by attribute class, not name), but a downstream KEEP/SORT on that name is ambiguous, so fail
-            // loud here instead of emitting an ambiguous schema.
             Set<String> reserved = new HashSet<>();
             for (Attribute synthetic : synthetics) {
                 reserved.add(synthetic.name());
@@ -1233,18 +1216,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (NamedExpression metadata : plan.metadataFields()) {
                 reserved.add(metadata.name());
             }
-            for (Attribute attr : mapped) {
-                if (reserved.contains(attr.name())) {
-                    return unresolvedWith(
-                        plan,
-                        "mapped field [" + attr.name() + "] collides with the EQL command's reserved column of the same name"
-                    );
-                }
-            }
             List<Attribute> output = new ArrayList<>(mapped.size() + synthetics.size() + plan.metadataFields().size());
             output.addAll(synthetics);
             for (Attribute attr : mapped) {
-                output.add(gateUnconvertibleType(plan.source(), attr));
+                if (reserved.contains(attr.name())) {
+                    context.deferredHeaderWarnings().add(shadowedByEqlColumnWarning(plan.source(), attr.name()));
+                } else {
+                    output.add(gateUnconvertibleType(plan.source(), attr));
+                }
             }
             // Metadata columns come last (matching FROM) and must NOT pass through gateUnconvertibleType — _source is
             // DataType.SOURCE, which is not convertible, so gating would wrongly turn it into an unsupported column.
@@ -1284,6 +1263,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.metadataFields(),
                     message
                 );
+        }
+
+        private static String shadowedByEqlColumnWarning(Source source, String field) {
+            String location = source.viewName() == null
+                ? Strings.format("Line %s:%s: ", source.lineNumber(), source.columnNumber())
+                : Strings.format("Line %s:%s (in view [%s]): ", source.lineNumber(), source.columnNumber(), source.viewName());
+            return Strings.format(
+                "%sMapped field [%s] is shadowed by the EQL command's column of the same name; "
+                    + "read it with FROM, or with JSON_EXTRACT on METADATA _source if the document stores it",
+                location,
+                field
+            );
         }
 
         /**
@@ -1639,15 +1630,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     .transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
             }
 
-            // A label_replace/label_join destination or a count_values value label is a derived label that overwrites
-            // (shadows) any stored label of the same name (a dimension or __name__). Shadowing is positional: a reference sees
-            // a derived label only when the node deriving it lies within the vector the reference consumes - i.e. strictly
-            // below the reference's node. So each node resolves against the stored labels shadowed by the labels derived in
-            // its own child subtree(s): a selector's matchers, and any reference below a deriving node, bind to the stored
-            // label, while an enclosing by(dst) binds to the derived label. When several nodes on one path derive the same
-            // label the outermost (last-applied) one wins, so same-named derived labels are collapsed keeping the shallowest -
-            // which also keeps an enclosing by(dst) from seeing two same-named attributes. childrenOutput is a fresh per-call
-            // list, so this is local to this command.
+            // A label_replace/label_join destination, a count_values value label, or a label of an absent result is a derived
+            // label that overwrites (shadows) any stored label of the same name (a dimension or __name__). Shadowing is
+            // positional: a reference sees a derived label only when the node deriving it lies within the vector the reference
+            // consumes - i.e. strictly below the reference's node. So each node resolves against the stored labels shadowed by
+            // the labels derived in its own child subtree(s): a selector's matchers, and any reference below a deriving node,
+            // bind to the stored label, while an enclosing by(dst) binds to the derived label. When several nodes on one path
+            // derive the same label the outermost (last-applied) one wins, so same-named derived labels are collapsed keeping
+            // the shallowest - which also keeps an enclosing by(dst) from seeing two same-named attributes. childrenOutput is
+            // a fresh per-call list, so this is local to this command. The labels of an absent result are visible to the nodes
+            // above it only.
             LogicalPlan resolvedPlan = promqlPlan.transformDown(node -> {
                 if (node instanceof Selector) {
                     return node.transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
@@ -1676,8 +1668,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * The labels derived in {@code plan} - relabel destinations and {@code count_values} value labels - in pre-order
-         * (ancestors before descendants).
+         * The labels derived in {@code plan} - relabel destinations, {@code count_values} value labels, and the labels of an
+         * {@code absent} result - in pre-order (ancestors before descendants).
          */
         private static List<Attribute> derivedLabels(LogicalPlan plan) {
             List<Attribute> derived = new ArrayList<>();
@@ -1686,6 +1678,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     derived.add(relabel.destination());
                 } else if (node instanceof CountValuesAggregate countValues) {
                     derived.add(countValues.valueLabel());
+                } else if (node instanceof AbsentFunction absent) {
+                    derived.addAll(absent.output());
                 }
             });
             return derived;
@@ -1886,9 +1880,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case NestedExpand p -> resolveNestedExpand(p, childrenOutput, context);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
-                case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
-                // Left unresolved: the Verifier rejects JOIN on a subquery before any resolution of its keys matters.
-                case SubqueryJoin sj -> sj;
+                case AbstractInSubqueryJoin sj -> resolveInSubqueryJoin(sj);
+                case SubqueryJoin sj -> resolveSubqueryJoin(sj);
                 case FillNull f -> resolveFillNull(f, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
@@ -2484,6 +2477,51 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
+         * Resolves the keys of a {@code JOIN} on a subquery by name, each against its own side.
+         * <p>
+         * When the subquery has no {@link Project} or {@link Aggregate} of its own, its output is pinned with a {@link Project}, as
+         * for an {@code IN} subquery: without one, a data node running the subquery can replace its fields with just {@code _doc}.
+         * The {@link Aggregate} of an {@link InlineStats} does not count, since its input columns pass through.
+         */
+        private SubqueryJoin resolveSubqueryJoin(SubqueryJoin join) {
+            JoinConfig config = join.config();
+            // A key that was not found carries a message that names its side. Resolving it again would name the side once more, so
+            // the plan would change on every pass and never reach a fixed point.
+            if (Stream.concat(config.leftFields().stream(), config.rightFields().stream())
+                .anyMatch(key -> key instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                return join;
+            }
+            List<Attribute> leftKeys = resolveUsingColumns(config.leftFields(), join.left().output(), "left");
+            List<Attribute> rightKeys = resolveUsingColumns(config.rightFields(), join.right().output(), "right");
+
+            LogicalPlan right = join.right();
+            if (Resolvables.resolved(rightKeys) && hasOwnProjectOrAggregate(right) == false) {
+                right = new Project(join.source(), right, right.output());
+            }
+            return new SubqueryJoin(
+                join.source(),
+                join.left(),
+                right,
+                new JoinConfig(config.type(), leftKeys, rightKeys, config.joinOnConditions())
+            );
+        }
+
+        private static boolean hasOwnProjectOrAggregate(LogicalPlan plan) {
+            if (plan instanceof Project || plan instanceof Aggregate) {
+                return true;
+            }
+            List<LogicalPlan> children = plan instanceof InlineStats inlineStats
+                ? List.of(inlineStats.aggregate().child())
+                : IndependentSubqueryJoin.mainScopeChildren(plan);
+            for (LogicalPlan child : children) {
+                if (hasOwnProjectOrAggregate(child)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
          * Resolves both sides of a SEMI/ANTI join created by {@link InSubqueryResolver}:
          * <ul>
          *   <li>Left fields: resolved against the left child's output using standard attribute resolution.</li>
@@ -2500,7 +2538,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *       output verifier.</li>
          * </ul>
          */
-        private AbstractSubqueryJoin resolveSubqueryJoin(AbstractSubqueryJoin subqueryJoin) {
+        private AbstractInSubqueryJoin resolveInSubqueryJoin(AbstractInSubqueryJoin subqueryJoin) {
             // Resolve left fields. Skip when every leftField is either already resolved or is an
             // UnresolvedAttribute that already carries a custom message: resolveUsingColumns
             // appends a " in left side of join" suffix on every call, and UnresolvedAttribute
@@ -2548,7 +2586,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : new SemiJoin(subqueryJoin.source(), subqueryJoin.left(), right, joinConfig);
         }
 
-        private static List<Attribute> resolveRightFields(AbstractSubqueryJoin semiJoin) {
+        private static List<Attribute> resolveRightFields(AbstractInSubqueryJoin semiJoin) {
             List<Attribute> rightFields = semiJoin.config().rightFields();
             if (rightFields.isEmpty() == false) {
                 // Bail out if rightFields already carries an analyzer-supplied custom error message
@@ -2601,7 +2639,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * later with an obscure {@code [NULL]}-typed message. Otherwise return the attribute
          * unchanged.
          */
-        private static Attribute resolveSingleRightField(AbstractSubqueryJoin semiJoin, Attribute rightAttr) {
+        private static Attribute resolveSingleRightField(AbstractInSubqueryJoin semiJoin, Attribute rightAttr) {
             if (NO_FIELDS_NAME.equals(rightAttr.name())) {
                 return new UnresolvedAttribute(semiJoin.source(), "*", "IN subquery cannot reference an index with empty mapping");
             }
@@ -4073,12 +4111,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    /**
+     * The {@code DESCRIBE} that {@code plan} ends with, followed only by commands that don't add rows and no {@code LIMIT},
+     * or {@code null}. Such a plan returns at most one row per column of the input of the {@code DESCRIBE}.
+     */
+    @Nullable
+    private static Describe boundingDescribe(LogicalPlan plan) {
+        while (plan instanceof Project
+            || plan instanceof Eval
+            || plan instanceof Filter
+            || plan instanceof OrderBy
+            || plan instanceof RegexExtract) {
+            plan = ((UnaryPlan) plan).child();
+        }
+        return plan instanceof Describe describe ? describe : null;
+    }
+
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             if (logicalPlan instanceof Into) {
                 // INTO returns one stats row, so the default 1000 cap must not truncate the rows it writes.
                 return logicalPlan;
+            }
+            Describe describe = boundingDescribe(logicalPlan);
+            if (describe != null) {
+                // DESCRIBE returns one row per column, so a lower limit would only drop columns.
+                var source = logicalPlan.source();
+                return new Limit(source, new Literal(source, describe.child().output().size(), DataType.INTEGER), logicalPlan);
             }
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply

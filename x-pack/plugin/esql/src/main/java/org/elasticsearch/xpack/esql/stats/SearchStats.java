@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -133,6 +135,18 @@ public interface SearchStats {
     }
 
     boolean isSingleValue(FieldName field);
+
+    /**
+     * The distinct values of a {@code keyword} field across all shards, sorted, or {@code null} if there are more than
+     * {@code limit} of them or if they cannot be listed. They are listed from the terms of the index, which is only possible when
+     * these are exactly the values ES|QL reads for the field from its doc values: a document holds a value if and only if a term
+     * query for it matches. A value that {@code ignore_above} skips is neither a term nor a doc value. Values that only deleted
+     * documents hold may be included.
+     */
+    @Nullable
+    default List<BytesRef> distinctKeywordValues(FieldName field, int limit) {
+        return null;
+    }
 
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
 

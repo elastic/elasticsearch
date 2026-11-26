@@ -10,6 +10,7 @@
 package org.elasticsearch.search.diversification;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
@@ -21,6 +22,8 @@ import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -45,7 +48,10 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.inference.VectorType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -53,10 +59,13 @@ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.junit.Assert;
 
@@ -67,7 +76,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class DiversifyRetrieverBuilderTests extends ESTestCase {
 
@@ -319,6 +332,128 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         assertTrue(source.trackScores());
     }
 
+    /**
+     * The sub-search response may be delivered on a transport thread, so diversification must not run inline on it but be
+     * forked to the search coordination pool instead. The response carries hits with vectors so that MMR really runs, and the
+     * cancellation check, which MMR polls on every round, records the thread it is called on.
+     */
+    public void testCombinesResultsOnSearchCoordinationThread() {
+        int dims = 256;
+        var retriever = new DiversifyRetrieverBuilder(
+            new CompoundRetrieverBuilder.RetrieverSource(new StandardRetrieverBuilder(new MatchAllQueryBuilder()), null),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            new VectorData(getRandomFloatQueryVector(dims)),
+            null,
+            0.3f
+        );
+
+        SetOnce<String> completingThread = new SetOnce<>();
+        List<String> checkingThreads = new CopyOnWriteArrayList<>();
+        try (var threadPool = createThreadPool()) {
+            // respond inline on the calling thread, which stands in for the transport thread delivering the response
+            var client = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assertEquals(TransportMultiSearchAction.TYPE, action);
+                    int numHits = 5;
+                    SearchHit[] hits = new SearchHit[numHits];
+                    for (int i = 0; i < numHits; i++) {
+                        hits[i] = new SearchHit(i);
+                        hits[i].score(numHits - i);
+                        hits[i].setDocumentField(new DocumentField("dense_vector_field", List.of(getRandomFloatQueryVector(dims))));
+                        hits[i].sortValues(
+                            new Object[] { ShardDocSortField.encodeShardAndDoc(0, i) },
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
+                    }
+                    var searchHits = new SearchHits(hits, new TotalHits(numHits, TotalHits.Relation.EQUAL_TO), numHits);
+                    SearchResponse searchResponse;
+                    try {
+                        searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+                    } finally {
+                        searchHits.decRef();
+                    }
+                    var response = new MultiSearchResponse(
+                        new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(searchResponse, null) },
+                        1L
+                    );
+                    ActionListener.respondAndRelease((ActionListener<MultiSearchResponse>) listener, response);
+                }
+            };
+
+            var ctx = getQueryRewriteContext(client);
+            ctx.setCancellationCheck(() -> checkingThreads.add(Thread.currentThread().getName()));
+            PlainActionFuture<RetrieverBuilder> future = new PlainActionFuture<>();
+            Rewriteable.rewriteAndFetch(retriever, ctx, future.delegateFailure((l, rewritten) -> {
+                completingThread.set(Thread.currentThread().getName());
+                l.onResponse(rewritten);
+            }));
+            assertNotNull(safeGet(future));
+        }
+
+        assertThat(completingThread.get(), containsString(ThreadPool.Names.SEARCH_COORDINATION));
+        // two checks come from the compound retriever itself, the rest from MMR, which proves diversification ran
+        assertThat(checkingThreads.size(), greaterThan(3));
+        for (String thread : checkingThreads) {
+            assertThat(thread, containsString(ThreadPool.Names.SEARCH_COORDINATION));
+        }
+    }
+
+    /**
+     * If the search is cancelled while the inner searches run, the combine step must be skipped and the cancellation passed back
+     * to the caller as is rather than wrapped as a retriever failure.
+     */
+    public void testCancelledSearchSkipsCombine() {
+        var retriever = new DiversifyRetrieverBuilder(
+            new CompoundRetrieverBuilder.RetrieverSource(new StandardRetrieverBuilder(new MatchAllQueryBuilder()), null),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            new VectorData(getRandomFloatQueryVector(256)),
+            null,
+            0.3f
+        );
+
+        var cancellation = new TaskCancelledException("task cancelled");
+        try (var threadPool = createThreadPool()) {
+            var client = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assertEquals(TransportMultiSearchAction.TYPE, action);
+                    var response = new MultiSearchResponse(
+                        new MultiSearchResponse.Item[] {
+                            new MultiSearchResponse.Item(SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS), null) },
+                        1L
+                    );
+                    ActionListener.respondAndRelease((ActionListener<MultiSearchResponse>) listener, response);
+                }
+            };
+
+            var ctx = getQueryRewriteContext(client);
+            ctx.setCancellationCheck(() -> { throw cancellation; });
+            var failure = safeAwaitFailure(
+                TaskCancelledException.class,
+                RetrieverBuilder.class,
+                l -> Rewriteable.rewriteAndFetch(retriever, ctx, l)
+            );
+            assertSame(cancellation, failure);
+        }
+    }
+
     public void testMmrResultDiversification() {
         var queryRewriteContext = getQueryRewriteContext();
         var retriever = new DiversifyRetrieverBuilder(
@@ -369,6 +504,30 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         );
         assertEquals("rank results must have only one result set", exMultipleDocs.getMessage());
         assertEquals(400, exMultipleDocs.status().getStatus());
+
+        cleanDocsAndHits(docs, hits);
+    }
+
+    public void testMmrResultDiversificationStopsWhenCancelled() {
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
+            0.3f
+        );
+        retriever.doRewrite(getQueryRewriteContext());
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = getTestSearchHits();
+        docs.add(hits);
+
+        expectThrows(TaskCancelledException.class, () -> retriever.combineInnerRetrieverResults(docs, false, () -> {
+            throw new TaskCancelledException("cancelled");
+        }));
 
         cleanDocsAndHits(docs, hits);
     }

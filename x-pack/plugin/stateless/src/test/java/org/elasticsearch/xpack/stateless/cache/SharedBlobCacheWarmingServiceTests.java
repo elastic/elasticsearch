@@ -68,11 +68,13 @@ import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -97,6 +99,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -436,7 +439,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
                             LongFunction<BlobContainer> blobContainer,
-                            BccBlob bccBlob,
+                            Blob blob,
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
                             LongConsumer totalBytesReadFromIndexing,
@@ -446,8 +449,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             boolean speculativeFill
                         ) {
                             return new ObjectStoreCacheBlobReader(
-                                blobContainer.apply(bccBlob.primaryTerm()),
-                                bccBlob.blobName(),
+                                blobContainer.apply(blob.primaryTerm()),
+                                blob.blobName(),
                                 cacheService.getRangeSize(),
                                 objectStoreFetchExecutor
                             ) {
@@ -586,7 +589,14 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             BatchedCompoundCommit latestBcc = uploadBccs(fakeNode, primaryTerm, randomIntBetween(2, 3));
 
             var lastCommit = latestBcc.lastCompoundCommit();
-            var lastCommitBlobFiles = lastCommit.getBlobFiles();
+            final Set<BccBlob> lastCommitBlobFiles = new HashSet<>();
+            for (Blob blob : lastCommit.getBlobs()) {
+                // TODO(merge-blobs) Ignoring merge blobs here until the feature is fully supported
+                if (blob instanceof BccBlob bccBlob) {
+                    lastCommitBlobFiles.add(bccBlob);
+                }
+            }
+
             assertThat(lastCommitBlobFiles.toString(), lastCommitBlobFiles.size(), greaterThan(1));
             var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
             var indexShard = mockIndexShard(fakeNode);
@@ -1323,7 +1333,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
-                        BccBlob bccBlob,
+                        Blob blob,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer totalBytesReadFromObjectStore,
                         LongConsumer totalBytesReadFromIndexing,
@@ -1333,8 +1343,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         boolean speculativeFill
                     ) {
                         return new ObjectStoreCacheBlobReader(
-                            blobContainer.apply(bccBlob.primaryTerm()),
-                            bccBlob.blobName(),
+                            blobContainer.apply(blob.primaryTerm()),
+                            blob.blobName(),
                             cacheService.getRangeSize(),
                             objectStoreFetchExecutor
                         );
@@ -1466,7 +1476,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
                             LongFunction<BlobContainer> blobContainer,
-                            BccBlob bccBlob,
+                            Blob blob,
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
                             LongConsumer totalBytesReadFromIndexing,
@@ -1476,8 +1486,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             boolean speculativeFill
                         ) {
                             return new ObjectStoreCacheBlobReader(
-                                blobContainer.apply(bccBlob.primaryTerm()),
-                                bccBlob.blobName(),
+                                blobContainer.apply(blob.primaryTerm()),
+                                blob.blobName(),
                                 cacheService.getRangeSize(),
                                 objectStoreFetchExecutor
                             ) {
@@ -2355,7 +2365,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
                             LongFunction<BlobContainer> blobContainer,
-                            BccBlob bccBlob,
+                            Blob blob,
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
                             LongConsumer totalBytesReadFromIndexing,
@@ -2365,8 +2375,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             boolean speculativeFill
                         ) {
                             return new ObjectStoreCacheBlobReader(
-                                blobContainer.apply(bccBlob.primaryTerm()),
-                                bccBlob.blobName(),
+                                blobContainer.apply(blob.primaryTerm()),
+                                blob.blobName(),
                                 cacheService.getRangeSize(),
                                 objectStoreFetchExecutor
                             );
@@ -2556,7 +2566,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
                             LongFunction<BlobContainer> blobContainer,
-                            BccBlob bccBlob,
+                            Blob blob,
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
                             LongConsumer totalBytesReadFromIndexing,
@@ -2566,8 +2576,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             boolean speculativeFill
                         ) {
                             return new ObjectStoreCacheBlobReader(
-                                blobContainer.apply(bccBlob.primaryTerm()),
-                                bccBlob.blobName(),
+                                blobContainer.apply(blob.primaryTerm()),
+                                blob.blobName(),
                                 cacheService.getRangeSize(),
                                 objectStoreFetchExecutor
                             );
@@ -2725,7 +2735,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             vbcc.freeze();
 
             final StatelessCompoundCommit lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
-            final var timestampRange = new StatelessCompoundCommit.TimestampFieldValueRange(knownTimestamp, knownTimestamp);
+            final var timestampRange = new TimestampFieldValueRange(knownTimestamp, knownTimestamp);
             final Map<String, BlobFileRanges> timestampOverride = new HashMap<>();
             // Artificially stamp every file in the recovered commit with the same known timestamp so we can assert deterministically.
             for (var entry : lastCommit.commitFiles().entrySet()) {
@@ -3419,18 +3429,21 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final var lastCommit = uploadBccs(fakeNode, primaryTerm, 1).lastCompoundCommit();
             final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
 
+            final Set<BccBlob> lastCommitBlobFiles = new HashSet<>();
+            for (Blob blob : lastCommit.getBlobs()) {
+                // TODO(merge-blobs) Ignoring merge blobs here until the feature is fully supported
+                if (blob instanceof BccBlob bccBlob) {
+                    lastCommitBlobFiles.add(bccBlob);
+                }
+            }
+
             final var releaseShardRead = blockShardReadPool(fakeNode);
             try {
                 final var readFuture = readReferencedCompoundCommitsOnGeneric(fakeNode, lastCommit, directory);
                 assertBusy(() -> assertThat(queuedShardReadTasks(fakeNode.threadPool), greaterThan(0L)));
 
                 final var warmFuture = new PlainActionFuture<Void>();
-                fakeNode.warmingService.warmCacheForBCCHeadersRead(
-                    mockIndexShard(fakeNode),
-                    directory,
-                    lastCommit.getBlobFiles(),
-                    warmFuture
-                );
+                fakeNode.warmingService.warmCacheForBCCHeadersRead(mockIndexShard(fakeNode), directory, lastCommitBlobFiles, warmFuture);
                 assertThat(causedBy(expectThrows(AssertionError.class, () -> safeGet(warmFuture)), failure), is(true));
                 assertThat(causedBy(expectThrows(AssertionError.class, () -> safeGet(readFuture)), failure), is(true));
             } finally {
@@ -3534,7 +3547,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             safeGet(readReferencedCompoundCommitsOnGeneric(fakeNode, lastCommit, directory));
 
-            final long blobs = lastCommit.getBlobFiles().size();
+            final long blobs = lastCommit.getBlobs().size();
             assertBusy(() -> assertThat(completedShardReadTasks(fakeNode.threadPool) - completedBefore, equalTo(blobs)));
         }
     }

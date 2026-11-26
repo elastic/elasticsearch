@@ -13,6 +13,7 @@ import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
@@ -21,6 +22,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.license.License;
@@ -32,6 +35,8 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.cache.EvictionPolicyFactory;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.engine.MergedSegmentListener;
+import org.elasticsearch.xpack.stateless.engine.MergedSegmentWarmer;
 import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapBreaker;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
@@ -48,6 +53,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class StatelessPluginTests extends ESTestCase {
 
@@ -63,6 +69,29 @@ public class StatelessPluginTests extends ESTestCase {
 
     private static StatelessPlugin createStatelessPlugin(Settings settings) {
         return createStatelessPlugin(settings, randomBoolean() ? License.OperationMode.ENTERPRISE : License.OperationMode.TRIAL, true);
+    }
+
+    private static StatelessPlugin createStatelessPluginWithMergeBlobs(boolean mergeBlobsEnabled) {
+        return new StatelessPlugin(Settings.builder().put(STATELESS_ENABLED.getKey(), true).build()) {
+            @Override
+            protected boolean mergeBlobsEnabled() {
+                return mergeBlobsEnabled;
+            }
+        };
+    }
+
+    public void testMergedSegmentWarmerIsOnlyConfiguredWhenMergeBlobsAreEnabled() {
+        final var shardId = new ShardId(new Index(randomIdentifier(), UUIDs.randomBase64UUID()), between(0, 10));
+
+        assertThat(createStatelessPluginWithMergeBlobs(true).mergedSegmentWarmer(shardId), instanceOf(MergedSegmentWarmer.class));
+        assertNull(createStatelessPluginWithMergeBlobs(false).mergedSegmentWarmer(shardId));
+    }
+
+    public void testMergedSegmentListenerDoesNothingByDefault() {
+        final var plugin = createStatelessPluginWithMergeBlobs(true);
+        final var shardId = new ShardId(new Index(randomIdentifier(), UUIDs.randomBase64UUID()), between(0, 10));
+
+        assertSame(MergedSegmentListener.NOOP, plugin.mergedSegmentListener(shardId));
     }
 
     public void testValidLicense() throws Exception {

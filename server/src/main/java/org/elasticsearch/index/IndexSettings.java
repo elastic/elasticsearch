@@ -629,7 +629,7 @@ public final class IndexSettings {
     /**
      * Whether the BloomFilter of the _id field is enabled for indices whose mapping enables the data stream timestamp field.
      * Defaults to the value of {@link #BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME} on the node.
-     * Has no effect on time series indices, which always use the BloomFilter.
+     * Has no effect on time series indices, which use the BloomFilter unless {@link #BLOOM_FILTER_ID_FIELD_ENABLED_SETTING} disables it.
      */
     public static final Setting<Boolean> DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING = Setting.boolSetting(
         "index.data_stream.bloom_filter_for_id_field.enabled",

@@ -2,6 +2,9 @@
 navigation_title: "Parent"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-parent-aggregation.html
+applies_to:
+  stack: ga
+  serverless: unavailable
 ---
 
 # Parent aggregation [search-aggregations-bucket-parent-aggregation]

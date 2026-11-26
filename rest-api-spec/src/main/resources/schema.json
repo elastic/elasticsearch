@@ -138,10 +138,10 @@
             "type": "object",
             "additionalProperties": true,
             "propertyNames": {
-              "pattern": "^_?[a-z][a-z0-9]*?(_[a-z0-9]+)*$"
+              "pattern": "^_?[a-z][a-z0-9]*?(_[a-z0-9]+)*(\\[\\])?$"
             },
             "patternProperties": {
-                "^_?[a-z][a-z0-9]*?(_[a-z0-9]+)*$": {
+                "^_?[a-z][a-z0-9]*?(_[a-z0-9]+)*(\\[\\])?$": {
                     "$ref": "#/definitions/ParamPart"
                 }
             },

@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: [capabilities, allowed_warnings, allowed_warnings_regex, warnings_regex]
+      test_runner_features: [capabilities, allowed_warnings, allowed_warnings_regex, warnings, warnings_regex]
       capabilities:
         - method: POST
           path: /_query
@@ -101,6 +101,31 @@ setup:
           - { "@timestamp": "2024-01-01T00:00:23Z", "event": { "category": "process" }, "pid": 12 }
           - { "index": { "_id": "n12" } }
           - { "@timestamp": "2024-01-01T00:00:24Z", "event": { "category": "network" }, "pid": 12 }
+
+  - do:
+      indices.create:
+        index: eql_join_keys
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              event:
+                properties:
+                  category: { type: keyword }
+              pid: { type: long }
+              join_keys: { type: keyword }
+
+  - do:
+      bulk:
+        index: eql_join_keys
+        refresh: true
+        body:
+          - { "index": { "_id": "p1" } }
+          - { "@timestamp": "2024-01-01T00:00:01Z", "event": { "category": "process" }, "pid": 1, "join_keys": "mapped-p1" }
+          - { "index": { "_id": "n1" } }
+          - { "@timestamp": "2024-01-01T00:00:02Z", "event": { "category": "network" }, "pid": 1, "join_keys": "mapped-n1" }
 
 ---
 "Event query renders METADATA _source through the REST layer":
@@ -231,3 +256,122 @@ setup:
   - do:
       esql.delete_view:
         name: eql_process_view
+
+---
+"A mapped field named like a sequence column is shadowed by it":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [eql_command_errors_and_shadowed_fields, fn_json_extract]
+      reason: "the EQL command's column wins over a mapped field of the same name, with a warning"
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      warnings:
+        - "Line 1:1: Mapped field [join_keys] is shadowed by the EQL command's column of the same name; read it with FROM, or with JSON_EXTRACT on METADATA _source if the document stores it"
+      esql.query:
+        body:
+          query: 'EQL eql_join_keys "sequence by pid [process where true] [network where true]" METADATA _source WITH {"size": 1} | EVAL mapped = JSON_EXTRACT(_source, "join_keys") | KEEP _sequence_stage, join_keys, mapped | SORT _sequence_stage'
+  - match: { columns.1.name: join_keys }
+  - match: { columns.1.type: keyword }
+  - match: { values: [[0, "1", "mapped-p1"], [1, "1", "mapped-n1"]] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'EQL eql_join_keys "process where true" WITH {"size": 1} | KEEP join_keys'
+  - match: { columns.0.type: keyword }
+  - match: { values: [["mapped-p1"]] }
+
+---
+"An EQL view that shadows a mapped field warns with the view name":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_query/view
+          capabilities: [view_index_abstraction]
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [eql_command_errors_and_shadowed_fields]
+      reason: "the warning of an EQL source inside a view names the view, not the view definition"
+  - do:
+      esql.put_view:
+        name: eql_join_keys_view
+        body:
+          query: 'EQL eql_join_keys "sequence by pid [process where true] [network where true]" WITH {"size": 1}'
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      warnings:
+        - "Line 1:1 (in view [eql_join_keys_view]): Mapped field [join_keys] is shadowed by the EQL command's column of the same name; read it with FROM, or with JSON_EXTRACT on METADATA _source if the document stores it"
+      esql.query:
+        body:
+          query: 'FROM eql_join_keys_view | KEEP _sequence_stage, join_keys | SORT _sequence_stage'
+  - match: { values: [[0, "1"], [1, "1"]] }
+
+  - do:
+      esql.delete_view:
+        name: eql_join_keys_view
+
+---
+"A view is not a valid EQL target":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_query/view
+          capabilities: [view_index_abstraction]
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [eql_command_errors_and_shadowed_fields]
+      reason: "a view named as the EQL target gets its own error that points to FROM"
+  - do:
+      esql.put_view:
+        name: eql_target_view
+        body:
+          query: 'FROM eql_events'
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'EQL eql_target_view "process where true"'
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/.*Views.are.not.supported.in.EQL.command,.found.view\\(s\\).\\[eql_target_view\\];.use.FROM.eql_target_view.instead.*/" }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'EQL eql_events,eql_target_view "process where true"'
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/.*Views.are.not.supported.in.EQL.command,.found.view\\(s\\).\\[eql_target_view\\];.use.FROM.eql_target_view.instead.*/" }
+
+  - do:
+      esql.delete_view:
+        name: eql_target_view
+
+---
+"An error the EQL engine finds at run time is located in both queries":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [eql_command_errors_and_shadowed_fields]
+      reason: "an EQL engine error gives the EQL command's position and labels its own as in the EQL query"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'EQL eql_events "process where nope == 1"'
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/^line.1:1:.EQL.query.failed:.line.1:15.of.the.EQL.query:.Unknown.column.\\[nope\\].*/" }
+  - match: { error.root_cause.0.type: verification_exception }
+  - match: { error.root_cause.0.reason: "/^line.1:1:.EQL.query.failed:.line.1:15.of.the.EQL.query:.Unknown.column.\\[nope\\].*/" }

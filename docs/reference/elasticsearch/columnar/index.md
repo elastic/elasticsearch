@@ -289,7 +289,7 @@ Columnar `_source` is reconstructed from the values of mapped fields, over an [a
 :   [`nested`](/reference/elasticsearch/mapping-reference/nested.md) fields are not auto-flattened, so an array of nested objects is returned as an array of objects, with each object's values intact. Columnar modes support only a single level of nesting.
 
 **Unmapped content is dropped**
-:   Anything in a document that doesn't reach a mapped field is lost: fields skipped because of `dynamic: false`, subtrees under `enabled: false`, and dynamic fields skipped because a field limit was reached. Values that a mapped field accepts but can't index normally are still returned in `_source`.
+:   Anything in a document that doesn't reach a mapped field is lost: fields skipped because of `dynamic: false`, subtrees under `enabled: false`, and, with [`index.mapping.total_fields.ignore_dynamic_beyond_limit`](/reference/elasticsearch/index-settings/mapping-limit.md#ignore-dynamic-beyond-limit) enabled, dynamic fields skipped at the total fields limit, whose names are still added to [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md). Values that a mapped field accepts but can't index normally are still returned in `_source`.
 
 ::::{note}
 There's no way to opt a single field or object into keeping its original source. The `synthetic_source_keep` mapping parameter, the `index.mapping.synthetic_source_keep` index setting, and `store: true` are all rejected in columnar modes.
@@ -356,7 +356,7 @@ Without term statistics, a document scores one point for each query term it matc
 
 The following features are not supported in columnar index modes:
 
-- **Nested field type**: The [nested field type](/reference/elasticsearch/mapping-reference/nested.md) is supported in a limited fashion in the columnar index modes. Nesting of nested field types is not supported.
+- **Nested field type**: The [nested field type](/reference/elasticsearch/mapping-reference/nested.md) is supported in a limited fashion in the columnar index modes. Nesting of nested field types is not supported. {applies_to}`stack: preview 9.7` The `include_in_parent` and `include_in_root` parameters are rejected; indices created before 9.7 still accept them.
 - **Mapping-level runtime fields**: Defining runtime fields in the index mappings is rejected. Runtime fields can still be defined on individual search requests.
 - **Turning off doc values**:
   - {applies_to}`stack: preview 9.7` Doc values are always on, including for multi-fields. `doc_values: true` and `doc_values: false` are ignored and not stored in the mapping, and `doc_values: false` returns a deprecation warning.

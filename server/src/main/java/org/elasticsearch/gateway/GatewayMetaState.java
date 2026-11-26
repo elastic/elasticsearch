@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeMetadata;
@@ -50,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -199,9 +199,8 @@ public class GatewayMetaState implements Closeable {
                 persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
             } else {
                 persistedState = new AsyncPersistedState(
-                    settings,
-                    transportService.getThreadPool(),
-                    new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState)
+                    new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState),
+                    createAsyncPersistedStateExecutor(settings, transportService.getThreadPool())
                 );
             }
             if (DiscoveryNode.canContainData(settings)) {
@@ -378,42 +377,24 @@ public class GatewayMetaState implements Closeable {
         IOUtils.close(persistedState.get());
     }
 
-    // visible for testing
-    public boolean allPendingAsyncStatesWritten() {
-        final PersistedState ps = persistedState.get();
-        if (ps instanceof AsyncPersistedState) {
-            return ((AsyncPersistedState) ps).allPendingAsyncStatesWritten();
-        } else {
-            return true;
-        }
-    }
-
     static class AsyncPersistedState extends InMemoryPersistedState {
 
         private static final Logger logger = LogManager.getLogger(AsyncPersistedState.class);
 
         static final String THREAD_NAME = "AsyncLucenePersistedState#updateTask";
 
-        private final EsThreadPoolExecutor threadPoolExecutor;
         private final PersistedState persistedState;
+        private final ExecutorService threadPoolExecutor;
 
         boolean newCurrentTermQueued = false;
         boolean newStateQueued = false;
 
         private final Object mutex = new Object();
 
-        AsyncPersistedState(Settings settings, ThreadPool threadPool, PersistedState persistedState) {
+        AsyncPersistedState(PersistedState persistedState, ExecutorService threadPoolExecutor) {
             super(persistedState.getCurrentTerm(), persistedState.getLastAcceptedState());
-            final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
-            threadPoolExecutor = EsExecutors.newFixed(
-                nodeName + "/" + THREAD_NAME,
-                1,
-                1,
-                daemonThreadFactory(nodeName, THREAD_NAME),
-                threadPool.getThreadContext(),
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
-            );
             this.persistedState = persistedState;
+            this.threadPoolExecutor = threadPoolExecutor;
         }
 
         @Override
@@ -450,7 +431,6 @@ public class GatewayMetaState implements Closeable {
 
         private void scheduleUpdate() {
             assert Thread.holdsLock(mutex);
-            assert threadPoolExecutor.getQueue().isEmpty() : "threadPoolExecutor queue not empty";
             threadPoolExecutor.execute(new AbstractRunnable() {
 
                 @Override
@@ -512,19 +492,24 @@ public class GatewayMetaState implements Closeable {
         public void close() throws IOException {
             try {
                 ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
+                // doesn't matter if this drops a pending write on shutdown
             } finally {
                 persistedState.close();
             }
         }
+    }
 
-        boolean allPendingAsyncStatesWritten() {
-            synchronized (mutex) {
-                if (newCurrentTermQueued || newStateQueued) {
-                    return false;
-                }
-                return threadPoolExecutor.getActiveCount() == 0;
-            }
-        }
+    // exposed so it can be overridden by tests
+    ExecutorService createAsyncPersistedStateExecutor(Settings settings, ThreadPool threadPool) {
+        final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
+        return EsExecutors.newFixed(
+            nodeName + "/" + AsyncPersistedState.THREAD_NAME,
+            1,
+            1,
+            daemonThreadFactory(nodeName, AsyncPersistedState.THREAD_NAME),
+            threadPool.getThreadContext(),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
     }
 
     /**

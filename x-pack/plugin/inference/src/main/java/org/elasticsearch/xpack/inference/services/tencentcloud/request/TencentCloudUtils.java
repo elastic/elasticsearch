@@ -20,6 +20,7 @@ public final class TencentCloudUtils {
     private static final String HOST_SUFFIX = ".aisearch.tencentelasticsearch.com";
     public static final String VERSION_1 = "v1";
     public static final String EMBEDDINGS_PATH = "embeddings";
+    public static final String MULTIMODAL_EMBEDDINGS_PATH = "multimodal-embeddings";
     public static final String CHAT_COMPLETIONS_PATH_1 = "chat";
     public static final String CHAT_COMPLETIONS_PATH_2 = "completions";
     public static final String RERANK_PATH = "rerank";

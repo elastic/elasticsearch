@@ -7,17 +7,24 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.RerankRequest;
@@ -26,8 +33,12 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -48,15 +59,18 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.completion.Tencen
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsModelCreator;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudMultimodalModelLimits;
 import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankModelCreator;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
@@ -66,7 +80,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsu
 
 /**
  * Inference service integration for the TencentCloud AI Gateway (OpenAI-compatible), supporting {@code text_embedding},
- * {@code completion}, {@code chat_completion}, and {@code rerank} task types.
+ * {@code embedding}, {@code completion}, {@code chat_completion}, and {@code rerank} task types. The {@code embedding} task calls the
+ * multimodal embeddings API and accepts text, image and video inputs.
  */
 public class TencentCloudService extends SenderService<TencentCloudModel> implements RerankingInferenceService {
 
@@ -75,11 +90,24 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
 
     public static final TransportVersion TENCENT_CLOUD_INFERENCE_SERVICE_ADDED = TransportVersion.fromName("inference_tencentcloud_added");
 
+    private static final List<String> SUPPORTED_BASE64_IMAGE_PREFIXES = List.of(
+        "data:image/png;base64,",
+        "data:image/jpeg;base64,",
+        "data:image/gif;base64,",
+        "data:image/webp;base64,"
+    );
+    private static final String SUPPORTED_BASE64_VIDEO_PREFIX = "data:video/mp4;base64,";
+
+    public static final TransportVersion TENCENT_CLOUD_EMBEDDING_TASK_ADDED = TransportVersion.fromName(
+        "tencentcloud_embedding_task_added"
+    );
+
     // Batch limit for embedding chunking. TencentCloud AI Gateway does not document a hard cap; use a conservative value.
     private static final int EMBEDDING_MAX_BATCH_SIZE = 32;
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
+        TaskType.EMBEDDING,
         TaskType.COMPLETION,
         TaskType.CHAT_COMPLETION,
         TaskType.RERANK
@@ -98,11 +126,16 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
 
     private static final Map<TaskType, ModelCreator<? extends TencentCloudModel>> MODEL_CREATORS = initModelCreators();
 
+    private final ClusterService clusterService;
+
     private static Map<TaskType, ModelCreator<? extends TencentCloudModel>> initModelCreators() {
+        var embeddingsCreator = new TencentCloudEmbeddingsModelCreator();
         var completionCreator = new TencentCloudChatCompletionModelCreator();
         return Map.of(
             TaskType.TEXT_EMBEDDING,
-            new TencentCloudEmbeddingsModelCreator(),
+            embeddingsCreator,
+            TaskType.EMBEDDING,
+            embeddingsCreator,
             TaskType.COMPLETION,
             completionCreator,
             TaskType.CHAT_COMPLETION,
@@ -138,6 +171,36 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
      */
     public TencentCloudService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
         super(factory, serviceComponents, clusterService, MODEL_CREATORS);
+        this.clusterService = clusterService;
+    }
+
+    /**
+     * Parses the configuration of a new endpoint. An {@code embedding} endpoint is only created once every node in the cluster can
+     * read its settings.
+     */
+    @Override
+    public void parseRequestConfig(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        ActionListener<Model> parsedModelListener
+    ) {
+        if (taskType == TaskType.EMBEDDING
+            && clusterService.state().getMinTransportVersion().supports(TENCENT_CLOUD_EMBEDDING_TASK_ADDED) == false) {
+            parsedModelListener.onFailure(
+                new ElasticsearchStatusException(
+                    Strings.format(
+                        "All nodes in the cluster are not aware of the [%s] task type of the [%s] service. "
+                            + "Wait for the cluster to finish upgrading and try again.",
+                        TaskType.EMBEDDING,
+                        NAME
+                    ),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
+        super.parseRequestConfig(inferenceEntityId, taskType, config, parsedModelListener);
     }
 
     @Override
@@ -225,6 +288,122 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
     }
 
     /**
+     * Performs multimodal embedding inference for a TencentCloud {@code embedding} model. The inputs are split into batches that fit
+     * the per-request limits of the model, the batches are sent concurrently, and the embeddings are returned in input order.
+     *
+     * @param model the model to run inference against
+     * @param request the embedding request
+     * @param timeout the request timeout
+     * @param listener the listener to notify with results or failure
+     */
+    @Override
+    protected void doEmbeddingInfer(
+        Model model,
+        EmbeddingRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (model instanceof TencentCloudEmbeddingsModel embeddingsModel && model.getTaskType() == TaskType.EMBEDDING) {
+            var unsupportedInputError = findUnsupportedEmbeddingInput(request.inputs());
+            if (unsupportedInputError != null) {
+                listener.onFailure(new ElasticsearchStatusException(unsupportedInputError, RestStatus.BAD_REQUEST));
+                return;
+            }
+
+            var actionCreator = new TencentCloudActionCreator(getSender(), getServiceComponents());
+            var action = embeddingsModel.accept(actionCreator, request.taskSettings());
+            executeMultimodalEmbeddings(embeddingsModel, action, request.inputs(), request.inputType(), timeout, listener);
+            return;
+        }
+
+        listener.onFailure(createInvalidModelException(model));
+    }
+
+    /**
+     * Splits the inputs into batches that fit the per-request limits of the model, sends the batches concurrently, and returns the
+     * embeddings in input order.
+     */
+    private static void executeMultimodalEmbeddings(
+        TencentCloudEmbeddingsModel model,
+        ExecutableAction action,
+        List<InferenceStringGroup> inputs,
+        @Nullable InputType inputType,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        var batches = TencentCloudMultimodalModelLimits.forModel(model.getServiceSettings().modelId()).partition(inputs);
+        var batchResults = new AtomicReferenceArray<InferenceServiceResults>(batches.size());
+        try (var refs = new RefCountingListener(listener.map(ignored -> mergeEmbeddingResults(batchResults)))) {
+            for (int i = 0; i < batches.size(); i++) {
+                int batchIndex = i;
+                action.execute(
+                    new EmbeddingsInput(batches.get(i), inputType),
+                    timeout,
+                    refs.acquire(results -> batchResults.set(batchIndex, results))
+                );
+            }
+        }
+    }
+
+    /**
+     * Returns an error message for the first input the multimodal embeddings API cannot accept, or {@code null} if all inputs are
+     * supported.
+     */
+    @Nullable
+    static String findUnsupportedEmbeddingInput(List<InferenceStringGroup> inputs) {
+        for (int i = 0; i < inputs.size(); i++) {
+            var input = inputs.get(i).value();
+            var isBase64 = input.dataFormat() == DataFormat.BASE64;
+            switch (input.dataType()) {
+                case TEXT -> {
+                }
+                case IMAGE -> {
+                    if (isBase64 && SUPPORTED_BASE64_IMAGE_PREFIXES.stream().noneMatch(input.value()::startsWith)) {
+                        return Strings.format(
+                            "The %s service only supports base64 images of type [png, jpeg, gif, webp], found an unsupported image at "
+                                + "$.%s[%d]",
+                            NAME,
+                            EmbeddingRequest.INPUT_FIELD,
+                            i
+                        );
+                    }
+                }
+                case VIDEO -> {
+                    if (isBase64 && input.value().startsWith(SUPPORTED_BASE64_VIDEO_PREFIX) == false) {
+                        return Strings.format(
+                            "The %s service only supports base64 videos of type [mp4], found an unsupported video at $.%s[%d]",
+                            NAME,
+                            EmbeddingRequest.INPUT_FIELD,
+                            i
+                        );
+                    }
+                }
+                default -> {
+                    return Strings.format(
+                        "The %s service does not support [%s] inputs, found at $.%s[%d]",
+                        NAME,
+                        input.dataType(),
+                        EmbeddingRequest.INPUT_FIELD,
+                        i
+                    );
+                }
+            }
+        }
+        return null;
+    }
+
+    static InferenceServiceResults mergeEmbeddingResults(AtomicReferenceArray<InferenceServiceResults> batchResults) {
+        if (batchResults.length() == 1) {
+            return batchResults.get(0);
+        }
+        List<EmbeddingFloatResults.Embedding> embeddings = new ArrayList<>();
+        for (int i = 0; i < batchResults.length(); i++) {
+            embeddings.addAll(((GenericDenseEmbeddingFloatResults) batchResults.get(i)).embeddings());
+        }
+        return new GenericDenseEmbeddingFloatResults(embeddings);
+    }
+
+    /**
      * Performs rerank inference for a TencentCloud rerank model by creating an executable action via the
      * {@link TencentCloudActionCreator} and executing it.
      *
@@ -270,6 +449,14 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         }
 
         var embeddingsModel = (TencentCloudEmbeddingsModel) model;
+        var isMultimodal = model.getTaskType() == TaskType.EMBEDDING;
+        if (isMultimodal) {
+            var unsupportedInputError = findUnsupportedEmbeddingInput(ChunkInferenceInput.inputs(inputs));
+            if (unsupportedInputError != null) {
+                listener.onFailure(new ElasticsearchStatusException(unsupportedInputError, RestStatus.BAD_REQUEST));
+                return;
+            }
+        }
         var actionCreator = new TencentCloudActionCreator(getSender(), getServiceComponents());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
@@ -280,16 +467,29 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
 
         for (var request : batchedRequests) {
             var action = embeddingsModel.accept(actionCreator, taskSettings);
-            action.execute(
-                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
-                timeout,
-                request.listener()
-            );
+            if (isMultimodal) {
+                // A chunk batch can exceed the per-modality limits or mix base64 and URL inputs, so split it further
+                executeMultimodalEmbeddings(
+                    embeddingsModel,
+                    action,
+                    request.batch().inputs().get(),
+                    inputType,
+                    timeout,
+                    request.listener()
+                );
+            } else {
+                action.execute(
+                    new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                    timeout,
+                    request.listener()
+                );
+            }
         }
     }
 
     /**
-     * Validates that the input type is permitted for TencentCloud models.
+     * Validates that the input type is permitted for TencentCloud models. Only the {@code embedding} task accepts input types other
+     * than unspecified or internal ones.
      *
      * @param inputType the input type to validate
      * @param model the model the inference is run against
@@ -297,7 +497,10 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
      */
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
-        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
+        // The embedding task maps every input type to a prompt name
+        if (model.getTaskType() != TaskType.EMBEDDING) {
+            ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
+        }
     }
 
     /**
@@ -322,6 +525,11 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
             return new TencentCloudEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         }
         throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+    }
+
+    @Override
+    public boolean supportsNonTextEmbeddingContent() {
+        return true;
     }
 
     @Override
@@ -370,7 +578,8 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
                 configurationMap.put(
                     MODEL_ID,
                     new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "The name of the model to use for the inference task, e.g. bge-m3 (embeddings),"
+                        "The name of the model to use for the inference task, e.g. bge-m3 (text embeddings),"
+                            + " WeMM-Embedding-2B (multimodal embeddings),"
                             + " deepseek-v3 (chat/completions), bge-reranker-v2-m3 (rerank)."
                             + " The gateway supports additional models; check the TencentCloud AI Gateway documentation for the full list."
                     )

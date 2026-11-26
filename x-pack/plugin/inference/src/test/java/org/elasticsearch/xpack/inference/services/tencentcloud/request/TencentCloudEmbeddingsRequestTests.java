@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudTextEmbeddingServiceSettings;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -82,7 +82,7 @@ public class TencentCloudEmbeddingsRequestTests extends ESTestCase {
     }
 
     private static TencentCloudEmbeddingsRequest createRequest(String region) {
-        var serviceSettings = new TencentCloudEmbeddingsServiceSettings(
+        var serviceSettings = new TencentCloudTextEmbeddingServiceSettings(
             MODEL_ID,
             region,
             new RateLimitSettings(20),

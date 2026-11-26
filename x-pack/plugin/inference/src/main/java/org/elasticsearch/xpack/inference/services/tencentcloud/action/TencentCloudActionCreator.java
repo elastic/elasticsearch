@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.action;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
@@ -21,15 +26,20 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudMultimodalResponseHandler;
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudResponseHandler;
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudMultimodalModelLimits;
 import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudMultimodalEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudRerankRequest;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankModel;
+import org.elasticsearch.xpack.inference.services.tencentcloud.response.TencentCloudMultimodalEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.tencentcloud.response.TencentCloudRerankResponseEntity;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -48,6 +58,11 @@ public class TencentCloudActionCreator implements TencentCloudActionVisitor {
     private static final ResponseHandler EMBEDDINGS_HANDLER = new TencentCloudResponseHandler(
         "tencentcloud text embedding",
         OpenAiEmbeddingsResponseEntity::fromResponse
+    );
+
+    private static final ResponseHandler MULTIMODAL_EMBEDDINGS_HANDLER = new TencentCloudMultimodalResponseHandler(
+        "tencentcloud multimodal embedding",
+        TencentCloudMultimodalEmbeddingsResponseEntity::fromResponse
     );
 
     private static final ResponseHandler RERANK_HANDLER = new TencentCloudResponseHandler(
@@ -83,7 +98,10 @@ public class TencentCloudActionCreator implements TencentCloudActionVisitor {
      */
     @Override
     public ExecutableAction create(TencentCloudEmbeddingsModel model, Map<String, Object> taskSettings) {
-        // TencentCloud embeddings define no task settings, so there is nothing to merge into the model here.
+        if (model.getTaskType() == TaskType.EMBEDDING) {
+            return createMultimodalEmbeddingsAction(TencentCloudEmbeddingsModel.of(model, taskSettings));
+        }
+        // The text_embedding task defines no task settings, so there is nothing to merge into the model here.
         var requestManager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
             model,
@@ -92,6 +110,45 @@ public class TencentCloudActionCreator implements TencentCloudActionVisitor {
             EmbeddingsInput.class
         );
         return new SenderExecutableAction(sender, requestManager, constructFailedToSendRequestMessage("TencentCloud embeddings"));
+    }
+
+    private ExecutableAction createMultimodalEmbeddingsAction(TencentCloudEmbeddingsModel model) {
+        var limits = TencentCloudMultimodalModelLimits.forModel(model.getServiceSettings().modelId());
+        var requestManager = new GenericRequestManager<>(
+            serviceComponents.threadPool(),
+            model,
+            MULTIMODAL_EMBEDDINGS_HANDLER,
+            (embeddingsInput) -> new TencentCloudMultimodalEmbeddingsRequest(
+                truncateTexts(
+                    InferenceStringGroup.toInferenceStringList(embeddingsInput.getInputs()),
+                    model.getServiceSettings().maxInputTokens()
+                ),
+                limits.supportsPromptName() ? model.getMultimodalTaskSettings().resolvePromptName(embeddingsInput.getInputType()) : null,
+                model
+            ),
+            EmbeddingsInput.class
+        );
+        return new SenderExecutableAction(
+            sender,
+            requestManager,
+            constructFailedToSendRequestMessage("TencentCloud multimodal embeddings")
+        );
+    }
+
+    /**
+     * Truncates the text inputs to {@code max_input_tokens}. Image and video inputs are returned unchanged.
+     */
+    static List<InferenceString> truncateTexts(List<InferenceString> inputs, @Nullable Integer maxInputTokens) {
+        if (maxInputTokens == null) {
+            return inputs;
+        }
+        return inputs.stream()
+            .map(
+                input -> input.isText()
+                    ? InferenceString.ofText(Truncator.truncate(List.of(input.value()), maxInputTokens).input().getFirst())
+                    : input
+            )
+            .toList();
     }
 
     /**

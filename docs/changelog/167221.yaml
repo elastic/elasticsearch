@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 167221
+summary: Add support for the embedding task to the TencentCloud inference service, with text, image and video inputs.
+type: enhancement

@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -20,12 +21,13 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudServi
 import org.elasticsearch.xpack.inference.services.tencentcloud.action.TencentCloudActionVisitor;
 import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudUtils;
 
+import java.net.URI;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Represents a TencentCloud embeddings model for inference.
- * This class extends the {@link TencentCloudModel} and provides specific configurations and settings for text
- * embedding tasks against the TencentCloud AI Gateway.
+ * Model for the TencentCloud {@code text_embedding} task, which calls {@code /v1/embeddings}, and the {@code embedding} task, which
+ * calls {@code /v1/multimodal-embeddings}.
  */
 public class TencentCloudEmbeddingsModel extends TencentCloudModel {
 
@@ -33,7 +35,8 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
      * Constructor for creating a TencentCloudEmbeddingsModel from raw configuration maps.
      *
      * @param inferenceId the unique identifier for the inference entity
-     * @param serviceSettings the raw service settings map, specific to embeddings
+     * @param taskType the task type, either {@code text_embedding} or {@code embedding}
+     * @param serviceSettings the raw service settings map
      * @param taskSettings the raw task settings map for the embeddings request
      * @param chunkingSettings the chunking settings for processing input data
      * @param secrets the raw secret settings map for the model, such as the API key (may be null)
@@ -41,6 +44,7 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
      */
     public TencentCloudEmbeddingsModel(
         String inferenceId,
+        TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
@@ -49,40 +53,70 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
     ) {
         this(
             inferenceId,
-            TencentCloudEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            TencentCloudEmbeddingsTaskSettings.fromMap(taskSettings),
+            taskType,
+            createServiceSettings(serviceSettings, taskType, context),
+            createTaskSettings(taskSettings, taskType),
             chunkingSettings,
             DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
     /**
+     * Constructor for creating a {@code text_embedding} TencentCloudEmbeddingsModel with typed parameters.
+     */
+    public TencentCloudEmbeddingsModel(
+        String inferenceId,
+        TencentCloudTextEmbeddingServiceSettings serviceSettings,
+        TencentCloudEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
+        @Nullable DefaultSecretSettings secretSettings
+    ) {
+        this(inferenceId, TaskType.TEXT_EMBEDDING, serviceSettings, taskSettings, chunkingSettings, secretSettings);
+    }
+
+    /**
      * Constructor for creating a TencentCloudEmbeddingsModel with typed parameters.
      *
      * @param inferenceId the unique identifier for the inference entity
-     * @param serviceSettings the service settings specific to embeddings
+     * @param taskType the task type, either {@code text_embedding} or {@code embedding}
+     * @param serviceSettings the service settings matching the task type
      * @param taskSettings the task settings for the embeddings request
      * @param chunkingSettings the chunking settings for processing input data
      * @param secretSettings the secret settings for the model, such as the API key (may be null)
      */
     public TencentCloudEmbeddingsModel(
         String inferenceId,
-        TencentCloudEmbeddingsServiceSettings serviceSettings,
-        TencentCloudEmbeddingsTaskSettings taskSettings,
+        TaskType taskType,
+        BaseTencentCloudEmbeddingsServiceSettings serviceSettings,
+        TaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
+        this(
+            inferenceId,
+            taskType,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            resolveUri(taskType, serviceSettings.region())
+        );
+    }
+
+    // should only be used directly for testing
+    public TencentCloudEmbeddingsModel(
+        String inferenceId,
+        TaskType taskType,
+        BaseTencentCloudEmbeddingsServiceSettings serviceSettings,
+        TaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
+        @Nullable DefaultSecretSettings secretSettings,
+        URI uri
+    ) {
         super(
-            new ModelConfigurations(
-                inferenceId,
-                TaskType.TEXT_EMBEDDING,
-                TencentCloudService.NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings
-            ),
+            new ModelConfigurations(inferenceId, taskType, TencentCloudService.NAME, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
-            resolveUri(serviceSettings)
+            uri
         );
     }
 
@@ -93,7 +127,11 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
      * @param secrets the secret settings for the model
      */
     public TencentCloudEmbeddingsModel(ModelConfigurations config, ModelSecrets secrets) {
-        super(config, secrets, resolveUri((TencentCloudEmbeddingsServiceSettings) config.getServiceSettings()));
+        super(
+            config,
+            secrets,
+            resolveUri(config.getTaskType(), ((BaseTencentCloudEmbeddingsServiceSettings) config.getServiceSettings()).region())
+        );
     }
 
     /**
@@ -102,28 +140,50 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
      * @param model the base TencentCloudEmbeddingsModel to copy properties from
      * @param serviceSettings the new service settings to apply
      */
-    public TencentCloudEmbeddingsModel(TencentCloudEmbeddingsModel model, TencentCloudEmbeddingsServiceSettings serviceSettings) {
+    public TencentCloudEmbeddingsModel(TencentCloudEmbeddingsModel model, BaseTencentCloudEmbeddingsServiceSettings serviceSettings) {
         super(model, serviceSettings);
+    }
+
+    private TencentCloudEmbeddingsModel(TencentCloudEmbeddingsModel model, TencentCloudMultimodalEmbeddingsTaskSettings taskSettings) {
+        super(model, taskSettings);
+    }
+
+    /**
+     * Returns a copy of the model with the request task settings applied. Only the {@code embedding} task has task settings; the
+     * request task settings of a {@code text_embedding} model are ignored.
+     *
+     * @param model the model to copy
+     * @param taskSettings the request task settings
+     * @return the model to run the request with
+     */
+    public static TencentCloudEmbeddingsModel of(TencentCloudEmbeddingsModel model, @Nullable Map<String, Object> taskSettings) {
+        if (model.getTaskType() != TaskType.EMBEDDING || taskSettings == null || taskSettings.isEmpty()) {
+            return model;
+        }
+        var requestTaskSettings = TencentCloudMultimodalEmbeddingsTaskSettings.fromMap(new HashMap<>(taskSettings));
+        return new TencentCloudEmbeddingsModel(
+            model,
+            TencentCloudMultimodalEmbeddingsTaskSettings.of(model.getMultimodalTaskSettings(), requestTaskSettings)
+        );
     }
 
     /**
      * Returns the service settings specific to TencentCloud embeddings.
      *
-     * @return the TencentCloudEmbeddingsServiceSettings associated with this model
+     * @return the embeddings service settings associated with this model
      */
     @Override
-    public TencentCloudEmbeddingsServiceSettings getServiceSettings() {
-        return (TencentCloudEmbeddingsServiceSettings) super.getServiceSettings();
+    public BaseTencentCloudEmbeddingsServiceSettings getServiceSettings() {
+        return (BaseTencentCloudEmbeddingsServiceSettings) super.getServiceSettings();
     }
 
     /**
-     * Returns the task settings specific to TencentCloud embeddings.
+     * Returns the task settings of an {@code embedding} model.
      *
-     * @return the TencentCloudEmbeddingsTaskSettings associated with this model
+     * @return the TencentCloudMultimodalEmbeddingsTaskSettings associated with this model
      */
-    @Override
-    public TencentCloudEmbeddingsTaskSettings getTaskSettings() {
-        return (TencentCloudEmbeddingsTaskSettings) super.getTaskSettings();
+    public TencentCloudMultimodalEmbeddingsTaskSettings getMultimodalTaskSettings() {
+        return (TencentCloudMultimodalEmbeddingsTaskSettings) super.getTaskSettings();
     }
 
     /**
@@ -138,7 +198,27 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
         return visitor.create(this, taskSettings);
     }
 
-    private static java.net.URI resolveUri(TencentCloudEmbeddingsServiceSettings serviceSettings) {
-        return TencentCloudUtils.buildUri(serviceSettings.region(), TencentCloudUtils.VERSION_1, TencentCloudUtils.EMBEDDINGS_PATH);
+    private static BaseTencentCloudEmbeddingsServiceSettings createServiceSettings(
+        Map<String, Object> serviceSettings,
+        TaskType taskType,
+        ConfigurationParseContext context
+    ) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> TencentCloudTextEmbeddingServiceSettings.fromMap(serviceSettings, context);
+            case EMBEDDING -> TencentCloudEmbeddingServiceSettings.fromMap(serviceSettings, context);
+            default -> throw new IllegalArgumentException("Unsupported task type for TencentCloud embeddings: " + taskType);
+        };
+    }
+
+    private static TaskSettings createTaskSettings(Map<String, Object> taskSettings, TaskType taskType) {
+        // text_embedding has no task settings and leaves the map untouched, so request parsing rejects any key
+        return taskType == TaskType.EMBEDDING
+            ? TencentCloudMultimodalEmbeddingsTaskSettings.fromMap(taskSettings)
+            : TencentCloudEmbeddingsTaskSettings.fromMap(taskSettings);
+    }
+
+    private static URI resolveUri(TaskType taskType, String region) {
+        var path = taskType == TaskType.EMBEDDING ? TencentCloudUtils.MULTIMODAL_EMBEDDINGS_PATH : TencentCloudUtils.EMBEDDINGS_PATH;
+        return TencentCloudUtils.buildUri(region, TencentCloudUtils.VERSION_1, path);
     }
 }

@@ -21,7 +21,12 @@ import org.junit.Before;
 import org.junit.runner.Description;
 import org.junit.runner.manipulation.Filter;
 import org.junit.runner.manipulation.NoTestsRemainException;
+import org.junit.runner.notification.Failure;
+import org.junit.runner.notification.RunListener;
+import org.junit.runner.notification.RunNotifier;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -62,6 +67,27 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
         public void testOne() {}
 
         public void testTwo() {}
+    }
+
+    @TestMethodProviders({ JUnit3MethodProvider.class })
+    public static class FailingFixture {
+
+        public FailingFixture(@Name("p") String p) {}
+
+        @ParametersFactory
+        public static Iterable<Object[]> parameters() {
+            return List.of(new Object[] { "a" }, new Object[] { "b" });
+        }
+
+        public void testPasses() {}
+
+        public void testFails() {
+            Assert.fail("expected");
+        }
+
+        public void testAssumptionFails() {
+            Assume.assumeTrue(false);
+        }
     }
 
     @TestMethodProviders({ JUnit3MethodProvider.class })
@@ -223,6 +249,56 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
         assertThat(runner.getDescription().getChildren().size(), equalTo(3));
         for (Description child : runner.getDescription().getChildren()) {
             Assert.assertTrue(child.isTest());
+        }
+    }
+
+    /** Every event {@link RandomizedRunner} fires must be about the suite or a test of the flat description the engine discovered. */
+    public void testRunEventsOnlyUseDescriptionsOfTheFlatTree() throws Exception {
+        ESRandomizedRunner runner = new ESRandomizedRunner(FailingFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
+        Description root = runner.getDescription();
+        Set<Description> known = new HashSet<>(root.getChildren());
+        known.add(root);
+        List<Description> fired = new ArrayList<>();
+        List<Failure> failures = new ArrayList<>();
+        RunNotifier notifier = new RunNotifier();
+        notifier.addListener(new RunListener() {
+            @Override
+            public void testSuiteStarted(Description description) {
+                fired.add(description);
+            }
+
+            @Override
+            public void testSuiteFinished(Description description) {
+                fired.add(description);
+            }
+
+            @Override
+            public void testStarted(Description description) {
+                fired.add(description);
+            }
+
+            @Override
+            public void testFinished(Description description) {
+                fired.add(description);
+            }
+
+            @Override
+            public void testFailure(Failure failure) {
+                fired.add(failure.getDescription());
+                failures.add(failure);
+            }
+
+            @Override
+            public void testAssumptionFailure(Failure failure) {
+                fired.add(failure.getDescription());
+            }
+        });
+
+        runner.run(notifier);
+
+        assertThat(failures.size(), equalTo(2));
+        for (Description description : fired) {
+            Assert.assertTrue("unknown description " + description, known.contains(description));
         }
     }
 

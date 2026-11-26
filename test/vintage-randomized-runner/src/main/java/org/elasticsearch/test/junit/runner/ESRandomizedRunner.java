@@ -92,26 +92,29 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
 
     @Override
     public void filter(Filter filter) throws NoTestsRemainException {
-        flatDescription = null;
-        if (filter.getClass().getName().startsWith(vintageFilterClassNamePrefix) == false) {
-            delegate.filter(filter);
-            return;
-        }
-        Set<Description> accepted = new HashSet<>();
-        collectAccepted(delegate.getDescription(), filter, accepted);
-        delegate.filter(new Filter() {
-            @Override
-            public boolean shouldRun(Description description) {
-                // The simplified (method name only) descriptions RandomizedRunner also asks about are not leaves of the
-                // description tree for parameterized tests, so they are never accepted here.
-                return accepted.contains(description);
+        try {
+            if (filter.getClass().getName().startsWith(vintageFilterClassNamePrefix) == false) {
+                delegate.filter(filter);
+                return;
             }
+            Set<Description> accepted = new HashSet<>();
+            collectAccepted(delegate.getDescription(), filter, accepted);
+            delegate.filter(new Filter() {
+                @Override
+                public boolean shouldRun(Description description) {
+                    // The simplified (method name only) descriptions RandomizedRunner also asks about are not leaves of the
+                    // description tree for parameterized tests, so they are never accepted here.
+                    return accepted.contains(description);
+                }
 
-            @Override
-            public String describe() {
-                return filter.describe();
-            }
-        });
+                @Override
+                public String describe() {
+                    return filter.describe();
+                }
+            });
+        } finally {
+            flatDescription = null;
+        }
     }
 
     private static void collectAccepted(Description description, Filter filter, Set<Description> accepted) {

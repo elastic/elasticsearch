@@ -39,6 +39,28 @@ public final class Utf8Sanitizer {
     /** Mask selecting the high bit of every byte in a {@code long}; a zero result means all-ASCII. */
     private static final long ASCII_MASK = 0x8080808080808080L;
 
+    /** ASCII skip block: eight little-endian {@code long} loads, one mask test. */
+    private static final int ASCII_BLOCK_BYTES = 64;
+
+    /**
+     * Advances {@code i} past consecutive 64-byte all-ASCII blocks. On the first block that contains a
+     * non-ASCII byte, returns {@code i} at that block's start (does not skip it) so the caller can
+     * resume at the current offset — including mid-block after a 2-byte/3-byte run.
+     */
+    private static int skipAsciiBlocks(byte[] bytes, int i, int end) {
+        while (end - i >= ASCII_BLOCK_BYTES) {
+            long acc = (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i + 8)
+                | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i + 16) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i + 24)
+                | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i + 32) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i + 40)
+                | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i + 48) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i + 56);
+            if ((acc & ASCII_MASK) != 0) {
+                return i;
+            }
+            i += ASCII_BLOCK_BYTES;
+        }
+        return i;
+    }
+
     /**
      * Advances {@code i} past a maximal run of all-ASCII 8-byte words, stopping at the first word
      * containing a non-ASCII byte or at {@code wordEnd} (the exclusive bound past which an 8-byte read
@@ -53,31 +75,175 @@ public final class Utf8Sanitizer {
 
     /**
      * Allocation-free scan reporting whether {@code [off, off+len)} is well-formed UTF-8.
+     * <p>
+     * Long ASCII runs skip 64-byte blocks (eight {@code long} loads, one mask), then the existing
+     * 8-byte word loop for the tail. The 64-byte skip is not entered when {@code len < 64}: short
+     * per-value checks (dict, ORC, fallback) must not pay block setup they can never fill.
+     * Consecutive 2-byte ({@code C2..DF}), unambiguous 3-byte ({@code E1..EC}/{@code EE..EF}) and
+     * unambiguous 4-byte ({@code F0} with second byte {@code 90..BF}, plus {@code F1..F3}) sequences
+     * are consumed as runs; after a run the scan tries an 8-byte ASCII word at the current offset
+     * and only resumes 64-byte blocks after a clean word. A one-byte ASCII gap (a space in a
+     * Cyrillic phrase) therefore does not pay eight loads that cannot succeed. {@code E0}/{@code ED}/
+     * {@code F0} overlong / {@code F4}, truncation and junk go through {@link #sequenceLength}.
+     * <p>
+     * A lookup-table DFA stays out: it was never measured against this 2-byte/3-byte run shape,
+     * and {@code sequenceLength} remains the oracle for the remaining leads. Revisit only if the
+     * existing {@code ascii_short}/{@code ascii_url}/{@code cyrillic} microbenches lose on mixed
+     * or CJK text.
      */
     public static boolean isWellFormed(byte[] bytes, int off, int len) {
         int i = off;
         int end = off + len;
-        // ASCII-dominant columns (the common case) are skipped a word at a time instead of byte at a time;
-        // any non-ASCII byte in the word falls through to the scalar path below.
         int wordEnd = end - Long.BYTES + 1;
-        while (i < end) {
-            i = skipAsciiWords(bytes, i, wordEnd);
-            if (i >= end) {
-                break;
+        // Short inputs never fill a 64-byte block; skipAsciiBlocks would no-op but still costs
+        // outer-loop setup on every per-value sanitize (dict / ORC / fallback).
+        final boolean useBlocks = len >= ASCII_BLOCK_BYTES;
+        outer: while (i < end) {
+            if (useBlocks) {
+                i = skipAsciiBlocks(bytes, i, end);
             }
-            int b0 = bytes[i] & 0xFF;
-            if (b0 < 0x80) {
-                // ASCII
-                i++;
-                continue;
+            while (i < end) {
+                i = skipAsciiWords(bytes, i, wordEnd);
+                if (i >= end) {
+                    break outer;
+                }
+                int b0 = bytes[i] & 0xFF;
+                if (b0 < 0x80) {
+                    // Leftover ASCII in a dirty word: stay in the inner loop so we do not re-issue
+                    // a 64-byte probe that cannot succeed while that word is still ahead.
+                    i++;
+                    continue;
+                }
+                if (b0 >= 0xC2 && b0 < 0xE0) {
+                    // 2-byte run C2..DF 80..BF (Cyrillic and similar). Stay here until the run ends.
+                    do {
+                        if (i + 1 >= end || isCont(bytes[i + 1]) == false) {
+                            return false;
+                        }
+                        i += 2;
+                        if (i >= end) {
+                            return true;
+                        }
+                        b0 = bytes[i] & 0xFF;
+                    } while (b0 >= 0xC2 && b0 < 0xE0);
+                    if (useBlocks && resumeAsciiBlocksAfterRun(bytes, i, wordEnd)) {
+                        continue outer;
+                    }
+                    continue;
+                }
+                if (b0 >= 0xE1 && b0 <= 0xEF && b0 != 0xED) {
+                    // 3-byte run with an unambiguous lead. E0/ED stay in sequenceLength forever:
+                    // isCont alone would accept overlong (E0 80..9F) and surrogates (ED A0..BF).
+                    do {
+                        if (i + 2 >= end || isCont(bytes[i + 1]) == false || isCont(bytes[i + 2]) == false) {
+                            return false;
+                        }
+                        i += 3;
+                        if (i >= end) {
+                            return true;
+                        }
+                        b0 = bytes[i] & 0xFF;
+                    } while (b0 >= 0xE1 && b0 <= 0xEF && b0 != 0xED);
+                    if (useBlocks && resumeAsciiBlocksAfterRun(bytes, i, wordEnd)) {
+                        continue outer;
+                    }
+                    continue;
+                }
+                if (b0 == 0xF0 || (b0 >= 0xF1 && b0 <= 0xF3)) {
+                    // 4-byte run: F0 90..BF (U+10000..U+3FFFF, emoji / CJK Ext. B) and F1..F3
+                    // 80..BF ×3. F0 80..8F is overlong; F4 >U+10FFFF stays in sequenceLength.
+                    do {
+                        if (i + 3 >= end || isCont(bytes[i + 2]) == false || isCont(bytes[i + 3]) == false) {
+                            return false;
+                        }
+                        int b1 = bytes[i + 1] & 0xFF;
+                        if (b0 == 0xF0) {
+                            if (b1 < 0x90 || b1 > 0xBF) {
+                                return false;
+                            }
+                        } else if (isCont(bytes[i + 1]) == false) {
+                            return false;
+                        }
+                        i += 4;
+                        if (i >= end) {
+                            return true;
+                        }
+                        b0 = bytes[i] & 0xFF;
+                    } while (b0 == 0xF0 || (b0 >= 0xF1 && b0 <= 0xF3));
+                    if (useBlocks && resumeAsciiBlocksAfterRun(bytes, i, wordEnd)) {
+                        continue outer;
+                    }
+                    continue;
+                }
+                int consumed = sequenceLength(bytes, i, end);
+                if (consumed < 0) {
+                    return false;
+                }
+                i += consumed;
+                if (useBlocks && resumeAsciiBlocksAfterRun(bytes, i, wordEnd)) {
+                    continue outer;
+                }
             }
-            int consumed = sequenceLength(bytes, i, end);
-            if (consumed < 0) {
-                return false;
-            }
-            i += consumed;
         }
         return true;
+    }
+
+    /**
+     * {@code true} when every byte in {@code [off, off+len)} is ASCII (high bit clear). Empty
+     * ranges are ASCII.
+     */
+    public static boolean isAllAscii(byte[] bytes, int off, int len) {
+        int i = off;
+        int end = off + len;
+        if (len >= ASCII_BLOCK_BYTES) {
+            i = skipAsciiBlocks(bytes, i, end);
+            if (end - i >= ASCII_BLOCK_BYTES) {
+                return false;
+            }
+        }
+        int wordEnd = end - Long.BYTES + 1;
+        i = skipAsciiWords(bytes, i, wordEnd);
+        while (i < end) {
+            if ((bytes[i] & 0x80) != 0) {
+                return false;
+            }
+            i++;
+        }
+        return true;
+    }
+
+    /**
+     * Destination-only UTF-8 accept for packed KEYWORD payloads (no length prefixes).
+     * The concatenation must be well-formed UTF-8 and no value may start with a continuation
+     * byte ({@code 0x80..0xBF}). Together these prove every value is well-formed:
+     * concatenation of well-formed UTF-8 is well-formed, and a continuation at a value start
+     * is the only way two ill-formed values concatenate to a well-formed sequence.
+     * {@link #isWellFormed} already skips ASCII, so a separate all-ASCII pre-pass is not used.
+     */
+    public static boolean isPackedWellFormed(byte[] packed, int off, int len, int[] exclusiveEnds, int count) {
+        if (len == 0) {
+            return true;
+        }
+        if (isWellFormed(packed, off, len) == false) {
+            return false;
+        }
+        int start = off;
+        for (int i = 0; i < count; i++) {
+            int end = off + exclusiveEnds[i];
+            if (end > start && isCont(packed[start])) {
+                return false;
+            }
+            start = end;
+        }
+        return true;
+    }
+
+    /**
+     * {@code true} when an 8-byte all-ASCII word starts at {@code i}, so a 64-byte block skip is
+     * worth trying. A failed probe here is one load, not eight.
+     */
+    private static boolean resumeAsciiBlocksAfterRun(byte[] bytes, int i, int wordEnd) {
+        return i < wordEnd && (((long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i)) & ASCII_MASK) == 0;
     }
 
     /**
@@ -99,8 +265,11 @@ public final class Utf8Sanitizer {
      * maximal ill-formed subpart (always {@code <= -1}) when the sequence is malformed. The negated
      * length lets {@link #repair} advance by exactly the maximal subpart, emitting one {@code U+FFFD}
      * per Unicode's substitution recommendation.
+     * <p>
+     * Package-private so tests can walk this as the {@link #isWellFormed} oracle. Do not change the
+     * contract without updating that differential.
      */
-    private static int sequenceLength(byte[] bytes, int i, int end) {
+    static int sequenceLength(byte[] bytes, int i, int end) {
         int b0 = bytes[i] & 0xFF;
         if (b0 < 0x80) {
             return 1;

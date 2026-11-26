@@ -1043,6 +1043,79 @@ public class DocumentParserTests extends MapperServiceTestCase {
         });
     }
 
+    private DocumentMapper createColumnarMapperWithFullFieldLimit(IndexMode indexMode, Boolean ignoreDynamicBeyondLimit)
+        throws IOException {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), indexMode.getName())
+            .put("index.mapping.total_fields.limit", 2);
+        if (ignoreDynamicBeyondLimit != null) {
+            settings.put("index.mapping.total_fields.ignore_dynamic_beyond_limit", ignoreDynamicBeyondLimit);
+        }
+        return createMapperService(settings.build(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("known").field("type", "keyword").endObject();
+        })).documentMapper();
+    }
+
+    private static List<String> ignoredFieldNames(ParsedDocument doc) {
+        return doc.rootDoc()
+            .getFields(IgnoredFieldMapper.NAME)
+            .stream()
+            .filter(f -> f.stringValue() != null)
+            .map(IndexableField::stringValue)
+            .toList();
+    }
+
+    public void testColumnarDynamicFieldBeyondLimitIsIgnored() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithFullFieldLimit(indexMode, true);
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("known", "value").field("beyond_limit", 42)));
+            assertFalse("mapped field must still be indexed", doc.rootDoc().getFields("known").isEmpty());
+            assertTrue("field beyond the limit must not be indexed", doc.rootDoc().getFields("beyond_limit").isEmpty());
+            assertNull("field beyond the limit must not be mapped", doc.dynamicMappingsUpdate());
+            assertNull("columnar modes must not keep the value in _ignored_source", doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
+            assertThat(ignoredFieldNames(doc), containsInAnyOrder("beyond_limit"));
+        }
+    }
+
+    public void testColumnarDynamicObjectsAndArraysBeyondLimitAreIgnored() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithFullFieldLimit(indexMode, true);
+            ParsedDocument doc = mapper.parse(columnarSource(b -> {
+                b.field("known", "value");
+                b.startObject("obj").field("a", 1).field("b", 2).endObject();
+                b.array("arr", 1, 2, 3);
+                b.startArray("obj_arr").startObject().field("c", 1).endObject().endArray();
+            }));
+            assertFalse("mapped field must still be indexed", doc.rootDoc().getFields("known").isEmpty());
+            assertNull("fields beyond the limit must not be mapped", doc.dynamicMappingsUpdate());
+            assertNull("columnar modes must not keep the value in _ignored_source", doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
+            assertThat(ignoredFieldNames(doc), containsInAnyOrder("obj.a", "obj.b", "arr", "obj_arr", "obj_arr.c"));
+        }
+    }
+
+    public void testLogsdbColumnarIgnoresDynamicFieldBeyondLimitByDefault() throws Exception {
+        DocumentMapper mapper = createColumnarMapperWithFullFieldLimit(IndexMode.LOGSDB_COLUMNAR, null);
+        ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("known", "value").field("beyond_limit", 42)));
+        assertTrue(doc.rootDoc().getFields("beyond_limit").isEmpty());
+        assertThat(ignoredFieldNames(doc), containsInAnyOrder("beyond_limit"));
+    }
+
+    public void testColumnarDynamicFieldBeyondLimitIsRejectedWithoutIgnoreSetting() throws Exception {
+        List<DocumentMapper> mappers = List.of(
+            createColumnarMapperWithFullFieldLimit(IndexMode.COLUMNAR, null),
+            createColumnarMapperWithFullFieldLimit(IndexMode.COLUMNAR, false),
+            createColumnarMapperWithFullFieldLimit(IndexMode.LOGSDB_COLUMNAR, false)
+        );
+        for (DocumentMapper mapper : mappers) {
+            DocumentParsingException e = expectThrows(
+                DocumentParsingException.class,
+                () -> mapper.parse(columnarSource(b -> b.field("known", "value").field("beyond_limit", 42)))
+            );
+            assertThat(e.getMessage(), containsString("Limit of total fields [2] has been exceeded"));
+        }
+    }
+
     public void testColumnarPerPrefixDynamicFalseDropsLeafDottedNotation() throws Exception {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");

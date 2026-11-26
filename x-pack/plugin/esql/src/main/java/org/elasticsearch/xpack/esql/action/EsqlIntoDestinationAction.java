@@ -27,30 +27,15 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Arrays;
 
 /**
- * Asks the security filter whether the caller may write to the destination of an {@code INTO}, before anything about that destination
- * is reported. The action does nothing: it exists so that the filter authorizes and audits it, as the caller, like the write itself.
- * A caller who may not write gets the denial of the filter, which names the privileges that grant the action and is audited as
- * {@code access_denied}. The same holds for an existing and a missing destination, since the filter decides by name. Without
- * security the action simply succeeds.
+ * Lets the security filter authorize, and audit, a write by an {@code INTO} to its destination before anything about the destination is
+ * reported. It does nothing else, and without security it succeeds.
  * <p>
- * It is named after the action that the filter authorizes for each document that a bulk creates, which is what the rows of an
- * {@code INTO} are, so that exactly the callers whom a bulk would allow to create a document there pass, whatever privileges grant that,
- * custom ones included, and a denial is audited under the same action as the write would be.
- * <p>
- * A bulk is authorized twice: its own actions ({@code indices:data/write/bulk*}) decide whether the caller may send it at all, and then
- * the creation of each document does. This checks the second. The privileges for indexing a document ({@code create_doc},
- * {@code create}, {@code index}, {@code write}) grant both, so for a role that uses one of them, passing this check means passing both.
- * A custom role written with raw action patterns that grants the creation of a document but not the bulk actions passes it without being
- * able to send the bulk that {@code INTO} writes with, and is told what a planning error tells a writer, about a destination that it may
- * create documents in. It cannot use {@code INTO}. Checking the bulk actions as well would mean copying the gates of bulk here, which
- * would drift from it.
- * <p>
- * The name is a copy of {@code AuthorizationService.IMPLIED_CREATE_ACTION}, which is private to the security plugin, which this one does
- * not depend on. Both are built from {@link TransportIndexAction#NAME}. {@code EsqlIntoDestinationActionTests} pins the name, and
- * {@code EsqlSecurityIntoIT} checks the behavior against a real security filter.
+ * It is named after what the filter authorizes for each document that a bulk creates, so that the callers whom a bulk would allow to
+ * create a document there pass, and a denial is audited as the write would be. A bulk also needs its own actions
+ * ({@code indices:data/write/bulk*}), which a custom role can lack, and which are not checked here. The name copies
+ * {@code AuthorizationService.IMPLIED_CREATE_ACTION}, which is private to the security plugin.
  */
 public class EsqlIntoDestinationAction extends TransportAction<EsqlIntoDestinationAction.Request, EsqlIntoDestinationAction.Response> {
-    // The name that AuthorizationService gives to the creation of a document by a bulk
     public static final String NAME = TransportIndexAction.NAME + ":op_type/create";
     public static final ActionType<Response> TYPE = new ActionType<>(NAME);
 

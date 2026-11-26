@@ -244,7 +244,8 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                 array(first, null, second),
                 array(null, first, second),
                 array(first, second, null),
-                array(second, null, first, null, null)
+                array(second, null, first, null, null),
+                array(second, null, first, second)
             )
         );
     }

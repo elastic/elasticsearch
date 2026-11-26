@@ -611,4 +611,95 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             assertThat(copy.commitFiles().get("merge_file").blob(), instanceOf(MergeBlob.class));
         }
     }
+
+    /// Locations that reference the same blob share a single [Blob] instance once read from the transport layer, across the commit files and
+    /// the extra content.
+    public void testReadFromTransportDeduplicatesBlobs() throws IOException {
+        var blobName = BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000));
+        long term = randomLongBetween(1, 10);
+        var otherBlobName = MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH));
+        // equal but distinct blob instances
+        var commitFiles = Map.of(
+            "file_1",
+            new BlobLocation(new BccBlob(blobName, term), 0, 10),
+            "file_2",
+            new BlobLocation(new BccBlob(blobName, term), 10, 10),
+            "file_3",
+            new BlobLocation(new MergeBlob(otherBlobName, term), 0, 10),
+            "file_4",
+            new BlobLocation(new MergeBlob(otherBlobName, term), 10, 10)
+        );
+        var extraContent = Map.of("extra", new BlobLocation(new BccBlob(blobName, term), 20, 10));
+        // only hollow commits can have extra content
+        var base = randomCompoundCommit(
+            randomShardId(),
+            new PrimaryTermAndGeneration(randomNonZeroPositiveLong(), randomNonZeroPositiveLong()),
+            true
+        );
+        var commit = new StatelessCompoundCommit(
+            base.shardId(),
+            base.primaryTermAndGeneration(),
+            base.translogRecoveryStartFile(),
+            base.nodeEphemeralId(),
+            commitFiles,
+            base.sizeInBytes(),
+            Set.of("file_1"),
+            base.headerSizeInBytes(),
+            base.internalFilesReplicatedRanges(),
+            extraContent,
+            base.timestampFieldValueRange()
+        );
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            commit.writeTo(output);
+            var copy = StatelessCompoundCommit.readFromTransport(output.bytes().streamInput());
+
+            assertThat(copy.commitFiles(), equalTo(commitFiles));
+            assertThat(copy.extraContent(), equalTo(extraContent));
+            assertSame(copy.commitFiles().get("file_1").blob(), copy.commitFiles().get("file_2").blob());
+            assertSame(copy.commitFiles().get("file_3").blob(), copy.commitFiles().get("file_4").blob());
+            assertSame(copy.commitFiles().get("file_1").blob(), copy.extraContent().get("extra").blob());
+        }
+    }
+
+    /// Locations that reference the same blob share a single [Blob] instance once read from the store.
+    public void testReadFromStoreDeduplicatesBlobs() throws IOException {
+        var blobName = BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000));
+        long term = randomLongBetween(1, 10);
+        var commitFiles = Map.of(
+            "file_1",
+            new BlobLocation(new BccBlob(blobName, term), 0, 10),
+            "file_2",
+            new BlobLocation(new BccBlob(blobName, term), 10, 10),
+            "file_3",
+            new BlobLocation(new BccBlob(blobName, term), 20, 10)
+        );
+
+        byte[] bytes;
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            StatelessCompoundCommit.writeXContentHeader(
+                randomShardId(),
+                randomNonZeroPositiveLong(),
+                randomNonZeroPositiveLong(),
+                randomNodeEphemeralId(),
+                0,
+                randomTimestampFieldValueRange(),
+                commitFiles,
+                List.of(),
+                InternalFilesReplicatedRanges.EMPTY,
+                new OutputStreamStreamOutput(output),
+                randomBoolean(),
+                List.of()
+            );
+            bytes = BytesReference.toBytes(output.bytes());
+        }
+
+        try (StreamInput in = new ByteArrayStreamInput(bytes)) {
+            var copy = StatelessCompoundCommit.readFromStore(in);
+
+            assertThat(copy.commitFiles(), equalTo(commitFiles));
+            assertSame(copy.commitFiles().get("file_1").blob(), copy.commitFiles().get("file_2").blob());
+            assertSame(copy.commitFiles().get("file_1").blob(), copy.commitFiles().get("file_3").blob());
+        }
+    }
 }

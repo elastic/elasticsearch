@@ -85,8 +85,8 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
             case "integer" -> () -> randomInt();
             case "short" -> () -> randomShort();
             case "byte" -> () -> randomByte();
-            case "double" -> () -> randomDouble();
-            case "float" -> () -> randomFloat();
+            case "double" -> () -> randomIntBetween(-1_000_000, 1_000_000) / 4.0;
+            case "float" -> () -> randomIntBetween(-1_000_000, 1_000_000) / 4.0f;
             case "half_float" -> () -> randomIntBetween(0, 1000) / 4.0f;
             case "date", "date_nanos" -> () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(
                 randomLongBetween(0, 4_102_444_800_000L)

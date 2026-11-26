@@ -109,6 +109,11 @@ public class SearchDirectoryTests extends ESTestCase {
         return createFakeStatelessNode(regionSize, cacheSize, false, false);
     }
 
+    private FakeStatelessNode createFakeStatelessNode(ByteSizeValue regionSize, ByteSizeValue cacheSize, Settings additionalNodeSettings)
+        throws IOException {
+        return createFakeStatelessNode(regionSize, cacheSize, false, false, IndexVersion.current(), additionalNodeSettings);
+    }
+
     private FakeStatelessNode createFakeStatelessNode(
         ByteSizeValue regionSize,
         ByteSizeValue cacheSize,
@@ -125,6 +130,17 @@ public class SearchDirectoryTests extends ESTestCase {
         boolean timestampBackfillEnabled,
         IndexVersion creationVersion
     ) throws IOException {
+        return createFakeStatelessNode(regionSize, cacheSize, hasTimestampField, timestampBackfillEnabled, creationVersion, Settings.EMPTY);
+    }
+
+    private FakeStatelessNode createFakeStatelessNode(
+        ByteSizeValue regionSize,
+        ByteSizeValue cacheSize,
+        boolean hasTimestampField,
+        boolean timestampBackfillEnabled,
+        IndexVersion creationVersion,
+        Settings additionalNodeSettings
+    ) throws IOException {
         return createFakeStatelessNode(regionSize, cacheSize, originalCacheBlobReader -> new CacheBlobReader() {
             @Override
             public ByteRange getRange(long position, int length, long remainingFileLength) {
@@ -137,7 +153,13 @@ public class SearchDirectoryTests extends ESTestCase {
             public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
                 originalCacheBlobReader.getRangeInputStream(position, length, listener);
             }
-        }, originalBlobContainer -> originalBlobContainer, hasTimestampField, timestampBackfillEnabled, creationVersion);
+        },
+            originalBlobContainer -> originalBlobContainer,
+            hasTimestampField,
+            timestampBackfillEnabled,
+            creationVersion,
+            additionalNodeSettings
+        );
     }
 
     private FakeStatelessNode createFakeStatelessNode(
@@ -149,6 +171,28 @@ public class SearchDirectoryTests extends ESTestCase {
         boolean timestampBackfillEnabled,
         IndexVersion creationVersion
     ) throws IOException {
+        return createFakeStatelessNode(
+            regionSize,
+            cacheSize,
+            objectStoreCacheBlobReaderWrapper,
+            blobContainerWrapper,
+            hasTimestampField,
+            timestampBackfillEnabled,
+            creationVersion,
+            Settings.EMPTY
+        );
+    }
+
+    private FakeStatelessNode createFakeStatelessNode(
+        ByteSizeValue regionSize,
+        ByteSizeValue cacheSize,
+        Function<CacheBlobReader, CacheBlobReader> objectStoreCacheBlobReaderWrapper,
+        Function<BlobContainer, BlobContainer> blobContainerWrapper,
+        boolean hasTimestampField,
+        boolean timestampBackfillEnabled,
+        IndexVersion creationVersion,
+        Settings additionalNodeSettings
+    ) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
 
             @Override
@@ -157,7 +201,8 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(super.nodeSettings())
                     .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize);
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                    .put(additionalNodeSettings);
                 return settings.build();
             }
 
@@ -550,7 +595,10 @@ public class SearchDirectoryTests extends ESTestCase {
     }
 
     public void testBlobLengthTracksMetadataUpdates() throws IOException {
-        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+        final var settings = Settings.builder()
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getKey(), false)
+            .build();
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096), settings)) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
             final Blob blob1, blob2;
             if (randomBoolean()) {

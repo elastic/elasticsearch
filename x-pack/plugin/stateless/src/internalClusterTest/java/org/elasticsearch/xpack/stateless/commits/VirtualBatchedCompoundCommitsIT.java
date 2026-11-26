@@ -2009,18 +2009,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         final var merged = commitService.getLatestUploadedBcc(searchShard.shardId());
         assertNotNull(merged);
         assertNotEquals(termAndGeneration, merged.primaryTermAndGeneration());
-        // When merge blobs are injected, the files of the merged segment can be moved out of the latest uploaded BCC, which is then only
-        // tracked while a retained file (e.g. a segments_N) still references it.
-        final var mergedBlob = merged.toBccBlob();
-        boolean mergedBlobReferenced = false;
-        for (var blobFileRanges : searchDirectory.getBlobFileRanges()) {
-            final var location = blobFileRanges.blobLocation();
-            mergedBlobReferenced |= location != null && location.blob().equals(mergedBlob);
-        }
-        assertThat(searchDirectory.blobLength(mergedBlob).isPresent(), equalTo(mergedBlobReferenced));
-        if (mergedBlobReferenced) {
-            assertThat(searchDirectory.blobLength(mergedBlob).getAsLong(), equalTo(merged.calculateBccBlobLength()));
-        }
+        assertThat(searchDirectory.blobLength(merged.toBccBlob()).getAsLong(), equalTo(merged.calculateBccBlobLength()));
     }
 
     private void assertMeasurement(Measurement measurement, long value) {

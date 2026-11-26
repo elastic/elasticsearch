@@ -837,11 +837,12 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                         // read the first known location
                         incoming = reconciledMetadata.get(fileName).blobLocation();
                     }
+                    var termAndGeneration = generationalFileBcc(incoming);
                     // The commit carried this file at reconciledRanges. When the directory keeps an earlier location,
                     // that value is the copy, which is not stored, but the copy still occupies bytes in its blob.
                     extendBlobLength(lengths, reconciledRanges.blobLocation());
                     // Pin the BCC of the location we actually keep, which is what doOpenInput will use.
-                    incomingGenerationalFilesTermAndGens.add(generationalFileBcc(incoming));
+                    incomingGenerationalFilesTermAndGens.add(termAndGeneration);
                 } else {
                     reconciledMetadata.put(fileName, reconciledRanges);
                     extendBlobLength(lengths, reconciledRanges.blobLocation());

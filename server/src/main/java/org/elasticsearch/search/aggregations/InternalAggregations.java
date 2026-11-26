@@ -216,12 +216,26 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
 
     /**
      * Equivalent to {@link #topLevelReduce(List, AggregationReduceContext)} but it takes an iterator and a count.
+     *
+     * @param count the number of elements {@code aggs} yields. It picks the reduce path and is the input size each reducer gets,
+     *              which the terms reducer uses to decide whether to reset the doc count error. Too high a count can fail the
+     *              reduce or keep an error that should be reset. Too low a count can leave elements out or give the reducers
+     *              the wrong size.
      */
     public static InternalAggregations topLevelReduce(Iterator<InternalAggregations> aggs, int count, AggregationReduceContext context) {
         if (count == 0) {
+            assert aggs.hasNext() == false : "count is 0 but the iterator has aggregations";
             return null;
         }
-        return maybeExecuteFinalReduce(context, count == 1 ? reduce(aggs.next(), context) : reduce(aggs, count, context));
+        final InternalAggregations reduced;
+        if (count == 1) {
+            assert aggs.hasNext() : "count is 1 but the iterator has 0 aggregations";
+            reduced = reduce(aggs.next(), context);
+            assert aggs.hasNext() == false : "count is 1 but the iterator has more aggregations";
+        } else {
+            reduced = reduce(aggs, count, context);
+        }
+        return maybeExecuteFinalReduce(context, reduced);
     }
 
     private static InternalAggregations maybeExecuteFinalReduce(AggregationReduceContext context, InternalAggregations reduced) {
@@ -281,10 +295,16 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
 
     private static InternalAggregations reduce(Iterator<InternalAggregations> aggsIterator, int count, AggregationReduceContext context) {
         // general case
+        assert aggsIterator.hasNext() : "count is " + count + " but the iterator has 0 aggregations";
         var first = aggsIterator.next();
         try (AggregatorsReducer reducer = new AggregatorsReducer(first, context, count)) {
             reducer.accept(first);
-            aggsIterator.forEachRemaining(reducer::accept);
+            int accepted = 1;
+            while (aggsIterator.hasNext()) {
+                reducer.accept(aggsIterator.next());
+                accepted++;
+            }
+            assert accepted == count : "count is " + count + " but the iterator has " + accepted + " aggregations";
             return reducer.get();
         }
     }

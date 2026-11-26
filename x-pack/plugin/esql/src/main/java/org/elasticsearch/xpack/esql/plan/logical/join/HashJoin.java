@@ -243,7 +243,8 @@ public class HashJoin extends Join implements SortPreserving {
 
     /**
      * Checks the right side's columns of an ES|QL join: the hash join copies a matched row's columns with {@code Block#lookup},
-     * which some block types do not implement. The optimizer has pruned the columns that nothing reads.
+     * which some block types do not implement. The optimizer has pruned the columns that nothing reads, except in a branch of a
+     * {@code UNION ALL} or {@code FORK}, whose columns line up by position. A column dropped in the subquery is never returned.
      */
     @Override
     public void postOptimizationVerification(Failures failures) {
@@ -257,7 +258,7 @@ public class HashJoin extends Join implements SortPreserving {
                 failures.add(
                     fail(
                         field,
-                        "{} cannot return column [{}] of type [{}]; remove it with KEEP or DROP",
+                        "{} cannot return column [{}] of type [{}]; remove it from the subquery with KEEP or DROP",
                         command,
                         field.name(),
                         field.dataType()

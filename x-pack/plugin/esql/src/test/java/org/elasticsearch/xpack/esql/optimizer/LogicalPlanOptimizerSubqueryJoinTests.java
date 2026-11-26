@@ -29,6 +29,9 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
         | LEFT OUTER JOIN (FROM languages) ON language_code
         """;
 
+    private static final String PAYLOAD_TYPE_ERROR =
+        "LEFT OUTER JOIN cannot return column [m] of type [AGGREGATE_METRIC_DOUBLE]; remove it from the subquery with KEEP or DROP";
+
     public LogicalPlanOptimizerSubqueryJoinTests(VersionMode versionMode) {
         super(versionMode);
     }
@@ -50,10 +53,31 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
             | LEFT OUTER JOIN (ROW language_code = 1, m = TO_AGGREGATE_METRIC_DOUBLE(1)) ON language_code
             """;
         VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(query));
-        assertThat(
-            e.getMessage(),
-            containsString("LEFT OUTER JOIN cannot return column [m] of type [AGGREGATE_METRIC_DOUBLE]; remove it with KEEP or DROP")
-        );
+        assertThat(e.getMessage(), containsString(PAYLOAD_TYPE_ERROR));
+    }
+
+    /**
+     * A branch of a {@code UNION ALL} keeps its columns, since branches line up by position, so dropping the column after the union
+     * doesn't reach the join. The error points at the subquery, where dropping it always works.
+     */
+    public void testPayloadTypeWithoutLookupInUnionBranch() {
+        VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan("""
+            FROM (
+                FROM test
+                | EVAL language_code = languages
+                | LEFT OUTER JOIN (ROW language_code = 1, m = TO_AGGREGATE_METRIC_DOUBLE(1)) ON language_code
+              ), (FROM test | EVAL language_code = languages)
+            | DROP m
+            """));
+        assertThat(e.getMessage(), containsString(PAYLOAD_TYPE_ERROR));
+
+        optimizedJoinPlan("""
+            FROM (
+                FROM test
+                | EVAL language_code = languages
+                | LEFT OUTER JOIN (ROW language_code = 1, m = TO_AGGREGATE_METRIC_DOUBLE(1) | DROP m) ON language_code
+              ), (FROM test | EVAL language_code = languages)
+            """);
     }
 
     /**

@@ -198,9 +198,9 @@ public class UnionAll extends MergePlan {
      * <p>
      * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
      * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to
-     * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the
-     * compute service. It counts leaves under {@link BranchPlan}s too: a union produced by expanding a {@code FROM} pattern or view costs
-     * exactly the same at execution time as one the user wrote.
+     * every node. The main query and each subquery that runs on its own, of an {@code IN} or of a {@code JOIN}, are checked separately
+     * because each is executed independently by the compute service. It counts leaves under {@link BranchPlan}s too: a union produced by
+     * expanding a {@code FROM} pattern or view costs exactly the same at execution time as one the user wrote.
      */
     private static void checkTotalBranchCount(UnionStats stats, int maxBranches, String branchCountSource, Failures failures) {
         if (stats.first() == null || stats.leaves() <= maxBranches) {
@@ -219,9 +219,9 @@ public class UnionAll extends MergePlan {
      * <p>
      * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
      * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to
-     * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the compute
-     * service. It counts {@link BranchPlan}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the same at
-     * execution time as one the user wrote.
+     * every node. The main query and each subquery that runs on its own, of an {@code IN} or of a {@code JOIN}, are checked separately
+     * because each is executed independently by the compute service. It counts {@link BranchPlan}s too: a union produced by expanding a
+     * {@code FROM} pattern or view costs exactly the same at execution time as one the user wrote.
      */
     private static void checkMaxNestingLevel(UnionStats stats, int maxLevels, String branchLevelSource, Failures failures) {
         if (stats.depth() <= maxLevels) {
@@ -244,8 +244,9 @@ public class UnionAll extends MergePlan {
      * Summarizes the merge plans under {@code plan}. A subtree with no merge plan is one producer leaf. Otherwise its leaf count is the
      * sum of its children's leaves. Its depth is the longest child depth, plus one when {@code plan} is itself a merge plan. The right
      * side of a {@link Join} is excluded: a {@code LOOKUP JOIN} (and {@code INLINE STATS}) lookup/stub is not a union producer leaf, and
-     * the right side of an {@link IndependentSubqueryJoin} is an independently executed query counted via
-     * {@link #checkInSubqueryLimits}. The first and deepest unions provide distinct failure locations when both limits are exceeded.
+     * the right side of an {@link IndependentSubqueryJoin}, or of the hash join that replaces a {@code JOIN} on a subquery, is an
+     * independently executed query counted via {@link #checkInSubqueryLimits}. The first and deepest unions provide distinct failure
+     * locations when both limits are exceeded.
      * <p>
      * The stats of every node reached are kept in {@code cache} by identity, so a plan whose FORK branches still share their input,
      * as they do before analysis, is walked once rather than once per path.

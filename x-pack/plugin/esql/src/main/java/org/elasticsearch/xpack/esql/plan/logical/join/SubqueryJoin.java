@@ -33,8 +33,8 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  * A {@code JOIN} whose right side is a subquery written by the user, as in {@code FROM a | LEFT OUTER JOIN (FROM b | ...) ON key}.
  * <p>
  * The subquery is an independent query: it runs before the main query and only its result reaches the join, so plan walks that
- * reason about the main query stop at its right side (see {@link IndependentSubqueryJoin}). The optimizer's last rule replaces this
- * node with a {@link HashJoin} that the coordinator runs, so it is never serialized.
+ * reason about the main query stop at its right side (see {@link IndependentSubqueryJoin}). The optimizer's last batch before Plan
+ * Fetch replaces this node with a {@link HashJoin} that the coordinator runs, so it is never serialized.
  * <p>
  * The subquery's columns are {@link Join#makeReference references} in the join's output: they come from the subquery's result,
  * not from an index the main query reads, so rules that look fields up in the main query's indices must not see them as fields.

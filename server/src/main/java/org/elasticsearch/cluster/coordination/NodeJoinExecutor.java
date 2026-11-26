@@ -74,6 +74,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     private final RerouteService rerouteService;
     private final FeatureService featureService;
     private final Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection;
+    private final Collection<JoinAttributesValidator> joinAttributesValidators;
 
     public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService, FeatureService featureService) {
         this(allocationService, rerouteService, featureService, Function.identity());
@@ -85,10 +86,21 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         FeatureService featureService,
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection
     ) {
+        this(allocationService, rerouteService, featureService, maybeReconfigureAfterMasterElection, List.of());
+    }
+
+    public NodeJoinExecutor(
+        AllocationService allocationService,
+        RerouteService rerouteService,
+        FeatureService featureService,
+        Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
+        Collection<JoinAttributesValidator> joinAttributesValidators
+    ) {
         this.allocationService = allocationService;
         this.rerouteService = rerouteService;
         this.featureService = featureService;
         this.maybeReconfigureAfterMasterElection = maybeReconfigureAfterMasterElection;
+        this.joinAttributesValidators = List.copyOf(joinAttributesValidators);
     }
 
     @Override
@@ -121,6 +133,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         final DiscoveryNodes currentNodes = initialState.nodes();
         boolean nodesChanged = false;
         ClusterState.Builder newState;
+        // the state the joining nodes are added to
+        ClusterState baseState = initialState;
 
         if (currentNodes.getMasterNode() == null && isBecomingMaster) {
             assert initialState.term() < term : "there should be at most one become master task per election (= by term)";
@@ -129,7 +143,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             // during the cluster state publishing guarantees that we have enough
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 // suppress deprecation warnings e.g. from reroute()
-                newState = becomeMasterAndTrimConflictingNodes(initialState, joinTaskContexts, term);
+                baseState = latestStateForElection(initialState, joinTaskContexts);
+                newState = becomeMasterAndTrimConflictingNodes(baseState, joinTaskContexts, term);
             }
             nodesChanged = true;
         } else if (currentNodes.isLocalNodeElectedMaster()) {
@@ -194,6 +209,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                             node.getMaxIndexVersion(),
                             initialState.getMetadata()
                         );
+                        for (JoinAttributesValidator validator : joinAttributesValidators) {
+                            validator.validate(node, nodeJoinTask.joinAttributes(), baseState);
+                        }
 
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
@@ -289,13 +307,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
     }
 
-    protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
-        ClusterState currentState,
-        List<? extends TaskContext<JoinTask>> taskContexts,
-        long term
-    ) {
-        final ClusterState initialState = currentState;
-        currentState = taskContexts.stream()
+    private static ClusterState latestStateForElection(ClusterState initialState, List<? extends TaskContext<JoinTask>> taskContexts) {
+        return taskContexts.stream()
             .map(TaskContext::getTask)
             .map(JoinTask::initialState)
             .filter(Objects::nonNull)
@@ -304,8 +317,14 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 clusterState -> clusterState.term() > initialState.term()
                     || (clusterState.term() == initialState.term() && clusterState.version() > initialState.version())
             )
-            .orElse(currentState);
+            .orElse(initialState);
+    }
 
+    protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
+        ClusterState currentState,
+        List<? extends TaskContext<JoinTask>> taskContexts,
+        long term
+    ) {
         assert currentState.nodes().getMasterNodeId() == null : currentState;
         assert currentState.term() < term : term + " vs " + currentState;
 

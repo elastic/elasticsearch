@@ -12,12 +12,12 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 /**
- * {@link FeatureSpecification} that publishes the {@code security.primary_encryption_key} node feature.
+ * {@link FeatureSpecification} that publishes the encryption plugin's node features.
  */
 public class EncryptionFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE);
+        return Set.of(ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE, KeyRotationCoordinator.CAN_PERSIST_KEY_CHECK);
     }
 }

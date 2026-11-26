@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.collect.Iterators;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -33,7 +34,24 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
         ActionListener<Void> listener,
         long term
     ) {
-        return new JoinTask(List.of(new NodeJoinTask(node, compatibilityVersions, features, reason, listener)), false, term, null);
+        return singleNode(node, compatibilityVersions, features, Map.of(), reason, listener, term);
+    }
+
+    public static JoinTask singleNode(
+        DiscoveryNode node,
+        CompatibilityVersions compatibilityVersions,
+        Set<String> features,
+        Map<String, String> joinAttributes,
+        JoinReason reason,
+        ActionListener<Void> listener,
+        long term
+    ) {
+        return new JoinTask(
+            List.of(new NodeJoinTask(node, compatibilityVersions, features, joinAttributes, reason, listener)),
+            false,
+            term,
+            null
+        );
     }
 
     public static JoinTask completingElection(Stream<NodeJoinTask> nodeJoinTaskStream, long term) {
@@ -82,6 +100,7 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
         DiscoveryNode node,
         CompatibilityVersions compatibilityVersions,
         Set<String> features,
+        Map<String, String> joinAttributes,
         JoinReason reason,
         ActionListener<Void> listener
     ) {
@@ -93,9 +112,21 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
             JoinReason reason,
             ActionListener<Void> listener
         ) {
+            this(node, compatibilityVersions, features, Map.of(), reason, listener);
+        }
+
+        public NodeJoinTask(
+            DiscoveryNode node,
+            CompatibilityVersions compatibilityVersions,
+            Set<String> features,
+            Map<String, String> joinAttributes,
+            JoinReason reason,
+            ActionListener<Void> listener
+        ) {
             this.node = Objects.requireNonNull(node);
             this.compatibilityVersions = Objects.requireNonNull(compatibilityVersions);
             this.features = Objects.requireNonNull(features);
+            this.joinAttributes = Objects.requireNonNull(joinAttributes);
             this.reason = reason;
             this.listener = listener;
         }

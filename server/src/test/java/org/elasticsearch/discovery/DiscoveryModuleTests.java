@@ -223,6 +223,31 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertTrue(onJoinValidators.contains(consumer));
     }
 
+    public void testCollectsJoinAttributesFromEveryPlugin() {
+        assertEquals(
+            Map.of("a", "1", "b", "2"),
+            DiscoveryModule.collectJoinAttributes(List.of(joinAttributesPlugin(Map.of("a", "1")), joinAttributesPlugin(Map.of("b", "2"))))
+        );
+        assertThat(
+            expectThrows(
+                IllegalStateException.class,
+                () -> DiscoveryModule.collectJoinAttributes(
+                    List.of(joinAttributesPlugin(Map.of("a", "1")), joinAttributesPlugin(Map.of("a", "2")))
+                )
+            ).getMessage(),
+            containsString("join attribute [a] is set by more than one plugin")
+        );
+    }
+
+    private static ClusterCoordinationPlugin joinAttributesPlugin(Map<String, String> joinAttributes) {
+        return new ClusterCoordinationPlugin() {
+            @Override
+            public Map<String, String> getJoinAttributes() {
+                return joinAttributes;
+            }
+        };
+    }
+
     public void testRejectsMultipleReconfigurators() {
         assertThat(
             expectThrows(

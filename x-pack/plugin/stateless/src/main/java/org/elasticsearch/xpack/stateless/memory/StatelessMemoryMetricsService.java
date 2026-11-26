@@ -371,15 +371,11 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (indexingOperationsMemoryMetricsEnabled == false) {
             return 0;
         }
-        final Long operationSize = largestOperationSize(relativeTimeInNanos());
-        return operationSize == null ? 0L : operationSize;
-    }
-
-    private Long largestOperationSize(long now) {
         var largestOperation = largestIndexingOperationRef.get();
-        if (largestOperation == null || largestOperation.validUntil() < now) {
+        if (largestOperation == null || largestOperation.validUntil() < relativeTimeInNanos()) {
+            // Try to clear the memory once the results are stale
             largestIndexingOperationRef.compareAndSet(largestOperation, null);
-            return null;
+            return 0;
         }
         return largestOperation.operationSizeInBytes();
     }

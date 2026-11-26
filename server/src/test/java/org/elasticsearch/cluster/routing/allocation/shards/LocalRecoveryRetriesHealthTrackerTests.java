@@ -88,7 +88,9 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
     /// Only allocations on the local node are reported, even when another node is the elected master.
     public void testOnlyLocalNodeAllocationsAreConsidered() {
         var localRouting = routing(randomShardId(), ShardRoutingState.INITIALIZING);
-        var remoteRouting = routing(randomShardId(), "not-local-node", ShardRoutingState.INITIALIZING);
+        // Same index as localRouting (a sibling shard) and on the elected master, so a tracker that scans every
+        // shard of a locally hosted index, or scans the master in addition to the local node, would also leak it.
+        var remoteRouting = routing(new ShardId(localRouting.index(), 1), MASTER_NODE_ID, ShardRoutingState.INITIALIZING);
 
         var service = mock(IndicesClusterStateService.class);
         // Stub a nonzero answer for *any* routing first, so a remote-allocation leak would show up as a false

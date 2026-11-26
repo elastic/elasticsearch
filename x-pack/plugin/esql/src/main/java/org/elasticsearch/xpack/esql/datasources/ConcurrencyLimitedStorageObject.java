@@ -144,22 +144,8 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
     }
 
     @Override
-    public void abortStream(InputStream stream) throws IOException {
-        if (stream instanceof PermitReleasingInputStream wrapper) {
-            // Route the abort through to the wrapped inner stream so the delegate (and
-            // eventually the storage provider) can do a non-draining abort. Calling
-            // wrapper.close() instead would cascade super.close() → in.close() and trigger
-            // exactly the close-time drain we are trying to avoid on providers like S3.
-            try {
-                delegate.abortStream(wrapper.inner());
-            } finally {
-                wrapper.markReleased();
-            }
-            return;
-        }
-        // Not a stream we produced — should be unreachable since the SPI contract requires
-        // the exact instance returned from newStream(). Fall back to the SPI default.
-        stream.close();
+    public void close() throws IOException {
+        delegate.close();
     }
 
     @Override
@@ -444,17 +430,6 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
 
         InputStream inner() {
             return in;
-        }
-
-        /**
-         * Releases the permit without closing the wrapped stream. Used by
-         * {@link ConcurrencyLimitedStorageObject#abortStream(InputStream)} after the inner
-         * stream has been aborted directly via the delegate, so we don't double-close.
-         */
-        void markReleased() {
-            if (released.getAndSet(true) == false) {
-                limiter.release();
-            }
         }
 
         @Override

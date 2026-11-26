@@ -367,17 +367,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     );
 
     /**
-     * How often to capture hot threads while a batched compound commit (VBCC) upload is in flight. Set to {@code 0} to disable.
-     */
-    public static final Setting<TimeValue> OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL = Setting.timeSetting(
-        "stateless.object_store.upload_hot_threads_log_interval",
-        TimeValue.ZERO,
-        TimeValue.ZERO,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * Translog uploads that exceed this threshold are logged at WARN instead of DEBUG level.
      */
     public static final Setting<TimeValue> OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING = Setting.timeSetting(
@@ -1341,12 +1330,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
-    public void copyShard(CancellableTask task, ShardId source, ShardId destination, long primaryTerm) throws IOException {
+    public void copyShard(CancellableTask task, ShardId source, ShardId destination, PrimaryTermAndGeneration latestCommitToCopy)
+        throws IOException {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         assert projectResolver.supportsMultipleProjects() == false || assertShardsAreInSameProject(source, destination);
 
         var sourceShardContainer = getProjectBlobContainer(source);
-        var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, primaryTerm);
+        var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, latestCommitToCopy.primaryTerm());
 
         record BlobCopyTask(BlobContainer src, BlobContainer dst, BlobMetadata blob) {}
         final List<BlobCopyTask> tasks = new ArrayList<>();
@@ -1355,6 +1345,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
             var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
             for (BlobMetadata blob : blobs.values()) {
+                if (startsWithBlobPrefix(blob.name())
+                    && new PrimaryTermAndGeneration(blobContainerWithTerm.v1(), parseGenerationFromBlobName(blob.name())).after(
+                        latestCommitToCopy
+                    )) {
+                    logger.debug("CopyShard skipping {} as it was uploaded after {}", blob.name(), latestCommitToCopy);
+                    continue;
+                }
                 tasks.add(new BlobCopyTask(sourceContainerForTerm, destinationContainerForTerm, blob));
             }
         }

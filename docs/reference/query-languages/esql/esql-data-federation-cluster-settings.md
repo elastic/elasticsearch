@@ -108,16 +108,16 @@ $$$esql-external-max-listed-objects$$$
 `esql.external.max_listed_objects` {applies_to}`stack: preview 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Hard cap on objects visited while listing a glob, including keys that don't match the pattern and keys dropped by exclusion. Applied independently to each glob listing. A comma-separated resource of N globs therefore does N listings, and a rewrite-empty fallback can list the same glob again. The kept-files cap (`esql.external.max_discovered_files`) is shared across that list.
 
-    - **Default:** `1000000`
-    - **Valid values:** `1` to `10000000`
+    - **Default:** `10000000`
+    - **Valid values:** `1` to `100000000`
 
 $$$esql-external-max-discovered-files$$$
 
 `esql.external.max_discovered_files`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Hard cap on files kept after listing filters (`_file.*`) during glob expansion before the query aborts. Protects against degenerate globs.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Hard cap on files kept after listing filters (`_file.*`) during glob expansion before the query aborts. Protects against degenerate globs. An explicit value overrides the formula and is not clipped by heap. Planning memory for kept files is charged to the request circuit breaker, which remains the backstop if the cap is raised beyond what the node can hold.
 
-    - **Default:** `25000`
-    - **Valid values:** `1` to `1000000`
+    - **Default:** 15% of the node's max heap at startup divided by about 1180 bytes per kept file, minimum `25000` and maximum `10000000`
+    - **Valid values:** `1` to `10000000`
 
 $$$esql-external-max-glob-expansion$$$
 
@@ -126,6 +126,14 @@ $$$esql-external-max-glob-expansion$$$
 
     - **Default:** `100`
     - **Valid values:** `1` to `10000`
+
+$$$esql-external-max-directory-listings$$$
+
+`esql.external.max_directory_listings` {applies_to}`stack: preview 9.7+`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Ceiling on directory listings (`listChildren`) issued during one partition-pruning walk. When the walk would exceed this, it stops descending and either finishes surviving folders or falls back to a flat listing of the prefix. Finish `listObjects` pages are not counted. Raise this so a wide Hive tree (many unfiltered prefixes above a time partition) can complete the walk instead of flattening the whole prefix.
+
+    - **Default:** `3000`
+    - **Valid values:** `1` to `1000000`
 
 ## Read safety
 

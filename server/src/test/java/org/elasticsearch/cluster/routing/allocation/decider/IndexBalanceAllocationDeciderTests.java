@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -765,7 +766,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             shardToMove,
             toRoutingNode.nodeId(),
             randomNonNegativeLong(),
-            "test",
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );

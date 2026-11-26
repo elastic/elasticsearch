@@ -12,12 +12,16 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.bulk.EscfBulkWriter;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -25,6 +29,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.client.NoOpClient;
@@ -51,6 +56,10 @@ class IntoTestUtils {
     static class CapturingClient extends NoOpClient {
         final List<BulkRequest> bulks = new ArrayList<>();
         final List<ActionListener<BulkResponse>> listeners = new ArrayList<>();
+        final List<RefreshRequest> refreshes = new ArrayList<>();
+        final List<ActionListener<BroadcastResponse>> refreshListeners = new ArrayList<>();
+        /** The {@code x-caller} header visible when each refresh was sent, to check the caller's context is restored. */
+        final List<String> refreshHeaders = new ArrayList<>();
 
         CapturingClient(ThreadPool threadPool) {
             super(threadPool);
@@ -63,9 +72,29 @@ class IntoTestUtils {
             Request request,
             ActionListener<Response> listener
         ) {
+            if (action == RefreshAction.INSTANCE) {
+                refreshes.add((RefreshRequest) request);
+                refreshHeaders.add(threadPool().getThreadContext().getHeader("x-caller"));
+                refreshListeners.add((ActionListener<BroadcastResponse>) listener);
+                return;
+            }
             assertThat(action, equalTo(TransportBulkAction.TYPE));
             bulks.add((BulkRequest) request);
             listeners.add((ActionListener<BulkResponse>) listener);
+        }
+
+        void answerRefresh() {
+            answerRefresh(new BroadcastResponse(1, 1, 0, List.of()));
+        }
+
+        void answerRefresh(BroadcastResponse response) {
+            refreshes.removeFirst();
+            refreshListeners.removeFirst().onResponse(response);
+        }
+
+        void failRefresh(Exception e) {
+            refreshes.removeFirst();
+            refreshListeners.removeFirst().onFailure(e);
         }
 
         void answer(Outcome... outcomes) {
@@ -92,10 +121,21 @@ class IntoTestUtils {
         }
     }
 
-    /** An {@link EscfBulkService} whose callbacks run on the calling thread, so {@code answer()} settles a writer before it returns. */
+    /** Bulks in flight in the default policy of {@link #bulks()}. */
+    static final int IN_FLIGHT = EscfBulkWriter.Policy.MAX_DEFAULT_BULKS_IN_FLIGHT;
+
+    /**
+     * An {@link EscfBulkService} whose callbacks run on the calling thread, so {@code answer()} settles a writer before it returns.
+     * Its default policy takes {@link #IN_FLIGHT} bulks of {@link Operator#TARGET_PAGE_SIZE}, whatever the test heap, and the node's
+     * usage never holds it back.
+     */
     static EscfBulkService bulks() {
         IndexingPressure pressure = new IndexingPressure(
-            Settings.builder().put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "1gb").build()
+            Settings.builder()
+                .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "2gb")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), Operator.TARGET_PAGE_SIZE + "b")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "1gb")
+                .build()
         );
         return new EscfBulkService(pressure, Runnable::run, mockBigArrays().bytesRefRecycler());
     }

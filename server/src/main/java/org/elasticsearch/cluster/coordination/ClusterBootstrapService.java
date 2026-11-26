@@ -195,7 +195,7 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
                 return;
             }
 
-            if (nodesMatchingRequirements.size() * 2 > bootstrapRequirements.size()) {
+            if (nodesMatchingRequirements.size() > bootstrapRequirements.size() >> 1) { // overflow-safe majority
                 startBootstrap(nodesMatchingRequirements, unsatisfiedRequirements);
             }
         }

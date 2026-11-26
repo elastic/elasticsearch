@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -50,10 +51,13 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
+import org.elasticsearch.xpack.stateless.commits.MergeBlob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapBreaker;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
@@ -105,6 +109,11 @@ public class SearchDirectoryTests extends ESTestCase {
         return createFakeStatelessNode(regionSize, cacheSize, false, false);
     }
 
+    private FakeStatelessNode createFakeStatelessNode(ByteSizeValue regionSize, ByteSizeValue cacheSize, Settings additionalNodeSettings)
+        throws IOException {
+        return createFakeStatelessNode(regionSize, cacheSize, false, false, IndexVersion.current(), additionalNodeSettings);
+    }
+
     private FakeStatelessNode createFakeStatelessNode(
         ByteSizeValue regionSize,
         ByteSizeValue cacheSize,
@@ -121,6 +130,17 @@ public class SearchDirectoryTests extends ESTestCase {
         boolean timestampBackfillEnabled,
         IndexVersion creationVersion
     ) throws IOException {
+        return createFakeStatelessNode(regionSize, cacheSize, hasTimestampField, timestampBackfillEnabled, creationVersion, Settings.EMPTY);
+    }
+
+    private FakeStatelessNode createFakeStatelessNode(
+        ByteSizeValue regionSize,
+        ByteSizeValue cacheSize,
+        boolean hasTimestampField,
+        boolean timestampBackfillEnabled,
+        IndexVersion creationVersion,
+        Settings additionalNodeSettings
+    ) throws IOException {
         return createFakeStatelessNode(regionSize, cacheSize, originalCacheBlobReader -> new CacheBlobReader() {
             @Override
             public ByteRange getRange(long position, int length, long remainingFileLength) {
@@ -133,7 +153,13 @@ public class SearchDirectoryTests extends ESTestCase {
             public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
                 originalCacheBlobReader.getRangeInputStream(position, length, listener);
             }
-        }, originalBlobContainer -> originalBlobContainer, hasTimestampField, timestampBackfillEnabled, creationVersion);
+        },
+            originalBlobContainer -> originalBlobContainer,
+            hasTimestampField,
+            timestampBackfillEnabled,
+            creationVersion,
+            additionalNodeSettings
+        );
     }
 
     private FakeStatelessNode createFakeStatelessNode(
@@ -145,6 +171,28 @@ public class SearchDirectoryTests extends ESTestCase {
         boolean timestampBackfillEnabled,
         IndexVersion creationVersion
     ) throws IOException {
+        return createFakeStatelessNode(
+            regionSize,
+            cacheSize,
+            objectStoreCacheBlobReaderWrapper,
+            blobContainerWrapper,
+            hasTimestampField,
+            timestampBackfillEnabled,
+            creationVersion,
+            Settings.EMPTY
+        );
+    }
+
+    private FakeStatelessNode createFakeStatelessNode(
+        ByteSizeValue regionSize,
+        ByteSizeValue cacheSize,
+        Function<CacheBlobReader, CacheBlobReader> objectStoreCacheBlobReaderWrapper,
+        Function<BlobContainer, BlobContainer> blobContainerWrapper,
+        boolean hasTimestampField,
+        boolean timestampBackfillEnabled,
+        IndexVersion creationVersion,
+        Settings additionalNodeSettings
+    ) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
 
             @Override
@@ -153,7 +201,8 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(super.nodeSettings())
                     .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize);
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                    .put(additionalNodeSettings);
                 return settings.build();
             }
 
@@ -546,15 +595,26 @@ public class SearchDirectoryTests extends ESTestCase {
     }
 
     public void testBlobLengthTracksMetadataUpdates() throws IOException {
-        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+        final var settings = Settings.builder()
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getKey(), false)
+            .build();
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096), settings)) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
-            final var commit1 = new PrimaryTermAndGeneration(1L, 1L);
-            final var commit2 = new PrimaryTermAndGeneration(1L, 2L);
-            assertThat(searchDirectory.blobLength(commit1).isPresent(), equalTo(false));
+            final Blob blob1, blob2;
+            if (randomBoolean()) {
+                blob1 = new BccBlob(new PrimaryTermAndGeneration(1L, 1L));
+                blob2 = new BccBlob(new PrimaryTermAndGeneration(1L, 2L));
+            } else {
+                var segmentId = randomByteArrayOfLength(StringHelper.ID_LENGTH);
+                blob1 = new MergeBlob(MergeBlob.blobName(segmentId), 1L);
+                var otherSegmentId = randomArrayOtherThan(segmentId, () -> randomByteArrayOfLength(StringHelper.ID_LENGTH));
+                blob2 = new MergeBlob(MergeBlob.blobName(otherSegmentId), 1L);
+            }
+            assertThat(searchDirectory.blobLength(blob1).isPresent(), equalTo(false));
 
-            final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
-            final var locationB = createBlobLocation(1L, 1L, 100L, 150L);
-            final var otherBlob = createBlobLocation(1L, 2L, 0L, 40L);
+            final var locationA = new BlobLocation(blob1, 0L, 100L);
+            final var locationB = new BlobLocation(blob1, 100L, 150L);
+            final var otherBlob = new BlobLocation(blob2, 0L, 40L);
             searchDirectory.updateCommit(
                 new StatelessCompoundCommit(
                     searchDirectory.shardId,
@@ -570,10 +630,10 @@ public class SearchDirectoryTests extends ESTestCase {
                     null
                 )
             );
-            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(250L));
-            assertThat(searchDirectory.blobLength(commit2).isPresent(), equalTo(false));
+            assertThat(searchDirectory.blobLength(blob1).getAsLong(), equalTo(250L));
+            assertThat(searchDirectory.blobLength(blob2).isPresent(), equalTo(false));
 
-            final var locationC = createBlobLocation(1L, 1L, 250L, 80L);
+            final var locationC = new BlobLocation(blob1, 250L, 80L);
             searchDirectory.updateCommit(
                 new StatelessCompoundCommit(
                     searchDirectory.shardId,
@@ -589,22 +649,22 @@ public class SearchDirectoryTests extends ESTestCase {
                     null
                 )
             );
-            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
-            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
-            assertThat(searchDirectory.blobLength(new PrimaryTermAndGeneration(2L, 1L)).isPresent(), equalTo(false));
+            assertThat(searchDirectory.blobLength(blob1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(blob2).getAsLong(), equalTo(40L));
+            assertThat(searchDirectory.blobLength(new BccBlob(new PrimaryTermAndGeneration(2L, 1L))).isPresent(), equalTo(false));
 
             // Dropping files, including the one at the end, leaves the length while any file still references the blob.
             searchDirectory.retainFiles(Set.of("fileA", "fileC", "other"));
-            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
-            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+            assertThat(searchDirectory.blobLength(blob1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(blob2).getAsLong(), equalTo(40L));
 
             searchDirectory.retainFiles(Set.of("fileA", "other"));
-            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
-            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+            assertThat(searchDirectory.blobLength(blob1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(blob2).getAsLong(), equalTo(40L));
 
             searchDirectory.retainFiles(Set.of("other"));
-            assertThat(searchDirectory.blobLength(commit1).isPresent(), equalTo(false));
-            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+            assertThat(searchDirectory.blobLength(blob1).isPresent(), equalTo(false));
+            assertThat(searchDirectory.blobLength(blob2).getAsLong(), equalTo(40L));
         }
     }
 
@@ -629,7 +689,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     null
                 )
             );
-            assertThat(searchDirectory.blobLength(fileEarly.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(500L));
+            assertThat(searchDirectory.blobLength(fileEarly.blob()).getAsLong(), equalTo(500L));
         }
     }
 
@@ -653,7 +713,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     null
                 )
             );
-            assertThat(searchDirectory.blobLength(firstLocation.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(80L));
+            assertThat(searchDirectory.blobLength(firstLocation.blob()).getAsLong(), equalTo(80L));
 
             // A later commit carries the same generational file from a longer copy in a new blob. The directory keeps
             // the first location, but the copy still extends the new blob past the file that is stored there.
@@ -674,8 +734,8 @@ public class SearchDirectoryTests extends ESTestCase {
                     null
                 )
             );
-            assertThat(searchDirectory.blobLength(firstLocation.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(80L));
-            assertThat(searchDirectory.blobLength(newFile.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(240L));
+            assertThat(searchDirectory.blobLength(firstLocation.blob()).getAsLong(), equalTo(80L));
+            assertThat(searchDirectory.blobLength(newFile.blob()).getAsLong(), equalTo(240L));
         }
     }
 
@@ -748,7 +808,7 @@ public class SearchDirectoryTests extends ESTestCase {
             // Commit A: fileA and the generational file are internal with timeRangeA.
             final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
             final var genLocationGen1 = createBlobLocation(1L, 1L, 100L, 100L);
-            final var timeRangeA = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+            final var timeRangeA = new TimestampFieldValueRange(1000L, 2000L);
             searchDirectory.updateCommit(
                 createCommitWithTimestamp(
                     node.shardId,
@@ -773,7 +833,7 @@ public class SearchDirectoryTests extends ESTestCase {
             // the generational file has been copied into the gen-2 BCC, so commit B lists it at a *new* blob location.
             final var locationB = createBlobLocation(1L, 2L, 0L, 100L);
             final var genLocationGen2 = createBlobLocation(1L, 2L, 100L, 100L);
-            final var timeRangeB = new StatelessCompoundCommit.TimestampFieldValueRange(5000L, 6000L);
+            final var timeRangeB = new TimestampFieldValueRange(5000L, 6000L);
             searchDirectory.updateCommit(
                 createCommitWithTimestamp(
                     node.shardId,
@@ -882,8 +942,8 @@ public class SearchDirectoryTests extends ESTestCase {
 
             // putIfAbsent keeps _0's gen file pinned to its first-seen BCC (1,1); _1's gen file is in BCC (1,2): the live commit is
             // multi-BCC.
-            assertThat(searchDirectory.getBlobLocation(genFileSeg0).getBatchedCompoundCommitTermAndGeneration(), equalTo(bcc1));
-            assertThat(searchDirectory.getBlobLocation(genFileSeg1).getBatchedCompoundCommitTermAndGeneration(), equalTo(bcc2));
+            assertThat(asInstanceOf(BccBlob.class, searchDirectory.getBlobLocation(genFileSeg0).blob()).termAndGeneration(), equalTo(bcc1));
+            assertThat(asInstanceOf(BccBlob.class, searchDirectory.getBlobLocation(genFileSeg1).blob()).termAndGeneration(), equalTo(bcc2));
 
             // The lagging refresh opens the older segment's generational file for the first time: it must acquire BCC (1,1).
             // Before the fix this throws "Cannot acquire [term=1, gen=1] for generational file [_0_1.liv]" because only the latest
@@ -966,7 +1026,7 @@ public class SearchDirectoryTests extends ESTestCase {
             }
         }) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
-            final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+            final var range = new TimestampFieldValueRange(1000L, 2000L);
             final var locationWithTs = createBlobLocation(1L, 1L, 0L, regionSize.getBytes());
             final var locationWithoutTs = createBlobLocation(1L, 2L, 0L, regionSize.getBytes());
             final var withTimestamp = new BlobFileRanges(locationWithTs, range);
@@ -1026,7 +1086,7 @@ public class SearchDirectoryTests extends ESTestCase {
     }
 
     public void testResolveRegionTimestampMillisFallback() throws IOException {
-        final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+        final var range = new TimestampFieldValueRange(1000L, 2000L);
         final long rangeMidpoint = BlobFileRanges.midpointMillisOrUnknownForCache(range);
         final var regionSize = ByteSizeValue.ofBytes(4096);
         final var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
@@ -1112,7 +1172,7 @@ public class SearchDirectoryTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE.before(SearchDirectory.TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION)
         );
 
-        final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+        final var range = new TimestampFieldValueRange(1000L, 2000L);
         final long rangeMidpoint = BlobFileRanges.midpointMillisOrUnknownForCache(range);
         final var regionSize = ByteSizeValue.ofBytes(4096);
         final var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
@@ -1349,7 +1409,7 @@ public class SearchDirectoryTests extends ESTestCase {
         long generation,
         Map<String, BlobLocation> commitFiles,
         Set<String> internalFiles,
-        @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+        @Nullable TimestampFieldValueRange timestampRange
     ) {
         return new StatelessCompoundCommit(
             shardId,

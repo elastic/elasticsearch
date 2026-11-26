@@ -55,6 +55,12 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
         SslProfile sslProfile() {
             return null;
         }
+
+        /** There is no SSL profile here, and these tests are not about sending: the real publisher needs a profile. */
+        @Override
+        UsagePublisher buildPublisher(UsageReportingSettings settings) {
+            return NoopUsagePublisher.INSTANCE;
+        }
     }
 
     /**
@@ -183,6 +189,7 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
                 createComponents(plugin, complete().put(UsageReportingSettings.REPORT_EXEMPT.getKey(), true).build())
             );
             assertThat(plugin.reportExempt(), is(true));
+            assertThat(plugin.accumulator(), instanceOf(AtomicUsageAccumulator.class));
             component.start();
             component.close();
             mockLog.assertAllExpectationsMatched();

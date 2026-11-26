@@ -684,9 +684,9 @@ public record TranslationContext(
 
     /**
      * A finished table over {@code plan}, whose labels are the label container {@code labels}: every label column {@code wanted}
-     * names reads its values out of it, and every packing leaves its labels out of it. The {@code promoted} labels, the ones
-     * a node declares as its own columns, stand beside the packing of every other label, which takes the place of a
-     * whole-label-set packing, so a label shows once.
+     * names reads its values out of it, and its finest packing, the table's one label container, leaves its labels out of
+     * it in place of {@code labels}. The {@code promoted} labels, the ones a node declares as its own columns, stand beside
+     * the packing of every other label, which takes the place of a whole-label-set packing, so a label shows once.
      */
     public IntermediateResult fromLabels(
         LogicalPlan plan,
@@ -705,17 +705,18 @@ public record TranslationContext(
         if (skips.isEmpty()) {
             skips.add(promoted);
         }
-        for (Set<String> skip : skips) {
-            columns.add(new Alias(source, mapOpen(skip), unset(labels, skip.stream())));
-        }
+        Set<String> finest = finestFirst(skips).getFirst();
+        columns.add(new Alias(source, mapOpen(finest), unset(labels, finest.stream())));
         for (String label : wanted.labels()) {
             columns.add(
                 new Alias(source, label, new TimeSeriesMetadataPath(source, labels, Literal.keyword(source, labelName(label)), roots))
             );
         }
-        LogicalPlan table = columns.isEmpty() ? plan : new Eval(source, plan, columns);
+        LogicalPlan evaluated = new Eval(source, plan, columns);
+        var output = new ArrayList<NamedExpression>(evaluated.output());
+        output.remove(labels);
         return new IntermediateResult(
-            table,
+            new Project(source, evaluated, output),
             new TranslationSchema(wanted.labels(), skips),
             value,
             step,

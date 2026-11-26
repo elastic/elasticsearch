@@ -67,6 +67,25 @@ setup:
   - match: { values: [ [ "lenient_ip", null ], [ "lenient_keyword", 7 ] ] }
 
 ---
+"cast of a cast of the field":
+  - do:
+      warnings_regex:
+        - "Field \\[value\\] of type \\[ip\\] in \\[lenient_ip\\] cannot be converted to \\[LONG\\] and will be null in those indices\\."
+      esql.query:
+        body:
+          query: 'FROM lenient_ip, lenient_keyword METADATA _index | EVAL x = value::long::double | SORT _index | KEEP _index, x | LIMIT 10'
+  - match: { columns: [ { name: _index, type: keyword }, { name: x, type: double } ] }
+  - match: { values: [ [ "lenient_ip", null ], [ "lenient_keyword", 7.0 ] ] }
+
+  - do:
+      warnings_regex:
+        - "Field \\[value\\] of type \\[ip\\] in \\[lenient_ip\\] cannot be converted to \\[LONG\\] and will be null in those indices\\."
+      esql.query:
+        body:
+          query: 'FROM lenient_ip, lenient_keyword METADATA _index | EVAL x = TO_DOUBLE(TO_LONG(value)) | SORT _index | KEEP _index, x | LIMIT 10'
+  - match: { values: [ [ "lenient_ip", null ], [ "lenient_keyword", 7.0 ] ] }
+
+---
 "conversions that need the type of their input stay an error":
   - do:
       catch: bad_request

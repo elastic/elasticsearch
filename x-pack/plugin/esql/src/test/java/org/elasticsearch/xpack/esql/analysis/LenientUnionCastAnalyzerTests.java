@@ -244,6 +244,35 @@ public class LenientUnionCastAnalyzerTests extends AnalyzerTestCase {
         }
     }
 
+    /**
+     * A cast of a cast of the union converts the types the inner cast accepts, and only the inner cast warns: the outer one reads
+     * the result of the inner one, which has a single type.
+     */
+    public void testChainedCasts() {
+        TestAnalyzer analyzer = analyzerWithUnion("ip", "keyword");
+        String chained = "FROM foo, bar | EVAL x = value::long::double | KEEP x | LIMIT 1";
+        String functions = "FROM foo, bar | EVAL x = TO_DOUBLE(TO_LONG(value)) | KEEP x | LIMIT 1";
+        if (lenient() == false) {
+            analyzer.error(chained, ambiguous());
+            analyzer.error(functions, ambiguous());
+            return;
+        }
+        for (String query : List.of(chained, functions)) {
+            LogicalPlan plan = analyzer.query(query);
+            assertTrue(plan.resolved());
+            assertThat(plan.output().getLast().dataType(), equalTo(DataType.DOUBLE));
+            assertWarnings(warning("ip", "foo", "LONG"));
+        }
+
+        // The inner cast of a union with an unsupported type
+        LogicalPlan plan = analyzerWithUnion("long", "rank_feature").query(
+            "FROM foo, bar | EVAL x = value::keyword::long | KEEP x | LIMIT 1"
+        );
+        assertTrue(plan.resolved());
+        assertThat(plan.output().getLast().dataType(), equalTo(DataType.LONG));
+        assertWarnings(warning("rank_feature", "bar", "KEYWORD"));
+    }
+
     public void testNoWarningWhenEveryTypeConverts() {
         TestAnalyzer analyzer = analyzerWithUnion("keyword", "long");
         assertTrue(analyzer.query("FROM foo, bar | EVAL x = value::long | KEEP x | LIMIT 1").resolved());

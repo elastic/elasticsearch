@@ -1864,7 +1864,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
 
         final String repoName = "repo";
-        final String snapshotName = "snapshot";
+        // Stand-ins for <backup-{now/d}> resolved on either side of midnight.
+        final String nameBeforeMidnight = "backup-2026.11.25";
+        final String nameAfterMidnight = "backup-2026.11.26";
         final String index = "test";
         final String uuid = UUIDs.randomBase64UUID();
         final SubscribableListener<Void> doneListener = new SubscribableListener<>();
@@ -1873,30 +1875,30 @@ public class SnapshotResiliencyTests extends ESTestCase {
             client().admin()
                 .cluster()
                 .createSnapshot(
-                    new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).uuid(uuid).waitForCompletion(false),
+                    new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, nameBeforeMidnight).uuid(uuid).waitForCompletion(false),
                     ActionListener.wrap(firstResponse -> {
                         // Snapshot is started but shard updates are blocked, so it remains in-progress.
                         client().admin()
                             .cluster()
                             .createSnapshot(
-                                new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).waitForCompletion(false),
+                                new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, nameBeforeMidnight).waitForCompletion(false),
                                 ActionListener.wrap(response -> fail("different UUID should not start while name is in-progress"), e -> {
                                     assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(SnapshotNameAlreadyInUseException.class));
-                                    // Same UUID with a different resolved name must still be treated as the in-progress snapshot
-                                    // (date-math retries must not create a second repo key for the same UUID).
+                                    // Same UUID after date-math re-resolves to a different name must still hit the in-progress entry.
                                     client().admin()
                                         .cluster()
                                         .createSnapshot(
-                                            new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, "other-name").uuid(uuid)
+                                            new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, nameAfterMidnight).uuid(uuid)
                                                 .waitForCompletion(false),
                                             ActionListener.wrap(
                                                 differentNameResponse -> client().admin()
                                                     .cluster()
                                                     .createSnapshot(
-                                                        new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).uuid(uuid)
+                                                        new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, nameBeforeMidnight)
+                                                            .uuid(uuid)
                                                             .waitForCompletion(false),
                                                         ActionListener.wrap(sameUuidResponse -> {
-                                                            sequencer.releaseBlock(snapshotName, index);
+                                                            sequencer.releaseBlock(nameBeforeMidnight, index);
                                                             doneListener.onResponse(null);
                                                         }, doneListener::onFailure)
                                                     ),

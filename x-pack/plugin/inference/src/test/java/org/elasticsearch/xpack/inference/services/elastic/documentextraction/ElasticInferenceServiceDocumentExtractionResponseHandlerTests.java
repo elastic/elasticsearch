@@ -8,56 +8,47 @@
 package org.elasticsearch.xpack.inference.services.elastic.documentextraction;
 
 import org.apache.hc.core5.http.message.BasicHttpResponse;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandlerTests;
 
 import java.nio.charset.StandardCharsets;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ElasticInferenceServiceDocumentExtractionResponseHandlerTests extends ESTestCase {
+/**
+ * Runs all of the default EIS failure status code tests against the document extraction handler, which differs only in
+ * that a 413 (content too large) is not retried.
+ */
+public class ElasticInferenceServiceDocumentExtractionResponseHandlerTests extends ElasticInferenceServiceResponseHandlerTests {
 
-    private static final ElasticInferenceServiceDocumentExtractionResponseHandler HANDLER =
-        new ElasticInferenceServiceDocumentExtractionResponseHandler("document extraction", (request, response) -> null);
-
-    public void testBuildFailureStatusCodeException_ContentTooLarge_DoesNotRetry() {
-        var request = mockRequest();
-
-        var exception = HANDLER.buildFailureStatusCodeException(request, httpResult(413));
-
-        assertThat(exception.shouldRetry(), is(false));
-        assertThat(exception.getCause(), instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
-        assertThat(exception.getCause().getMessage(), containsString("Received a content too large status code"));
-        assertThat(exception.rebuildRequest(request), is(request));
+    public ElasticInferenceServiceDocumentExtractionResponseHandlerTests(FailureTestCase failureTestCase) {
+        super(failureTestCase);
     }
 
-    public void testBuildFailureStatusCodeException_ServerError_Retries() {
-        var exception = HANDLER.buildFailureStatusCodeException(mockRequest(), httpResult(randomFrom(500, 503)));
-
-        assertThat(exception.shouldRetry(), is(true));
+    @Override
+    protected ElasticInferenceServiceResponseHandler createHandler() {
+        return new ElasticInferenceServiceDocumentExtractionResponseHandler("document extraction", (request, response) -> null);
     }
 
-    public void testBuildFailureStatusCodeException_BadRequest_DoesNotRetry() {
-        var exception = HANDLER.buildFailureStatusCodeException(mockRequest(), httpResult(400));
-
-        assertThat(exception.shouldRetry(), is(false));
+    @Override
+    protected boolean expectedShouldRetry(FailureTestCase testCase) {
+        if (testCase.inputStatusCode() == 413) {
+            return false;
+        }
+        return super.expectedShouldRetry(testCase);
     }
 
-    private static OutboundRequest mockRequest() {
+    public void testBuildFailureStatusCodeException_ContentTooLarge_DoesNotRebuildTheRequest() {
         var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("id");
-        return request;
-    }
+        var httpResult = new HttpResult(new BasicHttpResponse(413), "{\"message\": \"failure\"}".getBytes(StandardCharsets.UTF_8));
 
-    private static HttpResult httpResult(int statusCode) {
-        return new HttpResult(new BasicHttpResponse(statusCode), "{\"message\": \"failure\"}".getBytes(StandardCharsets.UTF_8));
+        var exception = createHandler().buildFailureStatusCodeException(request, httpResult);
+
+        assertThat(exception.rebuildRequest(request), is(request));
     }
 }

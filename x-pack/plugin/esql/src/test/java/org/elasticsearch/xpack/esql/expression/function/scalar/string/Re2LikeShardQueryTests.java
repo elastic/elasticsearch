@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
@@ -94,7 +95,8 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
 
         assertThat(query("(a|b)c.*", context), notNullValue());
         assertTrue("the build reserves memory while it runs", breaker.peak() > 0);
-        assertThat("nothing stays reserved once the automaton is built", breaker.getUsed(), equalTo(0L));
+        context.releaseQueryConstructionMemory();
+        assertThat("nothing stays reserved once the request ends", breaker.getUsed(), equalTo(0L));
 
         // a program that fits the breaker, 100 copies of a class of hundreds of ranges, whose transitions don't: the
         // build is charged as it grows and stops when the breaker trips
@@ -116,12 +118,30 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
 
         assertThat(query("abc", context), notNullValue());
         assertThat(breaker.peak(), greaterThanOrEqualTo(new AutomatonQueryCostEstimator(0).estimate()));
+        context.releaseQueryConstructionMemory();
         assertThat(breaker.getUsed(), equalTo(0L));
 
         TrackingCircuitBreaker small = new TrackingCircuitBreaker(new AutomatonQueryCostEstimator(0).estimate() - 1);
         SearchExecutionContext limited = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), small);
         expectThrows(CircuitBreakingException.class, () -> query("abc", limited));
         assertThat(small.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The query keeps its compiled automaton until the request ends, so it stays charged until then, as a {@code regexp}
+     * query does, and is marked so that the walk over the built query, which a wrapping query builder runs as well, doesn't
+     * charge it again.
+     */
+    public void testQueryStaysChargedUntilTheRequestEnds() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), breaker);
+
+        AutomatonQuery query = asInstanceOf(AutomatonQuery.class, query("(a|b)c.*", context));
+        assertThat(breaker.getUsed(), equalTo(query.ramBytesUsed()));
+        assertTrue(context.isQueryMemoryPreCharged(query));
+
+        context.releaseQueryConstructionMemory();
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     /** A regex Prometheus runs without an automaton can be too complex to build one for, as the compatibility docs say. */

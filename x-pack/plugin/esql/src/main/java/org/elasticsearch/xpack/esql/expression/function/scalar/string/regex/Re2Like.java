@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -134,12 +135,18 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
         // the field compiles the automaton as it builds the query, an indexed keyword to the UTF-8 automaton it walks its
         // terms with, so the peak of that is held while it runs, as a regexp query's shared automaton holds it
         long reservation = new AutomatonQueryCostEstimator(automaton.ramBytesUsed()).estimate();
-        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, label);
-        try {
-            return automatonQuery(automaton, fieldType, constantScoreRewrite, context);
-        } finally {
-            circuitBreaker.addWithoutBreaking(-reservation);
+        context.addCircuitBreakerMemory(reservation, label);
+        org.apache.lucene.search.Query query = automatonQuery(automaton, fieldType, constantScoreRewrite, context);
+        if (query instanceof AutomatonQuery automatonQuery) {
+            // then the query it keeps stays charged until the request ends, as a regexp query's does, and is marked so that
+            // the walk over the built query, which a wrapping query builder runs too, doesn't charge it again
+            context.addCircuitBreakerMemory(automatonQuery.ramBytesUsed(), reservation, label);
+            context.markQueryMemoryPreCharged(query);
+        } else {
+            // any other query, such as a doc values scan, is charged by that walk
+            context.addCircuitBreakerMemory(0, reservation, label);
         }
+        return query;
     }
 
     /**

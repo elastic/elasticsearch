@@ -1,0 +1,61 @@
+{
+  "prometheus.query": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/reference/query-languages/promql/promql-http-api#promql-http-api-query-instant",
+      "description": "Run a PromQL instant query"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/x-www-form-urlencoded"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_prometheus/api/v1/query",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/_prometheus/{index}/api/v1/query",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "An index expression that restricts which indices are considered. Defaults to `metrics-*`"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "query": {
+        "type": "string",
+        "description": "The PromQL expression to evaluate",
+        "required": true
+      },
+      "time": {
+        "type": "string",
+        "description": "The evaluation instant, as an RFC 3339 timestamp or Unix time in seconds. Defaults to the current time"
+      },
+      "limit": {
+        "type": "int",
+        "description": "The maximum number of series to return. `0` means no limit from the request"
+      },
+      "timeout": {
+        "type": "string",
+        "description": "The evaluation timeout, as a number of seconds or a duration such as `30s`. Capped by `xpack.prometheus.query.timeout`"
+      }
+    }
+  }
+}

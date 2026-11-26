@@ -14,7 +14,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
@@ -168,7 +167,7 @@ public class DocumentMapper {
             if (indexVersion.before(IndexVersions.INDEX_SORTING_ON_NESTED)) {
                 throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
             }
-            for (String field : IndexSortConfig.sortFields(settings.getSettings())) {
+            for (String field : settings.getIndexSortConfig().fields()) {
                 NestedObjectMapper nestedMapper = mappers().nestedLookup().getNestedMappers().get(field);
                 String nestedParent = nestedMapper != null ? nestedMapper.fullPath() : mappers().nestedLookup().getNestedParent(field);
                 if (nestedParent != null) {
@@ -179,7 +178,7 @@ public class DocumentMapper {
             }
         }
         if (settings.getIndexSortConfig().hasIndexSort()) {
-            Set<String> sortFields = Set.copyOf(IndexSortConfig.sortFields(settings.getSettings()));
+            Set<String> sortFields = settings.getIndexSortConfig().fields();
             Collection<RuntimeField> runtimeFields = mapping().getRoot().runtimeFields();
             for (RuntimeField rf : runtimeFields) {
                 for (MappedFieldType ft : rf.asMappedFieldTypes().toList()) {

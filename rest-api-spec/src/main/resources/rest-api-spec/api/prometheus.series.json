@@ -1,0 +1,61 @@
+{
+  "prometheus.series": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/reference/query-languages/promql/promql-http-api#promql-http-api-series",
+      "description": "Find Prometheus series"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/x-www-form-urlencoded"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_prometheus/api/v1/series",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/_prometheus/{index}/api/v1/series",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "An index expression that restricts which indices are considered. Defaults to `metrics-*`"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "match[]": {
+        "type": "string",
+        "description": "A series selector, for example `up{job=\"prometheus\"}`. Repeat the parameter to pass several selectors. At least one is required",
+        "required": true
+      },
+      "start": {
+        "type": "string",
+        "description": "The start of the time range, as an RFC 3339 timestamp or Unix time in seconds. Defaults to 24 hours before `end`"
+      },
+      "end": {
+        "type": "string",
+        "description": "The end of the time range, as an RFC 3339 timestamp or Unix time in seconds. Defaults to the current time"
+      },
+      "limit": {
+        "type": "int",
+        "description": "The maximum number of series to return. `0` means no limit from the request"
+      }
+    }
+  }
+}

@@ -3882,6 +3882,8 @@ public class ExternalSourceResolver {
                 }
                 encodeColumns.add(entry.getKey());
             } else if (unsignedExtremaUnderNonUnsignedPlanner(plannerType, fileType)) {
+                // Out of scope for declared-epoch rescale: unsigned extrema under a signed planner are a
+                // representation mismatch, not a linear epoch map. Do not apply the INTEGER/LONG epoch rule here.
                 if (poisonColumns == null) {
                     poisonColumns = new ArrayList<>();
                 }
@@ -5820,7 +5822,9 @@ public class ExternalSourceResolver {
         // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so
         // the rekeyed stats stay exactly correct — warm serving survives the rename) and poison extrema + drop counts for
         // retyped / declared-date-format columns (the read-time coercion nulls failing cells and re-represents values, so
-        // no pre-coercion stat matches a scan). row_count/file_count/size_bytes stay: COUNT(*) stays warm.
+        // no pre-coercion stat matches a scan). Exact epoch_second/epoch_millis on INTEGER/LONG are the exception: extrema
+        // are rescaled into the declared unit before overlay and those names are removed from poison. row_count/file_count/
+        // size_bytes stay: COUNT(*) stays warm.
         Map<String, DataType> inferredTypes = attributesToTypeMap(inferred.schema());   // physical names, inferred types
         Map<String, DataType> overlaidTypes = attributesToTypeMap(unified.output());    // logical names, declared types
         Map<String, String> physicalToLogical = new HashMap<>();
@@ -5980,8 +5984,15 @@ public class ExternalSourceResolver {
         // physical column a partition shadows, which every reader does parse — and took the per-column statistics of
         // every mapped partitioned dataset permanently cold.
         Map<String, Object> servableStats = SourceStatisticsSerializer.restrictToReadConfig(inferred.sourceMetadata(), expectedReadConfig);
+        SourceStatisticsSerializer.EpochRescale rescale = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+            servableStats,
+            physicalToLogical,
+            SourceStatisticsSerializer.epochScales(declaredReadSpec.dateFormats(), overlaidTypes),
+            inferredTypes
+        );
+        poisonColumns.removeAll(rescale.unpoisoned());
         Map<String, Object> overlaidSourceMetadata = Map.copyOf(
-            SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(servableStats, physicalToLogical, poisonColumns)
+            SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(rescale.stats(), physicalToLogical, poisonColumns)
         );
         ExternalSourceMetadata overlaidMetadata = new ExternalSourceMetadata() {
             @Override

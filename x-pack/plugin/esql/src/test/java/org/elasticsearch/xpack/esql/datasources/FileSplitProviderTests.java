@@ -6318,6 +6318,265 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(100L, stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
     }
 
+    /**
+     * Footer {@code start} in epoch seconds, mapping {@code @timestamp <- start, epoch_second}: split stats
+     * land on {@code @timestamp} in millis. An hourly filter drops non-overlapping splits; a full-day filter
+     * drops none.
+     */
+    public void testRangeAwareSplitsRescaleEpochSecondAndDropStatsMisses() {
+        long rawMin = 1_763_596_800L; // 2025-11-20T00:00:00Z
+        long rawMax = 1_763_597_100L; // +5 minutes
+        long hourLaterMin = 1_763_600_400L; // 01:00
+        long hourLaterMax = 1_763_600_700L;
+        Map<String, Object> inHour = harvestStats("start", rawMin, rawMax);
+        Map<String, Object> nextHour = harvestStats("start", hourLaterMin, hourLaterMax);
+
+        RangeAwareFormatReader mockReader = createMockRangeReader(
+            List.of(new SplitRange(100, 400, inHour), new SplitRange(500, 400, nextHour))
+        );
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 2000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+
+        List<Attribute> overlaid = List.of(new ReferenceAttribute(SRC, "@timestamp", DataType.DATETIME));
+        ExternalSchema schema = new ExternalSchema(overlaid);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(schema, null, null, Map.of("start", DataType.LONG))
+        );
+        DeclaredReadSpec spec = DeclaredReadSpec.of(
+            Map.of("@timestamp", "start"),
+            Map.of("@timestamp", "epoch_second"),
+            Set.of("@timestamp")
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            schema,
+            schema,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            spec
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(2, splits.size());
+        Map<String, Object> first = ((FileSplit) splits.get(0)).statistics();
+        assertEquals(rawMin * 1_000L, first.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertEquals(rawMax * 1_000L, first.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertEquals(2L, first.get(SourceStatisticsSerializer.columnValueCountKey("@timestamp")));
+        assertNull(first.get(SourceStatisticsSerializer.columnMinKey("start")));
+        assertNull(first.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+
+        Expression hourly = timestampRange(rawMin * 1_000L, hourLaterMin * 1_000L);
+        List<ExternalSplit> hourKept = FileSplitProvider.dropStatsMisses(splits, List.of(hourly));
+        assertEquals(1, hourKept.size());
+        assertEquals(
+            rawMin * 1_000L,
+            ((FileSplit) hourKept.get(0)).statistics().get(SourceStatisticsSerializer.columnMinKey("@timestamp"))
+        );
+
+        Expression fullDay = timestampRange(rawMin * 1_000L, (rawMin + 86_400L) * 1_000L);
+        assertEquals(2, FileSplitProvider.dropStatsMisses(splits, List.of(fullDay)).size());
+    }
+
+    /**
+     * Pin {@code statsFileTypes} to the declared DATETIME so DATETIME+DATE_NANOS union conversion
+     * sees millis and scales ×1e6, not LONG (identity, millis served as nanos).
+     */
+    public void testRangeAwareSplitsEpochSecondUnionByNameArrivesInNanos() {
+        long rawMin = 1_763_596_800L;
+        long rawMax = 1_763_597_100L;
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, harvestStats("start", rawMin, rawMax))));
+        FileSplitProvider splitter = splitterFor(mockReader);
+        List<Attribute> overlaid = List.of(new ReferenceAttribute(SRC, "@timestamp", DataType.DATETIME));
+        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "@timestamp", DataType.DATE_NANOS)));
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-a.parquet"), 2000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(overlaid), null, null, Map.of("start", DataType.LONG))
+        );
+        DeclaredReadSpec spec = DeclaredReadSpec.of(
+            Map.of("@timestamp", "start"),
+            Map.of("@timestamp", "epoch_second"),
+            Set.of("@timestamp")
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            new ExternalSchema(overlaid),
+            unified,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            spec
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(1, splits.size());
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+        assertEquals(rawMin * 1_000_000_000L, stats.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertEquals(rawMax * 1_000_000_000L, stats.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.columnValueCountKey("@timestamp"))).longValue());
+    }
+
+    public void testRangeAwareSplitsYyyyMMddOnLongStillPoisons() {
+        RangeAwareFormatReader mockReader = createMockRangeReader(
+            List.of(new SplitRange(100, 500, harvestStats("start", 20251120L, 20251120L)))
+        );
+        FileSplitProvider splitter = splitterFor(mockReader);
+        List<Attribute> overlaid = List.of(new ReferenceAttribute(SRC, "@timestamp", DataType.DATETIME));
+        ExternalSchema schema = new ExternalSchema(overlaid);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 2000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(schema, null, null, Map.of("start", DataType.LONG))
+        );
+        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("@timestamp", "start"), Map.of("@timestamp", "yyyyMMdd"), Set.of("@timestamp"));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            schema,
+            schema,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            spec
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(1, splits.size());
+        assertUnknownColumnStats(((FileSplit) splits.get(0)).statistics(), "@timestamp", 2L);
+    }
+
+    /**
+     * Mixed files, same logical column: one in-range (rescaled) + one out-of-range (poisoned). Merge
+     * is marker-wins, so the dataset has no served aggregate min/max.
+     */
+    public void testRangeAwareSplitsMixedEpochFilesMarkerWins() {
+        long rawMin = 1_763_596_800L;
+        long rawMax = 1_763_597_100L;
+        long outOfRange = Long.MAX_VALUE / 1_000L + 1;
+        StoragePath goodPath = StoragePath.of("s3://b/good.parquet");
+        StoragePath badPath = StoragePath.of("s3://b/bad.parquet");
+        RangeAwareFormatReader mockReader = new RangeAwareFormatReader() {
+            @Override
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
+            }
+
+            @Override
+            public List<SplitRange> cachedSplitRanges(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                boolean good = object.path().equals(goodPath);
+                Map<String, Object> raw = good ? harvestStats("start", rawMin, rawMax) : harvestStats("start", outOfRange, outOfRange);
+                return List.of(new SplitRange(100, 500, raw));
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
+                throw new UnsupportedOperationException("not called during split discovery");
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                return null;
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet", ".parq");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public void close() {}
+        };
+        FileSplitProvider splitter = splitterFor(mockReader);
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(goodPath, 2000, Instant.EPOCH), new StorageEntry(badPath, 2000, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+        List<Attribute> overlaid = List.of(new ReferenceAttribute(SRC, "@timestamp", DataType.DATETIME));
+        ExternalSchema schema = new ExternalSchema(overlaid);
+        SchemaReconciliation.FileSchemaInfo info = new SchemaReconciliation.FileSchemaInfo(
+            schema,
+            null,
+            null,
+            Map.of("start", DataType.LONG)
+        );
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(goodPath, info, badPath, info);
+        DeclaredReadSpec spec = DeclaredReadSpec.of(
+            Map.of("@timestamp", "start"),
+            Map.of("@timestamp", "epoch_second"),
+            Set.of("@timestamp")
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            schema,
+            schema,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            spec
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(2, splits.size());
+        Map<StoragePath, Map<String, Object>> byPath = new HashMap<>();
+        for (ExternalSplit split : splits) {
+            FileSplit fileSplit = (FileSplit) split;
+            byPath.put(fileSplit.path(), fileSplit.statistics());
+        }
+        Map<String, Object> good = byPath.get(goodPath);
+        assertEquals(rawMin * 1_000L, good.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertEquals(rawMax * 1_000L, good.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertNull(good.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+        Map<String, Object> bad = byPath.get(badPath);
+        assertNull(bad.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertEquals(Boolean.TRUE, bad.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+        assertEquals(Boolean.TRUE, bad.get(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp")));
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(List.of(good, bad));
+        assertNull("marker-wins: no served aggregate min", merged.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertNull(merged.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertEquals(Boolean.TRUE, merged.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+        assertEquals(Boolean.TRUE, merged.get(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp")));
+    }
+
     public void testRangeAwareSplitsConvertLongExtremaWhenReadSchemaIsPinnedToDouble() {
         // 9007199254740993 is not an exact double; converting LONG->DOUBLE yields 9007199254740992.0.
         // Using the pinned DOUBLE readSchema as the file type skips that convert and leaves the raw Long.
@@ -11278,6 +11537,19 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static FieldAttribute fieldAttr(String name) {
         return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static Expression timestampRange(long startMillis, long endMillis) {
+        FieldAttribute ts = new FieldAttribute(
+            SRC,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        return new And(
+            SRC,
+            new GreaterThanOrEqual(SRC, ts, new Literal(SRC, startMillis, DataType.DATETIME)),
+            new LessThan(SRC, ts, new Literal(SRC, endMillis, DataType.DATETIME))
+        );
     }
 
     private static FieldAttribute keywordField(String name) {

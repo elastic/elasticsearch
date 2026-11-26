@@ -365,6 +365,117 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * Declared {@code @timestamp <- start, epoch_second} rescales footer extrema into millis on the
+     * logical name and keeps counts. Assert the stats map — a cold scan can mask a dead overlay.
+     */
+    public void testDeclaredEpochSecondOverlayRescalesStatsMap() throws Exception {
+        long rawMin = 1_763_596_800L;
+        long rawMax = 1_763_597_100L;
+        Map<String, Object> meta = resolveDeclaredEpochStats(
+            DataType.LONG,
+            DatasetFieldMapping.withFormat("date", "start", "epoch_second"),
+            rawMin,
+            rawMax,
+            Map.of()
+        );
+        assertEquals(rawMin * 1_000L, meta.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertEquals(rawMax * 1_000L, meta.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertEquals(12L, meta.get(SourceStatisticsSerializer.columnValueCountKey("@timestamp")));
+        assertEquals(0L, meta.get(SourceStatisticsSerializer.columnNullCountKey("@timestamp")));
+        assertNull(meta.get(SourceStatisticsSerializer.columnMinKey("start")));
+        assertNull(meta.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+    }
+
+    /** Calendar formats stay poisoned: no served min/max, counts dropped. */
+    public void testDeclaredYyyyMMddOverlayStillPoisonsStatsMap() throws Exception {
+        Map<String, Object> meta = resolveDeclaredEpochStats(
+            DataType.LONG,
+            DatasetFieldMapping.withFormat("date", "start", "yyyyMMdd"),
+            20251120L,
+            20251120L,
+            Map.of()
+        );
+        assertNull(meta.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertNull(meta.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertEquals(Boolean.TRUE, meta.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+        assertEquals(Boolean.TRUE, meta.get(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp")));
+        assertNull(meta.get(SourceStatisticsSerializer.columnValueCountKey("@timestamp")));
+    }
+
+    /**
+     * Out-of-range extrema stay poisoned even under {@code error_mode: null_field} — a valid superset of
+     * the scan, but one rule is cheaper than two. The stats map must not serve a truncated min.
+     */
+    public void testDeclaredEpochOutOfRangeStaysPoisonedUnderNullField() throws Exception {
+        Map<String, Object> meta = resolveDeclaredEpochStats(
+            DataType.LONG,
+            DatasetFieldMapping.withFormat("date", "start", "epoch_second"),
+            Long.MAX_VALUE / 1_000L + 1,
+            Long.MAX_VALUE / 1_000L + 1,
+            Map.of("error_mode", "null_field")
+        );
+        assertNull(meta.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertNull(meta.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertEquals(Boolean.TRUE, meta.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+        assertEquals(Boolean.TRUE, meta.get(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp")));
+        assertNull(meta.get(SourceStatisticsSerializer.columnValueCountKey("@timestamp")));
+    }
+
+    private Map<String, Object> resolveDeclaredEpochStats(
+        DataType physicalType,
+        DatasetFieldMapping mapping,
+        long min,
+        long max,
+        Map<String, Object> extraConfig
+    ) throws Exception {
+        String file = "s3://bucket/data/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, List.of(attr("start", physicalType)));
+        Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
+            StoragePath.of(DECLARED_GLOB).patternPrefix().toString(),
+            List.of(entry(file, 100))
+        );
+        StubFormatReaderWithStats reader = new StubFormatReaderWithStats(schemasByPath, Map.of(file, 12L)) {
+            @Override
+            Optional<Map<String, SourceStatistics.ColumnStatistics>> columnsFor(String path) {
+                return Optional.of(Map.of("start", new SourceStatistics.ColumnStatistics() {
+                    @Override
+                    public OptionalLong nullCount() {
+                        return OptionalLong.of(0L);
+                    }
+
+                    @Override
+                    public OptionalLong valueCount() {
+                        return OptionalLong.of(12L);
+                    }
+
+                    @Override
+                    public OptionalLong distinctCount() {
+                        return OptionalLong.empty();
+                    }
+
+                    @Override
+                    public Optional<Object> minValue() {
+                        return Optional.of(min);
+                    }
+
+                    @Override
+                    public Optional<Object> maxValue() {
+                        return Optional.of(max);
+                    }
+                }));
+            }
+        };
+        ExternalSourceResolver resolver = createResolverWithReader(new StubStorageProvider(listingsByPrefix, schemasByPath), reader, null);
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("@timestamp", mapping);
+        DatasetMapping declared = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props));
+        Map<String, Object> config = new HashMap<>(extraConfig);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolvePaths(resolver, List.of(DECLARED_GLOB), Map.of(DECLARED_GLOB, config), null, Map.of(DECLARED_GLOB, declared), null, future);
+        return soleResolvedSource(future.actionGet(), DECLARED_GLOB).metadata().sourceMetadata();
+    }
+
+    /**
      * Under {@code dynamic: true} a declared column a complete (columnar) schema lacks is kept at its declared type
      * instead of rejecting the dataset, and resolution warns with the physical name, as the readers do, so a query
      * that never reads the column still carries the warning.

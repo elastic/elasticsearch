@@ -750,6 +750,158 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertSame(stats, SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, Map.of(), Set.of()));
     }
 
+    /**
+     * Table-driven pin of {@link SourceStatisticsSerializer#rescaleDeclaredEpochColumns}: physical keys
+     * are rewritten in the declared unit; overlay is the only rekey. INTEGER extrema {@code longValue()};
+     * out-of-range / already-marked / calendar / compound stay poisoned.
+     */
+    public void testRescaleDeclaredEpochColumns() {
+        long rawMin = 1_763_596_800L;
+        long rawMax = 1_763_597_100L;
+        SourceStatisticsSerializer.EpochScale datetimeSeconds = new SourceStatisticsSerializer.EpochScale(DataType.DATETIME, 1_000L);
+        SourceStatisticsSerializer.EpochScale nanosSeconds = new SourceStatisticsSerializer.EpochScale(DataType.DATE_NANOS, 1_000_000_000L);
+
+        // in-range exact, no rename
+        {
+            Map<String, Object> stats = epochStats("start", rawMin, rawMax, 12L);
+            SourceStatisticsSerializer.EpochRescale out = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                stats,
+                Map.of(),
+                Map.of("start", datetimeSeconds),
+                Map.of("start", DataType.LONG)
+            );
+            assertEquals(Set.of("start"), out.unpoisoned());
+            assertEquals(rawMin * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMinKey("start")));
+            assertEquals(rawMax * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMaxKey("start")));
+            assertEquals(12L, out.stats().get(SourceStatisticsSerializer.columnValueCountKey("start")));
+            assertEquals(rawMin, stats.get(SourceStatisticsSerializer.columnMinKey("start"))); // input not mutated
+        }
+
+        // path rename: physical start scaled in place; overlay will rekey to @timestamp
+        {
+            Map<String, Object> stats = epochStats("start", rawMin, rawMax, 12L);
+            SourceStatisticsSerializer.EpochRescale out = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                stats,
+                Map.of("start", "@timestamp"),
+                Map.of("@timestamp", datetimeSeconds),
+                Map.of("start", DataType.LONG)
+            );
+            assertEquals(Set.of("@timestamp"), out.unpoisoned());
+            assertEquals(rawMin * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMinKey("start")));
+            assertEquals(rawMax * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMaxKey("start")));
+            assertNull("helper does not write logical keys", out.stats().get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+            Map<String, Object> overlaid = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(
+                out.stats(),
+                Map.of("start", "@timestamp"),
+                Set.of()
+            );
+            assertEquals(rawMin * 1_000L, overlaid.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+            assertEquals(rawMax * 1_000L, overlaid.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+            assertNull(overlaid.get(SourceStatisticsSerializer.columnMinKey("start")));
+        }
+
+        // INTEGER extrema
+        {
+            Map<String, Object> stats = new HashMap<>();
+            stats.put(SourceStatisticsSerializer.columnMinKey("ts"), Integer.valueOf(1_704_067_200));
+            stats.put(SourceStatisticsSerializer.columnMaxKey("ts"), Integer.valueOf(1_704_067_299));
+            stats.put(SourceStatisticsSerializer.columnValueCountKey("ts"), 10L);
+            SourceStatisticsSerializer.EpochRescale out = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                stats,
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.INTEGER)
+            );
+            assertEquals(Set.of("ts"), out.unpoisoned());
+            assertEquals(1_704_067_200L * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMinKey("ts")));
+            assertEquals(1_704_067_299L * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        }
+
+        // min below range / max above range / DATE_NANOS pre-epoch / DATETIME overflow → poison
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", Math.ceilDiv(Long.MIN_VALUE, 1_000L) - 1, rawMax, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.LONG)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", rawMin, Long.MAX_VALUE / 1_000L + 1, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.LONG)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", -1L, 10L, 1L),
+                Map.of(),
+                Map.of("ts", nanosSeconds),
+                Map.of("ts", DataType.LONG)
+            ).unpoisoned().isEmpty()
+        );
+
+        // existing unservable marker stays; column not unpoisoned
+        {
+            Map<String, Object> stats = epochStats("ts", rawMin, rawMax, 1L);
+            stats.put(SourceStatisticsSerializer.columnMinUnservableKey("ts"), Boolean.TRUE);
+            SourceStatisticsSerializer.EpochRescale out = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                stats,
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.LONG)
+            );
+            assertTrue(out.unpoisoned().isEmpty());
+            assertSame(stats, out.stats());
+        }
+
+        // absent column / UNSIGNED_LONG / DOUBLE / calendar / compound → never unpoisoned
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("other", rawMin, rawMax, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("other", DataType.LONG)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", rawMin, rawMax, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.UNSIGNED_LONG)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", rawMin, rawMax, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.DOUBLE)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            "calendar formats have no scale",
+            SourceStatisticsSerializer.epochScales(Map.of("ts", "yyyyMMdd"), Map.of("ts", DataType.DATETIME)).isEmpty()
+        );
+        assertTrue(
+            "compound formats have no scale",
+            SourceStatisticsSerializer.epochScales(Map.of("ts", "epoch_second||epoch_millis"), Map.of("ts", DataType.DATETIME)).isEmpty()
+        );
+    }
+
+    private static Map<String, Object> epochStats(String column, long min, long max, long valueCount) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, valueCount);
+        stats.put(SourceStatisticsSerializer.columnMinKey(column), min);
+        stats.put(SourceStatisticsSerializer.columnMaxKey(column), max);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey(column), valueCount);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey(column), 0L);
+        return stats;
+    }
+
     public void testRewriteColumnAsAllNullCopiesAndStripsLeftoverUnservableMarkers() {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);

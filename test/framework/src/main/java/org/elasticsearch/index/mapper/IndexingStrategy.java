@@ -9,18 +9,22 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.index.IndexWriter;
+import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.escf.EscfBatch;
-import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -76,67 +80,91 @@ public enum IndexingStrategy {
     public abstract Outcome index(MapperService mapperService, IndexWriter indexWriter, List<String> sources, int firstSeqNo)
         throws IOException;
 
-    // NOTE: mirrors ShardBatchMapper#mapColumnBatch, which falls back to document indexing on any Exception and logs it. Only a refused
-    // resolution and the UnsupportedOperationException that mappers throw to ask for the fallback do so here, so that any other exception,
-    // which is a mapper bug, fails the test instead of being hidden by document indexing. The metadata mappers run outside the try for the
-    // same reason. Returns why the batch was refused, or null when it was indexed.
+    // NOTE: runs ShardBatchMapper#mapColumnBatch itself, so that the metadata mappers, the required field check and the chunk context
+    // are the ones the engine uses. It falls back to document indexing on any Exception and only logs it. A refused resolution and the
+    // UnsupportedOperationException that mappers throw to ask for the fallback fall back here too. The logged exception of any other
+    // failure, which is a mapper bug, fails the test instead of being hidden by document indexing. Returns why the batch was refused,
+    // or null when it was indexed.
     private static String indexAsBatch(MapperService mapperService, IndexWriter indexWriter, List<String> sources, int firstSeqNo)
         throws IOException {
         final int count = sources.size();
         final BytesReference[] bytes = new BytesReference[count];
-        final IndexRequest[] requests = new IndexRequest[count];
+        final BulkItemRequest[] items = new BulkItemRequest[count];
         for (int i = 0; i < count; i++) {
             bytes[i] = new BytesArray(sources.get(i).getBytes(StandardCharsets.UTF_8));
-            requests[i] = new IndexRequest("index").id("d" + (firstSeqNo + i)).source(bytes[i], XContentType.JSON);
+            items[i] = new BulkItemRequest(i, new IndexRequest("index").id("d" + (firstSeqNo + i)).source(bytes[i], XContentType.JSON));
         }
         final MappingLookup lookup = mapperService.mappingLookup();
         final IndexSettings indexSettings = mapperService.getIndexSettings();
-        try (
-            BatchMappingContext context = new BatchMappingContext(
-                EngineTestCase.initFromRequests(requests),
-                lookup,
-                indexSettings,
-                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
-            );
-            EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(bytes), XContentType.JSON)
-        ) {
+        try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(bytes), XContentType.JSON)) {
             final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(escfBatch, lookup, indexSettings);
             if (resolution == null) {
                 return "resolveMappers refused the batch";
             }
-            final MetadataFieldMapper[] metadataMappers = lookup.getMapping().getSortedMetadataMappers();
-            for (final MetadataFieldMapper metadataMapper : metadataMappers) {
-                metadataMapper.preColumnarParse(context);
+            final FailureRecorder failure = new FailureRecorder();
+            final EngineBatch engineBatch;
+            try (MockLog mockLog = MockLog.capture(ShardBatchMapper.class)) {
+                mockLog.addExpectation(failure);
+                engineBatch = ShardBatchMapper.mapColumnBatch(
+                    items,
+                    escfBatch,
+                    new TestShardContext(mapperService),
+                    0,
+                    count,
+                    resolution,
+                    Engine.Operation.Origin.PRIMARY,
+                    new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)),
+                    DocumentParsingProvider.EMPTY_INSTANCE
+                );
+                mockLog.assertAllExpectationsMatched();
             }
-            try {
-                final FieldMapper[] columnMappers = resolution.columnMappers();
-                for (int c = 0; c < columnMappers.length; c++) {
-                    if (columnMappers[c] != null) {
-                        columnMappers[c].mapColumnBatch(context, escfBatch.column(c));
-                    }
+            if (engineBatch == null) {
+                if (failure.thrown instanceof UnsupportedOperationException) {
+                    return String.valueOf(failure.thrown.getMessage());
                 }
-                for (final ColumnGroupResolver.ColumnGroupResolution group : resolution.columnGroups()) {
-                    final int[] leafIndexes = group.leafIndexes();
-                    final EscfColumn[] groupColumns = new EscfColumn[leafIndexes.length];
-                    for (int i = 0; i < leafIndexes.length; i++) {
-                        groupColumns[i] = escfBatch.column(leafIndexes[i]);
-                    }
-                    group.mapper().mapColumnGroupBatch(context, groupColumns, group.relativeKeys());
+                throw new AssertionError("the mappers failed to map a batch, which is not a request to fall back", failure.thrown);
+            }
+            try (engineBatch) {
+                final MappedColumns columns = engineBatch.columns();
+                columns.fillPrimaryTerm(1L);
+                for (int i = 0; i < count; i++) {
+                    columns.setSeqNo(i, firstSeqNo + i);
+                    columns.setVersion(i, 1L);
                 }
-            } catch (UnsupportedOperationException e) {
-                return String.valueOf(e.getMessage());
+                indexWriter.addBatch(columns.toColumnBatch());
             }
-            for (final MetadataFieldMapper metadataMapper : metadataMappers) {
-                metadataMapper.postColumnarParse(context);
-            }
-            final MappedColumns columns = context.columns();
-            columns.fillPrimaryTerm(1L);
-            for (int i = 0; i < count; i++) {
-                columns.setSeqNo(i, firstSeqNo + i);
-                columns.setVersion(i, 1L);
-            }
-            indexWriter.addBatch(columns.toColumnBatch());
             return null;
+        }
+    }
+
+    private static final class FailureRecorder implements MockLog.LoggingExpectation {
+        private volatile Throwable thrown;
+
+        @Override
+        public void match(LogEvent event) {
+            if (event.getThrown() != null) {
+                thrown = event.getThrown();
+            }
+        }
+
+        @Override
+        public void assertMatched() {}
+    }
+
+    private record TestShardContext(MapperService mapperService) implements BatchMappingShardContext {
+        @Override
+        public IndexSettings indexSettings() {
+            return mapperService.getIndexSettings();
+        }
+
+        @Override
+        public long getOperationPrimaryTerm() {
+            return 1L;
+        }
+
+        @Override
+        public long getRelativeTimeInNanos() {
+            return 0L;
         }
     }
 }

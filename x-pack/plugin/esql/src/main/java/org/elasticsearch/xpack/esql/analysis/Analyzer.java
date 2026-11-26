@@ -96,7 +96,6 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.eql.EqlPageConverter;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
@@ -987,8 +986,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             refuseNestedAnyOverDatasets(plan);
-            Set<String> read = readCollections(plan);
-            plan = plan.transformUp(ExternalRelation.class, relation -> carryCollections(relation, read));
+            // A dataset's scope is stripped from every query, whether or not it expands: the scan reads the expanded
+            // collection itself, and a scope attribute cannot be serialized to the data nodes
+            plan = plan.transformUp(ExternalRelation.class, HideNestedScopeFields::withoutNestedScope);
             if (plan.anyMatch(NestedExpand.class::isInstance) == false && plan.anyMatch(NestedPredicate::usedBy) == false) {
                 return plan;
             }
@@ -1044,63 +1044,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return paths;
         }
 
-        /** The paths of the collections that a bound {@code NESTED_EXPAND} reads. */
-        private static Set<String> readCollections(LogicalPlan plan) {
-            Set<String> paths = new HashSet<>();
-            plan.forEachDown(NestedExpand.class, expand -> {
-                if (expand.bound()) {
-                    paths.add(expand.path());
-                }
-            });
-            return paths;
-        }
-
-        /**
-         * A dataset has no hidden documents to find the children through, so each collection {@code NESTED_EXPAND} reads
-         * replaces its private schema with one column carrying its elements, under a name of its own. Its properties are the
-         * leaves to carry, by name relative to the collection.
-         */
-        private static ExternalRelation carryCollections(ExternalRelation relation, Set<String> read) {
-            if (relation.output().stream().noneMatch(HideNestedScopeFields::isNestedScope)) {
-                return relation;
-            }
-            Map<String, Map<String, EsField>> leaves = new TreeMap<>();
-            for (Attribute attribute : relation.output()) {
-                if (attribute instanceof FieldAttribute field
-                    && field.field() instanceof NestedScopeField scope
-                    && scope.kind() == NestedScopeField.Kind.VALUE
-                    && read.contains(scope.path())) {
-                    String relative = field.name().substring(NestedScopeField.PREFIX.length() + scope.path().length() + 1);
-                    leaves.computeIfAbsent(scope.path(), k -> new TreeMap<>()).put(relative, scope.leaf());
-                }
-            }
-            for (String path : read) {
-                if (leaves.containsKey(path) == false && relation.output().stream().anyMatch(a -> isCollection(a, path))) {
-                    leaves.put(path, new TreeMap<>());
-                }
-            }
-            List<Attribute> output = new ArrayList<>();
-            for (Attribute attribute : relation.output()) {
-                if (isNestedScope(attribute)) {
-                    continue;
-                }
-                output.add(attribute);
-            }
-            for (var collection : leaves.entrySet()) {
-                String path = collection.getKey();
-                String name = path.substring(path.lastIndexOf('.') + 1);
-                EsField field = new EsField(name, DataType.SOURCE, collection.getValue(), false, EsField.TimeSeriesFieldType.NONE);
-                FieldAttribute carrier = new FieldAttribute(relation.source(), null, null, CollectionSchema.carrierName(path), field, true);
-                output.add(carrier);
-            }
-            return relation.withAttributes(output);
-        }
-
-        private static boolean isCollection(Attribute attribute, String path) {
-            return attribute instanceof FieldAttribute field
-                && field.field() instanceof NestedScopeField scope
-                && scope.kind() == NestedScopeField.Kind.COLLECTION
-                && scope.path().equals(path);
+        /** {@code relation} without the private nested schema, which only the analysis of {@code NESTED_EXPAND} reads. */
+        private static ExternalRelation withoutNestedScope(ExternalRelation relation) {
+            List<Attribute> visible = relation.output().stream().filter(a -> isNestedScope(a) == false).toList();
+            return visible.size() == relation.output().size() ? relation : relation.withAttributes(visible);
         }
     }
 
@@ -1249,8 +1196,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Adds a dataset's nested columns, as its schema describes them, to its output as the private nested schema an index has
          * for its {@code nested} fields, so {@code NESTED_EXPAND} binds to them as it binds to an index's.
-         * The attributes are synthetic, and {@link HideNestedScopeFields} replaces them with the collections' carriers before the
-         * plan runs.
+         * The attributes are synthetic, and {@link HideNestedScopeFields} removes them before the plan runs.
          */
         private static List<Attribute> withCollectionScope(List<Attribute> schema, NestedColumns nested, Source source) {
             if (nested.isEmpty()) {

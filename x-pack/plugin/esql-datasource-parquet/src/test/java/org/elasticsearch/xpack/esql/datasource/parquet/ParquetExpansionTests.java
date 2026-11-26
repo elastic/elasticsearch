@@ -72,7 +72,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -480,14 +479,13 @@ public class ParquetExpansionTests extends ESTestCase {
         MessageType projected = ParquetFormatReader.projectedSchema(
             SCHEMA,
             id,
-            Map.of(),
             spec(SCHEMA, leaf("sku", DataType.KEYWORD), leaf("tags", DataType.KEYWORD))
         );
         assertThat(
             projected.getColumns().stream().map(c -> String.join(".", c.getPath())).toList(),
             equalTo(List.of("id", "items.list.element.sku", "items.list.element.tags.list.element"))
         );
-        MessageType structural = ParquetFormatReader.projectedSchema(SCHEMA, id, Map.of(), spec(SCHEMA, leaf("color", DataType.KEYWORD)));
+        MessageType structural = ParquetFormatReader.projectedSchema(SCHEMA, id, spec(SCHEMA, leaf("color", DataType.KEYWORD)));
         assertThat(
             structural.getColumns().stream().map(c -> String.join(".", c.getPath())).toList(),
             equalTo(List.of("id", "items.list.element.pid"))
@@ -512,7 +510,7 @@ public class ParquetExpansionTests extends ESTestCase {
         assertThat(read.rows, equalTo(List.of(List.of(0L), List.of(1L), List.of(2L), List.of(3L))));
         assertThat(read.blockCounts, equalTo(List.of(1)));
         assertThat(
-            ParquetFormatReader.projectedSchema(SCHEMA, List.of(), Map.of(), spec(SCHEMA, leaf("pid", DataType.LONG)))
+            ParquetFormatReader.projectedSchema(SCHEMA, List.of(), spec(SCHEMA, leaf("pid", DataType.LONG)))
                 .getColumns()
                 .stream()
                 .map(c -> String.join(".", c.getPath()))

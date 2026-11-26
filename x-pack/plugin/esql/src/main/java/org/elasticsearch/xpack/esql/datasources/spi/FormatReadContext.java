@@ -12,7 +12,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -139,7 +138,6 @@ public record FormatReadContext(
     @Nullable CircuitBreaker breaker,
     @Nullable SharedErrorBudget sharedErrorBudget,
     @Nullable FormatReadCounters readCounters,
-    Map<String, List<CollectionSchema.Leaf>> collections,
     @Nullable ExpandRead expandRead
 ) {
 
@@ -150,7 +148,6 @@ public record FormatReadContext(
         if (maxRecordBytes <= 0) {
             throw new IllegalArgumentException("maxRecordBytes must be positive, got: " + maxRecordBytes);
         }
-        collections = collections == null ? Map.of() : Map.copyOf(collections);
         if (statsColumnScope == null) {
             statsColumnScope = StripeColumnScope.PROJECTED;
         }
@@ -199,7 +196,6 @@ public record FormatReadContext(
             breaker,
             sharedErrorBudget,
             readCounters,
-            collections,
             expandRead
         );
     }
@@ -229,7 +225,6 @@ public record FormatReadContext(
             breaker,
             sharedErrorBudget,
             readCounters,
-            collections,
             expandRead
         );
     }
@@ -259,7 +254,6 @@ public record FormatReadContext(
             breaker,
             sharedErrorBudget,
             readCounters,
-            collections,
             expandRead
         );
     }
@@ -311,7 +305,6 @@ public record FormatReadContext(
         private SharedErrorBudget sharedErrorBudget = null;
         @Nullable
         private FormatReadCounters readCounters = null;
-        private Map<String, List<CollectionSchema.Leaf>> collections = Map.of();
         @Nullable
         private ExpandRead expandRead = null;
 
@@ -444,17 +437,6 @@ public record FormatReadContext(
             return this;
         }
 
-        /**
-         * Projected columns that name a collection which a collection operator reads, each with the element leaves to
-         * carry, by name relative to the collection and in carrier order: the reader emits each as its
-         * {@link ChildRelationColumns} carrier rather than as the column it would otherwise be, and a null leaf for a
-         * leaf its file lacks.
-         */
-        public Builder collections(Map<String, List<CollectionSchema.Leaf>> collections) {
-            this.collections = collections;
-            return this;
-        }
-
         /** The collection to read at element grain; see {@link FormatReadContext#expandRead()}. */
         public Builder expandRead(@Nullable ExpandRead expandRead) {
             this.expandRead = expandRead;
@@ -491,7 +473,6 @@ public record FormatReadContext(
                 breaker,
                 sharedErrorBudget,
                 readCounters,
-                collections,
                 expandRead
             );
         }

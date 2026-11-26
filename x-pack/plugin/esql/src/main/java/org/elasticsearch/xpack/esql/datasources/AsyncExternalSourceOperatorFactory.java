@@ -32,12 +32,10 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
@@ -86,7 +84,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -1180,26 +1177,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * The carrier columns of the projection, each with the leaves of its collection in the carrier's order and the type the
-     * plan reads them as. Only a carrier has the {@link DataType#SOURCE} type in a dataset's output.
-     */
-    private Map<String, List<CollectionSchema.Leaf>> collectionColumns() {
-        Map<String, List<CollectionSchema.Leaf>> carriers = new HashMap<>();
-        for (Attribute attr : attributes) {
-            if (attr.dataType() == DataType.SOURCE && attr instanceof FieldAttribute field) {
-                carriers.put(
-                    attr.name(),
-                    new TreeMap<>(field.field().getProperties()).entrySet()
-                        .stream()
-                        .map(leaf -> new CollectionSchema.Leaf(leaf.getKey(), leaf.getValue().getDataType()))
-                        .toList()
-                );
-            }
-        }
-        return carriers;
-    }
-
-    /**
      * Returns the projected-column names the format reader should produce: real data columns plus
      * the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} when deferred extraction is on.
      * Both Hive-style partition columns and {@code _file.*} virtual columns are stripped because
@@ -1466,12 +1443,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // is optimizer-inserted and resolved at read time by the format reader). Preserve it at the
         // tail of the per-file projection so the reader's _rowPosition emission path fires for
         // every file, regardless of how many of the user's data columns the file is missing.
-        // A collection's carrier is no column of the file either: the format reader builds it from the collection's columns
-        for (String column : queryProjection) {
-            if (CollectionSchema.isCarrier(column) && result.contains(column) == false) {
-                result.add(column);
-            }
-        }
         if (wanted.contains(ColumnExtractor.ROW_POSITION_COLUMN)) {
             // Defensive: only append once. If a future caller decides _rowPosition should also be
             // present in perFileReadSchema, the loop above would already have added it and we
@@ -2768,7 +2739,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     splitBudget,
                     state.formatCounters
                 );
-                rangeCtx.setCollections(collectionColumns());
                 rangeCtx.setExpandRead(expandRead);
                 if (fileContext != null) {
                     rangeCtx.setFileContext(fileContext);
@@ -2863,7 +2833,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 adapterOwnsRowCount = pages != null;
                 if (pages == null) {
                     FormatReadContext ctx = FormatReadContext.builder()
-                        .collections(collectionColumns())
                         .expandRead(expandRead)
                         .projectedColumns(PhysicalNames.translateNames(readerCols, renames))
                         .batchSize(batchSize)
@@ -3131,7 +3100,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             boolean adapterOwnsRowCount = pages != null;
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
-                    .collections(collectionColumns())
                     .expandRead(expandRead)
                     .projectedColumns(PhysicalNames.translateNames(perFileCols, renames))
                     .batchSize(batchSize)
@@ -3242,7 +3210,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         buffer.setSplitsTotal(1);
         buffer.setCurrentSplit(1);
         FormatReadContext ctx = FormatReadContext.builder()
-            .collections(collectionColumns())
             .expandRead(expandRead)
             .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
             .batchSize(batchSize)
@@ -3334,7 +3301,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     );
                     if (opened == null) {
                         FormatReadContext ctx = FormatReadContext.builder()
-                            .collections(collectionColumns())
                             .expandRead(expandRead)
                             .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
                             .batchSize(batchSize)

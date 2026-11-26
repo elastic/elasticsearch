@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
@@ -1277,9 +1276,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     /** The file's lists of structures, as the nested columns its schema describes. */
     static NestedColumns nestedColumns(MessageType parquetSchema) {
         List<NestedColumns.NestedColumn> columns = new ArrayList<>();
-        for (CollectionSchema collection : ParquetCollections.describe(parquetSchema)) {
+        for (ParquetCollections.Collection collection : ParquetCollections.describe(parquetSchema)) {
             Map<String, DataType> leaves = new HashMap<>();
-            for (CollectionSchema.Leaf leaf : collection.leaves()) {
+            for (ParquetCollections.Leaf leaf : collection.leaves()) {
                 leaves.put(leaf.name(), leaf.type());
             }
             columns.add(new NestedColumns.NestedColumn(collection.path(), leaves, collection.unsupported()));
@@ -2220,7 +2219,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             context.informationalWarningSink(),
             context.sharedErrorBudget(),
             counters,
-            context.collections(),
             context.expandRead()
         );
     }
@@ -2747,7 +2745,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             context.informationalWarningSink(),
             context.sharedErrorBudget(),
             counters,
-            context.collections(),
             context.expandRead()
         );
     }
@@ -2809,7 +2806,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         @Nullable Consumer<String> warningSink,
         @Nullable SharedErrorBudget sharedErrorBudget,
         @Nullable ParquetReaderCounters counters,
-        Map<String, List<CollectionSchema.Leaf>> collections,
         @Nullable ExpandRead expandRead
     ) throws IOException {
         if (counters != null) {
@@ -2819,8 +2815,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
 
-            // A collection's carrier is decoded by the baseline iterator only, for now
-            boolean useOptimized = optimizedReader && forceBaselinePath == false && collections.isEmpty();
+            boolean useOptimized = optimizedReader && forceBaselinePath == false;
             FilterPredicate filterPredicate = resolveFilterPredicate(object, parquetSchema);
             if (filterPredicate != null) {
                 if (counters != null) {
@@ -2886,7 +2881,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 );
             }
 
-            MessageType projectedSchema = projectedSchema(parquetSchema, projectedAttributes, collections, expansion);
+            MessageType projectedSchema = projectedSchema(parquetSchema, projectedAttributes, expansion);
             String createdBy = fileMetaData.getCreatedBy();
             boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
             recordPerColumnMaterialization(projectedAttributes, useOptimized, counters);
@@ -2929,7 +2924,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 errorPolicy,
                 warningSink,
                 sharedErrorBudget,
-                collections,
                 expansion
             );
         } catch (Throwable t) {
@@ -3708,38 +3702,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * {@code projectedAttributes} with the columns of the collections that {@code carriers} carry, which the query names
-     * only through their carriers, so that the projected schema reads them.
-     */
-    private static List<Attribute> withCarriedColumns(List<Attribute> projectedAttributes, Map<String, ?> carriers) {
-        if (carriers.isEmpty()) {
-            return projectedAttributes;
-        }
-        List<Attribute> withCarried = new ArrayList<>(projectedAttributes);
-        for (String carrier : carriers.keySet()) {
-            String path = CollectionSchema.carriedPath(carrier);
-            withCarried.add(new ReferenceAttribute(Source.EMPTY, null, path, DataType.NULL, Nullability.TRUE, null, false));
-        }
-        return withCarried;
-    }
-
-    /**
-     * The schema a read decodes: the projected columns, the columns of the collections carried, and of an expanded
-     * collection only the leaves it names, so a wide element costs the read only what is asked of it.
+     * The schema a read decodes: the projected columns and, of an expanded collection, only the leaves it names, so a
+     * wide element costs the read only what is asked of it.
      */
     static MessageType projectedSchema(
         MessageType fileSchema,
         List<Attribute> projectedAttributes,
-        Map<String, List<CollectionSchema.Leaf>> collections,
         @Nullable ParquetExpansion.Spec expansion
     ) {
-        List<Attribute> columns = withCarriedColumns(projectedAttributes, collections);
+        List<Attribute> columns = projectedAttributes;
         if (expansion != null) {
             String path = expansion.read().path();
-            // A carrier and an expansion of one collection would each bind a reader to its columns' one page reader
-            if (collections.containsKey(CollectionSchema.carrierName(path))) {
-                throw new IllegalArgumentException("collection [" + path + "] cannot be both carried and expanded");
-            }
             // The column-read store holds one stateful page reader per column, which a row column and an element leaf
             // over the same column cannot share; checked here so both iterators refuse it
             for (Attribute column : projectedAttributes) {
@@ -4399,8 +4372,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
         /** Per-attribute column metadata; null for attributes not present in the file. */
         private final ColumnInfo[] columnInfos;
-        /** Per-attribute decoder of a collection read as its carrier; null for every other attribute. */
-        private final ParquetCollections.Decoder[] collections;
         /** The collection this read expands each batch's rows by, or {@code null} when it emits one row per file row. */
         @Nullable
         private final ParquetExpansion expansion;
@@ -4529,19 +4500,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ErrorPolicy errorPolicy,
             @Nullable Consumer<String> warningSink,
             @Nullable SharedErrorBudget sharedErrorBudget,
-            Map<String, List<CollectionSchema.Leaf>> collections,
             @Nullable ParquetExpansion.Spec expansion
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
-            this.collections = new ParquetCollections.Decoder[attributes.size()];
-            for (int i = 0; i < attributes.size(); i++) {
-                List<CollectionSchema.Leaf> leaves = collections.get(attributes.get(i).name());
-                if (leaves != null) {
-                    String path = CollectionSchema.carriedPath(attributes.get(i).name());
-                    this.collections[i] = ParquetCollections.Decoder.of(projectedSchema, path, leaves);
-                }
-            }
             this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(
                 errorPolicy,
                 fileLocation,
@@ -4773,20 +4735,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 this.expansion.bind(store, listCorruptionHandler, fileLocation, rowGroupOrdinal, rowsBeforeCurrentGroup);
             }
-            ColumnReadStoreImpl collectionStore = null;
-            for (ParquetCollections.Decoder decoder : collections) {
-                if (decoder != null) {
-                    if (collectionStore == null) {
-                        collectionStore = new ColumnReadStoreImpl(
-                            rowGroup,
-                            new ParquetColumnDecoding.NoOpGroupConverter(projectedSchema),
-                            projectedSchema,
-                            createdBy
-                        );
-                    }
-                    decoder.bind(collectionStore);
-                }
-            }
             if (rowsRemainingInGroup == 0 && validateListExhaustion) {
                 validateListColumnsExhausted();
             }
@@ -4829,14 +4777,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             try {
                 for (int col = 0; col < columnInfos.length; col++) {
                     ColumnInfo info = columnInfos[col];
-                    if (collections[col] != null) {
-                        String name = attributes.get(col).name();
-                        blocks[col] = collections[col].read(
-                            rowsToRead,
-                            blockFactory,
-                            () -> nullListElementWarnings().addOnce(ParquetColumnDecoding.nullListElementsMessage(name))
-                        );
-                    } else if (info == null) {
+                    if (info == null) {
                         blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
                     } else if (info.isRowPosition()) {
                         long base = rowGroupFirstRowGlobal[rowGroupOrdinal] + firstRowOfBatchInRG;

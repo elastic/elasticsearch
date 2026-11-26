@@ -56,7 +56,7 @@ public final class NestedExpandExec extends UnaryExec {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        NestedExpand.checkVersion(out, child(), path);
+        NestedExpand.checkVersion(out);
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeString(path);
@@ -83,17 +83,13 @@ public final class NestedExpandExec extends UnaryExec {
 
     @Override
     protected AttributeSet computeReferences() {
-        // The operator reads child documents through the parent _doc, or a dataset's carrier, neither of them an output column
-        Attribute carrier = NestedExpand.carrier(child().output(), path);
-        AttributeSet docs = NestedExpand.docAttributes(child().output());
-        return carrier == null ? docs : docs.combine(AttributeSet.of(carrier));
+        // The operator reads child documents through the parent _doc, which is not one of its output columns.
+        return NestedExpand.docAttributes(child().output());
     }
 
     @Override
     public List<Attribute> output() {
-        Attribute carrier = NestedExpand.carrier(child().output(), path);
-        List<Attribute> parents = carrier == null ? child().output() : child().output().stream().filter(a -> a != carrier).toList();
-        return mergeOutputAttributes(expanded, parents);
+        return mergeOutputAttributes(expanded, child().output());
     }
 
     @Override

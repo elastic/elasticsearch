@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -29,7 +31,9 @@ import java.util.List;
 public final class NestedExpandOperator extends AbstractPageMappingOperator {
     static final String BREAKER_LABEL = "nested_expand";
 
-    public record Factory(@Nullable ChildRows.Factory children, String path, List<DataType> types) implements Operator.OperatorFactory {
+    public record Factory(int docChannel, @Nullable NestedChildren.Factory children, String path, List<DataType> types)
+        implements
+            Operator.OperatorFactory {
         @Override
         public Operator get(DriverContext context) {
             return new NestedExpandOperator(context, this);
@@ -44,7 +48,7 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
     private final DriverContext context;
     private final Factory factory;
     @Nullable
-    private final ChildRows children;
+    private final NestedChildren children;
 
     private NestedExpandOperator(DriverContext context, Factory factory) {
         this.context = context;
@@ -100,7 +104,8 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
                     .newBlockBuilder(page.getPositionCount(), context.blockFactory());
             }
             if (children != null) {
-                children.read(page, p -> true, p -> true, loaded -> {
+                DocVector docs = ((DocBlock) page.getBlock(factory.docChannel())).asVector();
+                children.read(docs, p -> true, loaded -> {
                     IntVector parentPositions = loaded.<IntBlock>getBlock(0).asVector();
                     int start = 0;
                     for (int c = 0; c < loaded.getPositionCount(); c++) {

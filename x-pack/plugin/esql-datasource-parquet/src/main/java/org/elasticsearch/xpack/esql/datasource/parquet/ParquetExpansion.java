@@ -29,7 +29,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -61,8 +60,7 @@ import java.util.function.Supplier;
  * plus one parent's elements; a single parent larger than the batch is held whole, charged to the breaker like every
  * other block. The filters, drops and row limit of the batch then apply to its parents, and only the survivors expand.
  * <p>
- * What an element is comes from {@link ParquetCollections.Shape}, the levels the carrier decode uses too, and the
- * element semantics match it: a null element is dropped and announced, an empty or null list has no elements, a leaf the
+ * What an element is comes from {@link ParquetCollections.Shape}, the levels at which a list has an element and the element is not null: a null element is dropped and announced, an empty or null list has no elements, a leaf the
  * file lacks is null on every element, and a list inside the element is that leaf's multivalue.
  */
 final class ParquetExpansion {
@@ -127,7 +125,7 @@ final class ParquetExpansion {
                 List<String> nullDetails = new ArrayList<>();
                 for (ExpandRead.Leaf wanted : read.leaves()) {
                     String name = read.path() + "." + wanted.name();
-                    CollectionSchema.Leaf inFile = shape.leaf(wanted.name());
+                    ParquetCollections.Leaf inFile = shape.leaf(wanted.name());
                     if (inFile == null) {
                         absent.add(name);
                         continue;
@@ -588,7 +586,7 @@ final class ParquetExpansion {
         throw new IllegalStateException("collection element [" + String.join(".", elementPath) + "] has no columns");
     }
 
-    /** How one leaf's physical values become the values of its type, as the carrier decode converts them. */
+    /** How one leaf's physical values become the values of its type. */
     private enum ValueKind {
         BOOLEAN,
         INT,
@@ -686,8 +684,8 @@ final class ParquetExpansion {
 
         /**
          * Reads one row's levels, opening an element at each repetition level that starts one. Returns the row's element
-         * count. The walk is the carrier decode's ({@code ParquetCollections.Leaf#read}), on a cursor that validates the
-         * levels and charges a malformed list to the read's error budget.
+         * count. The walk runs on a cursor that validates the levels and charges a malformed list to the read's error
+         * budget.
          */
         int readRow(int parent, Runnable nullElement) {
             input.ensureRowStart();

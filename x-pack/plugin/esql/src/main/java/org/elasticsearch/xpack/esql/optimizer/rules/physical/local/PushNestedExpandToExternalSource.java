@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection;
-import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -113,8 +112,6 @@ public final class PushNestedExpandToExternalSource extends PhysicalOptimizerRul
             }
         }
 
-        // The carrier the analyzer added for the collection, read by nothing once the scan expands it
-        Attribute carrier = NestedExpand.carrier(scan.output(), expand.path());
         int parentLimit = scan.pushedLimit();
         boolean limitBounds = true;
         for (int i = chain.size() - 1; i >= 0; i--) {
@@ -127,11 +124,7 @@ public final class PushNestedExpandToExternalSource extends PhysicalOptimizerRul
             }
         }
 
-        List<Attribute> parentAttributes = carrier == null
-            ? scan.attributes()
-            : scan.attributes().stream().filter(a -> a != carrier).toList();
-        PhysicalPlan rebuilt = scan.withAttributes(parentAttributes)
-            .withPushedLimit(FormatReader.NO_LIMIT)
+        PhysicalPlan rebuilt = scan.withPushedLimit(FormatReader.NO_LIMIT)
             .withExpansion(new ExternalSourceExec.Expansion(expand.path(), expand.expanded(), expand.paths(), parentLimit));
         for (int i = chain.size() - 1; i >= 0; i--) {
             PhysicalPlan between = chain.get(i);
@@ -139,7 +132,7 @@ public final class PushNestedExpandToExternalSource extends PhysicalOptimizerRul
                 // A copy of the limit above the expansion, which still bounds the result
                 continue;
             }
-            rebuilt = rebuild(between, rebuilt, expand.expanded(), carrier);
+            rebuilt = rebuild(between, rebuilt, expand.expanded());
         }
         if (rebuilt.output().equals(expand.output())) {
             return rebuilt;
@@ -200,16 +193,11 @@ public final class PushNestedExpandToExternalSource extends PhysicalOptimizerRul
 
     /**
      * {@code node} over {@code child}, which now carries the expanded columns. A projection keeps them, as it would have
-     * had it sat above the expansion, and drops the collection's carrier.
+     * had it sat above the expansion.
      */
-    private static PhysicalPlan rebuild(PhysicalPlan node, PhysicalPlan child, List<Attribute> expanded, Attribute carrier) {
+    private static PhysicalPlan rebuild(PhysicalPlan node, PhysicalPlan child, List<Attribute> expanded) {
         if (node instanceof ProjectExec project) {
-            List<NamedExpression> projections = new ArrayList<>();
-            for (NamedExpression projection : project.projections()) {
-                if (carrier == null || projection.toAttribute().equals(carrier) == false) {
-                    projections.add(projection);
-                }
-            }
+            List<NamedExpression> projections = new ArrayList<>(project.projections());
             projections.addAll(expanded);
             return new ProjectExec(project.source(), child, projections);
         }

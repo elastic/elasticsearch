@@ -11,7 +11,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -52,7 +51,6 @@ public final class RangeReadContext {
      */
     @Nullable
     private Object fileContext;
-    private Map<String, List<CollectionSchema.Leaf>> collections = Map.of();
     @Nullable
     private ExpandRead expandRead;
 
@@ -227,15 +225,6 @@ public final class RangeReadContext {
     @Nullable
     public Object fileContext() {
         return fileContext;
-    }
-
-    /** As {@link FormatReadContext#collections()}. */
-    public Map<String, List<CollectionSchema.Leaf>> collections() {
-        return collections;
-    }
-
-    public void setCollections(Map<String, List<CollectionSchema.Leaf>> collections) {
-        this.collections = Map.copyOf(collections);
     }
 
     /**

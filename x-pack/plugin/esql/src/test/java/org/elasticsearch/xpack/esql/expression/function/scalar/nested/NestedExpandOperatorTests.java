@@ -39,7 +39,7 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
             PlannerSettings.DEFAULTS,
             EsqlTestUtils.TEST_CFG
         );
-        return new NestedExpandOperator.Factory(children.rows(0), "items", List.of(DataType.LONG, DataType.TEXT));
+        return new NestedExpandOperator.Factory(0, children, "items", List.of(DataType.LONG, DataType.TEXT));
     }
 
     @Override
@@ -140,7 +140,7 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
         Page input = parents(context.blockFactory(), 0, parents);
         List<Page> results = new TestDriverRunner().builder(context)
             .input(List.of(input))
-            .run(new NestedExpandOperator.Factory(children.rows(0), "items", List.of()).get(context));
+            .run(new NestedExpandOperator.Factory(0, children, "items", List.of()).get(context));
         int rows = 0;
         for (Page page : results) {
             assertThat(page.getBlockCount(), equalTo(1));

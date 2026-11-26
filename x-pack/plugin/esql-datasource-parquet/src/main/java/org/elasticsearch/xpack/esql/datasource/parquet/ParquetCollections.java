@@ -6,55 +6,61 @@
  */
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.ColumnReadStore;
-import org.apache.parquet.column.ColumnReader;
-import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.spi.ChildRelationColumns;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Parquet's collections: a {@code LIST} whose element is a group. A {@code LIST} of primitives is not one: it is already a
- * multivalued column. A {@code MAP} is not one either.
- * <p>
- * The decode turns each leaf's repetition and definition levels into the columnar form of {@link ChildRelationColumns}:
- * offsets per row and one block per leaf positioned by element.
+ * multivalued column. A {@code MAP} is not one either. Schema discovery describes them, and {@link ParquetExpansion} reads
+ * one at element grain.
  */
 final class ParquetCollections {
     private ParquetCollections() {}
 
-    /** The collections of {@code schema}, each with its leaves sorted by name, which is the carrier's leaf order. */
-    static List<CollectionSchema> describe(MessageType schema) {
-        List<CollectionSchema> out = new ArrayList<>();
+    /**
+     * A list of structures in a file's schema, whose elements a {@code NESTED_EXPAND} reads as rows and whose leaves it
+     * reads as their columns.
+     *
+     * @param path        the collection's dotted name in the file's schema
+     * @param leaves      the element's leaves, by name relative to {@code path}, sorted by name
+     * @param unsupported why the collection cannot be read at element grain, or {@code null} when it can. Set when an
+     *                    element holds a collection with more than one leaf, whose values would arrive unpaired.
+     */
+    record Collection(String path, List<Leaf> leaves, @Nullable String unsupported) {
+        Collection {
+            leaves = List.copyOf(leaves);
+        }
+    }
+
+    /**
+     * One leaf of an element.
+     *
+     * @param name relative to the collection's path; a structure inside the element is dotted
+     * @param type the type it reads as
+     */
+    record Leaf(String name, DataType type) {}
+
+    /** The collections of {@code schema}, each with its leaves sorted by name. */
+    static List<Collection> describe(MessageType schema) {
+        List<Collection> out = new ArrayList<>();
         for (Type field : schema.getFields()) {
             describe(field, field.getName(), out);
         }
         return out;
     }
 
-    private static void describe(Type field, String path, List<CollectionSchema> out) {
+    private static void describe(Type field, String path, List<Collection> out) {
         if (field.isPrimitive()) {
             return;
         }
@@ -88,19 +94,19 @@ final class ParquetCollections {
         return null;
     }
 
-    private static CollectionSchema collection(String path, GroupType element) {
-        List<CollectionSchema.Leaf> leaves = new ArrayList<>();
+    private static Collection collection(String path, GroupType element) {
+        List<Leaf> leaves = new ArrayList<>();
         String[] unsupported = new String[1];
         leaves(element, "", path, leaves, unsupported);
-        leaves.sort(Comparator.comparing(CollectionSchema.Leaf::name));
-        return new CollectionSchema(path, leaves, unsupported[0]);
+        leaves.sort(Comparator.comparing(Leaf::name));
+        return new Collection(path, leaves, unsupported[0]);
     }
 
     /**
      * The element's leaves. A structure's fields are further leaves of the same element. A collection inside the element with
      * one leaf is a multivalued leaf; with more, its values would arrive unpaired, so the whole collection is refused.
      */
-    private static void leaves(GroupType group, String prefix, String path, List<CollectionSchema.Leaf> out, String[] unsupported) {
+    private static void leaves(GroupType group, String prefix, String path, List<Leaf> out, String[] unsupported) {
         for (Type child : group.getFields()) {
             if (child.getName().indexOf('.') >= 0) {
                 // A leaf is named by its dotted path inside the element, so a field whose own name holds a dot would
@@ -111,7 +117,7 @@ final class ParquetCollections {
             if (child.isPrimitive()) {
                 DataType type = leafType(child.asPrimitiveType());
                 if (type != null) {
-                    out.add(new CollectionSchema.Leaf(name, type));
+                    out.add(new Leaf(name, type));
                 }
                 continue;
             }
@@ -128,7 +134,7 @@ final class ParquetCollections {
                 if (inner.size() == 1) {
                     DataType type = leafType(inner.getFirst());
                     if (type != null) {
-                        out.add(new CollectionSchema.Leaf(name, type));
+                        out.add(new Leaf(name, type));
                     }
                 } else if (unsupported[0] == null) {
                     unsupported[0] = "["
@@ -198,11 +204,11 @@ final class ParquetCollections {
      *
      * @param elementPath the path of the element group, whose descendants are the leaves
      */
-    record Shape(CollectionSchema collection, String[] elementPath, int collectionRep, int existsDef, int elementDef) {
+    record Shape(Collection collection, String[] elementPath, int collectionRep, int existsDef, int elementDef) {
 
         /** The leaf named {@code name} relative to the element, or {@code null} when this file's element lacks it. */
         @Nullable
-        CollectionSchema.Leaf leaf(String name) {
+        Leaf leaf(String name) {
             return collection.leaves().stream().filter(c -> c.name().equals(name)).findFirst().orElse(null);
         }
 
@@ -218,7 +224,7 @@ final class ParquetCollections {
      */
     @Nullable
     static Shape shape(MessageType schema, String path) {
-        CollectionSchema collection = describe(schema).stream().filter(c -> c.path().equals(path)).findFirst().orElse(null);
+        Collection collection = describe(schema).stream().filter(c -> c.path().equals(path)).findFirst().orElse(null);
         if (collection == null) {
             return null;
         }
@@ -267,290 +273,5 @@ final class ParquetCollections {
             }
         }
         throw new IllegalStateException("no Parquet column for collection leaf [" + relative + "]");
-    }
-
-    /**
-     * Reads one collection column of a row group into its carrier. Built per read from the projected schema, then bound to each
-     * row group's column readers.
-     */
-    static final class Decoder {
-        private final String name;
-        private final Leaf[] leaves;
-
-        private Decoder(String name, Leaf[] leaves) {
-            this.name = name;
-            this.leaves = leaves;
-        }
-
-        /**
-         * The decoder for the collection at {@code path} of {@code schema}, carrying {@code leafNames} in that order, or
-         * {@code null} when the schema holds no readable collection there. A named leaf this file lacks reads as null.
-         */
-        @Nullable
-        static Decoder of(MessageType schema, String path, List<CollectionSchema.Leaf> wanted) {
-            Shape shape = shape(schema, path);
-            if (shape == null) {
-                // A file without the collection has no elements for it, as a file without a column has nulls for it
-                return null;
-            }
-            if (shape.collection().unsupported() != null) {
-                throw new IllegalArgumentException(shape.collection().unsupported());
-            }
-            Leaf[] leaves = new Leaf[wanted.size()];
-            for (int l = 0; l < leaves.length; l++) {
-                String name = wanted.get(l).name();
-                CollectionSchema.Leaf leaf = shape.leaf(name);
-                if (leaf != null) {
-                    // The carrier holds each leaf in the dataset's type, which the operators decode it as
-                    if (leaf.type() != wanted.get(l).type()) {
-                        throw new IllegalArgumentException(
-                            "["
-                                + path
-                                + "."
-                                + name
-                                + "] is ["
-                                + leaf.type().typeName()
-                                + "] in this file but ["
-                                + wanted.get(l).type().typeName()
-                                + "] in the dataset, and an element's fields cannot be converted yet"
-                        );
-                    }
-                    leaves[l] = new Leaf(
-                        leaf.type(),
-                        shape.descriptor(schema, name),
-                        shape.collectionRep(),
-                        shape.existsDef(),
-                        shape.elementDef()
-                    );
-                }
-            }
-            return new Decoder(path, leaves);
-        }
-
-        String name() {
-            return name;
-        }
-
-        /** Binds the readers of a new row group. */
-        void bind(ColumnReadStore store) {
-            for (Leaf leaf : leaves) {
-                if (leaf != null) {
-                    leaf.bind(store.getColumnReader(leaf.descriptor));
-                }
-            }
-        }
-
-        /**
-         * Reads {@code rows} rows into a carrier. A null element is dropped, as a null element of a list of primitives is, and
-         * reported on {@code nullElements}.
-         */
-        BytesRefBlock read(int rows, BlockFactory blockFactory, Runnable nullElements) {
-            Block[] blocks = new Block[leaves.length];
-            int[] offsets = null;
-            try {
-                for (int l = 0; l < leaves.length; l++) {
-                    if (leaves[l] == null) {
-                        continue;
-                    }
-                    int[] leafOffsets = new int[rows + 1];
-                    blocks[l] = leaves[l].read(rows, leafOffsets, blockFactory, nullElements);
-                    if (offsets == null) {
-                        offsets = leafOffsets;
-                    } else if (Arrays.equals(offsets, leafOffsets) == false) {
-                        throw new IllegalStateException("the leaves of collection [" + name + "] disagree on its elements");
-                    }
-                }
-                if (offsets == null) {
-                    offsets = new int[rows + 1];
-                }
-                for (int l = 0; l < leaves.length; l++) {
-                    if (blocks[l] == null) {
-                        blocks[l] = blockFactory.newConstantNullBlock(offsets[rows]);
-                    }
-                }
-                return ChildRelationColumns.encode(blockFactory, rows, offsets, blocks);
-            } finally {
-                Releasables.closeExpectNoException(blocks);
-            }
-        }
-
-        void skip(int rows) {
-            for (Leaf leaf : leaves) {
-                if (leaf != null) {
-                    leaf.skip(rows);
-                }
-            }
-        }
-    }
-
-    /** One leaf's reader, which knows from the levels where the collection's elements start and end. */
-    private static final class Leaf {
-        private final DataType type;
-        private final ColumnDescriptor descriptor;
-        /** The repetition level of a new element of the collection. */
-        private final int collectionRep;
-        /** The definition level at which the collection has an element at all. */
-        private final int existsDef;
-        /** The definition level at which that element is not null. */
-        private final int elementDef;
-        private final int maxDef;
-        private ColumnReader reader;
-        private long total;
-        private long consumed;
-
-        Leaf(DataType type, ColumnDescriptor descriptor, int collectionRep, int existsDef, int elementDef) {
-            this.type = type;
-            this.descriptor = descriptor;
-            this.collectionRep = collectionRep;
-            this.existsDef = existsDef;
-            this.elementDef = elementDef;
-            this.maxDef = descriptor.getMaxDefinitionLevel();
-        }
-
-        Block read(int rows, int[] offsets, BlockFactory blockFactory, Runnable nullElements) {
-            Block.Builder builder = builder(blockFactory, rows);
-            try {
-                List<Object> values = new ArrayList<>();
-                int elements = 0;
-                boolean open = false;
-                for (int row = 0; row < rows; row++) {
-                    offsets[row] = elements;
-                    boolean first = true;
-                    while (first || hasNext() && reader.getCurrentRepetitionLevel() > 0) {
-                        first = false;
-                        int rep = reader.getCurrentRepetitionLevel();
-                        int def = reader.getCurrentDefinitionLevel();
-                        if (def < existsDef) {
-                            // A null or empty collection: no elements
-                            next();
-                            continue;
-                        }
-                        if (rep <= collectionRep) {
-                            if (open) {
-                                append(builder, values);
-                            }
-                            if (def < elementDef) {
-                                nullElements.run();
-                                open = false;
-                                next();
-                                continue;
-                            }
-                            open = true;
-                            elements++;
-                        }
-                        if (open && def == maxDef) {
-                            values.add(value());
-                            reader.consume();
-                            consumed++;
-                        } else {
-                            next();
-                        }
-                    }
-                    if (open) {
-                        append(builder, values);
-                        open = false;
-                    }
-                }
-                offsets[rows] = elements;
-                return builder.build();
-            } finally {
-                builder.close();
-            }
-        }
-
-        void skip(int rows) {
-            for (int row = 0; row < rows; row++) {
-                boolean first = true;
-                while (first || hasNext() && reader.getCurrentRepetitionLevel() > 0) {
-                    first = false;
-                    next();
-                }
-            }
-        }
-
-        void bind(ColumnReader reader) {
-            this.reader = reader;
-            this.total = reader.getTotalValueCount();
-            this.consumed = 0;
-        }
-
-        private boolean hasNext() {
-            return consumed < total;
-        }
-
-        /** Moves past the current level pair, and past its value when it has one. */
-        private void next() {
-            if (reader.getCurrentDefinitionLevel() == maxDef) {
-                reader.skip();
-            }
-            reader.consume();
-            consumed++;
-        }
-
-        private Block.Builder builder(BlockFactory blockFactory, int rows) {
-            return switch (type) {
-                case BOOLEAN -> blockFactory.newBooleanBlockBuilder(rows);
-                case INTEGER -> blockFactory.newIntBlockBuilder(rows);
-                case LONG, DATETIME, DATE_NANOS -> blockFactory.newLongBlockBuilder(rows);
-                case DOUBLE -> blockFactory.newDoubleBlockBuilder(rows);
-                case KEYWORD -> blockFactory.newBytesRefBlockBuilder(rows);
-                default -> throw new IllegalStateException("unsupported collection leaf type [" + type + "]");
-            };
-        }
-
-        private Object value() {
-            PrimitiveType primitive = descriptor.getPrimitiveType();
-            LogicalTypeAnnotation logical = primitive.getLogicalTypeAnnotation();
-            return switch (primitive.getPrimitiveTypeName()) {
-                case BOOLEAN -> reader.getBoolean();
-                case INT32 -> {
-                    int v = reader.getInteger();
-                    if (type == DataType.DATETIME) {
-                        yield TimeUnit.DAYS.toMillis(v);
-                    }
-                    yield type == DataType.LONG ? Integer.toUnsignedLong(v) : (Object) v;
-                }
-                case INT64 -> {
-                    long v = reader.getLong();
-                    if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts
-                        && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
-                        yield v * 1000L;
-                    }
-                    yield v;
-                }
-                case FLOAT -> (double) reader.getFloat();
-                case DOUBLE -> reader.getDouble();
-                case BINARY -> {
-                    Binary binary = reader.getBinary();
-                    yield new BytesRef(binary.getBytes());
-                }
-                case INT96, FIXED_LEN_BYTE_ARRAY -> throw new IllegalStateException("unsupported collection leaf [" + primitive + "]");
-            };
-        }
-
-        /** Appends the element's values, collected so an element with none is a null rather than an empty position. */
-        private static void append(Block.Builder builder, List<Object> values) {
-            if (values.isEmpty()) {
-                builder.appendNull();
-                return;
-            }
-            if (values.size() > 1) {
-                builder.beginPositionEntry();
-            }
-            for (Object value : values) {
-                switch (builder) {
-                    case BooleanBlock.Builder b -> b.appendBoolean((Boolean) value);
-                    case IntBlock.Builder b -> b.appendInt((Integer) value);
-                    case LongBlock.Builder b -> b.appendLong((Long) value);
-                    case DoubleBlock.Builder b -> b.appendDouble((Double) value);
-                    case BytesRefBlock.Builder b -> b.appendBytesRef((BytesRef) value);
-                    default -> throw new IllegalStateException("unsupported builder [" + builder + "]");
-                }
-            }
-            if (values.size() > 1) {
-                builder.endPositionEntry();
-            }
-            values.clear();
-        }
     }
 }

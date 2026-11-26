@@ -71,6 +71,25 @@ public class QuerySnapshotTests extends ESTestCase {
     }
 
     /**
+     * A reproducible shard falls back to initializing copies too, as a search on a point in time does.
+     */
+    public void testFallsBackToInitializingCopies() {
+        ProjectState initializing = ClusterStateCreationUtils.state(
+            "idx",
+            true,
+            ShardRoutingState.STARTED,
+            ShardRoutingState.STARTED,
+            ShardRoutingState.INITIALIZING
+        ).projectState();
+        IndexShardRoutingTable copies = initializing.routingTable().index("idx").shard(0);
+        DiscoveryNode holder = initializing.cluster().nodes().get(copies.primaryShard().currentNodeId());
+        QuerySnapshot snapshot = snapshot(Map.of(copies.shardId(), reader(holder, "commit")));
+        List<DiscoveryNode> nodes = snapshot.targetShards(initializing).getShard(copies.shardId()).remainingNodes();
+        assertThat(nodes.getFirst(), equalTo(holder));
+        assertThat(nodes.size(), equalTo(3));
+    }
+
+    /**
      * The counts are those of the point in time, which only covers the shards it targeted.
      */
     public void testCountsAreThoseOfThePointInTime() {

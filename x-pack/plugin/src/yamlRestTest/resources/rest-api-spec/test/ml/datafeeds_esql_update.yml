@@ -1,0 +1,204 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities, headers]
+      capabilities:
+        - method: PUT
+          path: /_ml/datafeeds/{datafeed_id}
+          capabilities: [ ml_datafeed_esql_query ]
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ describe_command ]
+      reason: "ES|QL datafeeds validate their query with DESCRIBE"
+
+  - do:
+      indices.create:
+        index: esql-update-data
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: esql-update-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "@timestamp"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-update-feed
+        body: >
+          {
+            "job_id": "esql-update-job",
+            "esql_query": "FROM esql-update-data | KEEP @timestamp, host",
+            "source_time_field": "@timestamp",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+
+---
+"Test update operational settings of a stopped ES|QL datafeed leaves esql_query unchanged":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.update_datafeed:
+        datafeed_id: esql-update-feed
+        body: >
+          {"query_delay": "2m", "frequency": "2h", "max_empty_searches": 5, "chunking_config": {"mode": "manual", "time_span": "6h"}}
+  - match: { query_delay: "2m" }
+  - match: { frequency: "2h" }
+  - match: { chunking_config.mode: "manual" }
+  - match: { esql_query: "FROM esql-update-data | KEEP @timestamp, host" }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: esql-update-feed
+  - match: { datafeeds.0.query_delay: "2m" }
+  - match: { datafeeds.0.frequency: "2h" }
+  - match: { datafeeds.0.max_empty_searches: 5 }
+  - match: { datafeeds.0.chunking_config.mode: "manual" }
+  - match: { datafeeds.0.esql_query: "FROM esql-update-data | KEEP @timestamp, host" }
+
+---
+"Test update of a stopped ES|QL datafeed with an identical esql_query is a no-op":
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: esql-update-feed
+  - set: { datafeeds.0.query_delay: original_query_delay }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.update_datafeed:
+        datafeed_id: esql-update-feed
+        body: >
+          {"esql_query": "FROM esql-update-data | KEEP @timestamp, host"}
+  - match: { esql_query: "FROM esql-update-data | KEEP @timestamp, host" }
+  - match: { query_delay: $original_query_delay }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: esql-update-feed
+  - match: { datafeeds.0.esql_query: "FROM esql-update-data | KEEP @timestamp, host" }
+  - match: { datafeeds.0.query_delay: $original_query_delay }
+
+---
+"Test update of a stopped ES|QL datafeed with a different esql_query is rejected":
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.update_datafeed:
+        datafeed_id: esql-update-feed
+        body: >
+          {"esql_query": "FROM esql-update-data | KEEP @timestamp"}
+  - match: { error.reason: "/.*Recreate\\sES\\|QL\\sdatafeed.*/" }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: esql-update-feed
+  - match: { datafeeds.0.esql_query: "FROM esql-update-data | KEEP @timestamp, host" }
+
+---
+"Test update of a stopped ES|QL datafeed with an identical esql_query and indices is rejected":
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.update_datafeed:
+        datafeed_id: esql-update-feed
+        body: >
+          {"esql_query": "FROM esql-update-data | KEEP @timestamp, host", "indices": ["esql-update-data"]}
+  - match: { error.reason: "/.*Recreate\\sES\\|QL\\sdatafeed.*/" }
+
+---
+"Test update of a stopped ES|QL datafeed with indices is rejected":
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.update_datafeed:
+        datafeed_id: esql-update-feed
+        body: >
+          {"indices": ["esql-update-data"]}
+  - match: { error.reason: "/.*Recreate\\sES\\|QL\\sdatafeed.*/" }
+
+---
+"Test update of a stopped ES|QL datafeed with chunking disabled is rejected":
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.update_datafeed:
+        datafeed_id: esql-update-feed
+        body: >
+          {"chunking_config": {"mode": "off"}}
+  - match: { error.reason: "/.*chunking\\sto\\sremain\\senabled.*/" }
+
+---
+"Test update of a started ES|QL datafeed is rejected with a conflict":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.open_job:
+        job_id: esql-update-job
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.start_datafeed:
+        datafeed_id: esql-update-feed
+        start: 0
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: esql-update-feed
+  - match: { datafeeds.0.state: started }
+
+  - do:
+      catch: conflict
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.update_datafeed:
+        datafeed_id: esql-update-feed
+        body: >
+          {"query_delay": "3m"}
+
+  - do:
+      catch: conflict
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.update_datafeed:
+        datafeed_id: esql-update-feed
+        body: >
+          {"esql_query": "FROM esql-update-data | KEEP @timestamp, host"}
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: esql-update-feed
+  - do:
+      ml.close_job:
+        job_id: esql-update-job
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.update_datafeed:
+        datafeed_id: esql-update-feed
+        body: >
+          {"query_delay": "3m"}
+  - match: { query_delay: "3m" }

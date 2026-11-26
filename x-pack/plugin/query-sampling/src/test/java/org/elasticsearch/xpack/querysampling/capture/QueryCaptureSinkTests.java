@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchCaptureContextBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -67,8 +68,19 @@ public class QueryCaptureSinkTests extends ESTestCase {
         assertThat(query.k(), equalTo(10));
         assertThat(query.numCandidates(), equalTo(100));
         assertThat(query.oversample(), equalTo(2f));
-        assertThat(query.filters(), equalTo(List.of(QueryBuilders.termQuery("category", 3))));
+        assertThat(query.filters(), equalTo(List.of(Strings.toString(QueryBuilders.termQuery("category", 3)))));
         assertThat(query.opaqueId(), equalTo("q7"));
+    }
+
+    public void testAChangeToTheFiltersOfTheRequestAfterTheSearchDoesNotReachTheCapture() {
+        QueryCaptureSink sink = sink(true, 1.0, captured::add);
+        SearchRequest request = knnSearch(randomVector(8));
+
+        search(sink, request, TaskId.EMPTY_TASK_ID);
+        // a caller in the same node owns its request and may reuse and change it after the search
+        request.source().knnSearch().get(0).getFilterQueries().get(0).queryName("changed").boost(5f);
+
+        assertThat(captured.get(0).query().filters(), equalTo(List.of(Strings.toString(QueryBuilders.termQuery("category", 3)))));
     }
 
     public void testIgnoresSearchesThatAreNotOverAllTheDocumentsOfTheirIndicesOrDoNotReturnTheNearestK() {

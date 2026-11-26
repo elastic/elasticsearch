@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.querysampling.dedup;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 
 import java.nio.ByteBuffer;
@@ -71,7 +69,7 @@ public record QueryFingerprint(long high, long low) {
         buffer.put((byte) (value == null ? 0 : 1)).putFloat(value == null ? 0f : value);
     }
 
-    private static byte[] canonical(QueryBuilder filter) {
-        return Strings.toString(filter).getBytes(StandardCharsets.UTF_8);
+    private static byte[] canonical(String filter) {
+        return filter.getBytes(StandardCharsets.UTF_8);
     }
 }

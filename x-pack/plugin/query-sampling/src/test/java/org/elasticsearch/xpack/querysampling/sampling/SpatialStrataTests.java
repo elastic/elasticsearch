@@ -53,6 +53,26 @@ public class SpatialStrataTests extends ESTestCase {
         return new Stratum[] { last.get(), sparse.get() };
     }
 
+    /**
+     * These six queries are always fitted to {0, 1, 4} and {10, 15, 17}, from any seeds. The warm-up must keep that: if the vectors
+     * were moved into the clusters again one by one, the first cluster would start over at 4, and 10, the third to arrive, would be
+     * nearer to it than to 17 and join it, which would make the clusters 4 and 2 queries.
+     */
+    public void testTheWarmupKeepsTheFittedClusters() {
+        SpatialStrata strata = balancing(2, 6, 1.0);
+        float[] arrivals = { 4, 17, 10, 1, 0, 15 };
+        List<AtomicReference<Stratum>> found = new ArrayList<>();
+        for (float value : arrivals) {
+            found.add(assign(strata, "vector", value));
+        }
+
+        for (AtomicReference<Stratum> stratum : found) {
+            assertThat("three queries in each cluster, as fitted", strata.factor(stratum.get()), closeTo(1.0, 1e-9));
+        }
+        assertThat("10 is with 15 and 17", found.get(2).get(), equalTo(found.get(5).get()));
+        assertThat(found.get(2).get(), not(equalTo(found.get(0).get())));
+    }
+
     public void testSparseClustersAreFavouredAndDenseOnesAreNot() {
         SpatialStrata strata = balancing(2, 2, 1.0);
         Stratum[] found = denseAndSparse(strata, 9);

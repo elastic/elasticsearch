@@ -184,16 +184,24 @@ public final class SpatialStrata {
             fit(random.get());
             fitted = true;
             for (int i = 0; i < waitingVectors.size(); i++) {
-                waitingReceivers.get(i).accept(new Stratum(name, join(waitingVectors.get(i))));
+                // the fit already put each centroid at the mean of its vectors, so they are only counted: moving the centroids again
+                // would start each one over from the first vector replayed into it, and later vectors could join another cluster
+                waitingReceivers.get(i).accept(new Stratum(name, count(waitingVectors.get(i))));
             }
             waitingVectors.clear();
             waitingReceivers.clear();
         }
 
-        private int join(float[] vector) {
+        private int count(float[] vector) {
             int cluster = nearest(vector);
             counts[cluster]++;
             total++;
+            return cluster;
+        }
+
+        /** Counts a vector that arrives after the fit and moves the centroid of its cluster by a running mean. */
+        private int join(float[] vector) {
+            int cluster = count(vector);
             float[] centroid = centroids[cluster];
             double step = 1.0 / counts[cluster];
             for (int i = 0; i < vector.length; i++) {

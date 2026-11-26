@@ -95,7 +95,11 @@ public class KnnQuerySamplingPlugin extends Plugin {
         sampler.watch(clusterSettings);
         // what is picked goes to the listeners of the pipeline; none are registered yet, storing the samples comes later
         SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of());
-        CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
+        CaptureHandoff handoff = new CaptureHandoff(
+            services.threadPool().executor(THREAD_POOL_NAME),
+            pipeline,
+            services.threadPool()::relativeTimeInMillis
+        );
         captureSink.set(new QueryCaptureSink(clusterSettings, handoff, services.threadPool()::relativeTimeInMillis));
         return List.of();
     }

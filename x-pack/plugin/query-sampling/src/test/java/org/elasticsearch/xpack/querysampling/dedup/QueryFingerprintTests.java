@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.querysampling.dedup;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
@@ -54,7 +55,8 @@ public class QueryFingerprintTests extends ESTestCase {
     }
 
     private static CapturedQuery withFilters(float[] vector, List<QueryBuilder> filters) {
-        return new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 100, null, null, filters, "x");
+        List<String> json = filters.stream().map(Strings::toString).toList();
+        return new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 100, null, null, json, "x");
     }
 
     private static CapturedQuery withLabel(CapturedQuery query, String label) {

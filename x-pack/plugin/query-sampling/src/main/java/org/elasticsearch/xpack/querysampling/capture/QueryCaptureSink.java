@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchCaptureContext;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.common.logging.activity.QuerySink;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -293,7 +294,7 @@ public final class QueryCaptureSink extends QuerySink<QueryCaptureContext> {
             knn.getNumCands(),
             knn.getVisitPercentage(),
             knn.getRescoreVectorBuilder() == null ? null : knn.getRescoreVectorBuilder().oversample(),
-            List.copyOf(knn.getFilterQueries()),
+            knn.getFilterQueries().stream().map(Strings::toString).toList(),
             context.getOpaqueId()
         );
     }

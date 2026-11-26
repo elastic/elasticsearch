@@ -31,7 +31,7 @@ public class CaptureHandoffTests extends ESTestCase {
                 started.countDown();
                 safeAwait(release);
                 processed.incrementAndGet();
-            });
+            }, () -> 0L);
 
             handoff.accept(capturedSearch());
             safeAwait(started);
@@ -48,6 +48,30 @@ public class CaptureHandoffTests extends ESTestCase {
             assertBusy(() -> assertThat(processed.get(), equalTo(3)));
         } finally {
             release.countDown();
+            terminate(executor);
+        }
+    }
+
+    public void testAFailureIsCountedAndTheThreadGoesOnWithTheNextCapture() throws Exception {
+        EsThreadPoolExecutor executor = executor(1, 10);
+        AtomicInteger processed = new AtomicInteger();
+        AtomicInteger calls = new AtomicInteger();
+        try {
+            CaptureHandoff handoff = new CaptureHandoff(executor, search -> {
+                if (calls.incrementAndGet() == 1) {
+                    throw new IllegalStateException("a bug in the pipeline");
+                }
+                processed.incrementAndGet();
+            }, () -> 0L);
+
+            handoff.accept(capturedSearch());
+            handoff.accept(capturedSearch());
+
+            assertBusy(() -> assertThat(processed.get(), equalTo(1)));
+            assertThat(handoff.failed(), equalTo(1L));
+            assertThat(handoff.dropped(), equalTo(0L));
+            assertThat("the failure did not cost the pool its thread", executor.getCompletedTaskCount(), equalTo(2L));
+        } finally {
             terminate(executor);
         }
     }

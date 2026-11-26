@@ -209,14 +209,43 @@ public class RowInTableLookupTests extends ESTestCase {
         assertThat(blockSizes.stream().mapToInt(Integer::intValue).sum(), equalTo(probeRows));
     }
 
-    public void testRepeatedLookupRejectsNullBuildKeys() {
-        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(2)) {
-            builder.appendInt(1).appendNull();
-            try (IntBlock key = builder.build()) {
-                var e = expectThrows(IllegalArgumentException.class, () -> RowInTableLookup.build(blockFactory, new Block[] { key }, true));
-                assertThat(e.getMessage(), equalTo("repeated-key lookup requires non-null build keys"));
-            }
-        }
+    /**
+     * A build row with a null or multivalued key matches nothing, as in {@code LOOKUP JOIN}: a probe row with the same nulls
+     * misses, and a multivalued key matches none of its values.
+     */
+    public void testRepeatedLookupSkipsNullAndMultivaluedBuildKeys() {
+        assertRepeatedKeyLookup(
+            List.of(
+                row(1, "a"),                  // 0
+                row(1, null),                 // 1
+                row(null, "a"),               // 2
+                row(1, "a"),                  // 3
+                row(null, null),              // 4
+                row(List.of(1, 2), "a"),      // 5
+                row(2, "a"),                  // 6
+                row(3, List.of("a", "a")),    // 7
+                row(4, "a")                   // 8
+            ),
+            probe(1, "a").matches(0, 3),
+            probe(2, "a").matches(6),
+            probe(3, "a").matchesNothing(),
+            probe(4, "a").matches(8),
+            probe(1, null).matchesNothing(),
+            probe(null, "a").matchesNothing(),
+            probe(null, null).matchesNothing()
+        );
+    }
+
+    /**
+     * A table whose every build row has a null or multivalued key matches nothing.
+     */
+    public void testRepeatedLookupWithNoMatchableBuildRows() {
+        assertRepeatedKeyLookup(
+            List.of(row((Object) null), row(List.of(1, 2))),
+            probe(1).matchesNothing(),
+            probe(2).matchesNothing(),
+            probe((Object) null).matchesNothing()
+        );
     }
 
     /**
@@ -249,7 +278,7 @@ public class RowInTableLookupTests extends ESTestCase {
 
     /** One build or probe row's key values, in key column order. */
     private static List<Object> row(Object... keys) {
-        return List.of(keys);
+        return Arrays.asList(keys);
     }
 
     private static ProbeRow probe(Object... keys) {

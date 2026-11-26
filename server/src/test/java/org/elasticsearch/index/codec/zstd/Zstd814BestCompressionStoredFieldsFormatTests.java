@@ -13,7 +13,10 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
+@RunWith(ESRandomizedRunner.class)
 public class Zstd814BestCompressionStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
 
     static {

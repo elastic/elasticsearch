@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * A query parameter with the value that {@code param_any_value} reserves stands for "Any". Where it is an expression, the parser
@@ -178,12 +179,62 @@ public class AnyParamParserTests extends ESTestCase {
         }
     }
 
-    public void testSetValueIsRejected() {
+    /**
+     * Known limitation: the reserved value is not recognized in the value of a {@code SET}. The value that applies is the one after
+     * all the {@code SET}s of the statement, and recognizing it there would make a {@code SET} depend on the ones declared after
+     * it. The parameter is a plain value, which the settings validation accepts or rejects like any other: a setting that can't
+     * take the reserved string fails with its usual error, not with the one of "Any". Decide this again if a setting can take
+     * "Any" as a value, or if a {@code SET} can be written inside a subquery, where the value that applies is less clear.
+     */
+    public void testSetValueIsNotRecognized() {
+        QueryParams params = params(paramAsConstant("x", ANY));
         ParsingException e = expectThrows(
             ParsingException.class,
-            () -> TEST_PARSER.createStatement("SET unmapped_fields = ?x; FROM t", params(paramAsConstant("x", ANY)))
+            () -> TEST_PARSER.createStatement("SET unmapped_fields = ?x; FROM t", params)
         );
-        assertThat(e.getMessage(), containsString(anyError("?x", "in this position")));
+        assertThat(e.getMessage(), containsString("Error validating setting [unmapped_fields]"));
+        assertThat(e.getMessage(), not(containsString("stands for \"Any\"")));
+    }
+
+    public void testSetValueDoesNotDependOnTheOrderOfTheSettings() {
+        QueryParams params = params(paramAsConstant("x", "custom"));
+        ParsingException before = expectThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.createStatement("SET param_any_value = \"custom\"; SET unmapped_fields = ?x; FROM t", params)
+        );
+        ParsingException after = expectThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.createStatement("SET unmapped_fields = ?x; SET param_any_value = \"custom\"; FROM t", params)
+        );
+        assertThat(before.getErrorMessage(), equalTo(after.getErrorMessage()));
+        assertThat(before.getErrorMessage(), containsString("Error validating setting [unmapped_fields]"));
+    }
+
+    /**
+     * The reserved value is the one of the whole statement, and a {@code SET} is only written before it. A {@code SET} inside a
+     * subquery is not part of the grammar. If it becomes one, decide first whether its {@code param_any_value} applies to
+     * the subquery only or to the statement, and what that means for the parameters outside of the subquery.
+     */
+    public void testSetInASubqueryIsRejected() {
+        String query = "FROM a, (SET param_any_value = \"x\"; FROM b) | WHERE c == 1";
+        expectThrows(ParsingException.class, query, () -> TEST_PARSER.createStatement(query));
+    }
+
+    /**
+     * Parsing a view uses no reserved value: a view has no parameters, so there is nothing to recognize, and the value of the
+     * caller doesn't apply inside it.
+     */
+    public void testViewDoesNotRecognizeTheReservedValue() {
+        QueryParams params = params(paramAsConstant("x", ANY));
+        LogicalPlan plan = TEST_PARSER.parseView(
+            "FROM t | WHERE a == ?x",
+            params,
+            new InferenceSettings(Settings.EMPTY),
+            "v",
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS
+        ).plan();
+        assertThat(markers(plan), empty());
     }
 
     public void testNamePositionsAreRejected() {

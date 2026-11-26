@@ -53,6 +53,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry;
 import org.elasticsearch.indices.recovery.FailureStrategy;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
@@ -570,6 +571,146 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(0));
     }
 
+    /// [IndicesClusterStateService#getLocalRecoveryRetryCount] must cover the awaiting retry window when no [IndexShard] is alive.
+    public void testGetLocalRecoveryRetryCountIncludesAwaitingRecoveryRetry() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        int retries = randomIntBetween(1, 5);
+        handleRecoveryFailureWithRetries(shardRouting, retries);
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(retries));
+    }
+
+    /// Once the retry applier recreates the shard, InFlight carries the same retry count forward, so it
+    /// must still be reported -- the count doesn't just live in the no-shard window.
+    public void testGetLocalRecoveryRetryCountIncludesInFlightCarriedRetryCount() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        int retries = randomIntBetween(1, 5);
+        handleRecoveryFailureWithRetries(shardRouting, retries);
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(isInFlight(shardRouting));
+        assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(retries));
+    }
+
+    /// [RecoveryListener#onRecoveryDone] releases the InFlight ticket before [ShardStateAction#shardStarted] reaches master,
+    /// so a shard that just finished recovering can briefly have no ticket while master still sees it as initializing.
+    /// [IndexShard#recoveryState()] still has the count for that window, so it must be reported from there instead.
+    public void testGetLocalRecoveryRetryCountFallsBackToRecoveryStateAfterTicketReleased() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        int retries = randomIntBetween(1, 5);
+        handleRecoveryFailureWithRetries(shardRouting, retries);
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(isInFlight(shardRouting));
+
+        indicesService.completeRecoveryViaListener();
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
+        assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(retries));
+    }
+
+    /// [IndicesClusterStateService#getLocalRecoveryRetryCount] should not filter on active shards.
+    public void testGetLocalRecoveryRetryCountForActiveShard() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        int retries = randomIntBetween(1, 5);
+        handleRecoveryFailureWithRetries(shardRouting, retries);
+        deterministicTaskQueue.runAllRunnableTasks();
+        indicesService.completeRecoveryViaListener();
+
+        ShardRouting started = TestShardRouting.shardRoutingBuilder(
+            shardRouting.shardId(),
+            shardRouting.currentNodeId(),
+            true,
+            ShardRoutingState.STARTED
+        ).withAllocationId(shardRouting.allocationId()).build();
+        applyState(stateWithShardRouting(started));
+        assertTrue(indicesService.getShardOrNull(shardRouting.shardId()).routingEntry().active());
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(started), equalTo(retries));
+    }
+
+    /// A shard that's never failed has an InFlight ticket with a zero retry count.
+    public void testGetLocalRecoveryRetryCountWithZeroRetries() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        assertTrue(isInFlight(shardRouting));
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(0));
+    }
+
+    /// A shard whose failure was reported to master contributes nothing.
+    public void testGetLocalRecoveryRetryCountWithFailureReported() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        int retries = randomIntBetween(1, 5);
+        handleRecoveryFailureWithRetries(shardRouting, retries);
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertThat(currentInFlight(shardRouting).localRecoveryRetries(), equalTo(retries));
+
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SEND,
+            primaryTerm(shardRouting),
+            new Exception("already failed to master"),
+            currentInFlight(shardRouting)
+        );
+        assertTrue(isFailureReported(shardRouting));
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(0));
+    }
+
+    /// No pending allocation state and no local [IndexShard] at all.
+    public void testGetLocalRecoveryRetryCountReturnsZeroForUnknownIndex() {
+        ShardRouting unknownRouting = TestShardRouting.newShardRouting(
+            new ShardId(randomIndexName(), randomUUID(), 0),
+            randomAlphaOfLength(8),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(unknownRouting), equalTo(0));
+    }
+
+    /// No pending allocation state and no local [IndexShard] for this specific allocation, but the index itself is loaded.
+    public void testGetLocalRecoveryRetryCountReturnsZeroForUnknownShardInKnownIndex() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+
+        ShardRouting siblingRouting = TestShardRouting.newShardRouting(
+            new ShardId(shardRouting.index(), shardRouting.id() + 1),
+            shardRouting.currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(siblingRouting), equalTo(0));
+    }
+
+    /// getShardOrNull looks up by shard number alone, so once the applier has replaced this shard with a new
+    /// allocation, the local shard found there belongs to that new allocation, not the stale `routing` passed
+    /// in. Its retry count must not be attributed back to the old allocation's key.
+    public void testGetLocalRecoveryRetryCountDoesNotLeakReplacementAllocationsRetries() {
+        ShardRouting oldRouting = applyInitializingPrimary();
+
+        ShardRouting newRouting = TestShardRouting.newShardRouting(
+            oldRouting.shardId(),
+            oldRouting.currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        applyState(stateWithShardRouting(newRouting));
+        assertFalse(oldRouting.isSameAllocation(newRouting));
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(oldRouting)));
+
+        int retries = randomIntBetween(1, 5);
+        handleRecoveryFailureWithRetries(newRouting, retries);
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(isInFlight(newRouting));
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(newRouting), equalTo(retries));
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(oldRouting), equalTo(0));
+    }
+
     public void testFailureReportedEvictedWhenPrimaryTermBumped() {
         ShardRouting shardRouting = applyInitializingPrimary();
         indicesClusterStateService.handleRecoveryFailure(
@@ -908,7 +1049,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
         assertFalse(isAwaitingRecoveryRetry(shardRouting));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-        // create failure path notifies master via failAndRemoveShard(sendShardFailure=true)
+        // create failure path notifies master via failAndRemoveShard
         verify(shardStateAction).localShardFailed(any(), anyString(), any(), any(), any());
         assertTrue(isFailureReported(shardRouting));
     }
@@ -968,7 +1109,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
         handleRecoveryFailureWithRetry(shardRouting);
         final var currentTicket = indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting));
-        assertThat(currentTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry.class));
+        assertThat(currentTicket, instanceOf(AwaitingRecoveryRetry.class));
         assertTrue(deterministicTaskQueue.hasRunnableTasks());
 
         // A late failure from the original (now-superseded) attempt, presenting its own stale ticket,
@@ -1027,7 +1168,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         applyState(stateWithShardRouting(replacement));
         indicesService.failRecoveryViaListener(RETRY);
         final var replacementTicket = indicesClusterStateService.pendingAllocationStates.get(allocationKey(replacement));
-        assertThat(replacementTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry.class));
+        assertThat(replacementTicket, instanceOf(AwaitingRecoveryRetry.class));
 
         oldListener.onRecoveryFailure(new RecoveryFailedException(oldRecoveryState, "late failure", new IOException("old attempt")), RETRY);
         // The stale call must not touch replacement's ticket, nor resurrect an entry for the
@@ -1065,6 +1206,20 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertTrue(isFailureReported(shardRouting));
         assertFalse(isAwaitingRecoveryRetry(shardRouting));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+    }
+
+    public void testFailedShardHandlerNotifiesMasterWhenCauseIsNullAndShardRemovalThrows() {
+        final var shardRouting = applyInitializingPrimary();
+        final var onShardFailure = indicesService.lastOnShardFailure;
+        assertNotNull(onShardFailure);
+
+        // Looking up the index service is the first thing the removal does, so this makes it throw.
+        indicesService.failNextIndexServiceLookup = new IllegalStateException("simulated removal failure");
+        onShardFailure.accept(new IndexShard.ShardFailure(shardRouting, primaryTerm(shardRouting), "simulated engine failure", null));
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertTrue(isFailureReported(shardRouting));
         verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
     }
 
@@ -1388,6 +1543,15 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         );
     }
 
+    /// Fail and retry recovery the given number of times, ending in [AwaitingRecoveryRetry].
+    private void handleRecoveryFailureWithRetries(ShardRouting shardRouting, int retries) {
+        for (int i = 0; i < retries - 1; i++) {
+            handleRecoveryFailureWithRetry(shardRouting);
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
+        handleRecoveryFailureWithRetry(shardRouting);
+    }
+
     private boolean isInFlight(ShardRouting shardRouting) {
         return indicesClusterStateService.pendingAllocationStates.get(
             allocationKey(shardRouting)
@@ -1395,15 +1559,13 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
     }
 
     private boolean isAwaitingRecoveryRetry(ShardRouting routing) {
-        return indicesClusterStateService.pendingAllocationStates.get(
-            allocationKey(routing)
-        ) instanceof IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry;
+        return indicesClusterStateService.pendingAllocationStates.get(allocationKey(routing)) instanceof AwaitingRecoveryRetry;
     }
 
     private int awaitingRecoveryRetryCount(ShardRouting routing) {
         var current = indicesClusterStateService.pendingAllocationStates.get(allocationKey(routing));
-        assertThat(current, instanceOf(IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry.class));
-        return ((IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry) current).localRecoveryRetries();
+        assertThat(current, instanceOf(AwaitingRecoveryRetry.class));
+        return ((AwaitingRecoveryRetry) current).localRecoveryRetries();
     }
 
     private boolean isFailureReported(ShardRouting routing) {

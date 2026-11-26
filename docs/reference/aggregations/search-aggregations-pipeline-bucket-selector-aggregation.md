@@ -2,6 +2,9 @@
 navigation_title: "Bucket selector"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-pipeline-bucket-selector-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Bucket selector aggregation [search-aggregations-pipeline-bucket-selector-aggregation]

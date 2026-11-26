@@ -70,6 +70,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
+    private boolean allowPartialResultsDefaulted;
 
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
     /**
@@ -82,6 +83,11 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * Runtime-only state of the node that runs the query: it is not serialized.
      */
     private transient Map<String, ViewQuerySettings> viewSettings = Map.of();
+    /**
+     * The {@code @timestamp} range the query asks for, once the query has got far enough to extract it.
+     * Runtime-only state of the node that runs the query: it is not serialized, and kept when the query fails.
+     */
+    private transient RequestedTimeRange requestedTimeRange;
     /**
      * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
      * {@link #applyCanonicalRequestSettings()}. A setting that also has a legacy top-level body field
@@ -130,6 +136,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.onSnapshotBuild = source.onSnapshotBuild;
         this.acceptedPragmaRisks = source.acceptedPragmaRisks;
         this.allowPartialResults = source.allowPartialResults;
+        this.allowPartialResultsDefaulted = source.allowPartialResultsDefaulted;
         this.requestSettings.putAll(source.requestSettings);
         this.canonicalRequestSettings.putAll(source.canonicalRequestSettings);
         this.tables.putAll(source.tables);
@@ -357,7 +364,20 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
+        this.allowPartialResultsDefaulted = false;
         return this;
+    }
+
+    /** Applies the cluster default, for a request that did not set {@code allow_partial_results}. */
+    public EsqlQueryRequest defaultAllowPartialResults(boolean allowPartialResults) {
+        this.allowPartialResults = allowPartialResults;
+        this.allowPartialResultsDefaulted = true;
+        return this;
+    }
+
+    /** Whether the request itself asked for partial results, as opposed to getting them from the cluster default. */
+    public boolean allowPartialResultsRequested() {
+        return Boolean.TRUE.equals(allowPartialResults) && allowPartialResultsDefaulted == false;
     }
 
     @Override
@@ -442,6 +462,21 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     /** The settings each resolved view's definition applies, by view name; empty if the query resolved no views (yet). */
     public Map<String, ViewQuerySettings> viewSettings() {
         return viewSettings;
+    }
+
+    /** Records the {@code @timestamp} range the query asks for. Not serialized. */
+    public void setRequestedTimeRange(@Nullable RequestedTimeRange requestedTimeRange) {
+        this.requestedTimeRange = requestedTimeRange;
+    }
+
+    /**
+     * The {@code @timestamp} range the query asks for, see {@link RequestedTimeRange}, or {@code null} if neither the request filter
+     * nor the query bounds {@code @timestamp} or the query failed before it was extracted. It is extracted once the query's now is
+     * fixed, after parsing and view resolution, so a query that fails before that has none.
+     */
+    @Nullable
+    public RequestedTimeRange requestedTimeRange() {
+        return requestedTimeRange;
     }
 
     Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {

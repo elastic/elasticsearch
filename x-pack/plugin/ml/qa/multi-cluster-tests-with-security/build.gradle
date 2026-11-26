@@ -19,7 +19,7 @@ Version ccsCompatVersion = buildParams.bwcVersions.minimumWireCompatibleVersion
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'indices', 'cluster', 'search', 'security', 'ml'
+    include '_common', 'bulk', 'capabilities', 'indices', 'cluster', 'search', 'security', 'ml'
   }
 }
 

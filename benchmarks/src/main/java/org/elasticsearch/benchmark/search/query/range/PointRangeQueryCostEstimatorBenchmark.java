@@ -261,12 +261,12 @@ public class PointRangeQueryCostEstimatorBenchmark {
             if (scorerSupplier == null) {
                 continue;
             }
-            boolean singleValued = values.size() == values.getDocCount();
             boolean matchAll = coversAllValues(values, query);
             total += PointRangeQueryCostEstimator.executionBytesForLeaf(
                 scorerSupplier.cost(),
                 leaf.reader().maxDoc(),
-                singleValued,
+                values.size(),
+                values.getDocCount(),
                 matchAll,
                 query.getNumDims(),
                 query.getBytesPerDim()

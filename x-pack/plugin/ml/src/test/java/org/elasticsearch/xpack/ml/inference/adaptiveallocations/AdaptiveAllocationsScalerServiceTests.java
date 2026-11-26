@@ -77,7 +77,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
     /**
      * Runs the stats cycles of the scaler service one at a time, so that a test can verify each cycle
      * without racing the scheduler. The stub of the stats request calls {@link #answer}. The test calls
-     * {@link #run} for each cycle, and {@link #continueScheduler} when it is done with that cycle.
+     * {@link #run} for each cycle, and {@link #continueScheduler} when it is done with that cycle. The
+     * teardown calls {@link #close}.
      */
     private static class StatsCycles {
         private final BlockingQueue<Supplier<GetDeploymentStatsAction.Response>> responses = new LinkedBlockingQueue<>();
@@ -87,12 +88,17 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         /**
          * Answers the stats request with the response of the current cycle, which is created now, so that its timestamps
          * are current. Afterwards, it doesn't return until {@link #continueScheduler}. This pauses the scheduler, because
-         * it schedules the next cycle only after this one returns.
+         * it schedules the next cycle only after this one returns. After {@link #close}, it returns without answering.
          */
         void answer(ActionListener<GetDeploymentStatsAction.Response> listener) throws InterruptedException {
-            listener.onResponse(responses.take().get()); // waits for run()
+            GetDeploymentStatsAction.Response response = responses.take().get(); // waits for run() or close()
+            if (response == null) {
+                // Closed. Not answering keeps the service busy, so it doesn't start new cycles.
+                return;
+            }
+            listener.onResponse(response);
             cycleDone.release(); // lets run() return
-            schedulerContinued.acquire(); // waits for continueScheduler()
+            schedulerContinued.acquire(); // waits for continueScheduler() or close()
         }
 
         /**
@@ -108,6 +114,15 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
          */
         void continueScheduler() {
             schedulerContinued.release(); // lets answer() return
+        }
+
+        /**
+         * Lets a waiting cycle return, also when a test failed halfway, and stops answering stats requests.
+         * Without an answer the service doesn't start new cycles, because it's still busy with the last one.
+         */
+        void close() {
+            responses.add(() -> null); // lets answer() return when it waits for a response
+            schedulerContinued.release(); // lets answer() return when it waits for continueScheduler()
         }
     }
 
@@ -153,8 +168,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
 
     @After
     public void closeThreadPool() throws Exception {
-        // Let the scheduler finish the last cycle; the test has stopped the service, so no next cycle is scheduled.
-        statsCycles.continueScheduler();
+        statsCycles.close();
         this.threadPool.close();
     }
 
@@ -548,12 +562,18 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         // Simulate some time not being the master node.
         safeSleep(2_000);
 
+        // Only count a scale down after re-election. On a slow machine, the first term could have scaled down already.
+        clearInvocations(client);
+        idleMillisAtFirstScaleDown.set(-1);
+
         // After re-election, it scales down to zero once the deployment has been idle for more than 6 seconds.
         service.start();
+        // Wait for the idle time to be recorded, because Mockito records the invocation before running the answer.
+        assertBusy(() -> assertThat(idleMillisAtFirstScaleDown.get(), greaterThanOrEqualTo(0L)));
         var updateRequest = new UpdateTrainedModelDeploymentAction.Request("test-deployment");
         updateRequest.setNumberOfAllocations(0);
         updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.ADAPTIVE_ALLOCATIONS);
-        assertBusy(() -> verify(client, atLeastOnce()).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any()));
+        verify(client, atLeastOnce()).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any());
         assertThat(idleMillisAtFirstScaleDown.get(), greaterThanOrEqualTo(6_000L));
         service.stop();
     }

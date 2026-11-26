@@ -39,22 +39,37 @@ public final class ExternalStatsCapture {
 
     /**
      * Appends a flat {@code _stats.*} contribution for {@code filePath}. Multiple contributions per
-     * path accumulate (one per stripe a chunk touched, one per whole-file read); the coordinator-side
+     * path accumulate (one per stripe a read covered, one per whole-file read); the coordinator-side
      * reconciler routes them by their marker keys. No-op if no sink is bound on the current thread, if
      * the path is {@code null}, or if the map is {@code null}/empty.
+     * <p>
+     * A parallel read's chunks do not reach this method one by one: they hand their pieces of a stripe to a
+     * {@link StripeStatsStaging}, which calls {@link #recordTo} once the stripe is covered.
      * <p>
      * The sink is typed as {@link ConcurrentMap} because parallel-parsing workers concurrently invoke
      * {@code computeIfAbsent} on the outer map; only the {@link ConcurrentMap} contract makes that
      * lookup-or-insert atomic.
      */
     public static void record(String filePath, Map<String, Object> stats) {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ACTIVE.get();
+        if (sink != null) {
+            recordTo(sink, filePath, stats);
+        }
+    }
+
+    /**
+     * Appends a contribution to a sink named outright rather than found on the current thread. Used by
+     * {@link StripeStatsStaging}, and needed for {@link StripeStatsStaging#flush}: a stripe staged from
+     * {@code contribute} runs on a parser thread, which both coordinators DO bind — they bind around the
+     * per-chunk {@code reader.read(...).close()} they drive — but the flush runs on the thread that closes the
+     * read, which nothing bound. This is the one definition of the append, so both entry points share the
+     * list's identity and locking.
+     */
+    static void recordTo(ConcurrentMap<String, List<Map<String, Object>>> sink, String filePath, Map<String, Object> stats) {
         if (filePath == null || stats == null || stats.isEmpty()) {
             return;
         }
-        ConcurrentMap<String, List<Map<String, Object>>> sink = ACTIVE.get();
-        if (sink != null) {
-            sink.computeIfAbsent(filePath, k -> Collections.synchronizedList(new ArrayList<>())).add(stats);
-        }
+        sink.computeIfAbsent(filePath, k -> Collections.synchronizedList(new ArrayList<>())).add(stats);
     }
 
     /**

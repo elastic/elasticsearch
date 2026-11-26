@@ -166,10 +166,10 @@ public class PlanAnonymizerTests extends ESTestCase {
     }
 
     /**
-     * NamedSubquery carries the view name a sub-plan was resolved from; its nodeString surfaces
-     * the name as {@code NamedSubquery[<view>]}. Verifies the rule anonymizes it.
+     * ViewSubquery carries the view name a sub-plan was resolved from; its nodeString surfaces
+     * the name as {@code ViewSubquery[<view>]}. Verifies the rule anonymizes it.
      */
-    public void testNamedSubqueryNameAnonymized() {
+    public void testViewSubqueryNameAnonymized() {
         String sensitiveView = "internal_users_v2_2026q1";
         EsField field = new EsField(F_EMAIL, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
         FieldAttribute attr = new FieldAttribute(Source.EMPTY, null, null, F_EMAIL, field);
@@ -182,7 +182,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(attr)
         );
-        org.elasticsearch.xpack.esql.plan.logical.NamedSubquery ns = new org.elasticsearch.xpack.esql.plan.logical.NamedSubquery(
+        org.elasticsearch.xpack.esql.plan.logical.ViewSubquery ns = new org.elasticsearch.xpack.esql.plan.logical.ViewSubquery(
             Source.EMPTY,
             inner,
             sensitiveView

@@ -165,6 +165,11 @@ public class PartitionedAggregationBlock implements Block {
     }
 
     @Override
+    public int nullValuesCount() {
+        return 0;
+    }
+
+    @Override
     public boolean mayHaveMultivaluedFields() {
         return false;
     }

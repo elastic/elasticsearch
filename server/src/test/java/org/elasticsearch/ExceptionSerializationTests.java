@@ -145,11 +145,11 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.snapshots.ShardRestoringException.SHARD_RESTORING_EXCEPTION_VERSION;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ExceptionSerializationTests extends ESTestCase {
@@ -488,7 +488,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("boom", ex.getPhaseName());
         assertEquals("baam", ex.getMessage());
         assertThat(ex.getCause(), instanceOf(NullPointerException.class));
-        assertThat(ex.shardFailures(), emptyArray());
+        assertThat(ex.shardFailures(), empty());
 
         ex = serialize(
             new SearchPhaseExecutionException(
@@ -501,8 +501,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("boom", ex.getPhaseName());
         assertEquals("baam", ex.getMessage());
         assertThat(ex.getCause(), instanceOf(NullPointerException.class));
-        assertThat(ex.shardFailures(), arrayWithSize(1));
-        assertThat(ex.shardFailures()[0].getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(ex.shardFailures(), hasSize(1));
+        assertThat(ex.shardFailures().getFirst().getCause(), instanceOf(IllegalArgumentException.class));
     }
 
     public void testRoutingMissingException() throws IOException {

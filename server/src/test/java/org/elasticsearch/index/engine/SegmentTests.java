@@ -18,8 +18,10 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.ComputedKeySortField;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
+import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -27,6 +29,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SegmentTests extends ESTestCase {
     static SortField randomSortField() {
@@ -93,6 +97,71 @@ public class SegmentTests extends ESTestCase {
             Segment deserialized = new Segment(input);
             assertTrue(isSegmentEquals(deserialized, segment));
         }
+    }
+
+    /**
+     * A segment sorted by a ColumNAR numeric field is written exactly as one sorted by the {@link SortedNumericSortField} it
+     * describes, so every node reads it with no transport version of its own, and reads it back as that field.
+     */
+    public void testColumnarNumericSortSerializesAsSortedNumeric() throws IOException {
+        String field = randomAlphaOfLengthBetween(1, 10);
+        boolean reverse = randomBoolean();
+        boolean max = randomBoolean();
+        Long missing = randomBoolean() ? null : randomLong();
+        SortField columnar = new ColumnarNumericSortField(field, SortField.Type.LONG, reverse, max, missing);
+        SortField sortedNumeric = new SortedNumericSortField(
+            field,
+            SortField.Type.LONG,
+            reverse,
+            max ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN,
+            missing
+        );
+
+        Segment segment = randomSegment();
+        segment.segmentSort = new Sort(columnar);
+        BytesStreamOutput columnarOutput = new BytesStreamOutput();
+        segment.writeTo(columnarOutput);
+        segment.segmentSort = new Sort(sortedNumeric);
+        BytesStreamOutput sortedNumericOutput = new BytesStreamOutput();
+        segment.writeTo(sortedNumericOutput);
+        assertEquals(sortedNumericOutput.bytes(), columnarOutput.bytes());
+
+        Segment deserialized = new Segment(columnarOutput.bytes().streamInput());
+        assertEquals(new Sort(sortedNumeric), deserialized.segmentSort);
+    }
+
+    public void testSerializationOfComputedKeySortField() throws IOException {
+        Segment segment = randomSegment();
+        ComputedKeySortField sortField = new ComputedKeySortField("DATE_TRUNC(1 hour, @timestamp)", randomBoolean(), randomBoolean());
+        segment.segmentSort = new Sort(sortField);
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        segment.writeTo(output);
+        Segment deserialized = new Segment(output.bytes().streamInput());
+
+        assertEquals(new Sort(sortField), deserialized.segmentSort);
+    }
+
+    /** Nodes that don't know computed keys read one as a long sort on its text. */
+    public void testSerializationOfComputedKeySortFieldOldVersion() throws IOException {
+        Segment segment = randomSegment();
+        boolean reverse = randomBoolean();
+        ComputedKeySortField sortField = new ComputedKeySortField("DATE_TRUNC(1 hour, @timestamp)", reverse, randomBoolean());
+        segment.segmentSort = new Sort(sortField);
+
+        var oldVersion = TransportVersionUtils.randomVersionNotSupporting(Segment.SEGMENT_COMPUTED_SORT_KEY);
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(oldVersion);
+        segment.writeTo(output);
+        StreamInput input = output.bytes().streamInput();
+        input.setTransportVersion(oldVersion);
+        Segment deserialized = new Segment(input);
+
+        SortField field = deserialized.segmentSort.getSort()[0];
+        assertThat(field, instanceOf(SortedNumericSortField.class));
+        assertEquals("DATE_TRUNC(1 hour, @timestamp)", field.getField());
+        assertEquals(reverse, field.getReverse());
+        assertEquals(sortField.getMissingValue(), field.getMissingValue());
     }
 
     public void testSerializationWithAutoCalibration() throws IOException {

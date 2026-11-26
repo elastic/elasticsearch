@@ -400,7 +400,7 @@ public class DataExtractorUtilsTests extends ESTestCase {
             1,
             0,
             0,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             clusters
         );
     }

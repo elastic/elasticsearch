@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DownsampleAction;
 import org.elasticsearch.xpack.core.ilm.DownsampleActionTests;
+import org.elasticsearch.xpack.core.ilm.DownsampleStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -685,6 +686,48 @@ public class DownsampleActionIT extends IlmESRestTestCase {
                 settings.get(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey())
             );
         }, 60, TimeUnit.SECONDS);
+    }
+
+    /**
+     * When the downsample index ILM wants to create already exists because it was created for another source index, the downsample step
+     * must fail and report why instead of reusing the downsample index of the other source.
+     */
+    public void testDownsampleFailsWhenTargetBelongsToAnotherSource() throws Exception {
+        DateHistogramInterval fixedInterval = DateHistogramInterval.HOUR;
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            "warm",
+            new DownsampleAction(
+                fixedInterval,
+                DownsampleAction.DEFAULT_WAIT_TIMEOUT,
+                randomBoolean(),
+                DownsampleActionTests.randomSamplingMethod()
+            )
+        );
+
+        // Create the downsample index of an unrelated index, using the name that ILM will generate for our index
+        String otherIndex = "other-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String targetIndex = DownsampleAction.DOWNSAMPLED_INDEX_PREFIX + fixedInterval + "-" + index;
+        createIndex(otherIndex, "alias-other-" + randomAlphaOfLength(5), null, true);
+        index(client(), otherIndex, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
+        assertOK(client().performRequest(new Request("PUT", "/" + otherIndex + "/_block/write")));
+        Request downsampleRequest = new Request("POST", "/" + otherIndex + "/_downsample/" + targetIndex);
+        downsampleRequest.setJsonEntity("{\"fixed_interval\": \"" + fixedInterval + "\"}");
+        assertOK(client().performRequest(downsampleRequest));
+
+        // Create a time series index managed by the policy
+        createIndex(index, alias, policy, true);
+        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
+
+        assertBusy(() -> {
+            Map<String, Object> explainResponse = explainIndex(client(), index);
+            assertThat(explainResponse.get("failed_step"), is(DownsampleStep.NAME));
+            assertThat(String.valueOf(explainResponse.get("step_info")), containsString("belongs to a different source"));
+        }, 60, TimeUnit.SECONDS);
+        // The source index is kept, and the downsample index still belongs to the other source
+        assertTrue("Source index should not have been deleted", indexExists(index));
+        assertEquals(otherIndex, getOnlyIndexSettings(client(), targetIndex).get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
     }
 
     /**

@@ -60,7 +60,7 @@ public final class AbsLongEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldValBlock.isNull(p)) {
           result.appendNull();
@@ -87,7 +87,7 @@ public final class AbsLongEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongVector fieldValVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long fieldVal = fieldValVector.getLong(p);
         try {

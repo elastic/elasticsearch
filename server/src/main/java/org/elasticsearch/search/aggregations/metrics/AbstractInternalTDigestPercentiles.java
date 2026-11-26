@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +28,9 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
+abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue implements Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AbstractInternalTDigestPercentiles.class);
 
     private static final TransportVersion QUERYDSL_PERCENTILES_EXPONENTIAL_HISTOGRAM_SUPPORT = TransportVersion.fromName(
         "query_dsl_percentiles_exponential_histogram_support"
@@ -54,6 +58,15 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         if (state != null) {
             state.compress();
         }
+    }
+
+    /**
+     * The heap of the digest, whose arrays are sized by the compression and not by the values added. See
+     * {@link org.elasticsearch.search.aggregations.InternalAggregations#estimateHeapBytes()}.
+     */
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + (state == null ? 0 : state.ramBytesUsed());
     }
 
     /**

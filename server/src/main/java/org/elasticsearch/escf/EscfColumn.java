@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
@@ -134,11 +135,19 @@ public abstract class EscfColumn implements SliceableColumn {
 
     /**
      * Returns {@code true} if any document in this column carries more than one value. Always
-     * {@code false} for scalar columns; {@link EscfArrayColumn} overrides this to scan its
-     * per-row element-range offsets. Used by {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch}
-     * to enforce {@code multi_value=false} before delegating to the field-specific implementation.
+     * {@code false} for scalar columns; {@link EscfArrayColumn} and {@link EscfUnionColumn} override this. Used by
+     * {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch} to enforce
+     * {@code multi_value=false} before delegating to the field-specific implementation.
      */
-    public boolean hasMultiValueDoc() {
+    public final boolean hasMultiValueDoc() {
+        return hasMultiValueDoc(true);
+    }
+
+    /**
+     * As {@link #hasMultiValueDoc()}, but a {@code null} array element counts as a value only when {@code countNulls} is {@code true}.
+     * An implementation may over-report, since the caller then just falls back to the row path.
+     */
+    public boolean hasMultiValueDoc(boolean countNulls) {
         return false;
     }
 
@@ -260,6 +269,21 @@ public abstract class EscfColumn implements SliceableColumn {
     /** Returns the array value at {@code row}. The column kind must be {@link EscfColumnKind#ARRAY}. */
     public ArrayReader getArrayValue(int row) {
         throw notA("array");
+    }
+
+    /**
+     * The number elements of the array at {@code row} narrowed to floats, read in bulk, or {@code null} when this column does not
+     * keep that array as a run of numbers, as only an {@link EscfColumnKind#ARRAY} column of a {@code LONG} or {@code DOUBLE}
+     * element kind does, or when the array does not have exactly {@code length} elements. Callers that get {@code null} read the
+     * array element by element with {@link #getArrayValue}, which can stop at the first element past what they expect, so an
+     * overlong array is never decoded, or allocated for, in full.
+     *
+     * <p>A double element narrows with a cast, as {@code (float) getArrayValue(row).doubleValue()} would: exact for the elements
+     * an encoder parsed as floats, and otherwise rounded a second time (see {@link org.elasticsearch.sourcebatch.FloatNarrowing}).
+     */
+    @Nullable
+    public float[] numericArrayAsFloats(int row, int length) {
+        return null;
     }
 
     /** Returns the key-value reader at {@code row}. The column kind must be a key-value type. */

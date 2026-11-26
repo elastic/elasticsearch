@@ -1,0 +1,5 @@
+pr: 163447
+summary: Add `index.sort` expression setting to configure index sorting
+area: Columnar
+type: enhancement
+issues: []

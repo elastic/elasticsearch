@@ -36,11 +36,14 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
@@ -60,6 +63,15 @@ public class EsqlDataExtractor implements DataExtractor {
     /** Whether the user's pipeline contains a depth-zero {@code STATS} command (aggregating query). */
     public static boolean hasAggregation(String esqlQuery) {
         return EsqlQueryClauseScanner.hasAggregation(esqlQuery);
+    }
+
+    /**
+     * Whether datafeed rows carry one timestamp per grouping bucket (aggregating ES|QL) rather than source timestamps.
+     * MUST FIX before production: a query without {@code STATS} that rewrites the time column (e.g. {@code DATE_TRUNC}) is not
+     * detected; the DESCRIBE interval replaces this scanner check, see https://github.com/elastic/elasticsearch/issues/161207
+     */
+    public static boolean emitsBucketTimes(@Nullable String esqlQuery) {
+        return esqlQuery != null && hasAggregation(esqlQuery);
     }
 
     private final Client client;
@@ -242,7 +254,14 @@ public class EsqlDataExtractor implements DataExtractor {
             EsqlResponse esqlResponse = response.response();
             List<? extends ColumnInfo> columns = esqlResponse.columns();
             // Runtime extraction has no datafeed id for column-check messages.
-            EsqlDatafeedQueryValidator.checkRequiredColumns(columns, context.emittedTimeField(), context.requiredSummaryCountField(), null);
+            Map<String, String> columnTypes = columns.stream()
+                .collect(Collectors.toMap(ColumnInfo::name, ColumnInfo::outputType, (first, second) -> second, LinkedHashMap::new));
+            EsqlDatafeedQueryValidator.checkRequiredColumns(
+                columnTypes,
+                context.emittedTimeField(),
+                context.requiredSummaryCountField(),
+                null
+            );
             List<List<Object>> materializedRows = new ArrayList<>();
             for (Iterable<Object> row : esqlResponse.rows()) {
                 List<Object> values = new ArrayList<>();

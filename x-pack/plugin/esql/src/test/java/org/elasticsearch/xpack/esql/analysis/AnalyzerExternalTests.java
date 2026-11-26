@@ -18,8 +18,14 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -35,12 +41,17 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.hamcrest.Matcher;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -54,6 +65,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -93,7 +105,12 @@ public class AnalyzerExternalTests extends ESTestCase {
 
         List<Attribute> schema = List.of(referenceAttribute("id", LONG), referenceAttribute("name", KEYWORD));
 
-        var testAnalyzer = analyzer().externalSourceResolution("s3://bucket/data/*.parquet", schema, fileList);
+        var testAnalyzer = analyzer().externalSourceResolution(
+            datasetProject("s3://bucket/data/*.parquet"),
+            "s3://bucket/data/*.parquet",
+            schema,
+            fileList
+        );
         var analyzed = analyzeDataset(testAnalyzer, "s3://bucket/data/*.parquet", "FROM " + DATASET_NAME + " | STATS count = COUNT(*)");
 
         var externalRelations = new ArrayList<ExternalRelation>();
@@ -238,7 +255,7 @@ public class AnalyzerExternalTests extends ESTestCase {
     public void testWithKnnFunction() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         List<Attribute> schema = List.of(referenceAttribute("id", LONG), referenceAttribute("vector", DENSE_VECTOR));
-        var testAnalyzer = analyzer().externalSourceUnresolved(S3_PATH, schema);
+        var testAnalyzer = analyzer().externalSourceUnresolved(datasetProject(S3_PATH), S3_PATH, schema);
 
         analyzeDataset(testAnalyzer, S3_PATH, "FROM " + DATASET_NAME + " | WHERE KNN(vector, [3, 100, 0])");
     }
@@ -671,7 +688,11 @@ public class AnalyzerExternalTests extends ESTestCase {
             referenceAttribute("first_name", KEYWORD)
         );
         var leafOutput = externalLeafOutput(
-            analyzeDataset(analyzer().externalSourceUnresolved(S3_PATH, schema), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id")
+            analyzeDataset(
+                analyzer().externalSourceUnresolved(datasetProject(S3_PATH), S3_PATH, schema),
+                S3_PATH,
+                "FROM " + DATASET_NAME + " METADATA _id"
+            )
         );
 
         List<Attribute> ids = leafOutput.stream().filter(a -> a.name().equals("_id")).toList();
@@ -723,6 +744,80 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
+     * Two relations on one resource, read under two configurations, each bind to <em>their own</em> resolution.
+     * <p>
+     * This is what the resolution key is for. The resolution holds both reads, under schemas that differ, and the
+     * only thing that can tell {@code ResolveExternalRelations} which belongs to which relation is the relation's
+     * configuration — so a lookup by resource alone binds both relations to whichever read it reaches first, and one
+     * of them then reports a schema nobody asked for. The query that produces this shape in production is
+     * {@code FROM sales_csv, sales_tsv} over two datasets sharing one resource.
+     */
+    public void testEachRelationOnOneResourceBindsToItsOwnResolution() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        Map<String, Object> asCsv = Map.of("format", "csv", ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "sales_csv"));
+        Map<String, Object> asTsv = Map.of("format", "tsv", ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "sales_tsv"));
+        // One column apiece, named for the read, so each relation's own schema is visible in its output.
+        List<Attribute> csvSchema = List.of(referenceAttribute("from_csv", INTEGER));
+        List<Attribute> tsvSchema = List.of(referenceAttribute("from_tsv", KEYWORD));
+        ExternalSourceResolution resolution = new ExternalSourceResolution(
+            Map.of(
+                new ExternalSourceSpec(S3_PATH, asCsv),
+                resolvedSourceWith(csvSchema),
+                new ExternalSourceSpec(S3_PATH, asTsv),
+                resolvedSourceWith(tsvSchema)
+            )
+        );
+
+        // A parsed FROM supplies the surrounding plan (the implicit LIMIT the verifier wants); its single relation is
+        // replaced by the union of the two external reads DatasetRewriter would have produced.
+        LogicalPlan parsed = TEST_PARSER.parseQuery("FROM sales");
+        LogicalPlan plan = parsed.transformUp(
+            UnresolvedRelation.class,
+            r -> new UnionAll(
+                r.source(),
+                List.of(externalRelation(r.source(), asCsv, "sales_csv"), externalRelation(r.source(), asTsv, "sales_tsv")),
+                List.of()
+            )
+        );
+
+        LogicalPlan analyzed = analyzer().externalSourceResolution(resolution).buildAnalyzer().analyze(plan);
+
+        Map<String, List<String>> columnsByDataset = new HashMap<>();
+        analyzed.forEachDown(
+            ExternalRelation.class,
+            e -> columnsByDataset.put(e.datasetName(), e.output().stream().map(Attribute::name).toList())
+        );
+        assertThat("both relations must resolve", columnsByDataset.keySet(), equalTo(Set.of("sales_csv", "sales_tsv")));
+        assertThat("the csv read must carry the csv schema", columnsByDataset.get("sales_csv"), equalTo(List.of("from_csv")));
+        assertThat("the tsv read must carry the tsv schema", columnsByDataset.get("sales_tsv"), equalTo(List.of("from_tsv")));
+    }
+
+    /** An {@link UnresolvedExternalRelation} on {@link #S3_PATH} under {@code config}, as DatasetRewriter builds one. */
+    private static UnresolvedExternalRelation externalRelation(Source source, Map<String, Object> config, String datasetName) {
+        return new UnresolvedExternalRelation(source, Literal.keyword(source, S3_PATH), config, List.of(), datasetName);
+    }
+
+    /** A resolved source over {@code schema}, with nothing listed: this case is about which schema binds where. */
+    private static ExternalSourceResolution.ResolvedSource resolvedSourceWith(List<Attribute> schema) {
+        return new ExternalSourceResolution.ResolvedSource(new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return S3_PATH;
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        }, FileList.UNRESOLVED, Map.of());
+    }
+
+    /**
      * Returns the {@link ExternalRelation} leaf's output from an analyzed plan. The leaf's output
      * carries every name bound by {@code ResolveExternalRelations}, which is the binding contract
      * under test.
@@ -769,12 +864,22 @@ public class AnalyzerExternalTests extends ESTestCase {
             .build();
     }
 
+    /**
+     * The analyzer for this class's {@code FROM <dataset>} cases: the resolution is keyed for the relations
+     * {@link #datasetProject} rewrites to, which carry the dataset's config. For a relation with no dataset behind it,
+     * whose relation carries no config, use {@link #externalCommand()}.
+     */
     public static TestAnalyzer external() {
+        return analyzer().externalSourceUnresolved(datasetProject(S3_PATH), S3_PATH, employeesSchema());
+    }
+
+    /** As {@link #external()}, keyed for the empty config a relation with no dataset behind it carries. */
+    public static TestAnalyzer externalCommand() {
         return analyzer().externalSourceUnresolved(S3_PATH, employeesSchema());
     }
 
     private static TestAnalyzer externalCollision() {
-        return analyzer().externalSourceUnresolved(S3_PATH, collisionSchema());
+        return analyzer().externalSourceUnresolved(datasetProject(S3_PATH), S3_PATH, collisionSchema());
     }
 
     private static List<Attribute> collisionSchema() {

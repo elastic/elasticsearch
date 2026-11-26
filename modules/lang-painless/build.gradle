@@ -7,6 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.gradle.internal.antlr.PostProcessAntlrSourcesTask
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 
 apply plugin: 'elasticsearch.validate-rest-spec'
@@ -191,39 +192,21 @@ tasks.register("regenParser", JavaExec) {
             "${file(grammarPath)}/PainlessParser.g4"
 }
 
-tasks.register("regen") {
+tasks.register("regen", PostProcessAntlrSourcesTask) {
     dependsOn "regenParser"
-    doLast {
-        // moves token files to grammar directory for use with IDE's
-        ant.move(file: "${outputPath}/PainlessLexer.tokens", toDir: grammarPath)
-        ant.move(file: "${outputPath}/PainlessParser.tokens", toDir: grammarPath)
-        // make the generated classes package private
-        ant.replaceregexp(match: 'public ((interface|class) \\QPainless\\E\\w+)',
-                replace: '\\1',
-                encoding: 'UTF-8') {
-            fileset(dir: outputPath, includes: 'Painless*.java')
-        }
-        // make the lexer abstract
-        ant.replaceregexp(match: '(class \\QPainless\\ELexer)',
-                replace: 'abstract \\1',
-                encoding: 'UTF-8') {
-            fileset(dir: outputPath, includes: 'PainlessLexer.java')
-        }
-        // nuke timestamps/filenames in generated files
-        ant.replaceregexp(match: '\\Q// Generated from \\E.*',
-                replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
-                encoding: 'UTF-8') {
-            fileset(dir: outputPath, includes: 'Painless*.java')
-        }
-        // remove tabs in antlr generated files
-        ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
-            fileset(dir: outputPath, includes: 'Painless*.java')
-        }
-        // fix line endings
-        ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
-            patternset(includes: 'Painless*.java')
-        }
-    }
+    generatedSourcesDir = file(outputPath)
+    // moves token files to grammar directory for use with IDE's
+    tokensDir = file(grammarPath)
+    tokenFiles = ["PainlessLexer.tokens", "PainlessParser.tokens"]
+    // make the generated classes package private
+    replaceFirst('Painless*.java', 'public ((interface|class) \\QPainless\\E\\w+)', '$1')
+    // make the lexer abstract
+    replaceFirst('PainlessLexer.java', '(class \\QPainless\\ELexer)', 'abstract $1')
+    // nuke timestamps/filenames in generated files
+    replaceFirst('Painless*.java', '\\Q// Generated from \\E.*', '// ANTLR GENERATED CODE: DO NOT EDIT')
+    // remove tabs in antlr generated files
+    replaceAll('Painless*.java', '\t', '  ')
+    fixLineEndings('Painless*.java')
 }
 
 /**********************************************
@@ -264,30 +247,17 @@ tasks.register("regenSuggestLexer", JavaExec) {
             "${file(suggestGrammarPath)}/SuggestLexer.g4"
 }
 
-tasks.register("regenSuggest") {
+tasks.register("regenSuggest", PostProcessAntlrSourcesTask) {
     dependsOn "regenSuggestLexer"
-    doLast {
-        // moves token files to grammar directory for use with IDE's
-        ant.move(file: "${suggestOutputPath}/SuggestLexer.tokens", toDir: suggestGrammarPath)
-        // make the lexer abstract
-        ant.replaceregexp(match: '(class \\QSuggest\\ELexer)',
-                replace: 'abstract \\1',
-                encoding: 'UTF-8') {
-            fileset(dir: suggestOutputPath, includes: 'SuggestLexer.java')
-        }
-        // nuke timestamps/filenames in generated files
-        ant.replaceregexp(match: '\\Q// Generated from \\E.*',
-                replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
-                encoding: 'UTF-8') {
-            fileset(dir: suggestOutputPath, includes: 'Suggest*.java')
-        }
-        // remove tabs in antlr generated files
-        ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
-            fileset(dir: suggestOutputPath, includes: 'Suggest*.java')
-        }
-        // fix line endings
-        ant.fixcrlf(srcdir: suggestOutputPath, eol: 'lf') {
-            patternset(includes: 'Suggest*.java')
-        }
-    }
+    generatedSourcesDir = file(suggestOutputPath)
+    // moves token files to grammar directory for use with IDE's
+    tokensDir = file(suggestGrammarPath)
+    tokenFiles = ["SuggestLexer.tokens"]
+    // make the lexer abstract
+    replaceFirst('SuggestLexer.java', '(class \\QSuggest\\ELexer)', 'abstract $1')
+    // nuke timestamps/filenames in generated files
+    replaceFirst('Suggest*.java', '\\Q// Generated from \\E.*', '// ANTLR GENERATED CODE: DO NOT EDIT')
+    // remove tabs in antlr generated files
+    replaceAll('Suggest*.java', '\t', '  ')
+    fixLineEndings('Suggest*.java')
 }

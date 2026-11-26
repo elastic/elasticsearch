@@ -57,6 +57,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -96,6 +97,7 @@ class DatafeedJob {
     private volatile long lastDataCheckTimeMs;
     private volatile Tuple<String, Annotation> lastDataCheckAnnotationWithId;
     private volatile Long lastEndTimeMs;
+    private final LongUnaryOperator lastEndTimeForRecord;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
@@ -127,7 +129,8 @@ class DatafeedJob {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataCheckFreq,
-        CrossClusterSearchStats crossClusterSearchStats
+        CrossClusterSearchStats crossClusterSearchStats,
+        LongUnaryOperator lastEndTimeForRecord
     ) {
         this.datafeedId = datafeedId;
         this.projectRouting = projectRouting;
@@ -146,7 +149,11 @@ class DatafeedJob {
         this.maxEmptySearches = maxEmptySearches;
         this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
         this.latestFinalBucketEndTimeMs = latestFinalBucketEndTimeMs;
-        long lastEndTime = Math.max(latestFinalBucketEndTimeMs, latestRecordTimeMs);
+        this.lastEndTimeForRecord = Objects.requireNonNull(lastEndTimeForRecord);
+        long lastEndTime = Math.max(
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs >= 0 ? lastEndTimeForRecord.applyAsLong(latestRecordTimeMs) : latestRecordTimeMs
+        );
         if (lastEndTime > 0) {
             lastEndTimeMs = lastEndTime;
         }
@@ -538,7 +545,7 @@ class DatafeedJob {
                     recordCount += counts.getProcessedRecordCount();
                     haveEverSeenData |= (recordCount > 0);
                     if (counts.getLatestRecordTimeStamp() != null) {
-                        lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
+                        lastEndTimeMs = lastEndTimeForRecord.applyAsLong(counts.getLatestRecordTimeStamp().getTime());
                     }
                 }
             }

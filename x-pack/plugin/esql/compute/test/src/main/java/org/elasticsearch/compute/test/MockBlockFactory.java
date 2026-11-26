@@ -10,6 +10,8 @@ package org.elasticsearch.compute.test;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.AbstractBlockBuilder;
 import org.elasticsearch.compute.data.AbstractDelegatingCompoundBlock;
@@ -86,6 +88,8 @@ public class MockBlockFactory extends BlockFactory {
     private static final long PURGE_RELEASED_BYTES = 1024 * 1024;
     private volatile int nextPurgeSize = 128;
     private final AtomicLong releasedBytes = new AtomicLong();
+    /** The factory that tracks the blocks of this one: itself, or the factory a query factory was created from. */
+    private final MockBlockFactory tracker;
 
     public void ensureAllBlocksAreReleased() {
 
@@ -124,10 +128,30 @@ public class MockBlockFactory extends BlockFactory {
 
     protected MockBlockFactory(BlockFactoryBuilder builder, BlockFactory parent) {
         super(builder, parent);
+        this.tracker = this;
+    }
+
+    private MockBlockFactory(MockBlockFactory owner, BlockFactoryBuilder builder) {
+        super(builder, null, owner);
+        this.tracker = owner;
+    }
+
+    @Override
+    public BlockFactory newQueryFactory(CircuitBreaker breaker, BigArrays bigArrays) {
+        return new MockBlockFactory(
+            this,
+            builder(bigArrays).breaker(breaker)
+                .maxPrimitiveArraySize(maxPrimitiveArrayBytes())
+                .bytesRefRamOverestimateThreshold(bytesRefRamOverestimateThreshold())
+                .bytesRefRamOverestimateFactor(bytesRefRamOverestimateFactor())
+        );
     }
 
     @Override
     protected BufferAllocator childFactoryAllocator() {
+        if (tracker != this) {
+            return super.childFactoryAllocator();
+        }
         var listener = new CircuitBreakerAllocationListener(this.breaker());
         return super.arrowAllocator().newChildAllocator("mock-factory", listener, 0, Long.MAX_VALUE);
     }
@@ -142,8 +166,8 @@ public class MockBlockFactory extends BlockFactory {
 
     @Override
     public void adjustBreaker(final long delta) {
-        if (delta < 0 && releasedBytes.addAndGet(-delta) >= PURGE_RELEASED_BYTES) {
-            purgeTrackBlocks();
+        if (delta < 0 && tracker.releasedBytes.addAndGet(-delta) >= PURGE_RELEASED_BYTES) {
+            tracker.purgeTrackBlocks();
         }
         super.adjustBreaker(delta);
     }
@@ -172,6 +196,10 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     void track(Object obj, Object trackDetail) {
+        if (tracker != this) {
+            tracker.track(obj, trackDetail);
+            return;
+        }
         if (TRACKED_BLOCKS.size() >= nextPurgeSize) {
             purgeTrackBlocks();
         }
@@ -249,9 +277,9 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
+    public IntBlock.Builder newIntBlockBuilder(int estimatedSize, boolean enablePooling) {
         // var b = new MockIntBlockBuilder(estimatedSize, super);
-        var b = super.newIntBlockBuilder(estimatedSize);
+        var b = super.newIntBlockBuilder(estimatedSize, enablePooling);
         track(b, trackDetail());
         return b;
     }
@@ -271,8 +299,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
-        var b = super.newIntVectorFixedBuilder(size);
+    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size, boolean enablePooling) {
+        var b = super.newIntVectorFixedBuilder(size, enablePooling);
         track(b, trackDetail());
         return b;
     }
@@ -355,8 +383,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
-        var b = super.newLongBlockBuilder(estimatedSize);
+    public LongBlock.Builder newLongBlockBuilder(int estimatedSize, boolean enablePooling) {
+        var b = super.newLongBlockBuilder(estimatedSize, enablePooling);
         track(b, trackDetail());
         return b;
     }
@@ -376,8 +404,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
-        var b = super.newLongVectorFixedBuilder(size);
+    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size, boolean enablePooling) {
+        var b = super.newLongVectorFixedBuilder(size, enablePooling);
         track(b, trackDetail());
         return b;
     }
@@ -404,8 +432,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
-        var b = super.newDoubleBlockBuilder(estimatedSize);
+    public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize, boolean enablePooling) {
+        var b = super.newDoubleBlockBuilder(estimatedSize, enablePooling);
         track(b, trackDetail());
         return b;
     }
@@ -425,8 +453,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
-        var b = super.newDoubleVectorFixedBuilder(size);
+    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size, boolean enablePooling) {
+        var b = super.newDoubleVectorFixedBuilder(size, enablePooling);
         track(b, trackDetail());
         return b;
     }

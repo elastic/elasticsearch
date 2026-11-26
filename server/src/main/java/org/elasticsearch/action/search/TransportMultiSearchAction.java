@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.Text;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -336,7 +337,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             }
         }
 
-        if (response.hasAggregations() && response.getQueryPhaseAggregationBreakerBytes() == 0) {
+        // Aggregations the response already holds a charge for are not counted again.
+        if (response.hasAggregations()
+            && response.getQueryPhaseAggregationBreakerBytes() == 0
+            && response.hasAggregationCharge() == false) {
             long serializedAggregations = response.serializedAggregationsBytes();
             if (serializedAggregations >= 0) {
                 // The size the sender wrote, in its own version's format. At the current version it is what counting would give.
@@ -450,7 +454,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * Estimates coordinator heap for a {@link ShardSearchFailure} array, including
      * {@link ShardSearchFailure#reason()} — a distinct heap object duplicating the cause chain.
      */
-    private static long estimateShardFailureBytes(ShardSearchFailure[] failures) {
+    private static long estimateShardFailureBytes(List<ShardSearchFailure> failures) {
         long bytes = 0;
         for (ShardSearchFailure failure : failures) {
             bytes += PER_SHARD_FAILURE_OVERHEAD + estimateExceptionBytes(failure.getCause());

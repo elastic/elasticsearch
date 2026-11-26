@@ -50,7 +50,7 @@ public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunc
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendLong(evalValue(vector, p));
@@ -72,7 +72,7 @@ public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunc
   public Block evalBlock(Block b) {
     DoubleBlock block = (DoubleBlock) b;
     int positionCount = block.getPositionCount();
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);

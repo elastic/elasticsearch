@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.TargetShards;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,11 +53,9 @@ public class QuerySnapshotTests extends ESTestCase {
         DiscoveryNode holder = copy(1);
         QuerySnapshot snapshot = snapshot(Map.of(shard, reader(holder, null)));
         assertFalse(snapshot.reproducible(shard));
-        TargetShards targets = snapshot.targetShards(project, Set.of("idx"));
+        TargetShards targets = snapshot.targetShards(project);
         assertThat(targets.getShard(shard).remainingNodes(), equalTo(List.of(holder)));
         assertThat("each read adds its own", targets.getShard(shard).aliasFilter(), nullValue());
-        assertThat(targets.totalShards(), equalTo(1));
-        assertThat(targets.skippedShards(), equalTo(0));
     }
 
     /**
@@ -68,21 +65,28 @@ public class QuerySnapshotTests extends ESTestCase {
         DiscoveryNode holder = copy(2);
         QuerySnapshot snapshot = snapshot(Map.of(shard, reader(holder, "commit")));
         assertTrue(snapshot.reproducible(shard));
-        List<DiscoveryNode> nodes = snapshot.targetShards(project, Set.of("idx")).getShard(shard).remainingNodes();
+        List<DiscoveryNode> nodes = snapshot.targetShards(project).getShard(shard).remainingNodes();
         assertThat(nodes.getFirst(), equalTo(holder));
         assertThat(nodes, containsInAnyOrder(copy(0), copy(1), copy(2)));
     }
 
     /**
-     * A shard of the indices without a reader was skipped by can_match, and the shards of other indices aren't read.
+     * The counts are those of the point in time, which only covers the shards it targeted.
      */
-    public void testCountsTheShardsCanMatchSkipped() {
-        ShardId other = new ShardId(new Index("other", "uuid"), 0);
-        QuerySnapshot snapshot = snapshot(Map.of(other, reader(copy(0), null)));
-        TargetShards targets = snapshot.targetShards(project, Set.of("idx"));
-        assertThat(targets.shards().size(), equalTo(0));
-        assertThat(targets.totalShards(), equalTo(1));
-        assertThat(targets.skippedShards(), equalTo(1));
+    public void testCountsAreThoseOfThePointInTime() {
+        TargetShards targets = new QuerySnapshot(new BytesArray("pit"), Map.of(shard, reader(copy(0), null)), 4, 3, () -> () -> {})
+            .targetShards(project);
+        assertThat(targets.totalShards(), equalTo(4));
+        assertThat(targets.skippedShards(), equalTo(3));
+    }
+
+    /**
+     * A shard of an index deleted since the point in time opened has no copy to read, even if its holder is still there.
+     */
+    public void testShardOfADeletedIndexHasNoCopy() {
+        ShardId deleted = new ShardId(new Index("deleted", "uuid"), 0);
+        TargetShards targets = snapshot(Map.of(deleted, reader(copy(0), null))).targetShards(project);
+        assertThat(targets.getShard(deleted).remainingNodes(), equalTo(List.of()));
     }
 
     /**
@@ -90,8 +94,8 @@ public class QuerySnapshotTests extends ESTestCase {
      */
     public void testEachCallerGetsItsOwnTargets() {
         QuerySnapshot snapshot = snapshot(Map.of(shard, reader(copy(0), "commit")));
-        snapshot.targetShards(project, Set.of("idx")).getShard(shard).remainingNodes().clear();
-        assertThat(snapshot.targetShards(project, Set.of("idx")).getShard(shard).remainingNodes().size(), equalTo(3));
+        snapshot.targetShards(project).getShard(shard).remainingNodes().clear();
+        assertThat(snapshot.targetShards(project).getShard(shard).remainingNodes().size(), equalTo(3));
     }
 
     public void testClosesOnce() {
@@ -113,6 +117,6 @@ public class QuerySnapshotTests extends ESTestCase {
     }
 
     private static QuerySnapshot snapshot(Map<ShardId, SearchContextIdForNode> shards) {
-        return new QuerySnapshot(new BytesArray("pit"), shards, () -> () -> {});
+        return new QuerySnapshot(new BytesArray("pit"), shards, shards.size(), 0, () -> () -> {});
     }
 }

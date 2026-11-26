@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -35,7 +36,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.startsWith;
@@ -93,7 +96,7 @@ public class QuerySnapshotIT extends AbstractEsqlIntegTestCase {
         assertThat(snapshot.shards().size(), equalTo(INDICES));
         assertThat(snapshot.shards().keySet().stream().map(ShardId::getIndexName).toList(), everyItem(startsWith("new-")));
         assertThat(activeContexts(), equalTo(INDICES));
-        var targets = snapshot.targetShards(clusterService().state().projectState(), indices());
+        var targets = snapshot.targetShards(clusterService().state().projectState());
         assertThat(targets.totalShards(), equalTo(2 * INDICES));
         assertThat(targets.skippedShards(), equalTo(INDICES));
         query.close(snapshot);
@@ -107,13 +110,27 @@ public class QuerySnapshotIT extends AbstractEsqlIntegTestCase {
     public void testReadsEachShardWhereItsReaderIs() {
         Query query = startQuery(internalCluster().getRandomNodeName());
         QuerySnapshot snapshot = query.open(null, LONG);
-        var targets = snapshot.targetShards(clusterService().state().projectState(), indices());
+        var targets = snapshot.targetShards(clusterService().state().projectState());
         assertThat(targets.shards().size(), equalTo(2 * INDICES));
         for (var target : targets.shards().values()) {
             assertFalse(snapshot.reproducible(target.shardId()));
             assertThat(target.remainingNodes().size(), equalTo(1));
             assertThat(target.remainingNodes().getFirst().getId(), equalTo(snapshot.shards().get(target.shardId()).getNode()));
         }
+        query.close(snapshot);
+        assertNothingHeld();
+        query.end();
+    }
+
+    /**
+     * A search through the snapshot sees the documents as of its opening, while a fresh one sees later writes.
+     */
+    public void testHoldsTheVersionItOpenedOn() {
+        Query query = startQuery(internalCluster().getRandomNodeName());
+        QuerySnapshot snapshot = query.open(null, LONG);
+        prepareIndex("old-0").setSource("@timestamp", "2020-01-01T00:00:00Z").setRefreshPolicy(IMMEDIATE).get();
+        assertHitCount(prepareSearch().setPointInTime(new PointInTimeBuilder(snapshot.pointInTimeId())).setSize(0), 10 * INDICES);
+        assertHitCount(prepareSearch("old-*", "new-*").setSize(0), 10 * INDICES + 1);
         query.close(snapshot);
         assertNothingHeld();
         query.end();
@@ -137,7 +154,7 @@ public class QuerySnapshotIT extends AbstractEsqlIntegTestCase {
     public void testReadersOfAQueryWhoseNodeLeftExpire() throws Exception {
         String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         Query query = startQuery(coordinator);
-        QuerySnapshot snapshot = query.open(null, TimeValue.timeValueSeconds(1));
+        QuerySnapshot snapshot = query.open(null, TimeValue.timeValueSeconds(5));
         assertThat(activeContexts(), equalTo(snapshot.shards().size()));
         internalCluster().stopNode(coordinator);
         assertBusy(() -> assertThat("the readers expired", activeContexts(), equalTo(0)), 30, TimeUnit.SECONDS);

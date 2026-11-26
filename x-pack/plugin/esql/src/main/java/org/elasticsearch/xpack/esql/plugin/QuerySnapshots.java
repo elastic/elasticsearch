@@ -80,7 +80,13 @@ final class QuerySnapshots {
             request,
             listener.delegateFailureAndWrap((l, response) -> {
                 SearchContextId id = SearchContextId.decode(registry, response.getPointInTimeId());
-                QuerySnapshot snapshot = new QuerySnapshot(response.getPointInTimeId(), id.shards(), owner);
+                QuerySnapshot snapshot = new QuerySnapshot(
+                    response.getPointInTimeId(),
+                    id.shards(),
+                    response.getTotalShards(),
+                    response.getSkippedShards(),
+                    owner
+                );
                 task.addListener(() -> close(client, snapshot));
                 if (task.notifyIfCancelled(l) == false) {
                     l.onResponse(snapshot);

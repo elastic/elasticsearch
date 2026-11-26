@@ -1,0 +1,60 @@
+{
+  "prometheus.remote_write": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write",
+      "description": "Ingest Prometheus remote write data"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "text/plain"
+      ],
+      "content_type": [
+        "application/x-protobuf"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_prometheus/api/v1/write",
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/_prometheus/metrics/{dataset}/api/v1/write",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "dataset": {
+              "type": "string",
+              "description": "The data stream dataset. Defaults to `generic`"
+            }
+          }
+        },
+        {
+          "path": "/_prometheus/metrics/{dataset}/{namespace}/api/v1/write",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "dataset": {
+              "type": "string",
+              "description": "The data stream dataset. Defaults to `generic`"
+            },
+            "namespace": {
+              "type": "string",
+              "description": "The data stream namespace. Defaults to `default`"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "A Prometheus remote write 1.0 `WriteRequest` protobuf message, usually snappy-compressed",
+      "required": true
+    }
+  }
+}

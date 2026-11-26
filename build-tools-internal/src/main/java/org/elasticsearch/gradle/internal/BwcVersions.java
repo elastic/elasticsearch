@@ -174,7 +174,20 @@ public class BwcVersions implements Serializable {
     }
 
     public void compareToAuthoritative(List<Version> authoritativeReleasedVersions) {
-        Set<Version> notReallyReleased = new HashSet<>(getReleased());
+        compareToAuthoritative(getReleased(), getUnreleased(), authoritativeReleasedVersions);
+    }
+
+    /**
+     * Variant of {@link #compareToAuthoritative(List)} working on precomputed version lists. This allows callers to capture
+     * the released and unreleased versions at configuration time, which is required for configuration cache compatibility
+     * as the full list of versions is not serialized with {@link BwcVersions}.
+     */
+    public static void compareToAuthoritative(
+        List<Version> released,
+        List<Version> unreleased,
+        List<Version> authoritativeReleasedVersions
+    ) {
+        Set<Version> notReallyReleased = new HashSet<>(released);
         notReallyReleased.removeAll(authoritativeReleasedVersions);
         if (notReallyReleased.isEmpty() == false) {
             throw new IllegalStateException(
@@ -185,7 +198,7 @@ public class BwcVersions implements Serializable {
         }
 
         Set<Version> incorrectlyConsideredUnreleased = new HashSet<>(authoritativeReleasedVersions);
-        incorrectlyConsideredUnreleased.retainAll(getUnreleased());
+        incorrectlyConsideredUnreleased.retainAll(unreleased);
         if (incorrectlyConsideredUnreleased.isEmpty() == false) {
             throw new IllegalStateException(
                 "out-of-date released versions"

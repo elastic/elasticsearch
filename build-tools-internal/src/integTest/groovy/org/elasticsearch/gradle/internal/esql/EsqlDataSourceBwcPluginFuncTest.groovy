@@ -40,7 +40,7 @@ class EsqlDataSourceBwcPluginFuncTest extends AbstractGradleInternalPluginFuncTe
             }
         """.stripIndent()
         propertiesFile << """
-            org.elasticsearch.build.branches-file-location=${branches.absolutePath}
+            org.elasticsearch.build.branches-file-location=${branches.absolutePath.replace('\\', '/')}
         """
     }
 

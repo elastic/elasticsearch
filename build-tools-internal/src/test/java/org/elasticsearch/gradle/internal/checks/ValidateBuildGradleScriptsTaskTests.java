@@ -629,7 +629,10 @@ public class ValidateBuildGradleScriptsTaskTests {
             List.of(
                 "import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask",
                 "tasks.register('a', StandaloneRestIntegTestTask) {}",
-                "tasks.register('b', org.elasticsearch.gradle.internal.test.RestIntegTestTask) {}"
+                "tasks.register('b', org.elasticsearch.gradle.internal.test.RestIntegTestTask) {}",
+                // divisions after an identifier, and after a property named like a keyword, are code
+                "def n = total / StandaloneRestIntegTestTask.count",
+                "def m = range.in / StandaloneRestIntegTestTask.count"
             )
         );
         File scriptPlugin = writeFile(
@@ -647,8 +650,10 @@ public class ValidateBuildGradleScriptsTaskTests {
             assertTrue(message.contains("[legacy-rest-integ-test-task] qa/example/build.gradle:1"));
             assertTrue(message.contains("[legacy-rest-integ-test-task] qa/example/build.gradle:2"));
             assertTrue(message.contains("[legacy-rest-integ-test-task] qa/example/build.gradle:3"));
+            assertTrue(message.contains("[legacy-rest-integ-test-task] qa/example/build.gradle:4"));
+            assertTrue(message.contains("[legacy-rest-integ-test-task] qa/example/build.gradle:5"));
             assertTrue(message.contains("[legacy-rest-integ-test-task] build-tools-internal/src/main/groovy/elasticsearch.example.gradle:1"));
-            assertEquals(4, message.lines().filter(l -> l.startsWith("- [legacy-rest-integ-test-task]")).count());
+            assertEquals(6, message.lines().filter(l -> l.startsWith("- [legacy-rest-integ-test-task]")).count());
         }
     }
 
@@ -663,7 +668,11 @@ public class ValidateBuildGradleScriptsTaskTests {
                 "tasks.register('x') { description = 'was a RestIntegTestTask' }",
                 "restTests.register('y') {}",
                 "def ext = project.extensions.getByType(RestIntegTestsExtension)",
-                "class MyRestIntegTestTaskHelper {}"
+                "class MyRestIntegTestTaskHelper {}",
+                // slashy strings after keywords that expect a value are strings, not divisions
+                "def label() { return /StandaloneRestIntegTestTask/ }",
+                "switch (name) { case /RestIntegTestTask/: break }",
+                "assert /StandaloneRestIntegTestTask/"
             )
         );
         ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);

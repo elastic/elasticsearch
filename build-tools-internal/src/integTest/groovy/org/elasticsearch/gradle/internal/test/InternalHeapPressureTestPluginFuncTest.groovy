@@ -44,7 +44,7 @@ class InternalHeapPressureTestPluginFuncTest extends AbstractGradleInternalPlugi
             }
         """.stripIndent()
         propertiesFile << """
-            org.elasticsearch.build.branches-file-location=${branches.absolutePath}
+            org.elasticsearch.build.branches-file-location=${branches.absolutePath.replace('\\', '/')}
         """
     }
 

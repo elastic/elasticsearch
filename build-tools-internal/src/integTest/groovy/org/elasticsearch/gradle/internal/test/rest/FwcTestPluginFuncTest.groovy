@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.test.rest
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
+import org.gradle.api.plugins.JavaPlugin
 import org.gradle.testkit.runner.TaskOutcome
 
 /**
@@ -21,7 +22,9 @@ import org.gradle.testkit.runner.TaskOutcome
  */
 class FwcTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
-    Class<? extends Plugin> pluginClassUnderTest = RestTestBasePlugin
+    // The harness applies this class before the build script runs. Use a plugin that does not bring in
+    // RestTestBasePlugin, so the test proves that elasticsearch.fwc-test installs it on its own.
+    Class<? extends Plugin> pluginClassUnderTest = JavaPlugin
 
     def setup() {
         versionPropertiesFile.text = versionPropertiesFile.text.replace('elasticsearch     = 9.1.0', 'elasticsearch     = 9.1.1')
@@ -48,7 +51,7 @@ class FwcTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
             }
         """.stripIndent()
         propertiesFile << """
-            org.elasticsearch.build.branches-file-location=${branches.absolutePath}
+            org.elasticsearch.build.branches-file-location=${branches.absolutePath.replace('\\', '/')}
         """
     }
 
@@ -57,7 +60,9 @@ class FwcTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         buildFile << """
             ext.bwc_tests_enabled = true
             apply plugin: 'java'
+            assert plugins.hasPlugin(org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin) == false
             apply plugin: 'elasticsearch.fwc-test'
+            assert plugins.hasPlugin(org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin)
 
             def fwcTasks = tasks.withType(Test).matching { it.name.endsWith('#fwcTest') }.toList()
             assert fwcTasks*.name == ['v9.1.0#fwcTest']

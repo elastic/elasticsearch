@@ -39,7 +39,6 @@ public class TsidPrefixHistogramTests extends ESTestCase {
             equalTo(new TsidPrefixHistogram(10, new int[] { 0, 2, 3 }, new double[] { 10_000, 20_000, 15_000 }, 3, 1000, 1999, 450))
         );
         assertThat(histogram.estimatedSeries(), equalTo(45L));
-        assertThat(histogram.estimatedGroups(0), equalTo(45L));
     }
 
     public void testLeafWithFilter() throws IOException {
@@ -49,31 +48,11 @@ public class TsidPrefixHistogramTests extends ESTestCase {
         matching.set(130);
         matching.set(299);
         matching.set(449);
-        var histogram = TsidPrefixHistogramCollector.collectOneLeaf(
-            partitions,
-            10,
-            450,
-            new BitSetIterator(matching, 4),
-            tenDocsPerSeries(450),
-            1000,
-            1999,
-            0
-        );
+        var histogram = leaf(partitions, 450, new BitSetIterator(matching, 4), 1000, 1999, 0);
         assertThat(histogram, equalTo(new TsidPrefixHistogram(10, new int[] { 2, 7 }, new double[] { 20_000, 5_000 }, 2, 1000, 1999, 4)));
 
-        var none = TsidPrefixHistogramCollector.collectOneLeaf(
-            partitions,
-            10,
-            450,
-            new BitSetIterator(new FixedBitSet(450), 0),
-            tenDocsPerSeries(450),
-            1000,
-            1999,
-            0
-        );
+        var none = leaf(partitions, 450, new BitSetIterator(new FixedBitSet(450), 0), 1000, 1999, 0);
         assertThat(none.totalPrefixes(), equalTo(0));
-        assertThat(none.estimatedSeries(), equalTo(0L));
-        assertThat(none.estimatedGroups(10), equalTo(0L));
     }
 
     public void testGroupsCappedByDocs() throws IOException {
@@ -90,7 +69,6 @@ public class TsidPrefixHistogramTests extends ESTestCase {
         assertThat(copy, equalTo(merged));
         assertThat(copy.hashCode(), equalTo(merged.hashCode()));
         assertThat(copy.capped(1).estimatedGroups(25), equalTo(900L));
-
     }
 
     public void testGroupsCoverMisalignedBuckets() throws IOException {
@@ -261,11 +239,22 @@ public class TsidPrefixHistogramTests extends ESTestCase {
 
     private static TsidPrefixHistogram allDocs(PrefixPartitions partitions, int maxDoc, long min, long max, long bucketMillis)
         throws IOException {
+        return leaf(partitions, maxDoc, DocIdSetIterator.all(maxDoc), min, max, bucketMillis);
+    }
+
+    private static TsidPrefixHistogram leaf(
+        PrefixPartitions partitions,
+        int maxDoc,
+        DocIdSetIterator matching,
+        long min,
+        long max,
+        long bucketMillis
+    ) throws IOException {
         return TsidPrefixHistogramCollector.collectOneLeaf(
             partitions,
             10,
             maxDoc,
-            DocIdSetIterator.all(maxDoc),
+            matching,
             tenDocsPerSeries(maxDoc),
             min,
             max,

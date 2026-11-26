@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -93,8 +94,7 @@ public class CrossClusterTsidPrefixHistogramIT extends AbstractCrossClusterTestC
         }
         assertFalse(bulk.get().hasFailures());
         // one segment per shard, so each series counts once
-        client.admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get();
-        client.admin().indices().prepareRefresh(INDEX).get();
+        assertNoFailures(client.admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get());
     }
 
     private TsidPrefixHistogram collectStats(String... clusterAliases) {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.timeseries;
 
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -55,5 +57,12 @@ public class TsidPrefixHistogramCollectorTests extends MapperServiceTestCase {
             assertThat(searcher.count(TsidPrefixHistogramCollector.metricFilter(List.of("cpu", "memory"), context)), equalTo(3));
             assertThat(searcher.count(TsidPrefixHistogramCollector.metricFilter(List.of("unknown"), context)), equalTo(0));
         });
+    }
+
+    public void testRejectsEmptyMetricFields() {
+        PlainActionFuture<TsidPrefixHistogramResponse> future = new PlainActionFuture<>();
+        // rejected before the transport service or the task is used
+        TsidPrefixHistogramCollector.collect(null, null, Map.of(), Map.of(), List.of(), Long.MIN_VALUE, Long.MAX_VALUE, 0, future);
+        expectThrows(IllegalArgumentException.class, future::actionGet);
     }
 }

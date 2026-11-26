@@ -148,7 +148,7 @@ public class TransportTsidPrefixHistogramAction extends HandledTransportAction<T
         private final TsidPrefixHistogramRequest request;
         private final List<SearchShardRouting> shards;
         private final ActionListener<TsidPrefixHistogramResponse> listener;
-        private final Exception[] failures;
+        private final Map<ShardId, Exception> failures = new HashMap<>();
         private TsidPrefixHistogram histogram = TsidPrefixHistogram.EMPTY;
 
         Execution(
@@ -161,18 +161,17 @@ public class TransportTsidPrefixHistogramAction extends HandledTransportAction<T
             this.request = request;
             this.shards = shards;
             this.listener = listener;
-            this.failures = new Exception[shards.size()];
         }
 
         void run(DiscoveryNodes nodes) {
-            Map<DiscoveryNode, List<Integer>> byNode = new LinkedHashMap<>();
-            for (int shard = 0; shard < shards.size(); shard++) {
-                ShardRouting copy = shards.get(shard).nextOrNull();
+            Map<DiscoveryNode, List<ShardId>> byNode = new LinkedHashMap<>();
+            for (SearchShardRouting shard : shards) {
+                ShardRouting copy = shard.nextOrNull();
                 DiscoveryNode node = copy == null ? null : nodes.get(copy.currentNodeId());
                 if (node != null) {
-                    byNode.computeIfAbsent(node, n -> new ArrayList<>()).add(shard);
+                    byNode.computeIfAbsent(node, n -> new ArrayList<>()).add(shard.shardId());
                 } else {
-                    failures[shard] = new NoShardAvailableActionException(shards.get(shard).shardId());
+                    failures.put(shard.shardId(), new NoShardAvailableActionException(shard.shardId()));
                 }
             }
             // TODO: handle retry
@@ -183,8 +182,7 @@ public class TransportTsidPrefixHistogramAction extends HandledTransportAction<T
             }
         }
 
-        private void sendNodeRequest(DiscoveryNode node, List<Integer> group, Releasable done) {
-            List<ShardId> shardIds = group.stream().map(shard -> shards.get(shard).shardId()).toList();
+        private void sendNodeRequest(DiscoveryNode node, List<ShardId> shardIds, Releasable done) {
             transportService.sendChildRequest(
                 node,
                 NODE_ACTION,
@@ -194,32 +192,22 @@ public class TransportTsidPrefixHistogramAction extends HandledTransportAction<T
                 new ActionListenerResponseHandler<>(ActionListener.releaseAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(TsidPrefixHistogramNodeResponse response) {
-                        onNodeResponse(group, shardIds, response);
+                        synchronized (Execution.this) {
+                            histogram = TsidPrefixHistogram.merge(histogram, response.histogram);
+                            failures.putAll(response.failures);
+                        }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        onNodeFailure(group, e);
+                        synchronized (Execution.this) {
+                            for (ShardId shardId : shardIds) {
+                                failures.put(shardId, e);
+                            }
+                        }
                     }
                 }, done), TsidPrefixHistogramNodeResponse::new, coordinationExecutor)
             );
-        }
-
-        private void onNodeResponse(List<Integer> group, List<ShardId> shardIds, TsidPrefixHistogramNodeResponse response) {
-            synchronized (this) {
-                histogram = TsidPrefixHistogram.merge(histogram, response.histogram);
-                for (int i = 0; i < group.size(); i++) {
-                    failures[group.get(i)] = response.failures.get(shardIds.get(i));
-                }
-            }
-        }
-
-        private void onNodeFailure(List<Integer> group, Exception e) {
-            synchronized (this) {
-                for (int shard : group) {
-                    failures[shard] = e;
-                }
-            }
         }
 
         private void onDone() {
@@ -228,10 +216,11 @@ public class TransportTsidPrefixHistogramAction extends HandledTransportAction<T
             }
             ActionListener.completeWith(listener, () -> {
                 List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
-                for (int shard = 0; shard < failures.length; shard++) {
-                    if (failures[shard] != null) {
-                        ShardId shardId = shards.get(shard).shardId();
-                        shardFailures.add(new DefaultShardOperationFailedException(shardId.getIndexName(), shardId.id(), failures[shard]));
+                for (SearchShardRouting shard : shards) {
+                    Exception failure = failures.get(shard.shardId());
+                    if (failure != null) {
+                        ShardId shardId = shard.shardId();
+                        shardFailures.add(new DefaultShardOperationFailedException(shardId.getIndexName(), shardId.id(), failure));
                     }
                 }
                 return new TsidPrefixHistogramResponse(

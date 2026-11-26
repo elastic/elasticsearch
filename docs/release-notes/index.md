@@ -33,6 +33,8 @@ aligned to the end of the query range (or `now()`), instead of truncating timest
 
 For example, `TS metrics | STATS AVG(rate(requests)) BY TSTEP(5m)` emits one bucket per 5‑minute
 step, aligned to the query end, providing a consistent time grid for visualizations.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/promql-elasticsearch-compute-engine).
 ::::
 
 ::::{dropdown} `match_phrase` can now operate on runtime expressions
@@ -52,6 +54,8 @@ in a future release.
 ES|QL can now read [`flattened`](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/flattened) fields and pull out their sub-fields with the [`FIELD_EXTRACT`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/string-functions/field_extract) function, which is now generally available.
 A `flattened` field stores an entire object as a single field — handy for data with a large or unpredictable set of keys, such as OpenTelemetry attributes. Previously those values were opaque to ES|QL. Now you can extract any leaf value by key and use it like any other keyword column: filter, sort, `STATS`, `LOOKUP JOIN`, `ENRICH`, and more.
 See [ES|QL and flattened fields](https://www.elastic.co/docs/reference/query-languages/esql/esql-flattened-fields) to get started.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/schema-on-read-esql-json-keys).
 ::::
 
 ::::{dropdown} Metric exemplars can now be ingested via OTLP and Prometheus remote write
@@ -71,6 +75,8 @@ setting `xpack.metrics.exemplars.enabled`. API keys used for ingestion need
 is now enabled by default in technical preview on non-serverless deployments.
 To turn it off, set `esql.federation.enabled` to `false`. It requires an
 Enterprise or trial license.
+
+Read more about these changes in the {{es-labs}} [ES|QL Data Federation: Elasticsearch now queries data where it lives](https://www.elastic.co/search-labs/blog/esql-data-federation-query-s3-elasticsearch) and [How to query Amazon S3 from Elasticsearch with ES|QL, no ingest required](https://www.elastic.co/search-labs/blog/query-parquet-ndjson-csv-s3-esql) blogs.
 ::::
 
 ### Features and enhancements [elasticsearch-9.6.0-features-enhancements]

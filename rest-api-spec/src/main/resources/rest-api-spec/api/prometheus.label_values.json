@@ -1,0 +1,67 @@
+{
+  "prometheus.label_values": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/reference/query-languages/promql/promql-http-api#promql-http-api-label-values",
+      "description": "Get Prometheus label values"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_prometheus/api/v1/label/{name}/values",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The label name",
+              "required": true
+            }
+          }
+        },
+        {
+          "path": "/_prometheus/{index}/api/v1/label/{name}/values",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The label name",
+              "required": true
+            },
+            "index": {
+              "type": "string",
+              "description": "An index expression that restricts which indices are considered. Defaults to `metrics-*`"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "match[]": {
+        "type": "string",
+        "description": "A series selector, for example `up{job=\"prometheus\"}`. Repeat the parameter to pass several selectors"
+      },
+      "start": {
+        "type": "string",
+        "description": "The start of the time range, as an RFC 3339 timestamp or Unix time in seconds. Defaults to 24 hours before `end`"
+      },
+      "end": {
+        "type": "string",
+        "description": "The end of the time range, as an RFC 3339 timestamp or Unix time in seconds. Defaults to the current time"
+      },
+      "limit": {
+        "type": "int",
+        "description": "The maximum number of label values to return. `0` means no limit from the request"
+      }
+    }
+  }
+}

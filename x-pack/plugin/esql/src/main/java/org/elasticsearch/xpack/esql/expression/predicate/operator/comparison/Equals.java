@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
+import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
@@ -41,7 +42,12 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
-public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull, NullMisuseSuggestion {
+public class Equals extends EsqlBinaryComparison
+    implements
+        Negatable<EsqlBinaryComparison>,
+        AnyNullIsNull,
+        NullMisuseSuggestion,
+        Reproducible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Equals",

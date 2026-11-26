@@ -8,14 +8,18 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
+import org.elasticsearch.xpack.esql.VerificationException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,11 +28,14 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Verifies that the {@code EQL} source command works across clusters. Its leading index-pattern argument may be
@@ -97,6 +104,18 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
             assertThat(remoteCluster.getFailedShards(), equalTo(0));
             assertThat(remoteCluster.getTook(), notNullValue());
         }
+    }
+
+    public void testEqlFailureOnTheRemoteClusterIsLocatedInTheEsqlQuery() throws Exception {
+        setupRemoteEvents();
+        String query = "EQL " + REMOTE_CLUSTER_1 + ":eql_events \"process where process.nam == \\\"x\\\" and zzz == 1\"";
+        Throwable located = ExceptionsHelper.unwrapCause(expectThrows(Exception.class, () -> runQuery(query, false).close()));
+        assertThat(located, instanceOf(VerificationException.class));
+        assertThat(ExceptionsHelper.status(located), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(located.getSuppressed(), arrayContaining(instanceOf(NotSerializableExceptionWrapper.class)));
+        assertThat(located.getMessage(), startsWith("line 1:1: EQL query failed with 2 problems:\n"));
+        assertThat(located.getMessage(), containsString("\n    line 1:15 of the EQL query: Unknown column [process.nam]"));
+        assertThat(located.getMessage(), containsString("\n    line 1:38 of the EQL query: Unknown column [zzz]"));
     }
 
     public void testLostShardOfASingleRemoteClusterSearchIsListedOnThatCluster() throws Exception {

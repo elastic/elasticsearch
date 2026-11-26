@@ -1846,15 +1846,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Set<String> childNames = scopeNames;
                 if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
                     childContext = context.forViewBody(resolutionForView(context, branchPlan.branchIdentity(i).settingsViewName()));
-                    // the setting does not reach into a view, so its body asks nothing of its sources
-                    childNames = Set.of();
+                    // the body of a view is a scope of its own: it asks its sources for the names it uses itself
+                    childNames = context.mapTypes() ? MapKeys.namesAskedOfSources(children.get(i)) : Set.of();
                 }
                 LogicalPlan newChild = applyInViewScope(children.get(i), childContext, childNames);
                 changed |= newChild != children.get(i);
                 newChildren.add(newChild);
             }
             LogicalPlan current = changed ? plan.replaceChildren(newChildren) : plan;
-            if (context.mapTypes() && current instanceof MergePlan mergePlan) {
+            if (context.mapTypes()
+                && context.unmappedResolution().loadsUnmappedFields() == false
+                && current instanceof MergePlan mergePlan) {
                 // Before the union and the commands above it are resolved, so that they see the children as they see columns
                 current = MapKeys.provideChildren(mergePlan, scopeNames);
             }
@@ -1886,6 +1888,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Nested fields are synthetic, so ordinary resolution cannot see them. Point NESTED_ANY at that schema first.
             plan = BindNestedAny.scope(plan, childrenOutput);
 
+            // Under load a name that no column has is a field that FROM loads, so only the indices of FROM answer with keys
+            boolean keysFromFromOnly = context.unmappedResolution().loadsUnmappedFields();
+            if (context.mapTypes()) {
+                plan = MapKeys.withoutShadowedChildren(plan, keysFromFromOnly);
+            }
+
             var resolved = switch (plan) {
                 case Aggregate a -> resolveAggregate(a, childrenOutput);
                 case Completion c -> resolveCompletion(c, childrenOutput);
@@ -1913,7 +1921,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (context.mapTypes()) {
                 // Maps are handled here for every command alike, see MapKeys for the contract
                 boolean sourcesProvideChildren = context.configuration().flattenedKeys(context.minimumVersion());
-                resolved = MapKeys.replaceSubtrees(MapKeys.copyChildren(MapKeys.resolveKeys(resolved, sourcesProvideChildren)));
+                resolved = MapKeys.replaceSubtrees(
+                    MapKeys.copyChildren(MapKeys.resolveKeys(resolved, sourcesProvideChildren, keysFromFromOnly), keysFromFromOnly)
+                );
             }
             return resolved;
         }
@@ -3654,14 +3664,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveRename(Rename rename, UnmappedResolution unmappedResolution, boolean mapTypes) {
             if (mapTypes) {
+                Map<String, NameId> childIds = new HashMap<>();
                 return new ResolvingProject(
                     rename.source(),
                     rename.child(),
                     new ResolvingProject.Command(
                         ResolvingProject.Kind.RENAME,
                         rename.renamings(),
-                        // The child columns of a renamed map are renamed with it (MapKeys, rule 3)
-                        inputAttributes -> MapKeys.renameChildren(projectionsForRename(rename, inputAttributes, log))
+                        // The keys of a renamed map follow it (MapKeys, rule 3)
+                        inputAttributes -> MapKeys.renameChildren(
+                            projectionsForRename(rename, inputAttributes, log),
+                            unmappedResolution.loadsUnmappedFields(),
+                            childIds
+                        )
                     )
                 );
             }

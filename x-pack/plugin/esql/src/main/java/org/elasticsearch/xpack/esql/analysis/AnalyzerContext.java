@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -140,7 +139,7 @@ public class AnalyzerContext {
     ) {
         this.fieldNames = fieldNames;
         this.configuration = configuration;
-        this.mapTypes = configuration != null && Boolean.TRUE.equals(QuerySettings.MAP_TYPES.get(configuration.resolvedSettings()));
+        this.mapTypes = configuration != null && configuration.flattenedKeys();
         this.functionRegistry = functionRegistry;
         this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.analysisRegistry = analysisRegistry;
@@ -178,11 +177,10 @@ public class AnalyzerContext {
     }
 
     /**
-     * The context for the body of a view. Like {@link #withUnmappedResolution}, and {@code SET map_types} does not reach into the
-     * view either: a setting of the caller's query does not change what the definition of a view means.
+     * The context for the body of a view, which resolves names with the {@code unmapped_fields} of the view's own definition.
      */
     AnalyzerContext forViewBody(UnmappedResolution unmappedResolution) {
-        return new AnalyzerContext(this, unmappedResolution, false);
+        return new AnalyzerContext(this, unmappedResolution, mapTypes);
     }
 
     /** Whether fields with keys are maps in this scope, see {@code MapKeys} for the rules. */

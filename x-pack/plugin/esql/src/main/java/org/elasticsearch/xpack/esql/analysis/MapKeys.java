@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -29,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtra
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 
 import java.util.ArrayDeque;
@@ -51,44 +52,44 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
- * Map types: fields whose values hold named keys. {@code flattened} is the first one. This class is the whole contract for them and
- * the only place that applies it, behind {@code SET map_types=true}.
- *
- * <h2>The contract</h2>
- * One principle: <b>the columns of a query form a tree. A map is a node, and what is under its name belongs to it.</b>
+ * The keys of map types in ES|QL, of which {@code flattened} is the first. This is the contract for them and the only place
+ * that applies it. It needs no opt-in: a query that ran before keys existed means what it meant, see {@code FlattenedKeysBwcIT}.
+ * <p>
+ * One principle: <b>a map answers the names under it that no column has.</b>
  * <ol>
  *     <li><b>A map has children.</b> A child of the map {@code attrs} is anything named {@code attrs.<path>}: a column of that name,
- *     or a key in the value. Naming a child reads the column if there is one, and otherwise the key. The type of a key is a function
- *     of the map type and the path ({@code keyword} for any path of a {@code flattened}); a type with a schema answers from it.</li>
+ *     or a key in the value. Naming a child reads the column if there is one, and otherwise the key: a column always wins. The type
+ *     of a key is a function of the map type and the path ({@code keyword} for any path of a {@code flattened}).</li>
  *     <li><b>Reading a key does not create a column.</b> An expression reads the key in place. A command that takes a column
- *     ({@code KEEP attrs.foo}, {@code RENAME attrs.foo AS f}, {@code STATS … BY attrs.foo}) makes the key a child column.</li>
- *     <li><b>Children follow their map.</b> Writing a map at a name replaces everything under that name, whichever command writes it:
- *     {@code EVAL}, {@code LOOKUP JOIN}, {@code ENRICH}, {@code RENAME}. Renaming a map renames its child columns with it, and
- *     copying one ({@code EVAL x = attrs}) gives the copy the same children, hidden.
- *     Writing a value that is not a map replaces only the value at that name: a node can have a value and children, and the
- *     children that a source provided stay.</li>
- *     <li><b>{@code KEEP} and {@code DROP} take their patterns literally.</b> They select nodes by name and do not change the value
- *     of a map. {@code KEEP attrs} and {@code DROP attrs} name the one node {@code attrs}; {@code attrs*} names the tree. A child is
- *     readable until a {@code KEEP} or {@code DROP} excludes its name: {@code KEEP attrs} closes the map, {@code KEEP attrs*} keeps
- *     it open, and after {@code DROP attrs} the children that a source provided are still there, as a mapped field under that
- *     name is. Only a key that is read from a value needs that value to be in the output.</li>
- *     <li><b>Sources merge node by node.</b> In a union of indices or subqueries a map column holds whichever map a row has, and a
- *     child column resolves its type conflicts as any field does. Where maps are at two levels under a name ({@code attrs} in one
- *     index and {@code attrs.foo} in another), each row reads {@code attrs.foo.bar} from the nearest map it has: the result is the
- *     union of both. A row can only have both maps when the nearer one was written under the other later, and then the nearer one
- *     has replaced what was under its name (rule 3).</li>
- *     <li><b>{@code unmapped_fields} decides only what no map answers.</b> For a map from {@code FROM} the shards answer the name,
- *     so a key of one index sits beside the value another index maps or, under {@code load}, has in {@code _source}: that is one
- *     column. For a map with no index behind it the key is read from the value, and wins over {@code nullify} and {@code load}.</li>
+ *     ({@code KEEP attrs.foo}, {@code RENAME attrs.foo AS f}, {@code STATS … BY attrs.foo}) makes the key a column, and from
+ *     there on it is a column like any other.</li>
+ *     <li><b>Keys follow their map; columns keep their names.</b> Writing a map at a name replaces the keys under that name,
+ *     whichever command writes it: {@code EVAL}, {@code LOOKUP JOIN}, {@code ENRICH}, {@code RENAME}. A column under that name
+ *     stays, and still wins over a key of the new map. Renaming a map or copying it ({@code EVAL x = attrs}) makes what is under
+ *     its old name readable under the new one, and takes nothing away from the old name. Writing a value that is not a map
+ *     replaces only the value at that name.</li>
+ *     <li><b>{@code KEEP} and {@code DROP} take their patterns literally.</b> They select by name and do not change the value
+ *     of a map. {@code KEEP attrs} and {@code DROP attrs} name the one node {@code attrs}; {@code attrs*} names everything under
+ *     it. A child is readable until a {@code KEEP} or {@code DROP} excludes its name. Only a key that is read from a value needs
+ *     that value to be in the output.</li>
+ *     <li><b>Sources merge by name.</b> In a union of indices or subqueries a map column holds whichever map a row has, and a
+ *     child resolves its type conflicts as any field does. Where maps are at two levels under a name ({@code attrs} in one
+ *     index and {@code attrs.foo} in another), each row reads {@code attrs.foo.bar} from the nearest map it has.</li>
+ *     <li><b>{@code unmapped_fields} keeps what it decided before keys.</b> Under {@code nullify} a name that nothing answered was
+ *     {@code null}; a key now answers it. Under {@code load} and {@code load_all} a name that no column has is a field that
+ *     {@code FROM} loads from {@code _source}, so only the indices of {@code FROM} answer it, each shard by its own mapping: as
+ *     a key where the name is under a {@code flattened} field, which {@code load} rejected before. A map from a lookup index, an
+ *     enrich policy, a view, a rename or a copy does not answer a name under {@code load}.</li>
  * </ol>
  * A new command gets all of this by declaring its output: rule 3 compares what a command puts out with what it took in, and
  * rules 1, 2 and 4 are applied where names are resolved. Do not add handling for maps to a command.
  *
  * <h2>Adding a map type</h2>
- * Extend {@link #isMap} and {@link #keyRead}. A type that cannot be read from a value (a {@code nested} field, whose children are
- * mapped leaves) returns no read: its children are then columns only, which rules 3 to 5 already cover.
+ * Extend {@link #isMap} and {@link #keyRead}. A struct type, such as a {@code nested} field, has no keys: its children are the
+ * fields of its schema. They would start out as children that are not columns too, and become columns as keys do (rule 2).
  */
 public final class MapKeys {
 
@@ -112,7 +113,7 @@ public final class MapKeys {
      * Rules 1, 2 and 4 for one command: answers the dotted names that are still unresolved in {@code plan} with the keys of the maps
      * its input holds. A name that is a column has been resolved to it before this runs, so a column wins over a key.
      */
-    static LogicalPlan resolveKeys(LogicalPlan plan, boolean sourcesProvideChildren) {
+    static LogicalPlan resolveKeys(LogicalPlan plan, boolean sourcesProvideChildren, boolean fromOnly) {
         if (plan instanceof UnaryPlan == false) {
             return plan;
         }
@@ -132,7 +133,7 @@ public final class MapKeys {
         }
         Map<String, Expression> reads = new LinkedHashMap<>();
         for (String name : names) {
-            Expression read = read(name, input, plan.source(), sourcesProvideChildren);
+            Expression read = read(name, input, plan.source(), sourcesProvideChildren, fromOnly);
             if (read != null) {
                 reads.put(name, read);
             }
@@ -167,7 +168,7 @@ public final class MapKeys {
      * </ul>
      * Either way the map has to be in the output, and no projection may have excluded the name (rule 4).
      */
-    private static Expression read(String name, LogicalPlan input, Source source, boolean sourcesProvideChildren) {
+    private static Expression read(String name, LogicalPlan input, Source source, boolean sourcesProvideChildren, boolean fromOnly) {
         Attribute hidden = null;
         List<Attribute> maps = new ArrayList<>();
         for (Attribute column : input.output()) {
@@ -185,6 +186,10 @@ public final class MapKeys {
             // A child that the source provided is a node of its own: it stays when a value that is not a map is written at the
             // name above it (rule 3), and when the map is dropped while a pattern still keeps the child (rule 4)
             return hidden;
+        }
+        if (fromOnly) {
+            // Rule 6 under load: a name that no index of FROM answers as a key is a field that FROM loads from _source
+            return null;
         }
         if (maps.isEmpty()) {
             // a key that is read from the value needs that value
@@ -275,9 +280,21 @@ public final class MapKeys {
      * name that is asked for without need is a hidden child that nothing reads.
      */
     public static Set<String> namesAskedOfSources(LogicalPlan scope) {
+        return namesAsked(visitor -> ViewUtils.forEachOutsideViews(scope, visitor));
+    }
+
+    /**
+     * {@link #namesAskedOfSources} for every scope of {@code plan} at once, view bodies included. Index resolution uses it: an index
+     * is resolved once for the query, whichever scope reads it. A name that one scope asks for is a hidden child in the others.
+     */
+    public static Set<String> namesAskedOfAllSources(LogicalPlan plan) {
+        return namesAsked(plan::forEachDown);
+    }
+
+    private static Set<String> namesAsked(Consumer<Consumer<LogicalPlan>> walk) {
         Set<String> names = new LinkedHashSet<>();
         Map<String, String> renames = new LinkedHashMap<>();
-        ViewUtils.forEachOutsideViews(scope, node -> {
+        walk.accept(node -> {
             node.forEachExpression(UnresolvedAttribute.class, ua -> {
                 if (isKeyName(ua)) {
                     names.add(ua.name());
@@ -329,11 +346,7 @@ public final class MapKeys {
      * command that takes it as a column makes a column of it. View bodies are left alone: the setting does not reach into a view.
      */
     static LogicalPlan hideKeys(LogicalPlan plan) {
-        return ViewUtils.transformUpOutsideViews(withoutLookupKeysInViews(plan), node -> {
-            if (node instanceof EsRelation == false) {
-                return node;
-            }
-            EsRelation relation = (EsRelation) node;
+        return plan.transformUp(EsRelation.class, relation -> {
             List<Attribute> output = relation.output();
             List<Attribute> hidden = new ArrayList<>(output.size());
             boolean changed = false;
@@ -363,32 +376,56 @@ public final class MapKeys {
     }
 
     /**
-     * A lookup index is resolved once for the query, with the names its caller asks of it. A join on the same index in the body of
-     * a view must not see those key fields: the setting does not reach into a view, where a lookup index has no keys.
+     * Rule 1 where a {@code LOOKUP JOIN} or an {@code ENRICH} brings in a map: a column wins over a key, so the children that the
+     * lookup index or the enrich policy provides do not replace a column of that name that is already there. Both commands replace
+     * the columns whose names they bring in, and a hidden child is not a name that the query sees them bring in.
+     * <p>
+     * Under {@code load} they provide no children at all: there a name that no column has is a field that {@code FROM} loads.
      */
-    private static LogicalPlan withoutLookupKeysInViews(LogicalPlan plan) {
-        return plan.transformUp(BranchPlan.class, union -> {
-            List<LogicalPlan> branches = union.children();
-            List<LogicalPlan> newBranches = new ArrayList<>(branches.size());
-            boolean changed = false;
-            for (int i = 0; i < branches.size(); i++) {
-                LogicalPlan branch = branches.get(i);
-                if (union.isViewBranch(i)) {
-                    LogicalPlan withoutKeys = branch.transformUp(EsRelation.class, relation -> {
-                        if (relation.indexMode() != IndexMode.LOOKUP) {
-                            return relation;
-                        }
-                        List<Attribute> kept = new ArrayList<>(relation.output());
-                        kept.removeIf(a -> a instanceof FieldAttribute field && FlattenedKeyEsField.isKey(field.field()));
-                        return kept.size() == relation.output().size() ? relation : relation.withAttributes(kept);
-                    });
-                    changed |= withoutKeys != branch;
-                    branch = withoutKeys;
-                }
-                newBranches.add(branch);
+    static LogicalPlan withoutShadowedChildren(LogicalPlan plan, boolean fromOnly) {
+        if (plan instanceof LookupJoin join && join.right() instanceof EsRelation lookup) {
+            Set<String> columns = columnNames(join.left().output());
+            Set<String> joinKeys = new HashSet<>();
+            for (Attribute key : join.config().rightFields()) {
+                joinKeys.add(key.name());
             }
-            return changed ? union.replaceChildren(newBranches) : union;
-        });
+            if (join.config().joinOnConditions() != null) {
+                join.config().joinOnConditions().forEachDown(NamedExpression.class, named -> joinKeys.add(named.name()));
+            }
+            List<Attribute> kept = new ArrayList<>(lookup.output());
+            kept.removeIf(a -> isHiddenKey(a) && joinKeys.contains(a.name()) == false && (fromOnly || columns.contains(a.name())));
+            return kept.size() == lookup.output().size() ? plan : join.replaceChildren(List.of(join.left(), lookup.withAttributes(kept)));
+        }
+        if (plan instanceof Enrich enrich) {
+            Set<String> columns = columnNames(enrich.child().output());
+            List<NamedExpression> kept = new ArrayList<>(enrich.enrichFields());
+            kept.removeIf(f -> f instanceof Attribute a && isHiddenKey(a) && (fromOnly || columns.contains(a.name())));
+            if (kept.size() == enrich.enrichFields().size()) {
+                return plan;
+            }
+            return new Enrich(
+                enrich.source(),
+                enrich.child(),
+                enrich.mode(),
+                enrich.policyName(),
+                enrich.matchField(),
+                enrich.policy(),
+                enrich.concreteIndices(),
+                kept
+            );
+        }
+        return plan;
+    }
+
+    /** The names of the columns among {@code output}: everything but the hidden children. */
+    private static Set<String> columnNames(List<? extends NamedExpression> output) {
+        Set<String> names = new HashSet<>();
+        for (NamedExpression expression : output) {
+            if (expression.synthetic() == false) {
+                names.add(expression.name());
+            }
+        }
+        return names;
     }
 
     /**
@@ -476,7 +513,9 @@ public final class MapKeys {
                 if (projection == null) {
                     return true;
                 }
-                if (project instanceof ResolvingProject resolving && resolving.admitsLateUnmappedField(name) == false) {
+                if (project instanceof ResolvingProject resolving
+                    && removesReplacedKeys(resolving) == false
+                    && resolving.admitsLateUnmappedField(name) == false) {
                     return false;
                 }
                 if (projection instanceof Alias alias) {
@@ -512,6 +551,14 @@ public final class MapKeys {
         }
     }
 
+    /** Whether {@code project} is what {@link #replaceSubtrees} adds: it is not a {@code DROP} of the query, so it closes no map. */
+    private static boolean removesReplacedKeys(ResolvingProject project) {
+        return project.command().projections() instanceof ReplacedKeys;
+    }
+
+    /** The names of the keys that {@link #replaceSubtrees} removes, told apart from the removals of a {@code DROP} of the query. */
+    private static final class ReplacedKeys extends ArrayList<NamedExpression> {}
+
     private static NamedExpression byId(List<? extends NamedExpression> expressions, NameId id) {
         for (NamedExpression expression : expressions) {
             if (expression.id().equals(id)) {
@@ -522,9 +569,9 @@ public final class MapKeys {
     }
 
     /**
-     * Rule 3 for any command: if {@code plan} puts out a map that it did not take in, the columns under that name that it passed
-     * through from its input belong to the map that was there before and are removed. The command is not asked what it does;
-     * its output is compared with its input.
+     * Rule 3 for any command: if {@code plan} puts out a map that it did not take in, the keys under that name that it passed
+     * through from its input belong to the map that was there before and are removed. Columns under that name stay. The command
+     * is not asked what it does; its output is compared with its input.
      */
     static LogicalPlan replaceSubtrees(LogicalPlan plan) {
         if (plan.resolved() == false || (plan instanceof UnaryPlan == false && plan instanceof BinaryPlan == false)) {
@@ -544,14 +591,24 @@ public final class MapKeys {
         if (written.isEmpty()) {
             return plan;
         }
-        List<Attribute> kept = new ArrayList<>(output.size());
+        ReplacedKeys replaced = new ReplacedKeys();
+        Set<NameId> replacedIds = new HashSet<>();
         for (Attribute attribute : output) {
-            boolean replaced = inputIds.contains(attribute.id()) && written.stream().anyMatch(attribute.name()::startsWith);
-            if (replaced == false) {
-                kept.add(attribute);
+            if (inputIds.contains(attribute.id()) && isHiddenKey(attribute) && written.stream().anyMatch(attribute.name()::startsWith)) {
+                // by name, as a DROP is written
+                replaced.add(new UnresolvedAttribute(attribute.source(), attribute.name()));
+                replacedIds.add(attribute.id());
             }
         }
-        return kept.size() == output.size() ? plan : new Project(plan.source(), plan, kept);
+        if (replaced.isEmpty()) {
+            return plan;
+        }
+        // Not a plain Project: under unmapped_fields a field that is loaded later has to pass through here like through a DROP
+        return new ResolvingProject(plan.source(), plan, new ResolvingProject.Command(ResolvingProject.Kind.DROP, replaced, input -> {
+            List<Attribute> kept = new ArrayList<>(input);
+            kept.removeIf(attribute -> replacedIds.contains(attribute.id()));
+            return kept;
+        }));
     }
 
     /**
@@ -559,13 +616,14 @@ public final class MapKeys {
      * under a second name, so what is under {@code attrs} is also under {@code x}: the columns and the hidden children alike.
      * The copies are hidden, so that copying a map adds one column to the output and not one per child.
      */
-    static LogicalPlan copyChildren(LogicalPlan plan) {
-        if (plan instanceof Eval == false || plan.resolved() == false) {
+    static LogicalPlan copyChildren(LogicalPlan plan, boolean fromOnly) {
+        if (fromOnly || plan instanceof Eval == false || plan.resolved() == false) {
             return plan;
         }
         Eval eval = (Eval) plan;
         List<Attribute> input = eval.child().output();
-        Set<String> written = new HashSet<>();
+        // a column wins over a key: the copy does not put a hidden child where a column is
+        Set<String> written = columnNames(input);
         for (Alias field : eval.fields()) {
             written.add(field.name());
         }
@@ -593,36 +651,55 @@ public final class MapKeys {
     }
 
     /**
-     * Rule 3 for {@code RENAME}: the child columns of a renamed map are renamed with it, and replace what was under the new name.
-     * {@code projections} are those of the rename, where an {@link Alias} of an attribute is one renaming.
+     * Rule 3 for {@code RENAME}: what is under the old name of a renamed map is readable under its new name, as hidden children.
+     * The columns and keys under the old name keep their names, a column under the new name stays and wins, and a key under the
+     * new name belonged to the map that the rename replaces. {@code projections} are those of the rename, where an {@link Alias}
+     * of an attribute is one renaming. {@code childIds} keeps one id per child across recomputations of the projections.
      */
-    static List<NamedExpression> renameChildren(List<NamedExpression> projections) {
+    static List<NamedExpression> renameChildren(List<NamedExpression> projections, boolean fromOnly, Map<String, NameId> childIds) {
+        if (fromOnly) {
+            return projections;
+        }
         Map<String, String> renamedMaps = new LinkedHashMap<>();
         for (NamedExpression projection : projections) {
-            if (projection instanceof Alias alias && alias.child() instanceof Attribute origin && isMap(origin.dataType())) {
+            if (projection instanceof Alias alias
+                && alias.child() instanceof Attribute origin
+                && origin.resolved()
+                && isMap(origin.dataType())) {
                 renamedMaps.put(origin.name() + ".", alias.name() + ".");
             }
         }
         if (renamedMaps.isEmpty()) {
             return projections;
         }
+        Set<String> columns = columnNames(projections);
         List<NamedExpression> result = new ArrayList<>(projections.size());
+        List<NamedExpression> children = new ArrayList<>();
         for (NamedExpression projection : projections) {
             if (projection instanceof Attribute column) {
-                if (renamedMaps.containsValue(prefixOf(column.name(), renamedMaps.values()))) {
-                    // under the new name of a map: it belonged to what the rename replaces
+                boolean hidden = isHiddenKey(column);
+                if (hidden && renamedMaps.containsValue(prefixOf(column.name(), renamedMaps.values()))) {
+                    // a key under the new name of a map: it belonged to the map that the rename replaces
                     continue;
                 }
                 String oldPrefix = prefixOf(column.name(), renamedMaps.keySet());
                 if (oldPrefix != null) {
                     String newName = renamedMaps.get(oldPrefix) + column.name().substring(oldPrefix.length());
-                    // a hidden child stays hidden under its new name
-                    result.add(new Alias(column.source(), newName, column, null, column.synthetic()));
+                    // A column keeps its name, and so does a key: a map at a level below the renamed one may still be there to hold it
+                    result.add(projection);
+                    if (columns.contains(newName) == false) {
+                        // and what was under the old name of the map is readable under its new name, unless a column is there
+                        // The projections are computed again whenever the input of the rename changes, and what was resolved against a
+                        // child before has to stay resolved: one id per name
+                        NameId id = childIds.computeIfAbsent(newName, n -> new NameId());
+                        children.add(new Alias(column.source(), newName, column, id, true));
+                    }
                     continue;
                 }
             }
             result.add(projection);
         }
+        result.addAll(children);
         return result;
     }
 

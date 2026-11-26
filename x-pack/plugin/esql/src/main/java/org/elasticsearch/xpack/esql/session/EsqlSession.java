@@ -91,13 +91,10 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.BoundSemantics;
@@ -153,14 +150,12 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -620,9 +615,8 @@ public class EsqlSession {
         )) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_IDENTITY;
         }
-        if (boundaryPreservation == ViewBoundaryPreservation.NONE && Boolean.TRUE.equals(QuerySettings.MAP_TYPES.get(resolved))) {
-            // SET map_types does not reach into a view: its body is resolved as without the setting, and the view provides the
-            // children of the maps it outputs at its boundary (MapKeys). Both need the view branches.
+        if (boundaryPreservation == ViewBoundaryPreservation.NONE && flattenedKeys(request)) {
+            // A view provides the children of the maps it outputs at its boundary (MapKeys), which needs the view branches.
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_BRANCHES;
         }
         viewResolver.replaceViews(
@@ -740,7 +734,7 @@ public class EsqlSession {
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             resolved,
             viewResolution.viewQueries()
-        ).withFlattenedKeys(EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG.isEnabled() && indexResolver.flattenedDataTypeEnabled());
+        ).withFlattenedKeys(flattenedKeys(request));
 
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
         // Subquery/UnionAll structures into BranchPlan. ViewShadowRelation siblings and nested
@@ -2269,7 +2263,17 @@ public class EsqlSession {
     }
 
     private static boolean mapTypes(Configuration configuration) {
-        return Boolean.TRUE.equals(QuerySettings.MAP_TYPES.get(configuration.resolvedSettings()));
+        return configuration.flattenedKeys();
+    }
+
+    /**
+     * Whether names under a {@code flattened} field are its keys for this request. The pragma turns them off for one query, which
+     * is how a test compares a query with the released behavior on the same node.
+     */
+    private boolean flattenedKeys(EsqlQueryRequest request) {
+        return EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG.isEnabled()
+            && indexResolver.flattenedDataTypeEnabled()
+            && request.pragmas().flattenedKeys();
     }
 
     /**
@@ -2286,22 +2290,9 @@ public class EsqlSession {
             return result;
         }
         Set<String> fieldNames = new HashSet<>(result.fieldNames());
-        ViewUtils.forEachOutsideViews(parsed, node -> {
-            if (node instanceof Rename rename) {
-                for (Alias renaming : rename.renamings()) {
-                    if (renaming.child() instanceof UnresolvedAttribute ua && ua instanceof UnresolvedPattern == false) {
-                        fieldNames.add(ua.name() + ".*");
-                    }
-                }
-            } else if (node instanceof Eval eval) {
-                // a copy of a column has its children too
-                for (Alias field : eval.fields()) {
-                    if (field.child() instanceof UnresolvedAttribute ua && ua instanceof UnresolvedPattern == false) {
-                        fieldNames.add(ua.name() + ".*");
-                    }
-                }
-            }
-        });
+        // exact names only: columns keep their names through a rename, so nothing under the renamed column is needed but what
+        // the query reads under its new name
+        fieldNames.addAll(MapKeys.namesAskedOfAllSources(parsed));
         return new PreAnalysisResult(fieldNames, result.parentPaths(), result.nestedScope(), result.wildcardJoinIndices());
     }
 
@@ -2319,7 +2310,7 @@ public class EsqlSession {
             return names;
         }
         Set<String> result = new HashSet<>(names);
-        result.addAll(MapKeys.namesAskedOfSources(parsed));
+        result.addAll(MapKeys.namesAskedOfAllSources(parsed));
         return result;
     }
 
@@ -2376,7 +2367,7 @@ public class EsqlSession {
         boolean nullify = exemplars || callerScopeHasPromql(parsed);
         // With map types a lookup index and an enrich policy are sources like FROM: they answer the names the query uses, so that a
         // join loads the key and not the whole map (MapKeys, rule 1)
-        Set<String> mapChildNames = configuration.flattenedKeys() && mapTypes(configuration) ? MapKeys.namesAskedOfSources(parsed) : null;
+        Set<String> mapChildNames = configuration.flattenedKeys() ? MapKeys.namesAskedOfAllSources(parsed) : null;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(
                 preAnalysis,

@@ -339,18 +339,6 @@ public final class QuerySettings {
         .streamFormat((out, value) -> value.writeTo(out), ExemplarsSettings::new)
         .build();
 
-    @Param(
-        name = "map_types",
-        type = { "boolean" },
-        description = "When enabled, a field whose values hold named keys, such as a `flattened` field, is a map: its keys are read with "
-            + "`field.key` wherever the field is in scope, and they follow the field through `RENAME`, joins and views. "
-            + "Defaults to `false`."
-    )
-    public static final QuerySettingDef<Boolean> MAP_TYPES = QuerySettingDef.bool("map_types")
-        .withDefault(Boolean.FALSE)
-        .withSnapshotOnly()
-        .build();
-
     /**
      * The canonical, explicitly-enumerated set of all query settings. This is the single source of truth — the
      * request parser, the resolver, and telemetry all iterate this list. Add a new setting's constant here when
@@ -360,7 +348,6 @@ public final class QuerySettings {
         APPROXIMATION,
         COLUMN_METADATA,
         EXEMPLARS,
-        MAP_TYPES,
         WILDCARDS_MATCH_DATASETS,
         WILDCARDS_MATCH_VIEWS,
         PROJECT_ROUTING,

@@ -131,6 +131,11 @@ public class ResolvingProject extends Project {
         return command.kind();
     }
 
+    /** The command this projection was written as. */
+    public Command command() {
+        return command;
+    }
+
     /** Whether KEEP/DROP/RENAME would keep a field named {@code name} that is materialized only after this node was resolved. */
     public boolean admitsLateUnmappedField(String name) {
         return switch (command.kind()) {

@@ -101,6 +101,3 @@ teardown:
               str:
                 value: ".{0,10000}"
   - match: { hits.total: 2 }
-  # The breaker is not checked for 0 after these successful searches. When the shard is on another node than the
-  # coordinator, its query result is serialized into a page charged to that node's request breaker and released only
-  # once the network write completes, which can be after the client has its response and reads the stats.

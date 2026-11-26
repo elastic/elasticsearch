@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
+import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.random.RandomGeneratorFactory;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
@@ -15,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
+import java.util.stream.DoubleStream;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -135,13 +139,14 @@ public class EventDetectorTests extends ESTestCase {
         // e.g. a step change when the noisier half's mean is offset by chance. So test many series and require
         // most to be a distribution change. With 100 series and at least 80 distribution changes, a false
         // failure has probability ~1e-23.
+        NormalDistribution first = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
+        NormalDistribution second = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 5);
         Map<String, Integer> changeTypeCounts = new TreeMap<>();
         for (int series = 0; series < 100; series++) {
-            // 99 values, as the change_point aggregation sees for 100 buckets after dropping the last one.
-            double[] values = new double[99];
-            for (int i = 0; i < values.length; i++) {
-                values[i] = random().nextGaussian() * (i < 50 ? 1.0 : 5.0);
-            }
+            double[] values = DoubleStream.concat(
+                DoubleStream.generate(first::sample).limit(50),
+                DoubleStream.generate(second::sample).limit(50)
+            ).toArray();
             List<ChangeType> events = new EventDetector().detect(buckets(values));
             // Select the reported event the same way the aggregation does.
             ChangeType reported = new InternalChangePointAggregation("change_point", null, Collections.nCopies(events.size(), null), events)

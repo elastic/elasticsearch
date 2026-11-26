@@ -1431,8 +1431,6 @@ class NodeConstruction {
             )
         );
 
-        // IndicesClusterStateService is a Guice-managed eager singleton, not yet constructible here;
-        // loadDiagnosticServices gets a supplier instead and the real instance is set once the injector exists.
         final SetOnce<IndicesClusterStateService> indicesClusterStateServiceRef = new SetOnce<>();
         modules.add(
             loadPluginShutdownService(clusterService),

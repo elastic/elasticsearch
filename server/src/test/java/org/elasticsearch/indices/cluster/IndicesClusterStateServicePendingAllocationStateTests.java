@@ -628,7 +628,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
     }
 
     /// A shard that's never failed has an InFlight ticket with a zero retry count.
-    public void testGetLocalRecoveryRetryCountOmitsZeroRetries() {
+    public void testGetLocalRecoveryRetryCountWithZeroRetries() {
         ShardRouting shardRouting = applyInitializingPrimary();
         assertTrue(isInFlight(shardRouting));
 
@@ -636,7 +636,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
     }
 
     /// A shard whose failure was reported to master contributes nothing.
-    public void testGetLocalRecoveryRetryCountOmitsFailureReported() {
+    public void testGetLocalRecoveryRetryCountWithFailureReported() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         deterministicTaskQueue.runAllRunnableTasks();

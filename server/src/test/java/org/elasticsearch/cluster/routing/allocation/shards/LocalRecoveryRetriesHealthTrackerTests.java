@@ -78,12 +78,7 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         assertThat(health, equalTo(LocalRecoveryRetriesHealthInfo.EMPTY));
     }
 
-    /// [clusterService] hands back whatever routings it's given regardless of node, which doesn't exercise the
-    /// tracker's actual job of selecting the *local* node's allocations out of the cluster-state routing table.
-    /// This builds a real two-node cluster state -- one allocation on the local node, one on a remote node -- and
-    /// confirms only the local one is ever asked about or reported. [remoteNode], not [localNode], is elected
-    /// master here: if the tracker ever selected the master's allocations instead of its own, this is what would
-    /// catch it -- with the local node playing both roles, that mistake would coincidentally still pass.
+    /// Only allocations on the local node are reported, even when another node is the elected master.
     public void testOnlyLocalNodeAllocationsAreConsidered() {
         DiscoveryNode localNode = DiscoveryNodeUtils.create(randomAlphaOfLength(8));
         DiscoveryNode remoteNode = DiscoveryNodeUtils.create(randomAlphaOfLength(8));

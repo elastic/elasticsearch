@@ -1,0 +1,60 @@
+{
+  "prometheus.labels": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/reference/query-languages/promql/promql-http-api#promql-http-api-labels",
+      "description": "Get Prometheus label names"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/x-www-form-urlencoded"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_prometheus/api/v1/labels",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/_prometheus/{index}/api/v1/labels",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "An index expression that restricts which indices are considered. Defaults to `metrics-*`"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "match[]": {
+        "type": "string",
+        "description": "A series selector, for example `up{job=\"prometheus\"}`. Repeat the parameter to pass several selectors"
+      },
+      "start": {
+        "type": "string",
+        "description": "The start of the time range, as an RFC 3339 timestamp or Unix time in seconds. Defaults to 24 hours before `end`"
+      },
+      "end": {
+        "type": "string",
+        "description": "The end of the time range, as an RFC 3339 timestamp or Unix time in seconds. Defaults to the current time"
+      },
+      "limit": {
+        "type": "int",
+        "description": "The maximum number of label names to return. `0` means no limit from the request"
+      }
+    }
+  }
+}

@@ -2115,7 +2115,7 @@ final class PartitionPruningWalk {
                     truncated = true;
                     return;
                 }
-            } else {
+            } else if (listed > maxListedObjects) {
                 GlobExpander.checkListedObjectsLimit(listed, maxListedObjects, diagnostics.get());
             }
             if (matcher.matches(relativePath) == false) {
@@ -2151,7 +2151,9 @@ final class PartitionPruningWalk {
                 matched.add(entry);
             } else {
                 matched.add(entry);
-                GlobExpander.checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles, diagnostics.get());
+                if (matched.size() > maxDiscoveredFiles) {
+                    GlobExpander.checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles, diagnostics.get());
+                }
             }
         }
 

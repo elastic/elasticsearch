@@ -9031,6 +9031,11 @@ public class GlobExpanderTests extends ESTestCase {
             provider.childListedPrefixes,
             not(hasItem("s3://bucket/data/year=2025/"))
         );
+        assertEquals(
+            "root listed once; a truncated empty retry would list it again",
+            1,
+            Collections.frequency(provider.childListedPrefixes, "s3://bucket/data/")
+        );
     }
 
     /**
@@ -9067,6 +9072,32 @@ public class GlobExpanderTests extends ESTestCase {
             assertThat(result.path(i).toString(), containsString("year=2025"));
         }
         assertEquals(DataType.KEYWORD, result.partitionMetadata().partitionColumns().get("month"));
+    }
+
+    /**
+     * A completed walk sliced to {@code maxFiles} must keep the sample schema. Overlaying later folders
+     * would publish KEYWORD for a one-file INTEGER sample.
+     */
+    public void testCompletedWalkMaxFilesSliceKeepsSampleSchema() throws IOException {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/year=2025/code=001/a.parquet", 100),
+            entry("s3://bucket/data/year=2025/code=ABC/b.parquet", 100)
+        );
+        TreeStubProvider provider = new TreeStubProvider(files);
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**",
+            provider,
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            HIVE_ON,
+            40,
+            MAX,
+            MAX,
+            new ListingExtents(1),
+            PlanningMemory.NONE
+        );
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isTruncated());
+        assertEquals(DataType.INTEGER, result.partitionMetadata().partitionColumns().get("code"));
     }
 
     public void testUnboundedWalkStillThrowsAtDiscoveredFilesLimit() {

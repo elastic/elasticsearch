@@ -1802,13 +1802,10 @@ public final class GlobExpander {
                         List<String> walkNotices = new ArrayList<>();
                         PartitionMetadata detected = detectPartitions(List.of(anchor), partitionConfig, walkNotices::add);
                         if (walkPruningProven(walk.prunedColumns(), detected)) {
-                            PartitionMetadata metadata = overlayWalkTypes(
-                                detected,
-                                walk.columnFullTypes(),
-                                List.of(anchor),
-                                partitionConfig,
-                                pattern
-                            );
+                            PartitionMetadata metadata = overlayWalkTypes(detected, walk.columnFullTypes());
+                            if (metadata != null) {
+                                metadata = metadata.valuedOver(fileListOf(List.of(anchor), pattern), partitionConfig);
+                            }
                             throwIfCancelled(cancelled);
                             reserveRetained(memory, 1, 0, true);
                             return inferenceAnchorListing(List.of(anchor), pattern, metadata, walkNotices);
@@ -1832,8 +1829,11 @@ public final class GlobExpander {
                             walked = new ArrayList<>(walked.subList(0, extents.maxFiles()));
                             walkedMetadata = detectPartitions(walked, partitionConfig, ignored -> {});
                         }
-                        if (truncated) {
-                            walkedMetadata = overlayWalkTypes(walkedMetadata, walk.columnFullTypes(), walked, partitionConfig, pattern);
+                        // Overlay folder-level types only when the walk stopped early. A completed walk
+                        // that is then sliced to maxFiles must keep the sample schema: later folders
+                        // are outside partition_sample_size.
+                        if (walk.truncated()) {
+                            walkedMetadata = overlayWalkTypes(walkedMetadata, walk.columnFullTypes());
                         }
                         reserveRetained(memory, walked.size(), 0, true);
                         // globKeptCount is glob matches after exclusion, before _file.*, matching the flat path.
@@ -3389,13 +3389,12 @@ public final class GlobExpander {
      * so a peeked {@code month=abc} keeps {@code month} KEYWORD rather than the leftover folder's INTEGER.
      */
     @Nullable
-    private static PartitionMetadata overlayWalkTypes(
-        @Nullable PartitionMetadata detected,
-        Map<String, DataType> walkFullTypes,
-        List<StorageEntry> files,
-        PartitionConfig config,
-        String pattern
-    ) {
+    /**
+     * Widens detected column types with folder values the walk saw. Never replaces a file-proven
+     * wider type with a narrower folder type. Type-only: truncated listings strip per-file values
+     * anyway, and the inference-anchor caller rehydrates values itself.
+     */
+    private static PartitionMetadata overlayWalkTypes(@Nullable PartitionMetadata detected, Map<String, DataType> walkFullTypes) {
         if (detected == null || walkFullTypes == null || walkFullTypes.isEmpty()) {
             return detected;
         }
@@ -3403,7 +3402,7 @@ public final class GlobExpander {
         boolean changed = false;
         for (Map.Entry<String, DataType> e : overlayed.entrySet()) {
             DataType walkType = walkFullTypes.get(e.getKey());
-            if (walkType != null && walkType != e.getValue()) {
+            if (walkType != null && shouldWidenWithWalk(e.getValue(), walkType)) {
                 overlayed.put(e.getKey(), walkType);
                 changed = true;
             }
@@ -3411,7 +3410,30 @@ public final class GlobExpander {
         if (changed == false) {
             return detected;
         }
-        return new PartitionMetadata(overlayed, Map.of()).valuedOver(fileListOf(files, pattern), config);
+        return new PartitionMetadata(overlayed, Map.of());
+    }
+
+    /**
+     * Whether {@code walkType} is a strictly wider Hive partition type than {@code detected}.
+     * KEYWORD is widest; INTEGER ⊂ LONG ⊂ DOUBLE. Incomparable pairs keep the file-proven type.
+     */
+    private static boolean shouldWidenWithWalk(DataType detected, DataType walkType) {
+        if (detected == walkType) {
+            return false;
+        }
+        if (detected == DataType.KEYWORD) {
+            return false;
+        }
+        if (walkType == DataType.KEYWORD) {
+            return true;
+        }
+        if (detected == DataType.INTEGER) {
+            return walkType == DataType.LONG || walkType == DataType.DOUBLE || walkType == DataType.UNSIGNED_LONG;
+        }
+        if (detected == DataType.LONG) {
+            return walkType == DataType.DOUBLE;
+        }
+        return false;
     }
 
     /**

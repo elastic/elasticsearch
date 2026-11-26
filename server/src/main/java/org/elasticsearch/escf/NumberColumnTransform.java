@@ -17,10 +17,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.sourcebatch.FloatNarrowing;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.util.function.Consumer;
-import java.util.function.DoubleToLongFunction;
 import java.util.function.LongUnaryOperator;
 
 /**
@@ -242,7 +242,7 @@ public final class NumberColumnTransform {
                 }
                 yield intVal;
             }
-            case FLOAT -> doubleToFloatSortable(Float.parseFloat(s));
+            case FLOAT -> floatToSortable(Float.parseFloat(s));
             case HALF_FLOAT -> toValidatedHalfFloat(Float.parseFloat(s));
             case DOUBLE -> {
                 double d = Double.parseDouble(s);
@@ -385,12 +385,12 @@ public final class NumberColumnTransform {
     ) {
         return switch (type) {
             case DOUBLE -> copyDoubleBits(source, recycler);
-            case FLOAT -> copyDouble(source, NumberColumnTransform::doubleToFloatSortable, recycler);
+            case FLOAT -> copyDoubleAsFloat(source, NumberColumnTransform::floatToSortable, recycler);
             case BYTE -> narrowDoubleToInteger(source, Byte.MIN_VALUE, Byte.MAX_VALUE, "a byte", coerce, recycler);
             case SHORT -> narrowDoubleToInteger(source, Short.MIN_VALUE, Short.MAX_VALUE, "a short", coerce, recycler);
             case INTEGER -> narrowDoubleToInteger(source, Integer.MIN_VALUE, Integer.MAX_VALUE, "an integer", coerce, recycler);
             case LONG -> narrowDoubleToInteger(source, Long.MIN_VALUE, Long.MAX_VALUE, "a long", coerce, recycler);
-            case HALF_FLOAT -> copyDouble(source, d -> toValidatedHalfFloat((float) d), recycler);
+            case HALF_FLOAT -> copyDoubleAsFloat(source, NumberColumnTransform::toValidatedHalfFloat, recycler);
         };
     }
 
@@ -404,19 +404,31 @@ public final class NumberColumnTransform {
         }
     }
 
-    private static EscfColumnData copyDouble(EscfColumn source, DoubleToLongFunction convert, Recycler<BytesRef> recycler) {
+    /** Converts a float into the sortable long a float-typed column stores. */
+    @FunctionalInterface
+    private interface FloatToLongFunction {
+        long applyAsLong(float value);
+    }
+
+    /**
+     * Narrows each double to the float the row path parses from the same text, then converts it. {@code (float) d} rounds the
+     * value a second time, which differs from parsing the text straight to float only when {@code d} is a float midpoint; only
+     * then is the row's text parsed (see {@link FloatNarrowing}). A scalar column renders the client's spelling, so the result is
+     * exactly the row path's; an array element renders canonically, as array elements carry no spelling yet.
+     */
+    private static EscfColumnData copyDoubleAsFloat(EscfColumn source, FloatToLongFunction convert, Recycler<BytesRef> recycler) {
         try (EscfColumnBuilder builder = newLongBuilder(recycler)) {
             LongTupleCursor cursor = source.longCursor();
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
                 double d = Double.longBitsToDouble(cursor.longValue());
-                builder.setLong(doc, convert.applyAsLong(d));
+                float f = FloatNarrowing.isFloatMidpoint(d) ? Float.parseFloat(source.getStringValue(doc).string()) : (float) d;
+                builder.setLong(doc, convert.applyAsLong(f));
             }
             return builder.finish(source.docCount());
         }
     }
 
-    private static long doubleToFloatSortable(double d) {
-        float f = (float) d;
+    private static long floatToSortable(float f) {
         if (Float.isFinite(f) == false) {
             throw new IllegalArgumentException("[float] supports only finite values, but got [" + f + "]");
         }

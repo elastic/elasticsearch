@@ -54,6 +54,9 @@ public class CsvFillNullIT extends CsvIT {
     /** The first command of the query, after any {@code SET}. Others, such as {@code SHOW} and {@code EXPLAIN}, do not take a pipe. */
     private static final Pattern SOURCE_COMMAND_PATTERN = Pattern.compile("(?is)^\\s*(?:SET\\s[^;]*;\\s*)*(?:FROM|ROW|TS)\\b.*");
 
+    /** An {@code INTO} command, which must be the last command, so {@code FILLNULL} cannot be appended after it. */
+    private static final Pattern INTO_COMMAND_PATTERN = Pattern.compile("(?is)\\|\\s*INTO\\b");
+
     /** The most columns that one {@code FILLNULL} warning names, see {@code WarnUnfillableFillNull.MAX_FIELDS_IN_WARNING}. */
     private static final int MAX_FIELDS_IN_WARNING = 10;
 
@@ -132,6 +135,10 @@ public class CsvFillNullIT extends CsvIT {
         if (testCase.query.toLowerCase(java.util.Locale.ROOT).contains("fillnull")) {
             return "already uses FILLNULL";
         }
+        if (INTO_COMMAND_PATTERN.matcher(testCase.query).find()) {
+            // INTO must be the last command, so appending "| FILLNULL ... ON *" after it would fail verification.
+            return "uses INTO (must be the last command)";
+        }
         if (testCase.expectedResults == null || testCase.expectedResults.isBlank()) {
             return "no expected results";
         }
@@ -194,11 +201,13 @@ public class CsvFillNullIT extends CsvIT {
     }
 
     /**
-     * Whether a bare {@code *} leaves the column alone: the metadata columns and the {@code _unmapped_fields} column that
-     * {@code unmapped_fields="LOAD_ALL"} adds are not user columns.
+     * Whether a bare {@code *} leaves the column alone: the metadata columns and the synthetic {@code _unmapped_fields} column
+     * that {@code unmapped_fields="LOAD_ALL"} adds are not user columns. That synthetic column is always of type {@code _source};
+     * a user column that merely shares the name (for example from {@code CHANGE_POINT ... AS _unmapped_fields}, which has type
+     * {@code keyword}) is an ordinary column that {@code *} does fill, so it is distinguished by type rather than name alone.
      */
-    private static boolean leftAloneByAllFields(String name) {
-        return MetadataAttribute.isSupported(name) || name.equals("_unmapped_fields");
+    private static boolean leftAloneByAllFields(String name, String rawType) {
+        return MetadataAttribute.isSupported(name) || (name.equals("_unmapped_fields") && rawType.equals("_source"));
     }
 
     private static Object defaultValue(Type type) {
@@ -250,7 +259,7 @@ public class CsvFillNullIT extends CsvIT {
                 // A column of type unsupported, as when the indices disagree on its type, is left unchanged without a warning, see
                 // https://github.com/elastic/elasticsearch/issues/167575.
                 if (defaultedType(rawTypes.get(i)) == null
-                    && leftAloneByAllFields(name) == false
+                    && leftAloneByAllFields(name, rawTypes.get(i)) == false
                     && rawTypes.get(i).equals("unsupported") == false) {
                     unfillable.add(name);
                 }
@@ -272,9 +281,15 @@ public class CsvFillNullIT extends CsvIT {
                 + "]; provide an explicit value"
                 + suffix;
             if (testCase.expectedWarningsRegex.isEmpty() == false) {
-                testCase.expectedWarningsRegexString.add(Pattern.quote(warning));
-                testCase.expectedWarningsRegex.add(Pattern.compile(Pattern.quote(warning)));
-            } else {
+                // A spec that declares regex warnings is asserted as an allow-list (AssertWarnings.AllowedRegexes): an added
+                // pattern is permitted but not required to appear, so a regression that dropped the FILLNULL warning would
+                // still pass. The harness offers no way to also require one extra warning, so skip this combination rather
+                // than assert it weakly; the DEFAULT warning is still asserted exactly on the many specs without regex warnings.
+                assumeTrue("cannot require the FILLNULL warning on a spec that declares regex warnings", false);
+            }
+            // transformQuery runs once per iteration on the shared CsvTestCase, so guard against adding the same warning twice
+            // under -Dtests.iters, which would make the exact-warning assertion expect two copies while the query emits one.
+            if (testCase.expectedWarnings.contains(warning) == false) {
                 testCase.expectedWarnings.add(warning);
             }
         }
@@ -290,7 +305,9 @@ public class CsvFillNullIT extends CsvIT {
             for (List<Object> row : expected.values()) {
                 List<Object> filled = new ArrayList<>(row);
                 for (int i = 0; i < filled.size(); i++) {
-                    Type type = leftAloneByAllFields(expected.columnNames().get(i)) ? null : defaultedType(rawTypes.get(i));
+                    Type type = leftAloneByAllFields(expected.columnNames().get(i), rawTypes.get(i))
+                        ? null
+                        : defaultedType(rawTypes.get(i));
                     if (filled.get(i) == null && type != null) {
                         filled.set(i, defaultValue(type));
                     }

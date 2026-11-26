@@ -171,6 +171,11 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
             final String message = "[sparse_vector] fields must be json objects, expected a START_OBJECT but got: VALUE_NULL";
             assertRejected(mapperService, message, b -> b.nullField("sv"));
             assertRejected(mapperService, message, b -> b.startArray("sv").nullValue().endArray());
+            assertRejected(
+                mapperService,
+                message,
+                b -> b.startArray("sv").startObject().field("a", 1.0).endObject().nullValue().endArray()
+            );
         }
     }
 

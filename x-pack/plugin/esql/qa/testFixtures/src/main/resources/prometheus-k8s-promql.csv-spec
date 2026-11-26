@@ -2704,10 +2704,11 @@ result:double | _timeseries:keyword
 472.0         | "{""labels"":{""cluster"":""staging"",""pod"":""two""}}"
 ;
 
-// A without reduction keeps its series, so it is an operand like any instant vector.
+// A without reduction keeps its series, so it is an operand like any instant vector; the arithmetic drops __name__.
 topk_without_as_operand
 required_capability: promql_command_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_drop_stored_metric_name
 required_capability: promql_topk
 required_capability: promql_reduction_without
 required_capability: promql_timeseries_metadata_functions
@@ -2717,7 +2718,32 @@ PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-1
 | SORT _timeseries;
 
 result:double | _timeseries:keyword
-818.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-1816.0        | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""qa"",""pod"":""two""}}"
-944.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
+818.0         | "{""labels"":{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
+1816.0        | "{""labels"":{""cluster"":""qa"",""pod"":""two""}}"
+944.0         | "{""labels"":{""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
+;
+
+// An or after a without reduction matches each winner to its own series: every series shows once.
+topk_without_or_keeps_each_series_once
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_topk
+required_capability: promql_set_operator_union
+required_capability: promql_reduction_without
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (pod) (1, last_over_time(network.eth0.tx[5m])) or last_over_time(network.eth0.tx[5m]))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+409.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
+361.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
+298.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
+506.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""qa"",""pod"":""one""}}"
+500.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""qa"",""pod"":""three""}}"
+908.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""qa"",""pod"":""two""}}"
+346.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
+448.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""staging"",""pod"":""three"",""region"":""us""}}"
+472.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
 ;

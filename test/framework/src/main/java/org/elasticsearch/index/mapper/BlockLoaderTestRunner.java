@@ -24,7 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.PruningMergePolicy;
+import org.elasticsearch.index.engine.SyntheticIdTestHelper;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -294,7 +294,7 @@ public class BlockLoaderTestRunner {
             config.setIndexSort(indexSort);
         }
         config.setParentField(Engine.ROOT_DOC_FIELD_NAME);
-        config.setMergePolicy(PruningMergePolicy.skipSyntheticIdOnMerge(config.getMergePolicy()));
+        config.setMergePolicy(SyntheticIdTestHelper.skipSyntheticIdOnMerge(config.getMergePolicy()));
         return config;
     }
 

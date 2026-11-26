@@ -592,6 +592,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     @BeforeClass
     @SuppressForbidden(reason = "This replaces SuppressCodecs(\"*\")")
     public static void setDefaultCodec() {
+        // this is not exhaustive - test that need something from MapperService should define the codec/format explicitly
         Codec.setDefault(CodecService.createESDefaultCodec(null, BigArrays.NON_RECYCLING_INSTANCE, null));
     }
 

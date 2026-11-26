@@ -52,7 +52,7 @@ public class DenseVectorQueryFloatsTests extends AbstractDenseVectorQueryTestCas
 
     @Override
     public void testScoreCosine() throws IOException {
-        // cosine is normalized to use dot_product comparion for floats
+        // cosine is normalized to use dot_product comparison for floats
         float[][] vectors = new float[5][];
         for (int j = 1; j <= 5; j++) {
             vectors[j - 1] = l2normalize(new float[] { j, j * j });

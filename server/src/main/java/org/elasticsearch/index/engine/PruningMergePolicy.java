@@ -71,20 +71,6 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
         });
     }
 
-    /**
-     * Wraps {@code policy} so that merges never materialize the synthetic {@code _id}, without pruning anything.
-     * Index writers that write synthetic id segments outside of the engine need this, as the engine's merge policy
-     * is what otherwise keeps the synthetic id reader away from merges.
-     */
-    public static MergePolicy skipSyntheticIdOnMerge(MergePolicy policy) {
-        return new OneMergeWrappingMergePolicy(policy, toWrap -> new OneMerge(toWrap.segments) {
-            @Override
-            public CodecReader wrapForMerge(CodecReader reader) throws IOException {
-                return unwrapSyntheticIdStoredFieldsReader(toWrap.wrapForMerge(reader));
-            }
-        });
-    }
-
     private static CodecReader wrapReader(
         String pruneStoredFieldName,
         String pruneNumericDVFieldName,
@@ -373,7 +359,7 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
      * If the stored fields reader cannot be unwrapped (e.g. when wrapped by an intermediate layer), we fall back to a reader that
      * skips the _id field via a {@link FilterStoredFieldVisitor} to prevent materialization on merge threads.
      */
-    private static CodecReader unwrapSyntheticIdStoredFieldsReader(CodecReader reader) {
+    static CodecReader unwrapSyntheticIdStoredFieldsReader(CodecReader reader) {
         return new FilterCodecReader(reader) {
             @Override
             public StoredFieldsReader getFieldsReader() {

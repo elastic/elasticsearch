@@ -365,8 +365,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     /// changes before the task is executed, it will resubmit itself.
     ///
     /// @param listener Completed with the resulting [SnapshotInfo] when [CreateSnapshotRequest#waitForCompletion()] is true, or with
-    ///                 {@code null} when the snapshot has started (or is recognized as an idempotent retry of an already-started or
-    ///                 already-completed create with the same UUID).
+    ///                 {@code null} when the snapshot has started.
     private void submitCreateSnapshotTask(
         CreateSnapshotRequest request,
         ActionListener<SnapshotInfo> listener,
@@ -377,8 +376,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         repository.getRepositoryData(
             EsExecutors.DIRECT_EXECUTOR_SERVICE, // Listener is lightweight, only submits a cluster state update task, no need to fork
             listener.delegateFailure((l, repositoryData) -> {
-                // Idempotent retry after the snapshot already finalized (e.g. FailedToCommit with committed=true, then completion
-                // before TransportMasterNodeAction retries). Match on UUID only: the repository uses it as the storage key.
+                // Create is re-submitted after cluster-state publish failures; by then the snapshot may already exist in the repository.
                 final SnapshotId existingInRepo = repositoryData.getSnapshotId(snapshot.getSnapshotId().getUUID());
                 if (existingInRepo != null) {
                     logger.info(
@@ -2102,8 +2100,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
                             final SnapshotsInProgress beforeCreate = snapshotsInProgress;
                             snapshotsInProgress = createSnapshot(task, taskContext, state, snapshotsInProgress);
-                            // Only associate SLM / encryption metadata with creates that actually insert a new entry. Idempotent
-                            // retries (same UUID already in-progress or already in the repository) must not overwrite that state.
+                            // Don't re-apply on idempotent retries — that can overwrite the original entry's metadata.
                             if (snapshotsInProgress != beforeCreate) {
                                 registeredPolicySnapshotsBuilders.computeIfAbsent(
                                     projectMetadata.id(),
@@ -2166,9 +2163,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final var projectState = currentState.projectState(snapshot.getProjectId());
             SnapshotsServiceUtils.ensureRepositoryExists(repositoryName, projectState.metadata());
             final Repository repository = createSnapshotTask.repository;
-            // TransportMasterNodeAction retries create-snapshot on FailedToCommitClusterStateException, including when the
-            // publication already reached a quorum (committed=true). Match in-progress entries by UUID only so date-math name
-            // re-resolution on retry cannot miss the original entry; a different UUID with the same name remains a conflict.
+            // Match by UUID: retries can carry a different resolved name (date-math) for the same create.
             final SnapshotsInProgress.Entry existingInProgress = findInProgressByUuid(
                 snapshotsInProgress,
                 snapshot.getProjectId(),
@@ -2184,19 +2179,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     );
                     onCreateSnapshotStarted(createSnapshotTask, existingInProgress.snapshot());
                 });
-                return snapshotsInProgress;
-            }
-            // Same UUID already finalized into RepositoryData (e.g. completed between FailedToCommit and the retry).
-            final SnapshotId existingInRepo = repositoryData.getSnapshotId(snapshot.getSnapshotId().getUUID());
-            if (existingInRepo != null) {
-                taskContext.success(
-                    () -> completeWithExistingRepositorySnapshot(
-                        repository,
-                        existingInRepo,
-                        createSnapshotTask.createSnapshotRequest.waitForCompletion(),
-                        createSnapshotTask.listener
-                    )
-                );
                 return snapshotsInProgress;
             }
             SnapshotsServiceUtils.ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);

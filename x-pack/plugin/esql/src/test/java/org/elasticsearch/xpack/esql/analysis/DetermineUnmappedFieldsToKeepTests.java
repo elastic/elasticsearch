@@ -24,13 +24,12 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 
 import java.util.Arrays;
 import java.util.List;
@@ -718,6 +717,30 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\" | STATS c = COUNT(*) BY _unmapped_fields");
     }
 
+    /**
+     * A {@code ROW} has no {@code _source}, so a column of it named like the one of unmapped fields hides nothing, and the warning to
+     * rename it to get the unmapped fields would be wrong: there is none, and the query gets no warning. Next to an index that could
+     * have supplied them the warning stays, as in the tests above.
+     */
+    public void testRowColumnNamedUnmappedFieldsHasNoWarning() {
+        var plan = test().statement(setUnmappedLoadAll("ROW _unmapped_fields = \"mine\""));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
+        assertThat(Expressions.names(plan.output()), equalTo(List.of(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        ensureNoWarnings();
+    }
+
+    /**
+     * A view is a boundary with no {@code _source} of its own, whatever its body is, so a query that only reads views and has a column
+     * named like the one of unmapped fields gets no warning: renaming the column would not get any unmapped field. It does not matter
+     * whether the root of the view body is a relation, as in {@code FROM test}, or something above it.
+     */
+    public void testViewOnlyQueryWithColumnNamedUnmappedFieldsHasNoWarning() {
+        for (String body : List.of("FROM test", "FROM test | KEEP emp_no")) {
+            test().addView("v", body).statement(setUnmappedLoadAll("FROM v | EVAL _unmapped_fields = \"mine\""));
+            ensureNoWarnings();
+        }
+    }
+
     /** A field of the lookup index named like the column of unmapped fields is a column of the query, and wins. */
     public void testLookupJoinFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
         var plan = test().addLookupIndex("colliding_lookup", lookupIndexWithUnmappedFieldsField())
@@ -745,26 +768,33 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
     }
 
-    public void testDedupDoesNotKeyOnUnmappedFieldsAttribute() {
-        assertDedupKeys("FROM test | KEEP emp_no, first_name* | DEDUP", List.of("emp_no", "first_name"));
-    }
-
-    public void testDedupAfterSubqueriesDoesNotKeyOnUnmappedFieldsAttribute() {
-        assertDedupKeys("FROM (FROM test), (FROM test) | KEEP emp_no, first_name* | DEDUP", List.of("emp_no", "first_name"));
-    }
-
-    public void testDedupAfterForkDoesNotKeyOnUnmappedFieldsAttribute() {
+    public void testDedupKeysOnUnmappedFieldsAttribute() {
         assertDedupKeys(
-            "FROM test | FORK (WHERE emp_no > 0) (WHERE emp_no < 0) | KEEP emp_no, first_name*, _fork | DEDUP",
-            List.of("emp_no", "first_name", "_fork")
+            "FROM test | KEEP emp_no, first_name* | DEDUP",
+            List.of("emp_no", "first_name", UnmappedFieldsAttribute.ATTRIBUTE_NAME)
         );
     }
 
-    public void testDedupOverOnlyUnmappedFieldsAttributeKeepsOneRow() {
+    public void testDedupAfterSubqueriesKeysOnUnmappedFieldsAttribute() {
+        assertDedupKeys(
+            "FROM (FROM test), (FROM test) | KEEP emp_no, first_name* | DEDUP",
+            List.of("emp_no", "first_name", UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
+    }
+
+    public void testDedupAfterForkKeysOnUnmappedFieldsAttribute() {
+        assertDedupKeys(
+            "FROM test | FORK (WHERE emp_no > 0) (WHERE emp_no < 0) | KEEP emp_no, first_name*, _fork | DEDUP",
+            List.of("emp_no", "first_name", "_fork", UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
+    }
+
+    public void testDedupOverOnlyUnmappedFieldsAttributeKeysOnIt() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP unmapped* | DEDUP"));
         Dedup dedup = EsqlTestUtils.singleValue(plan.collect(Dedup.class));
         assertThat(unmappedFieldsAttributes(dedup), hasSize(1));
-        as(dedup.surrogate(), Limit.class);
+        LimitBy limitBy = as(dedup.surrogate(), LimitBy.class);
+        assertThat(Expressions.names(limitBy.groupings()), equalTo(List.of(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
     }
 
     public void testDedupKeysOnSourceFieldNamedUnmappedFields() {
@@ -1082,7 +1112,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     private static void assertInSubqueryRightHasNoUnmappedFields(LogicalPlan plan) {
-        AbstractSubqueryJoin join = EsqlTestUtils.singleValue(plan.collect(AbstractSubqueryJoin.class));
+        AbstractInSubqueryJoin join = EsqlTestUtils.singleValue(plan.collect(AbstractInSubqueryJoin.class));
         assertThat(
             CollectionUtils.collect(
                 EsqlTestUtils.singleValue(join.right().collect(EsRelation.class)).output(),

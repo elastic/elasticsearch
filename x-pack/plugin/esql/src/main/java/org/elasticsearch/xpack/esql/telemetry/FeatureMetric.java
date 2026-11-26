@@ -182,7 +182,7 @@ public enum FeatureMetric {
         // records the telemetry; STATS itself is counted via the Aggregate exclusion above.
         MarkJoin.class,
         HashJoin.class, // produced by PROMQL vector-matching translation; rolled into the PROMQL counter via PromqlCommand
-        SubqueryJoin.class, // JOIN on a subquery is rejected by the Verifier, so it has no counter of its own
+        SubqueryJoin.class, // JOIN on a subquery is rejected after analysis, so it has no counter of its own yet
         UnionAll.class // synthesized FROM/subquery/view union; SUBQUERY and VIEW metrics cover the user-facing constructs
     );
 

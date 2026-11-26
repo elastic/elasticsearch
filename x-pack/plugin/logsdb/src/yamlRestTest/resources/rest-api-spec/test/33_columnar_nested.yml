@@ -394,3 +394,54 @@ setup:
   - match: { _source.comments.0.votes: 3 }
   - match: { _source.comments.1.author: "bob" }
   - match: { _source.comments.1.votes: 7 }
+
+---
+"columnar: a dotted key into a nested field is rejected instead of dropping the value":
+  - requires:
+      cluster_features: [ "mapper.columnar.rejects_unreachable_dotted_field" ]
+      reason: "A dotted key into a nested field under subobjects:false hit an assertion or silently lost the value"
+
+  - do:
+      indices.create:
+        index: test_columnar_nested_dotted
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              comments:
+                type: nested
+                properties:
+                  author:
+                    type: keyword
+
+  # Dots are not expanded under subobjects:false, so "comments.author" can not reach the nested field
+  - do:
+      catch: bad_request
+      index:
+        index: test_columnar_nested_dotted
+        id: "1"
+        body:
+          comments.author: "alice"
+
+  # Object notation addresses the nested field and keeps working
+  - do:
+      index:
+        index: test_columnar_nested_dotted
+        id: "2"
+        refresh: true
+        body:
+          comments:
+            author: "alice"
+
+  - do:
+      search:
+        index: test_columnar_nested_dotted
+        body:
+          query:
+            nested:
+              path: comments
+              query:
+                term:
+                  comments.author: alice
+  - match: { hits.total.value: 1 }

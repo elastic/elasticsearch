@@ -15,6 +15,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -85,7 +86,23 @@ public class ComputeResponseBwcWarningsTests extends ESTestCase {
     }
 
     private static DriverCompletionInfo completionInfo() {
-        return new DriverCompletionInfo(0, 0, 0, 0, 0, 0, 0, 0, List.of(), List.of(), Map.of(), false, false, Set.of());
+        return new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            SearchLoadMetrics.EMPTY,
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            false,
+            Set.of()
+        );
     }
 
     /**

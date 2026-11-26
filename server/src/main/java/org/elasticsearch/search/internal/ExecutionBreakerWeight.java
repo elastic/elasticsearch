@@ -44,7 +44,10 @@ final class ExecutionBreakerWeight extends FilterWeight {
     /** The class of the iterator over the sorted {@code int[]} that a sparse {@link DocIdSetBuilder} builds, private to Lucene. */
     static final Class<? extends DocIdSetIterator> INT_ARRAY_ITERATOR_CLASS = intArrayIteratorClass();
 
-    /** The iterator over a {@code DocIdSetBuilder}'s sorted {@code int[]} and the header of that array. Conservative without compressed oops. */
+    /**
+     * The iterator over a {@code DocIdSetBuilder}'s sorted {@code int[]} and the header of that array.
+     * Conservative without compressed oops.
+     */
     static final long INT_ARRAY_ITERATOR_BYTES = 64L;
 
     private final ContextIndexSearcher searcher;

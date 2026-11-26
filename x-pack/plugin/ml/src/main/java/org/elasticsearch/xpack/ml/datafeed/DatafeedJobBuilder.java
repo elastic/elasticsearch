@@ -287,7 +287,10 @@ public class DatafeedJobBuilder {
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
             crossClusterSearchStats,
-            lastEndTimeForRecord(datafeedConfig)
+            lastEndTimeForRecord(datafeedConfig),
+            datafeedConfig.getEsqlQuery() != null,
+            job.getAnalysisConfig().getBucketSpan().millis(),
+            job.getAnalysisConfig().getLatency() == null ? 0 : job.getAnalysisConfig().getLatency().millis()
         );
         listener.onResponse(datafeedJob);
     }

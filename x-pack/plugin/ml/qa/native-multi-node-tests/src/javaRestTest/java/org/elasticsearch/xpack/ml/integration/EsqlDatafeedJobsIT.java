@@ -15,6 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
@@ -25,7 +27,10 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.junit.After;
@@ -43,6 +48,9 @@ import java.util.stream.LongStream;
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
@@ -171,6 +179,64 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(previewRowCount(datafeedId, nanosMax + 2_000L, nanosMax + 5_000L), equalTo(0));
     }
 
+    /**
+     * Records 30 days old with a 1m bucket span leave about 43,200 empty buckets before real-time. Without the skip, the first
+     * real-time flush writes a bucket result for each of them.
+     */
+    public void testRealtimeAfterSparseLookbackShouldSkipEmptyBuckets() throws Exception {
+        String index = "esql-sparse-realtime";
+        String jobId = "esql-sparse-realtime-job";
+        String datafeedId = jobId + "-datafeed";
+        TimeValue bucketSpan = TimeValue.timeValueMinutes(1);
+        long now = System.currentTimeMillis();
+        long firstBucket = Intervals.alignToFloor(now - TimeValue.timeValueDays(30).millis(), bucketSpan.millis());
+        // Autodetect never writes the bucket that holds the first record of a job, so the checked records go in the next one.
+        long lastRecordBucket = firstBucket + bucketSpan.millis();
+        int lastBucketRecords = 5;
+        createSourceIndex(index);
+        indexDocuments(index, 1, firstBucket + 30_000L);
+        indexDocuments(index, lastBucketRecords, lastRecordBucket + 30_000L);
+
+        putJob(createJob(jobId, bucketSpan));
+        putDatafeed(
+            new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + index + " | KEEP event_time, value")
+                .setSourceTimeField("event_time")
+                .setGroupingInterval(bucketSpan)
+                .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueDays(1)))
+                .setFrequency(bucketSpan)
+                .setQueryDelay(bucketSpan)
+                .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+                .build()
+        );
+        openJob(jobId);
+        startDatafeed(datafeedId, firstBucket - TimeValue.timeValueDays(1).millis(), null);
+
+        // Real-time has run once the model holds a bucket in the last few minutes.
+        long recentBucketStart = Intervals.alignToFloor(now - TimeValue.timeValueMinutes(4).millis(), bucketSpan.millis());
+        assertBusy(() -> assertThat(bucketCount(jobId, recentBucketStart, Long.MAX_VALUE), greaterThan(0L)), 5, TimeUnit.MINUTES);
+
+        assertThat(bucketCount(jobId, 0, Long.MAX_VALUE), lessThan(1_000L));
+        // The skip must not drop the still open bucket that holds the last record.
+        GetBucketsAction.Request lastRecordBucketRequest = new GetBucketsAction.Request(jobId);
+        lastRecordBucketRequest.setTimestamp(Long.toString(lastRecordBucket));
+        List<Bucket> buckets = getBuckets(lastRecordBucketRequest);
+        assertThat(buckets.size(), equalTo(1));
+        assertThat(buckets.get(0).getEventCount(), equalTo((long) lastBucketRecords));
+        assertThat(getJobStats(jobId).get(0).getState(), equalTo(JobState.OPENED));
+        assertThat(fetchAllAuditMessages(jobId).toString(), not(containsString("could not skip")));
+
+        stopDatafeed(datafeedId);
+        closeJob(jobId);
+    }
+
+    private long bucketCount(String jobId, long start, long end) {
+        GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
+        request.setStart(Long.toString(start));
+        request.setEnd(Long.toString(end));
+        request.setPageParams(new PageParams(0, 0));
+        return client().execute(GetBucketsAction.INSTANCE, request).actionGet().getBuckets().count();
+    }
+
     private void assertPreviewAndLookbackRowCount(String jobId, String query, long expectedRecords) throws Exception {
         String datafeedId = jobId + "-datafeed";
         putJob(createJob(jobId));
@@ -184,10 +250,14 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private Job.Builder createJob(String jobId) {
+        return createJob(jobId, BUCKET_SPAN);
+    }
+
+    private Job.Builder createJob(String jobId, TimeValue bucketSpan) {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
             Collections.singletonList(new Detector.Builder("count", null).build())
         );
-        analysisConfig.setBucketSpan(BUCKET_SPAN);
+        analysisConfig.setBucketSpan(bucketSpan);
         DataDescription.Builder dataDescription = new DataDescription.Builder().setTimeField("event_time");
         return new Job.Builder(jobId).setAnalysisConfig(analysisConfig).setDataDescription(dataDescription);
     }

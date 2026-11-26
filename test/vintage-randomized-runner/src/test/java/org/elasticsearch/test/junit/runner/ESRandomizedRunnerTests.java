@@ -36,7 +36,6 @@ import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTCLASS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests how {@link ESRandomizedRunner} applies filters, by looking at the descriptions that remain after filtering a runner for a
@@ -234,7 +233,7 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
 
         Description description = runner.getDescription();
 
-        assertThat(description.getChildren().size(), equalTo(4));
+        assertThat(leafNames(description), containsInAnyOrder("testOne {p=a}", "testOne {p=b}", "testTwo {p=a}", "testTwo {p=b}"));
         for (Description child : description.getChildren()) {
             Assert.assertTrue(child.isTest());
         }
@@ -246,7 +245,7 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
 
         runner.filter(new VintageLikeFilter("testOne {p=b}"));
 
-        assertThat(runner.getDescription().getChildren().size(), equalTo(3));
+        assertThat(leafNames(runner.getDescription()), containsInAnyOrder("testOne {p=a}", "testTwo {p=a}", "testTwo {p=b}"));
         for (Description child : runner.getDescription().getChildren()) {
             Assert.assertTrue(child.isTest());
         }
@@ -296,7 +295,11 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
 
         runner.run(notifier);
 
-        assertThat(failures.size(), equalTo(2));
+        Set<String> failedTests = new TreeSet<>();
+        for (Failure failure : failures) {
+            failedTests.add(withoutSeed(failure.getDescription().getMethodName()));
+        }
+        assertThat(failedTests, containsInAnyOrder("testFails {p=a}", "testFails {p=b}"));
         for (Description description : fired) {
             Assert.assertTrue("unknown description " + description, known.contains(description));
         }

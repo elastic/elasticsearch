@@ -1015,3 +1015,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testTypeResolved {TestCase=<long, 18 doubles> null in 5}
   issue: https://github.com/elastic/elasticsearch/issues/167622
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithReadFromObjectStoreTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testSnapshotPrimaryRelocations
+  issue: https://github.com/elastic/elasticsearch/issues/167626

@@ -2,41 +2,41 @@
 
 ## Type mapping [esql-arrow-type-mapping]
 
-| ES\|QL type | Arrow type for a single value | May be multivalued |
+| ES\|QL type | Arrow type for a single value | May be <br> multivalued |
 | --- | --- | --- |
-| `_source` | <pre>utf8</pre> | yes |
-| `_tsid` | <pre>binary</pre> | yes |
-| `aggregate_metric_double` | <pre>struct {<br>  min?: floatingpoint(precision: DOUBLE)<br>  max?: floatingpoint(precision: DOUBLE)<br>  sum?: floatingpoint(precision: DOUBLE)<br>  value_count?: int(bitWidth: 32, isSigned: true)<br>}</pre> | no |
-| `boolean` | <pre>bool</pre> | yes |
-| `cartesian_point` | <pre>binary</pre> | yes |
-| `cartesian_shape` | <pre>binary</pre> | yes |
-| `counter_double` | <pre>floatingpoint(precision: DOUBLE)</pre> | yes |
-| `counter_integer` | <pre>int(bitWidth: 32, isSigned: true)</pre> | yes |
-| `counter_long` | <pre>int(bitWidth: 64, isSigned: true)</pre> | yes |
-| `date` | <pre>timestamp(unit: MILLISECOND, timezone: null)</pre> | yes |
-| `date_nanos` | <pre>timestamp(unit: NANOSECOND, timezone: null)</pre> | yes |
-| `date_range` | <pre>struct {<br>  from?: timestamp(unit: MILLISECOND, timezone: null)<br>  to?: timestamp(unit: MILLISECOND, timezone: null)<br>}</pre> | yes |
-| `dense_vector` | <pre>floatingpoint(precision: SINGLE)</pre> | always |
-| `double` | <pre>floatingpoint(precision: DOUBLE)</pre> | yes |
-| `double_range` | <pre>struct {<br>  from?: floatingpoint(precision: DOUBLE)<br>  to?: floatingpoint(precision: DOUBLE)<br>}</pre> | yes |
-| `exponential_histogram` | <pre>struct {<br>  scale: int(bitWidth: 32, isSigned: true)<br>  sum?: floatingpoint(precision: DOUBLE)<br>  min?: floatingpoint(precision: DOUBLE)<br>  max?: floatingpoint(precision: DOUBLE)<br>  zero: struct {<br>    count: int(bitWidth: 64, isSigned: true)<br>    threshold: floatingpoint(precision: DOUBLE)<br>  }<br>  positive: struct {<br>    indices: list {<br>      $data$: int(bitWidth: 64, isSigned: true)<br>    }<br>    counts: list {<br>      $data$: int(bitWidth: 64, isSigned: true)<br>    }<br>  }<br>  negative: struct {<br>    indices: list {<br>      $data$: int(bitWidth: 64, isSigned: true)<br>    }<br>    counts: list {<br>      $data$: int(bitWidth: 64, isSigned: true)<br>    }<br>  }<br>}</pre> | yes |
-| `flattened` | <pre>utf8</pre> | yes |
-| `geo_point` | <pre>binary</pre> | yes |
-| `geo_shape` | <pre>binary</pre> | yes |
-| `geohash` | <pre>int(bitWidth: 64, isSigned: false)</pre> | yes |
-| `geohex` | <pre>int(bitWidth: 64, isSigned: true)</pre> | yes |
-| `geotile` | <pre>struct {<br>  zoom: int(bitWidth: 8, isSigned: false)<br>  x: int(bitWidth: 32, isSigned: false)<br>  y: int(bitWidth: 32, isSigned: false)<br>}</pre> | yes |
-| `histogram` | <pre>struct {<br>  values: list {<br>    $data$: floatingpoint(precision: DOUBLE)<br>  }<br>  counts: list {<br>    $data$: int(bitWidth: 64, isSigned: true)<br>  }<br>}</pre> | yes |
-| `integer` | <pre>int(bitWidth: 32, isSigned: true)</pre> | yes |
-| `ip` | <pre>binary</pre> | yes |
-| `keyword` | <pre>utf8</pre> | yes |
-| `long` | <pre>int(bitWidth: 64, isSigned: true)</pre> | yes |
-| `null` | <pre>null</pre> | yes |
-| `tdigest` | <pre>struct {<br>  min?: floatingpoint(precision: DOUBLE)<br>  max?: floatingpoint(precision: DOUBLE)<br>  sum?: floatingpoint(precision: DOUBLE)<br>  centroids: list {<br>    $data$: floatingpoint(precision: DOUBLE)<br>  }<br>  counts: list {<br>    $data$: int(bitWidth: 64, isSigned: true)<br>  }<br>}</pre> | no |
-| `text` | <pre>utf8</pre> | yes |
-| `unsigned_long` | <pre>int(bitWidth: 64, isSigned: false)</pre> | yes |
-| `unsupported` | <pre>null</pre> | yes |
-| `version` | <pre>utf8</pre> | yes |
+| `_source` | `utf8` | yes |
+| `_tsid` | `binary` | yes |
+| `aggregate_metric_double` | `struct {` <br> &nbsp;&nbsp; `min?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `max?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `sum?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `value_count?: int(bitWidth: 32, isSigned: true)` <br>  `}` | no |
+| `boolean` | `bool` | yes |
+| `cartesian_point` | `binary` | yes |
+| `cartesian_shape` | `binary` | yes |
+| `counter_double` | `floatingpoint(precision: DOUBLE)` | yes |
+| `counter_integer` | `int(bitWidth: 32, isSigned: true)` | yes |
+| `counter_long` | `int(bitWidth: 64, isSigned: true)` | yes |
+| `date` | `timestamp(unit: MILLISECOND, timezone: null)` | yes |
+| `date_nanos` | `timestamp(unit: NANOSECOND, timezone: null)` | yes |
+| `date_range` | `struct {` <br> &nbsp;&nbsp; `from?: timestamp(unit: MILLISECOND, timezone: null)` <br> &nbsp;&nbsp; `to?: timestamp(unit: MILLISECOND, timezone: null)` <br>  `}` | yes |
+| `dense_vector` | `floatingpoint(precision: SINGLE)` | always |
+| `double` | `floatingpoint(precision: DOUBLE)` | yes |
+| `double_range` | `struct {` <br> &nbsp;&nbsp; `from?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `to?: floatingpoint(precision: DOUBLE)` <br>  `}` | yes |
+| `exponential_histogram` | `struct {` <br> &nbsp;&nbsp; `scale: int(bitWidth: 32, isSigned: true)` <br> &nbsp;&nbsp; `sum?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `min?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `max?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `zero: struct {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `count: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp;&nbsp;&nbsp; `threshold: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `}` <br> &nbsp;&nbsp; `positive: struct {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `indices: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `$data$: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp;&nbsp;&nbsp; `}` <br> &nbsp;&nbsp;&nbsp;&nbsp; `counts: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `$data$: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp;&nbsp;&nbsp; `}` <br> &nbsp;&nbsp; `}` <br> &nbsp;&nbsp; `negative: struct {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `indices: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `$data$: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp;&nbsp;&nbsp; `}` <br> &nbsp;&nbsp;&nbsp;&nbsp; `counts: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `$data$: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp;&nbsp;&nbsp; `}` <br> &nbsp;&nbsp; `}` <br>  `}` | yes |
+| `flattened` | `utf8` | yes |
+| `geo_point` | `binary` | yes |
+| `geo_shape` | `binary` | yes |
+| `geohash` | `int(bitWidth: 64, isSigned: false)` | yes |
+| `geohex` | `int(bitWidth: 64, isSigned: true)` | yes |
+| `geotile` | `struct {` <br> &nbsp;&nbsp; `zoom: int(bitWidth: 8, isSigned: false)` <br> &nbsp;&nbsp; `x: int(bitWidth: 32, isSigned: false)` <br> &nbsp;&nbsp; `y: int(bitWidth: 32, isSigned: false)` <br>  `}` | yes |
+| `histogram` | `struct {` <br> &nbsp;&nbsp; `values: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `$data$: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `}` <br> &nbsp;&nbsp; `counts: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `$data$: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp; `}` <br>  `}` | yes |
+| `integer` | `int(bitWidth: 32, isSigned: true)` | yes |
+| `ip` | `binary` | yes |
+| `keyword` | `utf8` | yes |
+| `long` | `int(bitWidth: 64, isSigned: true)` | yes |
+| `null` | `null` | yes |
+| `tdigest` | `struct {` <br> &nbsp;&nbsp; `min?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `max?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `sum?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `centroids: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `$data$: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `}` <br> &nbsp;&nbsp; `counts: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `$data$: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp; `}` <br>  `}` | no |
+| `text` | `utf8` | yes |
+| `unsigned_long` | `int(bitWidth: 64, isSigned: false)` | yes |
+| `unsupported` | `null` | yes |
+| `version` | `utf8` | yes |
 
 ### Type details
 
@@ -139,30 +139,6 @@
   * `sum`: `floatingpoint(precision: DOUBLE)` nullable
 
   * `value_count`: `int(bitWidth: 32, isSigned: true)` nullable
-
-:::
-
-::::
-
-::::{tab-item} Multivalue
-
-:::{schema-tree} Arrow schema
-
-* Type: `list` nullable
-
-  Metadata: `elastic:type = "aggregate_metric_double"`
-
-  * `$data$`: `struct` non-null
-
-    Metadata: `elastic:type = "aggregate_metric_double"`
-
-    * `min`: `floatingpoint(precision: DOUBLE)` nullable
-
-    * `max`: `floatingpoint(precision: DOUBLE)` nullable
-
-    * `sum`: `floatingpoint(precision: DOUBLE)` nullable
-
-    * `value_count`: `int(bitWidth: 32, isSigned: true)` nullable
 
 :::
 
@@ -515,18 +491,6 @@
 ::::::{dropdown} dense_vector
 
 :::::{tab-set}
-
-::::{tab-item} Single value
-
-:::{schema-tree} Arrow schema
-
-* Type: `floatingpoint(precision: SINGLE)` nullable
-
-  Metadata: `elastic:type = "dense_vector"`
-
-:::
-
-::::
 
 ::::{tab-item} Multivalue
 
@@ -1217,36 +1181,6 @@
   * `counts`: `list` non-null
 
     * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
-
-:::
-
-::::
-
-::::{tab-item} Multivalue
-
-:::{schema-tree} Arrow schema
-
-* Type: `list` nullable
-
-  Metadata: `elastic:type = "tdigest"`
-
-  * `$data$`: `struct` non-null
-
-    Metadata: `elastic:type = "tdigest"`
-
-    * `min`: `floatingpoint(precision: DOUBLE)` nullable
-
-    * `max`: `floatingpoint(precision: DOUBLE)` nullable
-
-    * `sum`: `floatingpoint(precision: DOUBLE)` nullable
-
-    * `centroids`: `list` non-null
-
-      * `$data$`: `floatingpoint(precision: DOUBLE)` non-null
-
-    * `counts`: `list` non-null
-
-      * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
 
 :::
 

@@ -37,7 +37,7 @@ final class ArrowDocsSupport {
                 + "See docs/reference/query-languages/esql/README.md for how to regenerate it.\n\n"
         );
         reference.append("## Type mapping [esql-arrow-type-mapping]\n\n");
-        reference.append("| ES\\|QL type | Arrow type for a single value | May be multivalued |\n| --- | --- | --- |\n");
+        reference.append("| ES\\|QL type | Arrow type for a single value | May be <br> multivalued |\n| --- | --- | --- |\n");
         for (var type : types) {
             var formatter = ArrowResponse.ESQL_FORMATTERS.get(type);
             var multivalued = "yes";
@@ -46,9 +46,9 @@ final class ArrowDocsSupport {
             } else if (ArrowResponseTests.SINGLE_VALUED_TYPES.contains(type)) {
                 multivalued = "no";
             }
-            reference.append("| `").append(type.outputType()).append("` | <pre>");
+            reference.append("| `").append(type.outputType()).append("` | `");
             renderField(reference, formatter.arrowField("value"), 0, true);
-            reference.append("</pre> | ").append(multivalued).append(" |\n");
+            reference.append("` | ").append(multivalued).append(" |\n");
         }
         reference.append("\n");
         reference.append("### Type details\n\n");
@@ -58,11 +58,19 @@ final class ArrowDocsSupport {
             if (type == DataType.NULL || type == DataType.UNSUPPORTED) {
                 appendSchema(reference, ArrowResponse.arrowField(formatter, "value", false));
             } else {
-                reference.append(":::::{tab-set}\n\n::::{tab-item} Single value\n\n");
-                appendSchema(reference, ArrowResponse.arrowField(formatter, "value", false));
-                reference.append("::::\n\n::::{tab-item} Multivalue\n\n");
-                appendSchema(reference, ArrowResponse.arrowField(formatter, "value", true));
-                reference.append("::::\n\n:::::\n\n");
+
+                reference.append(":::::{tab-set}\n\n");
+                if (formatter.alwaysList() == false) {
+                    reference.append("::::{tab-item} Single value\n\n");
+                    appendSchema(reference, ArrowResponse.arrowField(formatter, "value", false));
+                    reference.append("::::\n\n");
+                }
+                if (ArrowResponseTests.SINGLE_VALUED_TYPES.contains(type) == false) {
+                    reference.append("::::{tab-item} Multivalue\n\n");
+                    appendSchema(reference, ArrowResponse.arrowField(formatter, "value", true));
+                    reference.append("::::\n\n");
+                }
+                reference.append(":::::\n\n");
             }
             reference.append("::::::\n\n");
         }
@@ -106,20 +114,22 @@ final class ArrowDocsSupport {
         renderType(str, field.getType());
         var children = field.getChildren();
         if (renderChildren && children.isEmpty() == false) {
-            str.append(" {<br>");
+            str.append(" {` <br> ");
 
             for (var child : children) {
-                str.append("  ".repeat(depth + 1));
+                // Leading spaces in code spans are trimmed, so indent with non-breaking spaces outside of code spans.
+                str.append("&nbsp;&nbsp;".repeat(depth + 1));
+                str.append(" `");
                 str.append(child.getName());
                 if (child.isNullable()) {
                     str.append("?");
                 }
                 str.append(": ");
                 renderField(str, child, depth + 1, true);
-                str.append("<br>");
+                str.append("` <br> ");
             }
-            str.append("  ".repeat(depth));
-            str.append("}");
+            str.append("&nbsp;&nbsp;".repeat(depth));
+            str.append(" `}");
         }
     }
 

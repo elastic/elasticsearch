@@ -85,8 +85,18 @@ public class QuerySnapshotTests extends ESTestCase {
         DiscoveryNode holder = initializing.cluster().nodes().get(copies.primaryShard().currentNodeId());
         QuerySnapshot snapshot = snapshot(Map.of(copies.shardId(), reader(holder, "commit")));
         List<DiscoveryNode> nodes = snapshot.targetShards(initializing).getShard(copies.shardId()).remainingNodes();
-        assertThat(nodes.getFirst(), equalTo(holder));
-        assertThat(nodes.size(), equalTo(3));
+        DiscoveryNode started = null;
+        DiscoveryNode recovering = null;
+        for (int c = 0; c < copies.size(); c++) {
+            var copy = copies.shard(c);
+            DiscoveryNode node = initializing.cluster().nodes().get(copy.currentNodeId());
+            if (copy.primary() == false && copy.started()) {
+                started = node;
+            } else if (copy.initializing()) {
+                recovering = node;
+            }
+        }
+        assertThat("the holder, then the started copies, then the initializing ones", nodes, equalTo(List.of(holder, started, recovering)));
     }
 
     /**

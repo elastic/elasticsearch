@@ -336,8 +336,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         service.clusterChanged(clusterChangedEvent);
         statsCycles.continueScheduler();
 
-        // Third cycle: 0 inference requests, but keep 2 allocations, because of cooldown.
-        currentTimeMillis.addAndGet(1_000);
+        // Third cycle: 0 inference requests for 2 seconds, but keep 2 allocations, because of cooldown.
+        // (After only 1 second, the estimated load would still be too high to scale down without cooldown.)
+        currentTimeMillis.addAndGet(2_000);
         statsCycles.run(() -> getDeploymentStatsResponse(2, 0, 9.0, false, AssignmentState.STARTED));
 
         verify(client, times(1)).threadPool();
@@ -471,8 +472,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         clearInvocations(client, clusterService);
         statsCycles.continueScheduler();
 
-        // Second cycle: 0 inference requests for 1 second, but a recent scale up by another node.
-        currentTimeMillis.addAndGet(1_000);
+        // Second cycle: 0 inference requests for 2 seconds, which is more than the scale-to-zero time, but a recent
+        // scale up by another node.
+        currentTimeMillis.addAndGet(2_000);
         statsCycles.run(() -> getDeploymentStatsResponse(1, 0, 10.0, true, AssignmentState.STARTED));
 
         verify(client, times(1)).threadPool();

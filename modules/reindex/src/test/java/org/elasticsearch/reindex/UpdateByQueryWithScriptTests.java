@@ -9,6 +9,8 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -30,6 +32,17 @@ import static org.mockito.Mockito.when;
 public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByPaginatedSearchActionScriptTestCase<
     UpdateByQueryRequest,
     BulkByPaginatedSearchResponse> {
+
+    public void testScriptedDeletePreservesConcurrencyConditions() {
+        long seqNo = randomNonNegativeLong();
+        long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        IndexRequest index = new IndexRequest("index").id("1").setIfSeqNo(seqNo).setIfPrimaryTerm(primaryTerm);
+        index.source(Map.of("foo", "bar"));
+        DeleteRequest delete = applyScript(index, ctx -> ctx.put("op", "delete"));
+
+        assertEquals(seqNo, delete.ifSeqNo());
+        assertEquals(primaryTerm, delete.ifPrimaryTerm());
+    }
 
     public void testModifyingCtxNotAllowed() {
         /*

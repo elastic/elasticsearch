@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -24,6 +25,8 @@ import org.mockito.Mockito;
 
 import java.util.Map;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -55,6 +58,13 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
         } else {
             assertEquals(id.toString(), index.id());
         }
+    }
+
+    public void testScriptedDeleteWithoutConcurrencyConditions() {
+        DeleteRequest delete = applyScript(ctx -> ctx.put("op", "delete"));
+        assertEquals(UNASSIGNED_SEQ_NO, delete.ifSeqNo());
+        assertEquals(UNASSIGNED_PRIMARY_TERM, delete.ifPrimaryTerm());
+        assertNull(delete.validate());
     }
 
     public void testSetVersion() throws Exception {

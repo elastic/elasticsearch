@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 167534
+summary: "[Inference] Don't retry 413s for EIS document extraction"
+type: bug

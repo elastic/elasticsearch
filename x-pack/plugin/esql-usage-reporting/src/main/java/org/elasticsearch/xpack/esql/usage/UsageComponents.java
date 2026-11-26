@@ -33,7 +33,7 @@ public final class UsageComponents {
     }
 
     public static UsagePublisher newPublisher(UsageReportingSettings settings, SslProfile sslProfile) {
-        return NoopUsagePublisher.INSTANCE;
+        return new HttpUsagePublisher(settings, sslProfile);
     }
 
     public static UsageReporter newReporter(
@@ -46,6 +46,6 @@ public final class UsageComponents {
         ThreadPool threadPool,
         Clock clock
     ) {
-        return NoopUsageReporter.INSTANCE;
+        return new ScheduledUsageReporter(settings, accumulator, builder, store, publisher, identity, threadPool, clock);
     }
 }

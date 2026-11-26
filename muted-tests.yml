@@ -988,3 +988,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testSerializationOfSimple {TestCase=<long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <null>, <long>, <long>, <long>, <long>, <long>, <long>}
   issue: https://github.com/elastic/elasticsearch/issues/167607
+- class: org.elasticsearch.datastreams.TSDBPassthroughIndexingIT
+  tasks:
+  - :modules:data-streams:internalClusterTest
+  method: testIndexingGettingAndSearching
+  issue: https://github.com/elastic/elasticsearch/issues/167611

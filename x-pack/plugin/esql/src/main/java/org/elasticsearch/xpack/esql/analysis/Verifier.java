@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -257,7 +258,7 @@ public class Verifier {
         Holder<Long> total,
         Holder<FillNull> overflowing
     ) {
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
             countFillNullFields(subqueryJoin.left(), failures, maxFields, total, overflowing);
             checkFillNullFieldCount(subqueryJoin.right(), failures, maxFields);
             return;
@@ -610,15 +611,14 @@ public class Verifier {
 
     /**
      * Pre-order search for the first {@link Limit}/{@link LimitBy} below {@code plan}, skipping the right branch of any
-     * {@link AbstractSubqueryJoin}: a LIMIT inside an IN subquery only bounds the independently executed subquery result, not the main
+     * {@link IndependentSubqueryJoin}: a LIMIT inside an IN subquery only bounds the independently executed subquery result, not the main
      * stream feeding INLINE STATS. Returns {@code null} when no LIMIT is found.
      */
     private static LogicalPlan findLimitSkippingSubqueryJoins(LogicalPlan plan) {
         if (plan instanceof Limit || plan instanceof LimitBy) {
             return plan;
         }
-        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : plan.children();
-        for (LogicalPlan child : children) {
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
             LogicalPlan limit = findLimitSkippingSubqueryJoins(child);
             if (limit != null) {
                 return limit;

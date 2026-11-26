@@ -111,6 +111,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -303,6 +304,17 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.formatReaderRegistry = formatReaderRegistry;
+        new FetchService(
+            transportService,
+            clusterService,
+            projectResolver,
+            transportActionServices.indexNameExpressionResolver(),
+            searchService,
+            this.bigArrays,
+            blockFactory,
+            plannerSettings::get,
+            computeExecutor
+        ).registerHandlers();
     }
 
     /** The minimum transport version of the nodes that may read the splits planned here. */

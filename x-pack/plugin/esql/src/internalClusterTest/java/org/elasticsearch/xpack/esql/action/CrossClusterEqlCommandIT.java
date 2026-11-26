@@ -12,9 +12,11 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -48,30 +50,7 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
     }
 
     public void testEqlEventQueryReadsFromRemoteCluster() throws Exception {
-        assumeTrue("EQL command is snapshot-only", Build.current().isSnapshot());
-        setupClusters(2); // registers the remote connection and skip_unavailable settings
-
-        // The EQL-shaped events live only on the remote cluster.
-        Client remote = client(REMOTE_CLUSTER_1);
-        assertAcked(
-            remote.admin()
-                .indices()
-                .prepareCreate("eql_events")
-                .setSettings(Settings.builder().put("index.number_of_shards", 1))
-                .setMapping("@timestamp", "type=date", "event.category", "type=keyword", "process.name", "type=keyword")
-        );
-        remote.prepareBulk()
-            .add(
-                new IndexRequest("eql_events").id("p1")
-                    .source("@timestamp", "2026-07-22T10:00:00Z", "event.category", "process", "process.name", "cmd.exe")
-            )
-            .add(new IndexRequest("eql_events").id("n1").source("@timestamp", "2026-07-22T10:00:01Z", "event.category", "network"))
-            .add(
-                new IndexRequest("eql_events").id("p2")
-                    .source("@timestamp", "2026-07-22T10:00:02Z", "event.category", "process", "process.name", "powershell.exe")
-            )
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        setupRemoteEvents();
 
         // Run the EQL command from the LOCAL cluster, targeting the REMOTE index via cluster-qualified pattern.
         String query = "EQL " + REMOTE_CLUSTER_1 + ":eql_events \"process where true\" | STATS count = COUNT(*)";
@@ -96,5 +75,43 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
             assertThat(rows.get(0).get(0).toString(), equalTo(qualified));
             assertThat(rows.get(1).get(0).toString(), equalTo(qualified));
         }
+    }
+
+    public void testRequestFilterReachesRemoteEqlSearch() throws Exception {
+        setupRemoteEvents();
+        String query = "EQL " + REMOTE_CLUSTER_1 + ":eql_events \"process where true\" | KEEP process.name";
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(query).filter(new TermQueryBuilder("process.name", "cmd.exe"));
+        try (EsqlQueryResponse resp = runQuery(request)) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of("cmd.exe"))));
+            EsqlExecutionInfo.Cluster remoteCluster = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        }
+    }
+
+    private void setupRemoteEvents() throws IOException {
+        assumeTrue("EQL command is snapshot-only", Build.current().isSnapshot());
+        setupClusters(2); // registers the remote connection and skip_unavailable settings
+
+        // The EQL-shaped events live only on the remote cluster.
+        Client remote = client(REMOTE_CLUSTER_1);
+        assertAcked(
+            remote.admin()
+                .indices()
+                .prepareCreate("eql_events")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("@timestamp", "type=date", "event.category", "type=keyword", "process.name", "type=keyword")
+        );
+        remote.prepareBulk()
+            .add(
+                new IndexRequest("eql_events").id("p1")
+                    .source("@timestamp", "2026-07-22T10:00:00Z", "event.category", "process", "process.name", "cmd.exe")
+            )
+            .add(new IndexRequest("eql_events").id("n1").source("@timestamp", "2026-07-22T10:00:01Z", "event.category", "network"))
+            .add(
+                new IndexRequest("eql_events").id("p2")
+                    .source("@timestamp", "2026-07-22T10:00:02Z", "event.category", "process", "process.name", "powershell.exe")
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
     }
 }

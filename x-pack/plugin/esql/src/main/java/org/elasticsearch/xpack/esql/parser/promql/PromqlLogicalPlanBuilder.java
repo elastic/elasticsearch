@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.parser.promql;
 
-import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -219,26 +218,12 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         };
     }
 
-    private Literal unwrapLiteral(ParserRuleContext ctx) {
-        Object o = visit(ctx);
-        return switch (o) {
-            case Literal literal -> literal;
-            case Expression expression -> {
-                if (expression.foldable()) {
-                    yield Literal.of(FoldContext.small(), expression);
-                }
-                throw new ParsingException(source(ctx), "Constant expression required, found [{}]", expression.sourceText());
-            }
-            case LiteralSelector selector -> selector.literal();
-            default -> throw new ParsingException(source(ctx), "Constant expression required, found [{}]", ctx.getText());
-        };
-    }
-
     @Override
     public LogicalPlan visitSelector(PromqlBaseParser.SelectorContext ctx) {
         Source source = source(ctx);
         PromqlBaseParser.SeriesMatcherContext seriesMatcher = ctx.seriesMatcher();
-        String id = visitIdentifier(seriesMatcher.identifier());
+        PromqlBaseParser.MetricNameContext metricName = seriesMatcher.metricName();
+        String id = metricName == null ? null : metricName.getText();
         List<LabelMatcher> labels = new ArrayList<>();
         Expression series = null;
         List<Expression> labelExpressions = new ArrayList<>();
@@ -248,7 +233,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         if (id != null) {
             labels.add(new LabelMatcher(NAME, id, LabelMatcher.Matcher.EQ));
             // TODO: metric/ts name can be missing (e.g. {label=~"value"})
-            series = new UnresolvedAttribute(source(seriesMatcher.identifier()), id);
+            series = new UnresolvedAttribute(source(metricName), id);
         }
 
         boolean nonEmptyMatcher = id != null;
@@ -610,43 +595,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             return Literal.NULL;
         }
 
-        // Case 1: COLON (resolution=duration)?
-        // Examples: ":5m", ":(5m + 1m)", etc.
-        // This reuses visitDuration which already handles arithmetic through expression folding
+        // COLON (resolution=duration)?, such as ":5m", ":1.5" or ":(5m + 1m)"; visitDuration folds the arithmetic
         if (ctx.resolution != null) {
             return visitDuration(ctx.resolution);
-        }
-
-        // Case 2-5: TIME_VALUE_WITH_COLON cases
-        // Examples: ":5m", ":5m * 2", ":5m ^ 2", ":5m + 1m", etc.
-        var timeCtx = ctx.TIME_VALUE_WITH_COLON();
-        if (timeCtx != null) {
-            // Parse the base time value (e.g., ":5m" -> "5m")
-            String timeString = timeCtx.getText().substring(1).trim();
-            Source timeSource = source(timeCtx);
-            Duration baseValue = PromqlParserUtils.parseDuration(timeSource, timeString);
-
-            if (ctx.op == null || ctx.expression() == null) {
-                return Literal.timeDuration(source(timeCtx), baseValue);
-            }
-
-            // Evaluate right expression
-            Object rightValue = unwrapLiteral(ctx.expression()).value();
-
-            // Perform arithmetic using utility
-            BinaryOp binaryOp = binaryOp(ctx.op);
-            Object result;
-            if (binaryOp instanceof ArithmeticOp operation) {
-                result = PromqlFoldingUtils.evaluate(source(ctx), baseValue, rightValue, operation);
-            } else {
-                throw new ParsingException(source(ctx), "Unsupported binary operator [{}] in time duration", binaryOp);
-            }
-            // Result should be Duration
-            if (result instanceof Duration duration) {
-                return Literal.timeDuration(source(timeCtx), duration);
-            }
-
-            throw new ParsingException(source(ctx), "Expected duration result, got [{}]", result.getClass().getSimpleName());
         }
 
         // Just COLON with no resolution - use default

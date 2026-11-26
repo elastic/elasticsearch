@@ -7,15 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.heappressure;
+package org.elasticsearch.test.rest;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
-import org.elasticsearch.test.rest.HeapPressureTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -171,6 +171,22 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
         int docs,
         IntFunction<String> doc
     ) throws IOException {
+        indexBulkEntries(restClient, index, shards, extraSettings, properties, docs, i -> "{\"index\":{}}\n" + doc.apply(i));
+    }
+
+    /**
+     * Like {@link #indexDocuments(RestClient, String, int, String, String, int, IntFunction)}, but {@code bulkEntry} returns the whole bulk
+     * entry of each document, its action line and its source line, so that a document can have its own {@code _id} or {@code routing}.
+     */
+    protected void indexBulkEntries(
+        RestClient restClient,
+        String index,
+        int shards,
+        String extraSettings,
+        String properties,
+        int docs,
+        IntFunction<String> bulkEntry
+    ) throws IOException {
         if (indexExists(restClient, index)) {
             return;
         }
@@ -185,7 +201,7 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
 
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < docs; i++) {
-            bulk.append("{\"index\":{}}\n").append(doc.apply(i)).append('\n');
+            bulk.append(bulkEntry.apply(i)).append('\n');
             // A few MB per bulk request, which a 256 MB node handles, and at most MAX_DOCS_PER_BULK documents, which is what limits a bulk
             // of very small ones.
             if (bulk.length() >= 4 * 1024 * 1024 || (i + 1) % MAX_DOCS_PER_BULK == 0 || i == docs - 1) {
@@ -203,6 +219,7 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
         restClient.performRequest(forceMerge);
         restClient.performRequest(new Request("POST", "/" + index + "/_refresh"));
         ensureGreen(restClient, index);
+        logger.info("Indexed {} documents into [{}]", docs, index);
     }
 
     /**
@@ -260,11 +277,27 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
 
     /**
      * Asserts that {@code request} succeeds at size {@code small} and is rejected under {@code label} at size {@code large}, so a case
-     * cannot pass on a node that rejects every such request.
+     * cannot pass on a node that rejects every such request. The start of the large request is logged, so that a node that dies is seen
+     * to die on it.
+     *
+     * <p>With a {@code null} label the large request may also succeed, or be rejected by any circuit breaker, and only a node that dies
+     * fails the case. This is for memory that may well fit and that no breaker charges yet, so there is no label to expect.
      */
-    protected void assertTripsOnlyWhenLarge(IntFunction<Request> request, int small, int large, String label) throws IOException {
+    protected void assertTripsOnlyWhenLarge(IntFunction<Request> request, int small, int large, @Nullable String label) throws IOException {
         assertSucceeds(request.apply(small));
-        assertCircuitBreaks(request.apply(large), label);
+        logger.info("Searching with {} items", large);
+        if (label != null) {
+            assertCircuitBreaks(request.apply(large), label);
+            return;
+        }
+        Map<String, Object> body = errorBodyOrNull(request.apply(large));
+        if (body != null) {
+            assertTrue("expected only a circuit_breaking_exception, but got: " + body, containsCircuitBreakingException(body));
+            logger.info("rejected by a circuit breaker: {}", body);
+        } else {
+            logger.info("succeeded");
+        }
+        assertNodeAlive();
     }
 
     /** Asserts that the request succeeds and that every node survives it. */

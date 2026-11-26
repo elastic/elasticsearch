@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
@@ -1263,6 +1264,47 @@ public final class IndexSettings {
         return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
     }
 
+    /** Gates {@link #BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING} while the numeric doc values layout it opts into is under development. */
+    public static final FeatureFlag BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG = new FeatureFlag("binary_numeric_doc_values");
+
+    /**
+     * Opts the numeric fields of a strict columnar index into binary doc values, which the ColumNAR codec stores as numeric
+     * columns. So far only {@code long} fields write them. Off by default while the format is under development, and only
+     * registered while the {@code binary_numeric_doc_values} feature flag is enabled.
+     */
+    public static final Setting<Boolean> BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING = Setting.boolSetting(
+        "index.binary_numeric_doc_values.enabled",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (isPresent && indexMode.isStrictColumnar() == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is only permitted when [%s] is a columnar index mode. Current mode: [%s].",
+                            BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(),
+                            MODE.getKey(),
+                            indexMode.getName()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(MODE);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -1668,6 +1710,7 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean timeSeriesEs95CodecEnabled;
+    private final boolean binaryNumericDocValues;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
@@ -1902,6 +1945,8 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        binaryNumericDocValues = BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled()
+            && scopedSettings.get(BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -2800,6 +2845,15 @@ public final class IndexSettings {
      */
     public boolean isTimeSeriesEs95CodecEnabled() {
         return timeSeriesEs95CodecEnabled;
+    }
+
+    /**
+     * @return whether the numeric fields of this index that support it write their doc values as one binary payload per
+     *         document, in the order the values were written, rather than as {@code SORTED_NUMERIC}; resolved from
+     *         {@link #BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING}, and always {@code false} while the feature flag is off
+     */
+    public boolean useBinaryNumericDocValues() {
+        return binaryNumericDocValues;
     }
 
     /**

@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Generates the unsupported-type sentence in the {@code DEDUP} docs from {@link DataType#isGroupable()},
- * so the page cannot list a type the command accepts or omit one it rejects.
+ * Generates the grouping-type restrictions in the {@code DEDUP} docs from {@link DataType#isGroupable()},
+ * explicitly documenting the existing exception for indirect counter references.
  */
 public class DedupUnsupportedTypesDocsTests extends ESTestCase {
     /**
@@ -85,7 +85,9 @@ public class DedupUnsupportedTypesDocsTests extends ESTestCase {
             .append(". Do not edit it. See docs/reference/query-languages/esql/README.md for how to regenerate it.\n\n");
         builder.append("`DEDUP` cannot be used when any column in scope has one of the following types: ")
             .append(englishList(names))
-            .append(". Attempting to do so results in a validation error. ")
+            .append(". Attempting to do so results in a validation error, ")
+            .append("except for indirect counter references, such as renamed ")
+            .append("counter fields, which remain accepted for backward compatibility. ")
             .append("Use `KEEP` or `DROP` before `DEDUP` to remove such columns.\n");
         return builder.toString();
     }

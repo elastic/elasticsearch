@@ -426,13 +426,19 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
     private static Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands() {
         return Map.of(
-            new ClusterInfo.NodeAndShard("node-id", new ShardId("index", "uuid", 0)),
-            new SearchCopyDemand(1.25d, 3.0d)
+            new ClusterInfo.NodeAndShard(
+                randomIdentifier(),
+                new ShardId(randomIdentifier(), randomUUID(), randomIntBetween(0, 10))
+            ),
+            new SearchCopyDemand(randomDouble(), randomDouble())
         );
     }
 
     private static Map<String, NodeSearchCapacity> nodeSearchCapacities() {
-        return Map.of("node-id", new NodeSearchCapacity(4.0d, 8.0d));
+        return Map.of(
+            randomIdentifier(),
+            new NodeSearchCapacity(randomDoubleBetween(0.1, 64.0, true), randomDoubleBetween(0.1, 64.0, true))
+        );
     }
 
     private static InternalClusterInfoService searchLoadClusterInfoService(

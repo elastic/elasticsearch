@@ -1052,39 +1052,64 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
     }
 
     public void testSearchLoadMetricsAreUnchangedBySimulation() {
-        final String nodeId = "node-0";
-        final ShardId shardId = new ShardId("my-index", "_na_", 0);
+        final String sourceNodeId = randomIdentifier();
+        final String targetNodeId = randomValueOtherThan(sourceNodeId, ESAllocationTestCase::randomIdentifier);
+        final long shardSize = randomLongBetween(1, 1_000);
+        final long sourceTotal = randomLongBetween(shardSize, 10_000);
+        final long targetTotal = randomLongBetween(shardSize, 10_000);
+        final long sourceFree = randomLongBetween(0, sourceTotal - shardSize);
+        final long targetFree = randomLongBetween(shardSize, targetTotal);
+        final String sourcePath = "/" + randomAlphaOfLength(8);
+        final String targetPath = "/" + randomAlphaOfLength(8);
+
+        final ShardId shardId = new ShardId(randomIdentifier(), "_na_", 0);
+        final var relocatingShard = shardRoutingBuilder(shardId, targetNodeId, true, INITIALIZING).withRelocatingNodeId(sourceNodeId)
+            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+            .build();
         final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands = Map.of(
-            new ClusterInfo.NodeAndShard(nodeId, shardId),
-            new SearchCopyDemand(1.5d, 2.5d)
+            new ClusterInfo.NodeAndShard(sourceNodeId, shardId),
+            new SearchCopyDemand(randomDouble(), randomDouble())
         );
-        final Map<String, NodeSearchCapacity> nodeSearchCapacities = Map.of(nodeId, new NodeSearchCapacity(4.0d, 8.0d));
+        final Map<String, NodeSearchCapacity> nodeSearchCapacities = Map.of(
+            sourceNodeId,
+            new NodeSearchCapacity(randomDoubleBetween(0.1, 64.0, true), randomDoubleBetween(0.1, 64.0, true)),
+            targetNodeId,
+            new NodeSearchCapacity(randomDoubleBetween(0.1, 64.0, true), randomDoubleBetween(0.1, 64.0, true))
+        );
+
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        addIndex(metadataBuilder, routingTableBuilder, relocatingShard);
+        final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode(sourceNodeId)).add(newNode(targetNodeId)))
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
         final ClusterInfo initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode(nodeId, new DiskUsageBuilder(1000, 1000))
+            .withNode(sourceNodeId, new DiskUsageBuilder(sourcePath, sourceTotal, sourceFree))
+            .withNode(targetNodeId, new DiskUsageBuilder(targetPath, targetTotal, targetFree))
+            .withShard(relocatingShard, shardSize)
             .searchCopyDemands(searchCopyDemands)
             .nodeSearchCapacities(nodeSearchCapacities)
             .build();
 
-        final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
-        final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(index)
-            .build();
-        final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(index, false))
-            .routingTable(projectRoutingTable)
-            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId)).build())
-            .build();
-        final var newPrimary = shardRoutingBuilder(shardId, nodeId, true, ShardRoutingState.INITIALIZING).withRecoverySource(
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        ).build();
         final ClusterInfoSimulator simulator = new ClusterInfoSimulator(
             createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY)
         );
-        simulator.simulateShardStarted(newPrimary);
+        simulator.simulateShardStarted(relocatingShard);
 
-        final ClusterInfo simulated = simulator.getClusterInfo();
-        assertThat(simulated.getSearchCopyDemands(), equalTo(searchCopyDemands));
-        assertThat(simulated.getNodeSearchCapacities(), equalTo(nodeSearchCapacities));
+        assertThat(
+            simulator.getClusterInfo(),
+            equalTo(
+                new ClusterInfoTestBuilder() //
+                    .withNode(sourceNodeId, new DiskUsageBuilder(sourcePath, sourceTotal, sourceFree + shardSize))
+                    .withNode(targetNodeId, new DiskUsageBuilder(targetPath, targetTotal, targetFree - shardSize))
+                    .withShard(relocatingShard, shardSize)
+                    .searchCopyDemands(searchCopyDemands)
+                    .nodeSearchCapacities(nodeSearchCapacities)
+                    .build()
+            )
+        );
     }
 
     private static ClusterState clusterStateWithRoles(

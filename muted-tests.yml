@@ -1015,3 +1015,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testTypeResolved {TestCase=<long, 18 doubles> null in 5}
   issue: https://github.com/elastic/elasticsearch/issues/167622
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testAnyNullIsNull {TestCase=<long>, <long>, <long>, <null>, <long>, <long>, <long>, <long>, <long>}
+  issue: https://github.com/elastic/elasticsearch/issues/167627

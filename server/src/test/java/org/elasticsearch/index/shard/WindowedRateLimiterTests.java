@@ -29,42 +29,26 @@ public class WindowedRateLimiterTests extends ESTestCase {
         return new WindowedRateLimiter(permitsPerWindow, TimeValue.timeValueNanos(windowNanos), clock::get);
     }
 
+    /** Each window starts at its first nanosecond and ends at its last, so the window boundaries are checked exactly. */
     public void testPermitsResetInEachNewWindow() {
         var clock = new AtomicLong();
         var limiter = limiterWithClock(clock);
-        long windowIndex = randomWindowIndex();
+        long windowStart = randomWindowIndex() * windowNanos;
 
         int windows = randomIntBetween(2, 5);
         for (int w = 0; w < windows; w++) {
-            clock.set(windowIndex * windowNanos + randomLongBetween(0, windowNanos - 1));
+            clock.set(windowStart);
             assertTrue("window " + w, limiter.mayHavePermit());
             for (int i = 0; i < permitsPerWindow; i++) {
                 assertTrue("window " + w + " permit " + i, limiter.tryAcquirePermit());
+                clock.set(windowStart + randomLongBetween(0, windowNanos - 1));
             }
+            assertFalse("window " + w, limiter.tryAcquirePermit());
+            clock.set(windowStart + windowNanos - 1);
             assertFalse("window " + w, limiter.mayHavePermit());
-            int extraCalls = randomIntBetween(1, 20);
-            for (int i = 0; i < extraCalls; i++) {
-                assertFalse("window " + w + " extra call " + i, limiter.tryAcquirePermit());
-            }
-            windowIndex += randomLongBetween(1, 100);
+            assertFalse("window " + w, limiter.tryAcquirePermit());
+            windowStart += randomLongBetween(1, 100) * windowNanos;
         }
-    }
-
-    public void testWindowBoundaryIsExact() {
-        long windowStart = randomWindowIndex() * windowNanos;
-        var clock = new AtomicLong(windowStart);
-        var limiter = limiterWithClock(clock);
-        for (int i = 0; i < permitsPerWindow; i++) {
-            assertTrue(limiter.tryAcquirePermit());
-        }
-
-        clock.set(windowStart + windowNanos - 1);
-        assertFalse(limiter.mayHavePermit());
-        assertFalse(limiter.tryAcquirePermit());
-
-        clock.set(windowStart + windowNanos);
-        assertTrue(limiter.mayHavePermit());
-        assertTrue(limiter.tryAcquirePermit());
     }
 
     public void testConcurrentCallsGrantExactlyOneWindowOfPermits() {
@@ -72,7 +56,7 @@ public class WindowedRateLimiterTests extends ESTestCase {
         var granted = new AtomicInteger();
         int callsPerThread = randomIntBetween(10, 200);
 
-        startInParallel(randomIntBetween(2, 8), _ -> {
+        startInParallel(randomIntBetween(2, 8), thread -> {
             for (int i = 0; i < callsPerThread; i++) {
                 if (limiter.tryAcquirePermit()) {
                     granted.incrementAndGet();

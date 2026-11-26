@@ -448,34 +448,50 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
     public void testDocValuesSkipperBytesReportedSeparately() throws Exception {
         final CodecMode codecMode = randomFrom(CodecMode.values());
-        final int numDocs = between(500, 2000);
+        // 512 documents fill whole upper-level skip intervals, which is where the final intervals are easiest to miss
+        final int numDocs = randomBoolean() ? 512 : between(500, 2000);
         final long[] values = new long[numDocs];
         for (int i = 0; i < numDocs; i++) {
             values[i] = random().nextInt(1024);
         }
-        final IndexDiskUsageStats.PerFieldDiskUsage withSkipper = analyzeNumericField(codecMode, values, true);
-        final IndexDiskUsageStats.PerFieldDiskUsage withoutSkipper = analyzeNumericField(codecMode, values, false);
+        final NumericFieldUsage withSkipper = analyzeNumericField(codecMode, values, true);
+        final NumericFieldUsage withoutSkipper = analyzeNumericField(codecMode, values, false);
 
-        assertThat(withoutSkipper.getDocValuesSkipperBytes(), equalTo(0L));
-        assertThat(withoutSkipper.getDocValuesBytes(), greaterThan(0L));
-        assertThat(withSkipper.getDocValuesSkipperBytes(), greaterThan(0L));
+        assertThat(withoutSkipper.analyzed().getDocValuesSkipperBytes(), equalTo(0L));
+        assertThat(withoutSkipper.analyzed().getDocValuesBytes(), greaterThan(0L));
+        assertThat(withSkipper.analyzed().getDocValuesSkipperBytes(), greaterThan(0L));
         // every leaf interval has a record of at least a level byte plus max/min doc id, max/min value and doc count
         final long minRecordBytes = 1 + 2 * Integer.BYTES + 2 * Long.BYTES + Integer.BYTES;
-        assertThat(withSkipper.getDocValuesSkipperBytes(), greaterThanOrEqualTo((numDocs / SMALL_SKIP_INTERVAL) * minRecordBytes));
+        assertThat(
+            withSkipper.analyzed().getDocValuesSkipperBytes(),
+            greaterThanOrEqualTo((numDocs / SMALL_SKIP_INTERVAL) * minRecordBytes)
+        );
         // identical values must give the same doc values size whether or not the skipper exists
-        assertFieldStats("ndv", "doc values", withSkipper.getDocValuesBytes(), withoutSkipper.getDocValuesBytes(), 0.01, 2560);
+        assertFieldStats(
+            "ndv",
+            "doc values",
+            withSkipper.analyzed().getDocValuesBytes(),
+            withoutSkipper.analyzed().getDocValuesBytes(),
+            0.01,
+            2560
+        );
+        // the only difference between the two files on disk is the skipper, so that is the independent expected size
+        final long expectedSkipperBytes = withSkipper.onDisk().getDocValuesBytes() - withoutSkipper.onDisk().getDocValuesBytes();
+        assertFieldStats("ndv", "skipper", withSkipper.analyzed().getDocValuesSkipperBytes(), expectedSkipperBytes, 0.01, 256);
     }
 
-    private IndexDiskUsageStats.PerFieldDiskUsage analyzeNumericField(CodecMode codecMode, long[] values, boolean withSkipper)
-        throws Exception {
+    private record NumericFieldUsage(IndexDiskUsageStats.PerFieldDiskUsage analyzed, IndexDiskUsageStats.PerFieldDiskUsage onDisk) {}
+
+    private NumericFieldUsage analyzeNumericField(CodecMode codecMode, long[] values, boolean withSkipper) throws Exception {
         try (Directory dir = createNewDirectory()) {
             final int[] next = { 0 };
             indexRandomly(dir, new CodecWithSmallSkipInterval(codecMode.mode()), values.length, doc -> {
                 final long value = values[next[0]++];
                 doc.add(withSkipper ? NumericDocValuesField.indexedField("ndv", value) : new NumericDocValuesField("ndv", value));
             });
-            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
-            return stats.getFields().get("ndv");
+            final IndexDiskUsageStats analyzed = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            final IndexDiskUsageStats onDisk = collectPerFieldStats(dir);
+            return new NumericFieldUsage(analyzed.getFields().get("ndv"), onDisk.getFields().get("ndv"));
         }
     }
 

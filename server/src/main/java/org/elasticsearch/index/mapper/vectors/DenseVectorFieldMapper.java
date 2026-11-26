@@ -48,6 +48,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -87,6 +88,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.MapperMergeContext;
@@ -144,6 +146,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -4443,6 +4446,78 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     /**
+     * The full paths of the {@code dense_vector} fields of {@code mapping} whose element values the row path parses as floats,
+     * that is every {@code float} and {@code bfloat16} vector, except those whose source text the row path may keep. {@code mapping}
+     * is the root of a mapping as {@link org.elasticsearch.cluster.metadata.MappingMetadata#sourceAsMap} returns it, and
+     * {@code indexKeepMode} the index's {@link Mapper#SYNTHETIC_SOURCE_KEEP_INDEX_SETTING}.
+     *
+     * <p>The coordinating node encodes a batch without the parsed mappings, so it reads these from the raw mapping to parse the
+     * elements of these vectors straight to float, as the row path does, instead of to double. An omitted {@code element_type}
+     * defaults to {@code float}, or to {@code bfloat16} in {@code vectordb} index mode, which are both included.
+     *
+     * <p>With synthetic source, the row path copies the text of a vector to {@code _ignored_source} when the vector or an object
+     * around it has {@code synthetic_source_keep: all}, and when it is in an array of objects that keep arrays, by their own
+     * {@code synthetic_source_keep: arrays} or the index's. A batch with such a vector falls back to the row path, but from the
+     * source rebuilt from the batch, where an element parsed to float would be written out widened to double, such as
+     * {@code 0.012299999594688416} for {@code 0.0123}. So these vectors are left out, and their elements are parsed as doubles,
+     * which keep their text. An object that keeps arrays leaves out its vectors whether or not a document holds it in an array.
+     * Vectors in an object with {@code enabled: false}, or under a disabled root, are left out too: the row path keeps such an
+     * object's source verbatim, with any source mode.
+     */
+    public static Set<String> floatElementPaths(Map<String, ?> mapping, Mapper.SourceKeepMode indexKeepMode) {
+        final Set<String> paths = new HashSet<>();
+        collectFloatElementPaths(mapping, "", indexKeepMode.toString(), paths);
+        return paths;
+    }
+
+    /**
+     * Whether the {@code _source} of an index with {@code indexSettings} may keep the client's text of its vectors, which the batch
+     * path rewrites from the encoded values. The strict columnar index modes never do: their {@code _source} renders vectors from
+     * the indexed floats. Other modes do when {@link IndexSettings#INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING} is off, unless their
+     * source is synthetic, which this does not resolve and so counts as keeping the text.
+     *
+     * <p>The coordinating node parses the elements of the vectors of such an index as doubles, not straight to float through
+     * {@link #floatElementPaths}, so that the {@code _source} the batch path rebuilds keeps the spelling it has always had: a
+     * float widened to double would be written out with up to 17 significant digits, such as {@code 0.012299999594688416} for
+     * {@code 0.0123}.
+     */
+    public static boolean sourceMayKeepVectorText(Settings indexSettings) {
+        return IndexSettings.MODE.get(indexSettings).isStrictColumnar() == false
+            && IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings) == false;
+    }
+
+    private static void collectFloatElementPaths(Map<?, ?> objectMapping, String prefix, String indexKeepMode, Set<String> paths) {
+        // An object with enabled: false, or a disabled root, keeps its source verbatim and parses none of its properties, so its
+        // vectors are never indexed and their text is kept in _source, or in _ignored_source with synthetic source.
+        if ("false".equals(String.valueOf(objectMapping.get("enabled")))) {
+            return;
+        }
+        if (objectMapping.get("properties") instanceof Map<?, ?> properties) {
+            for (Map.Entry<?, ?> entry : properties.entrySet()) {
+                if (entry.getValue() instanceof Map<?, ?> fieldMapping) {
+                    final String path = prefix + entry.getKey();
+                    final Object keepMode = fieldMapping.get(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
+                    if (CONTENT_TYPE.equals(fieldMapping.get("type"))) {
+                        final Object elementType = fieldMapping.get("element_type");
+                        if ((elementType == null
+                            || ElementType.FLOAT.toString().equals(elementType)
+                            || ElementType.BFLOAT16.toString().equals(elementType))
+                            // a vector parses its array itself, so only keeping all source keeps its text
+                            && Mapper.SourceKeepMode.ALL.toString().equals(keepMode) == false) {
+                            paths.add(path);
+                        }
+                    } else {
+                        final Object objectKeepMode = keepMode != null ? keepMode : indexKeepMode;
+                        if (Mapper.SourceKeepMode.NONE.toString().equals(objectKeepMode)) {
+                            collectFloatElementPaths(fieldMapping, path + ".", indexKeepMode, paths);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Columnar counterpart of {@link #parse} for the configurations {@link #doSupportsColumnarParse} accepts. Each document's
      * vector is read from the batch's ESCF source column, as an array of numbers or a base64-encoded string, and validated as the
      * row path validates it. A document the batch path cannot handle the same way, such as a vector of the wrong length or an
@@ -4475,29 +4550,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     continue;
                 }
                 case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> {
-                    vector = new float[dims];
+                    vector = vectorElements(source, doc, type, dims);
                     // Accumulated in float, element by element, exactly as FloatElement#parseVectorArray does on the row path, so
                     // that the unit-length check of dot_product accepts and rejects the same vectors on both paths.
                     // TODO: only dot_product and cosine need the magnitude (l2_norm and max_inner_product use it only to guard
-                    // against overflow), and it could be computed after the loop with the SIMD ESVectorUtil#dotProduct, as the
-                    // query path does.
+                    // against overflow), and it could be computed with the SIMD ESVectorUtil#dotProduct, as the query path does.
                     float sum = 0;
-                    final ArrayReader array = source.getArrayValue(doc);
-                    int index = 0;
-                    while (array.next()) {
-                        if (index >= dims) {
-                            throw new UnsupportedOperationException(
-                                "mapColumnBatch: [" + fullPath() + "] has more dimensions than defined in the mapping [" + dims + "]"
-                            );
-                        }
-                        final float value = vectorElementValue(array);
-                        vector[index++] = value;
+                    for (float value : vector) {
                         sum += value * value;
-                    }
-                    if (index != dims) {
-                        throw new UnsupportedOperationException(
-                            "mapColumnBatch: [" + fullPath() + "] has [" + index + "] dimensions, the mapping defines [" + dims + "]"
-                        );
                     }
                     squaredMagnitude = sum;
                 }
@@ -4558,12 +4618,42 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     /**
+     * The elements of the array vector of {@code doc}, which must have {@code dims} of them, as floats. An array of {@code dims}
+     * numbers only, the common case, is read in bulk; any other array is read element by element, which allocates no more than
+     * {@code dims} floats, stops at the first element past them, and throws on a non-number element.
+     */
+    private float[] vectorElements(EscfColumn source, int doc, byte type, int dims) {
+        final float[] numbers = type == SourceValueType.FIXED_ARRAY ? source.numericArrayAsFloats(doc, dims) : null;
+        if (numbers != null) {
+            return numbers;
+        }
+        final float[] vector = new float[dims];
+        final ArrayReader array = source.getArrayValue(doc);
+        int index = 0;
+        while (array.next()) {
+            if (index >= dims) {
+                throw new UnsupportedOperationException(
+                    "mapColumnBatch: [" + fullPath() + "] has more dimensions than defined in the mapping [" + dims + "]"
+                );
+            }
+            vector[index++] = vectorElementValue(array);
+        }
+        if (index != dims) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: [" + fullPath() + "] has [" + index + "] dimensions, the mapping defines [" + dims + "]"
+            );
+        }
+        return vector;
+    }
+
+    /**
      * The value of the vector element {@code array} is positioned on, converted to a float the way the row path's
      * {@code XContentParser#floatValue} converts a JSON number. Anything but a number is left for the row path to reject.
      *
-     * <p>TODO: a {@code DOUBLE} element was parsed from JSON as a double and is narrowed here, so it is rounded twice and may differ
-     * by an ulp from the row path, which parses straight to float; it also takes twice the bytes of a float in the batch. Read
-     * float elements once the ESCF encoder produces them for float vectors: https://github.com/elastic/elasticsearch/issues/165790
+     * <p>The coordinating node parses the elements of a vector its mapping already knows straight to float, as the row path does,
+     * so a {@code DOUBLE} element holds such a float exactly and narrowing it is exact. A vector the coordinating node did not
+     * know as one, such as one mapped dynamically by this very bulk, has its elements parsed as doubles: narrowing those rounds
+     * twice, which on the rare doubles that are float midpoints may give a float one ulp off the row path's.
      */
     private float vectorElementValue(ArrayReader array) {
         return switch (array.type()) {

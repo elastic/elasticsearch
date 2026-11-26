@@ -138,6 +138,7 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSortParser;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.FlushMetrics;
@@ -770,6 +771,8 @@ class NodeConstruction {
         modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
         TemplateDecoratorProvider.initOnce(pluginsService.loadServiceProviders(TemplateDecoratorProvider.class));
+        // A plugin's providers can be found again through the plugins that extend it
+        pluginsService.loadServiceProviders(IndexSortParser.class).forEach(IndexSortParser::init);
 
         RootObjectMapperNamespaceValidator namespaceValidator = pluginsService.loadSingletonServiceProvider(
             RootObjectMapperNamespaceValidator.class,

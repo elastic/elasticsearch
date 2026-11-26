@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.RequestedTimeRange;
-import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
@@ -103,9 +102,9 @@ public class EsqlCaptureContext extends QueryCaptureContext {
         return Optional.ofNullable(request.resolvedSettings());
     }
 
-    /** The {@code @timestamp} range the request filter asks for; available on failures too, once the query has started planning. */
-    Optional<TimestampBounds> getRequestedTimeRange() {
-        return Optional.ofNullable(request.requestedTimeRange()).map(RequestedTimeRange::bounds);
+    /** The {@code @timestamp} range the query asks for; available on failures too, once the query has started planning. */
+    Optional<RequestedTimeRange> getRequestedTimeRange() {
+        return Optional.ofNullable(request.requestedTimeRange());
     }
 
     /** The settings each resolved view's definition applies, by view name; empty if the query resolved no views. */

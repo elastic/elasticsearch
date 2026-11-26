@@ -195,6 +195,12 @@ public final class TaskResultsCleanupService extends AbstractLifecycleComponent 
     }
 
     void tryStartCleanup(ClusterState state) {
+        if (isCleanupEnabled() == false) {
+            // don't scan the projects, which can build their indices lookup on the cluster applier thread, if there is nothing to start
+            // this still stops a loop that is running, and forgets the projects to cleanup
+            updateProjectsAndStartCleanupLoop(List.of());
+            return;
+        }
         // .tasks is created lazily, so a project without it (or without an assigned primary) is simply skipped
         final List<ProjectId> projectsOnLocalNode = state.metadata().projects().keySet().stream().filter(project -> {
             final IndexAbstraction index = state.projectState(project).metadata().getIndicesLookup().get(TASK_INDEX);

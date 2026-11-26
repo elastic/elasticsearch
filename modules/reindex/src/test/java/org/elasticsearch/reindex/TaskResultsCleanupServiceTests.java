@@ -237,6 +237,33 @@ public class TaskResultsCleanupServiceTests extends ESTestCase {
         assertThat(scheduledDelays, hasSize(4));
     }
 
+    public void testDisabledCleanupDoesNotScanProjects() {
+        final ThreadPool threadPoolSpy = Mockito.spy(threadPool);
+        Mockito.doReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE).when(threadPoolSpy).generic();
+        final List<ProjectId> deleteByQueryProjects = new ArrayList<>();
+        final Client client = mockDeleteByQueryClient(
+            projectResolver,
+            deleteByQueryProjects,
+            listener -> listener.onResponse(emptyDeleteByQueryResponse())
+        );
+        final ClusterSettings clusterSettings = createClusterSettings(TimeValue.MINUS_ONE);
+        service = createService(clusterSettings, projectResolver, localNodeId, threadPoolSpy, client);
+        service.start();
+
+        final ClusterState state = Mockito.spy(clusterState(Map.of(P1, localNodeId)));
+        service.clusterChanged(new ClusterChangedEvent(getTestName(), state, ClusterState.EMPTY_STATE));
+        Mockito.verify(state, Mockito.never()).projectState(any(ProjectId.class));
+        assertFalse(service.isCleanupRunning());
+        assertThat(deleteByQueryProjects, hasSize(0));
+
+        // enabling it is picked up by the next cluster state, which now looks at the projects
+        clusterSettings.applySettings(cleanupIntervalSettings(TimeValue.timeValueDays(1)));
+        service.clusterChanged(new ClusterChangedEvent(getTestName(), state, ClusterState.EMPTY_STATE));
+        Mockito.verify(state, Mockito.atLeastOnce()).projectState(any(ProjectId.class));
+        assertTrue(service.isCleanupRunning());
+        assertThat(deleteByQueryProjects, hasSize(1));
+    }
+
     private static TaskResultsCleanupService createService(
         ProjectResolver projectResolver,
         String localNodeId,

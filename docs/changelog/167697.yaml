@@ -2,6 +2,5 @@ area: Data streams
 issues:
  - 165096
 pr: 167697
-summary: "[CI] `DataStreamsClientYamlTestSuiteIT` test {yaml=data_stream/240_data_stream_settings/Test\
-  \ dry run} failing [#165096]"
+summary: Stop no-op ILM step-info updates for indices on a missing policy from publishing unchanged cluster states and keeping the master queue busy
 type: bug

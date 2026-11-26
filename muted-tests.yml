@@ -1020,3 +1020,8 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testSnapshotPrimaryRelocations
   issue: https://github.com/elastic/elasticsearch/issues/167626
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateBlockWithNulls {TestCase=<long, 17 longs> null in 15}
+  issue: https://github.com/elastic/elasticsearch/issues/167630

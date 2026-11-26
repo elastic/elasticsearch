@@ -170,12 +170,18 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
                 nodeCacheSizeAndCommitments,
                 ClusterInfoTests::randomNodeCacheSizeAndCommitmentsMap
             );
-            case 14 -> shardCacheRequirements = randomValueOtherThan(shardCacheRequirements, ClusterInfoTests::randomShardCacheRequirements);
+            case 14 -> shardCacheRequirements = randomValueOtherThan(
+                shardCacheRequirements,
+                ClusterInfoTests::randomShardCacheRequirements
+            );
             case 15 -> hostedShardsPartitionSizeByNodeId = randomValueOtherThan(
                 hostedShardsPartitionSizeByNodeId,
                 ClusterInfoTests::randomHostedShardsPartitionSizes
             );
-            case 16 -> shardSearchLaneRequirements = randomValueOtherThan(shardSearchLaneRequirements, ClusterInfoTests::randomPerShardDoubles);
+            case 16 -> shardSearchLaneRequirements = randomValueOtherThan(
+                shardSearchLaneRequirements,
+                ClusterInfoTests::randomPerShardDoubles
+            );
             case 17 -> shardSearchLoads = randomValueOtherThan(shardSearchLoads, ClusterInfoTests::randomPerShardDoubles);
             case 18 -> searchCopyDemands = randomValueOtherThan(searchCopyDemands, ClusterInfoTests::randomSearchCopyDemands);
             case 19 -> nodeSearchCapacities = randomValueOtherThan(nodeSearchCapacities, ClusterInfoTests::randomNodeSearchCapacities);

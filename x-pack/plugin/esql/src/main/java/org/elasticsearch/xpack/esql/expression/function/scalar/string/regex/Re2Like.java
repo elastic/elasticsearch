@@ -16,6 +16,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -130,23 +131,28 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
         if (circuitBreaker == null) {
             return automatonQuery(pattern().createAutomaton(caseInsensitive()), fieldType, constantScoreRewrite, context);
         }
-        String label = NAME + ":" + fieldType.name();
+        // under the category of a regexp query's automaton
+        String label = ChildMemoryCircuitBreaker.CATEGORY_REGEXP + "[" + NAME + ":" + fieldType.name() + "]";
         Automaton automaton = pattern().createAutomaton(caseInsensitive(), circuitBreaker, label);
         // the field compiles the automaton as it builds the query, an indexed keyword to the UTF-8 automaton it walks its
         // terms with, so the peak of that is held while it runs, as a regexp query's shared automaton holds it
         long reservation = new AutomatonQueryCostEstimator(automaton.ramBytesUsed()).estimate();
         context.addCircuitBreakerMemory(reservation, label);
-        org.apache.lucene.search.Query query = automatonQuery(automaton, fieldType, constantScoreRewrite, context);
-        if (query instanceof AutomatonQuery automatonQuery) {
-            // then the query it keeps stays charged until the request ends, as a regexp query's does, and is marked so that
-            // the walk over the built query, which a wrapping query builder runs too, doesn't charge it again
-            context.addCircuitBreakerMemory(automatonQuery.ramBytesUsed(), reservation, label);
-            context.markQueryMemoryPreCharged(query);
-        } else {
-            // any other query, such as a doc values scan, is charged by that walk
-            context.addCircuitBreakerMemory(0, reservation, label);
+        long retained = 0;
+        try {
+            org.apache.lucene.search.Query query = automatonQuery(automaton, fieldType, constantScoreRewrite, context);
+            if (query instanceof AutomatonQuery automatonQuery) {
+                // then the query it keeps stays charged until the request ends, as a regexp query's does, and is marked so
+                // that the walk over the built query, which a wrapping query builder runs too, doesn't charge it again; any
+                // other query, such as a doc values scan, is charged by that walk
+                retained = automatonQuery.ramBytesUsed();
+                context.markQueryMemoryPreCharged(query);
+            }
+            return query;
+        } finally {
+            // and nothing stays reserved for a build that failed
+            context.addCircuitBreakerMemory(retained, reservation, label);
         }
-        return query;
     }
 
     /**

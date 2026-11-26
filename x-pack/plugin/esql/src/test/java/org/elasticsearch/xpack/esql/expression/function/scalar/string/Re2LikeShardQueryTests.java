@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2RegExp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 
 import java.io.IOException;
 
@@ -123,7 +124,8 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
 
         TrackingCircuitBreaker small = new TrackingCircuitBreaker(new AutomatonQueryCostEstimator(0).estimate() - 1);
         SearchExecutionContext limited = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), small);
-        expectThrows(CircuitBreakingException.class, () -> query("abc", limited));
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> query("abc", limited));
+        assertThat("charged under the category of a regexp query", e.getMessage(), containsString("regexp[RE2_LIKE:label]"));
         assertThat(small.getUsed(), equalTo(0L));
     }
 
@@ -136,11 +138,25 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), breaker);
 
-        AutomatonQuery query = asInstanceOf(AutomatonQuery.class, query("(a|b)c.*", context));
+        Re2Like re2Like = new Re2Like(Source.EMPTY, getFieldAttribute("label"), new Re2Pattern("(a|b)c.*"));
+        AutomatonQuery query = asInstanceOf(AutomatonQuery.class, new ExpressionQueryBuilder("label", re2Like).toQuery(context));
         assertThat(breaker.getUsed(), equalTo(query.ramBytesUsed()));
         assertTrue(context.isQueryMemoryPreCharged(query));
 
         context.releaseQueryConstructionMemory();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** A field that can't build the query fails after the automaton is built, and nothing stays reserved for it. */
+    public void testFailedQueryReleasesItsReservation() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
+        MapperService mapperService = createMapperService(
+            mapping(b -> b.startObject("label").field("type", "keyword").field("index", false).field("doc_values", false).endObject())
+        );
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(mapperService), breaker);
+
+        expectThrows(IllegalArgumentException.class, () -> query("(a|b)c.*", context));
+        assertTrue("the build reserves memory while it runs", breaker.peak() > 0);
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

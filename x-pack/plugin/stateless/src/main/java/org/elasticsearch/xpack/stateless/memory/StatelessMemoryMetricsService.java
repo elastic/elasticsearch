@@ -56,7 +56,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -180,9 +179,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * </ul>
      */
     private final Map<ShardId, ShardMemoryMetrics> shardMemoryMetrics = new ConcurrentHashMap<>();
-    private final AtomicReference<IndexingOperationsMemoryRequirements> indexingOperationsHeapMemoryRequirementsRef =
-        new AtomicReference<>();
-    private final AtomicReference<LargestIndexingOperation> largestIndexingOperationRef = new AtomicReference<>();
+    private final ExpiringLongValue indexingOperationsHeapMemoryRequirements = new ExpiringLongValue();
+    private final ExpiringLongValue largestIndexingOperation = new ExpiringLongValue();
 
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile boolean indexingOperationsMemoryMetricsEnabled;
@@ -355,13 +353,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (indexingOperationsMemoryMetricsEnabled == false) {
             return 0;
         }
-        var indexingHeapMemoryRequirements = indexingOperationsHeapMemoryRequirementsRef.get();
-        if (indexingHeapMemoryRequirements == null || indexingHeapMemoryRequirements.validUntil() < relativeTimeInNanos()) {
-            // Try to clear the memory once the results are stale
-            indexingOperationsHeapMemoryRequirementsRef.compareAndSet(indexingHeapMemoryRequirements, null);
-            return 0;
-        }
-        return indexingHeapMemoryRequirements.minimumRequiredHeapInBytes();
+        return indexingOperationsHeapMemoryRequirements.valueIfValid(relativeTimeInNanos());
     }
 
     /**
@@ -371,13 +363,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (indexingOperationsMemoryMetricsEnabled == false) {
             return 0;
         }
-        var largestOperation = largestIndexingOperationRef.get();
-        if (largestOperation == null || largestOperation.validUntil() < relativeTimeInNanos()) {
-            // Try to clear the memory once the results are stale
-            largestIndexingOperationRef.compareAndSet(largestOperation, null);
-            return 0;
-        }
-        return largestOperation.operationSizeInBytes();
+        return largestIndexingOperation.valueIfValid(relativeTimeInNanos());
     }
 
     public long mergeMemoryEstimation() {
@@ -479,17 +465,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
     public void updateIndexingOperationsHeapMemoryRequirements(long indexingHeapMemoryRequirements) {
         long nowInNanos = relativeTimeInNanosSupplier.getAsLong();
-        indexingOperationsHeapMemoryRequirementsRef.accumulateAndGet(
-            new IndexingOperationsMemoryRequirements(
-                indexingHeapMemoryRequirements,
-                nowInNanos + indexingOperationsMemoryMetricsValidityDuration.nanos()
-            ),
-            (existing, proposed) -> {
-                if (existing == null || existing.validUntil() < nowInNanos) {
-                    return proposed;
-                }
-                return existing.compareTo(proposed) >= 0 ? existing : proposed;
-            }
+        indexingOperationsHeapMemoryRequirements.update(
+            indexingHeapMemoryRequirements,
+            nowInNanos,
+            indexingOperationsMemoryMetricsValidityDuration.nanos()
         );
     }
 
@@ -516,14 +495,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      */
     public void updateLargestIndexingOperationSize(long operationSizeInBytes) {
         long nowInNanos = relativeTimeInNanosSupplier.getAsLong();
-        largestIndexingOperationRef.accumulateAndGet(
-            new LargestIndexingOperation(operationSizeInBytes, nowInNanos + indexingOperationsMemoryMetricsValidityDuration.nanos()),
-            (existing, proposed) -> {
-                if (existing == null || existing.validUntil() < nowInNanos) {
-                    return proposed;
-                }
-                return existing.compareTo(proposed) >= 0 ? existing : proposed;
-            }
+        largestIndexingOperation.update(
+            operationSizeInBytes,
+            nowInNanos,
+            indexingOperationsMemoryMetricsValidityDuration.nanos()
         );
     }
 
@@ -546,8 +521,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             shardMemoryMetrics.clear();
-            indexingOperationsHeapMemoryRequirementsRef.set(null);
-            largestIndexingOperationRef.set(null);
+            indexingOperationsHeapMemoryRequirements.clear();
+            largestIndexingOperation.clear();
             maxShardMergeMemoryEstimatePerNode.clear();
             initialized = false;
             // Set the cluster state to unknown so we don't ignore valid updates that arrive during our next promotion
@@ -677,22 +652,11 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * or {@code null} if they are expired or not set.
      */
     public IndexingOperationsMemoryRequirements getValidIndexingOperationsHeapMemoryRequirements() {
-        var reqs = indexingOperationsHeapMemoryRequirementsRef.get();
-        if (reqs == null || reqs.validUntil() < relativeTimeInNanos()) {
+        var sample = indexingOperationsHeapMemoryRequirements.sampleIfValid(relativeTimeInNanos());
+        if (sample == null) {
             return null;
         }
-        return reqs;
-    }
-
-    private record LargestIndexingOperation(long operationSizeInBytes, long validUntil) implements Comparable<LargestIndexingOperation> {
-        private static final Comparator<LargestIndexingOperation> COMPARATOR = Comparator.comparingLong(
-            LargestIndexingOperation::operationSizeInBytes
-        ).thenComparingLong(LargestIndexingOperation::validUntil);
-
-        @Override
-        public int compareTo(LargestIndexingOperation o) {
-            return COMPARATOR.compare(this, o);
-        }
+        return new IndexingOperationsMemoryRequirements(sample.value(), sample.validUntil());
     }
 
     /**

@@ -83,10 +83,7 @@ import java.util.function.Function;
 *  </pre>
 *  Neither plan projects {@code x}: nothing above the TopN reads it.
 *
-*  <p>{@link #expectedDataOutput} decides which attributes cross the exchange: {@code _doc}, the sort and grouping keys of the
-*  pipeline breaker, and the attributes that the top-level {@link Project} outputs and {@link #attributesReloadableFromDoc} does
-*  not list, such as {@code _score}, {@code EVAL} results and {@code LOOKUP JOIN} right-hand fields. The top-level {@link Project}
-*  alone cannot make that decision: it lists a field whether or not the node-reduce driver can load it.
+*  <p>See {@link #expectedDataOutput} for what crosses the exchange.
 */
 class LateMaterializationPlanner {
     public static Optional<ReductionPlan> planReduceDriverTopN(
@@ -235,9 +232,8 @@ class LateMaterializationPlanner {
         FragmentExec updatedFragmentExec = ctx.fragmentExec.withFragment(updatedFragment);
         ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
 
-        // The exchange source goes under the pipeline breaker before the field extractions are inserted. InsertFieldExtraction then
-        // sees a plan whose only leaf outputs expectedDataOutput, so it extracts every other field the plan reads above the
-        // pipeline breaker, from the _doc the exchange carries.
+        // Put the exchange source under the pipeline breaker first, so that InsertFieldExtraction loads from _doc everything the
+        // exchange does not carry.
         PhysicalPlan mappedPlan = toMappedDataPlan(ctx.fragmentExec.fragment(), ctx.context);
         PhysicalPlan reductionPlan = new InsertFieldExtraction().apply(reductionPlanTransformer.apply(mappedPlan), ctx.context);
         PhysicalPlan sizedReductionPlan = EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan);
@@ -245,31 +241,27 @@ class LateMaterializationPlanner {
     }
 
     /**
-     * The subset of {@code ctx.physicalPlanOutput} that crosses the exchange from the data drivers to the node-reduce driver:
-     * {@code _doc}, {@code mustCrossExchange}, and the attributes the top-level {@link Project} outputs that the node-reduce driver
-     * cannot load from the index itself (see {@link #attributesReloadableFromDoc}).
+     * What the data drivers send to the node-reduce driver:
+     * <ul>
+     *   <li>{@code _doc};</li>
+     *   <li>{@code mustCrossExchange}: the sort and grouping keys of the pipeline breaker;</li>
+     *   <li>what the query returns and the node-reduce driver cannot load from {@code _doc}, such as {@code _score},
+     *   {@code EVAL} results and {@code LOOKUP JOIN} fields (see {@link #attributesReloadableFromDoc}).</li>
+     * </ul>
+     * The node-reduce driver loads every other field the query returns, for the rows that survive its pipeline breaker.
      *
-     * <p>A reloadable attribute does not cross even when a command under the pipeline breaker reads it. The data node plans its
-     * fragment with the real {@link SearchStats} and can replace that read: {@code PushExpressionsToFieldLoad} turns
-     * {@code EVAL s = V_COSINE(vector, ...)} into a load of the function result, and the data drivers then never load
-     * {@code vector}. A projection of {@code vector} in the data-side fragment makes each of them load it for the rows its own
-     * pipeline breaker keeps. When the data node does load the attribute for such a command, the node-reduce driver loads it a
-     * second time, for the rows that survive.
-     *
-     * @param mustCrossExchange the attributes the reduce-side pipeline breaker reads: its sort and grouping keys. The data
-     *                          drivers hold them already. Without them in the exchange the node-reduce driver loads the field
-     *                          keys under its pipeline breaker, for every row it receives, and has no way to compute the others.
+     * <p>That includes a field that a command under the pipeline breaker reads. The data node can plan that read away: a
+     * filter pushed to Lucene or {@code V_COSINE(vector, ...)} pushed into the field load never loads the field, and
+     * projecting it here would force the load. The cost: when the data drivers do load the field, the node-reduce driver
+     * loads it again.
      */
     private static List<Attribute> expectedDataOutput(SetupContext ctx, AttributeSet mustCrossExchange) {
         AttributeSet reloadable = attributesReloadableFromDoc(ctx.pipelineBreaker);
         AttributeSet projected = ctx.topLevelProject.outputSet();
-        // The result is the projection of a Project over ctx.withAddedDocToRelation, so it can only name attributes that plan outputs.
         AttributeSet producibleByFragment = ctx.withAddedDocToRelation.outputSet();
-        // Keep the order of physicalPlanOutput: it is the exchange layout on both sides.
+        // Keep the order of physicalPlanOutput: both sides of the exchange use it as their layout.
         List<Attribute> expectedDataOutput = new ArrayList<>(ctx.physicalPlanOutput.size());
         for (Attribute a : ctx.physicalPlanOutput) {
-            // The top-level Project is the only consumer above the pipeline breaker. An attribute it does not output and the
-            // pipeline breaker does not read has no consumer on the reduce side.
             if (EsQueryExec.isDocAttribute(a)
                 || mustCrossExchange.contains(a)
                 || (projected.contains(a) && reloadable.contains(a) == false)) {
@@ -281,15 +273,9 @@ class LateMaterializationPlanner {
     }
 
     /**
-     * The attributes the node-reduce driver can load from the index, given the {@code _doc} of a row. Each data driver loads what
-     * it projects for the rows its own pipeline breaker keeps. The node-reduce driver loads once, for the rows that survive on the
-     * node.
-     *
-     * <p>An attribute qualifies when a main {@link EsRelation} under the pipeline breaker outputs it, {@link Fetchability}
-     * accepts it and its type is not {@code NULL}. A {@code LOOKUP JOIN} right-hand side outputs {@link FieldAttribute}s of the
-     * lookup index, which the {@code _doc} of the main index cannot load, so relations in {@link IndexMode#LOOKUP} do not count.
-     * {@code EVAL} results, expression sort keys and the expanded column of {@code MV_EXPAND} are not the output of a relation at
-     * all.
+     * The attributes the node-reduce driver can load given the {@code _doc} of a row: the outputs of the main index's
+     * {@link EsRelation} that {@link Fetchability} accepts. The {@code _doc} of the main index cannot load the fields of a
+     * {@code LOOKUP JOIN} index, so those do not count.
      */
     private static AttributeSet attributesReloadableFromDoc(LogicalPlan pipelineBreaker) {
         AttributeSet.Builder reloadable = AttributeSet.builder();
@@ -298,8 +284,7 @@ class LateMaterializationPlanner {
                 return;
             }
             for (Attribute a : relation.output()) {
-                // A coordinator without the esql_missing_es_field transport version sends a nullified field as a NULL-typed EsField,
-                // which Fetchability accepts. No index stores that field, so it crosses the exchange.
+                // A coordinator before esql_missing_es_field sends a nullified field as a NULL-typed EsField. No index stores it.
                 if (Fetchability.isFetchable(a) && a.dataType() != DataType.NULL) {
                     reloadable.add(a);
                 }
@@ -327,8 +312,7 @@ class LateMaterializationPlanner {
     }
 
     /**
-     * {@link #toNonOptimizedPhysicalDataPlan} without the field extractions, for {@link #assembleReductionPlan}, which replaces the
-     * plan under the pipeline breaker before it inserts them.
+     * {@link #toNonOptimizedPhysicalDataPlan} without the field extractions.
      */
     private static PhysicalPlan toMappedDataPlan(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
         var logicalContext = new LocalLogicalOptimizerContext(

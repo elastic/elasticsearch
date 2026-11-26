@@ -16,9 +16,18 @@ A `rate` metrics aggregation can be used only inside a `date_histogram` or `comp
 For `composite` aggregations, there must be exactly one `date_histogram` source for the `rate` aggregation to be supported.
 ::::
 
+## Counter fields in time series aggregations
+```{applies_to}
+stack: deprecated 9.7+
+serverless:
+  elasticsearch: deprecated
+  observability: deprecated
+  security: deprecated
+  vectordb: unavailable
+```
+
 ::::{warning}
-:applies_to: {"stack": "deprecated 9.7+", "serverless": {"elasticsearch": "deprecated", "observability": "deprecated", "security": "deprecated", "vectordb": "unavailable"}}
-Using `rate` on counter fields inside a [`time_series` aggregation](/reference/aggregations/search-aggregations-bucket-time-series-aggregation.md) is deprecated and will be removed in a future version. Search requests that use it return a deprecation warning. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead.
+The [`time_series` aggregation](/reference/aggregations/search-aggregations-bucket-time-series-aggregation.md) is scheduled for removal. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead of nesting `rate` inside `time_series` for counter fields. Where the deprecation is active, search requests that use this combination return a deprecation warning.
 ::::
 
 

@@ -978,3 +978,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testCrankyEvaluateBlockWithoutNulls {TestCase=<date, 19 dates> null in 16}
   issue: https://github.com/elastic/elasticsearch/issues/167600
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateBlockWithoutNulls {TestCase=<date_nanos, 13 date_nanos> null in 10}
+  issue: https://github.com/elastic/elasticsearch/issues/167603

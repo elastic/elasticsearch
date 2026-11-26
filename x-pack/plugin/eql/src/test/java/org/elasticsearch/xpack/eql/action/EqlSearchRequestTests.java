@@ -108,6 +108,20 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         return parseInnerQueryBuilder;
     }
 
+    public void testOriginalPatternSurvivesALaterRewriteAndTheWireCopyKeepsWhatItReceived() throws IOException {
+        EqlSearchRequest request = createTestInstance();
+        String[] pattern = request.originalIndices();
+        request.indices("logs-0001");
+        assertArrayEquals(new String[] { "logs-0001" }, request.indices());
+        assertArrayEquals(pattern, request.originalIndices());
+
+        EqlSearchRequest received = copyWriteable(request, getNamedWriteableRegistry(), EqlSearchRequest::new);
+        assertArrayEquals(new String[] { "logs-0001" }, received.indices());
+        assertArrayEquals(new String[] { "logs-0001" }, received.originalIndices());
+        received.indices("logs-0001", "logs-0002");
+        assertArrayEquals(new String[] { "logs-0001" }, received.originalIndices());
+    }
+
     @Override
     protected Writeable.Reader<EqlSearchRequest> instanceReader() {
         return EqlSearchRequest::new;

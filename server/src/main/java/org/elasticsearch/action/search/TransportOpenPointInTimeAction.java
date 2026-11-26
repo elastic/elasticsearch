@@ -53,6 +53,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
@@ -64,6 +65,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -211,6 +213,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     listener.onFailure(ex);
                     return;
                 }
+                Exception unreachable = failureForUnreachableProjects(request.allowPartialSearchResults(), remoteExceptions);
+                if (unreachable != null) {
+                    listener.onFailure(unreachable);
+                    return;
+                }
                 Set<String> collectedIndices = new HashSet<>(indices.length);
 
                 for (Map.Entry<String, ResolvedIndexExpressions> resolvedRemoteExpressionEntry : resolvedRemoteExpressions.entrySet()) {
@@ -275,6 +282,27 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
             remoteClusterService.maybeEnsureConnectedAndGetConnection(clusterAlias, true, connectionListener);
         }
+    }
+
+    static Exception failureForUnreachableProjects(boolean allowPartialSearchResults, Map<String, Exception> remoteExceptions) {
+        if (allowPartialSearchResults || remoteExceptions.isEmpty()) {
+            return null;
+        }
+        List<String> aliases = new ArrayList<>(remoteExceptions.keySet());
+        Collections.sort(aliases);
+        Exception failure = null;
+        for (String alias : aliases) {
+            Exception remoteFailure = new RemoteTransportException(
+                "error while communicating with remote cluster [" + alias + "]",
+                remoteExceptions.get(alias)
+            );
+            if (failure == null) {
+                failure = remoteFailure;
+            } else {
+                failure.addSuppressed(remoteFailure);
+            }
+        }
+        return failure;
     }
 
     private void executeOpenPit(SearchTask task, OpenPointInTimeRequest request, ActionListener<OpenPointInTimeResponse> listener) {

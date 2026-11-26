@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ResolvedIndexExpression;
-import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -227,11 +225,11 @@ public class BasicQueryClient implements QueryClient {
     }
 
     final String[] unresolvedIndices() {
-        ResolvedIndexExpressions resolved = cfg.resolvedIndexExpressions();
-        if (resolved == null) {
+        String[] original = cfg.originalIndices();
+        if (original == null) {
             return indices;
         }
-        return resolved.expressions().stream().map(ResolvedIndexExpression::original).toArray(String[]::new);
+        return original.clone();
     }
 
     private void applyCrossProjectSearchOptions(SearchRequest search) {

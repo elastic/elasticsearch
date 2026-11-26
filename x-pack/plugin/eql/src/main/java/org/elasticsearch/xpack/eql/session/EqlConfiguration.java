@@ -163,6 +163,10 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         return indices;
     }
 
+    public String[] originalIndices() {
+        return originalIndices;
+    }
+
     public String indexAsWildcard() {
         return Strings.arrayToCommaDelimitedString(originalIndices);
     }

@@ -2168,10 +2168,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     public void testMasterIneligibleDataNodePersistsStateAsynchronously() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
-            final ClusterNode originalDataNode = cluster.addMasterIneligibleDataNode();
+            final var dataNodeId = cluster.addMasterIneligibleDataNode().getId();
             cluster.runRandomly();
             cluster.stabilise();
-            final ClusterNode dataNode = cluster.getNodeById(originalDataNode.getId()); // random reboots may have replaced it
+            final ClusterNode dataNode = cluster.getNodeById(dataNodeId); // random reboots may have replaced it
 
             final ClusterNode leader = cluster.getAnyLeader();
             final long finalValue = randomLong();
@@ -2209,10 +2209,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     public void testMasterIneligibleDataNodeRestartedBeforeAsynchronousWritesRun() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
-            final ClusterNode originalDataNode = cluster.addMasterIneligibleDataNode();
+            final var dataNodeId = cluster.addMasterIneligibleDataNode().getId();
             cluster.runRandomly();
             cluster.stabilise();
-            final ClusterNode dataNode = cluster.getNodeById(originalDataNode.getId()); // random reboots may have replaced it
+            final ClusterNode dataNode = cluster.getNodeById(dataNodeId); // random reboots may have replaced it
 
             final long versionBefore = dataNode.persistedState.getLastAcceptedState().version();
             cluster.getAnyLeader().submitValue(randomLong());

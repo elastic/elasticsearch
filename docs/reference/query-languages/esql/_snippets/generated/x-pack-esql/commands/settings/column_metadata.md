@@ -5,7 +5,9 @@
 serverless: preview
 stack: preview 9.5.0
 ```
-When enabled, column metadata is added to the `_query` response as additional `_meta` properties. Defaults to `false`. Currently, only `_meta.bucket` is added for columns corresponding to the `BUCKET` function and contains bucket interval and unit for queries where it can be determined.
+When enabled, column metadata is added to the `_query` response as additional `_meta` properties. Defaults to `false`. `_meta.bucket` is added for columns corresponding to the `BUCKET` function and contains bucket interval and unit for queries where it can be determined.
+
+{applies_to}`{"stack": "preview 9.7+", "serverless": "preview"}` Every column also reports what `DESCRIBE` reports about it, other than its name and type, under the same names: `role`, `field`, `origin`, `metric_type`, `unit`, `interval`, `time_zone` and `description`. Values that are not known are left out, and a value with several entries is a list.
 
 {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}` The default itself is configurable. If a query does not specify a value, the `esql.query.settings.column_metadata` cluster setting supplies it. If that cluster setting is not configured either, the value is `false`.
 

@@ -2,6 +2,9 @@
 navigation_title: "Derivative"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-pipeline-derivative-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Derivative aggregation [search-aggregations-pipeline-derivative-aggregation]

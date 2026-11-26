@@ -11,6 +11,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -609,6 +610,136 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             assertThat(copy.commitFiles(), equalTo(commitFiles));
             assertThat(copy.commitFiles().get("bcc_file").blob(), instanceOf(BccBlob.class));
             assertThat(copy.commitFiles().get("merge_file").blob(), instanceOf(MergeBlob.class));
+        }
+    }
+
+    /// Locations that reference the same blob share a single [Blob] instance once read from the transport layer, across the commit files
+    /// and the extra content.
+    public void testReadFromTransportDeduplicatesBlobs() throws IOException {
+        var blobName = BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000));
+        long term = randomLongBetween(1, 10);
+        var otherBlobName = MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH));
+        // equal but distinct blob instances
+        var commitFiles = Map.of(
+            "file_1",
+            new BlobLocation(new BccBlob(blobName, term), 0, 10),
+            "file_2",
+            new BlobLocation(new BccBlob(blobName, term), 10, 10),
+            "file_3",
+            new BlobLocation(new MergeBlob(otherBlobName, term), 0, 10),
+            "file_4",
+            new BlobLocation(new MergeBlob(otherBlobName, term), 10, 10)
+        );
+        var extraContent = Map.of("extra", new BlobLocation(new BccBlob(blobName, term), 20, 10));
+        // only hollow commits can have extra content
+        var base = randomCompoundCommit(
+            randomShardId(),
+            new PrimaryTermAndGeneration(randomNonZeroPositiveLong(), randomNonZeroPositiveLong()),
+            true
+        );
+        var commit = new StatelessCompoundCommit(
+            base.shardId(),
+            base.primaryTermAndGeneration(),
+            base.translogRecoveryStartFile(),
+            base.nodeEphemeralId(),
+            commitFiles,
+            base.sizeInBytes(),
+            Set.of("file_1"),
+            base.headerSizeInBytes(),
+            base.internalFilesReplicatedRanges(),
+            extraContent,
+            base.timestampFieldValueRange()
+        );
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            commit.writeTo(output);
+            var copy = StatelessCompoundCommit.readFromTransport(output.bytes().streamInput());
+
+            assertThat(copy.commitFiles(), equalTo(commitFiles));
+            assertThat(copy.extraContent(), equalTo(extraContent));
+            assertSame(copy.commitFiles().get("file_1").blob(), copy.commitFiles().get("file_2").blob());
+            assertSame(copy.commitFiles().get("file_3").blob(), copy.commitFiles().get("file_4").blob());
+            assertSame(copy.commitFiles().get("file_1").blob(), copy.extraContent().get("extra").blob());
+        }
+    }
+
+    /// Locations that reference the same blob share a single [Blob] instance once read from the store, whatever the header format.
+    public void testReadFromStoreDeduplicatesBlobs() throws IOException {
+        var shardId = randomShardId();
+        // a BCC is named after its first commit: a later commit of the batch has a higher generation and starts at a non-zero offset
+        long bccGeneration = randomLongBetween(1, 1000);
+        long generation = bccGeneration + randomLongBetween(1, 10);
+        long offset = randomLongBetween(1, 10) * SharedBytes.PAGE_SIZE;
+        long term = randomLongBetween(1, 10);
+        var blobName = BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000));
+        var containingBlobName = BccBlob.blobNameFromGeneration(bccGeneration);
+        // equal but distinct blob instances, including some that reference the blob containing the commit itself
+        var commitFiles = Map.of(
+            "file_1",
+            new BlobLocation(new BccBlob(blobName, term), 0, 10),
+            "file_2",
+            new BlobLocation(new BccBlob(blobName, term), 10, 10),
+            "file_3",
+            new BlobLocation(new BccBlob(blobName, term), 20, 10),
+            "file_4",
+            new BlobLocation(new BccBlob(containingBlobName, term), 0, 10)
+        );
+        var internalFiles = List.of(new InternalFile("internal_file", randomLongBetween(100, 1000)));
+        var extraContent = List.of(new InternalFile("extra_file", randomLongBetween(100, 1000)));
+
+        var versions = new int[] {
+            StatelessCompoundCommit.VERSION_WITH_COMMIT_FILES,
+            StatelessCompoundCommit.VERSION_WITH_BLOB_LENGTH,
+            StatelessCompoundCommit.VERSION_WITH_XCONTENT_ENCODING };
+        for (int version : versions) {
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                if (version == StatelessCompoundCommit.VERSION_WITH_XCONTENT_ENCODING) {
+                    StatelessCompoundCommit.writeXContentHeader(
+                        shardId,
+                        generation,
+                        term,
+                        // only hollow commits can have extra content
+                        "",
+                        HOLLOW_TRANSLOG_RECOVERY_START_FILE,
+                        randomTimestampFieldValueRange(),
+                        commitFiles,
+                        internalFiles,
+                        InternalFilesReplicatedRanges.EMPTY,
+                        new OutputStreamStreamOutput(output),
+                        randomBoolean(),
+                        extraContent
+                    );
+                } else {
+                    writeBwcHeader(
+                        new OutputStreamStreamOutput(output),
+                        shardId,
+                        generation,
+                        term,
+                        randomNodeEphemeralId(),
+                        commitFiles,
+                        internalFiles,
+                        version
+                    );
+                }
+
+                try (StreamInput in = output.bytes().streamInput()) {
+                    var copy = StatelessCompoundCommit.readFromStoreAtOffset(in, offset, commitGeneration -> {
+                        assertThat(commitGeneration, equalTo(generation));
+                        return bccGeneration;
+                    });
+
+                    for (var entry : commitFiles.entrySet()) {
+                        assertThat(copy.commitFiles().get(entry.getKey()), equalTo(entry.getValue()));
+                    }
+                    assertSame(copy.commitFiles().get("file_1").blob(), copy.commitFiles().get("file_2").blob());
+                    assertSame(copy.commitFiles().get("file_1").blob(), copy.commitFiles().get("file_3").blob());
+                    // the files uploaded by the commit share the instance of the referenced locations to the same blob
+                    assertSame(copy.commitFiles().get("file_4").blob(), copy.commitFiles().get("internal_file").blob());
+                    if (version == StatelessCompoundCommit.VERSION_WITH_XCONTENT_ENCODING) {
+                        assertSame(copy.commitFiles().get("file_4").blob(), copy.extraContent().get("extra_file").blob());
+                    }
+                }
+            }
         }
     }
 }

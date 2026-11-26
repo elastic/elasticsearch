@@ -199,8 +199,40 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
                     );
                 })
             );
-            // Embedded wildcard in the middle (*foo*bar*) — must NOT take the contains fast path;
-            // falls through to AutomataMatch.
+            // prefix*suffix — Affix evaluator (empty middle).
+            suppliers.add(new TestCaseSupplier("affix prefix-suffix with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
+                String prefix = randomAlphaOfLength(2);
+                String suffix = randomAlphaOfLength(2);
+                BytesRef str = new BytesRef(prefix + randomAlphaOfLength(1) + suffix);
+                BytesRef pattern = new BytesRef(prefix + "*" + suffix);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(str, type, "str"),
+                        new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
+                    ),
+                    startsWith("WildcardLikeAffixEvaluator[str=Attribute[channel=0], prefix="),
+                    DataType.BOOLEAN,
+                    equalTo(true)
+                );
+            }));
+            // prefix*middle*suffix — Affix evaluator with a non-empty middle.
+            suppliers.add(new TestCaseSupplier("affix full with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
+                String prefix = randomAlphaOfLength(2);
+                String middle = randomAlphaOfLength(2);
+                String suffix = randomAlphaOfLength(2);
+                BytesRef str = new BytesRef(prefix + "z" + middle + "z" + suffix);
+                BytesRef pattern = new BytesRef(prefix + "*" + middle + "*" + suffix);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(str, type, "str"),
+                        new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
+                    ),
+                    startsWith("WildcardLikeAffixEvaluator[str=Attribute[channel=0], prefix="),
+                    DataType.BOOLEAN,
+                    equalTo(true)
+                );
+            }));
+            // Three star-groups (*foo*bar*) stay on AutomataMatch — Affix only covers two.
             suppliers.add(new TestCaseSupplier("multi-wildcard with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
                 String a = randomAlphaOfLength(2);
                 String b = randomAlphaOfLength(2);

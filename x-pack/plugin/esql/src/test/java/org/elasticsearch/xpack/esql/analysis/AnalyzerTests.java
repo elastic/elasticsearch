@@ -1419,6 +1419,35 @@ public class AnalyzerTests extends AnalyzerTestCase {
         }
     }
 
+    public void testImplicitLimitOnDescribeIsTheNumberOfColumns() {
+        int columns = basic().query("from test | limit 0").output().size();
+        for (String query : List.of(
+            "from test | describe",
+            "from test | describe | keep name, type",
+            "from test | describe | where type == \"keyword\" | eval n = name | sort name",
+            "from test | describe | dissect name \"%{a}_%{b}\""
+        )) {
+            var limit = as(basic().query(query), Limit.class);
+            assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(columns));
+        }
+    }
+
+    public void testImplicitLimitAfterDescribeAddingRows() {
+        for (String query : List.of("from test | describe | mv_expand unit", "from test | describe | stats c = count(*) by unit")) {
+            var limit = as(basic().query(query), Limit.class);
+            assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        }
+    }
+
+    public void testImplicitMaxLimitAfterDescribeAndLimit() {
+        for (int explicit : List.of(1, MAX_LIMIT + 1)) {
+            var limit = as(basic().query("from test | describe | sort name | limit " + explicit), Limit.class);
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
+            limit = as(limit.child(), Limit.class);
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(explicit));
+        }
+    }
+
     public void testImplicitDefaultLimitAfterLimitBy() {
         var plan = basic().query("from test | limit 1 by emp_no");
 

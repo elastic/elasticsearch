@@ -72,4 +72,8 @@ tasks.named('javaRestTest') {
   if (providers.systemProperty('tests.heap_attack.fillnull.sweep').getOrElse('false') != 'true') {
     exclude '**/HeapAttackFillNullSweepIT.class'
   }
+  // HeapAttackFillNullParallelIT is a manual benchmark; excluding it avoids starting a cluster only to skip it.
+  if (providers.systemProperty('tests.heap_attack.fillnull.parallel').getOrElse('false') != 'true') {
+    exclude '**/HeapAttackFillNullParallelIT.class'
+  }
 }

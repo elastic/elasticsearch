@@ -830,11 +830,6 @@ tests:
   - :server:internalClusterTest
   method: testDocumentFromTranslogWithoutRoomInBreakerFailsAlone
   issue: https://github.com/elastic/elasticsearch/issues/167560
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
-  method: test {yaml=esql/317_unmapped_fields_mapped_later/the same holds with synthetic source}
-  issue: https://github.com/elastic/elasticsearch/issues/167562
 - class: org.elasticsearch.datastreams.TSDBPassthroughIndexingIT
   tasks:
   - :modules:data-streams:internalClusterTest

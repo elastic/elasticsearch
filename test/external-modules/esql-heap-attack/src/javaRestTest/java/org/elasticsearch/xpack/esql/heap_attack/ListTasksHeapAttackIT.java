@@ -227,13 +227,16 @@ public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
         assertBusy(() -> {
             try {
                 client().performRequest(new Request("GET", "/_query/async/" + id));
-                fail("expected async query [" + id + "] to be gone");
             } catch (ResponseException ex) {
                 int statusCode = ex.getResponse().getStatusLine().getStatusCode();
-                if (statusCode != HttpStatus.SC_TOO_MANY_REQUESTS && statusCode != HttpStatus.SC_NOT_FOUND) {
+                if (statusCode == HttpStatus.SC_NOT_FOUND) {
+                    return;
+                }
+                if (statusCode != HttpStatus.SC_TOO_MANY_REQUESTS) {
                     throw ex;
                 }
             }
+            fail("expected async query [" + id + "] to be gone");
         });
     }
 

@@ -28,6 +28,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Listing the tasks of a cluster whose nodes hold many queries with long descriptions: each node replies with the descriptions of its own
@@ -42,6 +43,7 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
     private static final int HELD_QUERIES = 8;
     private static final int LIST_CALLS = 5;
     private static final String COORDINATING_NODE_LIMIT = "30mb";
+    private static final long IN_FLIGHT_SLACK_BYTES = 1024 * 1024;
 
     @ClassRule
     public static ElasticsearchCluster cluster = buildCluster();
@@ -65,14 +67,14 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
 
     public void testRepliesOfSeveralNodesTripCircuitBreakerOfCoordinatingNode() throws Exception {
         assumeFalse("serverless does not allow changing the number of nodes", isServerless());
-        createPausableIndex();
-        blockPauseField();
         List<String> asyncIds = new ArrayList<>();
         String coordinatingAddress = cluster.getHttpAddresses().split(",")[0];
         int portSeparator = coordinatingAddress.lastIndexOf(':');
         String host = coordinatingAddress.substring(0, portSeparator).replace("[", "").replace("]", "");
         int port = Integer.parseInt(coordinatingAddress.substring(portSeparator + 1));
         try (RestClient coordinatingClient = buildClient(restClientSettings(), new HttpHost[] { new HttpHost(host, port, "http") })) {
+            createPausableIndex(coordinatingNodeId(coordinatingClient));
+            blockPauseField();
             for (int i = 0; i < HELD_QUERIES; i++) {
                 asyncIds.add(submitAsyncQuery(queryWithLongLiteral("q" + i + "-" + "\u20ac".repeat(LITERAL_LENGTH))));
             }
@@ -81,11 +83,13 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
                 assertReplyOfNodeFits(coordinatingClient, nodeId);
             }
 
+            long inFlightBefore = inFlightBytes(coordinatingClient);
             int tripped = 0;
             for (int call = 0; call < LIST_CALLS; call++) {
                 if (listTasksTripsCoordinatingNodeBreaker(coordinatingClient)) {
                     tripped++;
                 }
+                assertBusy(() -> assertThat(inFlightBytes(coordinatingClient), lessThanOrEqualTo(inFlightBefore + IN_FLIGHT_SLACK_BYTES)));
             }
             assertThat(tripped, equalTo(LIST_CALLS));
         } finally {
@@ -99,13 +103,22 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
         }
     }
 
-    private List<String> remoteNodeIds(RestClient coordinatingClient) throws IOException {
+    private String coordinatingNodeId(RestClient coordinatingClient) throws IOException {
         Request local = new Request("GET", "/_nodes/_local");
         local.addParameter("filter_path", "nodes.*.name");
-        String coordinatingNodeId = ((Map<?, ?>) entityAsMap(coordinatingClient.performRequest(local)).get("nodes")).keySet()
-            .iterator()
-            .next()
-            .toString();
+        return ((Map<?, ?>) entityAsMap(coordinatingClient.performRequest(local)).get("nodes")).keySet().iterator().next().toString();
+    }
+
+    private long inFlightBytes(RestClient coordinatingClient) throws IOException {
+        Request request = new Request("GET", "/_nodes/_local/stats/breaker");
+        request.addParameter("filter_path", "nodes.*.breakers.inflight_requests.estimated_size_in_bytes");
+        Map<?, ?> nodes = (Map<?, ?>) entityAsMap(coordinatingClient.performRequest(request)).get("nodes");
+        Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
+        return ((Number) XContentMapValues.extractValue("breakers.inflight_requests.estimated_size_in_bytes", node)).longValue();
+    }
+
+    private List<String> remoteNodeIds(RestClient coordinatingClient) throws IOException {
+        String coordinatingNodeId = coordinatingNodeId(coordinatingClient);
         Request all = new Request("GET", "/_nodes");
         all.addParameter("filter_path", "nodes.*.name");
         List<String> remote = new ArrayList<>();
@@ -145,17 +158,18 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
                 .anyMatch(
                     failure -> "circuit_breaking_exception".equals(XContentMapValues.extractValue("caused_by.type", (Map<?, ?>) failure))
                         && String.valueOf(XContentMapValues.extractValue("caused_by.reason", (Map<?, ?>) failure))
-                            .contains("<node_tasks_response>")
+                            .startsWith("[inflight_requests] Data too large, data for [<node_tasks_response>]")
                 );
     }
 
-    private void createPausableIndex() throws IOException {
+    private void createPausableIndex(String coordinatingNodeId) throws IOException {
         Request createIndex = new Request("PUT", "/pause_test");
         createIndex.setJsonEntity("""
             {
                 "settings": {
                     "number_of_shards": 3,
-                    "number_of_replicas": 0
+                    "number_of_replicas": 0,
+                    "index.routing.allocation.exclude._id": "%s"
                 },
                 "mappings": {
                     "runtime": {
@@ -173,7 +187,7 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
                         }
                     }
                 }
-            }""");
+            }""".formatted(coordinatingNodeId));
         client().performRequest(createIndex);
         Request bulk = new Request("POST", "/pause_test/_bulk?refresh=true");
         StringBuilder body = new StringBuilder();
@@ -212,13 +226,16 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
         assertBusy(() -> {
             try {
                 client().performRequest(new Request("GET", "/_query/async/" + id));
-                fail("expected async query [" + id + "] to be gone");
             } catch (ResponseException ex) {
                 int statusCode = ex.getResponse().getStatusLine().getStatusCode();
-                if (statusCode != HttpStatus.SC_TOO_MANY_REQUESTS && statusCode != HttpStatus.SC_NOT_FOUND) {
+                if (statusCode == HttpStatus.SC_NOT_FOUND) {
+                    return;
+                }
+                if (statusCode != HttpStatus.SC_TOO_MANY_REQUESTS) {
                     throw ex;
                 }
             }
+            fail("expected async query [" + id + "] to be gone");
         });
     }
 

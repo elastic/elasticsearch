@@ -641,16 +641,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
                 final var finalStore = store;
                 final var finalIndexShard = indexShard;
-                CloseUtils.executeDirectly(
-                    l -> closeShard(
-                        "initialization failed",
-                        shardId,
-                        finalIndexShard,
-                        finalStore,
-                        eventListener,
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE /* closing a shard that failed to start up should be fast enough */,
-                        () -> l.onResponse(null)
-                    )
+                closeShard(
+                    "initialization failed",
+                    shardId,
+                    finalIndexShard,
+                    finalStore,
+                    eventListener,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE /* closing a shard that failed to start up should be fast enough */,
+                    () -> {}
                 );
             }
         }

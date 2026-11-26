@@ -4371,7 +4371,7 @@ public class EsqlCapabilities {
          * PromQL comparisons below the top level and between two vectors, and a filter comparison against a scalar on either
          * side, such as {@code 100 < x} or {@code x > scalar(sum(y))}, which keeps the vector's value.
          */
-        PROMQL_COMPARISONS_ANYWHERE(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_COMPARISONS_ANYWHERE(PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled()),
 
         /**
          * PromQL arithmetic/comparison binaries join independent operand pipelines when they cannot share one aggregation:

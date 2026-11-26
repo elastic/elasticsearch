@@ -240,6 +240,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
             final Scenario scenario = withNullValue(type);
             assertExistsMatchesOnlyDocumentsWithValue(scenario, strategy);
             assertSourceDropsNullElements(scenario, strategy);
+            assertSourceKeepsTheOrderOfTheRemainingValues(scenario, strategy);
         }
     }
 

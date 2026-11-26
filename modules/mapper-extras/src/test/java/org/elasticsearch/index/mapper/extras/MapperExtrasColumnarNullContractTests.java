@@ -94,6 +94,7 @@ public class MapperExtrasColumnarNullContractTests extends AbstractColumnarNullC
         final Scenario scenario = scaledFloat().withNullValue(0.5);
         assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.DOCUMENT);
         assertSourceDropsNullElements(scenario, IndexingStrategy.DOCUMENT);
+        assertSourceKeepsTheOrderOfTheRemainingValues(scenario, IndexingStrategy.DOCUMENT);
     }
 
     public void testScaledFloatRemainingValuesKeepTheirOrderDocument() throws IOException {

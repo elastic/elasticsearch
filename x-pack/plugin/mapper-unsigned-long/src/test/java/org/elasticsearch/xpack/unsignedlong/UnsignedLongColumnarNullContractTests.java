@@ -47,5 +47,6 @@ public class UnsignedLongColumnarNullContractTests extends AbstractColumnarNullC
         final Scenario scenario = unsignedLong().withNullValue(9);
         assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.DOCUMENT);
         assertSourceDropsNullElements(scenario, IndexingStrategy.DOCUMENT);
+        assertSourceKeepsTheOrderOfTheRemainingValues(scenario, IndexingStrategy.DOCUMENT);
     }
 }

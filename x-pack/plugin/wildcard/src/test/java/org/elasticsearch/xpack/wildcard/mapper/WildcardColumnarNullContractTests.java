@@ -63,11 +63,13 @@ public class WildcardColumnarNullContractTests extends AbstractColumnarNullContr
         final Scenario scenario = wildcard().withNullValue("NA");
         assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.DOCUMENT);
         assertSourceDropsNullElements(scenario, IndexingStrategy.DOCUMENT);
+        assertSourceKeepsTheOrderOfTheRemainingValues(scenario, IndexingStrategy.DOCUMENT);
     }
 
     public void testWildcardNullValueReplacesNullBatch() throws IOException {
         final Scenario scenario = wildcard().withNullValue("NA");
         assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.BATCH);
         assertSourceDropsNullElements(scenario, IndexingStrategy.BATCH);
+        assertSourceKeepsTheOrderOfTheRemainingValues(scenario, IndexingStrategy.BATCH);
     }
 }

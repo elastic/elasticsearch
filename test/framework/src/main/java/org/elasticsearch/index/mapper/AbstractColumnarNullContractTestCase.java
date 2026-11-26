@@ -437,24 +437,30 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             documentGroups(scenario),
             DOCUMENT_SHAPES,
             (configuration, mapperService, indexWriter, docs) -> {
-                final List<Integer> expected = new ArrayList<>();
-                for (int i = 0; i < docs.size(); i++) {
-                    if (scenario.hasValue(docs.get(i))) {
-                        expected.add(i);
-                    }
-                }
+                // NOTE: the deleted document is the last one, which sits in the segment of the null elements, and the documents before it
+                // keep their ids when the deletion is expunged by the merge.
+                final int deleted = docs.size() - 1;
                 final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
-                for (final boolean merged : new boolean[] { false, true }) {
-                    if (merged) {
+                for (final String stage : List.of("indexed", "deleted", "merged")) {
+                    if (stage.equals("deleted")) {
+                        indexWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId("d" + deleted)));
+                    } else if (stage.equals("merged")) {
                         indexWriter.forceMerge(1);
                     }
+                    final List<Integer> expected = new ArrayList<>();
+                    for (int i = 0; i < docs.size(); i++) {
+                        if (scenario.hasValue(docs.get(i)) && (i != deleted || stage.equals("indexed"))) {
+                            expected.add(i);
+                        }
+                    }
                     try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+                        assertEquals(configuration + " " + stage, stage.equals("deleted"), reader.numDeletedDocs() > 0);
                         final List<Integer> matched = new ArrayList<>();
                         for (final ScoreDoc hit : new IndexSearcher(reader).search(exists, docs.size()).scoreDocs) {
                             matched.add(hit.doc);
                         }
                         Collections.sort(matched);
-                        assertEquals(configuration + " merged=" + merged + " documents=" + docs, expected, matched);
+                        assertEquals(configuration + " " + stage + " documents=" + docs, expected, matched);
                     }
                 }
             }
@@ -477,7 +483,10 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                 final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
                 for (final String stage : List.of("indexed", "deleted", "merged")) {
                     if (stage.equals("deleted")) {
-                        indexWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId("d0")));
+                        indexWriter.deleteDocuments(
+                            new Term(IdFieldMapper.NAME, Uid.encodeId("d0")),
+                            new Term(IdFieldMapper.NAME, Uid.encodeId("d" + (docs.size() - 1)))
+                        );
                     } else if (stage.equals("merged")) {
                         indexWriter.forceMerge(1);
                     }

@@ -14,7 +14,7 @@ import java.util.Collection;
 public class VerificationException extends EqlClientException {
 
     public VerificationException(Collection<Failure> sources) {
-        super(Failure.failMessage(sources));
+        super(sources);
     }
 
 }

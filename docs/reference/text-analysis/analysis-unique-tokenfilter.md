@@ -2,6 +2,9 @@
 navigation_title: "Unique"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-unique-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Unique token filter [analysis-unique-tokenfilter]

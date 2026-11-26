@@ -2,6 +2,9 @@
 navigation_title: "Hyphenation decompounder"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-hyp-decomp-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: unavailable
 ---
 
 # Hyphenation decompounder token filter [analysis-hyp-decomp-tokenfilter]

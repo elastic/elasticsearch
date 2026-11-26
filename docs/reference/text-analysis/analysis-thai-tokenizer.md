@@ -2,6 +2,9 @@
 navigation_title: "Thai"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-thai-tokenizer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Thai tokenizer [analysis-thai-tokenizer]

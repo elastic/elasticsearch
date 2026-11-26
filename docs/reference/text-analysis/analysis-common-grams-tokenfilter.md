@@ -2,6 +2,9 @@
 navigation_title: "Common grams"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-common-grams-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Common grams token filter [analysis-common-grams-tokenfilter]
@@ -75,7 +78,7 @@ PUT /common_grams_example
 Either this or the `common_words_path` parameter is required.
 
 
-`common_words_path`
+`common_words_path` {applies_to}`serverless: unavailable`
 :   (Required*, string) Path to a file containing a list of tokens. The filter generates bigrams for these tokens.
 
 This path must be absolute or relative to the `config` location. The file must be UTF-8 encoded. Each token in the file must be separated by a line break.

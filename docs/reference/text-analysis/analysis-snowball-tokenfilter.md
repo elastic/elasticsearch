@@ -3,7 +3,8 @@ navigation_title: "Snowball"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-snowball-tokenfilter.html
 applies_to:
- stack: all 
+  stack: ga
+  serverless: ga
 ---
 
 # Snowball token filter [analysis-snowball-tokenfilter]

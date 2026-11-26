@@ -2,6 +2,9 @@
 navigation_title: "Keep words"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-keep-words-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Keep words token filter [analysis-keep-words-tokenfilter]
@@ -50,7 +53,7 @@ The filter produces the following tokens:
 Either this parameter or `keep_words_path` must be specified.
 
 
-`keep_words_path`
+`keep_words_path` {applies_to}`serverless: unavailable`
 :   (Required*, string) Path to a file that contains a list of words to keep. Only tokens that match words in this list are included in the output.
 
 This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each word in the file must be separated by a line break.
@@ -66,10 +69,7 @@ Either this parameter or `keep_words` must be specified.
 
 To customize the `keep` filter, duplicate it to create the basis for a new custom token filter. You can modify the filter using its configurable parameters.
 
-For example, the following [create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) request uses custom `keep` filters to configure two new [custom analyzers](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.md):
-
-* `standard_keep_word_array`, which uses a custom `keep` filter with an inline array of keep words
-* `standard_keep_word_file`, which uses a customer `keep` filter with a keep words file
+The following [create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) request configures a [custom analyzer](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.md) with a `keep` filter that uses an inline list.
 
 ```console
 PUT keep_words_example
@@ -80,20 +80,12 @@ PUT keep_words_example
         "standard_keep_word_array": {
           "tokenizer": "standard",
           "filter": [ "keep_word_array" ]
-        },
-        "standard_keep_word_file": {
-          "tokenizer": "standard",
-          "filter": [ "keep_word_file" ]
         }
       },
       "filter": {
         "keep_word_array": {
           "type": "keep",
           "keep_words": [ "one", "two", "three" ]
-        },
-        "keep_word_file": {
-          "type": "keep",
-          "keep_words_path": "analysis/example_word_list.txt"
         }
       }
     }
@@ -101,4 +93,5 @@ PUT keep_words_example
 }
 ```
 
+{applies_to}`serverless: unavailable` To load the list from a file, replace `"keep_words": [ "one", "two", "three" ]` with `"keep_words_path": "analysis/example_word_list.txt"`.
 

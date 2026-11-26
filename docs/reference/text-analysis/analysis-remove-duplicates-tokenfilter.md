@@ -2,6 +2,9 @@
 navigation_title: "Remove duplicates"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-remove-duplicates-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Remove duplicates token filter [analysis-remove-duplicates-tokenfilter]

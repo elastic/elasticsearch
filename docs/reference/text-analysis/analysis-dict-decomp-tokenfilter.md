@@ -2,6 +2,9 @@
 navigation_title: "Dictionary decompounder"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-dict-decomp-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Dictionary decompounder token filter [analysis-dict-decomp-tokenfilter]
@@ -50,7 +53,7 @@ The filter produces the following tokens:
 Either this parameter or `word_list_path` must be specified.
 
 
-`word_list_path`
+`word_list_path` {applies_to}`serverless: unavailable`
 :   (Required*, string) Path to a file that contains a list of subwords to find in the token stream. If found, the subword is included in the token output.
 
 This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each token in the file must be separated by a line break.
@@ -77,7 +80,7 @@ To customize the `dictionary_decompounder` filter, duplicate it to create the ba
 
 For example, the following [create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) request uses a custom `dictionary_decompounder` filter to configure a new [custom analyzer](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.md).
 
-The custom `dictionary_decompounder` filter find subwords in the `analysis/example_word_list.txt` file. Subwords longer than 22 characters are excluded from the token output.
+The custom `dictionary_decompounder` filter uses an inline word list. It excludes subwords longer than 22 characters from the token output.
 
 ```console
 PUT dictionary_decompound_example
@@ -93,7 +96,7 @@ PUT dictionary_decompound_example
       "filter": {
         "22_char_dictionary_decompound": {
           "type": "dictionary_decompounder",
-          "word_list_path": "analysis/example_word_list.txt",
+          "word_list": ["Donau", "dampf", "meer", "schiff"],
           "max_subword_size": 22
         }
       }

@@ -2,6 +2,9 @@
 navigation_title: "Word delimiter graph"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-word-delimiter-graph-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Word delimiter graph token filter [analysis-word-delimiter-graph-tokenfilter]
@@ -160,7 +163,7 @@ If this parameter is `true`, avoid using this filter in an index analyzer or use
 `protected_words`
 :   (Optional, array of strings) Array of tokens the filter won’t split.
 
-`protected_words_path`
+`protected_words_path` {applies_to}`serverless: unavailable`
 :   (Optional, string) Path to a file that contains a list of tokens the filter won’t split.
 
 This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each token in the file must be separated by a line break.
@@ -192,7 +195,7 @@ Supported types include:
 * `UPPER` (Uppercase alphabetical)
 
 
-`type_table_path`
+`type_table_path` {applies_to}`serverless: unavailable`
 :   (Optional, string) Path to a file that contains custom type mappings for characters. This allows you to map non-alphanumeric characters as numeric or alphanumeric to avoid splitting on those characters.
 
 For example, the contents of this file may contain the following:

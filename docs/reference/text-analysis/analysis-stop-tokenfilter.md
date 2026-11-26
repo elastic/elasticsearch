@@ -2,6 +2,9 @@
 navigation_title: "Stop"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-stop-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Stop token filter [analysis-stop-tokenfilter]
@@ -70,7 +73,7 @@ Also accepts an array of stop words.
 For an empty list of stop words, use `_none_`.
 
 
-`stopwords_path`
+`stopwords_path` {applies_to}`serverless: unavailable`
 :   (Optional, string) Path to a file that contains a list of stop words to remove.
 
 This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each stop word in the file must be separated by a line break. The file must be available on every node in the cluster. How you add it depends on where you run {{es}}: refer to the [custom configuration file instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).

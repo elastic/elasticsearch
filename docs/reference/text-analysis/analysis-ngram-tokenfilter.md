@@ -2,6 +2,9 @@
 navigation_title: "N-gram"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-ngram-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # N-gram token filter [analysis-ngram-tokenfilter]
@@ -71,34 +74,33 @@ PUT ngram_example
 `preserve_original`
 :   (Optional, Boolean) Emits original token when set to `true`. Defaults to `false`.
 
-You can use the [`index.max_ngram_diff`](/reference/elasticsearch/index-settings/index-modules.md#index-max-ngram-diff) index-level setting to control the maximum allowed difference between the `max_gram` and `min_gram` values.
+The default maximum difference between `max_gram` and `min_gram` is `1`.
+
+{applies_to}`serverless: unavailable` To change the maximum difference, set [`index.max_ngram_diff`](/reference/elasticsearch/index-settings/index-modules.md#index-max-ngram-diff).
 
 
 ## Customize [analysis-ngram-tokenfilter-customize]
 
 To customize the `ngram` filter, duplicate it to create the basis for a new custom token filter. You can modify the filter using its configurable parameters.
 
-For example, the following request creates a custom `ngram` filter that forms n-grams between 3-5 characters. The request also increases the `index.max_ngram_diff` setting to `2`.
+The following request creates a custom `ngram` filter that forms n-grams of 3 or 4 characters.
 
 ```console
 PUT ngram_custom_example
 {
   "settings": {
-    "index": {
-      "max_ngram_diff": 2
-    },
     "analysis": {
       "analyzer": {
         "default": {
           "tokenizer": "whitespace",
-          "filter": [ "3_5_grams" ]
+          "filter": [ "3_4_grams" ]
         }
       },
       "filter": {
-        "3_5_grams": {
+        "3_4_grams": {
           "type": "ngram",
           "min_gram": 3,
-          "max_gram": 5
+          "max_gram": 4
         }
       }
     }

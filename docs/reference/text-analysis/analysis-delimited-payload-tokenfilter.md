@@ -2,6 +2,9 @@
 navigation_title: "Delimited payload"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-delimited-payload-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Delimited payload token filter [analysis-delimited-payload-tokenfilter]

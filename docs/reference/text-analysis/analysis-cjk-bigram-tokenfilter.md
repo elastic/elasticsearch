@@ -2,6 +2,9 @@
 navigation_title: "CJK bigram"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-cjk-bigram-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # CJK bigram token filter [analysis-cjk-bigram-tokenfilter]

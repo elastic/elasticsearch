@@ -2,6 +2,9 @@
 navigation_title: "Apostrophe"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-apostrophe-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Apostrophe token filter [analysis-apostrophe-tokenfilter]

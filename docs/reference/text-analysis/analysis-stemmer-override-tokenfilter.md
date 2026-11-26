@@ -2,6 +2,9 @@
 navigation_title: "Stemmer override"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-stemmer-override-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Stemmer override token filter [analysis-stemmer-override-tokenfilter]
@@ -14,43 +17,11 @@ Rules are mappings in the form of `token1[, ..., tokenN] => override`.
 | Setting | Description |
 | --- | --- |
 | `rules` | A list of mapping rules to use. |
-| `rules_path` | A path (either relative to `config` location, or absolute) to a list of mappings. |
+| `rules_path` {applies_to}`serverless: unavailable` | A path (either relative to `config` location, or absolute) to a list of mappings. |
 
-If you use `rules_path`, the file must be available on every node in the cluster. How you add it depends on where you run {{es}}: refer to the [custom configuration file instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
+## Inline rules
 
-Here is an example:
-
-```console
-PUT /my-index-000001
-{
-  "settings": {
-    "analysis": {
-      "analyzer": {
-        "my_analyzer": {
-          "tokenizer": "standard",
-          "filter": [ "lowercase", "custom_stems", "porter_stem" ]
-        }
-      },
-      "filter": {
-        "custom_stems": {
-          "type": "stemmer_override",
-          "rules_path": "analysis/stemmer_override.txt"
-        }
-      }
-    }
-  }
-}
-```
-
-Where the file looks like:
-
-```text
-running, runs => run
-
-stemmer => stemmer
-```
-
-You can also define the overrides rules inline:
+Use `rules` to define the mappings inline.
 
 ```console
 PUT /my-index-000001
@@ -77,3 +48,39 @@ PUT /my-index-000001
 }
 ```
 
+## Rules file
+```{applies_to}
+serverless: unavailable
+```
+
+If you use `rules_path`, the file must be available on every node in the cluster. How you add it depends on where you run {{es}}: refer to the [custom configuration file instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
+
+```console
+PUT /my-index-000001
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [ "lowercase", "custom_stems", "porter_stem" ]
+        }
+      },
+      "filter": {
+        "custom_stems": {
+          "type": "stemmer_override",
+          "rules_path": "analysis/stemmer_override.txt"
+        }
+      }
+    }
+  }
+}
+```
+
+The `analysis/stemmer_override.txt` file contains these rules.
+
+```text
+running, runs => run
+
+stemmer => stemmer
+```

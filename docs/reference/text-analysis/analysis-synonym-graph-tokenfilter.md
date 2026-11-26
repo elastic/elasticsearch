@@ -2,6 +2,9 @@
 navigation_title: "Synonym graph"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-synonym-graph-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Synonym graph token filter [analysis-synonym-graph-tokenfilter]
@@ -68,9 +71,11 @@ s(100000002,3,'approach',v,1,0).""";
 
 ## Configure synonym sets [analysis-synonym-graph-configure-sets]
 
-Synonyms can be configured using the [{{kib}} UI](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms), the [synonyms API](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-api), a [synonyms file](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-file), or directly [inlined](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-inline) in the token filter configuration. See [create synonym sets and rules](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms) for more details on each option.
+### Managed synonym sets
 
-Use `synonyms_set` configuration option to provide one or more synonym sets created through the [Synonyms Management APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-synonyms):
+You can create managed synonym sets from the **Synonyms** page in {{kib}} or by using the synonyms API. For instructions, refer to [Configure synonyms in {{es}}](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms).
+
+Use `synonyms_set` to reference a managed synonym set in a search analyzer.
 
 ```JSON
   "filter": {
@@ -102,7 +107,9 @@ Use multiple synonym sets in a single filter instead of chaining multiple `synon
 
 ::::{note}
 :applies_to: stack: ga 9.5+
-Synonym sets are limited to 100,000 rules per set by default. This limit is configurable using the `synonyms.max_synonym_rules` cluster setting.
+Synonym sets are limited to 100,000 rules per set by default.
+
+{applies_to}`serverless: unavailable` To change the limit, set `synonyms.max_synonym_rules`.
 ::::
 
 ::::{warning}
@@ -111,7 +118,12 @@ Synonym sets must exist before they can be added to indices. If an index is crea
 ::::
 
 
-Use `synonyms_path` to provide a synonym file :
+### Synonym files
+```{applies_to}
+serverless: unavailable
+```
+
+Use `synonyms_path` to provide a synonym file.
 
 ```JSON
   "filter": {
@@ -122,9 +134,11 @@ Use `synonyms_path` to provide a synonym file :
   }
 ```
 
-The above configures a `synonym` filter, with a path of `analysis/synonym-set.txt` (relative to the `config` location). The file must be available on every node in the cluster. How you add it depends on where you run {{es}}: refer to the [custom configuration file instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
+The above configures a `synonym_graph` filter, with a path of `analysis/synonym-set.txt` (relative to the `config` location). The file must be available on every node in the cluster. How you add it depends on where you run {{es}}: refer to the [custom configuration file instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
 
-Use `synonyms` to define inline synonyms:
+### Inline synonym rules
+
+Use `synonyms` to define inline rules for a search analyzer.
 
 ```JSON
   "filter": {
@@ -135,9 +149,9 @@ Use `synonyms` to define inline synonyms:
   }
 ```
 
-Additional settings are:
+### Additional settings
 
-* `updateable` (defaults to `false`). If `true` allows [reloading](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-reload-search-analyzers) search analyzers to pick up changes to synonym files. Only to be used for search analyzers.
+* `updateable` (defaults to `false`). Set to `true` on a token filter used in a search analyzer to allow synonym rules to reload. Changes to managed synonym sets reload the associated analyzers automatically. For file-based rules, call the [reload search analyzers API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-reload-search-analyzers) after updating the file.
 * `expand` (defaults to `true`). Expands definitions for equivalent synonym rules. See [expand equivalent synonyms](#synonym-graph-tokenizer-expand-equivalent-synonyms).
 * `lenient` (defaults to the value of the `updateable` setting). If `true` ignores errors while parsing the synonym rules. It is important to note that only those synonym rules which cannot get parsed are ignored. See [synonyms and stop token filters](#synonym-graph-tokenizer-stop-token-filter) for an example of `lenient` behaviour for invalid synonym rules.
 

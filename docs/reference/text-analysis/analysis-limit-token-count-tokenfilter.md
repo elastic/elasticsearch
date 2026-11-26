@@ -2,6 +2,9 @@
 navigation_title: "Limit token count"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-limit-token-count-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Limit token count token filter [analysis-limit-token-count-tokenfilter]

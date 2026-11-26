@@ -2,6 +2,9 @@
 navigation_title: "Pattern"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-pattern-tokenizer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Pattern tokenizer [analysis-pattern-tokenizer]

@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-charfilters.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Character filter reference [analysis-charfilters]

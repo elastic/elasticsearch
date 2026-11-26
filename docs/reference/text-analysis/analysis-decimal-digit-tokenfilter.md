@@ -2,6 +2,9 @@
 navigation_title: "Decimal digit"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-decimal-digit-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Decimal digit token filter [analysis-decimal-digit-tokenfilter]

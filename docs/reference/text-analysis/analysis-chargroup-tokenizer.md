@@ -2,6 +2,9 @@
 navigation_title: "Character group"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-chargroup-tokenizer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Character group tokenizer [analysis-chargroup-tokenizer]

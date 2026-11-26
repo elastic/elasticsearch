@@ -2,6 +2,9 @@
 navigation_title: "Flatten graph"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-flatten-graph-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Flatten graph token filter [analysis-flatten-graph-tokenfilter]

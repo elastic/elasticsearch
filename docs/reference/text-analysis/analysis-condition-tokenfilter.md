@@ -2,6 +2,9 @@
 navigation_title: "Conditional"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-condition-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Conditional token filter [analysis-condition-tokenfilter]

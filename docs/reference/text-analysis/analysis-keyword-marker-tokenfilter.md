@@ -2,6 +2,9 @@
 navigation_title: "Keyword marker"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-keyword-marker-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Keyword marker token filter [analysis-keyword-marker-tokenfilter]
@@ -217,7 +220,7 @@ The API returns the following response. Note the `jumping` token has a `keyword`
     This parameter, `keywords_path`, or `keywords_pattern` must be specified. You cannot specify this parameter and `keywords_pattern`.
 
 
-`keywords_path`
+`keywords_path` {applies_to}`serverless: unavailable`
 :   (Required*, string) Path to a file that contains a list of keywords. Tokens that match these keywords are not stemmed.
 
 This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each word in the file must be separated by a line break. The file must be available on every node in the cluster. How you add it depends on where you run {{es}}: refer to the [custom configuration file instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
@@ -244,7 +247,7 @@ To customize the `keyword_marker` filter, duplicate it to create the basis for a
 
 For example, the following [create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) request uses a custom `keyword_marker` filter and the `porter_stem` filter to configure a new [custom analyzer](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.md).
 
-The custom `keyword_marker` filter marks tokens specified in the `analysis/example_word_list.txt` file as keywords. The `porter_stem` filter does not stem these tokens.
+The custom `keyword_marker` filter marks tokens in the `keywords` array. The `porter_stem` filter skips these tokens.
 
 ```console
 PUT /my-index-000001
@@ -264,7 +267,7 @@ PUT /my-index-000001
       "filter": {
         "my_custom_keyword_marker_filter": {
           "type": "keyword_marker",
-          "keywords_path": "analysis/example_word_list.txt"
+          "keywords": [ "running", "jumping" ]
         }
       }
     }

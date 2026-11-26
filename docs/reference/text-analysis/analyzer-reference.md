@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-analyzers.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Analyzer reference [analysis-analyzers]

@@ -2,6 +2,9 @@
 navigation_title: "UAX URL email"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-uaxurlemail-tokenizer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # UAX URL email tokenizer [analysis-uaxurlemail-tokenizer]

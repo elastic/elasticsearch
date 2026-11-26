@@ -2,6 +2,9 @@
 navigation_title: "Classic"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-classic-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Classic token filter [analysis-classic-tokenfilter]

@@ -2,6 +2,9 @@
 navigation_title: "Fingerprint"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-fingerprint-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Fingerprint token filter [analysis-fingerprint-tokenfilter]

@@ -2,6 +2,9 @@
 navigation_title: "Length"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-length-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Length token filter [analysis-length-tokenfilter]

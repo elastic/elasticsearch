@@ -104,7 +104,7 @@ To use this connector as a **self-managed connector**, see [*Self-managed connec
 The following are compatible with Elastic connector frameworks:
 
 * Microsoft SQL Server versions 2017, 2019
-* Microsoft SQL Server versions 2022, 2025 {applies_to}`stack: preview 9.7`
+* Microsoft SQL Server versions 2022, 2025 (tech preview)
 * Azure SQL
 * Amazon RDS for SQL Server
 

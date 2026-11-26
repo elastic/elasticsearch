@@ -1992,7 +1992,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     new MockLog.UnseenEventExpectation(
                         "no warning",
                         PersistedClusterStateService.class.getCanonicalName(),
-                        Level.WARN,
+                        Level.INFO,
                         REWRITING_STATE_WARNING
                     )
                 );
@@ -2028,7 +2028,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     new MockLog.UnseenEventExpectation(
                         "no warning",
                         PersistedClusterStateService.class.getCanonicalName(),
-                        Level.WARN,
+                        Level.INFO,
                         REWRITING_STATE_WARNING
                     )
                 );
@@ -2081,7 +2081,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         new MockLog.SeenEventExpectation(
                             "warning",
                             PersistedClusterStateService.class.getCanonicalName(),
-                            Level.WARN,
+                            Level.INFO,
                             REWRITING_STATE_WARNING
                         )
                     );

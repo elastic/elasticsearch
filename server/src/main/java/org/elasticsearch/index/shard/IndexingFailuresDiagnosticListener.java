@@ -57,7 +57,7 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
 
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
-        logFailure(ex, prefix -> getMessageSupplier(prefix, index.id(), index.seqNo(), index.primaryTerm(), index.origin()));
+        logFailure(ex, true, prefix -> getMessageSupplier(prefix, index.id(), index.seqNo(), index.primaryTerm(), index.origin()));
     }
 
     @Override
@@ -79,6 +79,8 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
                     int docIndex = i;
                     logFailure(
                         result.getFailure(),
+                        // the engine already warned once for the abort, so its repeats must not use up the warn limit
+                        result.isBatchAborted() == false,
                         prefix -> getMessageSupplier(prefix, batch.id(docIndex), batch.seqNo(docIndex), batch.primaryTerm(), batch.origin())
                     );
                 }
@@ -93,12 +95,12 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
         }
     }
 
-    private void logFailure(Exception ex, Function<String, Supplier<Object>> messageSupplierForPrefix) {
+    private void logFailure(Exception ex, boolean mayWarn, Function<String, Supplier<Object>> messageSupplierForPrefix) {
         if (isUserError(ex)) {
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace(messageSupplierForPrefix.apply("index-fail"), ex);
             }
-        } else if (warnLimiter.tryAcquirePermit()) {
+        } else if (mayWarn && warnLimiter.tryAcquirePermit()) {
             LOGGER.warn(messageSupplierForPrefix.apply("real-index-fail"), ex);
         } else if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(messageSupplierForPrefix.apply("real-index-fail"), ex);

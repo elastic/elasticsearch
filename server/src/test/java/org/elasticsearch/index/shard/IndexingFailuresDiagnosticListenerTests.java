@@ -161,22 +161,28 @@ public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
         }
     }
 
-    public void testBatchTakesOnePermitPerRealFailureAndUserErrorsTakeNone() {
+    /** Aborted results repeat a failure that the engine already logged at WARN once, so they log at DEBUG. */
+    public void testBatchTakesOnePermitPerRealFailureAndUserErrorsAndAbortedResultsTakeNone() {
         Loggers.setLevel(LOGGER, Level.DEBUG);
         FailurePath[] paths = FailurePath.values();
         int userErrors = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 20);
         for (int i = 0; i < userErrors; i++) {
             logFailure(listener(sharedLimiter), paths[i % paths.length], randomUserError());
         }
+        int aborted = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 20);
         int realErrors = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 50);
         List<Engine.IndexResult> results = new ArrayList<>();
+        for (int i = 0; i < aborted; i++) {
+            results.add(Engine.IndexResult.batchAborted(randomRealError(), 1L, "doc-" + i));
+        }
         for (int i = 0; i < realErrors; i++) {
             results.add(failedResult(randomRealError()));
         }
 
-        listener(sharedLimiter).postIndexBatch(SHARD_ID, primaryBatch(realErrors), results);
+        listener(sharedLimiter).postIndexBatch(SHARD_ID, primaryBatch(aborted + realErrors), results);
 
-        List<Level> expected = new ArrayList<>(Collections.nCopies(MAX_WARNINGS_PER_WINDOW, Level.WARN));
+        List<Level> expected = new ArrayList<>(Collections.nCopies(aborted, Level.DEBUG));
+        expected.addAll(Collections.nCopies(MAX_WARNINGS_PER_WINDOW, Level.WARN));
         expected.addAll(Collections.nCopies(realErrors - MAX_WARNINGS_PER_WINDOW, Level.DEBUG));
         assertThat(levels(), equalTo(expected));
     }

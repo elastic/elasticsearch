@@ -783,24 +783,108 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         }
     }
 
-    /** A channel whose output, like the HTTP channel's, is made of recycled pages, and which keeps the response it is sent. */
+    /**
+     * A query whose result is valid but does not fit in the channel output gets a server error, not the {@code 400} that the
+     * output's {@link IllegalArgumentException} would map to: the client sent nothing wrong.
+     */
+    public void testOnResponseReportsResponseTooLargeAsServerError() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(col("value", "double"), col("__name__", "keyword"), col("step", "long"));
+        int points = 4 * 1024;
+        List<Object> values = new ArrayList<>(points);
+        List<Object> steps = new ArrayList<>(points);
+        for (int i = 0; i < points; i++) {
+            values.add((double) i);
+            steps.add(1735689600000L + i * 1000L);
+        }
+        RecyclingRestChannel channel = new RecyclingRestChannel(new FakeRestRequest(), PageCacheRecycler.BYTE_PAGE_SIZE);
+        EsqlQueryResponse response = new EsqlQueryResponse(
+            columns,
+            pagesOf(List.of(List.of(values, "up", steps))),
+            0,
+            0,
+            null,
+            false,
+            false,
+            ZoneOffset.UTC,
+            0,
+            0,
+            null
+        );
+        try {
+            new PrometheusQueryResponseListener(channel, "matrix", QueryMode.RANGE, Integer.MAX_VALUE).onResponse(response);
+
+            RestResponse restResponse = channel.response;
+            assertThat(restResponse.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+            try (
+                XContentParser parser = XContentType.JSON.xContent()
+                    .createParser(XContentParserConfiguration.EMPTY, restResponse.content().streamInput())
+            ) {
+                ObjectPath path = new ObjectPath(parser.map());
+                assertThat(path.evaluate("status"), equalTo("error"));
+                assertThat(path.evaluate("errorType"), equalTo("execution"));
+                assertThat(path.evaluate("error"), containsString("failed to write the query response"));
+            }
+            assertTrue("the partial body must be released before the error is sent", channel.output.isClosed());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
+     * A channel whose output, like the HTTP channel's, is made of recycled pages and throws {@link IllegalArgumentException}
+     * past a size limit (2 GB there), and which keeps the response it is sent.
+     */
     private static class RecyclingRestChannel extends AbstractRestChannel {
-        private RecyclerBytesStreamOutput output;
+        private final long maxBytes;
+        private LimitedOutput output;
         private RestResponse response;
 
         RecyclingRestChannel(RestRequest request) {
+            this(request, Long.MAX_VALUE);
+        }
+
+        RecyclingRestChannel(RestRequest request, long maxBytes) {
             super(request, false);
+            this.maxBytes = maxBytes;
         }
 
         @Override
         protected BytesStream newBytesOutput() {
-            output = new RecyclerBytesStreamOutput(new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)));
+            output = new LimitedOutput(maxBytes);
             return output;
         }
 
         @Override
         public void sendResponse(RestResponse response) {
             this.response = response;
+        }
+    }
+
+    private static class LimitedOutput extends RecyclerBytesStreamOutput {
+        private final long maxBytes;
+        private boolean closed;
+
+        LimitedOutput(long maxBytes) {
+            super(new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)));
+            this.maxBytes = maxBytes;
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) {
+            if (size() + length > maxBytes) {
+                throw new IllegalArgumentException("cannot hold more than " + maxBytes + " bytes of data");
+            }
+            super.writeBytes(b, offset, length);
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+            super.close();
+        }
+
+        boolean isClosed() {
+            return closed;
         }
     }
 

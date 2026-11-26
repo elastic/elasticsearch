@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.Streams;
@@ -134,7 +135,15 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         } catch (Exception e) {
             // The partial body is never sent: free its pages now rather than when the error response is written.
             channel.releaseOutputBuffer();
-            sendErrorResponse(e);
+            // The query already ran, so failing to write its result, for example past the output's 2 GB limit, is a server
+            // error even when the exception, like that limit's IllegalArgumentException, would otherwise map to 400.
+            sendErrorResponse(
+                new ElasticsearchStatusException(
+                    "failed to write the query response: " + e.getMessage(),
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    e
+                )
+            );
             return;
         }
         channel.sendResponse(new RestResponse(RestStatus.OK, builder));

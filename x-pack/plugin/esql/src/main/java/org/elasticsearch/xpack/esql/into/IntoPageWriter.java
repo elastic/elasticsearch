@@ -222,7 +222,7 @@ public final class IntoPageWriter {
                 requireEligibleDestination(project, target);
             } catch (ElasticsearchStatusException e) {
                 throw new ElasticsearchStatusException(
-                    "INTO [{}] can no longer be written as a batch, as its destination changed after the query was planned",
+                    "INTO [{}] can no longer write to the destination",
                     RestStatus.CONFLICT,
                     target
                 );

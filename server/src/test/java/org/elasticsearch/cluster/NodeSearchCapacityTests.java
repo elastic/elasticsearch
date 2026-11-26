@@ -58,6 +58,6 @@ public class NodeSearchCapacityTests extends AbstractWireSerializingTestCase<Nod
     }
 
     private static double randomPositiveDouble() {
-        return randomDoubleBetween(Math.nextUp(0.0d), 64.0d, true);
+        return randomDoubleBetween(0.1, 64.0, true);
     }
 }

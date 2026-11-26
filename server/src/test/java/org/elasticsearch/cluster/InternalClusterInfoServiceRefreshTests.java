@@ -371,15 +371,8 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
     public void testSearchLoadMetricsCollectorCompletesAfterReturn() throws Exception {
         try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
-            final ClusterInfo.NodeAndShard nodeAndShard = new ClusterInfo.NodeAndShard("node-id", new ShardId("index", "uuid", 0));
-            final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = Map.of(
-                nodeAndShard,
-                new SearchCopyDemand(randomDouble(), randomDouble())
-            );
-            final Map<String, NodeSearchCapacity> capacities = Map.of(
-                "node-id",
-                new NodeSearchCapacity(randomDoubleBetween(0.1, 64.0, true), randomDoubleBetween(0.1, 64.0, true))
-            );
+            final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = searchCopyDemands();
+            final Map<String, NodeSearchCapacity> capacities = nodeSearchCapacities();
             final SearchLoadMetrics metrics = new SearchLoadMetrics(demands, capacities);
             final AtomicReference<ActionListener<SearchLoadMetrics>> pending = new AtomicReference<>();
             final CountDownLatch collectorEntered = new CountDownLatch(1);

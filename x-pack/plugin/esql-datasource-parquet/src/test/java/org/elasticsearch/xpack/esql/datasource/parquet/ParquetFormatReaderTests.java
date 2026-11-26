@@ -3234,7 +3234,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Empty projection (e.g. EXTERNAL parquet | STATS COUNT(*) — or a query that only references
+     * Empty projection (e.g. FROM a Parquet dataset | STATS COUNT(*) — or a query that only references
      * {@code _file.*} virtual columns) must not allocate any column reader. The reader emits
      * row-count-only pages directly from the row group metadata, and the request circuit breaker
      * stays at zero because no buffer is ever charged. Regression test for the ~44KB-per-query

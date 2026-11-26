@@ -310,7 +310,7 @@ public class StatelessPlugin extends Plugin
 
     private static final Logger logger = LogManager.getLogger(StatelessPlugin.class);
 
-    /// Whether `Merge Impact Reduction` project functionality is enabled.
+    /// Whether uploading merges in separate blobs on object storage is enabled.
     public static final boolean MERGE_BLOBS_ENABLED = new FeatureFlag("merge_blobs").isEnabled();
 
     public static final LicensedFeature.Persistent STATELESS_FEATURE = LicensedFeature.persistent(

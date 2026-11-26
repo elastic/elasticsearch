@@ -236,9 +236,15 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         if (MERGE_BLOBS_ENABLED && mergeBlobLogCapture != null) {
             try {
                 assertInjectedMergeBlobsStillPresent();
-            } finally {
-                assertNoMergeBlobLoggingWarnings();
+            } catch (Throwable t) {
+                try {
+                    assertNoMergeBlobLoggingWarnings();
+                } catch (Throwable suppressed) {
+                    t.addSuppressed(suppressed);
+                }
+                throw t;
             }
+            assertNoMergeBlobLoggingWarnings();
         }
     }
 

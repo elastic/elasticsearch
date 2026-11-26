@@ -2,6 +2,9 @@
 navigation_title: "Geo-bounds"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-geobounds-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Geo-bounds aggregation [search-aggregations-metrics-geobounds-aggregation]

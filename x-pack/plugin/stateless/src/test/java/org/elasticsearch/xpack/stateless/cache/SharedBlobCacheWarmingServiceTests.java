@@ -99,6 +99,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -588,7 +589,14 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             BatchedCompoundCommit latestBcc = uploadBccs(fakeNode, primaryTerm, randomIntBetween(2, 3));
 
             var lastCommit = latestBcc.lastCompoundCommit();
-            var lastCommitBlobFiles = lastCommit.getBlobFiles();
+            final Set<BccBlob> lastCommitBlobFiles = new HashSet<>();
+            for (Blob blob : lastCommit.getBlobs()) {
+                // TODO(merge-blobs) Ignoring merge blobs here until the feature is fully supported
+                if (blob instanceof BccBlob bccBlob) {
+                    lastCommitBlobFiles.add(bccBlob);
+                }
+            }
+
             assertThat(lastCommitBlobFiles.toString(), lastCommitBlobFiles.size(), greaterThan(1));
             var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
             var indexShard = mockIndexShard(fakeNode);
@@ -3421,18 +3429,21 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final var lastCommit = uploadBccs(fakeNode, primaryTerm, 1).lastCompoundCommit();
             final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
 
+            final Set<BccBlob> lastCommitBlobFiles = new HashSet<>();
+            for (Blob blob : lastCommit.getBlobs()) {
+                // TODO(merge-blobs) Ignoring merge blobs here until the feature is fully supported
+                if (blob instanceof BccBlob bccBlob) {
+                    lastCommitBlobFiles.add(bccBlob);
+                }
+            }
+
             final var releaseShardRead = blockShardReadPool(fakeNode);
             try {
                 final var readFuture = readReferencedCompoundCommitsOnGeneric(fakeNode, lastCommit, directory);
                 assertBusy(() -> assertThat(queuedShardReadTasks(fakeNode.threadPool), greaterThan(0L)));
 
                 final var warmFuture = new PlainActionFuture<Void>();
-                fakeNode.warmingService.warmCacheForBCCHeadersRead(
-                    mockIndexShard(fakeNode),
-                    directory,
-                    lastCommit.getBlobFiles(),
-                    warmFuture
-                );
+                fakeNode.warmingService.warmCacheForBCCHeadersRead(mockIndexShard(fakeNode), directory, lastCommitBlobFiles, warmFuture);
                 assertThat(causedBy(expectThrows(AssertionError.class, () -> safeGet(warmFuture)), failure), is(true));
                 assertThat(causedBy(expectThrows(AssertionError.class, () -> safeGet(readFuture)), failure), is(true));
             } finally {
@@ -3536,7 +3547,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             safeGet(readReferencedCompoundCommitsOnGeneric(fakeNode, lastCommit, directory));
 
-            final long blobs = lastCommit.getBlobFiles().size();
+            final long blobs = lastCommit.getBlobs().size();
             assertBusy(() -> assertThat(completedShardReadTasks(fakeNode.threadPool) - completedBefore, equalTo(blobs)));
         }
     }

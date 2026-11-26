@@ -70,6 +70,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.w
 import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk.LIST_PAGE_SIZE;
 import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk.MIN_FINISH_SAMPLE;
 import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk.cheaperToFinish;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -415,13 +416,15 @@ public class PartitionPruningWalkTests extends ESTestCase {
         String prefixListing = ListingWalkHarness.WIDE_HIVE_PREFIX + "/";
 
         ListingWalkHarness sequential = new ListingWalkHarness(wideHiveTree());
-        expectThrows(
+        DiscoveredFilesLimitException sequentialError = expectThrows(
             DiscoveredFilesLimitException.class,
             () -> PartitionPruningWalk.withFinishMode(
                 PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
                 () -> expand(sequential, WIDE_HIVE_GLOB, hints, 0, pred, PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS)
             )
         );
+        assertThat(sequentialError.getMessage(), containsString("discovered too many files"));
+        assertThat(sequentialError.getMessage(), containsString("folder walk"));
         assertFalse("file cap must not prefix-list the dataset", sequential.listedPrefixes().contains(prefixListing));
 
         ListingWalkHarness parallel = new ListingWalkHarness(wideHiveTree());

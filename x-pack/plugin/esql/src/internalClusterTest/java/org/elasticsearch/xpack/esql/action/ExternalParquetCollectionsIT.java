@@ -219,7 +219,7 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
         assertRows("FROM " + dns, row("www.example.com"), row("api.example.com"));
         assertRows("FROM " + dns + " | KEEP *", row("www.example.com"), row("api.example.com"));
         assertQueryFails("FROM " + dns + " | KEEP question, answers", "Unknown column [answers]");
-        assertQueryFails("FROM " + dns + " | DROP answers", "answers");
+        assertQueryFails("FROM " + dns + " | DROP answers", "Unknown column [answers]");
         assertQueryFails("FROM " + dns + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\")", "Unknown column [answers.type]");
         assertRows(
             "FROM " + dns + " | NESTED_EXPAND answers | KEEP question, answers.type | SORT question",

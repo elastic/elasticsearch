@@ -119,6 +119,19 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    public void testLargestRecentIndexingOpSizeIsZeroWhenIndexingOperationMetricsDisabled() {
+        long recorded = randomLongBetween(1, 10_000_000);
+        service.updateLargestIndexingOperationSize(recorded);
+        assertThat(service.largestRecentIndexingOpSize(), equalTo(recorded));
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING.getKey(), false)
+                .build()
+        );
+        assertThat(service.largestRecentIndexingOpSize(), equalTo(0L));
+    }
+
     public void testGetShardHeapUsageEstimates() {
         // Set up shard memory metrics
         var shardMemoryMetrics1 = new StatelessMemoryMetricsService.ShardMemoryMetrics(

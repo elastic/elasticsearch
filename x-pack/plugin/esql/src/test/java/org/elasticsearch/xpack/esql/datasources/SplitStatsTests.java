@@ -94,21 +94,76 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals(-1L, stats.columnValueCount("does_not_exist"));
     }
 
-    public void testMergedMinMaxTreatNaNAsUnmergeable() {
-        // A NaN MERGED with a real value is unmergeable -> null (poison) -> the column safe-misses and a
-        // full scan returns the correct NaN. Comparable.compareTo would otherwise order NaN as the largest
-        // double and silently drop it from a MIN.
-        assertNull(SplitStats.mergedMin(Double.NaN, 5.0));
-        assertNull(SplitStats.mergedMin(5.0, Double.NaN));
-        assertNull(SplitStats.mergedMax(Double.NaN, 5.0));
-        assertNull(SplitStats.mergedMax(5.0, Double.NaN));
-        // Non-NaN doubles still merge normally.
+    public void testMergedMinMaxSkipNaN() {
+        assertEquals(5.0, SplitStats.mergedMin(Double.NaN, 5.0));
+        assertEquals(5.0, SplitStats.mergedMin(5.0, Double.NaN));
+        assertEquals(5.0, SplitStats.mergedMax(Double.NaN, 5.0));
+        assertEquals(5.0, SplitStats.mergedMax(5.0, Double.NaN));
+        assertEquals(5.0f, SplitStats.mergedMin(Float.NaN, 5.0f));
+        // NaN is the answer only when every contribution is NaN.
+        assertEquals(Double.NaN, SplitStats.mergedMin(Double.NaN, Double.NaN));
+        assertEquals(Double.NaN, SplitStats.mergedMax(Double.NaN, Double.NaN));
         assertEquals(1.0, SplitStats.mergedMin(1.0, 2.0));
         assertEquals(2.0, SplitStats.mergedMax(1.0, 2.0));
-        // A lone NaN contribution (other side null) is the column's value and is served as NaN — the poison
-        // only fires when NaN actually meets another value in a fold.
         assertEquals(Double.NaN, SplitStats.mergedMin(Double.NaN, null));
         assertEquals(Double.NaN, SplitStats.mergedMax(null, Double.NaN));
+        assertEquals(5.0, SplitStats.mergedMin(Float.NaN, 5.0));
+        assertEquals(5.0f, SplitStats.mergedMax(5.0f, Double.NaN));
+        assertEquals(-0.0, SplitStats.mergedMin(0.0, -0.0));
+        assertEquals(0.0, SplitStats.mergedMax(-0.0, 0.0));
+    }
+
+    public void testMergedMinMaxOrderSignedZeroAcrossFloatAndDouble() {
+        assertEquals(0.0, SplitStats.mergedMax(-0.0f, 0.0));
+        assertEquals(0.0, SplitStats.mergedMax(0.0, -0.0f));
+        assertEquals(-0.0, SplitStats.mergedMin(0.0f, -0.0));
+        assertEquals(-0.0, SplitStats.mergedMin(-0.0, 0.0f));
+        assertEquals(0.0, SplitStats.mergedMax(SplitStats.mergedMax(Double.NaN, -0.0f), 0.0));
+        assertEquals(-0.0, SplitStats.mergedMin(SplitStats.mergedMin(Double.NaN, 0.0f), -0.0));
+    }
+
+    public void testFoldOfAnAllNaNSplitKeepsTheFiniteBoundsOfItsSiblings() {
+        SplitStats finiteLow = splitWithBounds(5, 1.0, 5.0);
+        SplitStats allNaN = splitWithBounds(5, Double.NaN, Double.NaN);
+        SplitStats finiteHigh = splitWithBounds(5, 10.0, 20.0);
+
+        SplitStats folded = SplitStats.fold(List.of(finiteLow, allNaN, finiteHigh), false);
+
+        assertEquals(1.0, folded.columnMin("d"));
+        assertEquals(20.0, folded.columnMax("d"));
+        assertEquals(15L, folded.rowCount());
+    }
+
+    public void testFoldOfOnlyAllNaNSplitsKeepsNaNAsTheAnswer() {
+        SplitStats folded = SplitStats.fold(
+            List.of(splitWithBounds(5, Double.NaN, Double.NaN), splitWithBounds(5, Double.NaN, Double.NaN)),
+            false
+        );
+
+        assertEquals(Double.NaN, folded.columnMin("d"));
+        assertEquals(Double.NaN, folded.columnMax("d"));
+    }
+
+    public void testFoldOfASplitWithoutPublishedBoundsMakesTheBoundsUnservable() {
+        SplitStats.Builder noBounds = new SplitStats.Builder().rowCount(5);
+        int d = noBounds.addColumn("d");
+        noBounds.nullCount(d, 0L);
+        noBounds.valueCount(d, 5L);
+
+        SplitStats folded = SplitStats.fold(List.of(splitWithBounds(5, 1.0, 5.0), noBounds.build(), splitWithBounds(5, 10.0, 20.0)), false);
+
+        assertNull("a split with unknown values makes the minimum unservable", folded.columnMin("d"));
+        assertNull("a split with unknown values makes the maximum unservable", folded.columnMax("d"));
+    }
+
+    private static SplitStats splitWithBounds(long rows, double min, double max) {
+        SplitStats.Builder builder = new SplitStats.Builder().rowCount(rows);
+        int d = builder.addColumn("d");
+        builder.nullCount(d, 0L);
+        builder.valueCount(d, rows);
+        builder.min(d, min);
+        builder.max(d, max);
+        return builder.build();
     }
 
     public void testValueCountWireGatedByTransportVersion() throws IOException {

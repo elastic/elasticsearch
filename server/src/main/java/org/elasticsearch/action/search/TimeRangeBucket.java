@@ -24,7 +24,9 @@ import java.util.List;
  * region timestamps are not fully supported, so dashboards should filter to search nodes.
  *
  * <p>{@link #resolve} maps negative ages (future timestamps) to {@link #FifteenMinutes} and
- * everything beyond 14 days to {@link #OlderThan14Days}. The same thresholds converted to hours
+ * everything beyond 14 days (plus {@link #TELEMETRY_THRESHOLD_TOLERANCE}) to {@link #OlderThan14Days}.
+ * Unlike the histogram boundaries, it counts an age up to {@link #TELEMETRY_THRESHOLD_TOLERANCE} past a
+ * threshold as within it. The same thresholds converted to hours
  * are passed to OpenTelemetry explicit-bucket histograms: values {@code <=} the first bound
  * (including negatives) land in the first bucket, and {@link #OlderThan14Days} uses
  * {@code Double.MAX_VALUE} so every larger finite age lands in the last explicit bucket rather
@@ -39,6 +41,16 @@ public enum TimeRangeBucket {
     SevenDays(TimeValue.timeValueDays(7).getMillis(), "7_days"),
     FourteenDays(TimeValue.timeValueDays(14).getMillis(), "14_days"),
     OlderThan14Days(Long.MAX_VALUE, "older_than_14_days");
+
+    /**
+     * How far past a threshold {@link #resolve} still counts an age as within it. This only affects the
+     * {@code time_range_filter_from} telemetry attribute, never which documents a search or query matches.
+     *
+     * <p>Kibana sends its time picker presets, such as "Last 1 hour", as absolute timestamps, so request
+     * latency pushes their age just past the threshold. One minute covers latency, queueing and moderate
+     * clock skew while staying small next to the smallest bucket (15 minutes).
+     */
+    public static final TimeValue TELEMETRY_THRESHOLD_TOLERANCE = TimeValue.ONE_MINUTE;
 
     private static final TimeRangeBucket[] VALUES = values();
     private static final double MILLIS_PER_HOUR = TimeValue.ONE_HOUR.getMillis();
@@ -79,11 +91,17 @@ public enum TimeRangeBucket {
     }
 
     /**
-     * Returns the bucket label for the given age in milliseconds.
+     * Returns the bucket label for the given age in milliseconds, counting an age up to
+     * {@link #TELEMETRY_THRESHOLD_TOLERANCE} past a threshold as within it. Only used to label telemetry:
+     * the {@code time_range_filter_from} attribute of the search and ES|QL query metrics. It has no effect
+     * on how searches or queries are executed.
      */
     public static String resolve(long ageMillis) {
+        // Subtract from the age rather than add to the thresholds so OlderThan14Days's Long.MAX_VALUE cannot overflow.
+        long toleranceMillis = TELEMETRY_THRESHOLD_TOLERANCE.millis();
+        long toleratedAgeMillis = Math.max(ageMillis, Long.MIN_VALUE + toleranceMillis) - toleranceMillis;
         for (TimeRangeBucket bucket : VALUES) {
-            if (ageMillis <= bucket.millis) {
+            if (toleratedAgeMillis <= bucket.millis) {
                 return bucket.label;
             }
         }

@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
@@ -437,7 +438,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
                             LongFunction<BlobContainer> blobContainer,
-                            BccBlob bccBlob,
+                            Blob blob,
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
                             LongConsumer totalBytesReadFromIndexing,
@@ -447,8 +448,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             boolean speculativeFill
                         ) {
                             return new ObjectStoreCacheBlobReader(
-                                blobContainer.apply(bccBlob.primaryTerm()),
-                                bccBlob.blobName(),
+                                blobContainer.apply(blob.primaryTerm()),
+                                blob.blobName(),
                                 cacheService.getRangeSize(),
                                 objectStoreFetchExecutor
                             ) {
@@ -1324,7 +1325,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
-                        BccBlob bccBlob,
+                        Blob blob,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer totalBytesReadFromObjectStore,
                         LongConsumer totalBytesReadFromIndexing,
@@ -1334,8 +1335,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         boolean speculativeFill
                     ) {
                         return new ObjectStoreCacheBlobReader(
-                            blobContainer.apply(bccBlob.primaryTerm()),
-                            bccBlob.blobName(),
+                            blobContainer.apply(blob.primaryTerm()),
+                            blob.blobName(),
                             cacheService.getRangeSize(),
                             objectStoreFetchExecutor
                         );
@@ -1467,7 +1468,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
                             LongFunction<BlobContainer> blobContainer,
-                            BccBlob bccBlob,
+                            Blob blob,
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
                             LongConsumer totalBytesReadFromIndexing,
@@ -1477,8 +1478,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             boolean speculativeFill
                         ) {
                             return new ObjectStoreCacheBlobReader(
-                                blobContainer.apply(bccBlob.primaryTerm()),
-                                bccBlob.blobName(),
+                                blobContainer.apply(blob.primaryTerm()),
+                                blob.blobName(),
                                 cacheService.getRangeSize(),
                                 objectStoreFetchExecutor
                             ) {
@@ -2356,7 +2357,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
                             LongFunction<BlobContainer> blobContainer,
-                            BccBlob bccBlob,
+                            Blob blob,
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
                             LongConsumer totalBytesReadFromIndexing,
@@ -2366,8 +2367,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             boolean speculativeFill
                         ) {
                             return new ObjectStoreCacheBlobReader(
-                                blobContainer.apply(bccBlob.primaryTerm()),
-                                bccBlob.blobName(),
+                                blobContainer.apply(blob.primaryTerm()),
+                                blob.blobName(),
                                 cacheService.getRangeSize(),
                                 objectStoreFetchExecutor
                             );
@@ -2557,7 +2558,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
                             LongFunction<BlobContainer> blobContainer,
-                            BccBlob bccBlob,
+                            Blob blob,
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
                             LongConsumer totalBytesReadFromIndexing,
@@ -2567,8 +2568,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             boolean speculativeFill
                         ) {
                             return new ObjectStoreCacheBlobReader(
-                                blobContainer.apply(bccBlob.primaryTerm()),
-                                bccBlob.blobName(),
+                                blobContainer.apply(blob.primaryTerm()),
+                                blob.blobName(),
                                 cacheService.getRangeSize(),
                                 objectStoreFetchExecutor
                             );

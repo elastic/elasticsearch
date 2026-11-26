@@ -8,8 +8,11 @@ package org.elasticsearch.xpack.encryption;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -23,21 +26,28 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import static org.elasticsearch.xpack.encryption.EncryptionIntegTestUtils.passwordSettings;
 import static org.elasticsearch.xpack.encryption.ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY;
 import static org.elasticsearch.xpack.encryption.ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * On stateless only master-eligible nodes persist cluster state, so only they must be able to wrap the cluster state encryption key.
  * When the password comes from cluster secrets every node gets it from the cluster state, so nodes are not checked for it; otherwise each
  * node uses the password in its own keystore, which may differ between nodes.
  *
- * <p>Nodes start without a password.
+ * <p>Nodes start without a password. Keystore passwords are added with a secure settings reload, so that a restart drops them.
  */
 @LuceneTestCase.SuppressFileSystems("*")
 // not auto-managed, so that starting a master-eligible node that is rejected at join doesn't wait for it to join
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegTestCase {
+
+    private static final Settings FAST_FAILOVER = Settings.builder()
+        .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
+        .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+        .build();
 
     @Before
     public void bootstrapFirstMaster() {
@@ -63,6 +73,44 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
         ensureStableCluster(2);
         assertBusy(() -> assertTrue(pekEncryption(joining).canWrapForGateway()));
         assertThat(pekEncryption(joining).activePasswordId(), equalTo("v1"));
+    }
+
+    /**
+     * Cluster secrets that switch to a new password and drop the old one are applied on every node, although the elected master's
+     * persisted copy of the key is still wrapped with the old one: cluster secrets are the source of truth.
+     */
+    public void testClusterSecretsReplacingThePasswordAreAppliedOnEveryNode() throws Exception {
+        startMasterOnlyNode();
+        startMasterOnlyNode();
+        startIndexNode();
+        startSearchNode();
+        ensureStableCluster(4);
+        applyClusterSecrets(1, ACTIVE_PASSWORD_ID_KEY, "v1", PASSWORD_PREFIX + "v1", "test-password-v1");
+        assertBusy(() -> assertThat(masterPek().getPasswordId(), equalTo("v1")));
+
+        applyClusterSecrets(2, ACTIVE_PASSWORD_ID_KEY, "v2", PASSWORD_PREFIX + "v2", "test-password-v2");
+        for (String node : internalCluster().getNodeNames()) {
+            assertThat(node, pekEncryption(node).activePasswordId(), equalTo("v2"));
+            assertTrue(node, pekEncryption(node).canWrapForGateway());
+        }
+        // the key metadata follows the new password although the old one is gone
+        assertBusy(() -> assertThat(masterPek().getPasswordId(), equalTo("v2")));
+
+        createIndex("index-after-password-change");
+        ensureGreen("index-after-password-change");
+    }
+
+    /** The elected master restarts without its password, so it holds no key; it restores the key once its password is reloaded. */
+    public void testRestartedMasterRestoresKeyOnceItHasThePassword() throws Exception {
+        String master = startMasterOnlyNode(FAST_FAILOVER);
+        reload(master, passwordSettings("v1", "test-password-v1"));
+        assertBusy(() -> assertTrue(hasUsableKey(masterState())));
+
+        internalCluster().restartNode(master);
+        assertBusy(() -> assertTrue(masterPek().isUnwrapFailed()));
+
+        reload(master, passwordSettings("v1", "test-password-v1"));
+        assertBusy(() -> assertTrue(hasUsableKey(masterState())));
     }
 
     /** Writes file settings holding the given cluster secrets, as alternating names and values, and waits for every node to apply them. */
@@ -91,6 +139,12 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
         return state.metadata().getSingleProjectCustom(ProjectEncryptionKeyMetadata.TYPE);
     }
 
+    private static ProjectEncryptionKeyMetadata masterPek() {
+        ProjectEncryptionKeyMetadata metadata = pek(masterState());
+        assertThat(metadata, notNullValue());
+        return metadata;
+    }
+
     private static boolean hasUsableKey(ClusterState state) {
         ProjectEncryptionKeyMetadata metadata = pek(state);
         return metadata != null && metadata.isUnwrapFailed() == false;
@@ -98,5 +152,9 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
 
     private static PasswordPekEncryption pekEncryption(String node) {
         return internalCluster().getInstance(PasswordPekEncryption.class, node);
+    }
+
+    private static void reload(String node, Settings settings) {
+        findPlugin(node, EncryptionPlugin.class).reload(settings);
     }
 }

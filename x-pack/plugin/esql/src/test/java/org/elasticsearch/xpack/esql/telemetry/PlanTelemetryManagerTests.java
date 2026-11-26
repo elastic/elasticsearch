@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.action.search.TimeRangeBucket;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.RequestedTimeRange;
-import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 
@@ -68,26 +68,25 @@ public class PlanTelemetryManagerTests extends ESTestCase {
     public void testTimeRangeFilterFrom() {
         // A short range a week ago reads old data.
         Instant weekAgo = START.minus(Duration.ofDays(7));
-        assertTimeRangeFilterFrom(new TimestampBounds(weekAgo, weekAgo.plusSeconds(60)), "7_days");
+        assertTimeRangeFilterFrom(weekAgo, weekAgo.plusSeconds(60), "7_days");
         // Ages at a threshold, or up to the tolerance past it, land in the bucket named after it.
         Instant fifteenMinutesAgo = START.minus(Duration.ofMinutes(15));
         Instant atTolerance = fifteenMinutesAgo.minusMillis(TimeRangeBucket.TELEMETRY_THRESHOLD_TOLERANCE.millis());
-        assertTimeRangeFilterFrom(new TimestampBounds(fifteenMinutesAgo, START), "15_minutes");
-        assertTimeRangeFilterFrom(new TimestampBounds(atTolerance, START), "15_minutes");
-        assertTimeRangeFilterFrom(new TimestampBounds(atTolerance.minusMillis(1), START), "1_hour");
+        assertTimeRangeFilterFrom(fifteenMinutesAgo, START, "15_minutes");
+        assertTimeRangeFilterFrom(atTolerance, START, "15_minutes");
+        assertTimeRangeFilterFrom(atTolerance.minusMillis(1), START, "1_hour");
+        // Only the lower bound counts, a range without one has no age.
+        assertTimeRangeFilterFrom(fifteenMinutesAgo, null, "15_minutes");
+        assertTimeRangeFilterFrom(null, START, null);
         // A range in the future, and one far outside the epoch millisecond range, land in the first and last bucket.
-        assertTimeRangeFilterFrom(new TimestampBounds(START.plus(Duration.ofDays(1)), START.plus(Duration.ofDays(2))), "15_minutes");
-        assertTimeRangeFilterFrom(new TimestampBounds(Instant.MIN, START), "older_than_14_days");
+        assertTimeRangeFilterFrom(START.plus(Duration.ofDays(1)), START.plus(Duration.ofDays(2)), "15_minutes");
+        assertTimeRangeFilterFrom(Instant.MIN, START, "older_than_14_days");
     }
 
-    private static void assertTimeRangeFilterFrom(TimestampBounds range, String expected) {
+    private static void assertTimeRangeFilterFrom(@Nullable Instant from, @Nullable Instant to, @Nullable String expected) {
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
-        new PlanTelemetryManager(registry).recordQuery(
-            telemetry(QuerySourceCommand.FROM),
-            new RequestedTimeRange(range, START),
-            SUCCESS,
-            millis(1)
-        );
+        RequestedTimeRange range = new RequestedTimeRange(from, to, START);
+        new PlanTelemetryManager(registry).recordQuery(telemetry(QuerySourceCommand.FROM), range, SUCCESS, millis(1));
         Measurement count = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, QUERY_TOTAL).getFirst();
         assertThat(range.toString(), count.attributes().get(TIME_RANGE_FILTER_FROM), equalTo(expected));
     }
@@ -98,7 +97,7 @@ public class PlanTelemetryManagerTests extends ESTestCase {
     }
 
     private static RequestedTimeRange lastHours(int hours) {
-        return new RequestedTimeRange(new TimestampBounds(START.minus(Duration.ofHours(hours)), START), START);
+        return new RequestedTimeRange(START.minus(Duration.ofHours(hours)), START, START);
     }
 
     private static TimeValue millis(long millis) {

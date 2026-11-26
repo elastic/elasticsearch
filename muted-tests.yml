@@ -1086,6 +1086,11 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testStopFetchesTheRowsSelectedSoFar
   issue: https://github.com/elastic/elasticsearch/issues/167692
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  tasks:
+  - :qa:rolling-upgrade:bcUpgradeTest
+  method: testIndexSortForNumericTypes {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/167695
 - class: org.elasticsearch.xpack.esql.heap_attack.ListTasksHeapAttackIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest

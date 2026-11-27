@@ -1,0 +1,51 @@
+{
+  "prometheus.metadata": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/reference/query-languages/promql/promql-http-api#promql-http-api-metadata-endpoint",
+      "description": "Get Prometheus metric metadata"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_prometheus/api/v1/metadata",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/_prometheus/{index}/api/v1/metadata",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "An index expression that restricts which indices are considered. Defaults to `metrics-*`"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "metric": {
+        "type": "string",
+        "description": "Restricts the response to one metric name"
+      },
+      "limit": {
+        "type": "int",
+        "description": "The maximum number of distinct metrics to return. `0` means no limit from the request"
+      },
+      "limit_per_metric": {
+        "type": "int",
+        "description": "The maximum number of metadata entries to return per metric. `0` means no limit from the request"
+      }
+    }
+  }
+}

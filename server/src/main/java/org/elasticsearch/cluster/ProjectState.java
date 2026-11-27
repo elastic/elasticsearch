@@ -99,9 +99,12 @@ public final class ProjectState {
     }
 
     /**
-     * Build a new {@link ClusterState} with the updated project.
+     * Build a new {@link ClusterState} with the updated project, or return the current one if the project is unchanged.
      */
     public ClusterState updatedState(ProjectMetadata updatedProject) {
+        if (metadata() == updatedProject) {
+            return cluster;
+        }
         return ClusterState.builder(cluster).metadata(cluster.metadata().withUpdatedProject(updatedProject)).build();
     }
 

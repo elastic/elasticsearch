@@ -94,4 +94,16 @@ public class TranslateTimeSeriesAggregateGoldenTests extends GoldenTestCase {
             | SORT _fork, cluster
             """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
+
+    public void testSecondPassLossySum() {
+        builder("TS k8s | STATS a = SUM(RATE(network.total_bytes_in)), b = SUM(MAX_OVER_TIME(network.bytes_in)) BY TBUCKET(1 minute)")
+            .stages(STAGES)
+            .run();
+    }
+
+    public void testSecondPassLossyAvg() {
+        builder("TS k8s | STATS a = AVG(RATE(network.total_bytes_in)), b = AVG(MAX_OVER_TIME(network.bytes_in)) BY TBUCKET(1 minute)")
+            .stages(STAGES)
+            .run();
+    }
 }

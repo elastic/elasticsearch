@@ -46,9 +46,8 @@ public class CsvExternalAggregatePushdownMatrixIT extends AbstractExternalAggreg
     }
 
     /**
-     * MIN/MAX on a double column containing a NaN must equal a full scan: the runtime aggregator uses
-     * {@code Math.min}/{@code Math.max}, which propagate NaN, so any NaN makes the result NaN. The warm path
-     * must return the same NaN the cold scan does (it must not skip the NaN and serve a normal extreme).
+     * MIN/MAX on a double column containing a NaN must equal a full scan: the runtime aggregator skips NaN, so
+     * the result is the finite extreme. The warm path must return the same value the cold scan does.
      */
     public void testMinMaxNaNDoubleColdThenWarmShortCircuits() throws Exception {
         Path dir = createTempDir();
@@ -61,9 +60,32 @@ public class CsvExternalAggregatePushdownMatrixIT extends AbstractExternalAggreg
         registerDataset("nan_employees", StoragePath.fileUri(file));
 
         assertColdThenWarmShortCircuit("nan_employees", "STATS lo = MIN(d), hi = MAX(d)", ROWS, rows -> {
-            assertThat("MIN(d) is NaN when any value is NaN", ((Number) rows.get(0).get(0)).doubleValue(), equalTo(Double.NaN));
-            assertThat("MAX(d) is NaN when any value is NaN", ((Number) rows.get(0).get(1)).doubleValue(), equalTo(Double.NaN));
+            assertThat("MIN(d) skips NaN", ((Number) rows.get(0).get(0)).doubleValue(), equalTo(0.5));
+            assertThat("MAX(d) skips NaN", ((Number) rows.get(0).get(1)).doubleValue(), equalTo(ROWS - 1 + 0.5));
         });
+    }
+
+    public void testFilteredCountsOverNaNRowMatchAScanAfterTheStatisticsAreHarvested() throws Exception {
+        Path file = createTempDir().resolve("nan_filter.csv");
+        Files.writeString(file, "emp_no:long,d:double\n0,1.0\n1,NaN\n");
+        registerDataset("nan_filter_csv", StoragePath.fileUri(file));
+
+        assertFilteredCountsOverNaNRowMatchAScan("nan_filter_csv", true);
+    }
+
+    /**
+     * Two whole-file splits, one holding {@code 1.0} and one holding {@code NaN}. The unfiltered {@code MIN}/{@code MAX}
+     * is served from the harvested statistics, but the filtered counts scan both files because text splits carry no
+     * statistics into the filter decision. The test guards the counts, not the split classification.
+     */
+    public void testFilteredCountsOverNaNRowInAnotherFileMatchAScanAfterTheStatisticsAreHarvested() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("a.csv"), "emp_no:long,d:double\n0,1.0\n");
+        Files.writeString(dir.resolve("b.csv"), "emp_no:long,d:double\n1,NaN\n");
+        String dirUri = StoragePath.fileUri(dir);
+        registerDataset("nan_filter_csv_files", (dirUri.endsWith("/") ? dirUri : dirUri + "/") + "*.csv");
+
+        assertFilteredCountsOverNaNRowMatchAScan("nan_filter_csv_files", true);
     }
 
     /**

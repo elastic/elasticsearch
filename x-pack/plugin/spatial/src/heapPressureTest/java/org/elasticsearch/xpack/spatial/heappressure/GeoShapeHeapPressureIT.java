@@ -25,10 +25,9 @@ import java.util.function.IntFunction;
  * <p>Lucene's {@code SpatialQuery} answers some relations with a bit set of {@code maxDoc} bits whatever the clause matches: always for
  * {@code contains}, and for {@code intersects} when the shapes of the field have more than four triangles per document on average.
  * The scorers of all the clauses of a {@code bool} are created together, so a request holds the bit sets of all of them, about 62kb each
- * for {@link #DOCS} documents, and the request circuit breaker sees none of it. The clauses here are selective, so that only the size of
- * the segment, not what they match, makes the request too large for the heap. A case passes if the request either succeeds or is rejected
- * by a circuit breaker and the node survives. Each case should be run on its own, since a case that kills the node leaves the rest
- * without one.
+ * for {@link #DOCS} documents, which the request circuit breaker must account for under {@code points-execution}. The clauses here are
+ * selective, so that only the size of the segment, not what they match, makes the request too large for the heap. Each case should be
+ * run on its own, since a case that kills the node leaves the rest without one.
  */
 public class GeoShapeHeapPressureIT extends SearchHeapPressureTestCase {
 
@@ -38,6 +37,7 @@ public class GeoShapeHeapPressureIT extends SearchHeapPressureTestCase {
     private static final double RADIUS = 0.005;
     private static final int SMALL = 20;
     private static final int LARGE = 4000;
+    private static final String POINTS_EXECUTION = "points-execution";
 
     @ClassRule
     public static ElasticsearchCluster cluster = heapConstrainedNode("256m").module("spatial")
@@ -68,7 +68,7 @@ public class GeoShapeHeapPressureIT extends SearchHeapPressureTestCase {
                 {"geo_shape": {"shape": {"relation": "contains", "shape": "POINT (%s %s)"}}}""", fmt(lon(i)), fmt(lat(i)))),
             SMALL,
             LARGE,
-            null
+            POINTS_EXECUTION
         );
     }
 
@@ -92,7 +92,7 @@ public class GeoShapeHeapPressureIT extends SearchHeapPressureTestCase {
                 fmt(lon - d),
                 fmt(lat - d)
             );
-        }), SMALL, LARGE, null);
+        }), SMALL, LARGE, POINTS_EXECUTION);
     }
 
     /** A {@code bool} of {@code count} clauses, each about a different document so that they are not merged. */

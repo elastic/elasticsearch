@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -16,7 +17,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 
 import java.io.IOException;
 
-public class And extends BinaryLogic implements Negatable<BinaryLogic> {
+public class And extends BinaryLogic implements Negatable<BinaryLogic>, Reproducible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "And", And::new);
 
     public And(Source source, Expression left, Expression right) {

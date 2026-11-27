@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.Before;
 
@@ -23,8 +22,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * The {@code @timestamp} range of the request filter is kept on the request however the query ends. Requests are executed directly
- * rather than via {@code run()}, which may wrap them in a copy.
+ * The {@code @timestamp} range the query asks for, through its request filter and the filters in the query itself, is kept on the
+ * request however the query ends. Requests are executed directly rather than via {@code run()}, which may wrap them in a copy.
  */
 public class RequestedTimeRangeIT extends AbstractEsqlIntegTestCase {
 
@@ -45,7 +44,8 @@ public class RequestedTimeRangeIT extends AbstractEsqlIntegTestCase {
             new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").gte(FROM.toString()).lte(TO.toString()))
         );
         client().execute(EsqlQueryAction.INSTANCE, request).actionGet().close();
-        assertThat(request.requestedTimeRange().bounds(), equalTo(new TimestampBounds(FROM, TO)));
+        RequestedTimeRange range = request.requestedTimeRange();
+        assertThat(range, equalTo(new RequestedTimeRange(FROM, TO, range.now())));
     }
 
     public void testFailure() {
@@ -53,7 +53,8 @@ public class RequestedTimeRangeIT extends AbstractEsqlIntegTestCase {
             new RangeQueryBuilder("@timestamp").gte(FROM.toString()).lte(TO.toString())
         );
         expectThrows(VerificationException.class, () -> client().execute(EsqlQueryAction.INSTANCE, request).actionGet());
-        assertThat(request.requestedTimeRange().bounds(), equalTo(new TimestampBounds(FROM, TO)));
+        RequestedTimeRange range = request.requestedTimeRange();
+        assertThat(range, equalTo(new RequestedTimeRange(FROM, TO, range.now())));
     }
 
     public void testRelativeRange() {
@@ -61,7 +62,24 @@ public class RequestedTimeRangeIT extends AbstractEsqlIntegTestCase {
         client().execute(EsqlQueryAction.INSTANCE, request).actionGet().close();
         // Date math is resolved against the now that is kept with the bounds, so the age of the range is exact.
         RequestedTimeRange range = request.requestedTimeRange();
-        assertThat(range.bounds(), equalTo(new TimestampBounds(range.now().minus(Duration.ofHours(1)), range.now())));
+        assertThat(range, equalTo(new RequestedTimeRange(range.now().minus(Duration.ofHours(1)), range.now(), range.now())));
+    }
+
+    public void testRangeInQuery() {
+        // NOW() is resolved against the same now that is kept with the bounds, and a range in the query may have a single bound.
+        var request = syncEsqlQueryRequest("FROM logs | WHERE @timestamp >= NOW() - 15 minutes | LIMIT 1");
+        client().execute(EsqlQueryAction.INSTANCE, request).actionGet().close();
+        RequestedTimeRange range = request.requestedTimeRange();
+        assertThat(range, equalTo(new RequestedTimeRange(range.now().minus(Duration.ofMinutes(15)), null, range.now())));
+
+        // The request filter and the query narrow each other.
+        Instant mid = FROM.plus(Duration.ofMinutes(15));
+        var narrowed = syncEsqlQueryRequest("FROM logs | WHERE @timestamp >= \"" + mid + "\" | LIMIT 1").filter(
+            new RangeQueryBuilder("@timestamp").gte(FROM.toString()).lte(TO.toString())
+        );
+        client().execute(EsqlQueryAction.INSTANCE, narrowed).actionGet().close();
+        range = narrowed.requestedTimeRange();
+        assertThat(range, equalTo(new RequestedTimeRange(mid, TO, range.now())));
     }
 
     public void testFailureBeforeAnalysis() {
@@ -74,10 +92,10 @@ public class RequestedTimeRangeIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNoRequestedTimeRange() {
-        // A range in the query itself is not interpreted, and neither is a filter range with only one bound.
-        var withoutFilter = syncEsqlQueryRequest("FROM logs | WHERE @timestamp >= NOW() - 1 hour AND @timestamp <= NOW() | LIMIT 1");
+        // A request filter range with only one bound is not interpreted.
+        var withoutRange = syncEsqlQueryRequest("FROM logs | LIMIT 1");
         var withLowerBoundOnly = syncEsqlQueryRequest("FROM logs | LIMIT 1").filter(new RangeQueryBuilder("@timestamp").gte("now-1h"));
-        for (EsqlQueryRequest request : new EsqlQueryRequest[] { withoutFilter, withLowerBoundOnly }) {
+        for (EsqlQueryRequest request : new EsqlQueryRequest[] { withoutRange, withLowerBoundOnly }) {
             client().execute(EsqlQueryAction.INSTANCE, request).actionGet().close();
             assertThat(request.requestedTimeRange(), nullValue());
         }

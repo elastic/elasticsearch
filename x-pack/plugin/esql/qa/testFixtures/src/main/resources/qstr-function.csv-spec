@@ -227,6 +227,114 @@ book_no:keyword | title:text
 7480            | The Hobbit
 ;
 
+qstrWithFieldsOption
+required_capability: qstr_function
+required_capability: fn_qstr_fields_option
+
+// Without the fields option the query would also match the books where Dostoevsky is the author
+FROM books
+| WHERE QSTR("Dostoevsky", {"fields": ["title"]})
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1937            | The Best Short Stories of Dostoevsky (Modern Library)
+;
+
+qstrWithFieldsOptionAsString
+required_capability: qstr_function
+required_capability: fn_qstr_fields_option
+
+FROM books
+| WHERE QSTR("Hobbit", {"fields": "title"})
+| KEEP book_no, title
+| SORT book_no
+;
+
+book_no:keyword | title:text
+4289            | Poems from the Hobbit
+6405            | The Hobbit or There and Back Again
+7480            | The Hobbit
+;
+
+qstrWithMultipleFieldsOption
+required_capability: qstr_function
+required_capability: fn_qstr_fields_option
+
+// Without the fields option the query would also match the books where Dostoevsky is only the author
+FROM books
+| WHERE QSTR("Dostoevsky", {"fields": ["title", "description^2"]})
+| KEEP book_no
+| SORT book_no
+;
+
+book_no:keyword
+1211
+1937
+2924
+5948
+8615
+;
+
+qstrWithFieldsOptionWildcard
+required_capability: qstr_function
+required_capability: fn_qstr_fields_option
+
+// The pattern matches title; without the fields option the author field would match too
+FROM books
+| WHERE QSTR("Dostoevsky", {"fields": ["tit*"]})
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1937            | The Best Short Stories of Dostoevsky (Modern Library)
+;
+
+qstrWithFieldsOptionAndFieldQualifier
+required_capability: qstr_function
+required_capability: fn_qstr_fields_option
+
+// A field qualifier in the query string overrides the fields option, as in the query_string query
+FROM books
+| WHERE QSTR("author:Dostoevsky", {"fields": ["title"]})
+| STATS c = COUNT(*)
+;
+
+c:long
+11
+;
+
+qstrWithFieldsOptionBoost
+required_capability: qstr_function
+required_capability: fn_qstr_fields_option
+required_capability: metadata_score
+
+// Twice the score of qstrWithFieldsOptionWithoutBoost, before rounding
+FROM books METADATA _score
+| WHERE QSTR("Dostoevsky", {"fields": ["title^2"]})
+| EVAL _score = round(_score, 4)
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1937            | 5.4777
+;
+
+qstrWithFieldsOptionWithoutBoost
+required_capability: qstr_function
+required_capability: fn_qstr_fields_option
+required_capability: metadata_score
+
+FROM books METADATA _score
+| WHERE QSTR("Dostoevsky", {"fields": ["title"]})
+| EVAL _score = round(_score, 4)
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1937            | 2.7389
+;
+
 testQstrInStatsNonPushable
 required_capability: qstr_function
 required_capability: full_text_functions_in_stats_where

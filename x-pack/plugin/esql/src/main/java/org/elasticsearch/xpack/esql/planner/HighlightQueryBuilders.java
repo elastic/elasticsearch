@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -70,7 +71,10 @@ public final class HighlightQueryBuilders {
             case QueryString queryString -> {
                 String defaultField = HighlightSupport.queryStringDefaultField(queryString);
                 if (defaultField != null) {
-                    requireOnField(defaultField, onFields);
+                    requireOnFieldOrPattern(defaultField, onFields);
+                }
+                for (String field : queryString.fields().keySet()) {
+                    requireOnFieldOrPattern(field, onFields);
                 }
             }
             case BinaryLogic binary -> {
@@ -122,6 +126,20 @@ public final class HighlightQueryBuilders {
     private static void requireOnField(String field, @Nullable List<String> onFields) {
         if (onFields != null && onFields.contains(field) == false) {
             throw new IllegalArgumentException("HIGHLIGHT query field [" + field + "] is not in ON fields " + onFields);
+        }
+    }
+
+    /**
+     * QSTR's {@code default_field} and {@code fields} options may be wildcard patterns. Translation resolves a pattern
+     * against the ON fields, and a pattern that matches none of them would silently highlight nothing.
+     */
+    private static void requireOnFieldOrPattern(String fieldOrPattern, @Nullable List<String> onFields) {
+        if (Regex.isSimpleMatchPattern(fieldOrPattern) == false) {
+            requireOnField(fieldOrPattern, onFields);
+        } else if (onFields != null && onFields.stream().noneMatch(field -> Regex.simpleMatch(fieldOrPattern, field))) {
+            throw new IllegalArgumentException(
+                "HIGHLIGHT query field pattern [" + fieldOrPattern + "] matches none of the ON fields " + onFields
+            );
         }
     }
 

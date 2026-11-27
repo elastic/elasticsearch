@@ -123,26 +123,26 @@ Follow these steps to generate a GitLab personal access token:
 
 ### Compatibility [es-connectors-gitlab-client-compatibility]
 
-This connector supports GitLab Cloud (gitlab.com). {applies_to}`stack: ga 9.7, ga 9.6.1, ga 9.5.8` It also supports GitLab Self-Managed instances: set `host` to your instance URL. Only HTTPS URLs are accepted.
+This connector supports GitLab Cloud (gitlab.com). {applies_to}`stack: ga 9.7` It also supports GitLab Self-Managed instances: set `host` to your instance URL. Only HTTPS URLs are accepted.
 
-GitLab Self-Managed instances were not supported in earlier versions.
+GitLab Self-Managed support was also added in 9.6.1 and 9.5.8. Earlier releases support gitlab.com only.
 
 
 ### Configuration [es-connectors-gitlab-client-configuration]
 
 The following configuration fields are available:
 
-`host` {applies_to}`stack: ga 9.7, ga 9.6.1, ga 9.5.8`
+`host` {applies_to}`stack: ga 9.7`
 :   URL of the GitLab instance, for example `https://gitlab.example.com`. Must start with `https://`. A trailing slash is ignored, and a sub-path such as `https://example.com/gitlab` is supported.
 
     Default value is `https://gitlab.com`.
 
-`ssl_enabled` {applies_to}`stack: ga 9.7, ga 9.6.1, ga 9.5.8`
+`ssl_enabled` {applies_to}`stack: ga 9.7`
 :   Whether to use a custom CA certificate to verify the GitLab server. Use this for instances with an internal or self-signed certificate.
 
     Default value is `false`.
 
-`ssl_ca` {applies_to}`stack: ga 9.7, ga 9.6.1, ga 9.5.8`
+`ssl_ca` {applies_to}`stack: ga 9.7`
 :   The CA certificate, in PEM format. Only available when `ssl_enabled` is on.
 
 `token` (required)

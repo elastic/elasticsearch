@@ -2289,6 +2289,7 @@ public class SharedBlobCacheWarmingService {
         public void onResponse(Releasable releasable) {
             if (demoted == false && task.hasTimedOut()) {
                 demoted = true;
+                logger.info("demoted warming task {} of a timed out search recovery, queueing it behind non timed out tasks", task);
                 releasable.close();
                 warmingTaskRunner.enqueueTask(this);
                 return;

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
@@ -55,6 +56,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.N
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_END;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_START;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_GLOB;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_FILES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_PREFIXES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_END;
@@ -65,6 +67,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.e
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.fieldShapedTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.folderRange;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.listingHints;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveJuneTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveSevenDayTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk.LIST_PAGE_SIZE;
@@ -644,26 +647,74 @@ public class PartitionPruningWalkTests extends ESTestCase {
         }
     }
 
-    public void testParallelPeekCeilingIssuesRemainingBudgetThenFailsClosed() throws Exception {
+    public void testParallelPeekCeilingSkipsWhenSurvivorsTypedTheKey() throws Exception {
         int ceiling = WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES - 1;
         FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END)), HOUR_SPEC);
 
         ListingWalkHarness sequential = new ListingWalkHarness(wideHiveSevenDayTree());
-        assertNull(tryWalk(sequential, WIDE_HIVE_GLOB, List.of(), pred, () -> false, Integer.MAX_VALUE, ceiling));
-        assertEquals(ceiling, sequential.listChildrenRequests());
-        assertEquals(WIDE_HIVE_PREFIXES - 1, julyDayPeekCount(sequential));
-        assertEquals(0, sequential.listObjectPages());
+        PartitionPruningWalk.WalkResult sequentialResult = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> tryWalk(sequential, WIDE_HIVE_GLOB, List.of(), pred, () -> false, Integer.MAX_VALUE, ceiling)
+        );
+        assertNotNull(sequentialResult);
+        assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS, sequential.listChildrenRequests());
+        assertEquals(0, julyDayPeekCount(sequential));
 
         ListingWalkHarness parallel = new ListingWalkHarness(wideHiveSevenDayTree());
         ExecutorService executor = Executors.newFixedThreadPool(8);
         try {
-            assertNull(tryWalkAsync(parallel, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 8, executor, Integer.MAX_VALUE, ceiling));
-            assertEquals(ceiling, parallel.listChildrenRequests());
-            assertEquals(WIDE_HIVE_PREFIXES - 1, julyDayPeekCount(parallel));
-            assertEquals(0, parallel.listObjectPages());
+            PartitionPruningWalk.WalkResult parallelResult = PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> tryWalkAsync(parallel, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 8, executor, Integer.MAX_VALUE, ceiling)
+            );
+            assertNotNull(parallelResult);
+            assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS, parallel.listChildrenRequests());
+            assertEquals(0, julyDayPeekCount(parallel));
         } finally {
             terminate(executor);
         }
+    }
+
+    /**
+     * Truncated peeks with no survivor of the new key fail closed. Skipping would drop type-widening
+     * spellings under the pruned parent.
+     */
+    public void testParallelPeekCeilingFailsClosedWhenKeyUntyped() throws Exception {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/data/year=2024/month=06/a.parquet"),
+            ListingWalkHarness.entry("s3://bucket/data/year=2025/month=07/b.parquet")
+        );
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint("year", Operator.EQUALS, List.of(2024)),
+            new PartitionFilterHint("month", Operator.EQUALS, List.of(99))
+        );
+        String glob = "s3://bucket/data/year=*/month=*/*.parquet";
+        int ceiling = 2;
+
+        ListingWalkHarness sequential = new ListingWalkHarness(tree);
+        assertNull(tryWalk(sequential, glob, hints, null, () -> false, Integer.MAX_VALUE, ceiling));
+        assertThat(sequential.listChildrenRequests(), lessThanOrEqualTo(ceiling));
+
+        ListingWalkHarness parallel = new ListingWalkHarness(tree);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            assertNull(tryWalkAsync(parallel, glob, hints, null, () -> false, 4, executor, Integer.MAX_VALUE, ceiling));
+            assertThat(parallel.listChildrenRequests(), lessThanOrEqualTo(ceiling));
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testJuneRetentionHourGrainWalkCompletesUnderCeiling() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), HOUR_SPEC);
+        ListingWalkHarness provider = new ListingWalkHarness(wideHiveJuneTree());
+        PartitionPruningWalk.WalkResult result = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> tryWalk(provider, WIDE_HIVE_GLOB, List.of(), pred, () -> false)
+        );
+        assertNotNull(result);
+        assertThat(provider.listChildrenRequests(), lessThanOrEqualTo(PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS));
+        assertEquals(WIDE_HIVE_ONE_DAY_FILES, result.matched().size());
     }
 
     public void testParallelPeeksInFlightNeverExceedsConcurrency() throws Exception {

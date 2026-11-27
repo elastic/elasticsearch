@@ -127,6 +127,45 @@ setup:
   - match:    { columns.1._meta.time_zone: UTC }
 
 ---
+"Time buckets whose bound is the bucketed column":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_describe_columns ]
+      reason: "column_metadata reports the DESCRIBE columns in _meta"
+  - do:
+      esql.query:
+        body:
+          query: 'SET column_metadata=true; FROM test_semantics | EVAL start = TO_DATETIME("2026-11-01T00:00:00Z") | STATS c = COUNT(*) BY b = BUCKET(start, 24, start, "2026-11-02T00:00:00Z") | LIMIT 0'
+
+  - match:    { columns.1.name: b }
+  - match:    { columns.1._meta.interval: "1 hour" }
+  - match:    { columns.1._meta.time_zone: UTC }
+
+---
+"DESCRIBE a bucket whose bound is the bucketed column":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ describe_interval ]
+      reason: "DESCRIBE reports the interval of date buckets"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_semantics | EVAL start = TO_DATETIME("2026-11-01T00:00:00Z"), end = start + 1 day | STATS c = COUNT(*) BY b = BUCKET(start, 24, start, end) | DESCRIBE | WHERE name == "b" | KEEP name, interval'
+
+  - length: { values: 1 }
+  - match: { values.0: [ "b", "1 hour" ] }
+
+---
 "No field semantics without column_metadata":
   - requires:
       test_runner_features: [ capabilities ]

@@ -156,6 +156,11 @@ public class CsvSchemaInferrer {
         int rowNumber = 0;
         outer: for (String[] row : sampleRows) {
             rowNumber++;
+            if (row.length == 0) {
+                // A row withheld from the vote keeps its place in the sample so row numbers stay true, but carries
+                // no value for any column: walking every header column to find that out costs a sweep per row.
+                continue;
+            }
             for (int col = 0; col < numCols; col++) {
                 if (candidateIdx[col] >= TYPE_CANDIDATES.length - 1) {
                     continue;

@@ -302,7 +302,7 @@ final class RunningFileStatsFold {
         } else if (Objects.equals(agreedFingerprint, fingerprint) == false) {
             mixedFingerprint = true;
         }
-        allLicensed &= Boolean.TRUE.equals(flat.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        allLicensed &= ExternalStats.rowCountCrossesReadConfigs(flat);
     }
 
     private void fail(String location, String reason) {

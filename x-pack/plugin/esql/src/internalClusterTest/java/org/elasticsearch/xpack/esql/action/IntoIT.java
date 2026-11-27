@@ -230,11 +230,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     public void testKeepGoingFromSourceCountsEveryRefusal() {
         createSource();
-        try (
-            EsqlQueryResponse response = run(
-                "FROM " + SOURCE + " | EVAL unmapped_col = k | INTO " + DESTINATION + " WITH {\"keep_going\": true}"
-            )
-        ) {
+        try (var response = run("FROM " + SOURCE + " | EVAL unmapped_col = k | INTO " + DESTINATION + " WITH {\"keep_going\": true}")) {
             List<Object> summary = getValuesList(response).getFirst();
             assertThat(summary.subList(0, 5), equalTo(List.of(3L, 0L, 0L, 0L, 3L)));
             List<?> details = (List<?>) summary.get(5);
@@ -683,12 +679,10 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     public void testRefreshMakesReplacedDocumentsVisible() {
         indexExistingDocument();
         disableDestinationRefresh();
-        try (
-            EsqlQueryResponse response = run("ROW _id = \"a\", k = \"new\" | INTO " + DESTINATION + " WITH {\"collisions\": \"replace\"}")
-        ) {
+        try (var response = run("ROW _id = \"a\", k = \"new\" | INTO " + DESTINATION + " WITH {\"collisions\": \"replace\"}")) {
             assertStats(response, new IntoStats(1, 0, 1, 0, 0, List.of()));
         }
-        try (EsqlQueryResponse response = run("FROM " + DESTINATION + " | KEEP k")) {
+        try (var response = run("FROM " + DESTINATION + " | KEEP k")) {
             assertThat(getValuesList(response), equalTo(List.of(List.of("new"))));
         }
     }
@@ -853,12 +847,8 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     private void assertStats(EsqlQueryResponse response, IntoStats stats) {
         assertIntoColumns(response);
         List<String> details = stats.failureDetails().isEmpty() ? null : stats.failureDetails();
-        assertThat(
-            getValuesList(response),
-            equalTo(
-                List.of(Arrays.asList(stats.total(), stats.created(), stats.updated(), stats.versionConflicts(), stats.failures(), details))
-            )
-        );
+        var asList = Arrays.asList(stats.total(), stats.created(), stats.updated(), stats.versionConflicts(), stats.failures(), details);
+        assertThat(singleValue(getValuesList(response)), equalTo(asList));
     }
 
     private void assertReadBack(List<List<Object>> expected) {

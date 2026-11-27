@@ -59,6 +59,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -473,6 +474,44 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         // index sit in one block, so fetching one doc reads the same bytes as fetching all of them. The query phase then differs
         // by only a few bytes, or not at all, depending on the doc count.
         assertThat(terminatedBytesRead, lessThanOrEqualTo(fullBytesRead));
+    }
+
+    /**
+     * Unlike {@link #testTerminateAfterReadsFewerBytes}, the stored payloads here are large enough to span several stored-fields
+     * blocks whatever codec is picked, so fetching one document must read strictly fewer bytes than fetching all of them.
+     */
+    public void testTerminateAfterReadsStrictlyFewerBytesAcrossStoredFieldsBlocks() throws InterruptedException {
+        int numDocs = between(30, 50);
+        final String indexName = randomIndexName();
+        assertAcked(
+            prepareCreate(indexName).setSettings(indexSettings(1, 0)).setMapping("payload", "type=keyword,index=false,doc_values=false")
+        );
+        // random payloads barely compress, so 64kb each puts every few documents in a different stored-fields block
+        IntStream.range(0, numDocs)
+            .forEach(i -> indexDoc(indexName, "id " + i, "field", "value value" + i, "payload", randomAlphaOfLength(64 * 1024)));
+        flushAndRefresh(indexName);
+
+        SearchRequest fullRequest = new SearchRequest(indexName).source(
+            new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).size(numDocs)
+        );
+        SetOnce<Integer> fullHits = new SetOnce<>();
+        long fullBytesRead = assertBytesReadHeader(fullRequest, response -> fullHits.set(response.getHits().getHits().length));
+
+        SearchRequest terminatedRequest = new SearchRequest(indexName).source(
+            new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).size(numDocs).terminateAfter(1)
+        );
+        SetOnce<Boolean> terminatedEarly = new SetOnce<>();
+        SetOnce<Integer> terminatedHits = new SetOnce<>();
+        long terminatedBytesRead = assertBytesReadHeader(terminatedRequest, response -> {
+            terminatedEarly.set(response.isTerminatedEarly());
+            terminatedHits.set(response.getHits().getHits().length);
+        });
+
+        assertThat(terminatedEarly.get(), equalTo(true));
+        assertThat(fullHits.get(), equalTo(numDocs));
+        assertThat(terminatedHits.get(), equalTo(1));
+        assertThat(terminatedBytesRead, greaterThan(0L));
+        assertThat(terminatedBytesRead, lessThan(fullBytesRead));
     }
 
     public void testSearchAfterSetsBytesReadHeader() throws InterruptedException {

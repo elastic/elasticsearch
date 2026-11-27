@@ -5120,6 +5120,12 @@ public class EsqlCapabilities {
          */
         FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
+        /**
+         * A warning that suggests an in-scope column when a field that {@code SET unmapped_fields} nullified or loaded from
+         * {@code _source} looks like a misspelling of it.
+         */
+        UNMAPPED_FIELDS_TYPO_WARNING,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

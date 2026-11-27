@@ -306,7 +306,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             String candidate = column.name();
             if (column instanceof UnresolvedAttribute == false
                 && DataType.isPrimitive(column.dataType())
-                && Math.abs(candidate.length() - name.length()) <= maxEdits
+                && Math.absExact(candidate.length() - name.length()) <= maxEdits
                 && missing.contains(candidate) == false
                 && candidate.startsWith(name + ".") == false
                 && name.startsWith(candidate + ".") == false) {

@@ -119,6 +119,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("ml/jobs_crud/Test cannot create job with model snapshot id set", "Exception type has changed.")
   task.skipTest("ml/validate/Test job config is invalid because model snapshot id set", "Exception type has changed.")
   task.skipTest("ml/datafeeds_crud/Test update datafeed to point to missing job", "behaviour change #44752 - not allowing to update datafeed job_id")
+  task.skipTest("transform/transforms_crud/Test transform where source query is invalid", "Error message has changed")
   task.skipTest(
     "ml/datafeeds_crud/Test update datafeed to point to different job",
     "behaviour change #44752 - not allowing to update datafeed job_id"

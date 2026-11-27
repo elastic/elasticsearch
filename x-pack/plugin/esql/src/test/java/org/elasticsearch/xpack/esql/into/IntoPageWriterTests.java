@@ -75,6 +75,7 @@ import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WITHOUT_MESSAGE;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WITH_LONG_MESSAGE;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REJECTED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REMOTE_MAPPER_REJECTED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.bulks;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.mockBigArrays;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.noFailures;
@@ -467,6 +468,23 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(stats.failures(), equalTo(1L));
         assertThat(stats.failureDetails(), hasSize(1));
         assertThat(stats.failureDetails().getFirst(), startsWith("[500] Pass-through source [a] has a conflicting param"));
+    }
+
+    /** The mapping update can be handled by another node, so the rejection arrives in a transport exception to look through. */
+    public void testKeepGoingCountsARemoteMapperExceptionAsARefusalWithoutTheTransportHop() {
+        keepGoingSink();
+        writer.consume(page("ok", "clashes"));
+        client.answer(CREATED, REMOTE_MAPPER_REJECTED);
+        writer.finish();
+
+        assertNull(sink.failure());
+        IntoStats stats = writer.stats();
+        assertThat(stats.created(), equalTo(1L));
+        assertThat(stats.failures(), equalTo(1L));
+        assertThat(
+            stats.failureDetails(),
+            equalTo(List.of("[500] Pass-through source [a] has a conflicting param [priority=1] with source [b]"))
+        );
     }
 
     public void testKeepGoingStillFailsOnServerErrorItem() {

@@ -37,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,7 +67,9 @@ class IntoTestUtils {
         /** The item fails with a 500, which says nothing about the row. */
         FAILED,
         /** The mapping rejects the row with a {@link MapperException}, which has no status of its own and is reported as a 500. */
-        MAPPER_REJECTED
+        MAPPER_REJECTED,
+        /** Like {@link #MAPPER_REJECTED}, but another node handled the mapping update, so the exception arrives wrapped. */
+        REMOTE_MAPPER_REJECTED
     }
 
     static final int LONG_MESSAGE_LENGTH = 5000;
@@ -147,6 +150,19 @@ class IntoTestUtils {
                         )
                     );
                     case FAILED -> refused(i, opType, new IllegalStateException("shard failed"));
+                    case REMOTE_MAPPER_REJECTED -> BulkItemResponse.failure(
+                        i,
+                        opType,
+                        new BulkItemResponse.Failure(
+                            DEST,
+                            "id-" + i,
+                            new RemoteTransportException(
+                                "[node-b][127.0.0.1:9300][indices:data/write/bulk[s][p]]",
+                                new MapperException("Pass-through source [a] has a conflicting param [priority=1] with source [b]")
+                            ),
+                            RestStatus.INTERNAL_SERVER_ERROR
+                        )
+                    );
                     case MAPPER_REJECTED -> BulkItemResponse.failure(
                         i,
                         opType,

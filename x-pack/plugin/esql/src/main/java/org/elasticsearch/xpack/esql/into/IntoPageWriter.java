@@ -176,13 +176,16 @@ public final class IntoPageWriter {
          * the destination or the cluster, so it fails the query instead of being counted as a refusal.
          */
         private static boolean isRefusal(BulkItemResponse.Failure failure) {
-            return failure.getStatus() == RestStatus.BAD_REQUEST || failure.getCause() instanceof MapperException;
+            // The mapping update can be handled by another node, which wraps the rejection in a transport exception
+            return failure.getStatus() == RestStatus.BAD_REQUEST
+                || ExceptionsHelper.unwrapCause(failure.getCause()) instanceof MapperException;
         }
 
         private void recordRefusal(BulkItemResponse.Failure refusal) {
             synchronized (failureDetails) {
                 if (failureDetails.size() < IntoStats.MAX_FAILURE_DETAILS) {
-                    Exception cause = refusal.getCause();
+                    // Without the transport exception around it, which names a node that the caller has no business with
+                    Throwable cause = ExceptionsHelper.unwrapCause(refusal.getCause());
                     String reason = Objects.requireNonNullElse(cause.getMessage(), cause.getClass().getSimpleName());
                     String detail = "[" + refusal.getStatus().getStatus() + "] " + reason;
                     failureDetails.add(Strings.cleanTruncate(detail, MAX_FAILURE_DETAIL_LENGTH));

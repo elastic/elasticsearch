@@ -982,13 +982,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 && NestedReference.references(plan).isEmpty()) {
                 return plan;
             }
-            return plan.transformUp(EsRelation.class, relation -> {
+            Map<NameId, String> references = NestedReference.references(plan);
+            // A ResolvingProject resolves its command again against any new child, whose output no longer has the private schema a
+            // renamed collection is bound to, so the collection columns it holds are kept as they are.
+            LogicalPlan frozen = references.isEmpty() ? plan : plan.transformUp(ResolvingProject.class, project -> {
+                boolean holdsReference = project.projections().stream().anyMatch(p -> references.containsKey(p.id()));
+                if (holdsReference == false) {
+                    return project;
+                }
+                List<? extends NamedExpression> projections = project.projections()
+                    .stream()
+                    .filter(p -> isNestedScope(p) == false)
+                    .toList();
+                return new Project(project.source(), project.child(), projections);
+            });
+            return frozen.transformUp(EsRelation.class, relation -> {
                 List<Attribute> visible = relation.output().stream().filter(a -> isNestedScope(a) == false).toList();
                 return visible.size() == relation.output().size() ? relation : relation.withAttributes(visible);
             });
         }
 
-        private static boolean isNestedScope(Attribute attribute) {
+        private static boolean isNestedScope(NamedExpression attribute) {
             return attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField;
         }
     }

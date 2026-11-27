@@ -255,6 +255,15 @@ public class AnalyzerNestedCollectionColumnTests extends AnalyzerTestCase {
         assertThat(onlyExpand(plan).path(), equalTo("items"));
     }
 
+    public void testRenameOfACollectionWhenUnmappedFieldsAreNullifiedOrLoaded() {
+        for (String mode : List.of("nullify", "load")) {
+            LogicalPlan plan = nestedAnalyzer().statement(
+                "SET unmapped_fields=\"" + mode + "\"; FROM ne | RENAME items AS i | NESTED_EXPAND i | KEEP id, i.sku"
+            );
+            assertThat(mode, onlyExpand(plan).path(), equalTo("items"));
+        }
+    }
+
     public void testAliasIsNotAColumnOfAFork() {
         LogicalPlan plan = nestedAnalyzer().query(
             "FROM ne | EVAL o = items | FORK (WHERE id == \"a\") (WHERE id == \"b\") | KEEP id, _fork"

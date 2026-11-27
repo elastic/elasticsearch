@@ -34,6 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
@@ -683,6 +684,119 @@ public class BatchBulkIT extends ESIntegTestCase {
                 assertNoFailures(searchResponse);
                 assertThat(searchResponse.getHits().getHits().length, equalTo(1));
                 assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("doc-" + target));
+            }
+        );
+    }
+
+    /**
+     * A number field that receives integer literals, floating-point literals and nulls in one batch has a union source column. The
+     * batch must still be indexed by the batch path, not re-indexed by the row path, and the values must read back as the row path
+     * would index them.
+     */
+    public void testColumnarNumberFieldWithMixedIntegerAndFloatingPointValues() throws IOException {
+        final String index = "test-columnar-mixed-number";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("cpu_usage").field("type", randomFrom("float", "double", "long", "half_float")).endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        // One shard, so that the whole bulk is a single batch with both kinds of values.
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        final String coordinatingNode = findCoordinatingNode();
+
+        // Whole values keep the field's value the same for every number type, so that the expected value does not depend on the type.
+        final int numDocs = randomIntBetween(30, 100);
+        final Number[] sent = new Number[numDocs];
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            sent[i] = switch (i % 4) {
+                case 0 -> Integer.valueOf(randomIntBetween(0, 100));
+                case 1 -> Double.valueOf(randomIntBetween(0, 100));
+                case 2 -> null;
+                case 3 -> Integer.valueOf(randomIntBetween(0, 100));
+                default -> throw new AssertionError("unreachable");
+            };
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .source(XContentType.JSON, "host", "host-" + (i % 5), "cpu_usage", sent[i])
+                    .opType(DocWriteRequest.OpType.CREATE)
+            );
+        }
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class, ShardBatchMapper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            // A chunk the mappers refuse is logged and re-indexed by the row path, which would hide a broken batch path.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no batch mapping fallback",
+                    ShardBatchMapper.class.getName(),
+                    Level.WARN,
+                    "columnar batch mapping failed*"
+                )
+            );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs).addDocValueField("cpu_usage"),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                assertThat(searchResponse.getHits().getHits().length, equalTo(numDocs));
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    final Number expected = sent[Integer.parseInt(hit.getId().substring("doc-".length()))];
+                    final DocumentField field = hit.field("cpu_usage");
+                    if (expected == null) {
+                        assertTrue(hit.getId(), field == null || field.getValues().isEmpty());
+                    } else {
+                        assertNotNull(hit.getId(), field);
+                        assertThat(hit.getId(), field.getValues().size(), equalTo(1));
+                        assertEquals(hit.getId(), expected.doubleValue(), ((Number) field.getValue()).doubleValue(), 0.0);
+                    }
+                }
             }
         );
     }

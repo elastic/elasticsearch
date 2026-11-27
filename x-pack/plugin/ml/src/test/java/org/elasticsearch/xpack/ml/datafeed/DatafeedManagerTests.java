@@ -704,10 +704,7 @@ public class DatafeedManagerTests extends ESTestCase {
         AtomicReference<Map<String, String>> storedHeaders = new AtomicReference<>();
         harness.stubPutDatafeedConfigCapturingHeaders(storedHeaders);
 
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
-            .build();
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM logs").build();
         PutDatafeedAction.Request request = new PutDatafeedAction.Request(datafeed);
 
         SecurityContext securityContext = mockSecurityContextWithUser("df-user");
@@ -733,8 +730,6 @@ public class DatafeedManagerTests extends ESTestCase {
 
     private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {
         return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM logs-* | STATS c = COUNT(*) BY t = BUCKET(@timestamp, 1h)")
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
             .setProjectRouting("_alias:_origin");
     }
 

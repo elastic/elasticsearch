@@ -43,17 +43,16 @@ public class EsqlBucketEventCounterTests extends ESTestCase {
     private static final long BUCKET_THREE_MIN_MS = TimeValue.timeValueMinutes(3).millis();
     private static final String TIME_FIELD = "ts";
     private static final String COUNT_FIELD = "event_count";
-    private static final String SOURCE_TIME_FIELD = "@timestamp";
     private static final String USER_QUERY = "FROM index1";
 
     public void testUserQueryEndingInLineCommentShouldKeepSuffixOnNewLine() {
         String userQuery = "FROM logs // trailing";
-        assertThat(EsqlBucketEventCounter.bucketEventCountQuery(userQuery), equalTo(userQuery + "\n" + expectedSuffix()));
+        assertThat(EsqlBucketEventCounter.bucketEventCountQuery(userQuery), equalTo(userQuery + expectedSuffix()));
     }
 
-    public void testUserQueryWithoutTrailingCommentShouldNotGetExtraNewline() {
+    public void testUserQueryShouldGetTheSuffixAsANewPipeLine() {
         assertThat(EsqlBucketEventCounter.bucketEventCountQuery("FROM logs"), equalTo("FROM logs" + expectedSuffix()));
-        assertThat(expectedSuffix().startsWith(" | STATS"), is(true));
+        assertThat(expectedSuffix().startsWith("\n| STATS"), is(true));
     }
 
     public void testRowsShouldMapBucketIndexToBucketStartAndSkipNullKeys() {
@@ -98,7 +97,7 @@ public class EsqlBucketEventCounterTests extends ESTestCase {
 
         assertThat(filter.get(), instanceOf(RangeQueryBuilder.class));
         RangeQueryBuilder range = (RangeQueryBuilder) filter.get();
-        assertThat(range.fieldName(), equalTo(SOURCE_TIME_FIELD));
+        assertThat(range.fieldName(), equalTo(TIME_FIELD));
         assertThat(range.from(), equalTo(START_MS));
         assertThat(range.to(), equalTo(END_MS));
         assertThat(
@@ -149,7 +148,7 @@ public class EsqlBucketEventCounterTests extends ESTestCase {
     }
 
     private static EsqlBucketEventCounter newCounter(EsqlSyncQueryRunner queryRunner) {
-        return new EsqlBucketEventCounter("test-job", BUCKET_SPAN_MS, TIME_FIELD, COUNT_FIELD, USER_QUERY, SOURCE_TIME_FIELD, queryRunner);
+        return new EsqlBucketEventCounter("test-job", BUCKET_SPAN_MS, TIME_FIELD, COUNT_FIELD, USER_QUERY, queryRunner);
     }
 
     private static long bucketIndex(long bucketStartMs) {

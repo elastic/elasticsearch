@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
@@ -26,6 +29,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Packs the children of each parent of a real index into a container column, and expands the column again. The expansion must
@@ -105,6 +109,67 @@ public class NestedContainerOperatorTests extends NestedIndexOperatorTestCase {
         for (Page page : expanded) {
             page.releaseBlocks();
         }
+        assertThat(context.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testExpandingAConstantNullContainerKeepsEveryParentWithNullChildren() {
+        var context = driverContext();
+        Page input = new Page(context.blockFactory().newConstantNullBlock(3));
+        List<Page> expanded = new TestDriverRunner().builder(context)
+            .input(List.of(input))
+            .run(new NestedExpandFromContainerOperator.Factory(0, TYPES).get(context));
+        assertThat(expanded, hasSize(1));
+        Page page = expanded.get(0);
+        assertThat(page.getPositionCount(), equalTo(3));
+        for (int p = 0; p < 3; p++) {
+            assertThat(page.getBlock(1).isNull(p), equalTo(true));
+            assertThat(page.getBlock(2).isNull(p), equalTo(true));
+        }
+        page.releaseBlocks();
+        assertThat(context.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testPredicateOverAConstantNullContainerIsFalse() {
+        var context = driverContext();
+        ExpressionEvaluator container = new ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                return context.blockFactory().newConstantNullBlock(page.getPositionCount());
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
+            public void close() {}
+        };
+        ExpressionEvaluator predicate = new ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                return context.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
+            public void close() {}
+        };
+        Page input = new Page(context.blockFactory().newConstantNullBlock(3));
+        try (
+            NestedContainerPredicateEvaluator evaluator = new NestedContainerPredicateEvaluator(context, container, predicate, 1);
+            Block matches = evaluator.eval(input)
+        ) {
+            assertThat(matches.getPositionCount(), equalTo(3));
+            for (int p = 0; p < 3; p++) {
+                assertThat(((BooleanBlock) matches).getBoolean(p), equalTo(false));
+            }
+        }
+        input.releaseBlocks();
         assertThat(context.breaker().getUsed(), equalTo(0L));
     }
 

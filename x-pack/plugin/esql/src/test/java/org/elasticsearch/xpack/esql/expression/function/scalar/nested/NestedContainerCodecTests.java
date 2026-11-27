@@ -8,13 +8,17 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.xpack.esql.core.type.NestedContainerField;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -36,6 +40,24 @@ public class NestedContainerCodecTests extends ComputeTestCase {
                 assertThat(sku.getBytesRef(sku.getFirstValueIndex(0), new BytesRef()), equalTo(new BytesRef("a")));
                 assertThat(sku.getBytesRef(sku.getFirstValueIndex(0) + 1, new BytesRef()), equalTo(new BytesRef("b")));
                 assertThat(sku.getBytesRef(sku.getFirstValueIndex(2), new BytesRef()), equalTo(new BytesRef("c")));
+            }
+        }
+    }
+
+    public void testBytesDecodeAtTheContainerVersionWhateverTheCurrentVersionIs() throws IOException {
+        BlockFactory factory = blockFactory();
+        try (Page children = children(factory)) {
+            BytesRef bytes = NestedContainerCodec.encode(children);
+            try (
+                BlockStreamInput in = new BlockStreamInput(
+                    new ByteBufferStreamInput(ByteBuffer.wrap(bytes.bytes, bytes.offset, bytes.length)),
+                    factory
+                )
+            ) {
+                in.setTransportVersion(NestedContainerField.VERSION);
+                try (Page decoded = new Page(in)) {
+                    assertThat(decoded.getPositionCount(), equalTo(3));
+                }
             }
         }
     }

@@ -33,6 +33,7 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
@@ -40,7 +41,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
@@ -101,6 +101,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.Maps;
@@ -137,6 +138,7 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -263,25 +265,6 @@ import static org.hamcrest.Matchers.startsWith;
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class, JnaCleanerThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-// we suppress pretty much all the lucene codecs for now, except asserting
-// assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
-@SuppressCodecs(
-    {
-        "SimpleText",
-        "Memory",
-        "CheapBastard",
-        "Direct",
-        "Compressing",
-        "FST50",
-        "FSTOrd50",
-        "TestBloomFilteredLucenePostings",
-        "MockRandom",
-        "BlockTreeOrds",
-        "LuceneFixedGap",
-        "LuceneVarGapFixedInterval",
-        "LuceneVarGapDocFreqInterval",
-        "Lucene50" }
-)
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
 
@@ -585,6 +568,13 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @ClassRule
     public static final TestRule SUITE_UUID_SOURCE = new TestUUIDSourceRule();
+
+    @BeforeClass
+    @SuppressForbidden(reason = "This replaces SuppressCodecs(\"*\")")
+    public static void setDefaultCodec() {
+        // this is not exhaustive - test that need something from MapperService should define the codec/format explicitly
+        Codec.setDefault(CodecService.createESDefaultCodec(null, BigArrays.NON_RECYCLING_INSTANCE, null));
+    }
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers

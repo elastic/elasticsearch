@@ -11,11 +11,13 @@ package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,6 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -561,5 +564,10 @@ public class ESTestCaseTests extends ESTestCase {
         BytesRef withGarbage = embedInRandomBytes(v);
         assertThat(withGarbage, equalTo(v));
         assertThat(withGarbage.bytes.length, greaterThan(withGarbage.length));
+    }
+
+    public void testESCodecsUsed() {
+        // it should always be our codec class, not anything from Lucene
+        assertThat(Codec.getDefault(), instanceOf(PerFieldMapperCodec.class));
     }
 }

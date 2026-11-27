@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.ExecutionMetadata;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.BucketEventCounter;
@@ -33,8 +34,8 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
 
     // Without a LIMIT, ES|QL truncates at result_truncation_default_size (1000) rows and reports it only in a Warning header.
     // A custom check_window can span up to MAX_NUMBER_SPANABLE_BUCKETS buckets (one row each). A dropped bucket hides its delayed data.
-    private static final String BUCKET_EVENT_COUNT_SUFFIX = " " + Strings.format("""
-        | STATS %s = SUM(??countField) BY %s = TO_LONG(TO_DATETIME(??timeField)) / ?bucketSpan
+    private static final String BUCKET_EVENT_COUNT_PIPES = Strings.format("""
+        STATS %s = SUM(??countField) BY %s = TO_LONG(TO_DATETIME(??timeField)) / ?bucketSpan
         | LIMIT %d""", ML_COUNT_COLUMN, ML_BUCKET_COLUMN, MAX_NUMBER_SPANABLE_BUCKETS);
 
     // STATS emits its aggregates first and its grouping keys after them.
@@ -43,19 +44,17 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
 
     private final String jobId;
     private final long bucketSpan;
-    private final String emittedTimeField;
+    private final String timeField;
     private final String summaryCountFieldName;
     private final String esqlQuery;
-    private final String sourceTimeField;
     private final EsqlSyncQueryRunner queryRunner;
 
     public EsqlBucketEventCounter(
         String jobId,
         long bucketSpan,
-        String emittedTimeField,
+        String timeField,
         String summaryCountFieldName,
         String esqlQuery,
-        String sourceTimeField,
         Map<String, String> headers,
         @Nullable String projectRouting,
         Client client
@@ -63,13 +62,12 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
         this(
             jobId,
             bucketSpan,
-            emittedTimeField,
+            timeField,
             summaryCountFieldName,
             esqlQuery,
-            sourceTimeField,
             (query, filter, params) -> EsqlQueryExecutor.executeSync(
                 client,
-                EsqlQueryExecutor.newRequest(client, query, filter, params, projectRouting),
+                EsqlQueryExecutor.newRequest(client, query, filter, params, projectRouting, ExecutionMetadata.NEVER),
                 headers
             )
         );
@@ -78,33 +76,31 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
     EsqlBucketEventCounter(
         String jobId,
         long bucketSpan,
-        String emittedTimeField,
+        String timeField,
         String summaryCountFieldName,
         String esqlQuery,
-        String sourceTimeField,
         EsqlSyncQueryRunner queryRunner
     ) {
         assert bucketSpan > 0 : "bucketSpan must be positive";
         this.jobId = Objects.requireNonNull(jobId);
         this.bucketSpan = bucketSpan;
-        this.emittedTimeField = Objects.requireNonNull(emittedTimeField);
+        this.timeField = Objects.requireNonNull(timeField);
         this.summaryCountFieldName = Objects.requireNonNull(summaryCountFieldName);
         this.esqlQuery = Objects.requireNonNull(esqlQuery);
-        this.sourceTimeField = Objects.requireNonNull(sourceTimeField);
         this.queryRunner = Objects.requireNonNull(queryRunner);
     }
 
     static String bucketEventCountQuery(String userQuery) {
-        return EsqlQueryClauseScanner.appendGeneratedPipeline(userQuery, BUCKET_EVENT_COUNT_SUFFIX);
+        return EsqlDataExtractorQueryUtils.appendPipe(userQuery, BUCKET_EVENT_COUNT_PIPES);
     }
 
     @Override
     public Map<Long, Long> currentBucketEventCounts(long start, long end) {
         String query = bucketEventCountQuery(esqlQuery);
-        QueryBuilder filter = EsqlDataExtractorQueryUtils.timeRangeFilter(sourceTimeField, start, end);
+        QueryBuilder filter = EsqlDataExtractorQueryUtils.timeRangeFilter(timeField, start, end);
         List<EsqlQueryParam> params = List.of(
             new EsqlQueryParam("countField", summaryCountFieldName, IDENTIFIER),
-            new EsqlQueryParam("timeField", emittedTimeField, IDENTIFIER),
+            new EsqlQueryParam("timeField", timeField, IDENTIFIER),
             new EsqlQueryParam("bucketSpan", bucketSpan, VALUE)
         );
         try (EsqlQueryResponse response = EsqlQueryRunner.runWithSingleRetry(queryRunner, query, filter, params, () -> false, jobId)) {

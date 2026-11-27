@@ -84,7 +84,6 @@ public class EsqlBucketEventCounterIT extends MlNativeAutodetectIntegTestCase {
             TIME_FIELD,
             COUNT_FIELD,
             esqlQuery,
-            TIME_FIELD,
             Map.of(),
             null,
             client()

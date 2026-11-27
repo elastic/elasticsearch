@@ -40,10 +40,8 @@ public class CodecService implements CodecProvider {
     /** the raw unfiltered lucene default. useful for testing */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
-    public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
-        final var codecs = new HashMap<String, Codec>();
-
-        var bestSpeedCodec = new PerFieldMapperCodec(
+    public static Codec createESDefaultCodec(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
+        return new PerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_SPEED,
             ElasticsearchStoredFieldsFormat.Mode.LUCENE,
             ElasticsearchStoredFieldsFormat.Mode.LUCENE,
@@ -51,6 +49,12 @@ public class CodecService implements CodecProvider {
             bigArrays,
             threadPool
         );
+    }
+
+    public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
+        final var codecs = new HashMap<String, Codec>();
+
+        var bestSpeedCodec = createESDefaultCodec(mapperService, bigArrays, threadPool);
         codecs.put(DEFAULT_CODEC, bestSpeedCodec);
         // We can't remove this now
         codecs.put(LEGACY_DEFAULT_CODEC, bestSpeedCodec);

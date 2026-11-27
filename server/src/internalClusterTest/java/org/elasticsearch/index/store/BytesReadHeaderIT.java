@@ -59,7 +59,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class BytesReadHeaderIT extends ESIntegTestCase {
@@ -451,18 +451,28 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         SearchRequest fullRequest = new SearchRequest(indexName).source(
             new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).size(numDocs)
         );
-        long fullBytesRead = assertBytesReadHeader(fullRequest);
+        SetOnce<Integer> fullHits = new SetOnce<>();
+        long fullBytesRead = assertBytesReadHeader(fullRequest, response -> fullHits.set(response.getHits().getHits().length));
 
         SearchRequest terminatedRequest = new SearchRequest(indexName).source(
             new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).size(numDocs).terminateAfter(1)
         );
         SetOnce<Boolean> terminatedEarly = new SetOnce<>();
-        long terminatedBytesRead = assertBytesReadHeader(terminatedRequest, response -> terminatedEarly.set(response.isTerminatedEarly()));
+        SetOnce<Integer> terminatedHits = new SetOnce<>();
+        long terminatedBytesRead = assertBytesReadHeader(terminatedRequest, response -> {
+            terminatedEarly.set(response.isTerminatedEarly());
+            terminatedHits.set(response.getHits().getHits().length);
+        });
 
         assertThat(terminatedEarly.get(), equalTo(true));
+        assertThat(fullHits.get(), equalTo(numDocs));
+        assertThat(terminatedHits.get(), equalTo(1));
         assertThat(terminatedBytesRead, greaterThan(0L));
-        // terminating after a single document collects and fetches far less data, so fewer bytes are read
-        assertThat(terminatedBytesRead, lessThan(fullBytesRead));
+        // Terminating early must never read more than the full search, but it cannot be asserted to read strictly less. Stored
+        // fields are compressed in blocks, and with a randomly chosen codec such as best_compression all the docs of this small
+        // index sit in one block, so fetching one doc reads the same bytes as fetching all of them. The query phase then differs
+        // by only a few bytes, or not at all, depending on the doc count.
+        assertThat(terminatedBytesRead, lessThanOrEqualTo(fullBytesRead));
     }
 
     public void testSearchAfterSetsBytesReadHeader() throws InterruptedException {

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -3580,6 +3581,257 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // The warning names the limit, not the byte offset; NdJsonPageDecoderMaxRecordSizeTests pins the offset
         // through NdJsonPageDecoder.truncatedAtByte().
         assertThat(warnings, Matchers.hasItem("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; results are partial"));
+    }
+
+    /**
+     * In-place wrap: a padded backing array must be the decoder's sourceBytes, and records parse
+     * from the region, not the prefix.
+     */
+    public void testInPlaceParseSharesBackingArrayWithNonZeroOffset() throws IOException {
+        byte[] payload = "{\"id\":1}\n{\"id\":2}\n".getBytes(StandardCharsets.UTF_8);
+        int pad = 7;
+        byte[] padded = padded(pad, payload);
+        var object = new BytesStorageObject("file:///padded.ndjson", padded, pad, payload.length);
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+            )
+        ) {
+            NdJsonPageIterator it = (NdJsonPageIterator) iterator;
+            assertSame(object.bytes(), it.decoder().sourceBytes());
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock id = page.getBlock(0);
+            assertEquals(1, id.getInt(0));
+            assertEquals(2, id.getInt(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * Plain {@link ByteArrayInputStream} is not a {@link org.elasticsearch.xpack.esql.datasources.spi.ByteRegionInputStream},
+     * so the fast path copies via {@code readAllBytes()}.
+     */
+    public void testCopyFallbackWhenStreamIsPlainByteArrayInputStream() throws IOException {
+        byte[] bytes = "{\"id\":1}\n{\"id\":2}\n".getBytes(StandardCharsets.UTF_8);
+        StorageObject plain = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(bytes);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return new ByteArrayInputStream(bytes, (int) position, (int) length);
+            }
+
+            @Override
+            public long length() {
+                return bytes.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("file:///copy.ndjson");
+            }
+        };
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                plain,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+            )
+        ) {
+            NdJsonPageIterator it = (NdJsonPageIterator) iterator;
+            assertNotSame(bytes, it.decoder().sourceBytes());
+            assertArrayEquals(bytes, it.decoder().sourceBytes());
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock id = page.getBlock(0);
+            assertEquals(1, id.getInt(0));
+            assertEquals(2, id.getInt(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * Trim wraps the region stream, so {@code instanceof ByteRegionInputStream} fails and the
+     * iterator copies the trimmed bytes. Partial trailing line is dropped.
+     */
+    public void testTrimWrapsRegionStreamOntoCopyFallback() throws IOException {
+        byte[] payload = "{\"id\":1}\n{\"id\":2}\npartial".getBytes(StandardCharsets.UTF_8);
+        int pad = 3;
+        byte[] padded = padded(pad, payload);
+        var object = new BytesStorageObject("file:///trim.ndjson", padded, pad, payload.length);
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id"))
+                    .batchSize(10)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .firstSplit(true)
+                    .lastSplit(false)
+                    .build()
+            )
+        ) {
+            NdJsonPageIterator it = (NdJsonPageIterator) iterator;
+            assertNotSame(object.bytes(), it.decoder().sourceBytes());
+            assertArrayEquals("{\"id\":1}\n{\"id\":2}\n".getBytes(StandardCharsets.UTF_8), it.decoder().sourceBytes());
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock id = page.getBlock(0);
+            assertEquals(1, id.getInt(0));
+            assertEquals(2, id.getInt(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * Iterator wiring: a record-aligned padded region must wrap in place <em>and</em> attribute
+     * stripes from {@code statsBase}, not {@code statsBase + pad}. Decoder unit tests cover the
+     * formula; this pins that the iterator passes the region offset through to tracking.
+     */
+    public void testInPlacePaddedRegionStripeOffsetsIgnorePrefix() throws IOException {
+        byte[] payload = "{\"a\":1}\n{\"a\":2}\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals("fixture: each record is 8 bytes", 8, "{\"a\":1}\n".getBytes(StandardCharsets.UTF_8).length);
+        int pad = 5;
+        byte[] padded = padded(pad, payload);
+        var object = new BytesStorageObject("file:///stripe-region.ndjson", padded, pad, payload.length);
+        long statsBase = 1000L;
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("a"))
+                    .batchSize(10)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .recordAligned(true)
+                    .firstSplit(true)
+                    .lastSplit(true)
+                    .stats(statsBase, 8, true)
+                    .build()
+            )
+        ) {
+            NdJsonPageIterator it = (NdJsonPageIterator) iterator;
+            assertSame(object.bytes(), it.decoder().sourceBytes());
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(2, it.decoder().lastPageRecordCount());
+            long[] offsets = it.decoder().lastPageRecordOffsets();
+            assertEquals("in-place wrap must not add the pooled prefix to stripe offsets", statsBase, offsets[0]);
+            assertEquals(statsBase + 8, offsets[1]);
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * Skip on a padded {@link org.elasticsearch.xpack.esql.datasources.spi.ByteRegionInputStream} must
+     * wrap in place at {@code position()} and keep file-global {@code _rowPosition}.
+     */
+    public void testSkipOnPaddedRegionKeepsFileGlobalRowPosition() throws IOException {
+        String data = "{\"id\":1}\n{\"id\":22}\n{\"id\":333}\n";
+        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+        int pad = 4;
+        byte[] padded = padded(pad, bytes);
+        int splitStart = 12;
+        var object = new BytesStorageObject("file:///offsets.ndjson", padded, pad + splitStart, bytes.length - splitStart);
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id", ColumnExtractor.ROW_POSITION_COLUMN))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .firstSplit(false)
+                    .lastSplit(true)
+                    .splitStartByte(splitStart)
+                    .build()
+            )
+        ) {
+            NdJsonPageIterator it = (NdJsonPageIterator) iterator;
+            assertSame(object.bytes(), it.decoder().sourceBytes());
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            IntBlock id = page.getBlock(0);
+            LongBlock rowPos = page.getBlock(1);
+            assertEquals(333, id.getInt(0));
+            assertEquals("anchor must be file-global: splitStartByte + skipped partial bytes", 20L, rowPos.getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * Lenient recovery on an in-place padded region must keep array identity and file-global
+     * {@code _rowPosition} for the surviving rows.
+     */
+    public void testLenientRecoveryOnPaddedRegionKeepsRowPosition() throws IOException {
+        String data = "{\"id\":1}\nNOT-JSON\n{\"id\":3}\n";
+        byte[] payload = data.getBytes(StandardCharsets.UTF_8);
+        int pad = 6;
+        byte[] padded = padded(pad, payload);
+        var object = new BytesStorageObject("file:///lenient-region.ndjson", padded, pad, payload.length);
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id", ColumnExtractor.ROW_POSITION_COLUMN))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.LENIENT)
+                    .build()
+            )
+        ) {
+            NdJsonPageIterator it = (NdJsonPageIterator) iterator;
+            assertSame(object.bytes(), it.decoder().sourceBytes());
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock id = page.getBlock(0);
+            LongBlock rowPos = page.getBlock(1);
+            assertEquals(1, id.getInt(0));
+            assertEquals(3, id.getInt(1));
+            assertEquals(1L, rowPos.getLong(0));
+            int thirdStart = "{\"id\":1}\nNOT-JSON\n".getBytes(StandardCharsets.UTF_8).length;
+            assertEquals(thirdStart + 1L, rowPos.getLong(1));
+            page.releaseBlocks();
+        }
+        drainWarnings();
+    }
+
+    private static byte[] padded(int pad, byte[] payload) {
+        byte[] all = new byte[pad + payload.length];
+        Arrays.fill(all, 0, pad, (byte) 'X');
+        System.arraycopy(payload, 0, all, pad, payload.length);
+        return all;
     }
 
     /** A {@link StorageObject} that streams its bytes but reports no length, forcing the streaming read path. */

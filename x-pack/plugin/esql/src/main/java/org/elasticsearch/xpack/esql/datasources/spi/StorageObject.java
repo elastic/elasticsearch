@@ -74,6 +74,8 @@ public interface StorageObject {
      * <p>
      * The default is {@code newStream(0, READ_TO_END)}, so the whole-object read shares the open-ended code path
      * (and, through the decorator chain, its resilience). A provider may override this for a plain whole-object GET.
+     * Heap-backed objects may return {@link ByteRegionInputStream}; format readers that parse in place must
+     * test {@code instanceof} on that stream before wrapping it.
      */
     default InputStream newStream() throws IOException {
         return newStream(0, READ_TO_END);

@@ -2723,7 +2723,15 @@ public class ComputeService {
         });
     }
 
-    CancellableTask createGroupTask(Task parentTask, Supplier<String> description) throws TaskCancelledException {
+    /**
+     * Registers the group task of a compute whose exchange {@code childSessionId} was just opened over {@code connection}.
+     *
+     * @throws TaskCancelledException if the task cannot be registered because the query was cancelled. No compute request will then
+     *                                claim the sink of that exchange, so the target is asked to remove it, rather than leave it to its
+     *                                inactive-sink reaper.
+     */
+    CancellableTask createGroupTask(Task parentTask, Supplier<String> description, Transport.Connection connection, String childSessionId)
+        throws TaskCancelledException {
         final TaskManager taskManager = transportService.getTaskManager();
         try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
             return (CancellableTask) taskManager.register(
@@ -2731,6 +2739,9 @@ public class ComputeService {
                 "esql_compute_group",
                 new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
             );
+        } catch (TaskCancelledException e) {
+            exchangeService.finishUnusedRemoteSink(transportService, connection, childSessionId);
+            throw e;
         }
     }
 

@@ -258,12 +258,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             try {
                                 groupTask = computeService.createGroupTask(
                                     parentTask,
-                                    () -> "compute group: data-node [" + node.getName() + "], shards [" + shards + "]"
+                                    () -> "compute group: data-node [" + node.getName() + "], shards [" + shards + "]",
+                                    connection,
+                                    childSessionId
                                 );
                             } catch (TaskCancelledException e) {
-                                // No compute request will claim the sink just opened: remove it now rather than leave it to the
-                                // target's inactive-sink reaper.
-                                exchangeService.finishUnusedRemoteSink(transportService, connection, childSessionId);
                                 l.onFailure(e);
                                 return;
                             }
@@ -420,7 +419,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     + currentNode.get().getName()
                                     + "], splits ["
                                     + nodeSplits.size()
-                                    + "]"
+                                    + "]",
+                                connection,
+                                childSessionId
                             );
                         } catch (TaskCancelledException e) {
                             l.onFailure(e);

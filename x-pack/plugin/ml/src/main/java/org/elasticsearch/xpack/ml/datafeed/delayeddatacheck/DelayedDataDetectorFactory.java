@@ -68,7 +68,6 @@ public class DelayedDataDetectorFactory {
                     job.getDataDescription().getTimeField(),
                     summaryCountField,
                     datafeedConfig.getEsqlQuery(),
-                    datafeedConfig.getSourceTimeField(),
                     datafeedConfig.getHeaders(),
                     datafeedConfig.getProjectRouting(),
                     client

@@ -83,7 +83,8 @@ public class CsvModeTests extends ESTestCase {
                 true,
                 true,
                 false,
-                -1
+                -1,
+                false
             )
         );
         assertTrue(ex.getMessage().contains("skipRows must be non-negative"));

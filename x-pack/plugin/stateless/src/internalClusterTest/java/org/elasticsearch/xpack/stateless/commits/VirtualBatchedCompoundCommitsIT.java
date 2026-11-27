@@ -1986,7 +1986,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             } else {
                 assertThat(virtualBcc.getPrimaryTermAndGeneration(), equalTo(termAndGeneration));
             }
-            final long length = searchDirectory.blobLength(virtualBcc.getPrimaryTermAndGeneration()).getAsLong();
+            final long length = searchDirectory.blobLength(new BccBlob(virtualBcc.getPrimaryTermAndGeneration())).getAsLong();
             assertThat(length, equalTo(virtualBcc.getTotalSizeInBytes()));
             if (previousLength >= 0) {
                 assertThat(length, greaterThan(previousLength));
@@ -1998,18 +1998,18 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         final var uploaded = commitService.getLatestUploadedBcc(searchShard.shardId());
         assertNotNull(uploaded);
         assertThat(uploaded.primaryTermAndGeneration(), equalTo(termAndGeneration));
-        final long flushedLength = searchDirectory.blobLength(uploaded.primaryTermAndGeneration()).getAsLong();
+        final long flushedLength = searchDirectory.blobLength(uploaded.toBccBlob()).getAsLong();
         assertThat(flushedLength, greaterThanOrEqualTo(previousLength));
         assertThat(flushedLength, equalTo(uploaded.calculateBccBlobLength()));
 
         client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         refresh(indexName);
-        assertThat(searchDirectory.blobLength(termAndGeneration).isPresent(), equalTo(false));
+        assertThat(searchDirectory.blobLength(new BccBlob(termAndGeneration)).isPresent(), equalTo(false));
 
         final var merged = commitService.getLatestUploadedBcc(searchShard.shardId());
         assertNotNull(merged);
         assertNotEquals(termAndGeneration, merged.primaryTermAndGeneration());
-        assertThat(searchDirectory.blobLength(merged.primaryTermAndGeneration()).getAsLong(), equalTo(merged.calculateBccBlobLength()));
+        assertThat(searchDirectory.blobLength(merged.toBccBlob()).getAsLong(), equalTo(merged.calculateBccBlobLength()));
     }
 
     private void assertMeasurement(Measurement measurement, long value) {

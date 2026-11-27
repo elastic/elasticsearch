@@ -52,7 +52,7 @@ public final class ByteRegionInputStream extends ByteArrayInputStream {
         return buf;
     }
 
-    /** Backing array; not a copy. Valid only for this stream's lifetime. */
+    /** Backing array; not a copy. Valid until the owning {@link StorageObject} / pooled chunk is released. */
     public byte[] array() {
         return buf;
     }

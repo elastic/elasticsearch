@@ -48,7 +48,14 @@ public class BytesStorageObject extends AbstractTestStorageObject {
 
     @Override
     public InputStream newStream(long position, long length) throws IOException {
-        return new ByteRegionInputStream(bytes, offset + (int) position, (int) length);
+        int pos = Math.toIntExact(position);
+        int len = Math.toIntExact(length);
+        if (pos < 0 || len < 0 || Math.addExact(pos, len) > this.length) {
+            throw new IllegalArgumentException(
+                "Invalid sub-region: position=" + position + ", length=" + length + ", region length=" + this.length
+            );
+        }
+        return new ByteRegionInputStream(bytes, offset + pos, len);
     }
 
     @Override

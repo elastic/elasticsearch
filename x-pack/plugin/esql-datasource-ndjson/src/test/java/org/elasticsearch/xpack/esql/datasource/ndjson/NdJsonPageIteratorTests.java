@@ -3827,6 +3827,14 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         drainWarnings();
     }
 
+    public void testBytesStorageObjectRangeRejectsPastLogicalEnd() {
+        byte[] payload = "{\"a\":1}\n".getBytes(StandardCharsets.UTF_8);
+        byte[] padded = padded(3, payload);
+        var object = new BytesStorageObject("file:///range.ndjson", padded, 3, payload.length);
+        expectThrows(IllegalArgumentException.class, () -> object.newStream(-1, 1));
+        expectThrows(IllegalArgumentException.class, () -> object.newStream(2, payload.length));
+    }
+
     private static byte[] padded(int pad, byte[] payload) {
         byte[] all = new byte[pad + payload.length];
         Arrays.fill(all, 0, pad, (byte) 'X');

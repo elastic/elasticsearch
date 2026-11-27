@@ -51,8 +51,10 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -572,13 +574,16 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      */
     private static LinkedHashMap<String, List<UnresolvedAttribute>> collectUnresolved(LogicalPlan plan) {
         Set<String> aliasedGroupings = aliasNamesInAggregateGroupings(plan);
+        Set<UnresolvedAttribute> inGroupingDefinitions = unresolvedInAggregateGroupingDefinitions(plan);
 
         LinkedHashMap<String, List<UnresolvedAttribute>> unresolved = new LinkedHashMap<>();
         Consumer<UnresolvedAttribute> sink = ua -> {
             if (leaveUnresolved(ua) == false
                 // The aggs will "export" the aliases as UnresolvedAttributes part of their .aggregates(); we don't need to consider those
-                // as they'll be resolved as refs once the aliased expression is resolved.
-                && aliasedGroupings.contains(ua.name()) == false) {
+                // as they'll be resolved as refs once the aliased expression is resolved. A reference inside the definition of a grouping
+                // alias is not such an export, even when it has the alias's name, as in `BY tag = TO_UPPER(tag)`: groupings are evaluated
+                // over the input, so it names an input field, which may be unmapped.
+                && (aliasedGroupings.contains(ua.name()) == false || inGroupingDefinitions.contains(ua))) {
                 unresolved.computeIfAbsent(ua.name(), k -> new ArrayList<>()).add(ua);
             }
         };
@@ -683,5 +688,24 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             }
         });
         return aliasNames;
+    }
+
+    /**
+     * @return the {@link UnresolvedAttribute}s, by identity, that the definition of an aliased grouping of an Aggregate refers to, outside
+     * view bodies. These are the input references of {@code BY alias = expression}, as opposed to the {@code alias} that the Aggregate
+     * exports in its aggregates.
+     */
+    private static Set<UnresolvedAttribute> unresolvedInAggregateGroupingDefinitions(LogicalPlan plan) {
+        Set<UnresolvedAttribute> references = Collections.newSetFromMap(new IdentityHashMap<>());
+        ViewUtils.forEachOutsideViews(plan, p -> {
+            if (p instanceof Aggregate agg) {
+                for (var grouping : agg.groupings()) {
+                    if (grouping instanceof Alias alias) {
+                        alias.child().forEachDown(UnresolvedAttribute.class, references::add);
+                    }
+                }
+            }
+        });
+        return references;
     }
 }

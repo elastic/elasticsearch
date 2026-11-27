@@ -432,6 +432,32 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoad("FROM test | FORK (STATS c = COUNT(*)) (STATS d = AVG(salary))"));
     }
 
+    // #165752: the field that a grouping alias reads is an input field, even when the alias has the same name. The Aggregate also exports
+    // the alias, which is not a field to load.
+    public void testLoadModeGroupingAliasReadsUnmappedFieldOfTheSameName() {
+        assertGroupingAliasReadsUnmappedFieldOfTheSameName(
+            setUnmappedLoad("FROM test | STATS c = COUNT(*) BY does_not_exist = TO_UPPER(does_not_exist)")
+        );
+    }
+
+    public void testLoadAllModeGroupingAliasReadsUnmappedFieldOfTheSameName() {
+        assertGroupingAliasReadsUnmappedFieldOfTheSameName(
+            setUnmappedLoadAll("FROM test | STATS c = COUNT(*) BY does_not_exist = TO_UPPER(does_not_exist)")
+        );
+    }
+
+    public void testNullifyModeGroupingAliasReadsUnmappedFieldOfTheSameName() {
+        assertGroupingAliasReadsUnmappedFieldOfTheSameName(
+            setUnmappedNullify("FROM test | STATS c = COUNT(*) BY does_not_exist = TO_UPPER(does_not_exist)")
+        );
+    }
+
+    private void assertGroupingAliasReadsUnmappedFieldOfTheSameName(String query) {
+        var aggregates = test().statement(query).collect(Aggregate.class);
+        assertThat(aggregates, hasSize(1));
+        assertThat(Expressions.names(aggregates.get(0).output()), equalTo(List.of("c", "does_not_exist")));
+    }
+
     public void testLoadModeAllowsForkWithMultipleBranches() {
         test().statement(setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100) (WHERE salary > 50000)"));
     }

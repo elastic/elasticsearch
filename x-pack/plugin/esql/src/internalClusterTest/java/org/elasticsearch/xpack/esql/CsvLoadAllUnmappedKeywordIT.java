@@ -125,15 +125,6 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
     }
 
     private static final List<KnownError> KNOWN_ERRORS = List.of(
-        // Remove when fixed: STATS ... BY an alias named like the unmapped field it reads fails with "Unknown column"
-        new KnownError(
-            "https://github.com/elastic/elasticsearch/issues/165752",
-            "employees",
-            "job_positions",
-            Set.of("string.groupByMvMin", "string.groupByMvMax"),
-            VerificationException.class,
-            Pattern.compile("Found 1 problem\\nline \\d+:\\d+: Unknown column \\[job_positions]")
-        ),
         // Remove when fixed: STATS grouping twice by the same name, one of them an unmapped field, fails with "optimized incorrectly"
         new KnownError(
             "https://github.com/elastic/elasticsearch/issues/165753",

@@ -5113,6 +5113,14 @@ public class EsqlCapabilities {
          */
         FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
+        /**
+         * Under {@code unmapped_fields="load"}, {@code "load_all"} and {@code "nullify"}, a {@code STATS} grouping alias whose definition
+         * reads an unmapped field of the same name, as in {@code BY tag = TO_UPPER(tag)}, loads or nullifies that field instead of
+         * failing with "Unknown column".
+         * See <a href="https://github.com/elastic/elasticsearch/issues/165752">#165752</a>.
+         */
+        OPTIONAL_FIELDS_FIX_STATS_GROUPING_ALIAS_OF_UNMAPPED_FIELD,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

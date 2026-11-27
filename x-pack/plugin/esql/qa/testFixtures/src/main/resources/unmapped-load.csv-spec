@@ -4820,3 +4820,22 @@ FROM unmapped_compound_outputs
 
 id:keyword | tag:keyword
 ;
+
+// #165752: a grouping alias named like the unmapped field that its definition reads. The field in the definition is an input field.
+loadStatsGroupingAliasOfTheUnmappedFieldItReads
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_stats_grouping_alias_of_unmapped_field
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| STATS c = COUNT(*) BY unmapped_message = TO_UPPER(unmapped_message)
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | DISCONNECTED FROM 10.1.0.1
+1      | DISCONNECTED FROM 10.1.0.2
+1      | DISCONNECTED FROM 10.1.0.3
+3      | DISCONNECTION ERROR
+;

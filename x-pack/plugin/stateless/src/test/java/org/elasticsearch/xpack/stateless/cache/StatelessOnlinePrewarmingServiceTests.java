@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
@@ -404,7 +404,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
-                        BccBlob blobFile,
+                        Blob blob,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer bytesReadFromObjectStore,
                         LongConsumer bytesReadFromIndexing,
@@ -416,7 +416,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                         var delegate = cacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             blobContainer,
-                            blobFile,
+                            blob,
                             objectStoreUploadTracker,
                             bytesReadFromObjectStore,
                             bytesReadFromIndexing,
@@ -523,7 +523,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
-                        BccBlob blobFile,
+                        Blob blob,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer bytesReadFromObjectStore,
                         LongConsumer bytesReadFromIndexing,
@@ -535,7 +535,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                         var originalCacheBlobReader = cacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             blobContainer,
-                            blobFile,
+                            blob,
                             // The test expects to go through the blob store always
                             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                             bytesReadFromObjectStore,

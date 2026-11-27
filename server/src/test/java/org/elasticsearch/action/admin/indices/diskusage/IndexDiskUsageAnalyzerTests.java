@@ -447,9 +447,16 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     public void testDocValuesSkipperBytesReportedSeparately() throws Exception {
-        final CodecMode codecMode = randomFrom(CodecMode.values());
+        assertSkipperBytesReportedSeparately(between(500, 2000));
+    }
+
+    public void testDocValuesSkipperBytesWithFullUpperIntervals() throws Exception {
         // 512 documents fill whole upper-level skip intervals, which is where the final intervals are easiest to miss
-        final int numDocs = randomBoolean() ? 512 : between(500, 2000);
+        assertSkipperBytesReportedSeparately(512);
+    }
+
+    private void assertSkipperBytesReportedSeparately(int numDocs) throws Exception {
+        final CodecMode codecMode = randomFrom(CodecMode.values());
         final long[] values = new long[numDocs];
         for (int i = 0; i < numDocs; i++) {
             values[i] = random().nextInt(1024);

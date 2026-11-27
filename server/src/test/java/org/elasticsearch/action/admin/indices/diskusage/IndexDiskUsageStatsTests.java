@@ -53,6 +53,38 @@ public class IndexDiskUsageStatsTests extends ESTestCase {
         assertEquals(stats.total().totalBytes(), legacy.totalBytes());
     }
 
+    public void testLegacyWireLayout() throws IOException {
+        final TransportVersion legacyVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("disk_usage_stats_doc_values_skipper")
+        );
+        final long indexSize = randomLongBetween(1, 1_000_000);
+        final IndexDiskUsageStats stats = new IndexDiskUsageStats(indexSize);
+        stats.addInvertedIndex("field", 1);
+        stats.addStoredField("field", 2);
+        stats.addDocValues("field", 100);
+        stats.addDocValuesSkipper("field", 40);
+        stats.addPoints("field", 3);
+        stats.addNorms("field", 4);
+        stats.addTermVectors("field", 5);
+        stats.addKnnVectors("field", 6);
+        stats.addBloomFilter("field", 7);
+
+        // the layout older nodes expect, written by hand so it does not depend on the current reader
+        try (BytesStreamOutput expected = new BytesStreamOutput(); BytesStreamOutput actual = new BytesStreamOutput()) {
+            expected.setTransportVersion(legacyVersion);
+            expected.writeVInt(1);
+            expected.writeString("field");
+            for (long bytes : new long[] { 1, 2, 140, 3, 4, 5, 6, 7 }) {
+                expected.writeVLong(bytes);
+            }
+            expected.writeVLong(indexSize);
+
+            actual.setTransportVersion(legacyVersion);
+            stats.writeTo(actual);
+            assertEquals(expected.bytes(), actual.bytes());
+        }
+    }
+
     private static IndexDiskUsageStats roundTrip(IndexDiskUsageStats stats, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);

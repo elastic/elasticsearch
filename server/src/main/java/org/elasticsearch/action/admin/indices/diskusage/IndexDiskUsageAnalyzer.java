@@ -305,16 +305,20 @@ final class IndexDiskUsageAnalyzer {
                     directory.resetBytesRead();
                     var skipper = docValuesReader.getSkipper(field);
                     int lastUpperIntervalStart = 0;
+                    int lastTopLevel = 0;
                     while (skipper.maxDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
                         final int topLevel = skipper.numLevels() - 1;
+                        lastTopLevel = topLevel;
                         lastUpperIntervalStart = Math.max(0, skipper.minDocID(topLevel));
                         skipper.advance(skipper.maxDocID(topLevel) + 1);
                     }
-                    // jumping over the last upper-level interval skips the leaf records inside it, so walk those with a fresh skipper
-                    skipper = docValuesReader.getSkipper(field);
-                    skipper.advance(lastUpperIntervalStart);
-                    while (skipper.maxDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
-                        skipper.advance(skipper.maxDocID(0) + 1);
+                    if (lastTopLevel > 0) {
+                        // jumping over the last upper-level interval skips the leaf records inside it, so walk those with a fresh skipper
+                        skipper = docValuesReader.getSkipper(field);
+                        skipper.advance(lastUpperIntervalStart);
+                        while (skipper.maxDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
+                            skipper.advance(skipper.maxDocID(0) + 1);
+                        }
                     }
                     stats.addDocValuesSkipper(field.name, directory.getBytesRead());
                 }

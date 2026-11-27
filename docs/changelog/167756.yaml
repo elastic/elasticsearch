@@ -1,5 +1,5 @@
 area: Codec
 issues: []
 pr: 167756
-summary: Report doc values skipper size separately in the disk usage API. `doc_values_in_bytes` no longer includes skipper bytes; they are reported as `doc_values_skipper_in_bytes`. During a rolling upgrade, shards analyzed by nodes on the older version still include skipper bytes in `doc_values_in_bytes` and report `doc_values_skipper_in_bytes` as zero
+summary: Report doc values skipper size separately in the disk usage API. `doc_values_in_bytes` no longer includes skipper bytes; they are reported as `doc_values_skipper_in_bytes`. During a rolling upgrade, a coordinating node on the older version omits `doc_values_skipper_in_bytes` and includes skipper bytes in `doc_values_in_bytes`. An upgraded coordinating node reports `doc_values_skipper_in_bytes` only for shards analyzed by upgraded nodes, so the value can be partial or zero
 type: enhancement

@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedContainerField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
@@ -1934,7 +1935,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 throw nestedExpandError(target, "NESTED_EXPAND cannot read [" + name + "]: " + scope.conflict());
             }
             String path = scope.path();
-            if (NestedRowChecks.fromLookupIndex(expand.child(), root.id())) {
+            boolean fromLookup = NestedRowChecks.fromLookupIndex(expand.child(), root.id());
+            if (fromLookup && context.minimumVersion().supports(NestedContainerField.VERSION) == false) {
                 throw nestedExpandError(
                     target,
                     "NESTED_EXPAND cannot read [" + name + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
@@ -1973,7 +1975,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 expanded.add(fieldAttribute(expand.source(), parentName, childName, ((NestedScopeField) child.field()).leaf(), false));
                 paths.add(relative);
             }
-            return new NestedExpand(expand.source(), expand.child(), null, path, expanded, paths);
+            if (fromLookup == false) {
+                return new NestedExpand(expand.source(), expand.child(), null, path, expanded, paths);
+            }
+            List<DataType> leafTypes = new ArrayList<>();
+            for (FieldAttribute child : children) {
+                leafTypes.add(((NestedScopeField) child.field()).leaf().getDataType());
+            }
+            FieldAttribute container = NestedRowChecks.newContainer(expand.source(), path, paths, leafTypes);
+            return new NestedExpand(
+                expand.source(),
+                NestedRowChecks.withContainer(expand.child(), root.id(), container),
+                null,
+                path,
+                expanded,
+                paths,
+                container
+            );
         }
 
         private static boolean inNestedPath(String attributeName, String path) {

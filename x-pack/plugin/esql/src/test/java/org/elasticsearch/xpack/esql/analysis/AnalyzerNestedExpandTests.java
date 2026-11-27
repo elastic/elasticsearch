@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.NestedContainerField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -338,8 +339,8 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
     }
 
     /** The lookup index's documents are not the rows being read, so the collection it brings has no children for them. */
-    public void testCollectionOfALookupIndex() {
-        nestedAnalyzer().error(
+    public void testCollectionOfALookupIndexNeedsNestedContainerSupport() {
+        nestedAnalyzer(TransportVersionUtils.getPreviousVersion(NestedContainerField.VERSION)).error(
             "FROM ne_orders | LOOKUP JOIN ne_lookup ON id | NESTED_EXPAND items",
             equalTo("1:62: NESTED_EXPAND cannot read [items] from a LOOKUP JOIN index; that index's documents are not the rows being read")
         );

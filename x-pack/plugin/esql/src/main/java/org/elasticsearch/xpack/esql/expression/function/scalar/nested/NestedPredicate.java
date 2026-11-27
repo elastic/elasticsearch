@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.NestedContainerField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
@@ -68,6 +69,13 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
      */
     @Nullable
     private final QueryBuilder queryBuilder;
+    /**
+     * The column that carries the child documents when they are not the rows of the index the plan reads, such as those of a
+     * lookup index, or {@code null} when they are read through the row's {@code _doc}. It holds the children's {@link #inputs}. It
+     * is not a child of this expression, so rewrites of the body leave it alone, but {@link #references()} names it.
+     */
+    @Nullable
+    private final Attribute container;
 
     public NestedPredicate(
         Source source,
@@ -78,12 +86,26 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         @Nullable QueryBuilder queryBuilder,
         Configuration configuration
     ) {
+        this(source, path, body, inputs, relativePaths, queryBuilder, null, configuration);
+    }
+
+    public NestedPredicate(
+        Source source,
+        String path,
+        Expression body,
+        List<Attribute> inputs,
+        List<String> relativePaths,
+        @Nullable QueryBuilder queryBuilder,
+        @Nullable Attribute container,
+        Configuration configuration
+    ) {
         super(source, List.of(body), configuration);
         this.path = path;
         this.body = body;
         this.inputs = List.copyOf(inputs);
         this.relativePaths = List.copyOf(relativePaths);
         this.queryBuilder = queryBuilder;
+        this.container = container;
     }
 
     private NestedPredicate(StreamInput in) throws IOException {
@@ -94,6 +116,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readStringCollectionAsList(),
             null,
+            in.getTransportVersion().supports(NestedContainerField.VERSION) ? in.readOptionalNamedWriteable(Attribute.class) : null,
             ((PlanStreamInput) in).configuration()
         );
     }
@@ -102,6 +125,13 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
     public static boolean usedBy(QueryPlan<?> plan) {
         boolean[] found = { false };
         plan.forEachExpression(NestedPredicate.class, predicate -> found[0] = true);
+        return found[0];
+    }
+
+    /** Whether any expression of this node reads child documents through the row's {@code _doc} rather than through a container. */
+    public static boolean readsDocs(QueryPlan<?> plan) {
+        boolean[] found = { false };
+        plan.forEachExpression(NestedPredicate.class, predicate -> found[0] |= predicate.container == null);
         return found[0];
     }
 
@@ -119,6 +149,11 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         out.writeNamedWriteable(body);
         out.writeNamedWriteableCollection(inputs);
         out.writeStringCollection(relativePaths);
+        if (out.getTransportVersion().supports(NestedContainerField.VERSION)) {
+            out.writeOptionalNamedWriteable(container);
+        } else if (container != null) {
+            throw new IOException("NESTED_ANY over a lookup index requires nested container transport support");
+        }
     }
 
     @Override
@@ -147,8 +182,14 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         return queryBuilder;
     }
 
+    /** The column that carries the child documents, or {@code null} when they are read through the row's {@code _doc}. */
+    @Nullable
+    public Attribute container() {
+        return container;
+    }
+
     public NestedPredicate withQueryBuilder(QueryBuilder queryBuilder) {
-        return new NestedPredicate(source(), path, body, inputs, relativePaths, queryBuilder, configuration());
+        return new NestedPredicate(source(), path, body, inputs, relativePaths, queryBuilder, container, configuration());
     }
 
     /** The full names of the child fields this predicate reads. */
@@ -200,18 +241,19 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
 
     @Override
     protected NodeInfo<NestedPredicate> info() {
-        return NodeInfo.create(this, NestedPredicate::new, path, body, inputs, relativePaths, queryBuilder, configuration());
+        return NodeInfo.create(this, NestedPredicate::new, path, body, inputs, relativePaths, queryBuilder, container, configuration());
     }
 
     @Override
     public NestedPredicate replaceChildren(List<Expression> newChildren) {
-        return new NestedPredicate(source(), path, newChildren.getFirst(), inputs, relativePaths, queryBuilder, configuration());
+        return new NestedPredicate(source(), path, newChildren.getFirst(), inputs, relativePaths, queryBuilder, container, configuration());
     }
 
     /** The inputs are loaded from the child documents by {@link NestedChildren}, so they are not columns of the parent row. */
     @Override
     public AttributeSet references() {
-        return body.references().subtract(AttributeSet.of(inputs));
+        AttributeSet read = body.references().subtract(AttributeSet.of(inputs));
+        return container == null ? read : read.combine(AttributeSet.of(container));
     }
 
     @Override
@@ -222,16 +264,28 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             && body.equals(other.body)
             && inputs.equals(other.inputs)
             && relativePaths.equals(other.relativePaths)
-            && Objects.equals(queryBuilder, other.queryBuilder);
+            && Objects.equals(queryBuilder, other.queryBuilder)
+            && Objects.equals(container, other.container);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, body, inputs, relativePaths, queryBuilder);
+        return Objects.hash(super.hashCode(), path, body, inputs, relativePaths, queryBuilder, container);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
+        if (container != null) {
+            Layout inputLayout = new Layout.Builder().append(inputs).build();
+            ExpressionEvaluator.Factory predicate = EvalMapper.toEvaluatorContext(inputLayout, toEvaluator).apply(body);
+            ExpressionEvaluator.Factory carried = toEvaluator.apply(container);
+            return new ExpressionEvaluator.Factory() {
+                @Override
+                public ExpressionEvaluator get(DriverContext context) {
+                    return new NestedContainerPredicateEvaluator(context, carried.get(context), predicate.get(context), inputs.size());
+                }
+            };
+        }
         if (queryBuilder != null) {
             return new LuceneQueryExpressionEvaluator.Factory(
                 toEvaluator.shardContexts().map(shard -> new ShardConfig(shard.toQuery(queryBuilder), shard.searcher()))

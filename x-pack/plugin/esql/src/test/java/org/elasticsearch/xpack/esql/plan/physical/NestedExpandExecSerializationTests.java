@@ -22,6 +22,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 import static org.elasticsearch.xpack.esql.plan.logical.NestedExpandSerializationTests.analyzedExpand;
+import static org.elasticsearch.xpack.esql.plan.logical.NestedExpandSerializationTests.randomContainer;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -31,7 +32,14 @@ public class NestedExpandExecSerializationTests extends AbstractPhysicalPlanSeri
         Source source = randomSource();
         PhysicalPlan child = randomChild(0);
         int size = between(0, 3);
-        return new NestedExpandExec(source, child, randomAlphaOfLength(5), randomExpanded(size), randomPaths(size));
+        return new NestedExpandExec(
+            source,
+            child,
+            randomAlphaOfLength(5),
+            randomExpanded(size),
+            randomPaths(size),
+            randomBoolean() ? null : randomContainer()
+        );
     }
 
     @Override
@@ -40,8 +48,13 @@ public class NestedExpandExecSerializationTests extends AbstractPhysicalPlanSeri
         String path = instance.path();
         List<Attribute> expanded = instance.expanded();
         List<String> paths = instance.paths();
+        Attribute container = instance.container();
         int size = paths.size();
-        switch (size == 0 ? between(0, 2) : between(0, 4)) {
+        int mutation = size == 0 ? between(0, 3) : between(0, 5);
+        if (size == 0 && mutation == 3) {
+            mutation = 5;
+        }
+        switch (mutation) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> path = randomValueOtherThan(path, () -> randomAlphaOfLength(5));
             case 2 -> {
@@ -50,9 +63,10 @@ public class NestedExpandExecSerializationTests extends AbstractPhysicalPlanSeri
             }
             case 3 -> expanded = randomValueOtherThan(expanded, () -> randomExpanded(size));
             case 4 -> paths = randomValueOtherThan(paths, () -> randomPaths(size));
+            case 5 -> container = container == null ? randomContainer() : null;
             default -> throw new UnsupportedOperationException();
         }
-        return new NestedExpandExec(instance.source(), child, path, expanded, paths);
+        return new NestedExpandExec(instance.source(), child, path, expanded, paths, container);
     }
 
     @Override

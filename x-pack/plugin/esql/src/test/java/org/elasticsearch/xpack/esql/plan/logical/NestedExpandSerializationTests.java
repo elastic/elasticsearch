@@ -13,7 +13,11 @@ import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.NestedContainerField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 
 import java.io.IOException;
@@ -32,7 +36,15 @@ public class NestedExpandSerializationTests extends AbstractLogicalPlanSerializa
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
         int size = between(0, 3);
-        return new NestedExpand(source, child, null, randomAlphaOfLength(5), randomExpanded(size), randomPaths(size));
+        return new NestedExpand(
+            source,
+            child,
+            null,
+            randomAlphaOfLength(5),
+            randomExpanded(size),
+            randomPaths(size),
+            randomBoolean() ? null : randomContainer()
+        );
     }
 
     @Override
@@ -41,8 +53,13 @@ public class NestedExpandSerializationTests extends AbstractLogicalPlanSerializa
         String path = instance.path();
         List<Attribute> expanded = instance.expanded();
         List<String> paths = instance.paths();
+        Attribute container = instance.container();
         int size = paths.size();
-        switch (size == 0 ? between(0, 2) : between(0, 4)) {
+        int mutation = size == 0 ? between(0, 3) : between(0, 5);
+        if (size == 0 && mutation == 3) {
+            mutation = 5;
+        }
+        switch (mutation) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> path = randomValueOtherThan(path, () -> randomAlphaOfLength(5));
             case 2 -> {
@@ -51,9 +68,10 @@ public class NestedExpandSerializationTests extends AbstractLogicalPlanSerializa
             }
             case 3 -> expanded = randomValueOtherThan(expanded, () -> randomExpanded(size));
             case 4 -> paths = randomValueOtherThan(paths, () -> randomPaths(size));
+            case 5 -> container = container == null ? randomContainer() : null;
             default -> throw new UnsupportedOperationException();
         }
-        return new NestedExpand(instance.source(), child, null, path, expanded, paths);
+        return new NestedExpand(instance.source(), child, null, path, expanded, paths, container);
     }
 
     @Override
@@ -78,6 +96,38 @@ public class NestedExpandSerializationTests extends AbstractLogicalPlanSerializa
         Attribute converted = expand.expanded().stream().filter(a -> a.name().contains("converted_to")).findFirst().orElseThrow();
         assertThat(((FieldAttribute) converted).field(), instanceOf(UnionTypeEsField.class));
         SerializationTestUtils.assertSerialization(expand);
+    }
+
+    /** The column of a nested container, which a lookup index's nested collection reads through. */
+    public static Attribute randomContainer() {
+        List<String> paths = List.of("a", "b");
+        return new FieldAttribute(
+            Source.EMPTY,
+            null,
+            null,
+            NestedContainerField.NAME_PREFIX + "items",
+            new NestedContainerField(NestedContainerField.NAME_PREFIX + "items", "items", paths, List.of(DataType.LONG, DataType.KEYWORD)),
+            Nullability.TRUE,
+            new NameId(),
+            true
+        );
+    }
+
+    public void testWriteToRefusesAContainerWithoutNestedContainerSupport() {
+        NestedExpand expand = new NestedExpand(
+            randomSource(),
+            randomChild(0),
+            null,
+            "items",
+            randomExpanded(1),
+            randomPaths(1),
+            randomContainer()
+        );
+        IOException e = expectThrows(
+            IOException.class,
+            () -> copyInstance(expand, TransportVersionUtils.getPreviousVersion(NestedContainerField.VERSION))
+        );
+        assertThat(e.getMessage(), containsString("requires nested container transport support"));
     }
 
     public static NestedExpand analyzedExpand(String query) {

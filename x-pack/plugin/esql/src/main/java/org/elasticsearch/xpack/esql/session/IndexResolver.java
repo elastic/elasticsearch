@@ -168,9 +168,24 @@ public class IndexResolver {
         TransportVersion minimumVersion,
         ActionListener<IndexResolution> listener
     ) {
+        resolveLookupIndices(indexPattern, fieldNames, needsFieldSemantics, false, minimumVersion, listener);
+    }
+
+    /**
+     * Like {@link #resolveLookupIndices(String, Set, boolean, TransportVersion, ActionListener)}, also keeping the nested fields
+     * in the private nested schema when {@code nestedScope}, for the {@code NESTED_EXPAND} and {@code NESTED_ANY} that read them.
+     */
+    public void resolveLookupIndices(
+        String indexPattern,
+        Set<String> fieldNames,
+        boolean needsFieldSemantics,
+        boolean nestedScope,
+        TransportVersion minimumVersion,
+        ActionListener<IndexResolution> listener
+    ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false, false, false),
-            false, /* lookup indices never read nested fields */
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, nestedScope, false, false),
+            nestedScope,
             indexPattern,
             false, /* lookup indices should do not be empty */
             minimumVersion,

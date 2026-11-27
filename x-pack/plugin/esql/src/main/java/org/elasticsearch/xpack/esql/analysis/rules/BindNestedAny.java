@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.NestedContainerField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -29,8 +30,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPred
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -107,16 +108,28 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
                 return p;
             }
             LogicalPlan input = p.children().getFirst();
-            return p.transformExpressionsOnlyUp(NestedAny.class, any -> {
+            List<Container> containers = new ArrayList<>();
+            LogicalPlan bound = p.transformExpressionsOnlyUp(NestedAny.class, any -> {
                 // An aggregate drops the nested documents before the fields can be bound, so report that first.
                 LogicalPlan aggregate = NestedRowChecks.aggregateBelow(input);
                 if (aggregate != null) {
                     throw error(any, "NESTED_ANY reads each row's nested documents, so it cannot follow [" + aggregate.sourceText() + "]");
                 }
-                return any.resolved() ? bind(any, input, context.configuration()) : any;
+                return any.resolved() ? bind(any, input, context, containers) : any;
             });
+            if (containers.isEmpty()) {
+                return bound;
+            }
+            LogicalPlan withContainers = input;
+            for (Container container : containers) {
+                withContainers = NestedRowChecks.withContainer(withContainers, container.collection(), container.attribute());
+            }
+            return ((UnaryPlan) bound).replaceChild(withContainers);
         });
     }
+
+    /** The column that carries the child documents of a lookup index's collection, and the collection attribute it stands for. */
+    private record Container(NameId collection, FieldAttribute attribute) {}
 
     private static NestedAny find(LogicalPlan plan) {
         NestedAny[] found = new NestedAny[1];
@@ -124,17 +137,41 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
         return found[0];
     }
 
-    private static Expression bind(NestedAny nested, LogicalPlan input, Configuration configuration) {
+    private static Expression bind(NestedAny nested, LogicalPlan input, AnalyzerContext context, List<Container> containers) {
         Expression body = nested.body();
-        String collection = collection(nested, input);
+        String collection = collection(nested, input, context);
         Schema schema = Schema.of(input.output());
         Reads reads = readChildren(nested, body, collection, schema);
         if (schema.paths().stream().anyMatch(path -> reads.path().startsWith(path + "."))) {
             throw error(nested, "NESTED_ANY supports one nesting level");
         }
-        Inputs inputs = inputs(nested, input, reads, schema);
+        boolean fromLookup = reads.children().isEmpty() == false
+            && NestedRowChecks.fromLookupIndex(
+                input,
+                schemaOf((FieldAttribute) reads.children().values().iterator().next(), schema.byName()).id()
+            );
+        if (fromLookup && context.minimumVersion().supports(NestedContainerField.VERSION) == false) {
+            throw lookupError(nested, publicName(schemaOf((FieldAttribute) reads.children().values().iterator().next(), schema.byName())));
+        }
+        Inputs inputs = inputs(nested, input, reads, schema, fromLookup);
         Expression bound = body.transformUp(Attribute.class, attribute -> inputs.replacement().getOrDefault(attribute.id(), attribute));
-        return new NestedPredicate(nested.source(), reads.path(), bound, inputs.channels(), inputs.relativePaths(), null, configuration);
+        FieldAttribute container = null;
+        if (fromLookup) {
+            List<DataType> types = inputs.channels().stream().map(Attribute::dataType).toList();
+            container = NestedRowChecks.newContainer(nested.source(), reads.path(), inputs.relativePaths(), types);
+            NameId owner = schemaOf((FieldAttribute) reads.children().values().iterator().next(), schema.byName()).id();
+            containers.add(new Container(owner, container));
+        }
+        return new NestedPredicate(
+            nested.source(),
+            reads.path(),
+            bound,
+            inputs.channels(),
+            inputs.relativePaths(),
+            null,
+            container,
+            context.configuration()
+        );
     }
 
     /** The private nested schema in the plan's output, by name, and the paths of the nested objects it describes. */
@@ -192,7 +229,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
     /** What the predicate loads from each child, and what its body reads in place of the attribute that named it. */
     private record Inputs(List<Attribute> channels, List<String> relativePaths, Map<NameId, Attribute> replacement) {}
 
-    private static Inputs inputs(NestedAny nested, LogicalPlan input, Reads reads, Schema schema) {
+    private static Inputs inputs(NestedAny nested, LogicalPlan input, Reads reads, Schema schema, boolean fromLookup) {
         List<Attribute> channels = new ArrayList<>();
         List<String> relativePaths = new ArrayList<>();
         Map<NameId, Attribute> replacement = new HashMap<>();
@@ -203,8 +240,8 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             if (scope.kind() != NestedScopeField.Kind.VALUE) {
                 throw error(nested, "NESTED_ANY requires a predicate over nested fields, not [" + publicName(read) + "]");
             }
-            if (NestedRowChecks.fromLookupIndex(input, read.id())) {
-                throw lookupError(nested, publicName(read));
+            if (fromLookup && field.field() instanceof UnionTypeEsField) {
+                throw error(nested, "NESTED_ANY cannot convert [" + publicName(read) + "] of a LOOKUP JOIN index");
             }
             relativePaths.add(read.name().substring(NestedScopeField.PREFIX.length() + reads.path().length() + 1));
             if (field.field() instanceof UnionTypeEsField) {
@@ -219,7 +256,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
     }
 
     /** The named collection, or {@code null} when the predicate's fields name the path. */
-    private static String collection(NestedAny nested, LogicalPlan input) {
+    private static String collection(NestedAny nested, LogicalPlan input, AnalyzerContext context) {
         Expression named = nested.collection();
         if (named == null) {
             return null;
@@ -233,7 +270,8 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             if (NestedReference.replacedByColumn(input.output(), NestedReference.references(input).keySet(), scope.path())) {
                 throw error(nested, "NESTED_ANY cannot use [" + scope.path() + "]: a column of that name replaces it here");
             }
-            if (NestedRowChecks.fromLookupIndex(input, field.id())) {
+            if (NestedRowChecks.fromLookupIndex(input, field.id())
+                && context.minimumVersion().supports(NestedContainerField.VERSION) == false) {
                 throw lookupError(nested, scope.path());
             }
             return scope.path();

@@ -46,11 +46,16 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.NestedContainerField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedContainerPackOperator;
 import org.elasticsearch.xpack.esql.plan.physical.BulkLookupMvFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -75,6 +80,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 
 /**
  * Plans the execution of a lookup physical plan
@@ -367,10 +373,78 @@ public class LookupExecutionPlanner {
         FieldExtractExec fieldExtractExec,
         PhysicalOperation source
     ) {
-        List<Attribute> attributesToExtract = fieldExtractExec.attributesToExtract();
+        List<Attribute> containers = fieldExtractExec.attributesToExtract()
+            .stream()
+            .filter(attr -> attr instanceof FieldAttribute field && field.field() instanceof NestedContainerField)
+            .toList();
+        if (containers.isEmpty() == false) {
+            return planNestedContainers(plannerSettings, fieldExtractExec, containers, source);
+        }
+        return planFieldExtract(plannerSettings, fieldExtractExec, fieldExtractExec.attributesToExtract(), source);
+    }
 
+    /**
+     * Extracts the ordinary fields, then reads the child documents of each matched lookup document into the container columns.
+     * The containers are read from the same {@code _doc} the ordinary fields are.
+     */
+    private PhysicalOperation planNestedContainers(
+        PlannerSettings plannerSettings,
+        FieldExtractExec fieldExtractExec,
+        List<Attribute> containers,
+        PhysicalOperation source
+    ) {
+        List<Attribute> ordinary = fieldExtractExec.attributesToExtract()
+            .stream()
+            .filter(attr -> containers.contains(attr) == false)
+            .toList();
+        int docChannel = source.layout().get(fieldExtractExec.sourceAttribute().id()).channel();
+        PhysicalOperation plan = source;
+        if (ordinary.isEmpty() == false) {
+            plan = planFieldExtract(plannerSettings, fieldExtractExec, ordinary, source);
+        }
+        for (Attribute container : containers) {
+            NestedContainerField field = (NestedContainerField) ((FieldAttribute) container).field();
+            Layout.Builder layout = plan.layout().builder();
+            layout.append(container);
+            List<UnionTypeEsField> unions = Collections.nCopies(field.paths().size(), (UnionTypeEsField) null);
+            plan = plan.with(new OperatorFactory() {
+                @Override
+                public Operator get(DriverContext driverContext) {
+                    LookupDriverContext lookupDriverContext = (LookupDriverContext) driverContext;
+                    EsPhysicalOperationProviders.ShardContext esShardContext = lookupDriverContext.lookupShardContext().context();
+                    // A child that is a key of a flattened field reads with the query's configuration, which a lookup does not have.
+                    NestedChildren.Factory children = NestedChildren.factory(
+                        new IndexedByShardIdFromSingleton<>(esShardContext),
+                        field.path(),
+                        field.paths(),
+                        field.types(),
+                        unions,
+                        plannerSettings,
+                        null
+                    );
+                    return new NestedContainerPackOperator.Factory(docChannel, children, field.types()).get(driverContext);
+                }
+
+                @Override
+                public String describe() {
+                    return "NestedContainerPackOperator[path=" + field.path() + "]";
+                }
+            }, layout.build());
+        }
+        return plan;
+    }
+
+    private PhysicalOperation planFieldExtract(
+        PlannerSettings plannerSettings,
+        FieldExtractExec fieldExtractExec,
+        List<Attribute> attributesToExtract,
+        PhysicalOperation source
+    ) {
         Layout.Builder layoutBuilder = new Layout.Builder();
-        for (Attribute attr : fieldExtractExec.output()) {
+        List<Attribute> layoutAttributes = attributesToExtract == fieldExtractExec.attributesToExtract()
+            ? fieldExtractExec.output()
+            : Stream.concat(fieldExtractExec.child().output().stream(), attributesToExtract.stream()).toList();
+        for (Attribute attr : layoutAttributes) {
             layoutBuilder.append(attr);
         }
         Layout layout = layoutBuilder.build();

@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.NestedContainerField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -233,10 +235,11 @@ public class AnalyzerNestedCollectionColumnTests extends AnalyzerTestCase {
     }
 
     public void testCollectionOfALookupIndex() {
-        nestedAnalyzer().error(
-            "FROM ne_orders | LOOKUP JOIN ne_lookup ON id | EVAL o = items | NESTED_EXPAND o",
-            containsString("from a LOOKUP JOIN index; that index's documents are not the rows being read")
-        );
+        AnalyzerNestedExpandTests.nestedAnalyzer(TransportVersionUtils.getPreviousVersion(NestedContainerField.VERSION))
+            .error(
+                "FROM ne_orders | LOOKUP JOIN ne_lookup ON id | EVAL o = items | NESTED_EXPAND o",
+                containsString("from a LOOKUP JOIN index; that index's documents are not the rows being read")
+            );
     }
 
     public void testIndicesDisagreeOnTheNestedPath() {

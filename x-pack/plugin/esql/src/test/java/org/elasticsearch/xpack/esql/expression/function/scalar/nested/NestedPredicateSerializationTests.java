@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.NestedContainerField;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -24,6 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.nestedAnalyzer;
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
+import static org.elasticsearch.xpack.esql.plan.logical.NestedExpandSerializationTests.randomContainer;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -41,6 +43,7 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
             randomInputs(size),
             randomRelativePaths(size),
             null,
+            randomBoolean() ? null : randomContainer(),
             configuration()
         );
     }
@@ -51,8 +54,13 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
         Expression body = instance.body();
         List<Attribute> inputs = instance.inputs();
         List<String> relativePaths = instance.relativePaths();
+        Attribute container = instance.container();
         int size = inputs.size();
-        switch (between(0, size == 0 ? 2 : 4)) {
+        int mutation = between(0, size == 0 ? 3 : 5);
+        if (size == 0 && mutation == 3) {
+            mutation = 5;
+        }
+        switch (mutation) {
             case 0 -> path = randomValueOtherThan(path, NestedPredicateSerializationTests::randomPath);
             case 1 -> body = randomValueOtherThan(body, AbstractExpressionSerializationTests::randomChild);
             case 2 -> {
@@ -61,9 +69,10 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
             }
             case 3 -> inputs = randomValueOtherThan(inputs, () -> randomInputs(size));
             case 4 -> relativePaths = randomValueOtherThan(relativePaths, () -> randomRelativePaths(size));
+            case 5 -> container = container == null ? randomContainer() : null;
             default -> throw new UnsupportedOperationException();
         }
-        return new NestedPredicate(instance.source(), path, body, inputs, relativePaths, null, instance.configuration());
+        return new NestedPredicate(instance.source(), path, body, inputs, relativePaths, null, container, instance.configuration());
     }
 
     public void testWriteToRefusesNodesWithoutNestedPredicates() throws IOException {
@@ -94,6 +103,24 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
         assertThat(copy.path(), equalTo(predicate.path()));
         assertThat(copy.inputs().size(), equalTo(predicate.inputs().size()));
         assertThat(copy.relativePaths(), equalTo(predicate.relativePaths()));
+    }
+
+    public void testWriteToRefusesAContainerWithoutNestedContainerSupport() {
+        NestedPredicate predicate = new NestedPredicate(
+            randomSource(),
+            randomPath(),
+            randomChild(),
+            randomInputs(1),
+            randomRelativePaths(1),
+            null,
+            randomContainer(),
+            configuration()
+        );
+        IOException e = expectThrows(
+            IOException.class,
+            () -> copyInstance(predicate, TransportVersionUtils.getPreviousVersion(NestedContainerField.VERSION))
+        );
+        assertThat(e.getMessage(), containsString("requires nested container transport support"));
     }
 
     public void testRoundTripsAPredicateOverTheCollection() throws IOException {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,8 +26,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -147,37 +148,45 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         return this.shardSnapshots;
     }
 
+    public record FilesForSnapshot(List<FileInfo> reusableFiles, List<StoreFileMetadata> newFiles) {}
+
     /**
      * Finds reusable repository files for the given commit files in a single pass over the shard's snapshot history.
      * Keeps only matches for the requested files so that lookup memory depends on the size of the commit.
      *
      * @param fileNames Lucene filenames to match, each present in {@code metadata}
      * @param metadata metadata for the current commit
-     * @return map keyed by Lucene filename to the corresponding FileInfo, omitting files without a match
+     * @return reusable and new files for the snapshot
      */
-    public Map<String, FileInfo> findPhysicalIndexFiles(Collection<String> fileNames, Store.MetadataSnapshot metadata) {
-        if (fileNames.isEmpty() || shardSnapshots.isEmpty()) {
-            return Map.of();
+    public FilesForSnapshot classifySnapshotFiles(Collection<String> fileNames, Store.MetadataSnapshot metadata) {
+        if (fileNames.isEmpty()) {
+            return new FilesForSnapshot(List.of(), List.of());
         }
 
-        final var remainingFileNames = new HashSet<>(fileNames);
-        final Map<String, FileInfo> existingFilesByPhysicalName = new HashMap<>();
+        final Map<String, StoreFileMetadata> remainingFilesByName = new LinkedHashMap<>();
+        for (String fileName : fileNames) {
+            final StoreFileMetadata currentFileMetadata = metadata.get(fileName);
+            remainingFilesByName.put(fileName, currentFileMetadata);
+        }
+
+        final List<FileInfo> reusableFiles = new ArrayList<>();
         for (SnapshotFiles snapshot : shardSnapshots) {
             for (FileInfo fileInfo : snapshot.indexFiles()) {
                 final String name = fileInfo.physicalName();
-                if (remainingFileNames.contains(name)) {
+                final StoreFileMetadata currentFile = remainingFilesByName.get(name);
+                if (currentFile != null) {
                     final FileInfo candidate = files.get(fileInfo.name());
-                    if (candidate.isSame(metadata.get(name))) {
-                        existingFilesByPhysicalName.put(name, candidate);
-                        remainingFileNames.remove(name);
-                        if (remainingFileNames.isEmpty()) {
-                            return existingFilesByPhysicalName;
+                    if (candidate.isSame(currentFile)) {
+                        reusableFiles.add(candidate);
+                        remainingFilesByName.remove(name);
+                        if (remainingFilesByName.isEmpty()) {
+                            return new FilesForSnapshot(List.copyOf(reusableFiles), List.of());
                         }
                     }
                 }
             }
         }
-        return existingFilesByPhysicalName;
+        return new FilesForSnapshot(List.copyOf(reusableFiles), List.copyOf(remainingFilesByName.values()));
     }
 
     /**

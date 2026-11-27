@@ -17,6 +17,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots.FilesForSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -137,7 +138,7 @@ public class BlobStoreIndexShardSnapshotsTests extends ESTestCase {
         expectThrows(ArithmeticException.class, huge::retainedBlobBytes);
     }
 
-    public void testFindPhysicalIndexFiles() {
+    public void testClassifySnapshotFiles() {
         final var oldFile = blobFile("__old", "_0.cfs", 1);
         final var updatedFile = blobFile("__updated", "_0.cfs", 2);
         final var sharedFile = blobFile("__shared", "_1.cfs", 3);
@@ -154,21 +155,30 @@ public class BlobStoreIndexShardSnapshotsTests extends ESTestCase {
             0
         );
 
-        // doesn't return the `_0.cfs` because it's not the same one as the one in `metadata`
-        assertEquals(Map.of(), oldSnapshots.findPhysicalIndexFiles(List.of("_0.cfs"), metadata));
-
-        // returns `_0.cfs` because it's in `allSnapshots`
-        assertEquals(Map.of("_0.cfs", updatedFile), allSnapshots.findPhysicalIndexFiles(List.of("_0.cfs"), metadata));
-
-        // returns both reusable files (`_2.cfs` was never snapshotted)
+        // doesn't return the `_0.cfs` in the reusable files because it's not the same one as the one in `metadata`
         assertEquals(
-            Map.of("_0.cfs", updatedFile, "_1.cfs", sharedFile),
-            allSnapshots.findPhysicalIndexFiles(List.of("_0.cfs", "_1.cfs", "_2.cfs"), metadata)
+            new FilesForSnapshot(List.of(), List.of(updatedFile.metadata())),
+            oldSnapshots.classifySnapshotFiles(List.of("_0.cfs"), metadata)
+        );
+
+        // returns `_0.cfs` in the reusable files because it's in `allSnapshots`
+        assertEquals(
+            new FilesForSnapshot(List.of(updatedFile), List.of()),
+            allSnapshots.classifySnapshotFiles(List.of("_0.cfs"), metadata)
+        );
+
+        // returns both `_0.cfs` and `_1.cfs` as reusable files (`_2.cfs` was never snapshotted)
+        assertEquals(
+            new FilesForSnapshot(List.of(sharedFile, updatedFile), List.of(newFile.metadata())),
+            allSnapshots.classifySnapshotFiles(List.of("_0.cfs", "_1.cfs", "_2.cfs"), metadata)
         );
 
         // sanity checks
-        assertEquals(Map.of(), oldSnapshots.findPhysicalIndexFiles(List.of(), metadata));
-        assertEquals(Map.of(), BlobStoreIndexShardSnapshots.EMPTY.findPhysicalIndexFiles(List.of("_0.cfs", "_1.cfs", "_2.cfs"), metadata));
+        assertEquals(new FilesForSnapshot(List.of(), List.of()), oldSnapshots.classifySnapshotFiles(List.of(), metadata));
+        assertEquals(
+            new FilesForSnapshot(List.of(), List.of(newFile.metadata(), updatedFile.metadata(), sharedFile.metadata())),
+            BlobStoreIndexShardSnapshots.EMPTY.classifySnapshotFiles(List.of("_2.cfs", "_0.cfs", "_1.cfs"), metadata)
+        );
     }
 
     private static long expectedRetainedBlobBytes(Map<String, List<FileInfo>> filesBySnapshot, List<SnapshotId> retained) {

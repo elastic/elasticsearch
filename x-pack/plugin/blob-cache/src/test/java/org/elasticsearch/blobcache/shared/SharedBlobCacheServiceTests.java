@@ -4332,6 +4332,245 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    /// With no free region and nothing evictable, a non-forced fetch of a region that is already in cache still fills the missing part
+    /// of the range, since that needs no new region.
+    public void testMaybeFetchRangeFillsRemainingGapOfCachedRegionWhenCacheIsFull() throws Exception {
+        final long regionSize = size(2L);
+        final int numRegions = between(1, 5);
+        final Settings settings = fullCacheSettings(regionSize, numRegions);
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var executor = taskQueue.getThreadPool().generic();
+            final var cacheKey = generateCacheKey();
+            final long blobLength = regionSize * numRegions;
+            final var entries = fillCache(cacheService, cacheKey, blobLength, numRegions);
+
+            final int region = between(0, numRegions - 1);
+            final long filledEnd = randomLongBetween(1L, regionSize - 1L);
+            final PlainActionFuture<Boolean> partialFillFuture = new PlainActionFuture<>();
+            entries.get(region)
+                .populate(ByteRange.of(0, filledEnd), fillingWriter(new AtomicInteger()), executor, false, partialFillFuture);
+            taskQueue.runAllRunnableTasks();
+            assertThat(safeGet(partialFillFuture), is(true));
+
+            final AtomicLong bytesCopied = new AtomicLong();
+            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            cacheService.maybeFetchRange(
+                cacheKey,
+                region,
+                ByteRange.of(cacheService.getRegionStart(region), cacheService.getRegionEnd(region)),
+                blobLength,
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> {
+                        bytesCopied.addAndGet(length);
+                        progressUpdater.accept(length);
+                    }
+                ),
+                executor,
+                irrelevantTimestamp(),
+                randomBoolean(),
+                future
+            );
+            taskQueue.runAllRunnableTasks();
+
+            assertThat("the remaining gap of the cached region is filled", safeGet(future), is(true));
+            assertThat(bytesCopied.get(), equalTo(regionSize - filledEnd));
+            assertThat(cacheService.freeRegionCount(), equalTo(0));
+            assertThat(cacheService.getStats().evictCount(), equalTo(0L));
+        }
+    }
+
+    /// With no free region and nothing evictable, a non-forced fetch with `awaitPendingFill` of a region that is already in cache waits
+    /// for the fill another caller has in flight, rather than completing straight away because the cache is full.
+    public void testMaybeFetchRangeAwaitsPendingFillOfCachedRegionWhenCacheIsFull() throws Exception {
+        final long regionSize = size(2L);
+        final int numRegions = between(1, 5);
+        final Settings settings = fullCacheSettings(regionSize, numRegions);
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var executor = taskQueue.getThreadPool().generic();
+            final var cacheKey = generateCacheKey();
+            final long blobLength = regionSize * numRegions;
+            final var entries = fillCache(cacheService, cacheKey, blobLength, numRegions);
+
+            final int region = between(0, numRegions - 1);
+            final var parkedFill = new ParkedRangeFill();
+            final PlainActionFuture<Boolean> ownerFuture = new PlainActionFuture<>();
+            entries.get(region).populate(ByteRange.of(0, regionSize), parkedFill, executor, false, ownerFuture);
+            taskQueue.runAllRunnableTasks();
+            assertThat("the owner claimed the region, its fill is in flight", parkedFill.isParked(), is(true));
+
+            final PlainActionFuture<Boolean> waiterFuture = new PlainActionFuture<>();
+            cacheService.maybeFetchRange(
+                cacheKey,
+                region,
+                ByteRange.of(cacheService.getRegionStart(region), cacheService.getRegionEnd(region)),
+                blobLength,
+                unreachableWriter(),
+                executor,
+                irrelevantTimestamp(),
+                true,
+                waiterFuture
+            );
+            taskQueue.runAllRunnableTasks();
+            assertThat("the waiter must not be completed while the owner's fill is in flight", waiterFuture.isDone(), is(false));
+
+            parkedFill.completeFill();
+            taskQueue.runAllRunnableTasks();
+            assertThat(safeGet(ownerFuture), is(true));
+            assertThat("the range is resident, but this caller did not fill it", safeGet(waiterFuture), is(false));
+        }
+    }
+
+    /// A non-forced fetch of a region that is already in cache needs no new region, so it must not evict a freq0 region even when one
+    /// is evictable.
+    public void testMaybeFetchRangeOfCachedRegionDoesNotEvict() throws Exception {
+        final long regionSize = size(2L);
+        final int numRegions = between(1, 5);
+        final Settings settings = fullCacheSettings(regionSize, numRegions);
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long blobLength = regionSize * numRegions;
+            fillCache(cacheService, cacheKey, blobLength, numRegions);
+            // moves every cached region to freq0, hence evictable
+            cacheService.computeDecay();
+
+            final int region = between(0, numRegions - 1);
+            final AtomicInteger fills = new AtomicInteger();
+            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            cacheService.maybeFetchRange(
+                cacheKey,
+                region,
+                ByteRange.of(cacheService.getRegionStart(region), cacheService.getRegionEnd(region)),
+                blobLength,
+                fillingWriter(fills),
+                taskQueue.getThreadPool().generic(),
+                irrelevantTimestamp(),
+                randomBoolean(),
+                future
+            );
+            taskQueue.runAllRunnableTasks();
+
+            assertThat(safeGet(future), is(true));
+            assertThat(fills.get(), equalTo(1));
+            assertThat("no region was evicted to fetch into an already cached region", cacheService.getStats().evictCount(), equalTo(0L));
+        }
+    }
+
+    /// With no free region and nothing evictable, a non-forced fetch of a whole region that is already in cache still fills the missing
+    /// part of the region, since that needs no new region.
+    public void testMaybeFetchRegionFillsRemainingGapOfCachedRegionWhenCacheIsFull() throws Exception {
+        final long regionSize = size(2L);
+        final int numRegions = between(1, 5);
+        final Settings settings = fullCacheSettings(regionSize, numRegions);
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var executor = taskQueue.getThreadPool().generic();
+            final var cacheKey = generateCacheKey();
+            final long blobLength = regionSize * numRegions;
+            final var entries = fillCache(cacheService, cacheKey, blobLength, numRegions);
+
+            final int region = between(0, numRegions - 1);
+            final long filledEnd = randomLongBetween(1L, regionSize - 1L);
+            final PlainActionFuture<Boolean> partialFillFuture = new PlainActionFuture<>();
+            entries.get(region)
+                .populate(ByteRange.of(0, filledEnd), fillingWriter(new AtomicInteger()), executor, false, partialFillFuture);
+            taskQueue.runAllRunnableTasks();
+            assertThat(safeGet(partialFillFuture), is(true));
+
+            final AtomicLong bytesCopied = new AtomicLong();
+            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            cacheService.maybeFetchRegion(
+                cacheKey,
+                region,
+                blobLength,
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> {
+                        bytesCopied.addAndGet(length);
+                        progressUpdater.accept(length);
+                    }
+                ),
+                executor,
+                irrelevantTimestamp(),
+                future
+            );
+            taskQueue.runAllRunnableTasks();
+
+            assertThat("the remaining gap of the cached region is filled", safeGet(future), is(true));
+            assertThat(bytesCopied.get(), equalTo(regionSize - filledEnd));
+            assertThat(cacheService.freeRegionCount(), equalTo(0));
+            assertThat(cacheService.getStats().evictCount(), equalTo(0L));
+        }
+    }
+
+    private Settings fullCacheSettings(long regionSize, int numRegions) {
+        return Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize * numRegions).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+    }
+
+    /// Maps every region of the cache to a region of `cacheKey`, leaving no free region and, until the next decay, nothing evictable.
+    private static <K extends SharedBlobCacheService.KeyBase> List<CacheFileRegion<K>> fillCache(
+        SharedBlobCacheService<K> cacheService,
+        K cacheKey,
+        long blobLength,
+        int numRegions
+    ) {
+        final List<CacheFileRegion<K>> entries = new ArrayList<>(numRegions);
+        for (int region = 0; region < numRegions; region++) {
+            entries.add(cacheService.get(cacheKey, blobLength, region, irrelevantTimestamp()));
+        }
+        assertThat(cacheService.freeRegionCount(), equalTo(0));
+        return entries;
+    }
+
     private Settings cacheSettingsWithRegionSize(long regionSize) {
         return Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")

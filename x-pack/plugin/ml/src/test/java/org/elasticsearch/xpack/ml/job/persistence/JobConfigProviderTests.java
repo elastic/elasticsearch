@@ -114,9 +114,7 @@ public class JobConfigProviderTests extends ESTestCase {
     }
 
     private static DatafeedConfig.Builder newEsqlDatafeed() {
-        return new DatafeedConfig.Builder("df", "job").setEsqlQuery(ESQL_QUERY)
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1));
+        return new DatafeedConfig.Builder("df", "job").setEsqlQuery(ESQL_QUERY).setGroupingInterval(TimeValue.timeValueHours(1));
     }
 
     /** Completes the {@code validateQuery} probe with {@code failure}, or successfully when it is null. */

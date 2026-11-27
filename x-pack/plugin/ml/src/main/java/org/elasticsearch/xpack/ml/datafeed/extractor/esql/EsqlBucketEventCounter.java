@@ -44,19 +44,17 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
 
     private final String jobId;
     private final long bucketSpan;
-    private final String emittedTimeField;
+    private final String timeField;
     private final String summaryCountFieldName;
     private final String esqlQuery;
-    private final String sourceTimeField;
     private final EsqlSyncQueryRunner queryRunner;
 
     public EsqlBucketEventCounter(
         String jobId,
         long bucketSpan,
-        String emittedTimeField,
+        String timeField,
         String summaryCountFieldName,
         String esqlQuery,
-        String sourceTimeField,
         Map<String, String> headers,
         @Nullable String projectRouting,
         Client client
@@ -64,10 +62,9 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
         this(
             jobId,
             bucketSpan,
-            emittedTimeField,
+            timeField,
             summaryCountFieldName,
             esqlQuery,
-            sourceTimeField,
             (query, filter, params) -> EsqlQueryExecutor.executeSync(
                 client,
                 EsqlQueryExecutor.newRequest(client, query, filter, params, projectRouting, ExecutionMetadata.NEVER),
@@ -79,19 +76,17 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
     EsqlBucketEventCounter(
         String jobId,
         long bucketSpan,
-        String emittedTimeField,
+        String timeField,
         String summaryCountFieldName,
         String esqlQuery,
-        String sourceTimeField,
         EsqlSyncQueryRunner queryRunner
     ) {
         assert bucketSpan > 0 : "bucketSpan must be positive";
         this.jobId = Objects.requireNonNull(jobId);
         this.bucketSpan = bucketSpan;
-        this.emittedTimeField = Objects.requireNonNull(emittedTimeField);
+        this.timeField = Objects.requireNonNull(timeField);
         this.summaryCountFieldName = Objects.requireNonNull(summaryCountFieldName);
         this.esqlQuery = Objects.requireNonNull(esqlQuery);
-        this.sourceTimeField = Objects.requireNonNull(sourceTimeField);
         this.queryRunner = Objects.requireNonNull(queryRunner);
     }
 
@@ -102,10 +97,10 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
     @Override
     public Map<Long, Long> currentBucketEventCounts(long start, long end) {
         String query = bucketEventCountQuery(esqlQuery);
-        QueryBuilder filter = EsqlDataExtractorQueryUtils.timeRangeFilter(sourceTimeField, start, end);
+        QueryBuilder filter = EsqlDataExtractorQueryUtils.timeRangeFilter(timeField, start, end);
         List<EsqlQueryParam> params = List.of(
             new EsqlQueryParam("countField", summaryCountFieldName, IDENTIFIER),
-            new EsqlQueryParam("timeField", emittedTimeField, IDENTIFIER),
+            new EsqlQueryParam("timeField", timeField, IDENTIFIER),
             new EsqlQueryParam("bucketSpan", bucketSpan, VALUE)
         );
         try (EsqlQueryResponse response = EsqlQueryRunner.runWithSingleRetry(queryRunner, query, filter, params, () -> false, jobId)) {

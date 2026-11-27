@@ -74,7 +74,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             DatafeedConfig.QUERY
         );
         PARSER.declareString(Builder::setEsqlQuery, DatafeedConfig.ESQL_QUERY);
-        PARSER.declareString(Builder::setSourceTimeField, DatafeedConfig.SOURCE_TIME_FIELD);
         PARSER.declareString(
             (builder, val) -> builder.setGroupingInterval(DatafeedConfig.Builder.parseFixedGroupingInterval(val)),
             DatafeedConfig.GROUPING_INTERVAL
@@ -116,7 +115,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     private final QueryProvider queryProvider;
     // Kept separate from DatafeedConfig's ES|QL query: updates use it only to reject query-shape changes.
     private final String esqlQuery;
-    private final String sourceTimeField;
     private final TimeValue groupingInterval;
     private final AggProvider aggProvider;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -138,7 +136,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         List<String> indices,
         QueryProvider queryProvider,
         String esqlQuery,
-        String sourceTimeField,
         TimeValue groupingInterval,
         AggProvider aggProvider,
         List<SearchSourceBuilder.ScriptField> scriptFields,
@@ -159,7 +156,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.indices = indices;
         this.queryProvider = queryProvider;
         this.esqlQuery = esqlQuery;
-        this.sourceTimeField = sourceTimeField;
         this.groupingInterval = groupingInterval;
         this.aggProvider = aggProvider;
         this.scriptFields = scriptFields;
@@ -188,11 +184,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
         if (in.getTransportVersion().supports(DatafeedConfig.ML_DATAFEED_ESQL_QUERY)) {
             this.esqlQuery = in.readOptionalString();
-            this.sourceTimeField = in.readOptionalString();
+            DatafeedConfig.readRemovedSourceTimeField(in);
             this.groupingInterval = in.readOptionalTimeValue();
         } else {
             this.esqlQuery = null;
-            this.sourceTimeField = null;
             this.groupingInterval = null;
         }
         this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
@@ -238,7 +233,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         out.writeOptionalWriteable(queryProvider);
         if (out.getTransportVersion().supports(DatafeedConfig.ML_DATAFEED_ESQL_QUERY)) {
             out.writeOptionalString(esqlQuery);
-            out.writeOptionalString(sourceTimeField);
+            DatafeedConfig.writeRemovedSourceTimeField(out);
             out.writeOptionalTimeValue(groupingInterval);
         } else {
             failIfEsqlDatafeedUpdateCannotBeSerialized();
@@ -279,7 +274,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     }
 
     private void failIfEsqlDatafeedUpdateCannotBeSerialized() throws IOException {
-        if (esqlQuery != null || sourceTimeField != null || groupingInterval != null) {
+        if (esqlQuery != null || groupingInterval != null) {
             throw new IOException(
                 "Cannot send ES|QL datafeed update ["
                     + id
@@ -304,7 +299,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.field(DatafeedConfig.QUERY.getPreferredName(), queryProvider.getQuery());
         }
         addOptionalField(builder, DatafeedConfig.ESQL_QUERY, esqlQuery);
-        addOptionalField(builder, DatafeedConfig.SOURCE_TIME_FIELD, sourceTimeField);
         if (groupingInterval != null) {
             builder.field(DatafeedConfig.GROUPING_INTERVAL.getPreferredName(), groupingInterval.getStringRep());
         }
@@ -384,7 +378,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     }
 
     public Optional<Tuple<TransportVersion, String>> minRequiredTransportVersion() {
-        if (esqlQuery != null || sourceTimeField != null || groupingInterval != null) {
+        if (esqlQuery != null || groupingInterval != null) {
             return Optional.of(
                 new Tuple<>(
                     DatafeedConfig.ML_DATAFEED_ESQL_QUERY,
@@ -459,14 +453,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             );
         }
         if (datafeedConfig.getEsqlQuery() == null) {
-            if (sourceTimeField != null) {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(
-                        Messages.DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY,
-                        DatafeedConfig.SOURCE_TIME_FIELD.getPreferredName()
-                    )
-                );
-            }
             if (groupingInterval != null) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(
@@ -535,7 +521,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
     private boolean changesEsqlQueryShape() {
         return esqlQuery != null
-            || sourceTimeField != null
             || groupingInterval != null
             || indices != null
             || queryProvider != null
@@ -569,7 +554,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             && Objects.equals(this.indices, that.indices)
             && Objects.equals(this.queryProvider, that.queryProvider)
             && Objects.equals(this.esqlQuery, that.esqlQuery)
-            && Objects.equals(this.sourceTimeField, that.sourceTimeField)
             && Objects.equals(this.groupingInterval, that.groupingInterval)
             && Objects.equals(this.scrollSize, that.scrollSize)
             && Objects.equals(this.aggProvider, that.aggProvider)
@@ -594,7 +578,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             indices,
             queryProvider,
             esqlQuery,
-            sourceTimeField,
             groupingInterval,
             scrollSize,
             aggProvider,
@@ -657,7 +640,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             && (indices == null || Objects.equals(indices, datafeed.getIndices()))
             && (queryProvider == null || Objects.equals(queryProvider.getQuery(), datafeed.getQuery()))
             && (esqlQuery == null || Objects.equals(esqlQuery, datafeed.getEsqlQuery()))
-            && (sourceTimeField == null || Objects.equals(sourceTimeField, datafeed.getSourceTimeField()))
             && (groupingInterval == null || Objects.equals(groupingInterval, datafeed.getGroupingInterval()))
             && (scrollSize == null || Objects.equals(scrollSize, datafeed.getScrollSize()))
             && (aggProvider == null || Objects.equals(aggProvider.getAggs(), datafeed.getAggregations()))
@@ -684,7 +666,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         private List<String> indices;
         private QueryProvider queryProvider;
         private String esqlQuery;
-        private String sourceTimeField;
         private TimeValue groupingInterval;
         private AggProvider aggProvider;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -712,7 +693,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.indices = config.indices;
             this.queryProvider = config.queryProvider;
             this.esqlQuery = config.esqlQuery;
-            this.sourceTimeField = config.sourceTimeField;
             this.groupingInterval = config.groupingInterval;
             this.aggProvider = config.aggProvider;
             this.scriptFields = config.scriptFields;
@@ -759,11 +739,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
         public Builder setEsqlQuery(String esqlQuery) {
             this.esqlQuery = esqlQuery;
-            return this;
-        }
-
-        public Builder setSourceTimeField(String sourceTimeField) {
-            this.sourceTimeField = sourceTimeField;
             return this;
         }
 
@@ -872,7 +847,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 indices,
                 queryProvider,
                 esqlQuery,
-                sourceTimeField,
                 groupingInterval,
                 aggProvider,
                 scriptFields,

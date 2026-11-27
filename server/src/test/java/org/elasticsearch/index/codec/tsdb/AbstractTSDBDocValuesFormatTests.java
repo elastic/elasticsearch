@@ -88,6 +88,7 @@ import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomByteArrayOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
@@ -192,6 +193,58 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         return (BaseSortedDocValues) sortedDocValues;
     }
 
+    private static final class DiskUsageTotals implements DocValuesDiskUsage.Visitor {
+        final Map<String, Long> dataComponents = new HashMap<>();
+        long dataBytes;
+        long metadataBytes;
+        long skipperBytes;
+
+        @Override
+        public void docValuesData(String component, long bytes) {
+            dataComponents.merge(component, bytes, Long::sum);
+            dataBytes += bytes;
+        }
+
+        @Override
+        public void docValuesMetadata(long bytes) {
+            assertThat(bytes, greaterThan(0L));
+            metadataBytes += bytes;
+        }
+
+        @Override
+        public void docValuesSkipperData(long bytes) {
+            skipperBytes += bytes;
+        }
+    }
+
+    private static long segmentFileBytes(Directory dir, SegmentReader segmentReader, String extension) throws IOException {
+        long bytes = 0;
+        for (String file : segmentReader.getSegmentInfo().files()) {
+            if (extension.equals(IndexFileNames.getExtension(file))) {
+                bytes += dir.fileLength(file);
+            }
+        }
+        return bytes;
+    }
+
+    /**
+     * Bounds the bytes of a file that belong to no field: its header, its footer and any end marker. The skipper
+     * and data totals are checked against their own files so that swapping the two cannot go unnoticed.
+     */
+    private static final long MAX_UNATTRIBUTED_BYTES = 512;
+
+    private static void assertAccountsForAllFileBytes(Directory dir, SegmentReader segmentReader, DiskUsageTotals totals)
+        throws IOException {
+        final long dataAndMetadataFileBytes = segmentFileBytes(dir, segmentReader, "dvd") + segmentFileBytes(dir, segmentReader, "dvm");
+        final long dataAndMetadataBytes = totals.dataBytes + totals.metadataBytes;
+        assertThat(dataAndMetadataFileBytes - dataAndMetadataBytes, greaterThanOrEqualTo(0L));
+        assertThat(dataAndMetadataFileBytes - dataAndMetadataBytes, lessThan(MAX_UNATTRIBUTED_BYTES));
+
+        final long skipperFileBytes = segmentFileBytes(dir, segmentReader, "dvs");
+        assertThat(skipperFileBytes - totals.skipperBytes, greaterThanOrEqualTo(0L));
+        assertThat(skipperFileBytes - totals.skipperBytes, lessThan(MAX_UNATTRIBUTED_BYTES));
+    }
+
     /**
      * The sizes reported from the metadata must account for every byte of the doc values files, apart from the
      * headers, footers and end markers that do not belong to any field.
@@ -217,51 +270,64 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertThat(reader.leaves().size(), equalTo(1));
                 final SegmentReader segmentReader = (SegmentReader) reader.leaves().get(0).reader();
-                final var producer = segmentReader.getDocValuesReader();
-                assertThat(producer, instanceOf(DocValuesDiskUsage.class));
+                assertThat(segmentReader.getDocValuesReader(), instanceOf(DocValuesDiskUsage.class));
+                final var diskUsage = (DocValuesDiskUsage) segmentReader.getDocValuesReader();
 
-                long dataAndMetadataBytes = 0;
-                long skipperBytes = 0;
+                final DiskUsageTotals totals = new DiskUsageTotals();
                 for (FieldInfo field : segmentReader.getFieldInfos()) {
-                    final long[] fieldBytes = new long[2];
-                    final var visitor = new DocValuesDiskUsage.Visitor() {
-                        @Override
-                        public void docValuesData(String component, long bytes) {
-                            fieldBytes[0] += bytes;
-                        }
-
-                        @Override
-                        public void docValuesMetadata(long bytes) {
-                            assertThat(bytes, greaterThan(0L));
-                            fieldBytes[0] += bytes;
-                        }
-
-                        @Override
-                        public void docValuesSkipperData(long bytes) {
-                            fieldBytes[1] += bytes;
-                        }
-                    };
-                    assertTrue(field.name, ((DocValuesDiskUsage) producer).visitDiskUsage(field, visitor));
-                    assertThat(field.name, fieldBytes[0], greaterThan(0L));
-                    assertThat(
-                        field.name,
-                        fieldBytes[1],
-                        field.docValuesSkipIndexType() == DocValuesSkipIndexType.NONE ? equalTo(0L) : greaterThan(0L)
-                    );
-                    dataAndMetadataBytes += fieldBytes[0];
-                    skipperBytes += fieldBytes[1];
-                }
-
-                long fileBytes = 0;
-                for (String file : segmentReader.getSegmentInfo().files()) {
-                    final String extension = IndexFileNames.getExtension(file);
-                    if ("dvd".equals(extension) || "dvm".equals(extension) || "dvs".equals(extension)) {
-                        fileBytes += dir.fileLength(file);
+                    final DiskUsageTotals fieldTotals = new DiskUsageTotals();
+                    assertTrue(field.name, diskUsage.visitDiskUsage(field, fieldTotals));
+                    assertThat(field.name, fieldTotals.dataBytes, greaterThan(0L));
+                    if (field.docValuesSkipIndexType() == DocValuesSkipIndexType.NONE) {
+                        assertThat(field.name, fieldTotals.skipperBytes, equalTo(0L));
+                    } else {
+                        assertThat(field.name, fieldTotals.skipperBytes, greaterThan(0L));
                     }
+                    totals.dataBytes += fieldTotals.dataBytes;
+                    totals.metadataBytes += fieldTotals.metadataBytes;
+                    totals.skipperBytes += fieldTotals.skipperBytes;
                 }
-                final long unattributedBytes = fileBytes - dataAndMetadataBytes - skipperBytes;
-                assertThat(unattributedBytes, greaterThanOrEqualTo(0L));
-                assertThat(unattributedBytes, lessThan(512L));
+                assertAccountsForAllFileBytes(dir, segmentReader, totals);
+            }
+        }
+    }
+
+    /**
+     * The partition table of a prefix-partitioned primary sort field is data of that field, and must be reported
+     * exactly when the field has one.
+     */
+    public void testVisitDiskUsageReportsPrefixPartitions() throws Exception {
+        final int numDocs = randomIntBetween(200, 2000);
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig().setCodec(getCodec())
+                .setUseCompoundFile(false)
+                .setIndexSort(new Sort(new SortField("first", SortField.Type.STRING)));
+            try (IndexWriter writer = new IndexWriter(dir, config)) {
+                for (int i = 0; i < numDocs; i++) {
+                    final byte[] term = randomByteArrayOfLength(4);
+                    term[0] = (byte) randomIntBetween(0, 8);
+                    Document doc = new Document();
+                    doc.add(new SortedDocValuesField("first", new BytesRef(term)));
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                final SegmentReader segmentReader = (SegmentReader) reader.leaves().get(0).reader();
+                final var partitioned = segmentReader.getSortedDocValues("first");
+                assertThat(partitioned, instanceOf(PartitionedDocValues.class));
+                final boolean hasPartitions = ((PartitionedDocValues) partitioned).prefixPartitionBits() > 0;
+
+                final DiskUsageTotals totals = new DiskUsageTotals();
+                final var diskUsage = (DocValuesDiskUsage) segmentReader.getDocValuesReader();
+                assertTrue(diskUsage.visitDiskUsage(segmentReader.getFieldInfos().fieldInfo("first"), totals));
+                if (hasPartitions) {
+                    assertThat(totals.dataComponents.get("partitions"), greaterThan(0L));
+                } else {
+                    assertFalse(totals.dataComponents.containsKey("partitions"));
+                }
+                assertAccountsForAllFileBytes(dir, segmentReader, totals);
             }
         }
     }

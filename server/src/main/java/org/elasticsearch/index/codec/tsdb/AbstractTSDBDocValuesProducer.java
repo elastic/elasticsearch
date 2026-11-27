@@ -31,7 +31,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.internal.hppc.IntLongHashMap;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.SortField;
@@ -82,7 +81,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer im
     final IntObjectHashMap<SortedSetEntry> sortedSets;
     final IntObjectHashMap<SortedNumericEntry> sortedNumerics;
     private final IntObjectHashMap<DocValuesSkipperEntry> skippers;
-    private final IntLongHashMap metadataLengths;
     private final IndexInput data, skip;
     private final int maxDoc;
     final int version;
@@ -119,7 +117,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer im
         this.sortedSets = new IntObjectHashMap<>();
         this.sortedNumerics = new IntObjectHashMap<>();
         this.skippers = new IntObjectHashMap<>();
-        this.metadataLengths = new IntLongHashMap();
         this.maxDoc = state.segmentInfo.maxDoc();
         this.primarySortFieldNumber = primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.merging = false;
@@ -228,7 +225,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer im
         this.sortedSets = original.sortedSets;
         this.sortedNumerics = original.sortedNumerics;
         this.skippers = original.skippers;
-        this.metadataLengths = original.metadataLengths;
         this.data = original.data.clone();
         this.skip = original.skip == null ? null : original.skip.clone();
         this.maxDoc = original.maxDoc;
@@ -2161,18 +2157,53 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer im
 
     @Override
     public boolean visitDiskUsage(FieldInfo field, Visitor visitor) {
-        final boolean found = switch (field.getDocValuesType()) {
-            case NUMERIC -> visitNumeric(numerics.get(field.number), visitor);
-            case SORTED_NUMERIC -> visitSortedNumeric(sortedNumerics.get(field.number), visitor);
-            case BINARY -> visitBinary(binaries.get(field.number), visitor);
-            case SORTED -> visitSorted(sorted.get(field.number), visitor);
-            case SORTED_SET -> visitSortedSet(sortedSets.get(field.number), visitor);
-            case NONE -> false;
+        final long metadataLength = switch (field.getDocValuesType()) {
+            case NUMERIC -> {
+                final NumericEntry entry = numerics.get(field.number);
+                if (entry == null) {
+                    yield -1;
+                }
+                visitNumeric(entry, visitor);
+                yield entry.metadataLength;
+            }
+            case SORTED_NUMERIC -> {
+                final SortedNumericEntry entry = sortedNumerics.get(field.number);
+                if (entry == null) {
+                    yield -1;
+                }
+                visitSortedNumeric(entry, visitor);
+                yield entry.metadataLength;
+            }
+            case BINARY -> {
+                final BinaryEntry entry = binaries.get(field.number);
+                if (entry == null) {
+                    yield -1;
+                }
+                visitBinary(entry, visitor);
+                yield entry.metadataLength;
+            }
+            case SORTED -> {
+                final SortedEntry entry = sorted.get(field.number);
+                if (entry == null) {
+                    yield -1;
+                }
+                visitSorted(entry, visitor);
+                yield entry.metadataLength;
+            }
+            case SORTED_SET -> {
+                final SortedSetEntry entry = sortedSets.get(field.number);
+                if (entry == null) {
+                    yield -1;
+                }
+                visitSortedSet(entry, visitor);
+                yield entry.metadataLength;
+            }
+            case NONE -> -1;
         };
-        if (found == false) {
+        if (metadataLength < 0) {
             return false;
         }
-        visitor.docValuesMetadata(metadataLengths.get(field.number));
+        visitor.docValuesMetadata(metadataLength);
         final DocValuesSkipperEntry skipperEntry = skippers.get(field.number);
         if (skipperEntry != null) {
             visitor.docValuesSkipperData(skipperEntry.length);
@@ -2180,57 +2211,39 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer im
         return true;
     }
 
-    private static boolean visitNumeric(NumericEntry entry, Visitor visitor) {
-        if (entry == null) {
-            return false;
-        }
+    private static void visitNumeric(NumericEntry entry, Visitor visitor) {
         visitor.docValuesData("docsWithField", entry.docsWithFieldLength);
         visitor.docValuesData("index", entry.indexLength);
         visitor.docValuesData("values", entry.valuesLength);
-        return true;
     }
 
-    private static boolean visitSortedNumeric(SortedNumericEntry entry, Visitor visitor) {
-        if (visitNumeric(entry, visitor) == false) {
-            return false;
-        }
+    private static void visitSortedNumeric(SortedNumericEntry entry, Visitor visitor) {
+        visitNumeric(entry, visitor);
         visitor.docValuesData("addresses", entry.addressesLength);
-        return true;
     }
 
-    private static boolean visitBinary(BinaryEntry entry, Visitor visitor) {
-        if (entry == null) {
-            return false;
-        }
+    private static void visitBinary(BinaryEntry entry, Visitor visitor) {
         visitor.docValuesData("values", entry.dataLength);
         visitor.docValuesData("docsWithField", entry.docsWithFieldLength);
         visitor.docValuesData("addresses", entry.addressesLength);
         visitor.docValuesData("docOffsets", entry.docOffsetLength);
-        return true;
     }
 
-    private static boolean visitSorted(SortedEntry entry, Visitor visitor) {
-        if (entry == null) {
-            return false;
-        }
+    private static void visitSorted(SortedEntry entry, Visitor visitor) {
         visitNumeric(entry.ordsEntry, visitor);
         visitTermsDict(entry.termsDictEntry, visitor);
         if (entry instanceof PrefixPartitionedEntry partitioned) {
             visitor.docValuesData("partitions", partitioned.partitionDataLength);
         }
-        return true;
     }
 
-    private static boolean visitSortedSet(SortedSetEntry entry, Visitor visitor) {
-        if (entry == null) {
-            return false;
-        }
+    private static void visitSortedSet(SortedSetEntry entry, Visitor visitor) {
         if (entry.singleValueEntry != null) {
-            return visitSorted(entry.singleValueEntry, visitor);
+            visitSorted(entry.singleValueEntry, visitor);
+            return;
         }
         visitSortedNumeric(entry.ordsEntry, visitor);
         visitTermsDict(entry.termsDictEntry, visitor);
-        return true;
     }
 
     private static void visitTermsDict(TermsDictEntry entry, Visitor visitor) {
@@ -2396,31 +2409,40 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer im
                 skippers.put(info.number, readDocValueSkipperMeta(meta, version));
             }
             if (type == AbstractTSDBDocValuesConsumer.NUMERIC) {
-                numerics.put(info.number, readNumeric(meta, numericBlockShift));
+                final NumericEntry numeric = readNumeric(meta, numericBlockShift);
+                numerics.put(info.number, numeric);
+                numeric.metadataLength = meta.getFilePointer() - entryStart;
             } else if (type == AbstractTSDBDocValuesConsumer.BINARY) {
-                binaries.put(info.number, readBinary(meta, version));
+                final BinaryEntry binary = readBinary(meta, version);
+                binaries.put(info.number, binary);
+                binary.metadataLength = meta.getFilePointer() - entryStart;
             } else if (type == AbstractTSDBDocValuesConsumer.SORTED) {
-                sorted.put(
-                    info.number,
-                    readSorted(version, meta, numericBlockShift, formatConfig.termsBlockLz4Shift(), info.number == primarySortFieldNumber)
+                final SortedEntry sortedEntry = readSorted(
+                    version,
+                    meta,
+                    numericBlockShift,
+                    formatConfig.termsBlockLz4Shift(),
+                    info.number == primarySortFieldNumber
                 );
+                sorted.put(info.number, sortedEntry);
+                sortedEntry.metadataLength = meta.getFilePointer() - entryStart;
             } else if (type == AbstractTSDBDocValuesConsumer.SORTED_SET) {
-                sortedSets.put(
-                    info.number,
-                    readSortedSet(
-                        version,
-                        meta,
-                        numericBlockShift,
-                        formatConfig.termsBlockLz4Shift(),
-                        info.number == primarySortFieldNumber
-                    )
+                final SortedSetEntry sortedSet = readSortedSet(
+                    version,
+                    meta,
+                    numericBlockShift,
+                    formatConfig.termsBlockLz4Shift(),
+                    info.number == primarySortFieldNumber
                 );
+                sortedSets.put(info.number, sortedSet);
+                sortedSet.metadataLength = meta.getFilePointer() - entryStart;
             } else if (type == AbstractTSDBDocValuesConsumer.SORTED_NUMERIC) {
-                sortedNumerics.put(info.number, readSortedNumeric(meta, numericBlockShift));
+                final SortedNumericEntry sortedNumeric = readSortedNumeric(meta, numericBlockShift);
+                sortedNumerics.put(info.number, sortedNumeric);
+                sortedNumeric.metadataLength = meta.getFilePointer() - entryStart;
             } else {
                 throw new CorruptIndexException("invalid type: " + type, meta);
             }
-            metadataLengths.put(info.number, meta.getFilePointer() - entryStart);
         }
     }
 
@@ -3515,6 +3537,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer im
     ) {}
 
     public static class NumericEntry {
+        long metadataLength;
         public long docsWithFieldOffset;
         public long docsWithFieldLength;
         public short jumpTableEntryCount;
@@ -3536,6 +3559,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer im
     }
 
     static class BinaryEntry {
+        long metadataLength;
         final BinaryDVCompressionMode compression;
 
         long dataOffset;
@@ -3569,6 +3593,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer im
     }
 
     static class SortedEntry {
+        long metadataLength;
         NumericEntry ordsEntry;
         TermsDictEntry termsDictEntry;
     }
@@ -3580,6 +3605,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer im
     }
 
     static class SortedSetEntry {
+        long metadataLength;
         SortedEntry singleValueEntry;
         SortedNumericEntry ordsEntry;
         TermsDictEntry termsDictEntry;

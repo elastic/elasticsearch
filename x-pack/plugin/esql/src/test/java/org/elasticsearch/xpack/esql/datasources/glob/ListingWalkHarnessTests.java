@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
@@ -47,6 +48,13 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.L
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.MIXED_GLOB;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.NOW;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.PADDED_GLOB;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_ACCOUNTS;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_DAY_END;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_DAY_START;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_DENSE_FILES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_GLOB;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_MATCHING_FILES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_PREFIX;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_END;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_START;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_GLOB;
@@ -68,10 +76,14 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.o
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.paddedTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.pathsOf;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.reference;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.retentionHiveTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.temporalHints;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveSevenDayTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveTree;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Named-tree harness: listing must match a flat prefix listing plus {@code PartitionValueMatcher},
@@ -583,8 +595,8 @@ public class ListingWalkHarnessTests extends ESTestCase {
     }
 
     /**
-     * Sparse {@code k=4} on 154 matching day dirs: RULE still flattens after a complete walk. Raising the
-     * ceiling is what avoids the 46M-object prefix listing, not a new finish-vs-flat formula.
+     * Sparse {@code k=4} on 154 matching day dirs: RULE still flattens after a complete walk. The k' floor
+     * is the 90-day × 154 1-day break-even, not a min-sample; this 3-day synthetic width still flattens.
      */
     public void testWideHiveTreeOneDayRuleStillFlattensSparseLeaves() throws IOException {
         List<StorageEntry> tree = wideHiveTree();
@@ -594,6 +606,141 @@ public class ListingWalkHarnessTests extends ESTestCase {
         expand(walk, WIDE_HIVE_GLOB, List.of(), MAX, pred);
         assertTrue("RULE finish-vs-flat still prefix-lists this sparse tree", walk.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
         assertEquals(WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES, walk.listChildrenRequests());
+    }
+
+    /**
+     * 10-prefix × 90-day tree, 1-day filter, first shaped survivor has 2 objects (junk {@code _temporary}
+     * sorts first). Globstar plus listing hints so month/day prune by folder value and grain-IN cannot
+     * splice the walk away. Without {@code k' = max(k, 12)} RULE would flatten; with it the walk
+     * finishes and never prefix-lists the dataset root.
+     */
+    public void testQuietFirstFolderOnNinetyDayTreeFinishesUnderRule() throws IOException {
+        List<StorageEntry> tree = retentionHiveTree();
+        List<Expression> filters = List.of(window(RETENTION_HIVE_DAY_START, RETENTION_HIVE_DAY_END));
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness.Reference ref = reference(tree, RETENTION_HIVE_GLOB, hints, DAY_SPEC, temporalHints(filters, DAY_SPEC), HIVE_ON);
+        assertEquals(RETENTION_HIVE_MATCHING_FILES, ref.paths().size());
+
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = expand(walk, RETENTION_HIVE_GLOB, hints, MAX, pred);
+        assertObserved(walked, ref);
+        assertFalse(
+            "90-day quiet-first RULE must not prefix-list the dataset",
+            walk.listedPrefixes().contains(RETENTION_HIVE_PREFIX + "/")
+        );
+        int dayListings = 0;
+        for (String prefix : walk.listedPrefixes()) {
+            if (prefix.contains("/day=")) {
+                dayListings++;
+            }
+        }
+        assertEquals("finish lists each matching day dir", RETENTION_HIVE_ACCOUNTS, dayListings);
+    }
+
+    /**
+     * Same 90-day layout, one object in every matching day folder. Second sample is also tiny, so RULE
+     * does not floor k' and prefix-lists after the probe.
+     */
+    public void testUniformlySparseNinetyDayTreeStillFlattensUnderRule() throws IOException {
+        List<StorageEntry> tree = retentionHiveTree(1, 1);
+        List<Expression> filters = List.of(window(RETENTION_HIVE_DAY_START, RETENTION_HIVE_DAY_END));
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = expand(walk, RETENTION_HIVE_GLOB, hints, MAX, pred);
+        assertEquals(RETENTION_HIVE_ACCOUNTS, walked.fileCount());
+        assertTrue("uniformly sparse RULE must prefix-list the dataset", walk.listedPrefixes().contains(RETENTION_HIVE_PREFIX + "/"));
+    }
+
+    /**
+     * Quiet first survivor + huge second: the second probe samples {@code MIN_FINISH_SAMPLE} then streams
+     * through the collector, so {@code max_discovered_files} fires without buffering the whole folder.
+     */
+    public void testQuietFirstHugeSecondDoesNotBufferWholeDir() {
+        List<StorageEntry> tree = new ArrayList<>(retentionHiveTree());
+        String hugeDir = RETENTION_HIVE_PREFIX + "/account=a01/year=2026/month=01/day=01/";
+        for (int i = RETENTION_HIVE_DENSE_FILES; i < 2500; i++) {
+            tree.add(ListingWalkHarness.entry(hugeDir + "f-" + i + ".parquet"));
+        }
+        List<Expression> filters = List.of(window(RETENTION_HIVE_DAY_START, RETENTION_HIVE_DAY_END));
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        expectThrows(DiscoveredFilesLimitException.class, () -> expand(walk, RETENTION_HIVE_GLOB, hints, 50, pred));
+        int huge = walk.keysPulled.getOrDefault(hugeDir, 0);
+        assertThat(
+            "second dir must not be fully buffered before the cap",
+            huge,
+            lessThanOrEqualTo(50 + PartitionPruningWalk.MIN_FINISH_SAMPLE)
+        );
+        assertThat(
+            "must stream past the sample, not flatten after it",
+            huge,
+            greaterThanOrEqualTo(PartitionPruningWalk.MIN_FINISH_SAMPLE + 1)
+        );
+        assertThat(walk.listedPrefixes(), not(hasItem(RETENTION_HIVE_PREFIX + "/")));
+    }
+
+    /**
+     * TEMPLATE finish: two glob dirs so {@code year=2024/2025/a.parquet} is listed. Collector
+     * {@code fileBindings} bind {@code {year}} to 2025 (filename dropped). Hive pathBindings would drop it.
+     */
+    public void testTemplateCollectorFolderRangeKeepsMixedHivePrefixFile() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/data/year=2024/2024/b.parquet"),
+            ListingWalkHarness.entry("s3://bucket/data/year=2024/2025/a.parquet")
+        );
+        FolderRangePredicate year2025 = new FolderRangePredicate() {
+            @Override
+            public boolean mayContain(Map<String, String> boundKeyValues) {
+                String year = boundKeyValues.get("year");
+                return year == null || "2025".equals(year);
+            }
+
+            @Override
+            public String identity() {
+                return "year=2025";
+            }
+
+            @Override
+            public List<String> bindKeys() {
+                return List.of("year");
+            }
+        };
+        Map<String, Object> template = Map.of(
+            PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+            "template",
+            PartitionConfig.CONFIG_PARTITIONING_PATH,
+            "{year}"
+        );
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList result = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> expand(walk, "s3://bucket/data/*/*/*.parquet", null, MAX, template, year2025)
+        );
+        assertEquals(List.of("s3://bucket/data/year=2024/2025/a.parquet"), pathsOf(result));
+        assertThat(walk.listChildrenRequests(), greaterThanOrEqualTo(1));
+        assertThat("finish must not prefix-drain the dataset", walk.listedPrefixes(), not(hasItem("s3://bucket/data/")));
+    }
+
+    /**
+     * ALWAYS_FINISH of a one-sided window lists grain-IN extras; Collector folder-range drops them so
+     * the lowered cap still holds.
+     */
+    public void testAlwaysFinishOneSidedTimestampStaysUnderLoweredCap() throws IOException {
+        List<StorageEntry> tree = fieldShapedTree();
+        List<Expression> filters = List.of(gte(LAST_DAY));
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness.Reference ref = reference(tree, LOGS_GLOB, List.of(), DAY_SPEC, temporalHints(filters, DAY_SPEC), HIVE_ON);
+        assertEquals(18 * FILES_PER_DAY, ref.paths().size());
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> expand(walk, LOGS_GLOB, List.of(), LOWERED_CAP, pred)
+        );
+        assertObserved(walked, ref);
+        assertFalse(walk.listedPrefixes.contains(LOGS_LIST_PREFIX));
     }
 
     /** RULE flattens 7-day (k=8); ALWAYS_FINISH lists the 7 days; ALWAYS_FLAT prefix-lists without measuring. */
@@ -706,5 +853,268 @@ public class ListingWalkHarnessTests extends ESTestCase {
             "@timestamp",
             new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
         );
+    }
+
+    private static final String AWS_TEMPLATE_GLOB = "s3://bucket/AWSLogs/*/vpcflowlogs/*/*/*/*/*.log.gz";
+    /** Account+region splice; withdraw-flat lists this prefix, a completed walk does not. */
+    private static final String AWS_SPLICED_PREFIX = "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/";
+    private static final String AWS_NOV_PREFIX = "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/";
+    private static final Map<String, Object> AWS_TEMPLATE = Map.of(
+        PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+        "template",
+        PartitionConfig.CONFIG_PARTITIONING_PATH,
+        "AWSLogs/{account}/vpcflowlogs/{region}/{year}/{month}/{day}"
+    );
+
+    /** Small-prefix day IN walks year/month/day after splicing account/region; LIST stays in the tens. */
+    public void testTemplateAwsDayInWalksFewListings() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/19/b.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/17/c.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/12/01/d.log.gz")
+        );
+        ListingWalkHarness provider = new ListingWalkHarness(tree);
+        List<PartitionFilterHint> hints = List.of(
+            hint("account", Operator.EQUALS, "012345678901"),
+            hint("region", Operator.EQUALS, "us-east-1"),
+            hint("year", Operator.EQUALS, 2026),
+            hint("month", Operator.EQUALS, 11),
+            hint("day", Operator.IN, 18, 19)
+        );
+
+        FileList result = expand(provider, AWS_TEMPLATE_GLOB, hints, MAX, AWS_TEMPLATE);
+
+        assertEquals(
+            List.of(
+                "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz",
+                "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/19/b.log.gz"
+            ),
+            pathsOf(result)
+        );
+        assertThat(provider.listChildrenRequests(), lessThanOrEqualTo(10));
+        assertThat(provider.childListedPrefixes(), hasItem(AWS_NOV_PREFIX));
+        assertThat(provider.listedPrefixes(), not(hasItem(AWS_SPLICED_PREFIX)));
+        assertFalse(containsPath(pathsOf(result), "/11/17/"));
+        assertFalse(containsPath(pathsOf(result), "/12/01/"));
+    }
+
+    /**
+     * Everyday {@code WHERE day IN (…) AND srcaddr=…}: leftover pending is a data column. After the last
+     * placeholder the walk finishes survivors instead of listing past the layout and withdrawing.
+     */
+    public void testTemplatePartitionAndDataColumnStillWalks() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/19/b.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/17/c.log.gz")
+        );
+        ListingWalkHarness provider = new ListingWalkHarness(tree);
+        List<PartitionFilterHint> hints = List.of(
+            hint("account", Operator.EQUALS, "012345678901"),
+            hint("region", Operator.EQUALS, "us-east-1"),
+            hint("day", Operator.IN, 18, 19),
+            hint("srcaddr", Operator.EQUALS, "10.0.0.1")
+        );
+
+        FileList result = expand(provider, AWS_TEMPLATE_GLOB, hints, MAX, AWS_TEMPLATE);
+
+        assertEquals(
+            List.of(
+                "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz",
+                "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/19/b.log.gz"
+            ),
+            pathsOf(result)
+        );
+        assertThat(provider.childListedPrefixes(), hasItem(AWS_NOV_PREFIX));
+        assertThat(provider.listedPrefixes(), not(hasItem(AWS_SPLICED_PREFIX)));
+        assertFalse(containsPath(pathsOf(result), "/11/17/"));
+    }
+
+    /**
+     * Trailing template literal after a hinted placeholder: leftover pending must not skip {@code data/}
+     * or withdraw once that identity level is walked.
+     */
+    public void testTemplateTrailingLiteralWithDataColumnStillWalks() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/logs/2024/data/a.parquet"),
+            ListingWalkHarness.entry("s3://bucket/logs/2025/data/b.parquet")
+        );
+        ListingWalkHarness provider = new ListingWalkHarness(tree);
+        Map<String, Object> config = Map.of(
+            PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+            "template",
+            PartitionConfig.CONFIG_PARTITIONING_PATH,
+            "{year}/data"
+        );
+        List<PartitionFilterHint> hints = List.of(hint("year", Operator.EQUALS, 2024), hint("srcaddr", Operator.EQUALS, "10.0.0.1"));
+
+        FileList result = expand(provider, "s3://bucket/logs/*/data/*.parquet", hints, MAX, config);
+
+        assertEquals(List.of("s3://bucket/logs/2024/data/a.parquet"), pathsOf(result));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/logs/")));
+        assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/logs/"));
+        assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/logs/2024/"));
+        assertThat(
+            "trailing identity must not list pruned years just to advance unused peeks",
+            provider.childListedPrefixes(),
+            not(hasItem("s3://bucket/logs/2025/"))
+        );
+    }
+
+    /**
+     * Independent grain INs would keep 11/01 and 12/30. Per-path folder range keeps the two lag folders.
+     */
+    public void testTemplateJointMonthDayKeepsBoundaryFolders() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/30/a.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/12/01/b.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/01/c.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/12/30/d.log.gz")
+        );
+        ListingWalkHarness provider = new ListingWalkHarness(tree);
+        List<Expression> filters = List.of(window(Instant.parse("2026-11-30T00:00:00Z"), Instant.parse("2026-12-02T00:00:00Z")));
+        List<PartitionFilterHint> hints = new ArrayList<>();
+        hints.add(hint("account", Operator.EQUALS, "012345678901"));
+        hints.add(hint("region", Operator.EQUALS, "us-east-1"));
+        hints.addAll(listingHints(filters, DAY_SPEC));
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+
+        FileList result = expand(provider, AWS_TEMPLATE_GLOB, hints, MAX, AWS_TEMPLATE, pred);
+
+        assertEquals(
+            List.of(
+                "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/30/a.log.gz",
+                "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/12/01/b.log.gz"
+            ),
+            pathsOf(result)
+        );
+        assertFalse(containsPath(pathsOf(result), "/11/01/"));
+        assertFalse(containsPath(pathsOf(result), "/12/30/"));
+        assertThat(provider.listedPrefixes(), not(hasItem(AWS_SPLICED_PREFIX)));
+        assertThat(provider.childListedPrefixes(), hasItem(AWS_NOV_PREFIX));
+    }
+
+    /**
+     * Glob already spells {@code vpcflowlogs}: a CloudTrail sibling cannot match, so skip it and keep walking.
+     * Day 17 exists so a completed walk prunes; falling back to a flat {@code AWSLogs/} list would fail this.
+     */
+    public void testTemplateGlobSpelledLiteralSkipsServiceSibling() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/17/c.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/cloudtrail/us-east-1/2026/11/18/b.json")
+        );
+        ListingWalkHarness provider = new ListingWalkHarness(tree);
+        List<PartitionFilterHint> hints = List.of(hint("day", Operator.EQUALS, 18));
+
+        FileList result = expand(provider, AWS_TEMPLATE_GLOB, hints, MAX, AWS_TEMPLATE);
+
+        assertEquals(List.of("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz"), pathsOf(result));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/AWSLogs/")));
+        assertFalse(containsPath(pathsOf(result), "/11/17/"));
+    }
+
+    /**
+     * Numeric account stays {@code *} while string region splices mid-glob. P1 tests used a string account,
+     * so the walk never saw that shape. {@code ALWAYS_FINISH} pins the completed walk: a layout reject
+     * would listObjects {@code AWSLogs/} and never listChildren it. Sparse leaves make RULE flatten.
+     */
+    public void testTemplateNumericAccountSplicedRegionWalksFewListings() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/19/b.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/17/c.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-west-2/2026/11/18/west.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/999999999999/vpcflowlogs/us-east-1/2026/11/18/other.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/12345678901/vpcflowlogs/us-east-1/2026/11/18/unpadded.log.gz")
+        );
+        ListingWalkHarness provider = new ListingWalkHarness(tree);
+        List<PartitionFilterHint> hints = List.of(
+            hint("account", Operator.EQUALS, 12345678901L),
+            hint("region", Operator.EQUALS, "us-east-1"),
+            hint("year", Operator.EQUALS, 2026),
+            hint("month", Operator.EQUALS, 11),
+            hint("day", Operator.IN, 18, 19)
+        );
+
+        FileList result = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> expand(provider, AWS_TEMPLATE_GLOB, hints, MAX, AWS_TEMPLATE)
+        );
+
+        List<String> kept = List.of(
+            "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz",
+            "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/19/b.log.gz",
+            "s3://bucket/AWSLogs/12345678901/vpcflowlogs/us-east-1/2026/11/18/unpadded.log.gz"
+        );
+        assertEquals(kept, pathsOf(result));
+        assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/AWSLogs/"));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/AWSLogs/")));
+        assertFalse(containsPath(pathsOf(result), "/11/17/"));
+        assertFalse(containsPath(pathsOf(result), "/us-west-2/"));
+        assertFalse(containsPath(pathsOf(result), "/999999999999/"));
+    }
+
+    /**
+     * A {@code *} glob slot filled by a template literal must withdraw on a sibling. Bypass rewrite, which
+     * would pin {@code vpcflowlogs} and skip instead. Day 17 is here so a silent skip would prune and return
+     * a non-null walk.
+     */
+    public void testTemplateStrayLiteralDirWithdraws() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/17/c.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/cloudtrail/us-east-1/2026/11/18/b.json")
+        );
+        ListingWalkHarness provider = new ListingWalkHarness(tree);
+        List<PartitionFilterHint> hints = List.of(hint("day", Operator.EQUALS, 18));
+        String glob = "*/*/*/*/*/*/*.log.gz";
+        PartitionPruningWalk.WalkResult walk = PartitionPruningWalk.tryWalk(
+            provider,
+            StoragePath.of("s3://bucket/AWSLogs/"),
+            new GlobMatcher(glob),
+            ExclusionConfig.fromConfig(null).compile(),
+            hints,
+            MAX,
+            glob,
+            null,
+            null,
+            Integer.MAX_VALUE,
+            MAX,
+            () -> false,
+            "AWSLogs/{account}/vpcflowlogs/{region}/{year}/{month}/{day}"
+        );
+        assertNull(walk);
+        assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/AWSLogs/012345678901/"));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/AWSLogs/")));
+    }
+
+    /** {@code **} is variable depth: TEMPLATE does not walk. */
+    public void testTemplateGlobstarDoesNotWalk() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/logs/2024/a.parquet"),
+            ListingWalkHarness.entry("s3://bucket/logs/2025/b.parquet")
+        );
+        ListingWalkHarness provider = new ListingWalkHarness(tree);
+        Map<String, Object> config = Map.of(
+            PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+            "template",
+            PartitionConfig.CONFIG_PARTITIONING_PATH,
+            "{year}"
+        );
+        FileList result = expand(
+            provider,
+            "s3://bucket/logs/" + "**/*.parquet",
+            List.of(hint("year", Operator.IN, 2024, 2030)),
+            MAX,
+            config
+        );
+        assertEquals(List.of("s3://bucket/logs/2024/a.parquet"), pathsOf(result));
+        assertTrue(provider.childListedPrefixes().isEmpty());
+    }
+
+    private static PartitionFilterHint hint(String column, Operator op, Object... values) {
+        return new PartitionFilterHint(column, op, List.of(values));
     }
 }

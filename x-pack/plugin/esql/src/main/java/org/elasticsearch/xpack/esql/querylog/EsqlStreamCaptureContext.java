@@ -98,7 +98,8 @@ class EsqlStreamCaptureContext extends EsqlCaptureContext {
                 ci.readNanos(),
                 ci.readCpuNanos(),
                 ci.cpuNanos(),
-                ci.driverNanos()
+                ci.driverNanos(),
+                ci.searchLoad()
             )
         );
     }

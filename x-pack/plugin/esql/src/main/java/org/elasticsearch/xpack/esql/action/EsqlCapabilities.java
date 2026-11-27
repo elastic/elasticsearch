@@ -1644,7 +1644,7 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_TS,
 
         /**
-         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractSubqueryJoin} nodes when their left side is an empty
+         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractInSubqueryJoin} nodes when their left side is an empty
          * {@code LocalRelation}. Without the fix, a {@code WHERE false} followed by a {@code WHERE … OR field IN (subquery) AND match(…)}
          * caused the server to hang or error out because the {@code LuceneQueryExpressionEvaluator} found no Lucene shard contexts.
          */
@@ -3197,6 +3197,12 @@ public class EsqlCapabilities {
         EQL_COMMAND_SIZE_INDEPENDENT_OF_LIMIT(Build.current().isSnapshot()),
 
         /**
+         * EQL source command errors give positions in both queries, a view named as its target is rejected pointing to {@code FROM},
+         * and its synthetic columns shadow mapped fields of the same name, with a warning. Part of #165570.
+         */
+        EQL_COMMAND_ERRORS_AND_SHADOWED_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,
@@ -3882,6 +3888,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_TS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, {@code DEDUP} compares the {@code _unmapped_fields} column like any other, so two
+         * rows that differ only in unmapped fields are not duplicates. It used to leave the column out of the comparison, and returned
+         * the value of an arbitrary row of each group. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/165558">#165558</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_DEDUP_COMPARES_UNMAPPED_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}
@@ -4362,6 +4376,18 @@ public class EsqlCapabilities {
         PROMQL_COUNT_VALUES(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for the PromQL {@code absent} function, which returns {@code 1} at every evaluation step where its instant
+         * vector argument has no element.
+         */
+        PROMQL_ABSENT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Fix PromQL {@code count_values} over a metric the index does not map: like Prometheus, it gives no element rather than
+         * failing to plan.
+         */
+        FIX_PROMQL_COUNT_VALUES_ABSENT_METRIC(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,
          * and {@code count} over a group without a valued series: like Prometheus, they emit no element rather than
          * {@code 0}. {@code absent_over_time} likewise emits no element for a series with a sample, nor for a series its
@@ -4524,6 +4550,13 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/issues/163730">#163730</a>.
          */
         FILLNULL_INLINE_STATS_PASS_THROUGH(FILLNULL.isEnabled()),
+
+        /**
+         * {@code FILLNULL ... ON *} leaves a column with a metadata name, such as {@code _index}, alone after a union of subqueries, where
+         * it filled it once the union had turned the metadata column into a plain one.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/165855">#165855</a>.
+         */
+        FILLNULL_ALL_COLUMNS_SKIPS_METADATA_AFTER_UNION(FILLNULL.isEnabled()),
 
         /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
@@ -4935,9 +4968,11 @@ public class EsqlCapabilities {
         COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
 
         /**
-         * {@code column_metadata} reports the field a column reads as {@code _meta.field} and its unit as {@code _meta.unit}.
+         * {@code column_metadata} reports what {@code DESCRIBE} reports about a column, other than its name and type, as
+         * {@code _meta} entries of the same names: {@code role}, {@code field}, {@code origin}, {@code metric_type}, {@code unit},
+         * {@code interval}, {@code time_zone} and {@code description}.
          */
-        COLUMN_METADATA_FIELD_SEMANTICS(Build.current().isSnapshot()),
+        COLUMN_METADATA_DESCRIBE_COLUMNS,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which
@@ -5006,6 +5041,13 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support for {@code ROW} under {@code unmapped_fields="LOAD_ALL"}, alone or as a branch of a subquery next to an index. A
+         * {@code ROW} has no {@code _source}, so it adds no unmapped fields and its rows have a null {@code _unmapped_fields}. Only
+         * meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_ROW(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.
          * Snapshot-only until the command is advertised.
          */
@@ -5042,10 +5084,27 @@ public class EsqlCapabilities {
         FIX_TS_FIRST_LAST_SAMPLES,
 
         /**
+         * A {@code LOOKUP JOIN} with an {@code ON} expression, after a {@code RENAME} of an unmapped field, under
+         * {@code unmapped_fields} {@code "nullify"}, {@code "load"} or {@code "load_all"}, no longer fails with "Found ambiguous
+         * reference", whether or not a key of the join is the unmapped field. The rename makes the join resolve inside the rule that
+         * handles the unmapped fields, while it still has the parser's left fields, which hold both operands of every comparison, so the
+         * operand that the lookup index has was loaded onto the left side as an unmapped field. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/165755">#165755</a>.
+         */
+        LOOKUP_JOIN_EXPRESSION_ON_UNMAPPED_LEFT_KEY,
+
+        /**
          * The {@code unmapped_fields} setting is accepted in the request body, under {@code settings.unmapped_fields}, as well as
          * with {@code SET}. See <a href="https://github.com/elastic/elasticsearch/issues/164668">#164668</a>.
          */
         UNMAPPED_FIELDS_IN_REQUEST_BODY,
+
+        /**
+         * A CSV or TSV row with fewer fields than the file's width is a row error, like a wider one is, rather
+         * than being read with its missing trailing fields as null; the new {@code pad_short_rows} dataset
+         * setting asks for the null-padding back, and reports each padded row.
+         */
+        EXTERNAL_CSV_SHORT_ROW_IS_A_ROW_ERROR,
 
         /**
          * The fetch phase for {@code TopN}: with the {@code fetch_phase} pragma or the {@code esql.query.fetch_phase.enabled}
@@ -5053,6 +5112,13 @@ public class EsqlCapabilities {
          * is on by default in builds with the feature flag.
          */
         FETCH_PHASE(EsqlFlags.FETCH_PHASE_FEATURE_FLAG),
+
+        /**
+         * A time-series {@code STATS} grouped by the same dimension twice (e.g. {@code BY cluster, c2 = cluster}) reads
+         * the dimension once instead of failing local planning with a duplicate output attribute.
+         * https://github.com/elastic/elasticsearch/issues/166793
+         */
+        FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

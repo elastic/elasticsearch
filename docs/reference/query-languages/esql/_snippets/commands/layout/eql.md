@@ -60,11 +60,12 @@ A `null` join key is the string `null` because a multivalued column cannot hold 
 not match `IS NULL`, and it cannot be told apart from a key whose actual value is the string `null`. `join_keys`
 itself is `null` only when the query has no `by` fields.
 
-Use `STATS ... BY _sequence` to aggregate or reconstruct whole matches. A mapped field literally named
-`_sequence`, `_sequence_stage` or `join_keys` is rejected for a `sequence`/`sample` query, because it would
-collide with the synthetic column of the same name and make the output schema ambiguous. In any mode, a
-mapped field is likewise rejected when it collides with a name requested in `METADATA` (for example a field
-named `_id` alongside `METADATA _id`), for the same reason.
+Use `STATS ... BY _sequence` to aggregate or reconstruct whole matches. In a `sequence` or `sample` query, a
+mapped field named `_sequence`, `_sequence_stage` or `join_keys` is shadowed by the synthetic column of the
+same name, with a warning. To read the field, query the index with `FROM`. If the document stores it, you can also
+add `METADATA _source` and extract it with
+[`JSON_EXTRACT`](/reference/query-languages/esql/functions-operators/string-functions/json_extract.md); field
+aliases, runtime fields and `copy_to` targets are not stored in `_source`.
 
 ### Coordinator-only execution
 
@@ -103,15 +104,17 @@ command as described above, the command uses the default size and the query retu
 
 ### Partial results
 
-An event query honors the enclosing {{esql}} query's
-[`allow_partial_results`](/reference/query-languages/esql/esql-rest.md) setting. When partial results are
-allowed and a shard fails, the query returns the events it could and adds a warning that the results may be
-incomplete, rather than reporting a partial result as complete. In the same case, a `sequence` query follows
-the `xpack.eql.default_allow_partial_sequence_results` cluster setting, the same as a standalone EQL search:
-for an index pattern that targets a single remote cluster, that is the remote cluster's setting.
-The setting defaults to `false`, which returns no sequences rather than the ones found on the remaining shards.
+The command honors the enclosing {{esql}} query's
+[`allow_partial_results`](/reference/query-languages/esql/esql-rest.md) setting. When partial results are not
+allowed, a shard failure fails the query. When they are allowed and a shard fails, an event or `sample` query
+returns the events or samples it could, and a `sequence` query follows the
+`xpack.eql.default_allow_partial_sequence_results` cluster setting, the same as a standalone EQL search: for an
+index pattern that targets a single remote cluster, that is the remote cluster's setting. The setting defaults to
+`false`, which returns no sequences rather than the ones found on the remaining shards.
 `WITH { "allow_partial_sequence_results": … }` overrides the setting for a single query; set it to `true` to
-prefer resilience over completeness.
+prefer resilience over completeness. Whenever a shard fails and the query still returns, even with no sequences,
+the response sets `is_partial` to `true` and lists the failed shards under `_clusters`, on the cluster each
+belongs to. Each EQL search lists at most five failed shards per cluster, so the list can be incomplete.
 
 ### Unmapped fields
 
@@ -119,6 +122,29 @@ The command honors [`SET unmapped_fields`](/reference/query-languages/esql/esql-
 fields a downstream {{esql}} command references but the mapping does not contain, the same as `FROM`: `nullify`
 adds a `null` column, and `load` adds a `keyword` column read from `_source`. Field references inside the
 EQL query string itself are resolved by the EQL engine, not by this setting.
+
+### Errors
+
+An error in the EQL query starts with its position in the {{esql}} query: the EQL query string for a syntax error,
+which is reported when the {{esql}} query is parsed, and the `EQL` command for an error the EQL engine finds when
+the query runs, such as an unknown field or a wrong function call. When the EQL engine reports where the problem is,
+that position follows as `line l:c of the EQL query`. The engine's message is kept, with its suggestions:
+
+```txt
+line 1:1: EQL query failed: line 1:15 of the EQL query: Unknown column [process.nam], did you mean any of [process.name, process.pid]?
+```
+
+When the EQL engine finds several problems, each is listed on its own line:
+
+```txt
+line 1:1: EQL query failed with 2 problems:
+    line 1:15 of the EQL query: Unknown column [process.nam], did you mean any of [process.name, process.pid]?
+    line 1:38 of the EQL query: Unknown column [zzz]
+```
+
+When the EQL command is in the body of a view, the {{esql}} position names the view, as `line l:c (in view [v])`.
+An error from the EQL engine of a remote cluster has the same form. A failure that is not about the EQL
+query, such as a shard failure when [partial results](#partial-results) are not allowed, is returned unchanged.
 
 ## Metadata [metadata]
 
@@ -273,5 +299,11 @@ EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\"" WIT
   to filter a view's output. No view then applies the filter to its output: it is passed to the EQL search
   instead, as it is to the view's other sources.
 * **A view is not a valid EQL target.** The leading pattern must be indices, data streams or aliases. A
-  view whose *body* is an EQL command is supported and read with `FROM <view>`, but a view name in the
-  leading pattern is not expanded.
+  view named in it, alone or alongside other targets, is rejected with an error that suggests `FROM <view>`
+  instead, and a wildcard does not match views. A view whose *body* is an EQL command is supported and read
+  with `FROM <view>`.
+* **Nested fields cannot be searched.** As with `_eql/search`, the EQL query cannot search a
+  [`nested`](/reference/query-languages/eql/eql-syntax.md#eql-nested-fields) field or its sub-fields. The command can
+  reuse the field list {{esql}} resolved, which leaves out nested fields. When it does, a query that names one fails
+  with a different error than `_eql/search` returns, and one named with the optional `?` syntax is treated as
+  missing instead of failing the query.

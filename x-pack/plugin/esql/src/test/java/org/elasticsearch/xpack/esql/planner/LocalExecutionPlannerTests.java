@@ -30,10 +30,13 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -50,6 +53,7 @@ import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
+import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.ProjectOperator;
@@ -58,6 +62,7 @@ import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
@@ -142,7 +147,11 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -166,6 +175,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -173,6 +183,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -180,10 +191,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -796,6 +809,67 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(context.queryId(), sameInstance(queryId));
         assertThat(context.executor(), not(sameInstance(producer)));
         assertThat(context.fileReadExecutor(), sameInstance(fileRead));
+    }
+
+    /**
+     * {@code executeProducer} submits an {@link AbstractRunnable} with force-execution through the
+     * planner-wrapped producer executor. Wrapping the executor (never the task) must keep the force
+     * flag and still call {@code onRejection}.
+     */
+    public void testPlanExternalSourceChargingPreservesForceExecution() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        AtomicBoolean forceSeen = new AtomicBoolean();
+        AtomicBoolean rejected = new AtomicBoolean();
+        Executor producer = command -> {
+            assertThat(command, instanceOf(AbstractRunnable.class));
+            forceSeen.set(((AbstractRunnable) command).isForceExecution());
+            ((AbstractRunnable) command).onRejection(new EsRejectedExecutionException("full", false));
+        };
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("file", capturingProvider(captured)),
+            producer,
+            r -> r.run()
+        );
+        planner(
+            operatorFactoryRegistry,
+            true,
+            null,
+            true,
+            new LocalExecutionPlanner.ExternalComputeContext(new TaskId("test-node", 7), (nanos, cpuNanos, finishNanos) -> {}, null)
+        ).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            simpleFileSource(),
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+
+        AbstractRunnable forceTask = new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+
+            @Override
+            protected void doRun() {
+                fail("must not run when rejected");
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                rejected.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e.toString());
+            }
+        };
+        captured.get().executor().execute(forceTask);
+        assertTrue(forceSeen.get());
+        assertTrue(rejected.get());
     }
 
     public void testPlanExternalFieldExtractWrapsFileReadExecutor() throws IOException {
@@ -1534,6 +1608,155 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(gets.get(), equalTo(0));
     }
 
+    public void testRepeatedKeyHashJoinExpandsMatchesBeforeLoadingValues() throws IOException {
+        HashJoin join = repeatedKeyHashJoin(JoinTypes.LEFT, longs(1), longs(10), longs(1, 1), longs(100, 101));
+        assertThat(
+            operatorFactoryClasses(mapHashJoin(join)),
+            contains(
+                RowInTableLookupOperator.Factory.class,
+                MvExpandOperator.Factory.class,
+                ColumnLoadOperator.Factory.class,
+                ProjectOperator.ProjectOperatorFactory.class
+            )
+        );
+    }
+
+    /**
+     * A probe row comes out once for each build row with its key. LEFT also keeps a probe row that matches nothing, with null
+     * build values, and INNER drops it.
+     */
+    public void testRepeatedKeyHashJoinExpandsMatches() throws IOException {
+        List<List<Long>> matched = List.of(
+            List.of(10L, 100L, 1L),
+            List.of(10L, 101L, 1L),
+            List.of(11L, 100L, 1L),
+            List.of(11L, 101L, 1L),
+            List.of(30L, 300L, 3L)
+        );
+        List<List<Long>> left = new ArrayList<>(matched);
+        left.add(2, Arrays.asList(20L, null, 2L));
+        for (JoinType type : List.of(JoinTypes.LEFT, JoinTypes.INNER)) {
+            HashJoin join = repeatedKeyHashJoin(type, longs(1, 2, 1, 3), longs(10, 20, 11, 30), longs(1, 1, 3), longs(100, 101, 300));
+            // Rows in HashJoin.output() order: the probe value, the build value, then the join key.
+            assertThat(longRows(runHashJoin(mapHashJoin(join))), equalTo(type == JoinTypes.LEFT ? left : matched));
+        }
+    }
+
+    /**
+     * A probe row with more matches than fit in a page is spread over several, each holding at most as many matches as a
+     * {@code LOOKUP JOIN} lookup page.
+     */
+    public void testRepeatedKeyHashJoinSplitsManyMatchesIntoLookupSizedPages() throws IOException {
+        int pageSize = LookupQueryOperator.DEFAULT_MAX_PAGE_SIZE;
+        int matches = 2 * pageSize + between(1, pageSize - 1);
+        long[] buildKeys = new long[matches];
+        Arrays.fill(buildKeys, 1);
+        long[] buildValues = LongStream.range(0, matches).toArray();
+        HashJoin join = repeatedKeyHashJoin(JoinTypes.LEFT, longs(1), longs(10), longs(buildKeys), longs(buildValues));
+
+        List<Page> pages = runHashJoin(mapHashJoin(join));
+        assertThat(pages.stream().map(Page::getPositionCount).toList(), equalTo(List.of(pageSize, pageSize, matches - 2 * pageSize)));
+        assertThat(longRows(pages).stream().map(row -> row.get(1)).toList(), equalTo(LongStream.range(0, matches).boxed().toList()));
+    }
+
+    /**
+     * With no build values to load, the matches are still expanded: the probe row repeats once for each.
+     */
+    public void testRepeatedKeyHashJoinWithoutBuildValuesStillExpandsMatches() throws IOException {
+        HashJoin join = repeatedKeyHashJoin(JoinTypes.INNER, longs(1, 2), longs(10, 20), longs(1, 1, 2), null);
+        assertThat(longRows(runHashJoin(mapHashJoin(join))), equalTo(List.of(List.of(10L, 1L), List.of(10L, 1L), List.of(20L, 2L))));
+    }
+
+    /**
+     * A multivalued key on either side matches nothing, as in {@code LOOKUP JOIN}, and the join warns.
+     */
+    public void testRepeatedKeyHashJoinMultivaluedKeyMatchesNothing() throws IOException {
+        HashJoin join = repeatedKeyHashJoin(
+            JoinTypes.LEFT,
+            longColumn(List.of(1L, 3L), 1L, 3L),
+            longs(10, 20, 30),
+            longColumn(1L, List.of(1L, 3L), 3L),
+            longs(100, 200, 300)
+        );
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        List<List<Long>> rows = longRows(
+            runPlanned(planHashJoin(mapHashJoin(join)).driverFactories.get(0).driverSupplier().physicalOperation(), driverContext)
+        );
+        // The probe and build values: a multivalued key, on either side, joins nothing.
+        assertThat(
+            rows.stream().map(row -> row.subList(0, 2)).toList(),
+            equalTo(List.of(Arrays.asList(10L, null), List.of(20L, 100L), List.of(30L, 300L)))
+        );
+        assertThat(
+            driverContext.warnings(),
+            contains(
+                "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"
+            )
+        );
+    }
+
+    /**
+     * A null key matches nothing, as in {@code LOOKUP JOIN}: the build row with one is never joined, and a probe row with one
+     * comes out once with null build values rather than matching it.
+     */
+    public void testRepeatedKeyHashJoinNullKeyMatchesNothing() throws IOException {
+        HashJoin join = repeatedKeyHashJoin(
+            JoinTypes.LEFT,
+            longColumn(1L, null, 2L),
+            longs(10, 15, 20),
+            longColumn(1L, null, 1L),
+            longs(100, 200, 101)
+        );
+        assertThat(
+            longRows(runHashJoin(mapHashJoin(join))),
+            equalTo(List.of(List.of(10L, 100L, 1L), List.of(10L, 101L, 1L), Arrays.asList(15L, null, null), Arrays.asList(20L, null, 2L)))
+        );
+    }
+
+    /**
+     * A long column whose values may be null, or a list for a multivalued position.
+     */
+    private static Block longColumn(Object... values) {
+        List<List<Object>> rows = Arrays.stream(values).map(Collections::singletonList).toList();
+        return BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows)[0];
+    }
+
+    /**
+     * A logical {@link HashJoin} with repeated keys over local data, joining a probe key and value to a build key and, unless
+     * {@code buildValues} is null, a build value.
+     */
+    private static HashJoin repeatedKeyHashJoin(JoinType type, Block probeKeys, Block probeValues, Block buildKeys, Block buildValues) {
+        ReferenceAttribute probeKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
+        ReferenceAttribute probeValue = new ReferenceAttribute(Source.EMPTY, "lv", DataType.LONG);
+        LocalRelation probe = new LocalRelation(
+            Source.EMPTY,
+            List.of(probeKey, probeValue),
+            LocalSupplier.of(new Page(probeKeys, probeValues))
+        );
+        ReferenceAttribute buildKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
+        List<Attribute> buildOutput = new ArrayList<>(List.of(buildKey));
+        List<Attribute> addedFields = new ArrayList<>();
+        Page buildPage = new Page(buildKeys);
+        if (buildValues != null) {
+            ReferenceAttribute buildValue = new ReferenceAttribute(Source.EMPTY, "rv", DataType.LONG);
+            buildOutput.add(buildValue);
+            addedFields.add(buildValue);
+            buildPage = buildPage.appendBlock(buildValues);
+        }
+        LocalRelation build = new LocalRelation(Source.EMPTY, buildOutput, LocalSupplier.of(buildPage));
+        return new HashJoin(new Source(1, 0, "join"), probe, build, List.of(probeKey), List.of(buildKey), addedFields, false, type, true);
+    }
+
+    private static PhysicalPlan mapHashJoin(HashJoin join) {
+        return new Mapper().map(new Versioned<>(join, TransportVersion.current()));
+    }
+
+    private static Block longs(long... values) {
+        return TestBlockFactory.getNonBreakingInstance().newLongArrayVector(values, values.length).asBlock();
+    }
+
     /**
      * Builds the physical plan shape Mapper produces for HashJoin:
      * LEFT HashJoin(lookup ordinal as added field) -> Filter(ordinal IS NOT NULL) -> [DistinctBy(ordinal) when unique] -> Project.
@@ -1596,7 +1819,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         ReferenceAttribute ordinal = Mapper.newJoinMarker(Source.EMPTY);
         List<Attribute> addedFields = new ArrayList<>(buildValueAttrs);
         addedFields.add(ordinal);
-        PhysicalPlan join = new HashJoinExec(Source.EMPTY, probe, build, probeKeyAttrs, buildKeyAttrs, addedFields);
+        PhysicalPlan join = new HashJoinExec(Source.EMPTY, probe, build, probeKeyAttrs, buildKeyAttrs, addedFields, false);
         join = new FilterExec(Source.EMPTY, join, new IsNotNull(Source.EMPTY, ordinal));
         if (unique) {
             join = new DistinctByExec(Source.EMPTY, join, ordinal, true);
@@ -1626,7 +1849,15 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * Classes of the intermediate operator factories for the Mapper-shaped HashJoin physical plan.
      */
     private List<Class<?>> planHashJoinFactories(boolean unique) throws IOException {
-        PhysicalPlan hashJoin = hashJoinExec(unique, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 });
+        return operatorFactoryClasses(
+            hashJoinExec(unique, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
+        );
+    }
+
+    /**
+     * Classes of the intermediate operator factories that a HashJoin physical plan is planned into.
+     */
+    private List<Class<?>> operatorFactoryClasses(PhysicalPlan hashJoin) throws IOException {
         List<Class<?>> factories = new ArrayList<>();
         for (var factory : planHashJoin(hashJoin).driverFactories.get(0)
             .driverSupplier()
@@ -1861,7 +2092,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     private static List<Page> runPlanned(LocalExecutionPlanner.PhysicalOperation operation) {
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        return runPlanned(operation, new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+    }
+
+    private static List<Page> runPlanned(LocalExecutionPlanner.PhysicalOperation operation, DriverContext driverContext) {
         var runner = new TestDriverRunner().builder(driverContext);
         runner.input(operation.sourceOperatorFactory.get(driverContext));
         return runner.run(operation.intermediateOperatorFactories.toArray(new Operator.OperatorFactory[0]));
@@ -2427,7 +2661,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null, // client - not needed for these tests
             externalCompute,
             null, // escfBulkService - not needed for these tests
-            () -> false
+            () -> false,
+            null  // executionInfo - not needed for these tests
         );
     }
 

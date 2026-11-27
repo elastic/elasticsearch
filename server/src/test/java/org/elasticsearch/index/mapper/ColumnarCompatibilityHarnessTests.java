@@ -71,4 +71,47 @@ public class ColumnarCompatibilityHarnessTests extends AbstractColumnarMapperCom
         assertThat(e.getMessage(), containsString("field [f]"));
         assertThat(e.getMessage(), containsString("does not support columnar parse"));
     }
+
+    /**
+     * The mapping is accepted by {@code resolveMappers}, but the nulls are not allowed, so batch indexing falls back.
+     * This should fail late when actually mapping the column, because null validation depends on reading the source column.
+     */
+    public void testBatchRefusalByMapColumnBatchIsAccepted() throws IOException {
+        final MapperService mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("nullability", false).endObject())
+        );
+        for (SourceEncoder encoder : SourceEncoder.available()) {
+            assertEquals(
+                BatchRefusal.MAP_COLUMN_BATCH,
+                assertBatchPathRefuses(mapperService, encoder, "{\"f\":\"hello\"}", "{\"f\":null}")
+            );
+        }
+    }
+
+    /** {@code resolveMappers} refuses the batch early, because the leaf {@code extra} has no mapper. */
+    public void testBatchRefusalByResolveMappersIsAccepted() throws IOException {
+        final MapperService mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject())
+        );
+        for (SourceEncoder encoder : SourceEncoder.available()) {
+            assertEquals(BatchRefusal.RESOLVE_MAPPERS, assertBatchPathRefuses(mapperService, encoder, "{\"f\":\"hello\",\"extra\":\"x\"}"));
+        }
+    }
+
+    /** The batch path maps this batch, so it is not a refusal and the helper must fail. */
+    public void testBatchPathAcceptingTheBatchFailsTheRefusalCheck() throws IOException {
+        final MapperService mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject())
+        );
+        for (SourceEncoder encoder : SourceEncoder.available()) {
+            final AssertionError e = expectThrows(
+                AssertionError.class,
+                () -> assertBatchPathRefuses(mapperService, encoder, "{\"f\":\"hello\"}", "{}")
+            );
+            assertThat(e.getMessage(), containsString("the batch path mapped documents"));
+        }
+    }
 }

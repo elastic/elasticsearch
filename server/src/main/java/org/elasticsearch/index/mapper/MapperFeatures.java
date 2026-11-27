@@ -159,6 +159,9 @@ public class MapperFeatures implements FeatureSpecification {
     );
     public static final NodeFeature COLUMNAR_REJECTS_RUNTIME_DYNAMIC = new NodeFeature("mapper.columnar_rejects_runtime_dynamic");
     public static final NodeFeature COLUMNAR_ACCEPTS_SUBOBJECTS_FALSE = new NodeFeature("mapper.columnar.accepts_subobjects_false");
+    public static final NodeFeature COLUMNAR_REJECTS_UNREACHABLE_DOTTED_FIELD = new NodeFeature(
+        "mapper.columnar.rejects_unreachable_dotted_field"
+    );
     public static final NodeFeature COLUMNAR_MAINTAIN_ARRAY_ORDER = new NodeFeature("mapper.columnar.maintain_array_order");
     public static final NodeFeature KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY = new NodeFeature(
         "mapper.keyword.columnar_default_high_cardinality"
@@ -181,6 +184,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_ROUTING_DOC_VALUES_NO_OP = new NodeFeature("mapper.columnar.routing_doc_values_no_op");
     public static final NodeFeature COLUMNAR_STORED_SOURCE_FILTER_FIX = new NodeFeature("mapper.columnar_stored.source_filter_fix");
     public static final NodeFeature COLUMNAR_STORED_SOURCE_FLS_FIX = new NodeFeature("mapper.columnar_stored.source_fls_fix");
+    public static final NodeFeature TEMPLATE_INDEX_MODE_VALIDATION_FIX = new NodeFeature("mapper.template_index_mode_validation_fix");
     public static final NodeFeature TEXT_SEARCH_WITHOUT_TERMS = new NodeFeature("mapper.text.search_without_terms");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
     /**
@@ -307,6 +311,7 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_MAINTAIN_ARRAY_ORDER,
             COLUMNAR_REJECTS_RUNTIME_DYNAMIC,
             COLUMNAR_ACCEPTS_SUBOBJECTS_FALSE,
+            COLUMNAR_REJECTS_UNREACHABLE_DOTTED_FIELD,
             KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY,
             TEXT_FIELDS_ENABLE_DOC_VALUES_BY_DEFAULT_IN_COLUMNAR_MODE,
             COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT,
@@ -320,6 +325,7 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_ROUTING_DOC_VALUES_NO_OP,
             COLUMNAR_STORED_SOURCE_FILTER_FIX,
             COLUMNAR_STORED_SOURCE_FLS_FIX,
+            TEMPLATE_INDEX_MODE_VALIDATION_FIX,
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
             DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,

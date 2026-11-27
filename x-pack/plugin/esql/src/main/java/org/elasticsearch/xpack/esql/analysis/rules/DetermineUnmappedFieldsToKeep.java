@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -56,7 +56,8 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExist
  *
  * <p>The rule also leaves the plan untouched when the query has a column named {@code _unmapped_fields} of its own, at any
  * node: a mapped or demand-loaded field, an {@code EVAL} or {@code RENAME} target, an {@code ENRICH} or {@code LOOKUP JOIN}
- * field. The query's column wins, and a warning says so. Adding the
+ * field. The query's column wins, and a warning says so, unless the query has no relation that reads {@code _source}, as a lone
+ * {@code ROW}, where renaming the column would not get any unmapped field. Adding the
  * {@link UnmappedFieldsAttribute} next to it would not work, since {@code EVAL} shadows by name and union and fork branches line
  * their columns up by name.
  *
@@ -96,13 +97,16 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         }
         if (hasColumnNamedLikeUnmappedFields(plan)) {
             // Warn even if no unmapped field could have been returned anyway, e.g. after an exact KEEP: the column of that name is
-            // then the query's own, which is not what a user reading its name expects.
-            context.deferredHeaderWarnings().add(UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+            // then the query's own, which is not what a user reading its name expects. But not for a query with no relation that reads
+            // _source, as a lone ROW: the warning says to rename the column to get the unmapped fields, and there are none to get.
+            if (hasRelationThatReadsSource(plan)) {
+                context.deferredHeaderWarnings().add(UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+            }
             return plan;
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
         LogicalPlan result;
-        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
+        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractInSubqueryJoin)) {
             result = stampAll(plan).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         } else if (pattern.isNone()) {
             // Exact KEEP/STATS above a merge must not stamp or pass _unmapped_fields through: replaceChild on a
@@ -145,6 +149,17 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             plan,
             new ResolvingProject.Command(ResolvingProject.Kind.KEEP, List.of(new UnresolvedStar(Source.EMPTY, null)), attrs -> attrs)
         );
+    }
+
+    /**
+     * Whether the query has an index that could supply unmapped fields: not a lookup index, nor a view, which has no {@code _source}.
+     * A view body is not looked into, and neither is its root, which {@link ViewUtils#anyMatchOutsideViews} would test: a view defined
+     * as {@code FROM test} is not a source of the query because its body is one.
+     */
+    private static boolean hasRelationThatReadsSource(LogicalPlan plan) {
+        boolean[] found = { false };
+        ViewUtils.forEachOutsideViews(plan, p -> found[0] |= p instanceof EsRelation esr && esr.indexMode() != IndexMode.LOOKUP);
+        return found[0];
     }
 
     /**
@@ -199,7 +214,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * No {@link MergePlan} or {@link AbstractSubqueryJoin} in the plan: one pattern for the whole query,
+     * No {@link MergePlan} or {@link AbstractInSubqueryJoin} in the plan: one pattern for the whole query,
      * stamped onto every non-LOOKUP {@link EsRelation} in a single {@code transformUp}.
      */
     private static LogicalPlan stampAll(LogicalPlan plan) {
@@ -209,7 +224,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
 
     /**
      * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link MergePlan} is
-     * n-ary: each branch is annotated with its own pattern. {@link AbstractSubqueryJoin} is binary: join
+     * n-ary: each branch is annotated with its own pattern. {@link AbstractInSubqueryJoin} is binary: join
      * output is the left side. The right is an independently executed key subquery, so it is annotated
      * with {@link UnmappedFieldsPattern#NONE} rather than its own KEEP pattern, otherwise
      * {@code _unmapped_fields} becomes an extra output column after IN arity was already accepted.
@@ -232,7 +247,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             }
             return merge.replaceChildren(newChildren);
         }
-        if (plan instanceof AbstractSubqueryJoin join) {
+        if (plan instanceof AbstractInSubqueryJoin join) {
             return join.replaceChildren(annotate(join.left(), pattern), annotate(join.right(), UnmappedFieldsPattern.NONE));
         }
         if (pattern.isNone()) {
@@ -241,7 +256,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
         }
-        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
+        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractInSubqueryJoin)) {
             return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
         }
         return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());

@@ -209,9 +209,9 @@ public class SearchShardCacheWarmingIT extends AbstractStatelessPluginIntegTestC
     /**
      * With {@link SearchCommitPrefetcherDynamicSettings#STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT} enabled, search recovery
      * warming races against {@link SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING}. {@link
-     * SearchShardCacheWarmingITPlugin} defers {@link SharedBlobCacheWarmingService#warmSearchCacheAndTimeIt} body until {@link IndexShardState#STARTED} on
-     * the internal-files path so warming can stay “behind” recovery without starving the prewarm pool; the timeout must fire and the shard
-     * must still reach {@code STARTED}.
+     * SearchShardCacheWarmingITPlugin} defers {@link SharedBlobCacheWarmingService#warmSearchCacheAndTimeIt} body until
+     * {@link IndexShardState#STARTED} on the internal-files path so warming can stay “behind” recovery without starving the prewarm pool;
+     * the timeout must fire and the shard must still reach {@code STARTED}.
      */
     public void testSearchRecoveryContinuesWhenWarmingTimesOutWithDeferredWarmCache() throws Exception {
         TwoSearchNodes nodes = startTwoSearchNodeCluster(searchNodeCacheSettingsWithFastNonRelocationWarmingTimeout());

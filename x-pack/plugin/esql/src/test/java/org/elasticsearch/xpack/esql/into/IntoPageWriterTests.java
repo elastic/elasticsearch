@@ -611,7 +611,9 @@ public class IntoPageWriterTests extends ComputeTestCase {
             ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
             assertThat(collisions.toString(), failure.status(), equalTo(RestStatus.CONFLICT));
             // Only abort has the option to point to: under replace a conflict is not a collision
-            Matcher<String> hint = containsString("use \"collisions\": \"keep\" or \"collisions\": \"replace\"");
+            Matcher<String> hint = containsString(
+                "use \"collisions\": \"keep\", or \"collisions\": \"replace\" (not supported on a data stream)"
+            );
             assertThat(collisions.toString(), failure.getMessage(), collisions == Collisions.ABORT ? hint : not(hint));
         }
     }

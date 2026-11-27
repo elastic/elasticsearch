@@ -629,7 +629,8 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
                 "INTO ["
                     + DESTINATION
                     + "] failed: [a]: version conflict, document already exists (current version [1]); "
-                    + "to handle documents that already exist, use \"collisions\": \"keep\" or \"collisions\": \"replace\""
+                    + "to handle documents that already exist, use \"collisions\": \"keep\", "
+                    + "or \"collisions\": \"replace\" (not supported on a data stream)"
             )
         );
         assertReadBackWithIds("WHERE _id == \"a\" | KEEP k, l", List.of(List.of("old", 1L)));

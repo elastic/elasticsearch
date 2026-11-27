@@ -509,6 +509,8 @@ $$$dense-vector-element-type$$$
 `dims`
 :   (Optional, integer) Number of vector dimensions. Can’t exceed `4096`. If `dims` is not specified, it will be set to the length of the first vector added to the field.
 
+    {applies_to}`stack: ga 9.7` {applies_to}`serverless: ga` For indices created in 9.7 or later, `dims` can only be inferred from a vector provided as an array of numbers.
+
 `index`
 :   (Optional, Boolean) If `true`, you can search this field using the [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) or [knn in _search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) . Defaults to `true`.
 

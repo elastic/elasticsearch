@@ -16,21 +16,25 @@ setup:
                 type: keyword
               my_vector_byte:
                 type: dense_vector
+                dims: 3
                 index : true
                 similarity : l2_norm
                 element_type: byte
               my_vector_float:
                 type: dense_vector
+                dims: 3
                 index: true
                 element_type: float
                 similarity : cosine
               my_vector_bit:
                 type: dense_vector
+                dims: 24
                 index: true
                 element_type: bit
                 similarity : l2_norm
               my_vector_bfloat16:
                 type: dense_vector
+                dims: 3
                 index: true
                 element_type: bfloat16
                 similarity : cosine
@@ -68,21 +72,25 @@ setup:
             properties:
               my_vector_byte:
                 type: dense_vector
+                dims: 3
                 index : true
                 similarity : l2_norm
                 element_type: byte
               my_vector_float:
                 type: dense_vector
+                dims: 3
                 index: true
                 element_type: float
                 similarity : cosine
               my_vector_bit:
                 type: dense_vector
+                dims: 24
                 index: true
                 element_type: bit
                 similarity : l2_norm
               my_vector_bfloat16:
                 type: dense_vector
+                dims: 3
                 index: true
                 element_type: bfloat16
                 similarity : cosine

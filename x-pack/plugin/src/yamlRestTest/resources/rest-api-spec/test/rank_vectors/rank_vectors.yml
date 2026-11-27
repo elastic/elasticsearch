@@ -199,3 +199,152 @@ setup:
             exists:
               field: vector1
   - match: { hits.total.value: 0 }
+---
+"Encoded vectors without dims are rejected":
+  - requires:
+      cluster_features: [ "mapper.dense_vector.encoded_vector_requires_dims" ]
+      reason: "encoded vectors require dims to be set on new indices"
+  - do:
+      indices.create:
+        index: encoded_no_dims
+        body:
+          mappings:
+            properties:
+              vector_float:
+                type: rank_vectors
+                element_type: float
+              vector_bfloat16:
+                type: rank_vectors
+                element_type: bfloat16
+              vector_byte:
+                type: rank_vectors
+                element_type: byte
+              vector_bit:
+                type: rank_vectors
+                element_type: bit
+
+  # [2.0, -1.0, 1.0] - is encoded as 'QAAAAL+AAAA/gAAA'
+  - do:
+      catch: /Field \[vector_float\] of type \[rank_vectors\] has no \[dims\] and cannot infer them from an encoded vector/
+      index:
+        index: encoded_no_dims
+        id: "1"
+        body:
+          vector_float: ["QAAAAL+AAAA/gAAA"]
+
+  # a vector given as an array of numbers first doesn't make the encoded one acceptable
+  - do:
+      catch: /Field \[vector_float\] of type \[rank_vectors\] has no \[dims\] and cannot infer them from an encoded vector/
+      index:
+        index: encoded_no_dims
+        id: "1"
+        body:
+          vector_float: [[2.0, -1.0, 1.0], "QAAAAL+AAAA/gAAA"]
+
+  # [1.5, 2.0, -3.25, 4.0] as bfloat16 - is encoded as 'P8BAAMBQQIA='
+  - do:
+      catch: /Field \[vector_bfloat16\] of type \[rank_vectors\] has no \[dims\] and cannot infer them from an encoded vector/
+      index:
+        index: encoded_no_dims
+        id: "1"
+        body:
+          vector_bfloat16: ["P8BAAMBQQIA="]
+
+  # [-128, 127, 10, 11] - is encoded in hex as '807f0a0b'
+  - do:
+      catch: /Field \[vector_byte\] of type \[rank_vectors\] has no \[dims\] and cannot infer them from an encoded vector/
+      index:
+        index: encoded_no_dims
+        id: "1"
+        body:
+          vector_byte: ["807f0a0b"]
+
+  # the 4 bytes [-128, 127, 10, 0] as a 32-bit vector - is encoded as 'gH8KAA=='
+  - do:
+      catch: /Field \[vector_bit\] of type \[rank_vectors\] has no \[dims\] and cannot infer them from an encoded vector/
+      index:
+        index: encoded_no_dims
+        id: "1"
+        body:
+          vector_bit: ["gH8KAA=="]
+
+  - do:
+      indices.get_mapping:
+        index: encoded_no_dims
+
+  - is_false: encoded_no_dims.mappings.properties.vector_float.dims
+  - is_false: encoded_no_dims.mappings.properties.vector_bfloat16.dims
+  - is_false: encoded_no_dims.mappings.properties.vector_byte.dims
+  - is_false: encoded_no_dims.mappings.properties.vector_bit.dims
+---
+"Encoded vectors are accepted once dims are inferred from arrays":
+  - requires:
+      cluster_features: [ "mapper.dense_vector.encoded_vector_requires_dims" ]
+      reason: "encoded vectors require dims to be set on new indices"
+  - do:
+      indices.create:
+        index: encoded_array_dims
+        body:
+          settings:
+            number_of_shards: 1
+            index.mapping.exclude_source_vectors: true
+          mappings:
+            properties:
+              vector_float:
+                type: rank_vectors
+                element_type: float
+              vector_bfloat16:
+                type: rank_vectors
+                element_type: bfloat16
+              vector_byte:
+                type: rank_vectors
+                element_type: byte
+              vector_bit:
+                type: rank_vectors
+                element_type: bit
+
+  - do:
+      index:
+        index: encoded_array_dims
+        id: "1"
+        body:
+          vector_float: [[3.0, 4.0, 5.0]]
+          vector_bfloat16: [[3.0, 4.0, 5.0]]
+          vector_byte: [[64, -10, -30]]
+          vector_bit: [[64, -10, -30]]
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  # [2.0, -1.0, 1.0] - is encoded as 'QAAAAL+AAAA/gAAA' in float32 and 'QAC/gD+A' in bfloat16
+  # [-128, 127, 10] - is encoded in hex as '807f0a' and in base64 as 'gH8K'
+  - do:
+      index:
+        index: encoded_array_dims
+        id: "2"
+        body:
+          vector_float: ["QAAAAL+AAAA/gAAA"]
+          vector_bfloat16: ["QAC/gD+A"]
+          vector_byte: ["807f0a"]
+          vector_bit: ["gH8K"]
+
+  - do:
+      indices.get_mapping:
+        index: encoded_array_dims
+
+  - match: { encoded_array_dims.mappings.properties.vector_float.dims: 3 }
+  - match: { encoded_array_dims.mappings.properties.vector_bfloat16.dims: 3 }
+  - match: { encoded_array_dims.mappings.properties.vector_byte.dims: 3 }
+  - match: { encoded_array_dims.mappings.properties.vector_bit.dims: 24 }
+
+  - do:
+      get:
+        index: encoded_array_dims
+        id: "2"
+        _source_exclude_vectors: false
+
+  - match: { _source.vector_float: [[2.0, -1.0, 1.0]] }
+  - match: { _source.vector_bfloat16: [[2.0, -1.0, 1.0]] }
+  - match: { _source.vector_byte: [[-128, 127, 10]] }
+  - match: { _source.vector_bit: [[-128, 127, 10]] }

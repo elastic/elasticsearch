@@ -1,0 +1,25 @@
+area: Search
+breaking:
+  area: Mapping
+  details: >-
+    When a `dense_vector` or `rank_vectors` field has no `dims` in its mapping, `dims` is set from the first document indexed
+    into the field. For a vector sent as a Base64 or hexadecimal encoded string, the length of the string doesn't determine the
+    number of dimensions. `float` and `bfloat16` fields accept both 4-byte float32 and 2-byte bfloat16 encoded values, and
+    `byte` and `bit` fields accept both hexadecimal and Base64, which share characters. As a result, `dims`
+    could be set to the wrong value and the vector indexed with the wrong values, without an error.
+    For indices created in 9.7 or later, indexing an encoded vector into a `dense_vector` or `rank_vectors` field that has no
+    `dims` now fails. Vectors sent as arrays of numbers still set `dims`, and encoded vectors are accepted once `dims` is set.
+    Indices created before 9.7 are not affected.
+  impact: >-
+    On indices created in 9.7 or later, including backing indices that a rollover creates after the upgrade, indexing a Base64
+    or hexadecimal encoded vector into a `dense_vector` or `rank_vectors` field without `dims` fails with an HTTP 400 error.
+    To index encoded vectors, set `dims` for the field in the mapping or index template, or index the first document's
+    vectors as arrays of numbers.
+  notable: false
+  title: Encoded vectors no longer set `dims` on `dense_vector` and `rank_vectors` fields
+issues:
+  - 159108
+pr: 167036
+summary: Do not allow base64 encoded vectors when dims not already set for the vector
+  field
+type: breaking

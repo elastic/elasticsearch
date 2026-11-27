@@ -77,6 +77,38 @@ public class BlobStoreIndexShardSnapshotsTests extends ESTestCase {
         expectThrows(ArithmeticException.class, huge::retainedBlobBytes);
     }
 
+    public void testFindPhysicalIndexFiles() {
+        final var oldFile = blobFile("__old", "_0.cfs", 1);
+        final var updatedFile = blobFile("__updated", "_0.cfs", 2);
+        final var sharedFile = blobFile("__shared", "_1.cfs", 3);
+        final var newFile = blobFile("__new", "_2.cfs", 4);
+
+        final var oldSnapshots = BlobStoreIndexShardSnapshots.EMPTY.withAddedSnapshot(new SnapshotFiles("old", List.of(oldFile, sharedFile), null));
+        final var allSnapshots = oldSnapshots.withAddedSnapshot(new SnapshotFiles("new", List.of(updatedFile, sharedFile), null));
+
+        final var metadata = new Store.MetadataSnapshot(
+            Map.of("_0.cfs", updatedFile.metadata(), "_1.cfs", sharedFile.metadata(), "_2.cfs", newFile.metadata()),
+            Map.of(),
+            0
+        );
+
+        // doesn't return the `_0.cfs` because it's not the same one as the one in `metadata`
+        assertEquals(Map.of(), oldSnapshots.findPhysicalIndexFiles(List.of("_0.cfs"), metadata));
+
+        // returns `_0.cfs` because it's in `allSnapshots`
+        assertEquals(Map.of("_0.cfs", updatedFile), allSnapshots.findPhysicalIndexFiles(List.of("_0.cfs"), metadata));
+
+        // returns both reusable files (`_2.cfs` was never snapshotted)
+        assertEquals(
+            Map.of("_0.cfs", updatedFile, "_1.cfs", sharedFile),
+            allSnapshots.findPhysicalIndexFiles(List.of("_0.cfs", "_1.cfs", "_2.cfs"), metadata)
+        );
+
+        // sanity checks
+        assertEquals(Map.of(), oldSnapshots.findPhysicalIndexFiles(List.of(), metadata));
+        assertEquals(Map.of(), BlobStoreIndexShardSnapshots.EMPTY.findPhysicalIndexFiles(List.of("_0.cfs", "_1.cfs", "_2.cfs"), metadata));
+    }
+
     private static long expectedRetainedBlobBytes(Map<String, List<FileInfo>> filesBySnapshot, List<SnapshotId> retained) {
         final Set<String> seen = new HashSet<>();
         long total = 0;
@@ -95,8 +127,12 @@ public class BlobStoreIndexShardSnapshotsTests extends ESTestCase {
     }
 
     private static FileInfo blobFile(String name, long length) {
+        return blobFile(name, name + ".cfs", length);
+    }
+
+    private static FileInfo blobFile(String name, String physicalName, long length) {
         final var metadata = new StoreFileMetadata(
-            name + ".cfs",
+            physicalName,
             length,
             randomAlphaOfLength(8),
             Version.LATEST.toString(),

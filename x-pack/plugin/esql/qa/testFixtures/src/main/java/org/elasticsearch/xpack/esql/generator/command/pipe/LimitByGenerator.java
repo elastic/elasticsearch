@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class LimitByGenerator implements CommandGenerator {
@@ -38,7 +40,7 @@ public class LimitByGenerator implements CommandGenerator {
         GenerationContext context
     ) {
         List<Column> groupable = previousOutput.stream()
-            .filter(EsqlQueryGenerator::groupable)
+            .filter(LimitByGenerator::groupable)
             .filter(EsqlQueryGenerator::fieldCanBeUsed)
             .toList();
         if (groupable.isEmpty()) {
@@ -49,10 +51,8 @@ public class LimitByGenerator implements CommandGenerator {
         int groupingCount = randomIntBetween(1, Math.min(3, groupable.size()));
         Set<String> groupings = new LinkedHashSet<>();
         for (int i = 0; i < groupingCount; i++) {
-            String col = EsqlQueryGenerator.randomGroupableName(groupable);
-            if (col != null) {
-                groupings.add(col);
-            }
+            String col = randomFrom(groupable).name();
+            groupings.add(EsqlQueryGenerator.needsQuoting(col) ? EsqlQueryGenerator.quote(col) : col);
         }
         if (groupings.isEmpty()) {
             return EMPTY_DESCRIPTION;
@@ -60,6 +60,11 @@ public class LimitByGenerator implements CommandGenerator {
 
         String cmd = " | LIMIT " + limit + " BY " + String.join(", ", groupings);
         return new CommandDescription(LIMIT_BY, this, cmd, Map.of(LIMIT_CONTEXT, limit, GROUPINGS_CONTEXT, List.copyOf(groupings)));
+    }
+
+    private static boolean groupable(Column col) {
+        DataType dt = DataType.fromTypeName(col.type());
+        return dt != null && dt.isGroupable() && dt != DataType.SOURCE;
     }
 
     @Override

@@ -48,6 +48,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
      * Get a {@link Decoder} for the provided {@link ElementType}.
      */
     public static Decoder decoder(ElementType elementType) {
+        // Exhaustive so a new element type does not compile until it has a decoder.
         return switch (elementType) {
             case INT -> new IntsDecoder();
             case LONG -> new LongsDecoder();
@@ -56,7 +57,8 @@ public abstract class BatchEncoder implements Releasable, Accountable {
             case BYTES_REF -> new BytesRefsDecoder();
             case BOOLEAN -> new BooleansDecoder();
             case NULL -> new NullsDecoder();
-            default -> throw new IllegalArgumentException("can't decode " + elementType);
+            case FLOAT, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE ->
+                throw new IllegalArgumentException("can't decode " + elementType);
         };
     }
 

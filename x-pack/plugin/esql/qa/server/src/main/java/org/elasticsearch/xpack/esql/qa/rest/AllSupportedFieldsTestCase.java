@@ -34,6 +34,7 @@ import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -184,6 +185,30 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             denseVectorAggMetricDoubleIfVersion = fetchDenseVectorAggMetricDoubleIfVersion();
         }
         return denseVectorAggMetricDoubleIfVersion;
+    }
+
+    private void assertProducerGrouping(String field, String expression, int count) throws IOException {
+        String input = " | EVAL computed = " + expression + " | EVAL k = MV_APPEND(" + field + ", computed) | MV_EXPAND k";
+
+        assertGroupingValues(fromAllQuery(input + " | STATS c = count(*) BY k | KEEP c | LIMIT 1000"), List.of(List.of(count * 2)));
+        if (inlineStatsGroupingSupported()) {
+            assertGroupingValues(
+                fromAllQuery(input + " | INLINE STATS c = count(*) BY k | KEEP c | LIMIT 1000"),
+                Collections.nCopies(count * 2, List.of(count * 2))
+            );
+        }
+        if (limitByGroupingSupported()) {
+            assertGroupingValues(fromAllQuery(input + " | LIMIT 1 BY k | STATS c = count(*) | LIMIT 1000"), List.of(List.of(1)));
+        }
+        if (dedupGroupingSupported()) {
+            assertGroupingValues(fromAllQuery(input + " | KEEP k | DEDUP | STATS c = count(*) | LIMIT 1000"), List.of(List.of(1)));
+        }
+    }
+
+    private void assertGroupingValues(String query, List<?> expected) throws IOException {
+        Map<String, Object> response = runQuery(query).v1();
+        assertNoPartialResponse(response);
+        assertThat(query, response.get("values"), equalTo(expected));
     }
 
     protected boolean fetchDenseVectorAggMetricDoubleIfVersion() throws IOException {
@@ -441,6 +466,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         if ((Boolean) response.get("is_partial")) {
             throw new AssertionError("partial results: " + response);
         }
+    }
+
+    protected boolean groupingCapabilitySupported(EsqlCapabilities.Cap capability) throws IOException {
+        return clusterHasCapability("GET", "/_query", List.of(), List.of(capability.capabilityName())).orElse(false);
     }
 
     protected MapMatcher allTypesColumnsMatcher(
@@ -702,6 +731,197 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         var responseAndCoordinatorVersion = runQuery(query);
 
         assertMinimumVersion(minVersion(localNodeToInfo()), responseAndCoordinatorVersion, false, false);
+    }
+
+    /**
+     * Indexed fields {@code STATS BY} and {@code INLINE STATS BY} accept today. Not {@link DataType#isGroupable()}:
+     * small numeric types are widened on load, {@code null} is mapped as {@code keyword} here, and on a
+     * non-time-series index a counter field is its base numeric type. {@code dense_vector} is absent because
+     * {@code STATS} rejects it.
+     */
+    private static final Set<DataType> STATS_GROUPING_FIELDS = Set.of(
+        DataType.BOOLEAN,
+        DataType.COUNTER_LONG,
+        DataType.COUNTER_INTEGER,
+        DataType.COUNTER_DOUBLE,
+        DataType.LONG,
+        DataType.INTEGER,
+        DataType.UNSIGNED_LONG,
+        DataType.DOUBLE,
+        DataType.SHORT,
+        DataType.BYTE,
+        DataType.FLOAT,
+        DataType.HALF_FLOAT,
+        DataType.SCALED_FLOAT,
+        DataType.KEYWORD,
+        DataType.TEXT,
+        DataType.DATETIME,
+        DataType.DATE_NANOS,
+        DataType.DOUBLE_RANGE,
+        DataType.IP,
+        DataType.VERSION,
+        DataType.GEO_POINT,
+        DataType.GEO_SHAPE,
+        DataType.HISTOGRAM,
+        DataType.FLATTENED,
+        DataType.NULL
+    );
+
+    /**
+     * Runs {@code STATS BY}, {@code INLINE STATS BY}, {@code LIMIT 1 BY} and {@code DEDUP} on every indexed field.
+     * Success is an explicit list of the fields accepted today, so a type rejected anywhere along the way fails here,
+     * including on a mixed cluster and over CCS. One configuration is enough; the other parameter combinations repeat it.
+     */
+    public void testGroupingKeys() throws IOException {
+        assumeTrue(
+            "one configuration covers single-node, mixed-cluster and CCS",
+            extractPreference == MappedFieldType.FieldExtractPreference.NONE && indexMode == IndexMode.STANDARD
+        );
+        boolean inlineStats = inlineStatsGroupingSupported();
+        boolean dedup = dedupGroupingSupported();
+        boolean limitBy = limitByGroupingSupported();
+        TransportVersion minimumVersion = minVersion();
+        boolean groupByDoubleRange = groupingCapabilitySupported(EsqlCapabilities.Cap.GROUP_BY_DOUBLE_RANGE);
+        boolean groupByFlattened = groupingCapabilitySupported(EsqlCapabilities.Cap.GROUP_BY_FLATTENED);
+
+        for (DataType type : DataType.values()) {
+            if (supportedInIndex(type, minimumVersion) == false || excludedInColumnar(type, indexMode)) {
+                continue;
+            }
+            // Until the type's release version, an older node can map the field as something else. Field caps then
+            // rejects the name, so there is no grouping result to assert. Same gate as the column type matcher.
+            if (type.supportedVersion().supportedOn(minimumVersion, false) == false) {
+                continue;
+            }
+            if (type == DataType.DOUBLE_RANGE && groupByDoubleRange == false) {
+                continue;
+            }
+            if (type == DataType.FLATTENED && groupByFlattened == false) {
+                continue;
+            }
+            String field = fieldName(type);
+            boolean statsAccepted = STATS_GROUPING_FIELDS.contains(type);
+            // LIMIT BY and DEDUP encode dense_vector row by row. STATS cannot.
+            boolean limitAccepted = statsAccepted || type == DataType.DENSE_VECTOR;
+            // An explicit LIMIT keeps the default-limit warning from failing the client.
+            assertGrouping(fromAllQuery(" | STATS c = count(*) BY " + field + " | LIMIT 10"), statsAccepted, "cannot group by on");
+            // An old node that does not know the LimitBy logical plan dies on the unknown named writeable.
+            if (limitBy) {
+                assertGrouping(fromAllQuery(" | LIMIT 1 BY " + field + " | LIMIT 10"), limitAccepted, "cannot group by on");
+            }
+            if (inlineStats) {
+                assertGrouping(
+                    fromAllQuery(" | INLINE STATS c = count(*) BY " + field + " | LIMIT 10"),
+                    statsAccepted,
+                    "cannot group by on"
+                );
+            }
+            if (dedup) {
+                assertGrouping(
+                    fromAllQuery(" | KEEP " + field + " | DEDUP | LIMIT 10"),
+                    limitAccepted,
+                    "cannot dedup on [" + type.typeName() + "]",
+                    "cannot group by on [" + type.typeName() + "]"
+                );
+            }
+        }
+    }
+
+    /**
+     * Equal keys from different indices must form one group, including across nodes and clusters.
+     */
+    public void testGroupingResults() throws IOException {
+        assumeTrue(
+            "one configuration covers single-node, mixed-cluster and CCS",
+            extractPreference == MappedFieldType.FieldExtractPreference.NONE && indexMode == IndexMode.STANDARD
+        );
+        int count = expectedIndices(indexMode).size();
+
+        assertGroupingValues(
+            fromAllQuery(" | STATS c = count(*) BY f_keyword | KEEP f_keyword, c | LIMIT 1000"),
+            List.of(List.of("foo", count))
+        );
+        if (inlineStatsGroupingSupported()) {
+            assertGroupingValues(
+                fromAllQuery(" | INLINE STATS c = count(*) BY f_keyword | KEEP f_keyword, c | LIMIT 1000"),
+                Collections.nCopies(count, List.of("foo", count))
+            );
+        }
+        if (limitByGroupingSupported()) {
+            assertGroupingValues(fromAllQuery(" | LIMIT 1 BY f_keyword | KEEP f_keyword | LIMIT 1000"), List.of(List.of("foo")));
+        }
+        if (dedupGroupingSupported()) {
+            assertGroupingValues(fromAllQuery(" | KEEP f_keyword | DEDUP | LIMIT 1000"), List.of(List.of("foo")));
+        }
+    }
+
+    /**
+     * Indexed values and equal values produced by evaluators must group together.
+     */
+    public void testGroupingAcrossValueProducers() throws IOException {
+        assumeTrue(
+            "one configuration covers single-node, mixed-cluster and CCS",
+            extractPreference == MappedFieldType.FieldExtractPreference.NONE && indexMode == IndexMode.STANDARD
+        );
+        int count = expectedIndices(indexMode).size();
+
+        assertProducerGrouping("f_integer", "TO_INTEGER(TO_STRING(f_integer))", count);
+        assertProducerGrouping("f_long", "TO_LONG(TO_STRING(f_integer))", count);
+        assertProducerGrouping("f_double", "TO_DOUBLE(TO_STRING(f_double))", count);
+        assertProducerGrouping("f_keyword", "CONCAT(f_keyword, \"\")", count);
+        assertProducerGrouping("f_ip", "TO_IP(CONCAT(\"192.168.0.\", TO_STRING(f_integer)))", count);
+        assertProducerGrouping("f_version", "TO_VERSION(CONCAT(TO_STRING(f_integer), \".0.0-SNAPSHOT\"))", count);
+        assertProducerGrouping("@timestamp", "TO_DATETIME(TO_STRING(@timestamp))", count);
+    }
+
+    /**
+     * {@code true} when every cluster this query reads can run {@code INLINE STATS}. Cross-cluster subclasses must
+     * also check the remote cluster.
+     */
+    protected boolean inlineStatsGroupingSupported() throws IOException {
+        return clusterHasCapability("GET", "/_query", List.of(), List.of(EsqlCapabilities.Cap.INLINE_STATS.capabilityName())).orElse(false);
+    }
+
+    /**
+     * {@code true} when every cluster this query reads can run {@code LIMIT BY}. Cross-cluster subclasses must also
+     * check the remote cluster. Sending the plan to a node that does not have the {@code LimitBy} named writeable
+     * kills that node.
+     */
+    protected boolean limitByGroupingSupported() throws IOException {
+        return clusterHasCapability("GET", "/_query", List.of(), List.of(EsqlCapabilities.Cap.ESQL_LIMIT_BY.capabilityName())).orElse(
+            false
+        );
+    }
+
+    /**
+     * {@code true} when every cluster this query reads can run {@code DEDUP}. Cross-cluster subclasses must also
+     * check the remote cluster.
+     */
+    protected boolean dedupGroupingSupported() throws IOException {
+        return clusterHasCapability("GET", "/_query", List.of(), List.of(EsqlCapabilities.Cap.DEDUP_COMMAND.capabilityName())).orElse(
+            false
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertGrouping(String query, boolean accepted, String... errorFragments) throws IOException {
+        try {
+            Map<String, Object> response = runQuery(query).v1();
+            if (accepted == false) {
+                fail("expected [" + query + "] to be rejected, got " + response.get("values"));
+            }
+            assertNoPartialResponse(response);
+            assertThat((List<?>) response.get("values"), not(empty()));
+        } catch (ResponseException e) {
+            String body = EntityUtils.toString(e.getResponse().getEntity());
+            if (accepted) {
+                throw new AssertionError("expected [" + query + "] to succeed: " + body, e);
+            }
+            assertTrue(
+                "expected grouping rejection for [" + query + "], got " + body,
+                Arrays.stream(errorFragments).anyMatch(body::contains)
+            );
+        }
     }
 
     @SuppressWarnings("unchecked")

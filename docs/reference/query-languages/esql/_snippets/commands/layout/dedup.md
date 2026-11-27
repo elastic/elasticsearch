@@ -17,6 +17,15 @@ DEDUP
 
 A multivalued column is compared as a whole: two values are equal only if they hold the same values in the same order. `[a, b]`, `[b, a]` and `[a, a, b]` are three different values, so `DEDUP` keeps a row for each of them. This differs from [`STATS ... BY`](/reference/query-languages/esql/commands/stats-by.md), which puts a row with a multivalued grouping key into one group for each of its values.
 
+`_source` and spatial shapes (`geo_shape`, `cartesian_shape`) are compared by
+the bytes loaded for that column. A shape that lists the same vertices from
+another starting point is a different value. Stored `_source` keeps the original
+key order, so that order is part of the comparison. Synthetic `_source` normally
+reconstructs objects in a fixed field order, but settings such as
+`synthetic_source_keep: all` can preserve the original
+representation. Documents that differ only in key order can therefore still form
+distinct groups.
+
 After a [`SORT`](/reference/query-languages/esql/commands/sort.md), the rows that `DEDUP` keeps stay in sort order, each at the position of its first occurrence. Without a `SORT`, the order of the output rows is not defined.
 
 `DEDUP` is equivalent to `LIMIT 1 BY <all columns>`.
@@ -53,9 +62,14 @@ Every column in scope is part of the comparison, so `DEDUP` reads every column o
 
 ## Limitations
 
-`DEDUP` cannot be used when any column in scope has one of the following types: `aggregate_metric_double`, counter fields (`counter_long`, `counter_integer`, `counter_double`), `date_range`, `exponential_histogram`, `tdigest`, `date_period`, or `time_duration`. Attempting to do so results in a validation error. Use `KEEP` or `DROP` before `DEDUP` to remove such columns.
+:::{include} ../../generated/x-pack-esql/syntax/dedup-unsupported-types.md
+:::
 
-Columns of an `unsupported` type are ignored when comparing rows, and `DEDUP` does not fail because of them. This includes fields mapped to incompatible types across the indices of a `FROM` (a union type): such a field is returned as `null` until it is converted, so it cannot tell rows apart. For example, if `emp_no` is `integer` in one index and `long` in another, `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` returns a single row. A later conversion such as `EVAL e = emp_no::long` does not bring the removed rows back. To deduplicate on the value of such a field, convert it first and then `DEDUP`: `EVAL e = emp_no::long | DROP emp_no | DEDUP`.
+Columns of an `unsupported` type are `null` in every row, so they are ignored when comparing rows, and `DEDUP` does not fail because of them.
+
+`DEDUP` checks every other column the way `LIMIT 1 BY` checks a column you list. A field mapped to incompatible types across the indices of a `FROM`, or across subqueries (a union type), holds values that can't be compared without a conversion, so `DEDUP` rejects it with the same error as `LIMIT 1 BY`. For example, if `emp_no` is `integer` in one index and `long` in another, `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` fails. Convert such a field first, then `DEDUP`: `EVAL e = emp_no::long | DROP emp_no | DEDUP`, or drop it.
+
+{applies_to}`stack: preview =9.6` Union-type columns are ignored like `unsupported` ones: they are returned as `null`, so `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` returns a single row, and a later conversion such as `EVAL e = emp_no::long` does not bring the removed rows back.
 
 Full-text searches on indexed fields (such as `MATCH` or `KQL`) can't appear after `DEDUP` in the same pipeline.
 

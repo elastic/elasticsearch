@@ -47,7 +47,11 @@ public record IntoOptions(boolean refresh, boolean keepGoing, Collisions collisi
     public enum Collisions {
         /** Fails on the first collision. */
         ABORT,
-        /** Leaves the existing document, counted in {@code version_conflicts}. */
+        /**
+         * Leaves the existing document, counted in {@code version_conflicts}. A conflict is only detected in the index that the write
+         * goes to: in a data stream that has rolled over, an {@code _id} that exists in an earlier backing index is no conflict, and
+         * the row creates another document, counted in {@code created}.
+         */
         KEEP,
         /** Overwrites the existing document, counted in {@code updated}. */
         REPLACE;

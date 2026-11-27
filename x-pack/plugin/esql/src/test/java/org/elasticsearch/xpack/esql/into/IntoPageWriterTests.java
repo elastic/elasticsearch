@@ -577,18 +577,6 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(client.bulks, empty());
     }
 
-    public void testEmptyIdIsRefusedByTheDestinationUnderEveryMode() {
-        for (Collisions collisions : Collisions.values()) {
-            IntoPageWriter idWriter = writerWithIds(collisions);
-            idWriter.consume(idPage(new String[] { "" }, "h1"));
-            assertThat(client.bulks.getFirst().requests().getFirst().id(), equalTo(""));
-            client.answer(REFUSED);
-
-            ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
-            assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
-        }
-    }
-
     public void testKeepCountsCollisionsAndContinues() {
         IntoPageWriter idWriter = writerWithIds(Collisions.KEEP);
         idWriter.consume(idPage(new String[] { "a", "b", "c" }, "h1", "h2", "h3"));
@@ -622,12 +610,82 @@ public class IntoPageWriterTests extends ComputeTestCase {
         }
     }
 
+    /** An empty or over-long {@code _id} would fail the whole bulk, so the run fails before anything is sent. */
+    public void testInvalidIdFailsTheRunWithoutKeepGoing() {
+        for (String invalid : List.of("", "x".repeat(IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES + 1))) {
+            IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(false).build());
+            ElasticsearchStatusException e = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> idWriter.consume(idPage(new String[] { "a", invalid }, "h1", "h2"))
+            );
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(client.bulks, empty());
+            assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+            assertThat(sink.failure(), sameInstance(e));
+        }
+    }
+
+    /** The rows next to an invalid {@code _id} are still written, and each invalid one is counted as refused, with its reason. */
+    public void testKeepGoingRefusesOnlyTheRowsWithAnInvalidId() {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        String tooLong = "x".repeat(IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES + 1);
+        idWriter.consume(idPage(new String[] { "a", "", tooLong, "d" }, "h1", "h2", "h3", "h4"));
+
+        BulkRequest bulk = client.bulks.getFirst();
+        assertThat(bulk.requests().stream().map(DocWriteRequest::id).toList(), equalTo(List.of("a", "d")));
+        client.answer(CREATED, CREATED);
+        idWriter.finish();
+
+        assertThat(sink.failure(), nullValue());
+        assertThat(
+            idWriter.stats(),
+            equalTo(
+                IntoStats.builder()
+                    .total(4)
+                    .created(2)
+                    .failures(2)
+                    .failureDetails(
+                        List.of(
+                            "[400] if _id is specified it must not be empty",
+                            "[400] _id is too long, must be no longer than 512 bytes but was: 513"
+                        )
+                    )
+                    .build()
+            )
+        );
+    }
+
+    public void testKeepGoingSendsNothingWhenEveryIdIsInvalid() {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        idWriter.consume(idPage(new String[] { "", "" }, "h1", "h2"));
+        idWriter.finish();
+
+        assertThat(client.bulks, empty());
+        assertTrue(idWriter.isFinished());
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+        assertThat(
+            idWriter.stats(),
+            equalTo(
+                IntoStats.builder()
+                    .total(2)
+                    .failures(2)
+                    .failureDetails(
+                        List.of("[400] if _id is specified it must not be empty", "[400] if _id is specified it must not be empty")
+                    )
+                    .build()
+            )
+        );
+    }
+
     private IntoPageWriter writerWithIds(Collisions collisions) {
+        return writerWithIds(IntoOptions.builder().collisions(collisions).build());
+    }
+
+    private IntoPageWriter writerWithIds(IntoOptions options) {
         List<Attribute> columns = List.of(
             new ReferenceAttribute(Source.EMPTY, IdFieldMapper.NAME, DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, "host", DataType.KEYWORD)
         );
-        IntoOptions options = IntoOptions.builder().collisions(collisions).build();
         sink = IntoPageWriter.Factory.createFactory(bulks(), client, factory.breaker(), DEST, columns, INDEX, options);
         return sink.create(driverContext);
     }

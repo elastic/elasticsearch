@@ -661,6 +661,42 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertReadBack("KEEP k | SORT k", List.of(List.of("abort"), List.of("keep"), List.of("replace")));
     }
 
+    private static final String ROWS_WITH_INVALID_IDS = """
+        ROW x = [1, 2, 3, 4]
+        | MV_EXPAND x
+        | EVAL _id = CASE(x == 2, "", x == 3, REPEAT("x", 513), CONCAT("id", TO_STRING(x))), k = CONCAT("k", TO_STRING(x))
+        | KEEP _id, k
+        """;
+
+    /** An empty or over-long {@code _id} is refused on its own, and does not take the valid rows around it with it. */
+    public void testKeepGoingRefusesOnlyTheRowsWithAnInvalidId() {
+        try (var response = run(ROWS_WITH_INVALID_IDS + "| INTO " + DESTINATION + " WITH {\"keep_going\": true}")) {
+            IntoStats expected = IntoStats.builder()
+                .total(4)
+                .created(2)
+                .failures(2)
+                .failureDetails(
+                    List.of(
+                        "[400] if _id is specified it must not be empty",
+                        "[400] _id is too long, must be no longer than 512 bytes but was: 513"
+                    )
+                )
+                .build();
+            assertStats(response, expected);
+        }
+        assertReadBackWithIds("KEEP _id, k | SORT _id", List.of(List.of("id1", "k1"), List.of("id4", "k4")));
+    }
+
+    public void testInvalidIdFailsTheQueryWithoutKeepGoing() {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> run(ROWS_WITH_INVALID_IDS + "| INTO " + DESTINATION + " WITH {\"keep_going\": false}").close()
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("INTO [" + DESTINATION + "] failed: if _id is specified it must not be empty"));
+        assertReadBack(List.of());
+    }
+
     public void testReplaceOnAnExistingDataStreamIsRejected() {
         createDataStream();
         VerificationException e = expectThrows(

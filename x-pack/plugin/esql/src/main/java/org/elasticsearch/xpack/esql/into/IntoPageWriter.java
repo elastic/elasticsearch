@@ -69,6 +69,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class IntoPageWriter {
 
     private static final int MAX_FAILURE_DETAIL_LENGTH = 1024;
+    private static final String EMPTY_ID_REASON = "if _id is specified it must not be empty";
     private static final String MULTI_VALUED_ID_MESSAGE = "INTO [{}] failed: [{}] must be single-valued, found [{}]";
 
     /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
@@ -219,12 +220,28 @@ public final class IntoPageWriter {
         }
 
         private void recordRefusal(BulkItemResponse.Failure refusal) {
+            // Without the transport exception around it, which names a node that the caller has no business with
+            Throwable cause = ExceptionsHelper.unwrapCause(refusal.getCause());
+            String reason = Objects.requireNonNullElse(cause.getMessage(), cause.getClass().getSimpleName());
+            recordFailureDetail(refusal.getStatus(), reason);
+        }
+
+        /**
+         * Counts rows that were refused before they were sent, because the destination would have refused the whole bulk that carried
+         * them, not only them.
+         */
+        private void recordUnsentRefusals(List<String> reasons) {
+            total.addAndGet(reasons.size());
+            failures.addAndGet(reasons.size());
+            for (String reason : reasons) {
+                recordFailureDetail(RestStatus.BAD_REQUEST, reason);
+            }
+        }
+
+        private void recordFailureDetail(RestStatus status, String reason) {
             synchronized (failureDetails) {
                 if (failureDetails.size() < IntoStats.MAX_FAILURE_DETAILS) {
-                    // Without the transport exception around it, which names a node that the caller has no business with
-                    Throwable cause = ExceptionsHelper.unwrapCause(refusal.getCause());
-                    String reason = Objects.requireNonNullElse(cause.getMessage(), cause.getClass().getSimpleName());
-                    String detail = "[" + refusal.getStatus().getStatus() + "] " + reason;
+                    String detail = "[" + status.getStatus() + "] " + reason;
                     failureDetails.add(Strings.cleanTruncate(detail, MAX_FAILURE_DETAIL_LENGTH));
                 }
             }
@@ -372,13 +389,25 @@ public final class IntoPageWriter {
                 if (sink.idColumnPosition >= 0) {
                     requireSingleValuedIds(page);
                 }
-                if (asyncAction.compareAndSet(false, true)) {
-                    driverContext.addAsyncAction();
-                }
-                producer.add(new PageRows(page, sink.columns, sink.types, sink.destination, sink.idColumnPosition, sink.opType), false);
-                Exception failed = sink.writer.failure();
-                if (failed != null) {
-                    throw ExceptionsHelper.convertToRuntime(sink.recordWriterFailure(failed));
+                Page rows = withoutInvalidIds(page);
+                try {
+                    if (rows.getPositionCount() > 0) {
+                        if (asyncAction.compareAndSet(false, true)) {
+                            driverContext.addAsyncAction();
+                        }
+                        producer.add(
+                            new PageRows(rows, sink.columns, sink.types, sink.destination, sink.idColumnPosition, sink.opType),
+                            false
+                        );
+                        Exception failed = sink.writer.failure();
+                        if (failed != null) {
+                            throw ExceptionsHelper.convertToRuntime(sink.recordWriterFailure(failed));
+                        }
+                    }
+                } finally {
+                    if (rows != page) {
+                        rows.releaseBlocks();
+                    }
                 }
             }
         } finally {
@@ -412,6 +441,58 @@ public final class IntoPageWriter {
                 throw failed;
             }
         }
+    }
+
+    /**
+     * The rows of {@code page} whose {@code _id} the destination can take, which is {@code page} itself when every row has one. The
+     * bulk fails as a whole, or reports the same failure against all its rows, for an {@code _id} that is empty or too long, so
+     * the valid rows next to it would be lost with it. A row like that fails the run, or, under {@code keep_going}, is counted as
+     * refused and left out, as it would be if the destination had refused it alone. The caller releases the result if it is not
+     * {@code page}.
+     */
+    private Page withoutInvalidIds(Page page) {
+        if (sink.idColumnPosition < 0) {
+            return page;
+        }
+        BytesRefBlock ids = page.getBlock(sink.idColumnPosition);
+        int[] valid = new int[page.getPositionCount()];
+        int validCount = 0;
+        List<String> reasons = new ArrayList<>();
+        BytesRef scratch = new BytesRef();
+        for (int row = 0; row < page.getPositionCount(); row++) {
+            String reason = null;
+            if (ids.isNull(row) == false) {
+                int length = ids.getBytesRef(ids.getFirstValueIndex(row), scratch).length;
+                if (length == 0) {
+                    reason = EMPTY_ID_REASON;
+                } else if (length > IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES) {
+                    reason = "_id is too long, must be no longer than "
+                        + IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES
+                        + " bytes but was: "
+                        + length;
+                }
+            }
+            if (reason == null) {
+                valid[validCount++] = row;
+            } else {
+                reasons.add(reason);
+            }
+        }
+        if (reasons.isEmpty()) {
+            return page;
+        }
+        if (sink.options.keepGoing() == false) {
+            var failed = new ElasticsearchStatusException(
+                "INTO [{}] failed: {}",
+                RestStatus.BAD_REQUEST,
+                sink.destination,
+                reasons.getFirst()
+            );
+            sink.failure.compareAndSet(null, failed);
+            throw failed;
+        }
+        sink.recordUnsentRefusals(reasons);
+        return page.filter(false, valid, 0, validCount);
     }
 
     public void finish() {

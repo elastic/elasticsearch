@@ -57,6 +57,12 @@ public class CsvFillNullIT extends CsvIT {
     /** An {@code INTO} command, which must be the last command, so {@code FILLNULL} cannot be appended after it. */
     private static final Pattern INTO_COMMAND_PATTERN = Pattern.compile("(?is)\\|\\s*INTO\\b");
 
+    /**
+     * An {@code INLINE STATS} command, whose aggregate multivalues collapse when re-evaluated,
+     * see {@link #collapsesInlineStatsMultivalueUnderDefault}.
+     */
+    private static final Pattern INLINE_STATS_COMMAND_PATTERN = Pattern.compile("(?is)\\|\\s*INLINE\\s+STATS\\b");
+
     /** The most columns that one {@code FILLNULL} warning names, see {@code WarnUnfillableFillNull.MAX_FIELDS_IN_WARNING}. */
     private static final int MAX_FIELDS_IN_WARNING = 10;
 
@@ -155,6 +161,43 @@ public class CsvFillNullIT extends CsvIT {
         return null;
     }
 
+    /**
+     * Whether appending {@code FILLNULL DEFAULT ON *} would re-evaluate an {@code INLINE STATS} aggregate column that holds a
+     * multivalue, collapsing it to its first value (https://github.com/elastic/elasticsearch/issues/167811). {@code INLINE STATS}
+     * grouped by a multivalued key joins its aggregate back as a per-row multivalue; re-evaluating that column then collapses it.
+     * <p>
+     * This is checked per fill rather than excluded up front: {@code FILLNULL} only emits a {@code COALESCE} for a column whose
+     * type has a default, so the {@code NULL} no-op (which fills nothing) and a column whose type has no default never re-evaluate
+     * and cannot collapse - only a defaulted multivalue column under {@code INLINE STATS} is affected. The harness cannot tell an
+     * aggregate column from a plain source one (whose multivalue {@code COALESCE} preserves), so within such a query it
+     * conservatively matches any defaulted multivalue.
+     */
+    private static boolean collapsesInlineStatsMultivalueUnderDefault(CsvSpecReader.CsvTestCase testCase) {
+        if (INLINE_STATS_COMMAND_PATTERN.matcher(testCase.query).find() == false) {
+            return false;
+        }
+        TestResults loaded;
+        try {
+            loaded = CsvTestUtils.loadCsvSpecValues(testCase.expectedResults);
+        } catch (Exception e) {
+            return false;
+        }
+        List<String> rawTypes = rawColumnTypes(testCase);
+        if (rawTypes.size() != loaded.columnNames().size()) {
+            return false;
+        }
+        for (List<Object> row : loaded.values()) {
+            for (int i = 0; i < row.size(); i++) {
+                if (row.get(i) instanceof List<?>
+                    && leftAloneByAllFields(loaded.columnNames().get(i), rawTypes.get(i)) == false
+                    && defaultedType(rawTypes.get(i)) != null) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean hasMetadataColumn(CsvSpecReader.CsvTestCase testCase) {
         String header = testCase.expectedResults.lines().findFirst().orElseThrow();
         for (String column : header.split("\\|")) {
@@ -240,6 +283,10 @@ public class CsvFillNullIT extends CsvIT {
             Fill fill = fillByTest.get(testId);
             assumeTrue("not sampled for FILLNULL", fill != null);
             if (fill == Fill.DEFAULT) {
+                assumeTrue(
+                    "INLINE STATS aggregate multivalue collapses under FILLNULL DEFAULT (#167811)",
+                    collapsesInlineStatsMultivalueUnderDefault(testCase) == false
+                );
                 expectUnfillableWarning(testCase);
             }
             return new TransformedQuery(testCase.query + "\n| FILLNULL " + fill.keyword + " ON *", Settings.EMPTY);

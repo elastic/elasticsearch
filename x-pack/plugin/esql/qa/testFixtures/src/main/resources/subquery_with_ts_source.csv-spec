@@ -855,6 +855,7 @@ required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 required_capability: double_quotes_source_enclosing
+required_capability: warn_underscore_column_names
 
 FROM sample_data,
      (TS "k8s" METADATA _index
@@ -864,6 +865,7 @@ FROM sample_data,
 | SORT _index, cluster, @timestamp
 | KEEP _index, @timestamp, client_ip, cluster, max_bytes
 ;
+warning:Line 4:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 _index:keyword | @timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
 k8s            | null                     | null         | prod            | 10277
@@ -875,6 +877,7 @@ null           | 2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | nul
 // METADATA _index is declared inside the TS subquery AND on the outer FROM,
 // so sample_data rows also carry the correct _index in the unioned result.
 subqueryInFromWithTsSubqueryAndMetadataIndexInBoth
+required_capability: warn_underscore_column_names
 skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
@@ -889,6 +892,7 @@ FROM sample_data,
 | SORT _index, cluster, @timestamp
 | KEEP _index, @timestamp, client_ip, cluster, max_bytes
 ;
+warning:Line 5:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 _index:keyword | @timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
 k8s            | null                     | null         | prod            | 10277
@@ -905,6 +909,7 @@ required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: warn_underscore_column_names
 
 FROM
     (TS k8s METADATA _index
@@ -915,6 +920,7 @@ FROM
 | SORT _index, cluster, pod
 | KEEP _index, cluster, max_bytes, pod, max_eth0_tx
 ;
+warning:Line 6:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 _index:keyword  | cluster:keyword | max_bytes:long | pod:keyword | max_eth0_tx:double
 k8s             | prod            | 10277          | null        | null

@@ -548,6 +548,7 @@ a:integer | year_hired:date
 
 dateTruncTimezonesTimeDuration
 required_capability: date_trunc_timezone_support
+required_capability: warn_underscore_column_names
 
 SET time_zone = "+10:00"\;
 ROW date=["2025-03-04T10:09:08.07Z"]::date
@@ -560,6 +561,11 @@ ROW date=["2025-03-04T10:09:08.07Z"]::date
     _24hours = DATE_TRUNC(24 hours, date)
 | DROP date
 ;
+warning:Line 5:1: Column name [_1second] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warning:Line 6:1: Column name [_1minute] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warning:Line 7:1: Column name [_1hour] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warning:Line 8:1: Column name [_3hours] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warning:Line 9:1: Column name [_24hours] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 _1second:date        | _1minute:date        | _1hour:date          | _3hours:date         | _24hours:date
 2025-03-04T10:09:08Z | 2025-03-04T10:09:00Z | 2025-03-04T10:00:00Z | 2025-03-04T08:00:00Z | 2025-03-03T14:00:00Z
@@ -567,6 +573,7 @@ _1second:date        | _1minute:date        | _1hour:date          | _3hours:dat
 
 dateTruncTimezonesDatePeriod
 required_capability: date_trunc_timezone_support
+required_capability: warn_underscore_column_names
 
 SET time_zone = "+10:00"\;
 ROW date=["2025-03-04T17:09:08.07Z"]::date
@@ -579,6 +586,11 @@ ROW date=["2025-03-04T17:09:08.07Z"]::date
     _1year = DATE_TRUNC(1 year, date)
 | DROP date
 ;
+warning:Line 5:1: Column name [_1day] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warning:Line 6:1: Column name [_7days] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warning:Line 7:1: Column name [_1month] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warning:Line 8:1: Column name [_3months] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warning:Line 9:1: Column name [_1year] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 _1day:date           | _7days:date          | _1month:date         | _3months:date        | _1year:date
 2025-03-04T14:00:00Z | 2025-03-02T14:00:00Z | 2025-02-28T14:00:00Z | 2024-12-31T14:00:00Z | 2024-12-31T14:00:00Z

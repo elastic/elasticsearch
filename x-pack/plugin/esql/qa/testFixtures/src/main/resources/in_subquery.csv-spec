@@ -1124,6 +1124,7 @@ required_capability: where_in_subquery_without_view
 required_capability: rerank
 required_capability: match_operator_colon
 required_capability: routing_function_update
+required_capability: warn_underscore_column_names
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -1134,6 +1135,7 @@ FROM books METADATA _score
 | EVAL _score = ROUND(_score, 2)
 | KEEP book_no, title, _score
 ;
+warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 book_no:keyword | title:text    | _score:double
 5327            | War and Peace | 0.08
@@ -1144,6 +1146,7 @@ required_capability: where_in_subquery_without_view
 required_capability: rerank
 required_capability: match_operator_colon
 required_capability: routing_function_update
+required_capability: warn_underscore_column_names
 
 FROM books
 | WHERE book_no IN (
@@ -1158,6 +1161,7 @@ FROM books
   )
 | KEEP book_no, title
 ;
+warning:Line 8:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 book_no:keyword | title:text
 5327            | War and Peace
@@ -1168,6 +1172,7 @@ required_capability: where_in_subquery_without_view
 required_capability: rerank
 required_capability: match_operator_colon
 required_capability: routing_function_update
+required_capability: warn_underscore_column_names
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -1178,6 +1183,7 @@ FROM books METADATA _score
 | EVAL _score = ROUND(_score, 2)
 | KEEP book_no, title, _score
 ;
+warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 book_no:keyword | title:text    | _score:double
 5327            | War and Peace | 0.08

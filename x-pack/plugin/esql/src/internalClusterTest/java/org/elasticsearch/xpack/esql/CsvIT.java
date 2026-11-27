@@ -111,6 +111,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -494,10 +495,19 @@ public class CsvIT extends ESTestCase {
         inference.ensureNoFailures();
         views.ensureNoFailures();
 
-        DifferentialTestStrategy.TransformedQuery transformed = differentialTestStrategy.transformQuery(
-            groupName + "." + testName,
-            testCase
-        );
+        DifferentialTestStrategy.TransformedQuery transformed;
+        // A strategy may parse the query on this thread to rewrite it. Parsing can emit warnings, which HeaderWarning records
+        // in every node's thread context for this thread. The cluster outlives the test, so drop them here; otherwise they
+        // would show up in the response warnings of this and later tests.
+        List<ThreadContext.StoredContext> stashedNodeContexts = new ArrayList<>();
+        for (ThreadPool threadPool : cluster.getInstances(ThreadPool.class)) {
+            stashedNodeContexts.add(threadPool.getThreadContext().stashContext());
+        }
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            transformed = differentialTestStrategy.transformQuery(groupName + "." + testName, testCase);
+        } finally {
+            stashedNodeContexts.forEach(ThreadContext.StoredContext::restore);
+        }
         EsqlQueryRequest request = syncEsqlQueryRequest(transformed.query());
         if (testCase.paramsJson() != null) {
             request.params(QueryParamsTestUtils.parseParams(testCase.paramsJson()));

@@ -18,6 +18,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
@@ -228,6 +229,32 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected static ParsingException qualifiersUnsupportedInFieldDefinitions(Source source, String qualifiedName) {
         return new ParsingException(source, "Qualified names are not supported in field definitions, found [{}]", qualifiedName);
+    }
+
+    /**
+     * Format of the warning from {@link #warnIfReservedColumnName}; the arguments are the line, the column and the column name.
+     */
+    public static final String RESERVED_COLUMN_NAME_WARNING =
+        "Line {}:{}: Column name [{}] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]";
+
+    /**
+     * Warns when the query explicitly names a new column with a leading {@code _}. Such names are reserved for columns that
+     * {@code ES|QL} itself provides, like metadata fields ({@code _index}, {@code _score}) or columns that commands add
+     * ({@code _fork}). A user-defined column with such a name can clash with one of those, and new internal columns may be
+     * added in later versions.
+     * <p>
+     * Call this only where the user wrote the name, not for names a command picks by default (e.g. {@code RERANK}'s
+     * {@code _score}), so that queries relying on the defaults stay warning-free.
+     */
+    protected static void warnIfReservedColumnName(Source source, String name) {
+        if (name != null && name.startsWith("_") && source.source().getLineNumber() > 0) {
+            HeaderWarning.addWarning(
+                RESERVED_COLUMN_NAME_WARNING,
+                source.source().getLineNumber(),
+                source.source().getColumnNumber(),
+                name
+            );
+        }
     }
 
     protected static ParsingException qualifiersUnsupportedInPatterns(Source source, String qualifiedNamePattern) {
@@ -1185,6 +1212,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ua.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(src, ctx.newName.getText());
         }
+        warnIfReservedColumnName(newName.source(), newName.name());
 
         return new Alias(src, newName.name(), oldName);
     }
@@ -1231,7 +1259,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Source src = source(ctx);
         NamedExpression enrichField = enrichFieldName(ctx.enrichField);
         NamedExpression newName = enrichFieldName(ctx.newName);
-        return newName == null ? enrichField : new Alias(src, newName.name(), enrichField);
+        if (newName == null) {
+            return enrichField;
+        }
+        warnIfReservedColumnName(newName.source(), newName.name());
+        return new Alias(src, newName.name(), enrichField);
     }
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
@@ -1260,6 +1292,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         if (id != null && id.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(source, ctx.qualifiedName().getText());
+        }
+        if (id != null) {
+            warnIfReservedColumnName(id.source(), id.name());
         }
         Expression value = expression(ctx.booleanExpression());
         String name = id == null ? source.text() : id.name();
@@ -1326,6 +1361,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     if (id.qualifier() != null) {
                         throw qualifiersUnsupportedInFieldDefinitions(source(field), field.qualifiedName().getText());
                     }
+                    warnIfReservedColumnName(id.source(), id.name());
                     name = id.name();
                 }
                 // wrap when necessary - no alias and no underlying attribute

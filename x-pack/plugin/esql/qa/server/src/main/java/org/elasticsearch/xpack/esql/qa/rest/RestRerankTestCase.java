@@ -19,6 +19,7 @@ import org.junit.Rule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.core.StringContains.containsString;
 
@@ -175,13 +176,21 @@ public class RestRerankTestCase extends ESRestTestCase {
         );
     }
 
+    /**
+     * The queries round {@code _score} with {@code EVAL _score = ...}, which warns about the reserved {@code _} prefix on nodes
+     * that know that warning. Older nodes in mixed clusters do not send it, so it is allowed rather than expected.
+     */
+    private static final AssertWarnings ALLOW_SCORE_NAME_WARNING = new AssertWarnings.AllowedRegexes(
+        List.of(Pattern.compile("Line \\d+:\\d+: Column name \\[_score\\] starts with \\[_\\].*"))
+    );
+
     private Map<String, Object> runEsqlQuery(String query) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder().query(query);
-        return RestEsqlTestCase.runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
+        return RestEsqlTestCase.runEsqlSync(builder, ALLOW_SCORE_NAME_WARNING, profileLogger);
     }
 
     private Map<String, Object> runEsqlQuery(String query, String params) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder().query(query).params(params);
-        return RestEsqlTestCase.runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
+        return RestEsqlTestCase.runEsqlSync(builder, ALLOW_SCORE_NAME_WARNING, profileLogger);
     }
 }

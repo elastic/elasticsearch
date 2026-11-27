@@ -40,7 +40,9 @@ typeConflictWithUnmappedJustFrom - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: warn_underscore_column_names
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 // leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
@@ -70,12 +72,14 @@ ignoreOrder:true
 typeConflictWithUnmappedJustFrom - old coordinator
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability: warn_underscore_column_names
 missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
 | EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 ;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 ignoreOrder:true
 
 @timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
@@ -290,7 +294,9 @@ typeConflictWithUnmappedJustKeepWildcard - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: warn_underscore_column_names
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 // leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
@@ -321,6 +327,7 @@ ignoreOrder:true
 typeConflictWithUnmappedJustKeepWildcard - old coordinator
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability: warn_underscore_column_names
 missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -328,6 +335,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | KEEP *
 ;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 ignoreOrder:true
 
 @timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
@@ -378,7 +386,9 @@ typeConflictWithUnmappedJustKeepWildcardPrefix - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: warn_underscore_column_names
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 // leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
@@ -409,6 +419,7 @@ ignoreOrder:true
 typeConflictWithUnmappedJustKeepWildcardPrefix - old coordinator
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability: warn_underscore_column_names
 missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -416,6 +427,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | KEEP @t*, cli*, ev*, me*, _in*
 ;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 ignoreOrder:true
 
 @timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
@@ -940,7 +952,9 @@ typeConflictPartiallyUnmappedNonKeywordFieldsNotLoadedWithoutExplicitMention - o
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: warn_underscore_column_names
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 // leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
@@ -964,6 +978,7 @@ ignoreOrder:true
 typeConflictPartiallyUnmappedNonKeywordFieldsNotLoadedWithoutExplicitMention - old coordinator
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability: warn_underscore_column_names
 missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -972,6 +987,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | SORT _index, message DESC
 | LIMIT 6
 ;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 ignoreOrder:true
 
 @timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
@@ -1185,7 +1201,9 @@ typeConflictPartiallyUnmappedKeywordFieldKept - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: warn_underscore_column_names
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 // leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
@@ -1216,6 +1234,7 @@ no_mapping_sample_data | 8268152
 typeConflictPartiallyUnmappedKeywordFieldKept - old coordinator
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability: warn_underscore_column_names
 missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -1223,6 +1242,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | KEEP _index, event_duration
 ;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 ignoreOrder:true
 
 _index:keyword         | event_duration:long
@@ -2685,7 +2705,9 @@ typeConflictLongUnmappedSortWithCastToLong - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: warn_underscore_column_names
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 // leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
@@ -2716,6 +2738,7 @@ sample_data            | 8268153
 typeConflictLongUnmappedSortWithCastToLong - old coordinator
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability: warn_underscore_column_names
 missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -2724,6 +2747,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | SORT event_duration::long, _index
 | KEEP _index, event_duration
 ;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 _index:keyword         | event_duration:long
 no_mapping_sample_data | null
@@ -2773,7 +2797,9 @@ typeConflictLongUnmappedSortWithCastToKeyword - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: warn_underscore_column_names
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 // leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
@@ -2804,6 +2830,7 @@ sample_data            | 8268153
 typeConflictLongUnmappedSortWithCastToKeyword - old coordinator
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability: warn_underscore_column_names
 missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -2812,6 +2839,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | SORT event_duration::keyword, _index
 | KEEP _index, event_duration
 ;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 _index:keyword         | event_duration:long
 no_mapping_sample_data | null
@@ -3252,7 +3280,9 @@ typeConflictLongUnmappedTimeseriesSortWithCast - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: warn_underscore_column_names
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 // leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
@@ -3280,6 +3310,7 @@ k8s_unmapped   | 1006
 typeConflictLongUnmappedTimeseriesSortWithCast - old coordinator
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability: warn_underscore_column_names
 missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -3289,6 +3320,7 @@ FROM k8s, k8s_unmapped METADATA _index
 | KEEP _index, network.bytes_in
 | LIMIT 10
 ;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 _index:keyword | network.bytes_in:long
 k8s            | 1021
@@ -3626,7 +3658,9 @@ autocast two-legged long punk - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: warn_underscore_column_names
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 // leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
@@ -3678,7 +3712,9 @@ autocast two-legged double punk - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: warn_underscore_column_names
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 // leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
@@ -3724,7 +3760,9 @@ autocast two-legged punk in WHERE - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: warn_underscore_column_names
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 // leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
@@ -3768,7 +3806,9 @@ autocast two-legged punk in EVAL - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: warn_underscore_column_names
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 // leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 

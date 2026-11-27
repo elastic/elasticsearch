@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities, warnings ]
+      test_runner_features: [ capabilities, warnings, allowed_warnings ]
       capabilities:
         - method: POST
           path: /_query
@@ -66,6 +66,8 @@ teardown:
 ---
 'a column named _unmapped_fields by EVAL replaces the discovered fields':
   - do:
+      allowed_warnings:
+        - "Line 1:53: Column name [_unmapped_fields] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]"
       warnings:
         - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
       esql.query:
@@ -81,6 +83,8 @@ teardown:
 ---
 'a column named _unmapped_fields by RENAME replaces the discovered fields':
   - do:
+      allowed_warnings:
+        - "Line 1:85: Column name [_unmapped_fields] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]"
       warnings:
         - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
       esql.query:

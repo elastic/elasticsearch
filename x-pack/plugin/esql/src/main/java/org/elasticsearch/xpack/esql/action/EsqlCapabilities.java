@@ -5120,6 +5120,12 @@ public class EsqlCapabilities {
          */
         FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
+        /**
+         * Warning when a query explicitly names a new column with a leading {@code _}, e.g. {@code EVAL _x = 1}. Such names
+         * are reserved for internal columns like {@code _index}, {@code _score} or {@code _fork}.
+         */
+        WARN_UNDERSCORE_COLUMN_NAMES,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -126,6 +126,7 @@ forkWithSemanticSearchAndScore
 required_capability: fork_v9
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: warn_underscore_column_names
 
 FROM semantic_text METADATA _id, _score
 | FORK ( WHERE semantic_text_field:"something" | SORT _score DESC | LIMIT 2)
@@ -134,6 +135,7 @@ FROM semantic_text METADATA _id, _score
 | SORT _fork, _score, _id
 | KEEP _fork, _score, _id, semantic_text_field
 ;
+warning:Line 4:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 _fork:keyword | _score:double         | _id:keyword | semantic_text_field:text
 fork1         | 2.156063961865257E18  | 3           | be excellent to each other

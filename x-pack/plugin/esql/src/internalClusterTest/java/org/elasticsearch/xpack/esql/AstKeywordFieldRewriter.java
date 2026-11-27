@@ -133,7 +133,7 @@ public final class AstKeywordFieldRewriter {
      * {@code STATS}/{@code INLINE STATS BY} clause, so the wrapped grouping does not collide with
      * (and self-shadow) the input column of the same name within the same segment.
      */
-    private static final String BY_ALIAS_PREFIX = "__kw_";
+    private static final String BY_ALIAS_PREFIX = "kw__";
 
     /**
      * Resolves the initial flattened-field scope for an arbitrary (sub-)query text. Invoked once

@@ -435,6 +435,7 @@ count:long | duplications:long
 ;
 
 airportsLookupJoinViewAirportsStatsValues
+required_capability: warn_underscore_column_names
 skip_flattened_rewrite: lookup_join_in_view_flattened_source
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
@@ -447,6 +448,7 @@ FROM airports_mp_filtered, airports METADATA _index
 | WHERE duplications == 2
 | EVAL indexes = MV_SORT(indexes)
 ;
+warning:Line 2:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 ignoreOrder:true
 
 duplications:long | abbrev:keyword | indexes:keyword
@@ -2730,6 +2732,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: warn_underscore_column_names
 
 FROM (FROM view_with_fork),
      (FROM employees_all | WHERE emp_no == 10093 | EVAL _fork = "fork1")
@@ -2737,6 +2740,7 @@ FROM (FROM view_with_fork),
 | KEEP _fork, emp_no
 | SORT _fork, emp_no
 ;
+warning:Line 2:52: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 _fork:keyword | emp_no:integer
 fork1         | 10092
@@ -2956,6 +2960,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: warn_underscore_column_names
 
 FROM (FROM view_with_fork),
      (FROM employees_all | WHERE emp_no == 10093 | EVAL _fork = "fork1")
@@ -2963,6 +2968,7 @@ FROM (FROM view_with_fork),
 | STATS c = COUNT(*) BY _fork, tag
 | SORT _fork, tag
 ;
+warning:Line 2:52: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 c:long | _fork:keyword | tag:keyword
 1      | fork1         | fork1-10091
@@ -2978,6 +2984,7 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: join_lookup_v12
+required_capability: warn_underscore_column_names
 
 FROM (FROM view_with_fork),
      (FROM employees_all | WHERE emp_no == 10093 | EVAL _fork = "fork1")
@@ -2987,6 +2994,7 @@ FROM (FROM view_with_fork),
 | KEEP _fork, emp_no, language_name
 | SORT _fork, emp_no
 ;
+warning:Line 2:52: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 _fork:keyword | emp_no:integer | language_name:keyword
 fork1         | 10091          | Spanish
@@ -3603,12 +3611,14 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: warn_underscore_column_names
 
 FROM (FROM employees_all | WHERE emp_no >= 10091 AND emp_no < 10093 | FORK (WHERE emp_no == 10091) (WHERE emp_no == 10092)),
      (FROM view_with_unionall | WHERE emp_no == 10001 | EVAL _fork = "fork1")
 | KEEP _fork, emp_no
 | SORT _fork, emp_no
 ;
+warning:Line 2:57: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 _fork:keyword | emp_no:integer
 fork1         | 10001
@@ -3647,6 +3657,7 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: warn_underscore_column_names
 
 SET unmapped_fields="load"\;
 FROM (FROM view_with_fork),
@@ -3657,6 +3668,7 @@ FROM (FROM view_with_fork),
 ;
 warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[does_not_exist_field\])(?=.*\[employees_all\])
 warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[does_not_exist_field\])(?=.*\[view_with_fork\])
+warningRegex:Line 3:52: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _fork:keyword | emp_no:integer | does_not_exist_field:keyword
 fork1         | 10091          | null

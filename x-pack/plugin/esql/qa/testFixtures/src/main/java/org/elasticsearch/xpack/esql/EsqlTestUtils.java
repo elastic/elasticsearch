@@ -24,6 +24,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -137,6 +138,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -1686,6 +1688,14 @@ public final class EsqlTestUtils {
 
     public static QueryParam paramAsConstant(String name, Object value) {
         return new QueryParam(name, value, DataType.fromJava(value), VALUE);
+    }
+
+    /**
+     * The warning the parser emits when a query names a new column {@code name} with a leading {@code _}, at the given
+     * one-based line and column.
+     */
+    public static String reservedColumnNameWarning(int line, int column, String name) {
+        return LoggerMessageFormat.format(null, ExpressionBuilder.RESERVED_COLUMN_NAME_WARNING, line, column, name);
     }
 
     public static QueryParam paramAsIdentifier(String name, Object value) {

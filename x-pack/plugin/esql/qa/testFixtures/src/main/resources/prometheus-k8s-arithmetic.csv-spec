@@ -301,9 +301,11 @@ scalar_arithmetic_in_or_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: warn_underscore_column_names
 PROMQL index=prometheus-k8s step=1h result=(network.eth0.tx / 1000 or network.eth0.rx / 1000)
 | EVAL result = ROUND(result, 6), step = step, _timeseries = _timeseries
 | SORT _timeseries, step;
+warning:Line 2:48: Column name [_timeseries] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 result:double | step:datetime            | _timeseries:keyword
 1.149         | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"

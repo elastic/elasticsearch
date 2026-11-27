@@ -44,6 +44,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.reservedColumnNameWarning;
 import static org.elasticsearch.xpack.esql.session.FieldNameUtils.parentPrefixes;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
@@ -1047,6 +1048,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             "from employees metadata _index | eval _i = _index | stats max = max(emp_no) by _i",
             Set.of("_index", "emp_no", "emp_no.*")
         );
+        assertWarnings(reservedColumnNameWarning(1, 39, "_i"));
     }
 
     public void testCoalesceFolding() {
@@ -2434,6 +2436,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | SORT _score DESC, book_no ASC
             | LIMIT 2
             | KEEP book_no, title, author, _score""", Set.of("_index", "book_no", "title", "author", "title.*", "author.*", "book_no.*"));
+        assertWarnings(reservedColumnNameWarning(6, 8, "_score"));
     }
 
     public void testSimpleFuse() {
@@ -2445,6 +2448,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _score = round(_score, 4)
             | KEEP _score, _fork, emp_no
             | SORT _score, _fork, emp_no""", Set.of("_index", "emp_no", "emp_no.*"));
+        assertWarnings(reservedColumnNameWarning(5, 8, "_score"));
     }
 
     public void testMatchWithMetadataAndKeepCollectsReferencedFields() {
@@ -2466,6 +2470,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _fork = mv_sort(_fork)
             | EVAL _score = round(_score, 5)
             | KEEP _score, _fork, _id""", Set.of("_index", "title", "author", "title.*", "author.*"));
+        assertWarnings(reservedColumnNameWarning(6, 8, "_fork"), reservedColumnNameWarning(7, 8, "_score"));
     }
 
     public void testFuseWithDisjunctionAndPostFilter() {
@@ -2479,6 +2484,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _score = round(_score, 5)
             | KEEP _score, _fork, _id
             | WHERE _score > 0.014""", Set.of("_index", "title", "author", "title.*", "author.*"));
+        assertWarnings(reservedColumnNameWarning(6, 8, "_fork"), reservedColumnNameWarning(7, 8, "_score"));
     }
 
     public void testFuseWithStats() {
@@ -2505,6 +2511,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _score = round(_score, 4)
             | EVAL title = trim(substring(title, 1, 20))
             | KEEP _score, author, title, _fork""", Set.of("_index", "author", "title", "year", "title.*", "author.*", "year.*"));
+        assertWarnings(reservedColumnNameWarning(8, 8, "_fork"), reservedColumnNameWarning(9, 8, "_score"));
     }
 
     public void testFuseWithSemanticSearch() {
@@ -2517,6 +2524,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _score = round(_score, 4)
             | EVAL _fork = mv_sort(_fork)
             | KEEP _fork, _score, _id, semantic_text_field""", Set.of("_index", "semantic_text_field", "semantic_text_field.*"));
+        assertWarnings(reservedColumnNameWarning(6, 8, "_score"), reservedColumnNameWarning(7, 8, "_fork"));
     }
 
     public void testSimpleFork() {
@@ -2589,6 +2597,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _score = round(_score, 4)
             | SORT _fork, _score, _id
             | KEEP _fork, _score, _id, semantic_text_field""", Set.of("_index", "semantic_text_field", "semantic_text_field.*"));
+        assertWarnings(reservedColumnNameWarning(4, 8, "_score"));
     }
 
     public void testForkWithEvals() {

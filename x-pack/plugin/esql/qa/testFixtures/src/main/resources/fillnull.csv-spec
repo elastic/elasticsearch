@@ -1626,6 +1626,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 ;
 
 fillNullAllColumnsFillsAUserColumnNamedLikeMetadata
+required_capability: warn_underscore_column_names
 skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
 required_capability: fillnull
 required_capability: fillnull_all_columns_skips_metadata_after_union
@@ -1638,6 +1639,7 @@ FROM employees
 | FILLNULL "x" ON *
 ;
 warning:Line 5:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
+warning:Line 4:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 emp_no:integer | gender:keyword | _score:keyword
 10010          | x              | x
@@ -2387,6 +2389,7 @@ m:long | region:keyword
 ;
 
 fillNullAllColumnsFillsAUserColumnNamedLikeMetadataThroughAFork
+required_capability: warn_underscore_column_names
 skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
 required_capability: fillnull
 required_capability: fillnull_all_columns_skips_metadata_after_union
@@ -2402,6 +2405,7 @@ FROM employees
 | FILLNULL "x" ON *
 | DROP _fork
 ;
+warning:Line 4:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 gender:keyword | _score:keyword
 x              | x
@@ -2409,6 +2413,7 @@ x              | x
 ;
 
 fillNullAllColumnsFillsAUserColumnNamedLikeMetadataThroughAUnion
+required_capability: warn_underscore_column_names
 skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
 required_capability: fillnull
 required_capability: fillnull_all_columns_skips_metadata_after_union
@@ -2421,6 +2426,7 @@ FROM (FROM employees | WHERE emp_no == 10010 | KEEP gender | EVAL _index = gende
 | FILLNULL "x" ON *
 | SORT gender
 ;
+warning:Line 1:67: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 gender:keyword | _index:keyword
 M              | x

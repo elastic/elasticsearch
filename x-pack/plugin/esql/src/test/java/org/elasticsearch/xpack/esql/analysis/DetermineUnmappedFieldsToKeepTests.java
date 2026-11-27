@@ -31,11 +31,13 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.reservedColumnNameWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -665,13 +667,17 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         LogicalPlan plan = test().addView("v", "FROM test | EVAL _unmapped_fields = 1 | KEEP emp_no")
             .statement(setUnmappedLoadAll("FROM test, v"));
         assertThat(relationsWithUnmappedFields(plan), hasSize(1));
+        assertWarnings(reservedColumnNameWarning(1, 18, UnmappedFieldsAttribute.ATTRIBUTE_NAME));
     }
 
     public void testColumnOfViewNamedLikeUnmappedFieldsIsTheQuerys() {
         LogicalPlan plan = test().addView("v", "FROM test | EVAL _unmapped_fields = 1 | KEEP emp_no, _unmapped_fields")
             .statement(setUnmappedLoadAll("FROM test, v"));
         assertThat(relationsWithUnmappedFields(plan), empty());
-        assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+        assertWarnings(
+            DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING,
+            reservedColumnNameWarning(1, 18, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
     }
 
     public void testViewInsideUserSubqueryBesideIndexKeepsTheNullColumn() {
@@ -704,7 +710,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testEvalNamedUnmappedFieldsFromUnmappedFieldOmitsUnmappedFieldsAttribute() {
-        assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = unmapped_extra::keyword");
+        assertUnmappedFieldsNameTaken(
+            "FROM test | EVAL _unmapped_fields = unmapped_extra::keyword",
+            reservedColumnNameWarning(1, 50, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
     }
 
     /**
@@ -713,8 +722,14 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      */
     public void testNameTakenWarnsEvenWhenNoUnmappedFieldCouldBeReturnedAnyway() {
         assertUnmappedFieldsNameTaken("FROM test | WHERE _unmapped_fields == \"x\" | KEEP emp_no");
-        assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no, _unmapped_fields");
-        assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\" | STATS c = COUNT(*) BY _unmapped_fields");
+        assertUnmappedFieldsNameTaken(
+            "FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no, _unmapped_fields",
+            reservedColumnNameWarning(1, 50, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
+        assertUnmappedFieldsNameTaken(
+            "FROM test | EVAL _unmapped_fields = \"mine\" | STATS c = COUNT(*) BY _unmapped_fields",
+            reservedColumnNameWarning(1, 50, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
     }
 
     /**
@@ -726,7 +741,8 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         var plan = test().statement(setUnmappedLoadAll("ROW _unmapped_fields = \"mine\""));
         assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
         assertThat(Expressions.names(plan.output()), equalTo(List.of(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
-        ensureNoWarnings();
+        // No warning that the name is taken, only the one for its _ prefix.
+        assertWarnings(reservedColumnNameWarning(1, 37, UnmappedFieldsAttribute.ATTRIBUTE_NAME));
     }
 
     /**
@@ -737,7 +753,8 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     public void testViewOnlyQueryWithColumnNamedUnmappedFieldsHasNoWarning() {
         for (String body : List.of("FROM test", "FROM test | KEEP emp_no")) {
             test().addView("v", body).statement(setUnmappedLoadAll("FROM v | EVAL _unmapped_fields = \"mine\""));
-            ensureNoWarnings();
+            // No warning that the name is taken, only the one for its _ prefix.
+            assertWarnings(reservedColumnNameWarning(1, 47, UnmappedFieldsAttribute.ATTRIBUTE_NAME));
         }
     }
 
@@ -807,7 +824,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testSubqueryBranchNamingUnmappedFieldsOmitsUnmappedFieldsAttribute() {
-        assertUnmappedFieldsNameTaken("FROM test, (FROM test | EVAL _unmapped_fields = \"mine\")");
+        assertUnmappedFieldsNameTaken(
+            "FROM test, (FROM test | EVAL _unmapped_fields = \"mine\")",
+            reservedColumnNameWarning(1, 62, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
     }
 
     /**
@@ -815,7 +835,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      * so the attribute could not survive it, and it is not added.
      */
     public void testNameTakenOnlyInTheMiddleOfThePlanOmitsUnmappedFieldsAttribute() {
-        assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\" | DROP _unmapped_fields");
+        assertUnmappedFieldsNameTaken(
+            "FROM test | EVAL _unmapped_fields = \"mine\" | DROP _unmapped_fields",
+            reservedColumnNameWarning(1, 50, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
     }
 
     /**
@@ -823,7 +846,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      * unmapped fields. The check looks at every node of the plan, so none is returned and the query warns.
      */
     public void testNameTakenInsideASubqueryBranchOmitsUnmappedFieldsAttribute() {
-        assertUnmappedFieldsNameTaken("FROM test, (FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no)");
+        assertUnmappedFieldsNameTaken(
+            "FROM test, (FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no)",
+            reservedColumnNameWarning(1, 62, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
     }
 
     /**
@@ -832,23 +858,38 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      * main query.
      */
     public void testNameTakenInTheRightSideOfInOmitsUnmappedFieldsAttribute() {
-        assertUnmappedFieldsNameTaken("FROM test | WHERE emp_no IN (FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no)");
+        assertUnmappedFieldsNameTaken(
+            "FROM test | WHERE emp_no IN (FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no)",
+            reservedColumnNameWarning(1, 79, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
     }
 
     public void testEvalNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
-        assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\"");
+        assertUnmappedFieldsNameTaken(
+            "FROM test | EVAL _unmapped_fields = \"mine\"",
+            reservedColumnNameWarning(1, 50, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
     }
 
     public void testEvalNamedUnmappedFieldsThenDropOmitsUnmappedFieldsAttribute() {
-        assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\" | DROP _unmapped_fields");
+        assertUnmappedFieldsNameTaken(
+            "FROM test | EVAL _unmapped_fields = \"mine\" | DROP _unmapped_fields",
+            reservedColumnNameWarning(1, 50, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
     }
 
     public void testRenameToUnmappedFieldsOmitsUnmappedFieldsAttribute() {
-        assertUnmappedFieldsNameTaken("FROM test | RENAME last_name AS _unmapped_fields");
+        assertUnmappedFieldsNameTaken(
+            "FROM test | RENAME last_name AS _unmapped_fields",
+            reservedColumnNameWarning(1, 65, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
     }
 
     public void testForkBranchNamingUnmappedFieldsOmitsUnmappedFieldsAttribute() {
-        assertUnmappedFieldsNameTaken("FROM test | FORK (EVAL _unmapped_fields = \"mine\") (WHERE true)");
+        assertUnmappedFieldsNameTaken(
+            "FROM test | FORK (EVAL _unmapped_fields = \"mine\") (WHERE true)",
+            reservedColumnNameWarning(1, 56, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
     }
 
     public void testForkSurfacesUnmappedFieldsAttribute() {
@@ -1149,10 +1190,15 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         }
     }
 
-    /** The query has a column named like the one of unmapped fields: it wins, there is no such attribute, and a warning says so. */
-    private void assertUnmappedFieldsNameTaken(String query) {
+    /**
+     * The query has a column named like the one of unmapped fields: it wins, there is no such attribute, and a warning says so.
+     * {@code reservedNameWarnings} are the warnings for the {@code _} prefix of that name, where the query defines the column.
+     */
+    private void assertUnmappedFieldsNameTaken(String query, String... reservedNameWarnings) {
         assertNoUnmappedFieldsAttribute(query);
-        assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+        List<String> warnings = new ArrayList<>(List.of(reservedNameWarnings));
+        warnings.add(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+        assertWarnings(warnings.toArray(String[]::new));
     }
 
     /** A lookup index with a join key and a field named like the column of unmapped fields. */

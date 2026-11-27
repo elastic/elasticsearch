@@ -69,6 +69,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering.SORTED;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.reservedColumnNameWarning;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -449,6 +450,7 @@ public class PlanFetchTests extends ESTestCase {
         assertEager(
             plan("FROM employees METADATA _source | SORT hire_date | LIMIT 10 | EVAL _doc = emp_no | KEEP first_name, _doc, _source")
         );
+        assertWarnings(reservedColumnNameWarning(1, 40, "_doc"), reservedColumnNameWarning(1, 68, "_doc"));
     }
 
     public void testNothingToDefer() {

@@ -195,8 +195,22 @@ public class BwcSetupExtension {
             // We wanna have the option to throttle the parallel execution of the bwc tasks themselves
             // e.g. for CI environments with limited resources or when running ci caching scripts
             configureBwcThrottle(project, loggedExec);
+            configureBwcCheckoutLock(project, loggedExec);
             configAction.execute(loggedExec);
         });
+    }
+
+    /**
+     * Ensures that at most one nested Gradle build runs in the bwc checkout of the given project at any time.
+     * All bwc tasks of a project share the same checkout directory and gradle user home, so running them
+     * concurrently makes the nested builds overwrite each other's outputs. Gradle only serializes tasks of the same
+     * project implicitly when the configuration cache is disabled, so we must not rely on that.
+     */
+    private static void configureBwcCheckoutLock(Project project, LoggedExec loggedExec) {
+        Provider<BwcCheckoutLock> checkoutLock = project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent("bwcCheckoutLock-" + project.getPath(), BwcCheckoutLock.class, spec -> spec.getMaxParallelUsages().set(1));
+        loggedExec.usesService(checkoutLock);
     }
 
     private static void configureBwcThrottle(Project project, LoggedExec loggedExec) {
@@ -299,4 +313,9 @@ public class BwcSetupExtension {
     }
 
     public abstract class BwcThrottle implements BuildService<BuildServiceParameters.None> {}
+
+    /**
+     * Used as a per bwc project lock, preventing nested Gradle builds from running concurrently in the same bwc checkout.
+     */
+    public abstract static class BwcCheckoutLock implements BuildService<BuildServiceParameters.None> {}
 }

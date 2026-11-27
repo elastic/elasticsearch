@@ -424,6 +424,48 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.output.contains("tests.bwc.mode=prebuilt but no pre-built snapshot artifacts were available")
     }
 
+    def "nested bwc builds of the same checkout do not run concurrently"() {
+        given: "the start and end of each bwc build task is recorded"
+        buildFile << """
+        allprojects {
+            tasks.matching { it.name in ['buildBwcDarwinTar', 'buildBwcLinuxAarch64Tar'] }.configureEach {
+                doFirst { t -> println("bwcBuildStart " + t.name + " " + System.nanoTime()) }
+                doLast { t -> println("bwcBuildEnd " + t.name + " " + System.nanoTime()) }
+            }
+        }
+        """
+
+        when:
+        // Tasks of the same project only run in parallel with the configuration cache enabled.
+        def result = gradleRunner(
+            ":distribution:bwc:major1:buildBwcDarwinTar",
+            ":distribution:bwc:major1:buildBwcLinuxAarch64Tar",
+            "--parallel",
+            "--configuration-cache",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dbwc.dist.version=8.4.0-SNAPSHOT"
+        ).build()
+
+        then:
+        result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:major1:buildBwcLinuxAarch64Tar").outcome == TaskOutcome.SUCCESS
+
+        and: "one nested build finished before the other one started"
+        def darwin = bwcBuildInterval(result.output, "buildBwcDarwinTar")
+        def linux = bwcBuildInterval(result.output, "buildBwcLinuxAarch64Tar")
+        darwin.end <= linux.start || linux.end <= darwin.start
+    }
+
+    private static Map<String, Long> bwcBuildInterval(String output, String taskName) {
+        def timestamp = { String marker ->
+            def matcher = output =~ /${marker} ${taskName} (\d+)/
+            assert matcher.find(): "Missing '${marker}' marker for task ${taskName}"
+            return matcher.group(1) as long
+        }
+        return [start: timestamp("bwcBuildStart"), end: timestamp("bwcBuildEnd")]
+    }
+
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
         setup:
         buildFile << """

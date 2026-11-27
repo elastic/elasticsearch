@@ -5,7 +5,8 @@
 # (https://github.com/elastic/promcheck) on the PR and its merge base, then reports
 # regressions, improvements, and flaky cases on the build and the PR.
 # Regressions fail the step; comparisons that cannot run are reported as warnings.
-# The grafanalabs-top100.tar.gz release asset supplies the dataset and queries.
+# The corpus named by PROMCHECK_WORKLOAD (default grafanalabs-top100) supplies the dataset and queries.
+# Oneshot can override that with a named capture from the PR comment ("buildkite run promcheck <workload>").
 #
 # Required environment for oneshot:
 #   GITHUB_PR_TARGET_BRANCH          PR target branch used to find the merge base.
@@ -15,6 +16,8 @@
 # Nightly also requires BUILDKITE_BUILD_ID and the results namespace, URL, and Vault secret
 # configured by that YAML (or PROMCHECK_RESULTS_API_KEY in place of the Vault secret).
 # Optional environment:
+#   GITHUB_PR_COMMENT_VAR_WORKLOAD   Fixture from "buildkite run promcheck <workload>"; overrides PROMCHECK_WORKLOAD.
+#   PROMCHECK_GROUP_BY               JSONPath for per-dashboard summaries (nightly: $.labels.dashboard[*]).
 #   PROMCHECK_CONCURRENCY            Cases and seeding writes promcheck keeps in flight (default: the CPU count).
 #   PROMETHEUS_COMPLIANCE_TMPDIR     Scratch/artifact parent directory (default /tmp).
 #   BUILDKITE_BUILD_URL              Build link included in the report.
@@ -109,6 +112,8 @@ promcheck_run() {
   # Keep the FIFO beside the temporary binary, outside the artifact glob.
   local stderr_log="${log_file%.log}.stderr.log" fifo="$binary.stderr.fifo"
   local stderr_pid stderr_status=0
+  local -a group_args=()
+  if [[ -n "${PROMCHECK_GROUP_BY:-}" ]]; then group_args=(--groupby "$PROMCHECK_GROUP_BY"); fi
   local -a statuses gradle_args=(
     "${GRADLEW_OPTIONS[@]}"
     --configuration-cache
@@ -126,6 +131,7 @@ promcheck_run() {
     --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
     --output json \
     --concurrency "$PROMCHECK_CONCURRENCY" \
+    "${group_args[@]}" \
     -- "${gradle_args[@]}" \
     < "$bundle" 2> "$fifo" | tee -- "$log_file"
   statuses=("${PIPESTATUS[@]}")
@@ -230,7 +236,8 @@ report() {
 # The note shown while the comparison runs. The final report reuses the same annotation context and comment key, so
 # it replaces this note instead of adding a second one.
 announce_running() {
-  annotate info "$(printf '**Promcheck running**\n\nChecking Prometheus/Elasticsearch mismatches on the merge base and this PR with promcheck v%s. The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" | report)"
+  [[ -n "${PROMCHECK_WORKLOAD:-}" ]] || die "PROMCHECK_WORKLOAD must be set"
+  annotate info "$(printf '**Promcheck running**\n\nChecking Prometheus/Elasticsearch mismatches on the merge base and this PR with promcheck v%s (`%s`). The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" "$PROMCHECK_WORKLOAD" | report)"
 }
 
 # The pipeline's first step: posts the running note as the PR comment right away. The build bot comments early once
@@ -547,6 +554,8 @@ run_nightly() (
   promcheck_run "$PWD" "$work_dir/promcheck" "$work_dir/$PROMCHECK_WORKLOAD.tar.gz" "$OUTPUT_DIR/promcheck.log" \
     || { echo "promcheck failed to complete; see run artifacts" >&2; exit 1; }
   promcheck_summary "$OUTPUT_DIR/promcheck.log" > "$OUTPUT_DIR/counts.json"
+  # One document schema: classic compliance fields plus dashboard="" (global) or a dashboard name.
+  # Per-dashboard rows come from promcheck group_summary for PROMCHECK_GROUP_BY; coverage is queried in ES.
   jq -n --slurpfile counts "$OUTPUT_DIR/counts.json" \
     --arg timestamp "$started_at" --arg commit "$revision" --arg branch "${BUILDKITE_BRANCH:-}" \
     --arg version "$PROMCHECK_VER" --arg corpus "$PROMCHECK_WORKLOAD" --arg namespace "$PROMCHECK_RESULTS_NAMESPACE" \
@@ -554,7 +563,7 @@ run_nightly() (
     --arg pipeline "${BUILDKITE_PIPELINE_SLUG:-elasticsearch-pull-request-validate-prometheus-compliance}" \
     --argjson build_number "${BUILDKITE_BUILD_NUMBER:-0}" \
     '$counts[0] as $c | {
-      "@timestamp": $timestamp, status: "ok", dataset: $corpus,
+      "@timestamp": $timestamp, status: "ok", dataset: $corpus, dashboard: "",
       data_stream: {type: "synthetics", dataset: "promql.support", namespace: $namespace},
       git: {commit: $commit, branch: $branch}, promcheck: {version: $version},
       buildkite: {build_id: $build_id, build_number: $build_number, build_url: $build_url, pipeline: $pipeline},
@@ -564,24 +573,64 @@ run_nightly() (
         executed_skip: ($c.response_filtered + $c.flaky), success_pct: ((1000 * $c.match / $c.total | round) / 10)
       }}' > "$OUTPUT_DIR/result.json"
 
+  jq -esc --arg selector "${PROMCHECK_GROUP_BY:-}" --slurpfile result "$OUTPUT_DIR/result.json" '
+    [.[] | select(.type == "group_summary"
+      and ($selector | length > 0) and .label == $selector
+      and (.value | type == "string" and length > 0))] as $groups
+    | if all($groups[];
+        (.query_total | type == "number" and . > 0 and . == floor)
+        and (.query_match | type == "number" and . >= 0 and . == floor)
+        and .query_match <= .query_total)
+      then [$result[0]] + [
+        $groups[] | . as $g | $result[0]
+          | .dashboard = $g.value
+          | .compliance = {
+              input_total: $g.query_total,
+              executed_total: $g.query_total,
+              executed_success: $g.query_match,
+              executed_failure: ($g.query_total - $g.query_match),
+              executed_error: 0,
+              executed_skip: 0,
+              success_pct: ((1000 * $g.query_match / $g.query_total | round) / 10)
+            }
+      ]
+      else error("Invalid promcheck dashboard group summary") end' \
+    "$OUTPUT_DIR/promcheck.log" > "$OUTPUT_DIR/documents.json"
+
   echo "--- Indexing promcheck results"
   # Overview stores compliance history in a data stream, which requires create operations.
-  # A stable build/corpus ID lets an upload retry recognize an already-created result.
-  doc_id=$(jq -rn --arg id "$BUILDKITE_BUILD_ID-$PROMCHECK_WORKLOAD" '$id | @uri')
-  http_status=$(curl -sS --retry 3 --connect-timeout 30 --max-time 120 -X PUT \
-    -H "Authorization: ApiKey $PROMCHECK_RESULTS_API_KEY" -H 'Content-Type: application/json' \
-    --data-binary "@$OUTPUT_DIR/result.json" -o "$OUTPUT_DIR/index-response.json" --write-out '%{http_code}' \
-    "${PROMCHECK_RESULTS_URL%/}/$PROMCHECK_RESULTS_INDEX/_create/$doc_id")
-  case "$http_status" in
-    201) jq -e '.result == "created"' "$OUTPUT_DIR/index-response.json" >/dev/null ;;
-    409) jq -e '.error.type == "version_conflict_engine_exception"' "$OUTPUT_DIR/index-response.json" >/dev/null ;;
-    *) echo "Results upload failed (HTTP $http_status); see index-response.json" >&2; exit 1 ;;
-  esac
+  # Stable build/workload/dashboard IDs allow a partially uploaded run to resume on retry.
+  while IFS= read -r document; do
+    document_id=$(jq -r --arg base "$BUILDKITE_BUILD_ID-$PROMCHECK_WORKLOAD" \
+      '($base + (if .dashboard != "" then "-dashboard-" + .dashboard else "" end)) | @uri' \
+      <<< "$document")
+    document_file="$work_dir/document.json"
+    printf '%s\n' "$document" > "$document_file"
+    http_status=$(curl -sS --retry 3 --connect-timeout 30 --max-time 120 -X PUT \
+      -H "Authorization: ApiKey $PROMCHECK_RESULTS_API_KEY" -H 'Content-Type: application/json' \
+      --data-binary "@$document_file" -o "$OUTPUT_DIR/index-response.json" --write-out '%{http_code}' \
+      "${PROMCHECK_RESULTS_URL%/}/$PROMCHECK_RESULTS_INDEX/_create/$document_id")
+    case "$http_status" in
+      201) jq -e '.result == "created"' "$OUTPUT_DIR/index-response.json" >/dev/null ;;
+      409) jq -e '.error.type == "version_conflict_engine_exception"' "$OUTPUT_DIR/index-response.json" >/dev/null ;;
+      *) echo "Results upload failed (HTTP $http_status); see index-response.json" >&2; exit 1 ;;
+    esac
+  done < <(jq -c '.[]' "$OUTPUT_DIR/documents.json")
   echo "Indexed $PROMCHECK_WORKLOAD results for $revision"
 )
 
+# Prefer a fixture named in the PR trigger comment ("buildkite run promcheck <workload>").
+apply_pr_comment_workload() {
+  local workload="${GITHUB_PR_COMMENT_VAR_WORKLOAD:-}"
+  [[ -z "$workload" ]] && return 0
+  [[ "$workload" =~ ^[A-Za-z0-9._-]+$ ]] \
+    || die "Invalid promcheck workload from PR comment: $workload"
+  export PROMCHECK_WORKLOAD="$workload"
+}
+
 case "${1:-}" in
   oneshot)
+    apply_pr_comment_workload
     case "${2:-run}" in
       notify) notify ;;
       run) run_oneshot ;;

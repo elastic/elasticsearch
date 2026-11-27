@@ -24,11 +24,15 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -265,6 +269,74 @@ public class TriangleTreeTests extends ESTestCase {
         assertThat(reconstructedCollection.get(1), equalTo(GeometryCollection.EMPTY));
     }
 
+    /**
+     * Empty parts are dropped by normalization before tessellation, but the connectivity is written from the original
+     * geometry, so it must encode them and reconstruct them as their empty geometries.
+     */
+    public void testEmptyPartsReconstruction() throws IOException, ParseException {
+        for (String wkt : List.of(
+            "GEOMETRYCOLLECTION (LINESTRING EMPTY, POINT (181 0))",
+            "GEOMETRYCOLLECTION (LINESTRING EMPTY, LINESTRING (170 0, 190 0))",
+            "GEOMETRYCOLLECTION (POINT EMPTY, POINT (1 1))",
+            "GEOMETRYCOLLECTION (BBOX EMPTY, POINT (1 1))",
+            "GEOMETRYCOLLECTION (MULTIPOINT EMPTY, LINESTRING (0 0, 1 1))",
+            "MULTILINESTRING (EMPTY, (190 0, 200 1))",
+            "MULTILINESTRING (EMPTY, (170 0, 190 0))"
+        )) {
+            Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), false, wkt);
+            GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+            List<IndexableField> fieldList = indexer.getIndexableFields(indexer.normalize(geometry));
+            CentroidCalculator centroidCalculator = new CentroidCalculator();
+            centroidCalculator.add(geometry);
+
+            BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(geometry));
+            GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+            reader.reset(bytesRef);
+            assertSameStructure(wkt, geometry, reader.getGeometry(CoordinateEncoder.GEO));
+        }
+    }
+
+    /** Multiple values are wrapped in a collection, which must not exceed the nesting depth that each value is within. */
+    public void testMultipleValuesAtMaximumNestingDepth() throws IOException {
+        Geometry deepest = new Point(1, 2);
+        for (int i = 0; i < WellKnownText.MAX_NESTED_DEPTH; i++) {
+            deepest = new GeometryCollection<>(List.of(deepest));
+        }
+        List<Geometry> values = List.of(deepest, new Point(3, 4));
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        List<IndexableField> fieldList = new ArrayList<>();
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        for (Geometry value : values) {
+            fieldList.addAll(indexer.getIndexableFields(indexer.normalize(value)));
+            centroidCalculator.add(value);
+        }
+
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, values);
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(bytesRef);
+        GeometryCollection<?> reconstructed = (GeometryCollection<?>) reader.getGeometry(CoordinateEncoder.GEO);
+        assertThat(reconstructed.size(), equalTo(2));
+        assertThat(reconstructed.get(0).type(), equalTo(ShapeType.GEOMETRYCOLLECTION));
+        assertThat(reconstructed.get(1).type(), equalTo(ShapeType.POINT));
+    }
+
+    /** Asserts that two geometries have the same types, sizes and empty parts, ignoring coordinates. */
+    private static void assertSameStructure(String wkt, Geometry expected, Geometry actual) {
+        assertThat(wkt, actual.type(), equalTo(expected.type()));
+        assertThat(wkt, actual.isEmpty(), equalTo(expected.isEmpty()));
+        if (expected instanceof GeometryCollection<?> expectedCollection) {
+            GeometryCollection<?> actualCollection = (GeometryCollection<?>) actual;
+            assertThat(wkt, actualCollection.size(), equalTo(expectedCollection.size()));
+            for (int i = 0; i < expectedCollection.size(); i++) {
+                assertSameStructure(wkt, expectedCollection.get(i), actualCollection.get(i));
+            }
+        } else if (expected instanceof Polygon expectedPolygon && expected.isEmpty() == false) {
+            assertThat(wkt, ((Polygon) actual).getNumberOfHoles(), equalTo(expectedPolygon.getNumberOfHoles()));
+        } else if (expected instanceof Line expectedLine) {
+            assertThat(wkt, ((Line) actual).length(), equalTo(expectedLine.length()));
+        }
+    }
+
     public void testFullDocValueRoundTrip() throws IOException {
         Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
@@ -335,6 +407,37 @@ public class TriangleTreeTests extends ESTestCase {
     }
 
     // ---- Legacy format backward compatibility tests ----
+
+    /**
+     * Indices created before {@link GeometryDocValueFormat#V2} keep being written in the legacy format, so its bytes
+     * must not change. The expected bytes were written by the writer as it was before the V2 format was added.
+     */
+    public void testLegacyFormatBytesUnchanged() throws IOException, ParseException {
+        assertLegacyBytes(
+            "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))",
+            "038e38e3071c71c702808080808080c0ac400e38e38e8ec7e3710100c7e3f13832c7e3f13800c7e3f1388ec7e371008ec7e37100000d60c7e3f13800"
+                + "008ec7e3710000"
+        );
+        assertLegacyBytes(
+            "LINESTRING (0 0, 5 5, 10 0)",
+            "038e38e3038e38e301c095fc80e098929640071c71c7c7e3f1380100c7e3f1381ac7e3f138c7e3f138e4f1b81c0000000b18e4f1b81c0000c7e3f138"
+        );
+        assertLegacyBytes(
+            "MULTIPOINT (1 1, 2 2, 3 3)",
+            "016c16c102d82d82008080808080808084400444444483dbe01601e096d805c2adb00b07e196d805c2adb00bc2adb00b83dbe01603040000000003"
+                + "040000"
+        );
+        assertLegacyBytes("POINT (1 2)", "00b60b6002d82d820080808080808080f83f02d82d820001e096d80500040000");
+    }
+
+    private static void assertLegacyBytes(String wkt, String expectedHex) throws IOException, ParseException {
+        Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), false, wkt);
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(geometry);
+        List<IndexableField> fields = new GeoShapeIndexer(Orientation.CCW, "test").indexShape(geometry);
+        BytesRef bytes = GeometryDocValueWriter.writeLegacy(fields, CoordinateEncoder.GEO, centroidCalculator);
+        assertThat(wkt, HexFormat.of().formatHex(bytes.bytes, bytes.offset, bytes.length), equalTo(expectedHex));
+    }
 
     public void testLegacyFormatBackwardCompatibility() throws IOException {
         Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));

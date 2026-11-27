@@ -20,11 +20,15 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.lucene.spatial.GeometryConnectivityWriter.TYPE_EMPTY_POINT;
+import static org.elasticsearch.lucene.spatial.GeometryConnectivityWriter.TYPE_EMPTY_RECTANGLE;
 import static org.elasticsearch.lucene.spatial.GeometryConnectivityWriter.TYPE_GEOMETRYCOLLECTION;
 import static org.elasticsearch.lucene.spatial.GeometryConnectivityWriter.TYPE_LINE;
 import static org.elasticsearch.lucene.spatial.GeometryConnectivityWriter.TYPE_MULTILINE;
@@ -68,7 +72,8 @@ public class GeometryConnectivityReader {
 
     /**
      * Convenience method that reads the connectivity and returns a single geometry.
-     * If multiple geometries were stored, wraps them in a {@link GeometryCollection}.
+     * If multiple geometries were stored, wraps them in a {@link GeometryCollection}. A collection already at the
+     * maximum nesting depth cannot be wrapped, so its children are added to the wrapper instead.
      */
     public static Geometry readGeometry(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
         throws IOException {
@@ -76,7 +81,29 @@ public class GeometryConnectivityReader {
         if (geometries.size() == 1) {
             return geometries.get(0);
         }
-        return new GeometryCollection<>(geometries);
+        List<Geometry> children = new ArrayList<>(geometries.size());
+        for (Geometry geometry : geometries) {
+            if (geometry.type() == ShapeType.GEOMETRYCOLLECTION && depth(geometry) >= WellKnownText.MAX_NESTED_DEPTH) {
+                for (Geometry child : (GeometryCollection<?>) geometry) {
+                    children.add(child);
+                }
+            } else {
+                children.add(geometry);
+            }
+        }
+        return new GeometryCollection<>(children);
+    }
+
+    /** The nesting depth of a geometry as {@link GeometryCollection} counts it, where multi-geometries are collections too. */
+    private static int depth(Geometry geometry) {
+        if (geometry instanceof GeometryCollection<?> collection) {
+            int deepestChild = 0;
+            for (Geometry child : collection) {
+                deepestChild = Math.max(deepestChild, depth(child));
+            }
+            return deepestChild + 1;
+        }
+        return 0;
     }
 
     private List<Geometry> readGeometries() throws IOException {
@@ -99,6 +126,8 @@ public class GeometryConnectivityReader {
             case TYPE_MULTIPOLYGON -> readMultiPolygon();
             case TYPE_GEOMETRYCOLLECTION -> readGeometryCollection();
             case TYPE_RECTANGLE -> readRectangle();
+            case TYPE_EMPTY_POINT -> Point.EMPTY;
+            case TYPE_EMPTY_RECTANGLE -> Rectangle.EMPTY;
             default -> throw new IllegalArgumentException("Unknown geometry connectivity type: " + type);
         };
     }
@@ -110,6 +139,9 @@ public class GeometryConnectivityReader {
 
     private Line readLine() throws IOException {
         int numVertices = input.readVInt();
+        if (numVertices == 0) {
+            return Line.EMPTY;
+        }
         double[] x = new double[numVertices];
         double[] y = new double[numVertices];
         readCoordinates(x, y, numVertices);
@@ -179,6 +211,11 @@ public class GeometryConnectivityReader {
             int header = input.readVInt();
             int numVertices = header >>> 1;
             boolean joined = (header & 1) == 1;
+            if (numVertices == 0) {
+                previous = null;
+                lines.add(Line.EMPTY);
+                continue;
+            }
             double[] x = new double[numVertices];
             double[] y = new double[numVertices];
             if (joined) {

@@ -44,7 +44,14 @@ import java.util.List;
  *   MULTIPOLYGON(5):       count(VInt), [POLYGON encoding]...
  *   GEOMETRYCOLLECTION(6): count(VInt), [recursive geometry]...
  *   RECTANGLE(7):          (2 vertices: min, max)
+ *   EMPTY_POINT(8):        (no vertices)
+ *   EMPTY_RECTANGLE(9):    (no vertices)
  * </pre>
+ *
+ * <p>Empty parts are kept so that reconstruction matches the source, although normalization drops them before
+ * tessellation. An empty line, or an empty line of a multi-line, has zero vertices, and an empty multi-geometry or
+ * collection a zero count. Points and rectangles have a fixed number of vertices, so their empty forms have their own
+ * types. Empty polygons are not stored, since the indexer rejects them.
  *
  * <p>Polygon rings are stored WITHOUT the closing vertex (which always equals the first vertex)
  * to save space. The closing vertex is restored during reading.
@@ -63,6 +70,8 @@ public class GeometryConnectivityWriter {
     static final byte TYPE_MULTIPOLYGON = 5;
     static final byte TYPE_GEOMETRYCOLLECTION = 6;
     static final byte TYPE_RECTANGLE = 7;
+    static final byte TYPE_EMPTY_POINT = 8;
+    static final byte TYPE_EMPTY_RECTANGLE = 9;
 
     private GeometryConnectivityWriter() {}
 
@@ -131,6 +140,10 @@ public class GeometryConnectivityWriter {
 
         @Override
         public Void visit(Point point) throws IOException {
+            if (point.isEmpty()) {
+                out.writeByte(TYPE_EMPTY_POINT);
+                return null;
+            }
             out.writeByte(TYPE_POINT);
             appendVertex(point.getX(), point.getY());
             return null;
@@ -192,6 +205,11 @@ public class GeometryConnectivityWriter {
             int prevEndX = 0;
             int prevEndY = 0;
             for (Line line : multiLine) {
+                if (line.isEmpty()) {
+                    out.writeVInt(0);
+                    previous = null;
+                    continue;
+                }
                 encodePoint(line.getX(0), line.getY(0), encodedPoint);
                 boolean joined = previous != null && encodedPoint[0] == prevEndX && encodedPoint[1] == prevEndY;
                 out.writeVInt(line.length() << 1 | (joined ? 1 : 0));
@@ -228,6 +246,10 @@ public class GeometryConnectivityWriter {
 
         @Override
         public Void visit(Rectangle rectangle) throws IOException {
+            if (rectangle.isEmpty()) {
+                out.writeByte(TYPE_EMPTY_RECTANGLE);
+                return null;
+            }
             out.writeByte(TYPE_RECTANGLE);
             appendVertex(rectangle.getMinX(), rectangle.getMinY());
             appendVertex(rectangle.getMaxX(), rectangle.getMaxY());

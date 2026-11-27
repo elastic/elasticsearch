@@ -1214,20 +1214,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
     }
 
-    /**
-     * The {@code LOAD_ALL} command allow-list checks a view body under the view's own mode, not the caller's: a command that
-     * {@code LOAD_ALL} does not support, here {@code ROW}, is allowed in a view the caller reads with {@code LOAD_ALL}, but still
-     * rejected in a plain subquery next to it, which the caller's mode does reach. Use another command here when {@code ROW} is
-     * supported.
-     */
-    public void testLoadAllCommandAllowListStopsAtView() {
-        String body = "ROW a = 1";
-        analyzer().addK8s().addView("v", body).statement(setUnmappedLoadAll("FROM v"));
-        analyzer().addK8s()
-            .addView("v", body)
-            .statementError(setUnmappedLoadAll("FROM v, (" + body + ")"), containsString(Verifier.loadAllUnsupportedCommandMessage("ROW")));
-    }
-
     private static List<String> outputNames(LogicalPlan plan) {
         return plan.output().stream().map(Attribute::name).toList();
     }

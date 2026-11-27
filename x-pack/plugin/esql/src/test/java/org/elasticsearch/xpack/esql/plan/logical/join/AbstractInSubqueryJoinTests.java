@@ -1040,6 +1040,28 @@ public class AbstractInSubqueryJoinTests extends ESTestCase {
     }
 
     /**
+     * A shard rejects a {@code terms} query longer than its {@code index.max_terms_count}, so a threshold that was set is capped at a
+     * known limit below the default. A limit that is unknown or not below the default leaves it as is, and so does a key that is not
+     * pushed to an index.
+     */
+    public void testFilterPathThresholdConfiguredValueIsCappedByAKnownLimitBelowTheDefault() {
+        FieldAttribute key = getFieldAttribute("session.id", DataType.KEYWORD);
+        SemiJoin semiJoin = semiJoin(key, relationOf(key), getFieldAttribute("session.id", DataType.KEYWORD));
+
+        int small = randomIntBetween(1, HASH_JOIN_THRESHOLD - 1);
+        int configured = randomIntBetween(small + 1, 1_000);
+        assertThat(AbstractInSubqueryJoin.filterPathThreshold(semiJoin, configured, relation -> small), equalTo(small));
+        assertThat(AbstractInSubqueryJoin.filterPathThreshold(semiJoin, 0, relation -> small), equalTo(0));
+        assertThat(AbstractInSubqueryJoin.filterPathThreshold(semiJoin, small - 1, relation -> small), equalTo(small - 1));
+        assertThat(AbstractInSubqueryJoin.filterPathThreshold(semiJoin, configured, relation -> 0), equalTo(configured));
+        assertThat(AbstractInSubqueryJoin.filterPathThreshold(semiJoin, configured, relation -> HASH_JOIN_THRESHOLD), equalTo(configured));
+
+        ReferenceAttribute computed = new ReferenceAttribute(Source.EMPTY, "computed", DataType.KEYWORD);
+        SemiJoin overComputedKey = semiJoin(computed, relationOf(key), getFieldAttribute("session.id", DataType.KEYWORD));
+        assertThat(AbstractInSubqueryJoin.filterPathThreshold(overComputedKey, configured, relation -> small), equalTo(configured));
+    }
+
+    /**
      * {@code field IN (subquery)} over an indexed field is a {@code terms} query that reads only the matching rows, so the IN list is
      * kept up to the most terms the indices accept.
      */
@@ -1150,6 +1172,26 @@ public class AbstractInSubqueryJoinTests extends ESTestCase {
             new AntiJoin(Source.EMPTY, relation, emptyLocalRelation(List.of(rightField)), List.of(key), List.of(rightField))
         );
         assertDefaultFilterPathThreshold(markJoin(key, rightField, relation));
+    }
+
+    /**
+     * The cap on a configured threshold follows the same shape rule: it applies only where the IN list is pushed to an index, which is
+     * SEMI over an indexed key.
+     */
+    public void testFilterPathThresholdConfiguredValueIsCappedOnlyForSemiJoin() {
+        FieldAttribute key = getFieldAttribute("session.id", DataType.KEYWORD);
+        FieldAttribute rightField = getFieldAttribute("session.id", DataType.KEYWORD);
+        EsRelation relation = relationOf(key);
+        int configured = HASH_JOIN_THRESHOLD;
+        int small = configured / 2;
+
+        AntiJoin anti = new AntiJoin(Source.EMPTY, relation, emptyLocalRelation(List.of(rightField)), List.of(key), List.of(rightField));
+        assertThat(AbstractInSubqueryJoin.filterPathThreshold(anti, configured, r -> small), equalTo(configured));
+        assertThat(
+            AbstractInSubqueryJoin.filterPathThreshold(markJoin(key, rightField, relation), configured, r -> small),
+            equalTo(configured)
+        );
+        assertThat(AbstractInSubqueryJoin.filterPathThreshold(semiJoin(key, relation, rightField), configured, r -> small), equalTo(small));
     }
 
     /**

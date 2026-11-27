@@ -23,6 +23,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
@@ -32,6 +34,7 @@ public class InMemoryViewResolver extends ViewResolver {
     protected Supplier<ViewMetadata> metadata;
     protected IndexNameExpressionResolver indexNameExpressionResolver;
     private final Executor searchExecutor;
+    private final List<List<String>> requestedIndices = new CopyOnWriteArrayList<>();
 
     public InMemoryViewResolver(
         ThreadPool threadPool,
@@ -59,6 +62,7 @@ public class InMemoryViewResolver extends ViewResolver {
         EsqlResolveViewAction.Request request,
         ActionListener<EsqlResolveViewAction.Response> listener
     ) {
+        requestedIndices.add(List.of(request.indices()));
         var action = new EsqlResolveViewAction(
             mock(TransportService.class),
             ActionFilters.EMPTY,
@@ -69,6 +73,10 @@ public class InMemoryViewResolver extends ViewResolver {
         // Fork the response like ViewResolver#doEsqlResolveViewsRequest does: completing inline would resolve every view body on
         // the caller's stack, which can overflow a 1MB thread stack on deeply nested views and leave the listener uncompleted.
         action.execute(mock(Task.class), request, new ThreadedActionListener<>(searchExecutor, listener));
+    }
+
+    public List<List<String>> requestedIndices() {
+        return requestedIndices;
     }
 
     public void close() {

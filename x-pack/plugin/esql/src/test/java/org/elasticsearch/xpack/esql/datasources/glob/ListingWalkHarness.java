@@ -130,6 +130,29 @@ public final class ListingWalkHarness implements StorageProvider {
      */
     public static final int WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS = WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES - WIDE_HIVE_PREFIXES;
 
+    /**
+     * Compact 10-prefix × 90-day Hive tree for the min-sample walk pin. First account's 1 Jan folder
+     * has {@link #RETENTION_HIVE_QUIET_FILES} objects; other accounts' 1 Jan folders are dense. Remaining
+     * days have one file so {@code estimatedPrefixWidth} lands in the 90-day band. One {@code _temporary}
+     * junk dir sits next to 1 Jan under the first account so {@code indexOfFirstShapedDir} is not 0.
+     */
+    public static final int RETENTION_HIVE_ACCOUNTS = 10;
+    public static final int RETENTION_HIVE_DAYS = 90;
+    public static final int RETENTION_HIVE_QUIET_FILES = 2;
+    public static final int RETENTION_HIVE_DENSE_FILES = 40;
+    public static final int RETENTION_HIVE_MATCHING_FILES = RETENTION_HIVE_QUIET_FILES + (RETENTION_HIVE_ACCOUNTS - 1)
+        * RETENTION_HIVE_DENSE_FILES;
+    public static final String RETENTION_HIVE_PREFIX = "s3://bucket/ret";
+    /**
+     * Globstar so grain-IN cannot splice a day folder and skip the walk. Listing hints still prune
+     * month/day by folder value; folder-range on a directory path drops the leaf name. The globstar
+     * is concatenated so checkstyle does not read it as an empty javadoc.
+     */
+    public static final String RETENTION_HIVE_GLOB = RETENTION_HIVE_PREFIX + "/" + "**/*.parquet";
+    /** Matching day of {@link #retentionHiveTree()}: 1 January 2026 UTC. */
+    public static final Instant RETENTION_HIVE_DAY_START = Instant.parse("2026-01-01T00:00:00Z");
+    public static final Instant RETENTION_HIVE_DAY_END = Instant.parse("2026-01-02T00:00:00Z");
+
     private static final String[] WIDE_HIVE_REGIONS = {
         "us-east-1",
         "us-east-2",
@@ -321,6 +344,48 @@ public final class ListingWalkHarness implements StorageProvider {
         }
     }
 
+    /** Quiet first matching day, dense siblings. See {@link #RETENTION_HIVE_ACCOUNTS}. */
+    public static List<StorageEntry> retentionHiveTree() {
+        return retentionHiveTree(RETENTION_HIVE_QUIET_FILES, RETENTION_HIVE_DENSE_FILES);
+    }
+
+    /**
+     * Same 10-prefix × 90-day layout as {@link #retentionHiveTree()} with {@code firstMatchingFiles} under
+     * account a00's 1 Jan folder and {@code otherMatchingFiles} under the other accounts' 1 Jan folders.
+     */
+    public static List<StorageEntry> retentionHiveTree(int firstMatchingFiles, int otherMatchingFiles) {
+        LocalDate start = LocalDate.of(2026, 1, 1);
+        LocalDate end = LocalDate.of(2026, 3, 31);
+        List<StorageEntry> entries = new ArrayList<>();
+        int days = 0;
+        for (LocalDate day = start; day.isAfter(end) == false; day = day.plusDays(1)) {
+            days++;
+            for (int a = 0; a < RETENTION_HIVE_ACCOUNTS; a++) {
+                String account = String.format(Locale.ROOT, "a%02d", a);
+                String prefix = RETENTION_HIVE_PREFIX + "/account=" + account;
+                int files;
+                if (day.equals(start)) {
+                    files = a == 0 ? firstMatchingFiles : otherMatchingFiles;
+                } else {
+                    files = 1;
+                }
+                addRetentionDay(entries, prefix, day, files);
+            }
+        }
+        assert days == RETENTION_HIVE_DAYS : days;
+        // Unshaped, sorts before {@code day=*}. {@code .txt} misses the parquet glob so finish does not
+        // keep it and the name-filter tally stays 0.
+        entries.add(entry(RETENTION_HIVE_PREFIX + "/account=a00/year=2026/month=01/_temporary/x.txt"));
+        return entries;
+    }
+
+    private static void addRetentionDay(List<StorageEntry> entries, String prefix, LocalDate day, int files) {
+        String folder = prefix + "/year=" + day.getYear() + "/month=" + pad2(day.getMonthValue()) + "/day=" + pad2(day.getDayOfMonth());
+        for (int n = 0; n < files; n++) {
+            entries.add(entry(folder + "/f-" + n + ".parquet"));
+        }
+    }
+
     /**
      * 154-prefix Hive VPC tree: padded {@code month}/{@code day}/{@code hour}, 1 June (match), 2 June and 1 July
      * (prune siblings), {@link #WIDE_HIVE_HOURS} hours × {@link #WIDE_HIVE_FILES_PER_LEAF} files per leaf.
@@ -336,6 +401,18 @@ public final class ListingWalkHarness implements StorageProvider {
     public static List<StorageEntry> wideHiveSevenDayTree() {
         List<LocalDate> days = new ArrayList<>(WIDE_HIVE_SEVEN_DAYS + 1);
         for (int d = 1; d <= WIDE_HIVE_SEVEN_DAYS; d++) {
+            days.add(LocalDate.of(2026, 6, d));
+        }
+        days.add(LocalDate.of(2026, 7, 1));
+        return wideHiveTree(days);
+    }
+
+    /** June 1–30 plus 1 July. Hour-grain peeks of pruned June days exceed the 3000 directory ceiling. */
+    public static final int WIDE_HIVE_JUNE_DAYS = 30;
+
+    public static List<StorageEntry> wideHiveJuneTree() {
+        List<LocalDate> days = new ArrayList<>(WIDE_HIVE_JUNE_DAYS + 1);
+        for (int d = 1; d <= WIDE_HIVE_JUNE_DAYS; d++) {
             days.add(LocalDate.of(2026, 6, d));
         }
         days.add(LocalDate.of(2026, 7, 1));

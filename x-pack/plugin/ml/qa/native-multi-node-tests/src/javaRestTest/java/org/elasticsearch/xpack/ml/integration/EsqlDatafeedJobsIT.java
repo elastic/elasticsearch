@@ -56,7 +56,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     private static final TimeValue BUCKET_SPAN = TimeValue.timeValueHours(1);
     // Large epoch-millis anchor: values of 10 digits or fewer are read as seconds by flush's skip_time. It must be a whole
-    // multiple of BUCKET_SPAN because the chunked extractor aligns the window to the grouping interval.
+    // multiple of BUCKET_SPAN because the chunked extractor aligns the window to the time bucket.
     private static final int ROW_LIMIT = Math.toIntExact(EsqlDataExtractor.INJECTED_ROW_LIMIT);
     private static final long BASE_TIME = 472_222 * BUCKET_SPAN.millis();
     private static final long FIRST_WINDOW_END = BASE_TIME + BUCKET_SPAN.millis();
@@ -200,8 +200,6 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         putJob(createJob(jobId, bucketSpan));
         putDatafeed(
             new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + index + " | KEEP event_time, value")
-                .setSourceTimeField("event_time")
-                .setGroupingInterval(bucketSpan)
                 .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueDays(1)))
                 .setFrequency(bucketSpan)
                 .setQueryDelay(bucketSpan)
@@ -249,8 +247,6 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         putJob(createJob(jobId, bucketSpan));
         putDatafeed(
             new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + index + " | KEEP event_time, value")
-                .setSourceTimeField("event_time")
-                .setGroupingInterval(bucketSpan)
                 .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueDays(1)))
                 .setFrequency(bucketSpan)
                 .setQueryDelay(bucketSpan)
@@ -293,7 +289,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     private void assertPreviewAndLookbackRowCount(String jobId, String query, long expectedRecords) throws Exception {
         String datafeedId = jobId + "-datafeed";
         putJob(createJob(jobId));
-        // ES|QL datafeeds require chunking (grouping-interval alignment and truncation detection depend on it);
+        // ES|QL datafeeds require chunking (time bucket alignment and truncation detection depend on it);
         // a manual chunk spanning the whole test window behaves like no chunking here.
         putDatafeed(createDatafeed(datafeedId, jobId, query, ChunkingConfig.newManual(BUCKET_SPAN)));
 
@@ -319,7 +315,6 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         // These tests exercise LIMIT injection and chunk-truncation auditing, not delayed
         // data detection, which for ES|QL datafeeds separately requires summary_count_field_name.
         return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery(query)
-            .setGroupingInterval(BUCKET_SPAN)
             .setChunkingConfig(chunkingConfig)
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
             .build();

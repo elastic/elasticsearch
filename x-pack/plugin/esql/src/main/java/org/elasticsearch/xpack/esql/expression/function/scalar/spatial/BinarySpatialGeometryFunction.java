@@ -116,12 +116,9 @@ public abstract class BinarySpatialGeometryFunction extends EsqlScalarFunction {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object doFold(Source source, FoldContext ctx) {
         Object leftVal = left.fold(ctx);
         Object rightVal = right.fold(ctx);
-        if (leftVal == null || rightVal == null) {
-            return null;
-        }
         try {
             Geometry leftJts = toJts(leftVal);
             Geometry rightJts = toJts(rightVal);

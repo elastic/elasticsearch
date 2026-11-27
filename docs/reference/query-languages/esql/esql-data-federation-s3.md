@@ -3,7 +3,7 @@ navigation_title: "Amazon S3"
 description: "Connect ES|QL Data Federation to Amazon S3. Choose an authentication model and grant the IAM permissions Elasticsearch needs to read your data."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -11,9 +11,6 @@ products:
 # Amazon S3 data sources for {{esql}} Data Federation
 
 An `s3` [data source](esql-data-federation-sources.md) reads files from Amazon S3. This page compares the authentication models, lists the AWS Identity and Access Management (IAM) permissions {{es}} needs to read your data, and explains how to troubleshoot access errors. For step-by-step setup, follow the guide for your authentication model.
-
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
 
 ## Choose an authentication model [s3-auth-models]
 
@@ -46,16 +43,18 @@ For `anonymous` data sources, the bucket policy must allow public access to the 
 
 To confirm the data source can read a dataset, run a query against the dataset. Creating a dataset doesn't contact S3.
 
-{applies_to}`stack: preview 9.6+` The [test connection](esql-data-federation-sources.md#test-a-connection) endpoint confirms that the data source's credentials are valid, but not that they can read a particular bucket or path. For `s3` data sources it calls `ListBuckets`, so credentials scoped to specific buckets, return `untestable` rather than `success`. A `failure` result means the request couldn't reach S3 or S3 rejected the credentials, for example because a key was deleted or rotated.
+<!--
+{applies_to}`stack: preview 9.7+` {applies_to}`serverless: preview` The [test connection](esql-data-federation-manage-data-sources.md#test-a-connection) endpoint confirms that the data source's credentials are valid, but not that they can read a particular bucket or path. For `s3` data sources it calls `ListBuckets`, so credentials scoped to specific buckets, return `untestable` rather than `success`. A `failure` result means the request couldn't reach S3 or S3 rejected the credentials, for example because a key was deleted or rotated.
+-->
 
 ### Troubleshoot access errors [s3-access-errors]
 
 {{es}} doesn't check permissions when you create a dataset. A missing permission shows up as an error the first time you query the dataset:
 
-`Access denied reading [<file>]` {applies_to}`stack: preview 9.6+`
+`Access denied reading [<file>]` {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 :   The identity can't read an object. Allow `s3:GetObject` on the object's path. If the message names a `kms:` action, the object is encrypted with a KMS key the identity can't use. Allow that action on the key.
 
-`Access denied listing objects in the configured path` {applies_to}`stack: preview 9.6+`
+`Access denied listing objects in the configured path` {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 :   The identity can't list the bucket. Allow `s3:ListBucket` on the bucket, or change the dataset's resource to an exact file path.
 
 `Access denied listing objects in bucket [<bucket>] with prefix [<prefix>]` {applies_to}`stack: experimental =9.5`

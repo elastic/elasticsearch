@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
@@ -194,15 +193,7 @@ public class WatcherServiceTests extends ESTestCase {
             // empty scroll response, no further scrolling needed
             ActionListener.respondAndRelease(
                 listener,
-                SearchResponseUtils.emptyWithTotalHits(
-                    "scrollId",
-                    1,
-                    1,
-                    0,
-                    10,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
-                )
+                SearchResponseUtils.emptyWithTotalHits("scrollId", 1, 1, 0, 10, List.of(), SearchResponse.Clusters.EMPTY)
             );
             return null;
         }).when(client).execute(eq(TransportSearchScrollAction.TYPE), any(SearchScrollRequest.class), anyActionListener());

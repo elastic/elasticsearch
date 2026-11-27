@@ -19,6 +19,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -36,9 +37,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Holds all the information that is used to build the sort order of an index.
@@ -58,10 +62,45 @@ import java.util.function.Supplier;
  *     </li>
  * </ul>
  *
+ * Alternatively the sort can be configured with the single `index.sort` expression setting, for example
+ * `MV_MAX(@timestamp) DESC NULLS LAST, host.name`. It is stored as is, and the four settings above then default to
+ * empty rather than to the index mode defaults. It can't be combined with them.
+ *
 **/
 public final class IndexSortConfig {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndexSortConfig.class);
+
+    /**
+     * Expression that configures all index sort fields at once, in the ES|QL {@code SORT} syntax that the {@link IndexSortParser}
+     * reads: a comma-separated list of {@code key [ASC|DESC] [NULLS FIRST|NULLS LAST]} entries where {@code key} is a field,
+     * {@code MV_MIN(field)}, {@code MV_MAX(field)} or an expression that computes the key. Like in ES|QL, {@code DESC} defaults to
+     * {@code NULLS FIRST}, unlike {@code index.sort.missing}, which defaults to {@code _last} for both orders.
+     * <p>
+     * It is stored as is, so that reading back the settings returns what was written. When set, {@link IndexSortConfig} is built
+     * from it directly and the {@code index.sort.*} settings are not consulted. It has no default to report, which keeps
+     * {@code include_defaults} from emitting an {@code index.sort} value next to the nested {@code index.sort.*} settings.
+     */
+    public static final Setting<String> INDEX_SORT_SETTING = new Setting<>("index.sort", "", s -> s, new Setting.Validator<String>() {
+        @Override
+        public void validate(String value) {
+            if (value.isEmpty()) {
+                return;
+            }
+            if (value.isBlank()) {
+                throw new IllegalArgumentException("setting [" + INDEX_SORT_SETTING.getKey() + "] must not be blank");
+            }
+            // Without the parser, the index fails to be created instead
+            if (IndexSortParser.get() != null) {
+                parseSortExpression(value);
+            }
+        }
+    }, Setting.Property.IndexScope, Setting.Property.Final, Setting.Property.ServerlessPublic) {
+        @Override
+        public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+            // Input only: never report the empty default, see the Javadoc above.
+        }
+    };
 
     /**
      * The list of field names
@@ -175,6 +214,11 @@ public final class IndexSortConfig {
                 return NO_SORT;
             }
 
+            // The index.sort expression replaces the index.sort.* settings, so they have no index mode defaults to report.
+            if (settings.get(INDEX_SORT_SETTING.getKey(), "").isEmpty() == false) {
+                return NO_SORT;
+            }
+
             // Can't use IndexSettings.MODE.get(settings) here because the validation logic for IndexSettings.MODE uses the default value
             // of index.sort.*, which causes infinite recursion (since we're already in the default value provider for those settings).
             // So we need to get the mode while bypassing the validation.
@@ -263,6 +307,47 @@ public final class IndexSortConfig {
         }
     }
 
+    /**
+     * One entry of an {@link #INDEX_SORT_SETTING} expression, with the order, multi-value mode and missing value already resolved
+     * to their ES|QL defaults.
+     *
+     * @param field the field to sort on, or {@code null} for a computed key
+     * @param computedKey the text of a key computed by an expression, anything but a field or {@code MV_MIN} or {@code MV_MAX} of
+     *                    one, such as {@code DATE_TRUNC(1 hour, @timestamp)}
+     * @param computedKeyFields the fields that the computed key reads
+     */
+    public record SortEntry(
+        @Nullable String field,
+        SortOrder order,
+        MultiValueMode mode,
+        String missing,
+        @Nullable String computedKey,
+        Set<String> computedKeyFields
+    ) {
+        public static SortEntry onField(String field, SortOrder order, MultiValueMode mode, String missing) {
+            return new SortEntry(field, order, mode, missing, null, Set.of());
+        }
+
+        public static SortEntry onComputedKey(String key, SortOrder order, String missing, Set<String> fields) {
+            return new SortEntry(null, order, order == SortOrder.DESC ? MultiValueMode.MAX : MultiValueMode.MIN, missing, key, fields);
+        }
+    }
+
+    /**
+     * Parses an {@link #INDEX_SORT_SETTING} expression into its sort entries, with the {@link IndexSortParser}.
+     */
+    public static List<SortEntry> parseSortExpression(String expression) {
+        return parser().parse(expression);
+    }
+
+    private static IndexSortParser parser() {
+        IndexSortParser parser = IndexSortParser.get();
+        if (parser == null) {
+            throw new IllegalArgumentException("setting [" + INDEX_SORT_SETTING.getKey() + "] requires the ES|QL plugin");
+        }
+        return parser;
+    }
+
     private static String validateMissingValue(String missing) {
         if ("_last".equals(missing) == false && "_first".equals(missing) == false) {
             throw new IllegalArgumentException("Illegal missing value:[" + missing + "], " + "must be one of [_last, _first]");
@@ -294,7 +379,39 @@ public final class IndexSortConfig {
         }
     }
 
-    private static void validateSortSettings(Settings settings) {
+    /**
+     * The sort fields of an index, from {@link #INDEX_SORT_SETTING} if it is set and from {@link #INDEX_SORT_FIELD_SETTING}
+     * (or its default) otherwise, one per sort entry so a field can repeat, for example {@code MV_MIN(a), MV_MAX(a)}. Doesn't
+     * include the slice key or the fields of computed keys, see {@link #fields()}.
+     */
+    public static List<String> sortFields(Settings settings) {
+        String expression = settings.get(INDEX_SORT_SETTING.getKey(), "");
+        if (expression.isEmpty()) {
+            return INDEX_SORT_FIELD_SETTING.get(settings);
+        }
+        return parseSortExpression(expression).stream().map(SortEntry::field).filter(Objects::nonNull).toList();
+    }
+
+    /**
+     * Checks the sort settings together. Only checks the fields of an {@link #INDEX_SORT_SETTING} expression if the
+     * {@link IndexSortParser} is loaded, see {@link IndexSettings#getIndexSortConfig()}.
+     */
+    static void validateSortSettings(Settings settings) {
+        boolean hasSortExpression = settings.get(INDEX_SORT_SETTING.getKey(), "").isEmpty() == false;
+        if (hasSortExpression) {
+            for (Setting<?> setting : new Setting<?>[] {
+                INDEX_SORT_FIELD_SETTING,
+                INDEX_SORT_ORDER_SETTING,
+                INDEX_SORT_MODE_SETTING,
+                INDEX_SORT_MISSING_SETTING }) {
+                if (setting.exists(settings)) {
+                    throw new IllegalArgumentException(
+                        "setting [" + INDEX_SORT_SETTING.getKey() + "] cannot be combined with [" + setting.getKey() + "]"
+                    );
+                }
+            }
+        }
+
         if (INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
             for (Setting<?> setting : new Setting<?>[] { INDEX_SORT_ORDER_SETTING, INDEX_SORT_MODE_SETTING, INDEX_SORT_MISSING_SETTING }) {
                 if (setting.exists(settings)) {
@@ -305,16 +422,16 @@ public final class IndexSortConfig {
             }
         }
 
-        if (IndexSettings.SLICE_ENABLED.get(settings) && INDEX_SORT_FIELD_SETTING.exists(settings)) {
-            List<String> fields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
-            for (String field : fields) {
+        if (IndexSettings.SLICE_ENABLED.get(settings)
+            && (INDEX_SORT_FIELD_SETTING.exists(settings) || (hasSortExpression && IndexSortParser.get() != null))) {
+            for (String field : sortFields(settings)) {
                 if (field.equals(RoutingFieldMapper.NAME)
                     || field.equals(SliceIndexing.FIELD_NAME)
                     || field.equals(SliceIndexing.SLICE_KEY_FIELD_NAME)
                     || field.equals(SliceIndexing.SLICE_HASH_FIELD_NAME)) {
                     throw new IllegalArgumentException(
                         "setting ["
-                            + INDEX_SORT_FIELD_SETTING.getKey()
+                            + (hasSortExpression ? INDEX_SORT_SETTING.getKey() : INDEX_SORT_FIELD_SETTING.getKey())
                             + "] must not contain ["
                             + RoutingFieldMapper.NAME
                             + "], ["
@@ -331,6 +448,10 @@ public final class IndexSortConfig {
             }
         }
 
+        if (hasSortExpression) {
+            return;
+        }
+
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
 
         var order = INDEX_SORT_ORDER_SETTING.get(settings);
@@ -345,30 +466,64 @@ public final class IndexSortConfig {
 
     // visible for tests
     final FieldSortSpec[] sortSpecs;
+    private final IndexSettings indexSettings;
+    private final Set<String> fields;
     private final IndexVersion indexCreatedVersion;
     private final String indexName;
     private final IndexMode indexMode;
     private final boolean sliceEnabled;
 
     public IndexSortConfig(IndexSettings indexSettings) {
+        this.indexSettings = indexSettings;
         final Settings settings = indexSettings.getSettings();
         this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
         this.indexName = indexSettings.getIndex().getName();
         this.indexMode = indexSettings.getMode();
         this.sliceEnabled = indexSettings.isSliceEnabled();
 
-        validateSortSettings(settings);
-
-        List<String> fields = new ArrayList<>(INDEX_SORT_FIELD_SETTING.get(settings));
-        List<SortOrder> orders = new ArrayList<>(INDEX_SORT_ORDER_SETTING.get(settings));
-        List<MultiValueMode> modes = new ArrayList<>(INDEX_SORT_MODE_SETTING.get(settings));
-        List<String> missingValues = new ArrayList<>(INDEX_SORT_MISSING_SETTING.get(settings));
+        List<String> fields;
+        List<SortOrder> orders;
+        List<MultiValueMode> modes;
+        List<String> missingValues;
+        List<String> computedKeys;
+        String expression = settings.get(INDEX_SORT_SETTING.getKey(), "");
+        if (expression.isEmpty()) {
+            fields = new ArrayList<>(INDEX_SORT_FIELD_SETTING.get(settings));
+            orders = new ArrayList<>(INDEX_SORT_ORDER_SETTING.get(settings));
+            modes = new ArrayList<>(INDEX_SORT_MODE_SETTING.get(settings));
+            missingValues = new ArrayList<>(INDEX_SORT_MISSING_SETTING.get(settings));
+            computedKeys = new ArrayList<>(Collections.nCopies(fields.size(), null));
+            this.fields = Set.copyOf(fields);
+        } else {
+            // Nodes that read older index versions don't know the setting
+            if (indexCreatedVersion.before(IndexVersions.INDEX_SORT_EXPRESSION)) {
+                throw new IllegalArgumentException(
+                    "setting ["
+                        + INDEX_SORT_SETTING.getKey()
+                        + "] requires an index created after all nodes support it, use ["
+                        + INDEX_SORT_FIELD_SETTING.getKey()
+                        + "] instead"
+                );
+            }
+            List<SortEntry> entries = parseSortExpression(expression);
+            // A computed key has no field, its spec is named after its text
+            fields = new ArrayList<>(entries.stream().map(e -> e.computedKey() != null ? e.computedKey() : e.field()).toList());
+            orders = new ArrayList<>(entries.stream().map(SortEntry::order).toList());
+            modes = new ArrayList<>(entries.stream().map(SortEntry::mode).toList());
+            missingValues = new ArrayList<>(entries.stream().map(SortEntry::missing).toList());
+            computedKeys = new ArrayList<>(entries.stream().map(SortEntry::computedKey).toList());
+            this.fields = entries.stream()
+                .flatMap(e -> e.field() != null ? Stream.of(e.field()) : e.computedKeyFields().stream())
+                .collect(Collectors.toUnmodifiableSet());
+        }
         if (indexSettings.isSliceEnabled()) {
             prependSliceKeySort(fields, orders, modes, missingValues);
+            computedKeys.addFirst(null);
         }
         sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].order = orders.get(i);
+            sortSpecs[i].computedKey = computedKeys.get(i);
         }
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].mode = modes.get(i);
@@ -402,12 +557,12 @@ public final class IndexSortConfig {
     }
 
     public boolean hasPrimarySortOnField(String field) {
-        return sortSpecs.length > 0 && sortSpecs[0].field.equals(field);
+        return sortSpecs.length > 0 && sortSpecs[0].sortsOnField(field);
     }
 
     public boolean containsDescendingTimestampSort() {
         for (FieldSortSpec sort : sortSpecs) {
-            if (sort.order == SortOrder.DESC && sort.field.equals("@timestamp")) {
+            if (sort.order == SortOrder.DESC && sort.sortsOnField("@timestamp")) {
                 return true;
             }
         }
@@ -429,6 +584,13 @@ public final class IndexSortConfig {
         final SortField[] sortFields = new SortField[sortSpecs.length];
         for (int i = 0; i < sortSpecs.length; i++) {
             FieldSortSpec sortSpec = sortSpecs[i];
+            if (sortSpec.computedKey != null) {
+                boolean reverse = sortSpec.order == SortOrder.DESC;
+                boolean nullsFirst = "_first".equals(sortSpec.missingValue);
+                sortFields[i] = parser().resolve(sortSpec.computedKey, reverse, nullsFirst, indexSettings, fieldTypeLookup);
+                validateIndexSortField(sortFields[i]);
+                continue;
+            }
             // This is only necessary because of the logic of "{}" empty mappings.
             // metadata fields are not eagerly loaded as mapped fields, so if we have slice enabled, and no mapped fields, we get an empty
             // lookup and must resolve the slice key field type directly.
@@ -485,14 +647,23 @@ public final class IndexSortConfig {
 
     private static void validateIndexSortField(SortField sortField) {
         SortField.Type type = getSortFieldType(sortField);
-        if (ALLOWED_INDEX_SORT_TYPES.contains(type) == false) {
+        // Lucene rejects sort fields without an IndexSorter (e.g. custom comparator sources) when the IndexWriter is opened
+        if (ALLOWED_INDEX_SORT_TYPES.contains(type) == false || sortField.getIndexSorter() == null) {
             throw new IllegalArgumentException("invalid index sort field:[" + sortField.getField() + "]");
         }
     }
 
+    /**
+     * The fields that this sort reads, including those of its computed keys but not the slice key. The mapping must keep them
+     * sortable.
+     */
+    public Set<String> fields() {
+        return fields;
+    }
+
     public boolean hasSortOnField(final String fieldName) {
         for (FieldSortSpec sortSpec : sortSpecs) {
-            if (sortSpec.field.equals(fieldName)) {
+            if (sortSpec.sortsOnField(fieldName)) {
                 return true;
             }
         }
@@ -504,9 +675,17 @@ public final class IndexSortConfig {
         SortOrder order;
         MultiValueMode mode;
         String missingValue;
+        /** The text of a computed key, see {@link SortEntry#computedKey()}, in which case {@link #field} is that text too. */
+        @Nullable
+        String computedKey;
 
         FieldSortSpec(String field) {
             this.field = field;
+        }
+
+        /** Whether this sorts on the field, which a computed key named like the field doesn't. */
+        boolean sortsOnField(String fieldName) {
+            return computedKey == null && field.equals(fieldName);
         }
 
         public String getField() {

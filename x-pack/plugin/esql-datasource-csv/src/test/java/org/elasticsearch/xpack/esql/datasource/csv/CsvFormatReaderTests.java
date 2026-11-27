@@ -68,6 +68,7 @@ import org.junit.Before;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -76,6 +77,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -88,6 +90,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 public class CsvFormatReaderTests extends ESTestCase {
@@ -1156,6 +1160,58 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("draining to exhaustion then closing must leave the breaker at zero", 0L, breaker[0].getUsed());
     }
 
+    /**
+     * A node-singleton reader stays on its construction factory. {@code withBlockFactory} copies
+     * configuration onto a per-read factory. The node breaker is one byte, so any sample or page
+     * that still hit it would trip; success plus live usage on the per-read breaker is the proof.
+     */
+    public void testWithBlockFactoryChargesThePerReadBreakerNotTheNodeFactory() throws IOException {
+        LimitedBreaker nodeBreaker = new LimitedBreaker("node", ByteSizeValue.ofBytes(1));
+        CircuitBreaker[] readBreaker = new CircuitBreaker[1];
+        BlockFactory nodeFactory = new BlockFactory(nodeBreaker, BigArrays.NON_RECYCLING_INSTANCE);
+        BlockFactory readFactory = trackingBlockFactory(readBreaker);
+        CsvFormatReader nodeReader = new CsvFormatReader(nodeFactory);
+        assertSame("same factory is a no-op so the node singleton is unchanged", nodeReader, nodeReader.withBlockFactory(nodeFactory));
+        CsvFormatReader perRead = nodeReader.withBlockFactory(readFactory);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+
+        String csv = "id,name\n1,Alice\n2,Bob\n";
+        try (CloseableIterator<Page> iterator = perRead.read(createStorageObject(csv), List.of("id", "name"), 8)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertThat("per-read page allocations must hit the bound factory", readBreaker[0].getUsed(), Matchers.greaterThan(0L));
+            assertEquals("the node singleton must not see those allocations", 0L, nodeBreaker.getUsed());
+            page.releaseBlocks();
+        }
+        assertEquals(0L, readBreaker[0].getUsed());
+        assertEquals(0L, nodeBreaker.getUsed());
+    }
+
+    /**
+     * {@code withBlockFactory} (every split after the per-query factory) and {@code withReadConfig}
+     * (every file) copy the reader with the same {@code WITH} options. Rebuilding {@code CsvMapper}
+     * there is wasted work; the copy must keep the receiver's mapper.
+     */
+    public void testWithBlockFactoryReusesSharedCsvMapper() {
+        BlockFactory other = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        CsvFormatReader nodeReader = new CsvFormatReader(blockFactory);
+        CsvFormatReader perRead = nodeReader.withBlockFactory(other);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+        assertSame(
+            "withBlockFactory must reuse sharedCsvMapper; options are unchanged",
+            nodeReader.sharedCsvMapper(),
+            perRead.sharedCsvMapper()
+        );
+
+        CsvFormatReader perFile = nodeReader.withReadConfig("0123456789abcdef0123456789abcdef");
+        assertNotSame(nodeReader, perFile);
+        assertSame(
+            "withReadConfig must reuse sharedCsvMapper; options are unchanged",
+            nodeReader.sharedCsvMapper(),
+            perFile.sharedCsvMapper()
+        );
+    }
+
     public void testReadWithBatching() throws IOException {
         StringBuilder csv = new StringBuilder("id:long,value:integer\n");
         for (int i = 1; i <= 25; i++) {
@@ -2051,13 +2107,53 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(e.getMessage(), Matchers.containsString("Expected 'name:type'"));
     }
 
+    public void testHeaderTextIsNotEchoedWholeIntoTheError() {
+        String blob = "HEADER_START_" + "Z".repeat(200_000) + "_HEADER_END";
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        ExternalClientException unknownType = expectThrows(
+            ExternalClientException.class,
+            () -> reader.schema(createStorageObject("id:" + blob + "\n"))
+        );
+        ExternalClientException malformed = expectThrows(
+            ExternalClientException.class,
+            () -> reader.schema(createStorageObject("id:long," + blob + ":a:b\n"))
+        );
+        ExternalClientException duplicates = expectThrows(
+            ExternalClientException.class,
+            () -> reader.schema(createStorageObject(blob + ":long," + blob + ":long\n"))
+        );
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
+        CsvFormatReader declared = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredProvenanceBinding(true);
+        Exception binding = expectThrows(
+            IllegalArgumentException.class,
+            () -> declared.read(
+                createStorageObject(blob + ",ts," + blob + "\n1,2,3\n"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+
+        for (Exception failure : List.of(unknownType, malformed, duplicates, binding)) {
+            String message = failure.getMessage();
+            assertThat("header text carried whole", message.length(), lessThan(2048));
+            assertThat(message, containsString("HEADER_START_"));
+            assertThat(message, containsString("_HEADER_END"));
+            assertThat(message, containsString("truncated"));
+        }
+        assertThat(unknownType.getMessage(), containsString(blob.length() + " chars total"));
+        assertThat(malformed.getMessage(), containsString((blob.length() + ":a:b".length()) + " chars total"));
+        assertThat(duplicates.getMessage(), containsString((blob.length() + "['']".length()) + " chars total"));
+        assertThat(binding.getMessage(), containsString(blob.length() + " chars total"));
+    }
+
     public void testUnsupportedType() {
         String csv = "id:unsupported_type\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> reader.schema(object));
-        assertTrue(e.getMessage().contains("illegal data type"));
+        assertThat(e.getMessage(), containsString("illegal data type [UNSUPPORTED_TYPE]"));
     }
 
     public void testDefaultErrorPolicyIsStrict() {
@@ -2413,11 +2509,30 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     // --- Trailing/missing column handling ---
 
-    public void testFewerColumnsThanSchema() throws IOException {
+    /**
+     * A row that stops before the file's width is a row error, as a wider one is: the fields it does not carry are
+     * not nulls the file holds. Under the default {@code fail_fast} the read fails naming the row and both widths,
+     * and the hint names {@code pad_short_rows} as well as {@code skip_row}.
+     */
+    public void testFewerColumnsThanSchemaIsARowError() throws IOException {
         String csv = "id:long,name:keyword,score:double\n1,Alice\n2,Bob,87.3\n";
-
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        Exception e = expectThrows(Exception.class, () -> drainAllPages(reader.read(object, null, 10)));
+        assertThat(e.getMessage(), containsString("Row [1] of"));
+        assertThat(e.getMessage(), containsString("missing trailing fields: [2] columns, the header has [3]"));
+        assertThat(e.getMessage(), containsString("[pad_short_rows]"));
+    }
+
+    /**
+     * {@code pad_short_rows} reads the missing fields as null instead — what every read did before the rule had a
+     * lower bound — and reports each padded row, so the nulls it invents are not silent.
+     */
+    public void testFewerColumnsThanSchemaPaddedWhenOptedIn() throws IOException {
+        String csv = "id:long,name:keyword,score:double\n1,Alice\n2,Bob,87.3\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("pad_short_rows", true));
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2426,6 +2541,51 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue(page.getBlock(2).isNull(0));
             assertFalse(page.getBlock(2).isNull(1));
         }
+        List<String> warnings = drainWarnings();
+        assertTrue(
+            "the padded row must be reported, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("missing trailing fields, read as null: [2] columns, the header has [3]"))
+        );
+    }
+
+    /**
+     * Padding keeps its rows without spending the error budget, so a ragged file reaches the width check on every row
+     * long after the warning cap is gone. Past the cap the notice is no longer composed — but that is the FORMATTING
+     * alone: every row is still padded and still returned, and the client still gets the summary, the twenty details
+     * and the one overflow line it would have got. This pins that split, so a guard that ever reaches the padding
+     * itself, rather than the message about it, fails here.
+     */
+    public void testPaddingOutlivesTheWarningCapItStopsFormattingFor() throws IOException {
+        int rows = SkipWarnings.MAX_ADDED_WARNINGS + 5;
+        StringBuilder csv = new StringBuilder("id:long,name:keyword,score:double\n");
+        for (int i = 1; i <= rows; i++) {
+            csv.append(i).append(",name").append(i).append('\n');
+        }
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("pad_short_rows", true));
+
+        try (CloseableIterator<Page> iterator = reader.read(createStorageObject(csv.toString()), null, rows)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals("every short row is kept, cap or no cap", rows, page.getPositionCount());
+            for (int i = 0; i < rows; i++) {
+                assertTrue("row " + i + " must be padded", page.getBlock(2).isNull(i));
+            }
+        }
+
+        List<String> warnings = drainWarnings();
+        assertEquals(
+            "details stop at the cap, got: " + warnings,
+            SkipWarnings.MAX_ADDED_WARNINGS,
+            warnings.stream().filter(w -> w.contains("read as null")).count()
+        );
+        assertTrue(
+            "the summary must still go out, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("reading those fields as null"))
+        );
+        assertTrue(
+            "the client must be told details were dropped, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("further warnings suppressed"))
+        );
     }
 
     // --- Whitespace trimming ---
@@ -3858,6 +4018,40 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A byte budget exhausted before a later widening value is sampled infers from the prefix actually
+     * read: the column stays INTEGER, matching a row-budget cut at the same boundary.
+     */
+    public void testSchemaSampleBytesStopsBeforeTypeWideningRow() throws IOException {
+        String csv = "id\n1\n2\nhello\n";
+        StorageObject object = createStorageObject(csv);
+        // 4 bytes is smaller than header plus two data rows, so sampling stops after the first
+        // numeric row (at least one complete record is always kept) and never reaches hello.
+        CsvFormatReader cut = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaSampleBytes(4)
+            .withConfig(Map.of("schema_sample_size", 10));
+        assertEquals(
+            "a 4-byte budget must stop after the first numeric row and keep INTEGER",
+            DataType.INTEGER,
+            cut.schema(object).get(0).dataType()
+        );
+        CsvFormatReader full = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaSampleBytes(csv.length())
+            .withConfig(Map.of("schema_sample_size", 10));
+        assertEquals("a budget that covers hello must still widen to KEYWORD", DataType.KEYWORD, full.schema(object).get(0).dataType());
+    }
+
+    /**
+     * A first data record wider than the decoded-byte sample cap is still fully read (CSV cannot
+     * truncate mid-record without FAIL_FAST treating it as malformed), then refused so a declared
+     * schema is required — matching NDJSON and the documented contract.
+     */
+    public void testSchemaSampleBytesRefusesWhenFirstRecordExceedsBudget() throws IOException {
+        String csv = "id,blob\n1," + "x".repeat(200) + "\n";
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchemaSampleBytes(50);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reader.metadata(createStorageObject(csv)));
+        assertThat(e.getMessage(), containsString("decoded-byte sample limit"));
+        assertThat(e.getMessage(), containsString("declare a schema"));
+    }
+
+    /**
      * A sample shared by several files takes an even share of the configured rows from each, never fewer than the
      * floor, and keeps the harvest fingerprint: the data node reads with the unshared configuration, so its statistics
      * must still match the entry planning seeds from this read.
@@ -3872,13 +4066,15 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         assertEquals(800, configured.schemaSampleSize());
         assertEquals(200, quarter.schemaSampleSize());
+        assertEquals(ExternalSourceSettings.DEFAULT_SCHEMA_SAMPLE_BYTES.getBytes(), configured.schemaSampleBytes());
+        assertEquals(ExternalSourceSettings.DEFAULT_SCHEMA_SAMPLE_BYTES.getBytes() / 4, quarter.schemaSampleBytes());
         assertEquals(800, configured.metadata(createStorageObject(csv.toString())).sampleRows());
         assertEquals(200, quarter.metadata(createStorageObject(csv.toString())).sampleRows());
-        assertEquals(
-            FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE,
-            configured.withSchemaSampleShare(64).metadata(createStorageObject(csv.toString())).sampleRows()
-        );
+        CsvFormatReader floored = configured.withSchemaSampleShare(64);
+        assertEquals(FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE, floored.metadata(createStorageObject(csv.toString())).sampleRows());
+        assertEquals(FormatReader.MIN_SHARED_SCHEMA_SAMPLE_BYTES, floored.schemaSampleBytes());
         assertEquals(configured.harvestFingerprintForTests(), quarter.harvestFingerprintForTests());
+        assertEquals(configured.harvestFingerprintForTests(), floored.harvestFingerprintForTests());
     }
 
     /**
@@ -3902,6 +4098,28 @@ public class CsvFormatReaderTests extends ESTestCase {
         List<Attribute> half = configured.withSchemaSampleShare(2).metadata(createStorageObject(csv.toString())).schema();
         assertEquals(2, half.size());
         assertEquals(DataType.INTEGER, half.get(0).dataType());
+    }
+
+    /**
+     * The decoded-byte cap is a transfer bound: a file far larger than a few kilobytes must not be pulled
+     * onto the coordinator past that prefix. CSV stops after complete records, so the BufferedReader may
+     * prefetch about 64 KiB; the rest of the body must still be aborted.
+     */
+    public void testMetadataStopsAtSchemaSampleBytes() throws IOException {
+        StringBuilder csv = new StringBuilder("id,name,value\n");
+        for (int i = 0; i < 50_000; i++) {
+            csv.append(i).append(",n_").append(i).append(',').append(i * 1.5).append('\n');
+        }
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
+        new CsvFormatReader(blockFactory).withSchemaSampleBytes(4096).metadata(object);
+        assertThat(
+            "metadata() must stop near the decoded-byte cap; consumed " + tracking.bytesConsumed.get() + " of " + bytes.length,
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan(128_000L)
+        );
+        assertThat(tracking.bytesConsumed.get(), Matchers.lessThan((long) bytes.length / 2));
     }
 
     /** Sharing that would not narrow the sample returns the reader itself, which is how the planner tells it does not apply. */
@@ -4852,7 +5070,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // and embedded commas (e.g. `[some text",1,2013-...,38,-12345]`). The lookahead must mirror the splitter:
         // inside `[..]` only `[` and `]` matter — a stray `"` is a literal byte. Otherwise the lookahead reports
         // "no matching ]" and the splitter falls back to treating `[` as plain text, which turns inner commas into
-        // delimiters and produces `[N+k] columns, the schema has [N]` failures.
+        // delimiters and produces `[N+k] columns, the header has [N]` failures.
         String csv = "id:long,tags:keyword,when:keyword\n"
             + "1,[some text\",1,2013-07-15 13:51:28,2013-07-15,38,177794517],ok\n"
             + "2,[plain],ok\n";
@@ -5917,26 +6135,58 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("-999-05-12 14:30:45"));
     }
 
-    public void testDatetimeFastPathInvalidIsoFallsThroughCleanly() throws IOException {
+    public void testDatetimeImpossibleDayUnderFailFastFailsNamingTheValue() throws IOException {
         // Regression for the Stage 1 catch path: an ISO-shaped but calendar-invalid input like
         // 2021-02-30T10:00:00 succeeds in Iso8601Parser's lexical parse but fails inside
         // DateFormatters.from(...) with a generic DateTimeException (not DateTimeParseException).
-        // Without the catch, the batch would abort with an uncaught exception. The catch routes
-        // the row through Stage 3, whose JDK SMART resolver leniently maps Feb 30 to Feb 28 (same
-        // behaviour as before this change). The second row is a sanity-check that the batch
-        // continues normally.
+        // The Stage 1 catch routes the row to Stage 3, whose strict resolver refuses Feb 30, so the cell is an
+        // invalid field handled by error_mode instead of being read as another date. Without the catch, the
+        // batch would abort with an uncaught exception. This test and the two that follow pin one error_mode
+        // each: fail_fast, null_field and skip_row.
         String csv = "ts:datetime\n2021-02-30T10:00:00\n2021-01-01T00:00:00Z\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "fail_fast"));
+
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+                iterator.next();
+            }
+        });
+        assertThat(e.getMessage(), containsString("2021-02-30T10:00:00"));
+        drainWarnings();
+    }
+
+    public void testDatetimeImpossibleDayUnderNullFieldNullsCellAndWarns() throws IOException {
+        String csv = "ts:datetime\n2021-02-30T10:00:00\n2021-01-01T00:00:00Z\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader nullField = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field"));
+        try (CloseableIterator<Page> iterator = nullField.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            LongBlock block = page.getBlock(0);
+            assertTrue(block.isNull(0));
+            assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), block.getLong(1));
+        }
+        List<String> warnings = drainWarnings();
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("cannot read [2021-02-30T10:00:00]")));
+    }
+
+    public void testDatetimeImpossibleDayUnderSkipRowDropsRowAndWarns() throws IOException {
+        String csv = "ts:datetime,n:long\n2021-02-30T10:00:00,1\n2021-01-01T00:00:00Z,2\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "skip_row"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
-            assertEquals(2, page.getPositionCount());
-            LongBlock block = (LongBlock) page.getBlock(0);
-            assertEquals(Instant.parse("2021-02-28T10:00:00Z").toEpochMilli(), block.getLong(0));
-            assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), block.getLong(1));
+            assertEquals(1, page.getPositionCount());
+            assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(2L, ((LongBlock) page.getBlock(1)).getLong(0));
         }
+        List<String> warnings = drainWarnings();
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("cannot be read; skipping them")));
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.startsWith("row [1]")));
     }
 
     public void testDatetimeFastPathRouting() throws IOException {
@@ -7294,7 +7544,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * schema. The planner calls {@code withSchema(context.attributes())} at operator-factory
      * time with the projected output attributes, not the file's column layout. Treating that
      * list as the file schema would mis-align column indices and trigger spurious
-     * "[N] columns, the schema has [M]" errors on every data row.
+     * "[N] columns, the header has [M]" errors on every data row.
      *
      * <p>The bound-schema fast path is reserved for streaming-coordinator dispatch where
      * {@code recordAligned=true} signals that the upstream caller has bound the FULL file
@@ -8621,6 +8871,239 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * The width floor is THIS file's header, not the pinned schema's. Under headerBindingByProvenance an inferred
+     * schema over a headered file binds positionally, so the schema can be one cross-file resolution took from a
+     * wider sibling -- {@code first_file_wins} over a three-column anchor. A complete row of a two-column file is
+     * not a short row, and taking the floor from the schema would have failed every row of that sibling.
+     */
+    public void testWidthFloorComesFromTheFileNotAWiderSiblingsSchema() throws Exception {
+        // The pinned schema is three columns wide; this file's own header is two.
+        List<Attribute> anchorSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "extra", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withHeaderBindingByProvenance(true);
+        // An informational sink is present on every production read, and the width-only binding this path builds
+        // binds no names -- so whatever consumes the binding has to tolerate its absent field-index array.
+        List<String> informational = new ArrayList<>();
+        int rows = 0;
+        try (
+            CloseableIterator<Page> it = reader.read(
+                new TrackingStorageObject("id,name\n1,alice\n2,bob\n"),
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(anchorSchema)
+                    .informationalWarningSink(informational::add)
+                    .build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals("every complete row of the narrower file is read", 2, rows);
+        assertThat(drainWarnings(), everyItem(not(containsString("missing trailing fields"))));
+    }
+
+    /**
+     * Under a width-only binding the two bounds have different sources, and each width message names its own: a row
+     * wider than the PINNED schema is measured against the schema, while a row narrower than the FILE's header is
+     * measured against that header. One test on the binding would get one of the two wrong, which is what it used to
+     * do, and the complete rows of {@link #testWidthFloorComesFromTheFileNotAWiderSiblingsSchema} reach neither bound.
+     */
+    public void testWidthMessageNamesEachBoundAfterItsOwnSource() throws Exception {
+        // Pinned three columns wide, over a file whose own header is two: the limit is the schema's, the floor the file's.
+        List<Attribute> anchorSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "extra", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withHeaderBindingByProvenance(true);
+
+        Exception wide = expectThrows(Exception.class, () -> drainAllPages(widthOnlyBoundRead(reader, "id,name\n1,a,b,c\n", anchorSchema)));
+        assertThat(wide.getMessage(), containsString("[4] columns, the schema has [3]"));
+
+        Exception short_ = expectThrows(Exception.class, () -> drainAllPages(widthOnlyBoundRead(reader, "id,name\n1\n", anchorSchema)));
+        assertThat(short_.getMessage(), containsString("missing trailing fields: [1] columns, the header has [2]"));
+    }
+
+    /**
+     * The other direction of the same mismatch: a file whose header is WIDER than the pinned schema, where
+     * {@code first_file_wins} took the schema from a narrower sibling. Its two bounds then cross -- the floor is the
+     * file's three, the limit the schema's two -- so no row of it passes. That is not new for a row of the file's own
+     * width, which exceeded the pinned schema and was a structural row error before this rule as well; what the floor
+     * adds is the other half, so the file is refused uniformly instead of yielding only its ragged rows. Each message
+     * still names the bound it broke after that bound's own source.
+     */
+    public void testAFileWiderThanThePinnedSchemaRefusesBothWays() throws Exception {
+        // Pinned two columns wide, over a file whose own header is three.
+        List<Attribute> narrowSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withHeaderBindingByProvenance(true);
+
+        Exception full = expectThrows(
+            Exception.class,
+            () -> drainAllPages(widthOnlyBoundRead(reader, "id,name,extra\n1,alice,x\n", narrowSchema))
+        );
+        assertThat(
+            "a row of the file's own width was refused before this rule too",
+            full.getMessage(),
+            containsString("[3] columns, the schema has [2]")
+        );
+
+        Exception short_ = expectThrows(
+            Exception.class,
+            () -> drainAllPages(widthOnlyBoundRead(reader, "id,name,extra\n1,alice\n", narrowSchema))
+        );
+        assertThat(short_.getMessage(), containsString("missing trailing fields: [2] columns, the header has [3]"));
+    }
+
+    /** A first split that binds only the file's header width: an inferred schema over a headered file, gate on. */
+    private CloseableIterator<Page> widthOnlyBoundRead(CsvFormatReader reader, String csv, List<Attribute> readSchema) throws IOException {
+        return reader.read(
+            new TrackingStorageObject(csv),
+            FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+        );
+    }
+
+    /**
+     * A split that begins at a quote-blind cut may be holding the tail of a quoted value rather than a row that ends
+     * early, and nothing in that row tells the two apart -- so its short-row error names {@code multiline_fields} too.
+     * The split that OWNS the value's start reports the broken contract itself, but this one reaches its own first
+     * record first, and the message that wins the race used to send the user to {@code pad_short_rows}, which would
+     * have padded a cut value. A read starting at the file's first byte was cut by nobody, so it keeps the plain
+     * message.
+     */
+    public void testShortRowOnACutSplitAlsoNamesMultilineFields() throws Exception {
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)
+        );
+        // What a cut inside a three-line quoted value hands the next split: its tail lines, each one field wide.
+        String tailOfAQuotedValue = "xxxx\n1,alice\n";
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        Exception cut = expectThrows(
+            Exception.class,
+            () -> drainAllPages(
+                reader.read(
+                    new TrackingStorageObject(tailOfAQuotedValue),
+                    FormatReadContext.builder()
+                        .firstSplit(false)
+                        .recordAligned(true)
+                        .splitStartByte(4096)
+                        .readSchema(schema)
+                        .fileHeaderColumns(List.of("a", "b"))
+                        .batchSize(10)
+                        .build()
+                )
+            )
+        );
+        assertThat(cut.getMessage(), containsString("missing trailing fields: [1] columns, the header has [2]"));
+        assertThat(cut.getMessage(), containsString("multiline_fields"));
+
+        // The same short row read from the file's first byte: nothing cut it, so the message stays as it is.
+        Exception whole = expectThrows(
+            Exception.class,
+            () -> drainAllPages(reader.read(createStorageObject("a,b\n" + tailOfAQuotedValue), null, 10))
+        );
+        assertThat(whole.getMessage(), containsString("missing trailing fields: [1] columns, the header has [2]"));
+        assertThat("nothing cut the file's first byte", whole.getMessage(), not(containsString("multiline_fields")));
+
+        // The same cut split, with a full-width row ahead of the short one. A record of the file's own width is taken
+        // as evidence the split is past whatever its start cut -- not proof, see cutQuotedValueClause, which weighs
+        // the coincidence that costs one hint against the alternative: the clause on every short row of every split
+        // after the first, which is most short rows of a large file.
+        Exception past = expectThrows(
+            Exception.class,
+            () -> drainAllPages(
+                reader.read(
+                    new TrackingStorageObject("1,alice\nxxxx\n"),
+                    FormatReadContext.builder()
+                        .firstSplit(false)
+                        .recordAligned(true)
+                        .splitStartByte(4096)
+                        .readSchema(schema)
+                        .fileHeaderColumns(List.of("a", "b"))
+                        .batchSize(10)
+                        .build()
+                )
+            )
+        );
+        assertThat(past.getMessage(), containsString("missing trailing fields: [1] columns, the header has [2]"));
+        assertThat("a full-width row puts the split past any cut", past.getMessage(), not(containsString("multiline_fields")));
+
+        // Padding does not change what such a row might be, only what happens to it: the same cut split keeps the
+        // value's tail as a row of nulls, which hides the cut rather than refusing it. So the reading that most
+        // needs the hint is the one that carries it on the same terms.
+        CsvFormatReader padding = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("pad_short_rows", true));
+        drainAllPages(
+            padding.read(
+                new TrackingStorageObject(tailOfAQuotedValue),
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .splitStartByte(4096)
+                    .readSchema(schema)
+                    .fileHeaderColumns(List.of("a", "b"))
+                    .batchSize(10)
+                    .build()
+            )
+        );
+        List<String> padded = drainWarnings();
+        assertTrue(
+            "a padded cut value must still name multiline_fields, got: " + padded,
+            padded.stream().anyMatch(w -> w.contains("read as null") && w.contains("multiline_fields"))
+        );
+    }
+
+    /**
+     * A later split that was handed no header columns binds nothing, and the pinned schema's size is not this
+     * file's width -- under cross-file resolution it is a wider sibling's, the case
+     * {@link #testWidthFloorComesFromTheFileNotAWiderSiblingsSchema} rules out for the bound split. Such a split
+     * was told no width, so it states none and its rows keep the null-filling they had before this rule, rather
+     * than being refused against a number that is not the file's and named after the file's header.
+     */
+    public void testLaterSplitToldNoHeaderColumnsStatesNoWidth() throws Exception {
+        // Three columns wide, the width first_file_wins took from a sibling; this file's rows carry two.
+        List<Attribute> anchorSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "extra", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withHeaderBindingByProvenance(true);
+
+        int rows = 0;
+        try (
+            CloseableIterator<Page> it = reader.read(
+                new TrackingStorageObject("1,alice\n2,bob\n"),
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .splitStartByte(4096)
+                    .readSchema(anchorSchema)
+                    .batchSize(10)
+                    .build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals("a split told no width refuses nothing for its width", 2, rows);
+        assertThat(drainWarnings(), everyItem(not(containsString("missing trailing fields"))));
+    }
+
+    /**
      * While an older node may read part of the query, the first split of a headered file keeps main's header read: the
      * escape-aware data reader steps over the header and names the columns, for a declared and an inferred schema alike.
      * This is the same escaped header as {@link #testFirstSplitStepsOverAHeaderWhereItsColumnsAreRead}, read with the gate
@@ -8740,7 +9223,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
         assertEquals(List.of(1L, 2L), ids);
         assertEquals("only the row stream is opened", 1, object.opened);
-        assertEquals(0, object.aborted);
+        assertEquals("row stream is closed once after a full read", 1, object.aborted);
     }
 
     /**
@@ -8810,7 +9293,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
         assertEquals(2, rows);
         assertEquals("only the row stream is opened", 1, object.opened);
-        assertEquals(0, object.aborted);
+        assertEquals("row stream is closed once after a full read", 1, object.aborted);
     }
 
     /**
@@ -8875,18 +9358,34 @@ public class CsvFormatReaderTests extends ESTestCase {
         @Override
         public InputStream newStream() {
             opened++;
-            return new ByteArrayInputStream(bytes);
+            return new FilterInputStream(new ByteArrayInputStream(bytes)) {
+                private boolean closed;
+
+                @Override
+                public void close() throws IOException {
+                    if (closed == false) {
+                        closed = true;
+                        aborted++;
+                    }
+                    super.close();
+                }
+            };
         }
 
         @Override
         public InputStream newStream(long position, long length) {
-            return new ByteArrayInputStream(bytes, (int) position, (int) length);
-        }
+            return new FilterInputStream(new ByteArrayInputStream(bytes, (int) position, (int) length)) {
+                private boolean closed;
 
-        @Override
-        public void abortStream(InputStream stream) throws IOException {
-            aborted++;
-            stream.close();
+                @Override
+                public void close() throws IOException {
+                    if (closed == false) {
+                        closed = true;
+                        aborted++;
+                    }
+                    super.close();
+                }
+            };
         }
 
         @Override
@@ -9017,6 +9516,350 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * The row-width rule is one rule, and every walker that counts a row must reach the same verdict on it. The read
+     * path counts a row in six places — both branches of the batch conversion, the three direct-to-block grammar
+     * walkers, and the fused bracket-aware walker — and a change that reaches one of them and misses another is the
+     * failure this pins. Each configuration below selects a different one of those six; all six see the same 4-field
+     * row against the same 3-column header and must report the same widths.
+     */
+    public void testRowWidthRuleAgreesAcrossEveryWalker() throws Exception {
+        String csv = "id:integer,tags:keyword,score:integer\n1,alpha,10,SURPLUS\n2,beta,20\n";
+        String quotedCsv = "id:integer,tags:keyword,score:integer\n\"1\",alpha,10,SURPLUS\n\"2\",beta,20\n";
+        Map<String, Object> base = Map.of("header_row", true, "error_mode", "skip_row", "max_errors", 100);
+
+        record Walker(String name, String file, boolean directBlock, Map<String, Object> extra, List<String> projection) {}
+        List<Walker> walkers = List.of(
+            // Batch conversion over materialized String[] rows: the regular branch, then the zero-column COUNT(*) branch.
+            new Walker("batch/projected", csv, false, Map.of("multi_value_syntax", "NONE"), List.of("id", "tags")),
+            new Walker("batch/count-star", csv, false, Map.of("multi_value_syntax", "NONE"), List.of()),
+            // Direct-to-block, three walkers. The quoted dialect enters through the optimistic walker and hands the
+            // whole row to the full quoted walker as soon as a field opens with a quote; escaped mode never reaches
+            // this path at all, since directEligible requires decodesEscapes() == false.
+            new Walker("direct/plain", csv, true, Map.of("multi_value_syntax", "NONE", "mode", "plain"), List.of("id", "tags")),
+            new Walker(
+                "direct/optimistic-quoted",
+                csv,
+                true,
+                Map.of("multi_value_syntax", "NONE", "mode", "quoted"),
+                List.of("id", "tags")
+            ),
+            new Walker("direct/quoted", quotedCsv, true, Map.of("multi_value_syntax", "NONE", "mode", "quoted"), List.of("id", "tags")),
+            // Fused bracket-aware walker: brackets exclude the direct walkers, so this is its own path.
+            new Walker("fused/bracket", csv, false, Map.of("multi_value_syntax", "BRACKETS"), List.of("id", "tags"))
+        );
+
+        for (Walker walker : walkers) {
+            Map<String, Object> config = new HashMap<>(base);
+            config.putAll(walker.extra());
+            CsvFormatReader reader = declaredReader(true, walker.directBlock(), config);
+            int rows = readRowCount(reader, createStorageObject(walker.file()), idTagsScore(), walker.projection());
+            List<String> warnings = drainWarnings();
+            assertEquals(walker.name() + " keeps only the well-formed row", 1, rows);
+            assertTrue(
+                walker.name() + " expected [4] columns, the header has [3]; got: " + warnings,
+                warnings.stream().anyMatch(w -> w.contains("[4] columns, the header has [3]"))
+            );
+        }
+    }
+
+    /** Row 2 carries 2 of the file's 3 fields. */
+    private static final String SHORT_ROW_CSV = "id:integer,tags:keyword,score:integer\n1,alpha,10\n2,solo\n";
+
+    /** Row 2 of the same file, with the first field quoted, so the quoted direct walker takes it. */
+    private static final String SHORT_ROW_QUOTED_CSV = "id:integer,tags:keyword,score:integer\n\"1\",alpha,10\n\"2\",solo\n";
+
+    /**
+     * A row NARROWER than the file's header is drift too, and it reads as such under the default fail_fast: the
+     * read fails naming the row and both widths rather than returning the row with its missing columns null. Both
+     * walkers, both provenances — and the message is the file's header width, as the wide side's is.
+     */
+    public void testShortRowFailsFastWhateverTheBindingAndWalker() throws Exception {
+        for (boolean declared : List.of(false, true)) {
+            for (boolean directBlock : List.of(false, true)) {
+                String desc = "declared=" + declared + " directBlock=" + directBlock;
+                CsvFormatReader reader = declaredReader(
+                    declared,
+                    directBlock,
+                    Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "fail_fast")
+                );
+                Exception e = expectThrows(
+                    Exception.class,
+                    () -> readRowCount(reader, createStorageObject(SHORT_ROW_CSV), idTagsScore(), List.of("id", "tags"))
+                );
+                assertThat(desc, e.getMessage(), containsString("Row [2] of"));
+                assertThat(desc, e.getMessage(), containsString("missing trailing fields: [2] columns, the header has [3]"));
+                assertThat(desc, e.getMessage(), containsString("[pad_short_rows]"));
+                drainWarnings();
+            }
+        }
+    }
+
+    /**
+     * The row-width rule is one rule from below as well: each configuration selects a different one of the walkers
+     * that count a row, and all of them must reject the same 2-field row against the same 3-column header. The wide
+     * side of this is {@link #testRowWidthRuleAgreesAcrossEveryWalker}.
+     */
+    public void testShortRowRuleAgreesAcrossEveryWalker() throws Exception {
+        Map<String, Object> base = Map.of("header_row", true, "error_mode", "skip_row", "max_errors", 100);
+
+        record Walker(String name, String file, boolean directBlock, Map<String, Object> extra, List<String> projection) {}
+        List<Walker> walkers = List.of(
+            new Walker("batch/projected", SHORT_ROW_CSV, false, Map.of("multi_value_syntax", "NONE"), List.of("id", "tags")),
+            new Walker("batch/count-star", SHORT_ROW_CSV, false, Map.of("multi_value_syntax", "NONE"), List.of()),
+            new Walker("direct/plain", SHORT_ROW_CSV, true, Map.of("multi_value_syntax", "NONE", "mode", "plain"), List.of("id", "tags")),
+            new Walker(
+                "direct/optimistic-quoted",
+                SHORT_ROW_CSV,
+                true,
+                Map.of("multi_value_syntax", "NONE", "mode", "quoted"),
+                List.of("id", "tags")
+            ),
+            new Walker(
+                "direct/quoted",
+                SHORT_ROW_QUOTED_CSV,
+                true,
+                Map.of("multi_value_syntax", "NONE", "mode", "quoted"),
+                List.of("id", "tags")
+            ),
+            new Walker("fused/bracket", SHORT_ROW_CSV, false, Map.of("multi_value_syntax", "BRACKETS"), List.of("id", "tags"))
+        );
+
+        for (Walker walker : walkers) {
+            Map<String, Object> config = new HashMap<>(base);
+            config.putAll(walker.extra());
+            CsvFormatReader reader = declaredReader(true, walker.directBlock(), config);
+            int rows = readRowCount(reader, createStorageObject(walker.file()), idTagsScore(), walker.projection());
+            List<String> warnings = drainWarnings();
+            assertEquals(walker.name() + " keeps only the full-width row", 1, rows);
+            assertTrue(
+                walker.name() + " expected missing trailing fields: [2] columns, the header has [3]; got: " + warnings,
+                warnings.stream().anyMatch(w -> w.contains("missing trailing fields: [2] columns, the header has [3]"))
+            );
+        }
+    }
+
+    /**
+     * COUNT(*) projects zero columns and takes its own guard, so without this the short row would keep being
+     * counted after the fix. The wide side's sibling is
+     * {@link #testDeclaredBindingRowWidthValidationOnCountStarPath}.
+     */
+    public void testShortRowValidationOnCountStarPath() throws Exception {
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            CsvFormatReader reader = declaredReader(true, directBlock, skipRowConfig());
+            int rows = readRowCount(reader, createStorageObject(SHORT_ROW_CSV), idTagsScore(), List.of());
+            List<String> warnings = drainWarnings();
+            assertEquals(desc + " the short row is not counted", 1, rows);
+            assertTrue(
+                desc + " got: " + warnings,
+                warnings.stream().anyMatch(w -> w.contains("missing trailing fields: [2] columns, the header has [3]"))
+            );
+        }
+    }
+
+    /**
+     * A sample whose every row is short has no row the read keeps, so none of them types a column. Taking the type from
+     * them anyway would let a refused row decide how the kept rows read: here {@code 42} would make {@code v} an
+     * integer, and the full row after it would lose {@code alice}.
+     */
+    public void testASampleOfOnlyShortRowsDecidesNoColumnsType() throws IOException {
+        StorageObject object = createStorageObject("v,n\n42\nalice,10\n");
+        CsvFormatReader dropping = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("error_mode", "skip_row", "max_errors", 10, "schema_sample_size", 1)
+        );
+        assertEquals(DataType.KEYWORD, dropping.metadata(object).schema().get(0).dataType());
+    }
+
+    /**
+     * Every walker that keeps a padded row has to report it, and each one emits the notice from its own commit point:
+     * the batch arm and the zero-column {@code COUNT(*)} arm of the materialized path, the direct walkers' shared row
+     * finish, and the fused bracket walker. A walker that kept the row but lost the notice would invent nulls in
+     * silence, which is what the setting promises not to do, so each one is asserted on its own.
+     */
+    public void testEveryWalkerReportsTheRowItPads() throws Exception {
+        Map<String, Object> base = Map.of("header_row", true, "pad_short_rows", true);
+
+        record Walker(String name, String file, boolean directBlock, Map<String, Object> extra, List<String> projection) {}
+        List<Walker> walkers = List.of(
+            new Walker("batch/projected", SHORT_ROW_CSV, false, Map.of("multi_value_syntax", "NONE"), List.of("id", "tags")),
+            new Walker("batch/count-star", SHORT_ROW_CSV, false, Map.of("multi_value_syntax", "NONE"), List.of()),
+            new Walker("direct/plain", SHORT_ROW_CSV, true, Map.of("multi_value_syntax", "NONE", "mode", "plain"), List.of("id", "tags")),
+            new Walker(
+                "direct/quoted",
+                SHORT_ROW_QUOTED_CSV,
+                true,
+                Map.of("multi_value_syntax", "NONE", "mode", "quoted"),
+                List.of("id", "tags")
+            ),
+            new Walker("fused/bracket", SHORT_ROW_CSV, false, Map.of("multi_value_syntax", "BRACKETS"), List.of("id", "tags"))
+        );
+
+        for (Walker walker : walkers) {
+            Map<String, Object> config = new HashMap<>(base);
+            config.putAll(walker.extra());
+            CsvFormatReader reader = declaredReader(true, walker.directBlock(), config);
+            int rows = readRowCount(reader, createStorageObject(walker.file()), idTagsScore(), walker.projection());
+            List<String> warnings = drainWarnings();
+            assertEquals(walker.name() + " keeps the padded row", 2, rows);
+            assertTrue(
+                walker.name() + " must report the padded row, got: " + warnings,
+                warnings.stream().anyMatch(w -> w.contains("missing trailing fields, read as null: [2] columns, the header has [3]"))
+            );
+        }
+    }
+
+    /**
+     * A row the width rule drops must not decide a column's type. One short row in the sample would otherwise widen
+     * a numeric column to {@code keyword} -- and then {@code AVG} over that column fails analysis for a file in
+     * which no value the reader keeps is text. Padding keeps the row, so under it the row keeps its vote, and the
+     * sample is replayed as data either way: what is withheld is the vote, never the row.
+     */
+    public void testADroppedShortRowDoesNotDecideAColumnsType() throws IOException {
+        // Row 2 carries one of the header's two fields; the values that survive it are all integers.
+        StorageObject object = createStorageObject("v,n\n1,10\nbad\n2,20\n");
+        CsvFormatReader dropping = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("error_mode", "skip_row", "max_errors", 10)
+        );
+        assertEquals(
+            "a row the read will drop must not type the column",
+            DataType.INTEGER,
+            dropping.metadata(object).schema().get(0).dataType()
+        );
+
+        CsvFormatReader padding = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("error_mode", "skip_row", "max_errors", 10, "pad_short_rows", true)
+        );
+        assertEquals(
+            "a row the read will keep types the column as it always did",
+            DataType.KEYWORD,
+            padding.metadata(object).schema().get(0).dataType()
+        );
+
+        CsvFormatReader failing = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "fail_fast"));
+        assertEquals(
+            "fail_fast does not read the row either, and typing the column from it rejects the query at analysis "
+                + "-- before the read that would have named the row and the two widths",
+            DataType.INTEGER,
+            failing.metadata(object).schema().get(0).dataType()
+        );
+    }
+
+    /**
+     * A withheld row keeps its place in the sample. The widening warnings number rows within the sample, so dropping
+     * one from the list would renumber every row after it and send the reader to the wrong line of their own file.
+     */
+    public void testWithholdingAVoteDoesNotRenumberTheSample() throws IOException {
+        // Row 2 is short; the widen row 3 forces must still be reported against row 3.
+        StorageObject object = createStorageObject("v,n\n1,10\n2\noops,30\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("error_mode", "skip_row", "max_errors", 10)
+        );
+        List<String> warnings = reader.metadata(object).warnings();
+        assertTrue(
+            "the widening must name the row it happened on, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("column [v] at sample row [3]") && w.contains("oops"))
+        );
+    }
+
+    /**
+     * {@code pad_short_rows} keeps the short row, null-padded, under every error mode — padding is orthogonal to
+     * {@code error_mode}, so it must also hold under the strict default, where the error policy's warning channel
+     * is a no-op. That is why the padded rows are reported on a channel of their own.
+     */
+    public void testPaddedShortRowIsKeptAndReportedUnderFailFast() throws Exception {
+        Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", "NONE", "pad_short_rows", true);
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            int rows = readRowCount(reader, createStorageObject(SHORT_ROW_CSV), idTagsScore(), List.of("id", "tags"));
+            List<String> warnings = drainWarnings();
+            assertEquals(desc + " both rows survive", 2, rows);
+            assertTrue(
+                desc + " the padded row must be reported, got: " + warnings,
+                warnings.stream().anyMatch(w -> w.contains("missing trailing fields, read as null: [2] columns, the header has [3]"))
+            );
+        }
+    }
+
+    /**
+     * The pad notice describes a row the reader KEPT. A short row is padded at the width check, but one of the
+     * fields it does carry can still fail conversion and drop it under {@code skip_row} -- and a notice emitted at
+     * the width check would then say the missing fields of a returned row were read as null when no such row was
+     * returned.
+     */
+    public void testPaddedShortRowDroppedForABadFieldIsNotReportedAsPadded() throws Exception {
+        // Row 2 is short AND carries a non-integer id, so padding admits it and the coercion failure drops it.
+        String csv = "id:integer,tags:keyword,score:integer\n1,alpha,10\nNOPE,solo\n";
+        Map<String, Object> config = Map.of(
+            "header_row",
+            true,
+            "multi_value_syntax",
+            "NONE",
+            "pad_short_rows",
+            true,
+            "error_mode",
+            "skip_row",
+            "max_errors",
+            10
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            int rows = readRowCount(reader, createStorageObject(csv), idTagsScore(), List.of("id", "tags"));
+            List<String> warnings = drainWarnings();
+            assertEquals(desc + " the bad row is dropped despite the padding", 1, rows);
+            assertTrue(
+                desc + " a dropped row must not be reported as padded, got: " + warnings,
+                warnings.stream().noneMatch(w -> w.contains("read as null"))
+            );
+        }
+    }
+
+    /**
+     * A mapping is not a width authority. The reader is told only that the schema's provenance is DECLARED, which
+     * covers both a {@code dynamic: false} mapping and a non-strict overlay appending the columns an inferred
+     * sample never reached -- and those appended columns read null rather than being required. So a headerless
+     * file keeps null-filling whatever is declared over it, and a row short of the declaration is not an error.
+     */
+    public void testDeclaredHeaderlessRowIsNotMeasuredAgainstTheMapping() throws Exception {
+        // Rows: full (3), short (2), wider than the declaration (4). None of them is a width fault.
+        StorageObject object = createStorageObject("1,x,10\n2,y\n3,z,30,SURPLUS\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.INTEGER)
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            CsvFormatReader reader = declaredReader(
+                true,
+                directBlock,
+                Map.of("header_row", false, "error_mode", "skip_row", "max_errors", 100)
+            );
+            int rows = readRowCount(reader, object, readSchema, List.of("col0", "col2"));
+            List<String> warnings = drainWarnings();
+            assertEquals(desc + " a headerless file states no width, so every row is read", 3, rows);
+            assertTrue(
+                desc + " expected no width warning, got: " + warnings,
+                warnings.stream().noneMatch(w -> w.contains("missing trailing fields"))
+            );
+        }
+    }
+
+    /**
+     * A HEADERLESS file states no width at all -- not through its mapping, and not through a schema inferred from a
+     * sample of its own rows, which is a bound on what was seen rather than one the file declares. So it has no
+     * floor, and a row shorter than the sample's widest still null-fills.
+     */
+    public void testInferredHeaderlessRowKeepsNullFillingBecauseNoWidthIsStated() throws Exception {
+        // A headerless file with no mapping states neither of the rule's authorities, so it has no floor -- just as
+        // it has no upper limit. The sample's widest row is 3 fields; the second row's 2 still null-fill.
+        StorageObject object = createStorageObject("1,x,10\n2,y\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        // No row error: reaching the end is the assertion, since a floor here would throw on row 2.
+        drainAllPages(reader.read(object, null, 10));
+    }
+
     /** fail_fast was inert for this error class: the guard that invokes the policy was unreachable under declared binding. */
     public void testDeclaredBindingRowWidthFailsFast() throws Exception {
         Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "fail_fast");
@@ -9027,6 +9870,31 @@ public class CsvFormatReaderTests extends ESTestCase {
                 () -> readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"))
             );
             assertThat("directBlock=" + directBlock, e.getMessage(), containsString("the header has [3]"));
+            drainWarnings();
+        }
+    }
+
+    /**
+     * The width exit builds its excerpt through rowExcerptIfRead(), which returns null outside fail_fast, and
+     * ErrorExcerpts.summarize renders null as "null". The sibling above asserts only the width text, so it would
+     * pass on a message that had lost the record; this pins the record itself on the one mode that prints it.
+     */
+    public void testDeclaredBindingRowWidthFailFastQuotesTheRecord() throws Exception {
+        String csv = "id:integer,tags:keyword,score:integer\n1,alpha,10,SURPLUS\n";
+        Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "fail_fast");
+        for (boolean directBlock : List.of(false, true)) {
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            Exception e = expectThrows(
+                Exception.class,
+                () -> readRowCount(reader, createStorageObject(csv), idTagsScore(), List.of("id", "tags"))
+            );
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("[4] columns, the header has [3]"));
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("row: "));
+            assertThat(
+                "directBlock=" + directBlock + " must quote the record: " + e.getMessage(),
+                e.getMessage(),
+                containsString(directBlock ? "1,alpha,10,SURPLUS" : "col0=[1]")
+            );
             drainWarnings();
         }
     }
@@ -9517,13 +10385,18 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * An absent declared column reads null through the ALL-stripe harvest path (statsColumnScope=ALL) — the harvest
      * reads every raw field via rawFieldIndex, and the -1 sentinel must null-fill there rather than index row[-1] or
-     * poison the per-column stats. col5 is beyond the 3-field file.
+     * poison the per-column stats.
+     *
+     * <p>The absent column is named {@code note}, which is not of the {@code col<N>} form a headerless file's
+     * physical names take, so it binds {@code ABSENT_FIELD} — the sentinel this is about. It used to be
+     * {@code col5}, which binds raw field 5 rather than the sentinel, and so exercised the row's trailing edge
+     * instead; that case is now {@link #testDeclaredHeaderlessRowIsNotMeasuredAgainstTheMapping}.
      */
     public void testAbsentDeclaredColumnThroughAllStripeScope() throws Exception {
         StorageObject object = createStorageObject("7,alpha,3.5\n8,beta,4.5\n");
         List<Attribute> readSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG),
-            new ReferenceAttribute(Source.EMPTY, null, "col5", DataType.KEYWORD)   // absent: file has 3 fields
+            new ReferenceAttribute(Source.EMPTY, null, "note", DataType.KEYWORD)   // no col<N> name: binds ABSENT_FIELD
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
             .withDeclaredProvenanceBinding(true);
@@ -9542,7 +10415,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             Page page = it.next();
             assertEquals(2, page.getPositionCount());
             assertEquals(7L, ((LongBlock) page.getBlock(0)).getLong(0));
-            assertTrue("absent col5 reads null through the ALL-stripe harvest", page.getBlock(1).isNull(0));
+            assertTrue("the absent column reads null through the ALL-stripe harvest", page.getBlock(1).isNull(0));
             assertTrue(page.getBlock(1).isNull(1));
             page.releaseBlocks();
         }
@@ -9916,6 +10789,23 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /** The one dataset setting that keeps a row narrower than the file's width, null-padding what it lacks. */
+    private static final Map<String, Object> PAD_SHORT_ROWS = Map.of("pad_short_rows", true);
+
+    /** A reader that null-pads short rows, for the fixtures whose point is what a MISSING field reads as. */
+    private CsvFormatReader paddingReader() {
+        return (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(PAD_SHORT_ROWS);
+    }
+
+    /** Drains every page of a read, releasing blocks, so a per-row failure surfaces as this method's throw. */
+    private static void drainAllPages(CloseableIterator<Page> iterator) throws IOException {
+        try (CloseableIterator<Page> it = iterator) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+    }
+
     private static void assertKeyword(Page page, int block, int pos, String expected) {
         BytesRefBlock b = (BytesRefBlock) page.getBlock(block);
         assertFalse("block " + block + " pos " + pos + " should not be null", b.isNull(pos));
@@ -10098,8 +10988,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         });
     }
 
+    /**
+     * A missing field reads null rather than {@code ""} — the distinction this whole group is about. Reaching it
+     * needs {@code pad_short_rows}, since a row that stops short is otherwise a row error.
+     */
     public void testEmptyVsNull_missingStringField_defaultPath() throws IOException {
-        withFirstPageDeclaredSchema(new CsvFormatReader(blockFactory), """
+        withFirstPageDeclaredSchema(paddingReader(), """
             id:long,n:integer,phrase:keyword
             1,10,apple
             2,20
@@ -10279,10 +11173,11 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /**
      * A present-but-blank cell and a genuinely missing cell (short row) answer differently: a blank
-     * reads {@code ""} on a string column, while a missing field is always {@code null}.
+     * reads {@code ""} on a string column, while a missing field is always {@code null}. Only a padded read can
+     * show that at all — without {@code pad_short_rows} the short row never becomes a row to compare against.
      */
     public void testEmptyVsNull_blankPresentDiffersFromMissingFieldInferred_defaultPath() throws IOException {
-        withFirstPage(new CsvFormatReader(blockFactory), """
+        withFirstPage(paddingReader(), """
             id:long,n:integer,phrase:keyword
             1,10,apple
             2,20,
@@ -10300,12 +11195,12 @@ public class CsvFormatReaderTests extends ESTestCase {
      * direct-to-block path: both walkers must agree.
      */
     public void testEmptyVsNull_blankPresentDiffersFromMissingFieldInferred_directPath() throws IOException {
-        withFirstPageDirectInferred("""
+        withFirstPageDirect("""
             id:long,n:integer,phrase:keyword
             1,10,apple
             2,20,
             3,30
-            """, List.of("id", "n", "phrase"), page -> {
+            """, List.of("id", "n", "phrase"), false, PAD_SHORT_ROWS, page -> {
             assertEquals(3, page.getPositionCount());
             assertKeyword(page, 2, 1, ""); // present blank -> ""
             assertBlockNull(page, 2, 2); // missing -> null
@@ -10360,8 +11255,21 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /** Shared body of the two above: all named columns projected, asserts run against the first page. */
     private void withFirstPageDirect(String csv, List<String> projected, boolean declared, Consumer<Page> asserts) throws IOException {
+        withFirstPageDirect(csv, projected, declared, Map.of(), asserts);
+    }
+
+    /** As above, with dataset config — {@link #PAD_SHORT_ROWS} for the fixtures whose last row stops short. */
+    private void withFirstPageDirect(
+        String csv,
+        List<String> projected,
+        boolean declared,
+        Map<String, Object> config,
+        Consumer<Page> asserts
+    ) throws IOException {
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDirectBlockEnabled(true);
+        CsvFormatReader reader = config.isEmpty()
+            ? new CsvFormatReader(blockFactory).withDirectBlockEnabled(true)
+            : (CsvFormatReader) new CsvFormatReader(blockFactory).withDirectBlockEnabled(true).withConfig(config);
         FormatReadContext.Builder ctx = FormatReadContext.builder()
             .projectedColumns(projected)
             .batchSize(100)
@@ -10444,13 +11352,14 @@ public class CsvFormatReaderTests extends ESTestCase {
         });
     }
 
+    /** The direct walker's half of the rule above, likewise under {@code pad_short_rows}. */
     public void testEmptyVsNull_missingStringField_directPath() throws IOException {
-        withFirstPageDirectDeclared("""
+        withFirstPageDirect("""
             id:long,n:integer,phrase:keyword
             1,10,apple
             2,20
             3,30,banana
-            """, List.of("id", "n", "phrase"), page -> {
+            """, List.of("id", "n", "phrase"), true, PAD_SHORT_ROWS, page -> {
             assertEquals(3, page.getPositionCount());
             assertBlockNull(page, 2, 1); // missing (short row) -> null, NOT empty string
         });
@@ -10737,7 +11646,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(ex.getMessage(), Matchers.containsString("columns"));
     }
 
-    public void testFusedPathFewerColumnsThanSchema() throws IOException {
+    /** The fused bracket walker counts the row's fields itself, so the lower bound has to reach it too. */
+    public void testFusedPathFewerColumnsThanSchemaIsARowError() throws IOException {
         String csv = """
             a:integer,b:integer,c:integer
             1,2
@@ -10745,6 +11655,22 @@ public class CsvFormatReaderTests extends ESTestCase {
             """;
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        Exception e = expectThrows(Exception.class, () -> drainAllPages(reader.read(object, List.of("a", "c"), 10)));
+        assertThat(e.getMessage(), containsString("missing trailing fields: [2] columns, the header has [3]"));
+    }
+
+    /** The same file under {@code pad_short_rows}: the short row is kept with its missing column null. */
+    public void testFusedPathFewerColumnsThanSchemaPaddedWhenOptedIn() throws IOException {
+        String csv = """
+            a:integer,b:integer,c:integer
+            1,2
+            3,4,5
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("multi_value_syntax", "brackets", "pad_short_rows", true)
+        );
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("a", "c"), 10)) {
             assertTrue(iterator.hasNext());
@@ -10760,7 +11686,8 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * Regression guard for rowBuffer reuse: a full row followed by a shorter row that omits
      * a trailing projected column must produce null for the missing column, not echo the
-     * value from the previous row.
+     * value from the previous row. {@code pad_short_rows} is what keeps such a row now that a short row is
+     * otherwise a row error — the null-fill loop this guards is reachable only through it.
      */
     public void testFusedPathRowBufferNotLeakedAcrossRows() throws IOException {
         String csv = """
@@ -10769,7 +11696,9 @@ public class CsvFormatReaderTests extends ESTestCase {
             4,5
             """;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("multi_value_syntax", "brackets", "pad_short_rows", true)
+        );
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("a", "c"), 10)) {
             assertTrue(iterator.hasNext());

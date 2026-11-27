@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.Logger;
@@ -16,15 +15,12 @@ import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
-import java.util.function.Supplier;
-
 public record ExecutableInferenceRequest(
     RequestSender requestSender,
     Logger logger,
     OutboundRequest outboundRequest,
     ResponseHandler responseHandler,
-    Supplier<Boolean> hasFinished,
-    ActionListener<InferenceServiceResults> listener
+    TimedListener<InferenceServiceResults> timedListener
 ) implements Runnable {
 
     @Override
@@ -32,11 +28,11 @@ public record ExecutableInferenceRequest(
         var inferenceEntityId = outboundRequest.getInferenceEntityId();
 
         try {
-            requestSender.send(logger, outboundRequest, hasFinished, responseHandler, listener);
+            requestSender.send(logger, outboundRequest, responseHandler, timedListener);
         } catch (Exception e) {
             var errorMessage = Strings.format("Failed to send request from inference entity id [%s]", inferenceEntityId);
             logger.warn(errorMessage, e);
-            listener.onFailure(new ElasticsearchException(errorMessage, e));
+            timedListener.getListener().onFailure(new ElasticsearchException(errorMessage, e));
         }
     }
 }

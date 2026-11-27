@@ -286,6 +286,22 @@ tx:long | cluster:keyword | time_bucket:datetime
 238     | staging         | 2024-05-10T00:20:00.000Z
 ;
 
+last_over_time_with_inline_filter_on_expression_of_aggregates
+required_capability: ts_command_v0
+required_capability: fix_ts_filter_on_expression_of_aggregates
+TS k8s
+| STATS spread = max(last_over_time(network.bytes_in)) - min(last_over_time(network.bytes_in))
+    WHERE starts_with(pod, "o") OR pod IN ("missing", "other")
+    BY time_bucket = bucket(@timestamp, 10minute)
+| SORT time_bucket
+;
+
+spread:long | time_bucket:datetime
+827         | 2024-05-10T00:00:00.000Z
+538         | 2024-05-10T00:10:00.000Z
+725         | 2024-05-10T00:20:00.000Z
+;
+
 implicit_last_over_time_with_inline_filtering_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
@@ -635,4 +651,38 @@ two       | staging         | 2024-05-10T00:10:00.000Z
 two       | prod            | 2024-05-10T00:20:00.000Z
 two       | qa              | 2024-05-10T00:20:00.000Z
 two       | staging         | 2024-05-10T00:20:00.000Z
+;
+
+last_over_time_of_boolean
+required_capability: ts_command_v0
+required_capability: fn_last_over_time_boolean
+TS k8s | WHERE cluster == "prod" | STATS up = max(last_over_time(network.eth0.up)) BY pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod;
+
+up:boolean | pod:keyword | time_bucket:datetime
+false      | one         | 2024-05-10T00:00:00.000Z
+true       | three       | 2024-05-10T00:00:00.000Z
+true       | two         | 2024-05-10T00:00:00.000Z
+false      | one         | 2024-05-10T00:10:00.000Z
+false      | three       | 2024-05-10T00:10:00.000Z
+true       | two         | 2024-05-10T00:10:00.000Z
+false      | one         | 2024-05-10T00:20:00.000Z
+false      | three       | 2024-05-10T00:20:00.000Z
+true       | two         | 2024-05-10T00:20:00.000Z
+;
+
+implicit_last_over_time_of_boolean_in_last
+required_capability: ts_command_v0
+required_capability: fn_last_over_time_boolean
+TS k8s | WHERE cluster == "prod" | STATS up = last(network.eth0.up, @timestamp) BY pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod;
+
+up:boolean | pod:keyword | time_bucket:datetime
+false      | one         | 2024-05-10T00:00:00.000Z
+true       | three       | 2024-05-10T00:00:00.000Z
+true       | two         | 2024-05-10T00:00:00.000Z
+false      | one         | 2024-05-10T00:10:00.000Z
+false      | three       | 2024-05-10T00:10:00.000Z
+true       | two         | 2024-05-10T00:10:00.000Z
+false      | one         | 2024-05-10T00:20:00.000Z
+false      | three       | 2024-05-10T00:20:00.000Z
+true       | two         | 2024-05-10T00:20:00.000Z
 ;

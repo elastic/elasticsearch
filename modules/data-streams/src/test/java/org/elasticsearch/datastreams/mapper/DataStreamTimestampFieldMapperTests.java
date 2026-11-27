@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataMapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -154,23 +155,29 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testValidateNotDisallowedAttribute() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(timestampMapping(true, b -> {
             b.startObject("@timestamp");
             b.field("type", "date");
             b.field("store", true);
             b.endObject();
         })));
-        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] has disallowed attributes: [store]"));
+        assertThat(
+            e.getMessage(),
+            equalTo("Failed to parse mapping: data stream timestamp field [@timestamp] has disallowed attributes: [store]")
+        );
     }
 
     public void testValidateIndexDisabled() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(timestampMapping(true, b -> {
             b.startObject("@timestamp");
             b.field("type", "date");
             b.field("index", false);
             b.endObject();
         })));
-        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] indexing can't be explicitly disabled"));
+        assertThat(
+            e.getMessage(),
+            equalTo("Failed to parse mapping: data stream timestamp field [@timestamp] indexing can't be explicitly disabled")
+        );
     }
 
     public void testValidateDefaultIgnoreMalformed() throws Exception {

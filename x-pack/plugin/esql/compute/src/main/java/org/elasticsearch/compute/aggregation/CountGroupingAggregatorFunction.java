@@ -127,6 +127,14 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             }
 
             @Override
+            public void addRuns(int positionOffset, GroupRuns runs) {
+                // Every position counts once here, so a run counts as many as it is long.
+                for (int run = 0; run < runs.runCount(); run++) {
+                    accumulateCount(runs.groupId(run), runs.length(run));
+                }
+            }
+
+            @Override
             public void close() {}
         };
     }
@@ -549,7 +557,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     @Override
-    public boolean supportPartitioning() {
+    public boolean supportPartitioning(AggregatorMode mode) {
         return true;
     }
 

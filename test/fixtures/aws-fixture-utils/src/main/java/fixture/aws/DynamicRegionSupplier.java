@@ -11,6 +11,8 @@ package fixture.aws;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Locale;
+
 /**
  * Lazy supplier for a region name. We cannot use randomness like {@link ESTestCase#randomIdentifier()} when creating the test fixtures in
  * the first place because this happens in static context, so instead we create one of these and defer the creation of the region name
@@ -19,5 +21,13 @@ import org.elasticsearch.test.ESTestCase;
 public class DynamicRegionSupplier extends DynamicIdentifierSupplier {
     public DynamicRegionSupplier() {
         super(() -> "DynamicRegionSupplier-");
+    }
+
+    /**
+     * Region names containing "fips" make the AWS SDK select FIPS endpoints, which the test fixtures do not serve.
+     */
+    @Override
+    protected boolean isInvalidIdentifier(String value) {
+        return value.toLowerCase(Locale.ROOT).contains("fips");
     }
 }

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167351
+summary: Speed UTF-8 checks on Parquet KEYWORD pages
+type: enhancement

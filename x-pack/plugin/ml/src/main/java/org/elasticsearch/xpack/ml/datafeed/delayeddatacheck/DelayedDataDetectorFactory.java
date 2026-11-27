@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlBucketEventCounter;
 
 import java.util.Objects;
 
@@ -50,10 +51,33 @@ public class DelayedDataDetectorFactory {
                 datafeedConfig.getDelayedDataCheckConfig().getCheckWindow()
             );
             long bucketSpan = job.getAnalysisConfig().getBucketSpan() == null ? 0 : job.getAnalysisConfig().getBucketSpan().millis();
-            return new DatafeedDelayedDataDetector(
-                bucketSpan,
-                window,
+            if (datafeedConfig.getEsqlQuery() != null) {
+                // An ES|QL datafeed has no indices or DSL query, so the DSL detector would fail on it.
+                String summaryCountField = job.getAnalysisConfig().getSummaryCountFieldName();
+                if (summaryCountField == null) {
+                    throw new IllegalArgumentException(
+                        Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD)
+                    );
+                }
+                long groupingInterval = datafeedConfig.getGroupingInterval().millis();
+                // DatafeedJobValidator rejects grouping_interval != bucket_span for ES|QL datafeeds.
+                assert groupingInterval == bucketSpan : "grouping_interval must equal bucket_span";
+                BucketEventCounter esqlCounter = new EsqlBucketEventCounter(
+                    job.getId(),
+                    bucketSpan,
+                    job.getDataDescription().getTimeField(),
+                    summaryCountField,
+                    datafeedConfig.getEsqlQuery(),
+                    datafeedConfig.getSourceTimeField(),
+                    datafeedConfig.getHeaders(),
+                    datafeedConfig.getProjectRouting(),
+                    client
+                );
+                return new DatafeedDelayedDataDetector(bucketSpan, window, job.getId(), client, esqlCounter);
+            }
+            BucketEventCounter searchCounter = new SearchBucketEventCounter(
                 job.getId(),
+                bucketSpan,
                 job.getDataDescription().getTimeField(),
                 datafeedConfig.getParsedQuery(xContentRegistry),
                 datafeedConfig.getIndices().toArray(new String[0]),
@@ -61,6 +85,7 @@ public class DelayedDataDetectorFactory {
                 datafeedConfig.getRuntimeMappings(),
                 client
             );
+            return new DatafeedDelayedDataDetector(bucketSpan, window, job.getId(), client, searchCounter);
         } else {
             return new NullDelayedDataDetector();
         }

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -155,6 +156,11 @@ public class CsvSchemaInferrer {
         int rowNumber = 0;
         outer: for (String[] row : sampleRows) {
             rowNumber++;
+            if (row.length == 0) {
+                // A row withheld from the vote keeps its place in the sample so row numbers stay true, but carries
+                // no value for any column: walking every header column to find that out costs a sweep per row.
+                continue;
+            }
             for (int col = 0; col < numCols; col++) {
                 if (candidateIdx[col] >= TYPE_CANDIDATES.length - 1) {
                     continue;
@@ -386,6 +392,9 @@ public class CsvSchemaInferrer {
     }
 
     private static boolean canParseInt(String value) {
+        if (DeclaredTypeCoercions.isPlainNumberText(value) == false) {
+            return false;
+        }
         try {
             Integer.parseInt(value);
             return true;
@@ -395,6 +404,9 @@ public class CsvSchemaInferrer {
     }
 
     private static boolean canParseLong(String value) {
+        if (DeclaredTypeCoercions.isPlainNumberText(value) == false) {
+            return false;
+        }
         try {
             Long.parseLong(value);
             return true;
@@ -405,7 +417,7 @@ public class CsvSchemaInferrer {
 
     private static boolean canParseDouble(String value) {
         try {
-            Double.parseDouble(value);
+            DeclaredTypeCoercions.parseDoubleText(value);
             return true;
         } catch (NumberFormatException e) {
             return false;

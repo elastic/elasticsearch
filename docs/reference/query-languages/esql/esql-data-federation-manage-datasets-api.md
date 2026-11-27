@@ -3,15 +3,12 @@ navigation_title: "Manage with API"
 description: "Create, get, list, and delete ES|QL Data Federation datasets with the /_query/dataset API."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
 
 # Create and manage datasets with the {{es}} API
-
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
 
 Datasets are managed under the `/_query/dataset` endpoint. All dataset operations require the index `manage` privilege on the dataset name, or a fine-grained dataset privilege. Refer to [manage credentials and privileges](esql-data-federation-security.md) for details.
 
@@ -22,6 +19,8 @@ Datasets are managed under the `/_query/dataset` endpoint. All dataset operation
 | [List all](#list-all-datasets) | `GET /_query/dataset` | [Get ES\|QL datasets]({{es-apis}}operation/operation-esql-get-dataset) |
 | [Delete](#delete-a-dataset) | `DELETE /_query/dataset/{name}` | [Delete ES\|QL datasets]({{es-apis}}operation/operation-esql-delete-dataset) |
 
+This page is a quick reference for each operation. For the complete request and response details, follow the API reference links in the table.
+
 ## Create or update a dataset
 
 [`PUT /_query/dataset/{name}`]({{es-apis}}operation/operation-esql-put-dataset) creates a new dataset or replaces an existing one entirely.
@@ -30,7 +29,7 @@ A dataset cannot have the same name as an existing index, data stream, alias, or
 
 The optional `description` can be at most 1,000 characters long.
 
-{applies_to}`stack: preview 9.6+` For restrictions on S3 bucket names, aliases, and Amazon Resource Names (ARNs), refer to [Amazon S3 resource restrictions](esql-data-federation-patterns.md#s3-resource-requirements).
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` For restrictions on S3 bucket names, aliases, and Amazon Resource Names (ARNs), refer to [Amazon S3 resource restrictions](esql-data-federation-patterns.md#s3-resource-requirements).
 
 ::::{tab-set}
 :group: api-ref
@@ -135,6 +134,8 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/dataset" \
 ## Delete a dataset
 
 [`DELETE /_query/dataset/{name}`]({{es-apis}}operation/operation-esql-delete-dataset) deletes a dataset by name.
+
+Deleting a dataset doesn't check whether an [{{esql}} view](/reference/query-languages/esql/esql-views.md) reads from it. Views that read from a deleted dataset fail when queried.
 
 ::::{tab-set}
 :group: api-ref

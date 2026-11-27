@@ -22,7 +22,9 @@ import org.junit.ClassRule;
 
 import java.util.Objects;
 
-@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
+// One multi-project check of the x-pack YAML corpus. 100 minutes because the corpus
+// outgrew 60 on a one-processor node, not because a case is slow. Splitting it does not make sense.
+@TimeoutSuite(millis = 100 * TimeUnits.MINUTE)
 public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProjectsClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

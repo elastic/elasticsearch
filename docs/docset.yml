@@ -69,6 +69,8 @@ subs:
   metricbeat:   "Metricbeat"
   es-sql:   "Elasticsearch SQL"
   esql:   "ES|QL"
+  prom:   "Prometheus"
+  promql:   "PromQL"
   security-features:   "security features"
   operator-feature:   "operator privileges feature"
   stack-security-features:   "Elastic Stack security features"
@@ -115,3 +117,4 @@ subs:
   index-manage-app:   "Index Management"
   connectors-app:   "Connectors"
   es-labs:   "Elasticsearch Labs"
+  vectordb:   "Vector Database"

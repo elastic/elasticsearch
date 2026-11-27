@@ -2,13 +2,20 @@
 navigation_title: "Time series"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-time-series-aggregation.html
+applies_to:
+  stack: deprecated 9.7+, preview 9.0-9.6
+  serverless:
+    elasticsearch: deprecated
+    observability: deprecated
+    security: deprecated
+    vectordb: unavailable
 ---
 
 # Time series aggregation [search-aggregations-bucket-time-series-aggregation]
 
 
 ::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
+The `time_series` aggregation is scheduled for removal. This change also affects `rate` on counter fields and `geo_line` inside `time_series`. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead.
 ::::
 
 
@@ -35,7 +42,7 @@ PUT /my-time-series-index-0/_bulk
 ```
 % NOTCONSOLE
 
-To perform a time series aggregation, specify "time_series" as the aggregation type. When the boolean "keyed" is true, each bucket is given a unique key.
+To perform a time series aggregation, specify "time_series" as the aggregation type. When the boolean "keyed" is true (the default), each bucket is given a unique key.
 
 $$$time-series-aggregation-example$$$
 
@@ -60,13 +67,9 @@ By default, `time series` aggregations return 10000 results. The "size" paramete
 
 ## Keyed [search-aggregations-bucket-time-series-aggregation-keyed]
 
-The `keyed` parameter determines if buckets are returned as a map with unique keys per bucket. By default with `keyed` set to false, buckets are returned as an array.
+The `keyed` parameter determines if buckets are returned as a map with unique keys per bucket. By default (`keyed` set to `true`), buckets are returned as a map. When `keyed` is `false`, buckets are returned as an array.
 
 
 ## Limitations [times-series-aggregations-limitations]
 
-The `time_series` aggregation has many limitations. Many aggregation performance optimizations are disabled when using the `time_series` aggregation. For example the filter by filter optimization or collect mode breath first (`terms` and `multi_terms` aggregation forcefully use the depth first collect mode).
-
-The following aggregations also fail to work if used in combination with the `time_series` aggregation: `auto_date_histogram`, `variable_width_histogram`, `rare_terms`, `global`, `composite`, `sampler`, `random_sampler` and `diversified_sampler`.
-
-
+The `time_series` aggregation has many limitations, and we recommend that you do not use it. It turns off many aggregation performance optimizations, and it fails or behaves differently when you combine it with other aggregations, for example `composite`, `global`, `top_hits`, `rare_terms`, `auto_date_histogram` and the sampler aggregations. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead.

@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chicken;
@@ -71,11 +72,16 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.esql.expression.promql.function.FloatToLabelValue;
 import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
+import org.elasticsearch.xpack.esql.expression.promql.function.NaturalSortKey;
 import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 
 import java.util.ArrayList;
@@ -150,8 +156,14 @@ public class ScalarFunctionWritables {
         entries.add(HashOffset.ENTRY);
         entries.add(HistogramPercentile.ENTRY);
         entries.add(ExtractHistogramComponent.ENTRY);
+        entries.add(NaturalSortKey.ENTRY);
         entries.add(RegexExpand.ENTRY);
+        entries.add(FloatToLabelValue.ENTRY);
         entries.add(WindowFilter.ENTRY);
+        entries.add(NestedPredicate.ENTRY);
+        entries.add(TimeSeriesMetadataFilter.ENTRY);
+        entries.add(TimeSeriesMetadataPath.ENTRY);
+        entries.add(TimeSeriesMetadataSet.ENTRY);
 
         entries.addAll(GroupingWritables.getNamedWriteables());
         return entries;

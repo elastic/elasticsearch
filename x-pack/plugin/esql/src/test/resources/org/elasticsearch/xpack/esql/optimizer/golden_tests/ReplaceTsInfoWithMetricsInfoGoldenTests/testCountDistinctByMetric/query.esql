@@ -1,0 +1,3 @@
+TS k8s
+| TS_INFO
+| STATS metrics = COUNT_DISTINCT(metric_name) BY metric_type

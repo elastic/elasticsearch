@@ -11,7 +11,6 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -21,6 +20,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.NUMBER_OF_TEST_RUNS;
@@ -51,7 +51,7 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 clusters
             );
             searchTemplateResponse.setResponse(searchResponse);
@@ -86,7 +86,7 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
                     successfulShards,
                     skippedShards,
                     tookInMillis,
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     clusters
                 );
                 searchTemplateResponse.setResponse(searchResponse);

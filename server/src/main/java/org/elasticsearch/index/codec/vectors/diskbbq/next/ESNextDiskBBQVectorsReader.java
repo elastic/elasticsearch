@@ -43,9 +43,11 @@ import org.elasticsearch.index.codec.vectors.diskbbq.SlicedBlockRange;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
+import org.elasticsearch.search.vectors.QueryTransformCache;
 import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -519,7 +521,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         }
     }
 
-    private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, byte[] quantizedTarget) {}
+    private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, ScoringQuery quantizedTarget) {}
 
     private static final int QUERY_CACHE_SIZE = 16;
 
@@ -553,7 +555,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<Integer, QueryQuantizerResult> eldest) {
                     if (size() > QUERY_CACHE_SIZE) {
-                        evictedQuantizedQuery = eldest.getValue().quantizedTarget();
+                        evictedQuantizedQuery = eldest.getValue().quantizedTarget().bytes();
                         return true;
                     }
                     return false;
@@ -599,7 +601,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 );
                 quantEncoding.packQuery(quantizationScratch, quantizedQuery);
                 currentCentroidOrdinal = nextCentroidOrdinal;
-                result = new QueryQuantizerResult(queryCorrections, quantizedQuery);
+                result = new QueryQuantizerResult(queryCorrections, new ScoringQuery(quantizedQuery));
                 cache.put(nextCentroidOrdinal, result);
             }
         }
@@ -608,7 +610,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             return result.queryCorrections();
         }
 
-        byte[] getQuantizedTarget() {
+        ScoringQuery getQuantizedTarget() {
             return result.quantizedTarget();
         }
     }
@@ -633,7 +635,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             fieldInfo,
             values,
             entry.postingListSlice(ivfClusters.clone()),
-            new QueryTarget.FloatQuery(query),
+            new QueryTarget.FloatQuery(query, QueryTransformCache.NONE),
             null,
             entry.centroidSlice(ivfCentroids.clone()),
             acceptDocs

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -59,6 +61,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -358,6 +361,26 @@ public class FileSplitProviderTests extends ESTestCase {
         );
     }
 
+    /**
+     * Empty spec never calls a non-empty {@code projectListingHints}, so RANGE must still
+     * drop here: otherwise listing-cache identity includes BoundRange.toString() while
+     * {@code EsqlSession} (through EMPTY.projectListingHints) does not.
+     */
+    public void testListingHintsForQueryEmptySpecDropsRange() {
+        Expression filter = new Or(
+            SRC,
+            new GreaterThanOrEqual(SRC, fieldAttr("year"), intLiteral(2024)),
+            new LessThanOrEqual(SRC, fieldAttr("year"), intLiteral(2020))
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = FileSplitProvider.listingHintsForQuery(
+            List.of(filter),
+            Set.of(),
+            Set.of("year"),
+            PartitionSpec.EMPTY
+        );
+        assertTrue(hints.stream().noneMatch(h -> h.operator() == PartitionFilterHintExtractor.Operator.RANGE));
+    }
+
     public void testListingHintsForQueryIdentityRemapKeepsHiveKey() {
         Expression filter = new Equals(SRC, keywordField("region"), Literal.keyword(SRC, "eu"));
         List<PartitionFilterHintExtractor.PartitionFilterHint> hints = FileSplitProvider.listingHintsForQuery(
@@ -438,6 +461,71 @@ public class FileSplitProviderTests extends ESTestCase {
         assertTrue("a missing-column filter contradiction must prune every file", result.splits().isEmpty());
         assertEquals(0, result.filesScanned());
         assertTrue("a missing-column prune of a resolved, non-empty fileList is exhaustive", result.exhaustivelyPruned());
+    }
+
+    public void testMinMaxFilterDropsMissSplits() {
+        ExternalSplit keep = splitWithRange("s3://b/keep.parquet", "age", 30, 50);
+        ExternalSplit drop = splitWithRange("s3://b/drop.parquet", "age", 1, 10);
+        Expression filter = new GreaterThan(SRC, fieldAttr("age"), intLiteral(20), null);
+        List<ExternalSplit> kept = FileSplitProvider.dropStatsMisses(List.of(keep, drop), List.of(filter));
+        assertEquals(1, kept.size());
+        assertEquals(((FileSplit) keep).path(), ((FileSplit) kept.get(0)).path());
+    }
+
+    public void testMinMaxFilterKeepsOverlapAndMissingStats() {
+        ExternalSplit overlap = splitWithRange("s3://b/overlap.parquet", "age", 10, 30);
+        ExternalSplit noStats = new FileSplit("file", StoragePath.of("s3://b/text.csv"), 0, 50, "csv", Map.of(), Map.of());
+        Expression filter = new GreaterThan(SRC, fieldAttr("age"), intLiteral(20), null);
+        List<ExternalSplit> kept = FileSplitProvider.dropStatsMisses(List.of(overlap, noStats), List.of(filter));
+        assertEquals(2, kept.size());
+    }
+
+    public void testMvInRangeDropsDisjointSplit() {
+        ExternalSplit drop = splitWithRange("s3://b/low.parquet", "age", 1, 10);
+        ExternalSplit keep = splitWithRange("s3://b/high.parquet", "age", 40, 50);
+        Expression filter = new MvInRange(SRC, fieldAttr("age"), intLiteral(30), intLiteral(60));
+        List<ExternalSplit> kept = FileSplitProvider.dropStatsMisses(List.of(drop, keep), List.of(filter));
+        assertEquals(1, kept.size());
+        assertEquals(StoragePath.of("s3://b/high.parquet"), ((FileSplit) kept.get(0)).path());
+    }
+
+    public void testMinMaxFilterKeepsOppositeSignZeroEquals() {
+        ExternalSplit negZero = splitWithRange("s3://b/neg.parquet", "d", -0.0, -0.0);
+        ExternalSplit one = splitWithRange("s3://b/one.parquet", "d", 1.0, 1.0);
+        FieldAttribute d = new FieldAttribute(
+            SRC,
+            "d",
+            new EsField("d", DataType.DOUBLE, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression eq = new Equals(SRC, d, new Literal(SRC, 0.0, DataType.DOUBLE), null);
+        List<ExternalSplit> kept = FileSplitProvider.dropStatsMisses(List.of(negZero, one), List.of(eq));
+        assertEquals(1, kept.size());
+        assertEquals(StoragePath.of("s3://b/neg.parquet"), ((FileSplit) kept.get(0)).path());
+    }
+
+    public void testDataColumnStatsFilterDropsPartitionConjunct() {
+        StoragePath path = StoragePath.of("s3://b/year=2024/file.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://b/year=*/*.parquet");
+        PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
+        Expression yearEq = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
+        Expression ageGt = new GreaterThan(SRC, fieldAttr("age"), intLiteral(90), null);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(yearEq, ageGt));
+        List<Expression> statsFilter = FileSplitProvider.dataColumnStatsFilter(ctx);
+        assertEquals(1, statsFilter.size());
+        assertEquals(ageGt, statsFilter.get(0));
+    }
+
+    public void testDataColumnStatsFilterDropsMixedOr() {
+        StoragePath path = StoragePath.of("s3://b/year=2024/file.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://b/year=*/*.parquet");
+        PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
+        Expression mixedOr = new Or(
+            SRC,
+            new Equals(SRC, fieldAttr("year"), intLiteral(2024)),
+            new GreaterThan(SRC, fieldAttr("age"), intLiteral(90), null)
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(mixedOr));
+        assertTrue(FileSplitProvider.dataColumnStatsFilter(ctx).isEmpty());
     }
 
     /**
@@ -4432,7 +4520,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            expectThrows(
+            TaskCancelledException thrown = expectThrows(
                 TaskCancelledException.class,
                 () -> discoverPlainCsvSplits(
                     Map.of("cancelled.csv", payload),
@@ -4443,6 +4531,7 @@ public class FileSplitProviderTests extends ESTestCase {
                     cancelOnFirstRead
                 )
             );
+            assertEquals(RecordBoundaryProbe.CANCELLED_MESSAGE, thrown.getMessage());
         } finally {
             executor.shutdown();
         }
@@ -5624,13 +5713,12 @@ public class FileSplitProviderTests extends ESTestCase {
                     public int read() throws IOException {
                         throw new IOException("connection reset");
                     }
-                };
-            }
 
-            @Override
-            public void abortStream(InputStream stream) throws IOException {
-                abortCalls.incrementAndGet();
-                stream.close();
+                    @Override
+                    public void close() {
+                        abortCalls.incrementAndGet();
+                    }
+                };
             }
 
             @Override
@@ -5743,7 +5831,7 @@ public class FileSplitProviderTests extends ESTestCase {
         AtomicInteger checks = new AtomicInteger();
         BooleanSupplier cancelAfterTheScan = () -> checks.getAndIncrement() > 0;
 
-        expectThrows(
+        TaskCancelledException thrown = expectThrows(
             TaskCancelledException.class,
             () -> RecordBoundaryProbe.probeAt(
                 stridedSplitter(),
@@ -5756,6 +5844,7 @@ public class FileSplitProviderTests extends ESTestCase {
                 cancelAfterTheScan
             )
         );
+        assertEquals(RecordBoundaryProbe.CANCELLED_MESSAGE, thrown.getMessage());
 
         assertEquals("a cancelled probe aborts its stream", 1, tracking.abortCalls.get());
         assertThat("and does not drain its window first", tracking.bytesConsumed.get(), lessThan(RecordBoundaryProbe.MAX_DRAIN_BYTES));
@@ -5812,7 +5901,7 @@ public class FileSplitProviderTests extends ESTestCase {
             }
         };
 
-        expectThrows(
+        TaskCancelledException thrown = expectThrows(
             TaskCancelledException.class,
             () -> RecordBoundaryProbe.probeAt(
                 stridedSplitter(),
@@ -5825,6 +5914,7 @@ public class FileSplitProviderTests extends ESTestCase {
                 () -> true
             )
         );
+        assertEquals(RecordBoundaryProbe.CANCELLED_MESSAGE, thrown.getMessage());
         assertEquals("a cancelled probe must not read", 0, streamsOpened.get());
     }
 
@@ -7139,6 +7229,95 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("Total row count across splits should be sum of all files", 1000L, totalRowCount);
     }
 
+    public void testDiscoverSplitsDropsMinMaxMissesAndFlagsExhaustivePrune() {
+        Map<String, Object> low = new HashMap<>();
+        low.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        low.put(SourceStatisticsSerializer.columnMinKey("age"), 1);
+        low.put(SourceStatisticsSerializer.columnMaxKey("age"), 10);
+        low.put(SourceStatisticsSerializer.columnNullCountKey("age"), 0L);
+        low.put(SourceStatisticsSerializer.columnValueCountKey("age"), 10L);
+        Map<String, Object> high = new HashMap<>();
+        high.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        high.put(SourceStatisticsSerializer.columnMinKey("age"), 100);
+        high.put(SourceStatisticsSerializer.columnMaxKey("age"), 110);
+        high.put(SourceStatisticsSerializer.columnNullCountKey("age"), 0L);
+        high.put(SourceStatisticsSerializer.columnValueCountKey("age"), 10L);
+
+        Map<String, List<SplitRange>> perFile = Map.of(
+            "low.parquet",
+            List.of(new SplitRange(0, 200, low), new SplitRange(200, 200, low)),
+            "high.parquet",
+            List.of(new SplitRange(0, 300, high))
+        );
+        RangeAwareFormatReader mockReader = new RangeAwareFormatReader() {
+            @Override
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
+            }
+
+            @Override
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                return perFile.get(object.path().objectName());
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public void close() {}
+        };
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StoragePath lowPath = StoragePath.of("s3://b/low.parquet");
+        StoragePath highPath = StoragePath.of("s3://b/high.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(lowPath, 400, Instant.EPOCH), new StorageEntry(highPath, 300, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+        Expression filter = new GreaterThan(SRC, fieldAttr("age"), intLiteral(50), null);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(filter));
+        SplitDiscoveryResult result = splitter.discoverSplits(ctx);
+
+        assertEquals(1, result.splits().size());
+        assertEquals(highPath, ((FileSplit) result.splits().get(0)).path());
+        assertEquals(1, result.filesScanned());
+        assertFalse(result.exhaustivelyPruned());
+
+        Expression none = new GreaterThan(SRC, fieldAttr("age"), intLiteral(1000), null);
+        SplitDiscoveryResult empty = splitter.discoverSplits(
+            new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(none))
+        );
+        assertTrue(empty.splits().isEmpty());
+        assertEquals(0, empty.filesScanned());
+        assertTrue("every planned range missed the filter on a complete listing", empty.exhaustivelyPruned());
+    }
+
     /**
      * The invariant this class must not lose: a listing that covers part of a dataset is the schema's answer, never
      * the query's file set. Resolution hands one over under {@code first_file_wins}, where one file defines the
@@ -7954,6 +8133,171 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * A file deleted after a cached listing was written must not fail the whole dataset. Discovery drops the listing
+     * and lists the store once more, so the query reads the files that are still there plus any that arrived since.
+     * Checked on both entry points and on both the prefix rail (which lists) and the complete-listing rail (which
+     * would otherwise keep planning the stale set).
+     */
+    public void testDeletedFileDuringDiscoveryRelistsOnceAndReadsTheStore() throws Exception {
+        for (boolean async : new boolean[] { false, true }) {
+            for (boolean completeListing : new boolean[] { false, true }) {
+                assertDeletedFileRelists(async, completeListing);
+            }
+        }
+    }
+
+    /**
+     * The retry runs once. A file that is still missing after the re-list fails discovery with the condition.
+     */
+    public void testDeletedFileDuringDiscoveryIsReturnedAfterOneRetry() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>(twoParquetFiles(payloads));
+        AtomicInteger listings = new AtomicInteger();
+        AtomicBoolean missing = new AtomicBoolean();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            FileSplitProvider provider = rangeAwareProvider(
+                readerMissing("b.parquet", missing, Condition.OBJECT_NOT_FOUND),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                Settings.EMPTY,
+                createMultiFileStorageRegistry(payloads, null, listing, listings),
+                new DatasetListingService(Settings.EMPTY, cache, null, null, null)
+            );
+            assertEquals(2, provider.discoverSplits(overAPrefixOf(listing)).splits().size());
+            missing.set(true);
+            ExternalClientException e = expectThrows(ExternalClientException.class, () -> provider.discoverSplits(overAPrefixOf(listing)));
+            assertEquals(Condition.OBJECT_NOT_FOUND, e.condition());
+            assertEquals("listed to populate the cache, then once more on the retry", 2, listings.get());
+        }
+    }
+
+    /** Only a missing or rewritten object is retried. A refusal is the query's answer. */
+    public void testAccessDeniedDuringDiscoveryIsNotRetried() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>(twoParquetFiles(payloads));
+        AtomicInteger listings = new AtomicInteger();
+        AtomicBoolean denied = new AtomicBoolean();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            FileSplitProvider provider = rangeAwareProvider(
+                readerMissing("b.parquet", denied, Condition.ACCESS_DENIED),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                Settings.EMPTY,
+                createMultiFileStorageRegistry(payloads, null, listing, listings),
+                new DatasetListingService(Settings.EMPTY, cache, null, null, null)
+            );
+            assertEquals(2, provider.discoverSplits(overAPrefixOf(listing)).splits().size());
+            denied.set(true);
+            ExternalClientException e = expectThrows(ExternalClientException.class, () -> provider.discoverSplits(overAPrefixOf(listing)));
+            assertEquals(Condition.ACCESS_DENIED, e.condition());
+            assertEquals("a refusal must not drop the listing", 1, listings.get());
+        }
+    }
+
+    private void assertDeletedFileRelists(boolean async, boolean completeListing) throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        payloads.put("a.parquet", new byte[2000]);
+        payloads.put("b.parquet", new byte[2000]);
+        List<StorageEntry> listing = new ArrayList<>(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://b/a.parquet"), 2000, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://b/b.parquet"), 2000, Instant.EPOCH)
+            )
+        );
+        AtomicInteger listings = new AtomicInteger();
+        AtomicBoolean missing = new AtomicBoolean();
+        String label = (async ? "async" : "sync") + (completeListing ? ", complete listing" : ", prefix listing");
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            FileSplitProvider provider = rangeAwareProvider(
+                readerMissing("b.parquet", missing, Condition.OBJECT_NOT_FOUND),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                Settings.EMPTY,
+                createMultiFileStorageRegistry(payloads, null, listing, listings),
+                new DatasetListingService(Settings.EMPTY, cache, null, null, null)
+            );
+            List<StorageEntry> original = List.copyOf(listing);
+            SplitDiscoveryContext warm = completeListing
+                ? overAPrefixOf(original).withScanFileSet(GlobExpander.fileListOf(original, "s3://b/*.parquet"))
+                : overAPrefixOf(original);
+            assertEquals(label, 2, discoverOn(async, provider, warm).splits().size());
+
+            missing.set(true);
+            payloads.put("c.parquet", new byte[2000]);
+            listing.clear();
+            listing.add(new StorageEntry(StoragePath.of("s3://b/a.parquet"), 2000, Instant.EPOCH));
+            listing.add(new StorageEntry(StoragePath.of("s3://b/c.parquet"), 2000, Instant.EPOCH));
+
+            SplitDiscoveryContext afterDelete = completeListing
+                ? overAPrefixOf(original).withScanFileSet(GlobExpander.fileListOf(original, "s3://b/*.parquet"))
+                : overAPrefixOf(listing);
+            SplitDiscoveryResult result = discoverOn(async, provider, afterDelete);
+            Set<String> names = new HashSet<>();
+            for (ExternalSplit split : result.splits()) {
+                names.add(((FileSplit) split).path().objectName());
+            }
+            assertEquals(label + ": surviving file plus the one added after the delete", Set.of("a.parquet", "c.parquet"), names);
+            assertThat(
+                label + ": the stale listing was dropped, so the store was listed again",
+                listings.get(),
+                greaterThan(completeListing ? 0 : 1)
+            );
+        }
+    }
+
+    private static RangeAwareFormatReader readerMissing(String objectName, AtomicBoolean missing, Condition condition) {
+        return new RangeAwareFormatReader() {
+            @Override
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
+            }
+
+            @Override
+            public List<SplitRange> cachedSplitRanges(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                if (missing.get() && objectName.equals(object.path().objectName())) {
+                    throw new ExternalClientException(condition, object.path(), "", "");
+                }
+                return List.of(new SplitRange(0, 2000));
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
+                throw new UnsupportedOperationException("not called during split discovery");
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                return null;
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet", ".parq");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
+    /**
      * The listing caps are dynamic cluster settings, so the value that counts is the one in force when the query lists,
      * not the one the node started with. A cap lowered below the dataset's size between two queries must refuse the
      * second.
@@ -8230,6 +8574,244 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * A LIMIT behind a Filter cannot stop on footer row counts, but it also must not open every
+     * footer. The first {@code taskConcurrency} files get a real plan; the rest are whole-file
+     * splits with no object-store I/O. Runtime then ramps readers and stops on the observed limiter.
+     */
+    public void testFilteredLimitPlansOnlyAFirstWaveOfFooters() throws Exception {
+        int files = 8;
+        int taskConcurrency = 2;
+        AtomicInteger opened = new AtomicInteger();
+        FileSplitProvider provider = rangeAwareProvider(countingRowCountReader(opened, 10), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        SplitDiscoveryResult result = provider.discoverSplits(contextWithFilteredLimit(files, taskConcurrency));
+
+        assertEquals("only the first wave opens a footer", taskConcurrency, opened.get());
+        assertEquals("the rest still produce a whole-file split so a selective filter can continue", files, result.splits().size());
+    }
+
+    /**
+     * Guard: if {@code gatherSkippingCachedFooters} passed a null reader, that reader would
+     * fail-open (no wave cap) and parquet would open every footer. Expected to pass with or
+     * without the text-wave skip. Does not reproduce the text regression.
+     */
+    public void testFilteredLimitPlansOnlyAFirstWaveOfFootersAsync() throws Exception {
+        int files = 8;
+        int taskConcurrency = 2;
+        AtomicInteger opened = new AtomicInteger();
+        FileSplitProvider provider = rangeAwareProvider(countingRowCountReader(opened, 10), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        provider.discoverSplitsAsync(contextWithFilteredLimit(files, taskConcurrency), EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        SplitDiscoveryResult result = future.actionGet(30, TimeUnit.SECONDS);
+
+        assertEquals("only the first wave opens a footer", taskConcurrency, opened.get());
+        assertEquals("the rest still produce a whole-file split so a selective filter can continue", files, result.splits().size());
+    }
+
+    /**
+     * Text has no footer, so the filtered-LIMIT plan wave must not collapse files past
+     * {@code taskConcurrency} into whole-file splits. Each CSV file large enough to range-split
+     * still produces record-aligned macro splits: sequential {@code executor == null},
+     * {@link FileSplitProvider#discoverSplits} with a non-null executor, and
+     * {@link FileSplitProvider#discoverSplitsAsync}.
+     */
+    public void testFilteredLimitDoesNotApplyPlanWaveToText() throws Exception {
+        int files = 8;
+        int taskConcurrency = 2;
+        byte[] payload = delimitedPayload("a,b,c\n");
+        Map<String, byte[]> payloads = new LinkedHashMap<>();
+        for (int i = 0; i < files; i++) {
+            payloads.put("f" + i + ".csv", payload);
+        }
+
+        List<StorageEntry> entries = new ArrayList<>();
+        for (Map.Entry<String, byte[]> file : payloads.entrySet()) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/" + file.getKey()), file.getValue().length, Instant.EPOCH));
+        }
+        SplitDiscoveryContext ctx = contextWithFilteredLimit(
+            new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(entries, "s3://b/*.csv"),
+                Map.of(),
+                Map.of("mode", "plain"),
+                PartitionMetadata.EMPTY,
+                List.of(),
+                ExternalSchema.EMPTY,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                DeclaredReadSpec.NONE
+            ),
+            taskConcurrency
+        );
+
+        assertTextDidNotApplyPlanWave(plainCsvProvider(payloads, null).discoverSplits(ctx), files);
+
+        FileSplitProvider parallel = plainCsvProvider(payloads, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        assertTextDidNotApplyPlanWave(parallel.discoverSplits(ctx), files);
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        parallel.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        assertTextDidNotApplyPlanWave(future.actionGet(30, TimeUnit.SECONDS), files);
+    }
+
+    private static FileSplitProvider plainCsvProvider(Map<String, byte[]> payloads, @Nullable Executor executor) {
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy(
+            "csv",
+            (s, bf) -> new CsvFormatReader(bf, CsvFormatOptions.DEFAULT, "csv", List.of(".csv")),
+            Settings.EMPTY,
+            null
+        );
+        formatRegistry.registerExtension(".csv", "csv");
+        formatRegistry.byName("csv");
+        return new FileSplitProvider(
+            CSV_MIN_SEGMENT_BYTES,
+            new DecompressionCodecRegistry(),
+            createMultiFileStorageRegistry(payloads, null),
+            formatRegistry,
+            Settings.EMPTY,
+            executor
+        );
+    }
+
+    private static void assertTextDidNotApplyPlanWave(SplitDiscoveryResult result, int files) {
+        Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
+        for (ExternalSplit split : result.splits()) {
+            FileSplit fileSplit = (FileSplit) split;
+            byFile.computeIfAbsent(fileSplit.path().objectName(), k -> new ArrayList<>()).add(fileSplit);
+        }
+        assertEquals("every listed file still produces splits", files, byFile.size());
+        for (int i = 0; i < files; i++) {
+            String name = "f" + i + ".csv";
+            List<FileSplit> fileSplits = byFile.get(name);
+            assertThat(
+                "file " + name + " must range-split, not collapse to a whole-file split past the first wave",
+                fileSplits.size(),
+                greaterThan(1)
+            );
+            for (FileSplit fs : fileSplits) {
+                assertEquals("true", fs.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+            }
+        }
+    }
+
+    /**
+     * The wave helper itself: a {@link RangeAwareFormatReader} is capped at {@code taskConcurrency};
+     * CSV is not. Splittable compressed text still waves because planning scans for block
+     * boundaries; gzip does not. A null reader fail-opens. Resolving through
+     * {@link FormatReaderRegistry#byName} then {@link FormatReader#withConfig} (the production
+     * {@code resolveConfiguredReader} shape) still waves: {@code ParquetFormatReader#withSchemaMaxFields}
+     * returns another {@code ParquetFormatReader}, and ORC's {@code NoConfigFormatReader} returns
+     * {@code this}. Neither supports whole-file compression, so the registry cannot wrap them in
+     * {@code CompressionDelegatingFormatReader}.
+     */
+    public void testFilteredLimitPlanWaveAppliesOnlyToRangeAwareReaders() {
+        SplitDiscoveryContext ctx = contextWithFilteredLimit(8, 2);
+        RangeAwareFormatReader parquet = countingRowCountReader(new AtomicInteger(), 10);
+        CsvFormatReader csv = new CsvFormatReader(
+            BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build()
+        );
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, parquet));
+        assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, csv));
+        assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, null));
+
+        FormatReader splittable = new CompressionDelegatingFormatReader(csv, new FakeSplittableCodec(new long[] { 0L }));
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, splittable));
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, splittable.withConfig(Map.of())));
+        FormatReader gzip = new CompressionDelegatingFormatReader(csv, new GzipDecompressionCodec());
+        assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, gzip));
+
+        FormatReaderRegistry registry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        registry.registerLazy("parquet", (s, bf) -> parquet, Settings.EMPTY, null);
+        registry.byName("parquet");
+        FormatReader resolved = registry.byName("parquet").withConfig(Map.of());
+        assertThat(resolved, instanceOf(RangeAwareFormatReader.class));
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, resolved));
+    }
+
+    /**
+     * Splittable compressed text still pays {@code findBlockBoundaries} per planned file, so the
+     * filtered-LIMIT wave keeps that scan to {@code taskConcurrency}. Files past the wave become
+     * whole-file splits with no object-store I/O. Sequential, parallel, and async all cap the scan.
+     */
+    public void testFilteredLimitPlansOnlyAFirstWaveOfBlockBoundaryScans() throws Exception {
+        assumeTrue("bzip2 wrap is snapshot-only", Build.current().isSnapshot());
+        int files = 8;
+        int taskConcurrency = 2;
+        long fileLength = 1_000_000_000L;
+        long[] boundaries = new long[200];
+        for (int i = 0; i < boundaries.length; i++) {
+            boundaries[i] = (long) i * 5_000_000L;
+        }
+        FakeSplittableCodec codec = new FakeSplittableCodec(boundaries);
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < files; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/f" + i + ".ndjson.bz2"), fileLength, Instant.EPOCH));
+        }
+        SplitDiscoveryContext ctx = contextWithFilteredLimit(
+            new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(entries, "s3://b/*.ndjson.bz2"),
+                Map.of(),
+                PartitionMetadata.EMPTY,
+                List.of()
+            ),
+            taskConcurrency
+        );
+
+        codec.resetScans();
+        assertBlockBoundaryWave(splittableBz2Provider(codec, null).discoverSplits(ctx), files, taskConcurrency);
+        assertEquals("sequential plans only the first wave", taskConcurrency, codec.scans());
+
+        FileSplitProvider parallel = splittableBz2Provider(codec, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        codec.resetScans();
+        assertBlockBoundaryWave(parallel.discoverSplits(ctx), files, taskConcurrency);
+        assertEquals("parallel plans only the first wave", taskConcurrency, codec.scans());
+
+        codec.resetScans();
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        parallel.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        assertBlockBoundaryWave(future.actionGet(30, TimeUnit.SECONDS), files, taskConcurrency);
+        assertEquals("async plans only the first wave", taskConcurrency, codec.scans());
+    }
+
+    private static FileSplitProvider splittableBz2Provider(FakeSplittableCodec codec, @Nullable Executor executor) {
+        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        codecRegistry.register(codec);
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecRegistry);
+        formatRegistry.registerLazy("ndjson", (s, bf) -> new NdJsonFormatReader(s, bf, null), Settings.EMPTY, null);
+        formatRegistry.registerExtension(".ndjson", "ndjson");
+        formatRegistry.byName("ndjson");
+        return new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            createMockStorageRegistry(),
+            formatRegistry,
+            Settings.EMPTY,
+            executor
+        );
+    }
+
+    private static void assertBlockBoundaryWave(SplitDiscoveryResult result, int files, int taskConcurrency) {
+        Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
+        for (ExternalSplit split : result.splits()) {
+            FileSplit fileSplit = (FileSplit) split;
+            byFile.computeIfAbsent(fileSplit.path().objectName(), k -> new ArrayList<>()).add(fileSplit);
+        }
+        assertEquals("every listed file still produces splits", files, byFile.size());
+        for (int i = 0; i < files; i++) {
+            String name = "f" + i + ".ndjson.bz2";
+            List<FileSplit> fileSplits = byFile.get(name);
+            if (i < taskConcurrency) {
+                assertThat("wave file " + name + " must keep block-aligned splits", fileSplits.size(), greaterThan(1));
+            } else {
+                assertEquals("file " + name + " past the wave collapses to a whole-file split", 1, fileSplits.size());
+            }
+        }
+    }
+
+    /**
      * A unit that cannot say how many records it holds makes the running total a floor rather than a count, so the
      * budget gives up and every file is planned. The reader here reports ranges without statistics, which is what
      * every format that is not row-group or stripe based does.
@@ -8371,6 +8953,33 @@ public class FileSplitProviderTests extends ESTestCase {
             base.retainedPartitionKeys(),
             rowLimit,
             null
+        );
+    }
+
+    private static SplitDiscoveryContext contextWithFilteredLimit(int fileCount, int taskConcurrency) {
+        return contextWithFilteredLimit(rangeAwareContext(fileCount), taskConcurrency);
+    }
+
+    private static SplitDiscoveryContext contextWithFilteredLimit(SplitDiscoveryContext base, int taskConcurrency) {
+        return new SplitDiscoveryContext(
+            base.metadata(),
+            base.fileList(),
+            base.schemaMap(),
+            base.config(),
+            base.partitionInfo(),
+            base.filterHints(),
+            base.querySchema(),
+            base.unifiedSchema(),
+            base.maxRecordBytes(),
+            base.isCancelled(),
+            base.declaredReadSpec(),
+            base.metadataColumnNames(),
+            base.retainedPartitionKeys(),
+            FormatReader.NO_LIMIT,
+            null,
+            taskConcurrency,
+            TransportVersion.current(),
+            true
         );
     }
 
@@ -10184,9 +10793,18 @@ public class FileSplitProviderTests extends ESTestCase {
     /** Fake SplittableDecompressionCodec returning canned block boundaries, for unit-testing split logic. */
     private static final class FakeSplittableCodec implements SplittableDecompressionCodec {
         private final long[] boundaries;
+        private final AtomicInteger scans = new AtomicInteger();
 
         FakeSplittableCodec(long[] boundaries) {
             this.boundaries = boundaries;
+        }
+
+        int scans() {
+            return scans.get();
+        }
+
+        void resetScans() {
+            scans.set(0);
         }
 
         @Override
@@ -10206,6 +10824,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         @Override
         public long[] findBlockBoundaries(StorageObject object, long start, long end, LongConsumer ignored) {
+            scans.incrementAndGet();
             return boundaries.clone();
         }
 
@@ -10645,6 +11264,16 @@ public class FileSplitProviderTests extends ESTestCase {
             Set.of(),
             retained
         );
+    }
+
+    private static ExternalSplit splitWithRange(String uri, String column, Object min, Object max) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        stats.put(SourceStatisticsSerializer.columnMinKey(column), min);
+        stats.put(SourceStatisticsSerializer.columnMaxKey(column), max);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey(column), 0L);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey(column), 100L);
+        return FileSplit.withStatisticsAndReadSchema("file", StoragePath.of(uri), 0, 100, "parquet", Map.of(), Map.of(), null, stats, null);
     }
 
     private static FieldAttribute fieldAttr(String name) {

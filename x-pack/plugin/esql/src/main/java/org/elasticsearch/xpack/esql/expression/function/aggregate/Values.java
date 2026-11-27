@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -41,9 +42,9 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentableInExpression;
 
-public class Values extends UnaryAggregateFunction implements ToAggregator, AnyNullIsNull {
+public class Values extends UnaryAggregateFunction implements ToAggregator, AnyNullIsNull, UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Values.class)
         .unary(Values::new)
@@ -66,6 +67,7 @@ public class Values extends UnaryAggregateFunction implements ToAggregator, AnyN
         Map.entry(DataType.GEO_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.CARTESIAN_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.FLATTENED, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.TIME_SERIES_METADATA_DATA_TYPE, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOHASH, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOTILE, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOHEX, ValuesLongAggregatorFunctionSupplier::new),
@@ -182,7 +184,7 @@ public class Values extends UnaryAggregateFunction implements ToAggregator, AnyN
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> isRepresentable(dt)
+            dt -> isRepresentableInExpression(dt)
                 && dt != DataType.DENSE_VECTOR
                 && dt != DataType.AGGREGATE_METRIC_DOUBLE
                 && dt != DataType.EXPONENTIAL_HISTOGRAM

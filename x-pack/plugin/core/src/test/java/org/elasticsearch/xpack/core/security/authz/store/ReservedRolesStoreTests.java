@@ -291,6 +291,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
                 Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
+                Map.entry(".ai-index-idx-security-triage-decisions", Set.of("auto_configure", "index", "read")),
                 Map.entry("apm-sample-transactionsample", Set.of()),
                 Map.entry("auditbeat-sample", Set.of()),
                 Map.entry("endgame-sample", Set.of()),
@@ -329,6 +330,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
                 Map.entry("ai-index-idx-security-attack-fingerprints", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry(".ai-index-idx-security-triage-decisions", Set.of()),
                 Map.entry("apm-sample-transactionsample", Set.of("read")),
                 Map.entry("auditbeat-sample", Set.of("read")),
                 Map.entry("endgame-sample", Set.of("read")),
@@ -367,6 +369,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
                 Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
+                Map.entry(".ai-index-idx-security-triage-decisions", Set.of()),
                 Map.entry("apm-sample-transactionsample", Set.of()),
                 Map.entry("auditbeat-sample", Set.of()),
                 Map.entry("endgame-sample", Set.of()),
@@ -402,6 +405,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
                 Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
+                Map.entry(".ai-index-idx-security-triage-decisions", Set.of()),
                 Map.entry("apm-sample-transactionsample", Set.of("read")),
                 Map.entry("auditbeat-sample", Set.of("read")),
                 Map.entry("endgame-sample", Set.of("read")),
@@ -437,6 +441,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of("read")),
                 Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
                 Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
+                Map.entry(".ai-index-idx-security-triage-decisions", Set.of()),
                 Map.entry("apm-sample-transactionsample", Set.of("read", "view_index_metadata")),
                 Map.entry("auditbeat-sample", Set.of("read", "view_index_metadata")),
                 Map.entry("endgame-sample", Set.of("read", "view_index_metadata")),
@@ -472,6 +477,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of("read")),
                 Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
                 Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
+                Map.entry(".ai-index-idx-security-triage-decisions", Set.of()),
                 Map.entry("apm-sample-transactionsample", Set.of("read", "view_index_metadata")),
                 Map.entry("auditbeat-sample", Set.of("read", "view_index_metadata")),
                 Map.entry("endgame-sample", Set.of("read", "view_index_metadata")),
@@ -1048,6 +1054,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".slo-observability." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
+        assertReadWriteAndManage(kibanaRole, ".context-engine-" + randomAlphaOfLength(randomIntBetween(0, 13)));
         assertReadWriteAndManage(kibanaRole, ".contextengine-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
         // Alerting V2 views prefix: Kibana system user has create_view only

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,6 +35,14 @@ public class RowGroupIoTests extends ESTestCase {
         AtomicInteger ran = new AtomicInteger();
         lease.setWake("late", ran::incrementAndGet);
         assertEquals(0, ran.get());
+    }
+
+    public void testQueryIdIsFirstWins() {
+        RowGroupIo lease = new RowGroupIo();
+        TaskId first = new TaskId("coord", 9);
+        lease.setQueryId(first);
+        lease.setQueryId(new TaskId("other", 1));
+        assertEquals(first, lease.queryId());
     }
 
     public void testUntrackedAddAndRelease() {

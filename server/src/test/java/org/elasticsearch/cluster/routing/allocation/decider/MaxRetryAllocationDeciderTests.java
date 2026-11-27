@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -292,9 +294,9 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                         source,
                         targetNodeId,
                         0,
-                        "test",
+                        MoveReason.CANNOT_REMAIN,
                         allocation.changes(),
-                        ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                        RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                     );
             });
             clusterState = applyShardFailure(
@@ -356,7 +358,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             .build();
         clusterState = withRoutingAllocation(clusterState, allocation -> {
             final var initializing = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
-            allocation.routingNodes().failShard(initializing, initializing.unassignedInfo(), allocation.changes());
+            allocation.routingNodes().failShard(initializing, initializing.unassignedInfo(), allocation.changes(), allocation.metadata());
             final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
             unassignedIterator.next();
             unassignedIterator.initialize(freshNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation.changes());
@@ -416,9 +418,9 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                         source,
                         targetNodeId,
                         0,
-                        "test",
+                        MoveReason.CANNOT_REMAIN,
                         allocation.changes(),
-                        ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                        RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                     );
             });
             final var targetShard = clusterState.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0).getTargetRelocatingShard();
@@ -447,9 +449,9 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                     source,
                     freshNodeId,
                     0,
-                    "test",
+                    MoveReason.CANNOT_REMAIN,
                     allocation.changes(),
-                    ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                    RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );
         });
 
@@ -484,9 +486,9 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                     source,
                     targetNodeId,
                     0,
-                    "test",
+                    MoveReason.CANNOT_REMAIN,
                     allocation.changes(),
-                    ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                    RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );
         });
         final var lastTarget = clusterState.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0).getTargetRelocatingShard();
@@ -559,18 +561,18 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                             primary,
                             primaryTargetNode,
                             0,
-                            "test",
+                            MoveReason.CANNOT_REMAIN,
                             alloc.changes(),
-                            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
                     alloc.routingNodes()
                         .relocateShard(
                             startedReplica,
                             replicaTargetNode,
                             0,
-                            "test",
+                            MoveReason.CANNOT_REMAIN,
                             alloc.changes(),
-                            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
                 });
 
@@ -593,7 +595,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 clusterState = withRoutingAllocation(clusterState, alloc -> {
                     final var target = alloc.routingNodes().getByAllocationId(shardId, replicaTarget.allocationId().getId());
                     final var cancelledInfo = new UnassignedInfo(UnassignedInfo.Reason.RECOVERY_CANCELLED, "cleanup");
-                    alloc.routingNodes().failShard(target, cancelledInfo, alloc.changes());
+                    alloc.routingNodes().failShard(target, cancelledInfo, alloc.changes(), alloc.metadata());
                 });
             } else { // genuine failure
                 final String replicaTargetNode = randomFrom(freeNodes);
@@ -604,9 +606,9 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                             startedReplica,
                             replicaTargetNode,
                             0,
-                            "test",
+                            MoveReason.CANNOT_REMAIN,
                             alloc.changes(),
-                            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
                 });
 
@@ -614,7 +616,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 clusterState = withRoutingAllocation(clusterState, alloc -> {
                     final var target = alloc.routingNodes().getByAllocationId(shardId, relocationTarget.allocationId().getId());
                     final var failedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "failure");
-                    alloc.routingNodes().failShard(target, failedInfo, alloc.changes());
+                    alloc.routingNodes().failShard(target, failedInfo, alloc.changes(), alloc.metadata());
                 });
                 genuineFailures++;
             }

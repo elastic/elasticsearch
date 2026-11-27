@@ -1,5 +1,0 @@
-area: Downsampling
-issues: []
-pr: 162669
-summary: Make downsample resume from the last indexed tsid work
-type: bug

@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 
 public class UpdateParamsTests extends ESTestCase {
 
@@ -68,5 +69,23 @@ public class UpdateParamsTests extends ESTestCase {
             .build();
 
         assertThat(updateParams.extractReferencedFilters(), containsInAnyOrder("filter_1", "filter_2", "filter_3", "filter_4"));
+    }
+
+    public void testExtractReferencedFilters_givenDetectorUpdateWithoutRules() {
+        // a detector update that only changes the description carries null rules
+        JobUpdate.DetectorUpdate descriptionOnly = new JobUpdate.DetectorUpdate(0, "new description", null);
+        JobUpdate.DetectorUpdate withRules = new JobUpdate.DetectorUpdate(
+            1,
+            null,
+            Collections.singletonList(new DetectionRule.Builder(RuleScope.builder().include("c", "filter_1")).build())
+        );
+
+        UpdateParams updateParams = UpdateParams.builder("test_job").detectorUpdates(Arrays.asList(descriptionOnly, withRules)).build();
+
+        assertThat(updateParams.extractReferencedFilters(), containsInAnyOrder("filter_1"));
+        assertThat(
+            UpdateParams.builder("test_job").detectorUpdates(Collections.singletonList(descriptionOnly)).build().extractReferencedFilters(),
+            empty()
+        );
     }
 }

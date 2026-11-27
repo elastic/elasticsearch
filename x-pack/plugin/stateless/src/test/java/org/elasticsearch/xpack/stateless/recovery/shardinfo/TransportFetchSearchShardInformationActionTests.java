@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -70,7 +71,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
     private final Index index = new Index("my_index", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
     private final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "");
-    private final ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY;
+    private final RecoveryPriority recoveryPriority = RecoveryPriority.UNASSIGNED_NEW_PRIMARY;
     private final ShardRouting newUnassignedPrimaryIndexOnly = ShardRouting.newUnassigned(
         shardId,
         true,
@@ -221,7 +222,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
     public void testShardRoutingReturnsRelocatingShard() {
         ShardRouting primaryShard = newUnassignedPrimaryIndexOnly.initialize("index_node", null, randomNonNegativeLong()).moveToStarted(1);
         ShardRouting searchShard = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1)
-            .relocate("search_node_1000", 1, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+            .relocate("search_node_1000", 1, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
 
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index)
             .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard))
@@ -290,7 +291,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
 
         ShardRouting primaryShard = createPrimaryShard(shardId);
         ShardRouting searchShard = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1)
-            .relocate("search_node_1000", 1, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+            .relocate("search_node_1000", 1, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
 
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(backingIndex)
             .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard))

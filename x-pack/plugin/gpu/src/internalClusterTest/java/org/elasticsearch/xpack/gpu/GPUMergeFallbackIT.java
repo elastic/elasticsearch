@@ -113,6 +113,10 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
         doTestForceMergeWithFileFallback("int8_hnsw");
     }
 
+    public void testForceMergeWithFileFallbackBBQHnsw() {
+        doTestForceMergeWithFileFallback("bbq_hnsw");
+    }
+
     /**
      * Indexes vector data across multiple segments so the merged data exceeds the small max chunk
      * size, then force-merges. This exercises the path where a contiguous memory segment cannot be
@@ -120,7 +124,7 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
      */
     private void doTestForceMergeWithFileFallback(String type) {
         String indexName = "gpu_merge_fallback_" + type.replace("_", "");
-        int dims = randomIntBetween(32, 128);
+        int dims = randomIntBetween("bbq_hnsw".equals(type) ? 64 : 32, 128);
         String similarity = randomFrom("dot_product", "l2_norm", "cosine");
 
         Settings indexSettings = Settings.builder()
@@ -153,6 +157,7 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
         int numBatches = randomIntBetween(2, 4);
         int totalDocs = 0;
 
+        // bbq_hnsw builds the GPU graph from the merged raw float vectors
         int bytesPerVector = "int8_hnsw".equals(type) ? dims + 4 : dims * Float.BYTES;
         long expectedMergedSize = (long) docsPerBatch * numBatches * bytesPerVector;
         assert expectedMergedSize > SMALL_MAX_CHUNK_SIZE

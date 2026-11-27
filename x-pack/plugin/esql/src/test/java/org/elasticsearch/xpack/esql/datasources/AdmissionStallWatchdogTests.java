@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -225,6 +226,62 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
      * The byte gate warns on waiters plus holders when no grant has landed for the stall
      * window. Permit saturation stays silent in {@link #testHoldersInUseStaySilent}.
      */
+    public void testStallWarnIncludesBudgetQueryIds() throws Exception {
+        AtomicLong clock = new AtomicLong();
+        AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
+        watchdog.setRescueEnabled(false);
+        ConcurrencyBudgetAllocator allocator = new ConcurrencyBudgetAllocator(50, 60_000L, watchdog, "s3");
+        QueryConcurrencyBudget firstBudget = allocator.register(new TaskId("coord", 11));
+        QueryConcurrencyBudget secondBudget = allocator.register(new TaskId("coord", 22));
+        assertEquals(2, allocator.activeQueryCount());
+
+        NodeByteBudgetService budget = new NodeByteBudgetService(100);
+        budget.bindTracker(watchdog);
+        watchdog.register(bytesGate(budget));
+        NodeByteBudget.Hold residual = budget.tryAdmit(80);
+        assertNotNull(residual);
+        NodeByteBudget.Hold overshoot = occupyOvershoot(budget, 25);
+        overshoot.close();
+
+        RowGroupIo firstLease = new RowGroupIo();
+        RowGroupIo secondLease = new RowGroupIo();
+        firstBudget.bind(firstLease);
+        secondBudget.bind(secondLease);
+        SubscribableListener<NodeByteBudget.Hold> firstWait = budget.admitAsync(50, firstLease, () -> false, Runnable::run);
+        SubscribableListener<NodeByteBudget.Hold> secondWait = budget.admitAsync(60, secondLease, () -> false, Runnable::run);
+        assertFalse(firstWait.isDone());
+        assertFalse(secondWait.isDone());
+
+        clock.addAndGet(TimeUnit.SECONDS.toNanos(16));
+        try (MockLog mockLog = MockLog.capture(AdmissionStallWatchdog.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "first query",
+                    AdmissionStallWatchdog.class.getCanonicalName(),
+                    Level.WARN,
+                    "*possible admission stall*coord:11*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "second query",
+                    AdmissionStallWatchdog.class.getCanonicalName(),
+                    Level.WARN,
+                    "*possible admission stall*coord:22*"
+                )
+            );
+            watchdog.inspect();
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        firstBudget.close();
+        secondBudget.close();
+        assertEquals(0, allocator.activeQueryCount());
+        residual.close();
+        budget.clearOwner(overshoot.lease());
+        watchdog.close();
+    }
+
     public void testByteGateWarnsOnGrantAgeEvenWithHolders() throws Exception {
         AtomicLong clock = new AtomicLong();
         AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));

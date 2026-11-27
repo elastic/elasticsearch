@@ -62,7 +62,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
         assert queryVector.length == values.dimension();
         this.dimensions = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
-        this.query = MemorySegment.ofArray(queryVector);
+        this.query = MemorySegmentUtils.nativeCopyOf(queryVector);
         this.scratch = new FixedSizeSegmentScratch(vectorByteSize);
     }
 

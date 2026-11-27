@@ -16,6 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
@@ -247,7 +248,11 @@ public final class DataSourceModule implements Closeable {
             meterRegistry,
             localFileAccess,
             splitDiscoveryExecutor,
-            listingService
+            listingService,
+            // Test wiring: read the setting directly, as the managed-identity test constructors of
+            // StorageProviderRegistry do. Production passes the cache service's own live flag, which a
+            // dynamic toggle moves.
+            () -> ExternalSourceCacheSettings.CACHE_ENABLED.get(settings != null ? settings : Settings.EMPTY)
         );
     }
 
@@ -271,7 +276,8 @@ public final class DataSourceModule implements Closeable {
         @Nullable MeterRegistry meterRegistry,
         LocalFileAccess localFileAccess,
         @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable DatasetListingService listingService
+        @Nullable DatasetListingService listingService,
+        BooleanSupplier externalSourceCacheEnabled
     ) {
         this.capabilities = capabilities;
         this.credentials = credentials;
@@ -299,7 +305,8 @@ public final class DataSourceModule implements Closeable {
             managedIdentityEnabled,
             retryScheduler,
             effectiveLocalFileAccess,
-            admissionTracker
+            admissionTracker,
+            threadPool != null ? threadPool.getThreadContext() : null
         );
 
         this.codecRegistry = new DecompressionCodecRegistry();
@@ -451,19 +458,20 @@ public final class DataSourceModule implements Closeable {
 
         // Register the framework-internal FileSourceFactory as a catch-all fallback.
         // It must be last so that plugin-provided factories (Iceberg, Flight) get priority.
-        // Pass the node-level (root) BlockFactory so VirtualColumnIterator allocations route
-        // through the global request circuit breaker rather than the driver-local breaker.
+        // Producer-thread allocations resolve the request-level BlockFactory via
+        // AsyncExternalSourceOperatorFactory.producerBlockFactory(DriverContext); this factory
+        // no longer threads one in.
         FileSourceFactory fileFallback = new FileSourceFactory(
             storageProviderRegistry,
             formatReaderRegistry,
             codecRegistry,
             settings,
             splitDiscoveryExecutor != null ? splitDiscoveryExecutor : executor,
-            blockFactory,
             effectiveLocalFileAccess,
             externalSourceMetrics,
             listingService,
-            admissionTracker
+            admissionTracker,
+            externalSourceCacheEnabled
         );
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up
@@ -529,6 +537,7 @@ public final class DataSourceModule implements Closeable {
         if (admissionWatchdog != null) {
             all.add(admissionWatchdog);
         }
+        all.add(formatReaderRegistry);
         all.add(storageProviderRegistry);
         all.addAll(managedCloseables);
         IOUtils.close(all);

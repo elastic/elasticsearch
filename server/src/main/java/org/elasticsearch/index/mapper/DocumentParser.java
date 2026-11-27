@@ -33,7 +33,6 @@ import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -49,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
@@ -64,10 +64,19 @@ public final class DocumentParser {
 
     private final XContentParserConfiguration parserConfiguration;
     private final MappingParserContext mappingParserContext;
+    private final Function<Map<String, Object>, MappingBuilder> mappingBuilder;
 
-    DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext) {
+    /**
+     * @param mappingBuilder parses the decoded root object of a mapping that is already stored, for updating its fields
+     */
+    DocumentParser(
+        XContentParserConfiguration parserConfiguration,
+        MappingParserContext mappingParserContext,
+        Function<Map<String, Object>, MappingBuilder> mappingBuilder
+    ) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
+        this.mappingBuilder = mappingBuilder;
     }
 
     /**
@@ -92,7 +101,8 @@ public final class DocumentParser {
                 mappingLookup,
                 mappingParserContext,
                 source,
-                sourceObject.parser(parserConfiguration)
+                sourceObject.parser(parserConfiguration),
+                mappingBuilder
             )
         ) {
             context = ctx;
@@ -292,7 +302,9 @@ public final class DocumentParser {
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
-        return new MappingBuilder(rootBuilder, Map.of(), null).build(MapperService.MergeReason.MAPPING_UPDATE).toCompressedXContent();
+        MappingBuilder mappingBuilder = new MappingBuilder(rootBuilder, Map.of(), null);
+        mappingBuilder.normalize(MapperService.MergeReason.MAPPING_AUTO_UPDATE);
+        return mappingBuilder.toCompressedXContent();
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {
@@ -704,6 +716,7 @@ public final class DocumentParser {
             parseArrayElements(context, null, currentFieldName, currentFieldName);
         } else {
             MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
+            builderFromTemplate.normalize(builderContext);
             Mapper objectMapperFromTemplate = builderFromTemplate.build(builderContext);
             if (parsesArrayValue(objectMapperFromTemplate)) {
                 Mapper mapper = context.getDynamicMapper(builderFromTemplate, objectMapperFromTemplate, builderContext);
@@ -952,6 +965,21 @@ public final class DocumentParser {
         String fieldPath = context.path().pathAsText(fieldName);
         MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
         if (fieldType != null) {
+            if (context.indexSettings().getMode().isStrictColumnar() && fieldType instanceof AbstractScriptFieldType<?> == false) {
+                // The field type of this path is not a runtime field, but no mapper that is reachable from the current parent exists
+                // for it. This happens when the parent has subobjects disabled and a dotted key addresses a field of a nested object,
+                // including a key of a flattened field (for example n.f.key). Silently dropping the
+                // value is not acceptable in strict columnar index modes, so we reject the document. This is because with other index
+                // modes these dotted field names would still be part of source or ignored source and subobjects option is always disabled.
+                throw new DocumentParsingException(
+                    XContentLocation.UNKNOWN,
+                    "field ["
+                        + fieldPath
+                        + "] can not be indexed as a leaf field of ["
+                        + context.parent().fullPath()
+                        + "]: it is mapped as part of a nested or flattened object. Use object notation instead of a dotted field name."
+                );
+            }
             // we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
             assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
             return noopFieldMapper(fieldPath);
@@ -1030,16 +1058,6 @@ public final class DocumentParser {
             }
 
             @Override
-            public Builder getMergeBuilder() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
             protected String contentType() {
                 throw new UnsupportedOperationException();
             }
@@ -1098,14 +1116,16 @@ public final class DocumentParser {
             MappingLookup mappingLookup,
             MappingParserContext mappingParserContext,
             SourceToParse source,
-            XContentParser parser
+            XContentParser parser,
+            Function<Map<String, Object>, MappingBuilder> mappingBuilder
         ) throws IOException {
             super(
                 mappingLookup,
                 mappingParserContext,
                 source,
                 mappingLookup.getMapping().getRoot(),
-                ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
+                ObjectMapper.Dynamic.getRootDynamic(mappingLookup),
+                mappingBuilder
             );
             IndexSettings indexSettings = mappingParserContext.getIndexSettings();
             BytesRef tsid = source.tsid();

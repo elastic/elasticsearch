@@ -155,12 +155,12 @@ public class ES940OSQVectorsScorer {
      * compute the quantize distance between the provided quantized query and the quantized vector
      * that is read from the wrapped {@link IndexInput}.
      */
-    public long quantizeScore(byte[] q) throws IOException {
+    public long quantizeScore(ScoringQuery q) throws IOException {
         return switch (encoding) {
             case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> dotProduct.dotProduct(q);
-            case D2Q4_PACKED -> quantized4BitScore2BitIndexPacked(q);
-            case D4Q4_PACKED -> quantized4BitScorePacked(q);
-            case D7Q7 -> quantized7BitScore(q);
+            case D2Q4_PACKED -> quantized4BitScore2BitIndexPacked(q.bytes());
+            case D4Q4_PACKED -> quantized4BitScorePacked(q.bytes());
+            case D7Q7 -> quantized7BitScore(q.bytes());
         };
     }
 
@@ -203,7 +203,7 @@ public class ES940OSQVectorsScorer {
      * that are read from the wrapped {@link IndexInput}. The number of quantized vectors to read is
      * determined by {@param count} and the results are stored in the provided {@param scores} array.
      */
-    public void quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
+    public void quantizeScoreBulk(ScoringQuery q, int count, float[] scores) throws IOException {
         for (int i = 0; i < count; i++) {
             scores[i] = quantizeScore(q);
         }
@@ -216,7 +216,7 @@ public class ES940OSQVectorsScorer {
      * Only the vectors whose bit is set in {@param mask} (bit {@code i} for the {@code i}-th vector) are scored;
      * the others are skipped.
      */
-    public void quantizeScoreBulkMasked(byte[] q, int mask, float[] scores, int count) throws IOException {
+    public void quantizeScoreBulkMasked(ScoringQuery q, int mask, float[] scores, int count) throws IOException {
         for (int i = 0; i < count; i++) {
             if (BulkMask.isSelected(mask, i)) {
                 scores[i] = quantizeScore(q);
@@ -267,11 +267,12 @@ public class ES940OSQVectorsScorer {
     }
 
     /**
-     * Bulk score overload; same as {@link #scoreBulk(byte[], float, float, int, float, VectorSimilarityFunction, float, float[], int)}
+     * Bulk score overload; same as
+     * {@link #scoreBulk(ScoringQuery, float, float, int, float, VectorSimilarityFunction, float, float[], int)}
      * with {@link #bulkSize} as the default {@code bulkSize} param value.
      */
     public float scoreBulk(
-        byte[] q,
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -305,7 +306,7 @@ public class ES940OSQVectorsScorer {
      * <p>The results are stored in the provided {@param scores} array.
      */
     public float scoreBulk(
-        byte[] q,
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -352,7 +353,7 @@ public class ES940OSQVectorsScorer {
      * The results are stored in the provided {@param scores} array.
      */
     public float scoreBulkMasked(
-        byte[] q,
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,

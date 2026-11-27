@@ -24,6 +24,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomArray;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomList;
@@ -57,6 +58,8 @@ public class SnapshotInfoTestUtils {
 
         final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = randomIndexSnapshotDetails();
 
+        final String encryptedDataType = randomEncryptedDataType();
+
         return new SnapshotInfo(
             snapshot,
             indices,
@@ -69,7 +72,9 @@ public class SnapshotInfoTestUtils {
             includeGlobalState,
             userMetadata,
             startTime,
-            indexSnapshotDetails
+            indexSnapshotDetails,
+            encryptedDataType,
+            randomEncryptedDataPasswordId(encryptedDataType)
         );
     }
 
@@ -135,8 +140,16 @@ public class SnapshotInfoTestUtils {
         return snapshotFeatureInfos;
     }
 
+    private static String randomEncryptedDataType() {
+        return randomBoolean() ? null : randomFrom(SnapshotEncryptedData.TYPE_PASSWORD, SnapshotEncryptedData.TYPE_NONE);
+    }
+
+    private static String randomEncryptedDataPasswordId(String encryptedDataType) {
+        return SnapshotEncryptedData.TYPE_PASSWORD.equals(encryptedDataType) && randomBoolean() ? randomAlphaOfLength(8) : null;
+    }
+
     static SnapshotInfo mutateSnapshotInfo(SnapshotInfo instance) {
-        switch (randomIntBetween(0, 10)) {
+        switch (randomIntBetween(0, 11)) {
             case 0:
                 final String newName = randomValueOtherThan(instance.snapshotId().getName(), () -> randomAlphaOfLength(5));
                 final String newUuid = randomValueOtherThan(instance.snapshotId().getUUID(), () -> randomAlphaOfLength(5));
@@ -156,7 +169,9 @@ public class SnapshotInfoTestUtils {
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.startTime(),
-                    instance.indexSnapshotDetails()
+                    instance.indexSnapshotDetails(),
+                    instance.encryptedDataType(),
+                    instance.encryptedDataPasswordId()
                 );
             case 1:
                 final int indicesSize = randomValueOtherThan(instance.indices().size(), () -> randomIntBetween(1, 10));
@@ -175,7 +190,9 @@ public class SnapshotInfoTestUtils {
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.startTime(),
-                    instance.indexSnapshotDetails()
+                    instance.indexSnapshotDetails(),
+                    instance.encryptedDataType(),
+                    instance.encryptedDataPasswordId()
                 );
             case 2:
                 return new SnapshotInfo(
@@ -190,7 +207,9 @@ public class SnapshotInfoTestUtils {
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     randomValueOtherThan(instance.startTime(), ESTestCase::randomNonNegativeLong),
-                    instance.indexSnapshotDetails()
+                    instance.indexSnapshotDetails(),
+                    instance.encryptedDataType(),
+                    instance.encryptedDataPasswordId()
                 );
             case 3:
                 return new SnapshotInfo(
@@ -205,7 +224,9 @@ public class SnapshotInfoTestUtils {
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.startTime(),
-                    instance.indexSnapshotDetails()
+                    instance.indexSnapshotDetails(),
+                    instance.encryptedDataType(),
+                    instance.encryptedDataPasswordId()
                 );
             case 4:
                 return new SnapshotInfo(
@@ -220,7 +241,9 @@ public class SnapshotInfoTestUtils {
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.startTime(),
-                    instance.indexSnapshotDetails()
+                    instance.indexSnapshotDetails(),
+                    instance.encryptedDataType(),
+                    instance.encryptedDataPasswordId()
                 );
             case 5:
                 final int totalShards = randomValueOtherThan(instance.totalShards(), () -> randomIntBetween(0, 100));
@@ -237,7 +260,9 @@ public class SnapshotInfoTestUtils {
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.startTime(),
-                    instance.indexSnapshotDetails()
+                    instance.indexSnapshotDetails(),
+                    instance.encryptedDataType(),
+                    instance.encryptedDataPasswordId()
                 );
             case 6:
                 return new SnapshotInfo(
@@ -252,7 +277,9 @@ public class SnapshotInfoTestUtils {
                     Boolean.FALSE.equals(instance.includeGlobalState()),
                     instance.userMetadata(),
                     instance.startTime(),
-                    instance.indexSnapshotDetails()
+                    instance.indexSnapshotDetails(),
+                    instance.encryptedDataType(),
+                    instance.encryptedDataPasswordId()
                 );
             case 7:
                 return new SnapshotInfo(
@@ -267,7 +294,9 @@ public class SnapshotInfoTestUtils {
                     instance.includeGlobalState(),
                     randomValueOtherThan(instance.userMetadata(), SnapshotInfoTestUtils::randomUserMetadata),
                     instance.startTime(),
-                    instance.indexSnapshotDetails()
+                    instance.indexSnapshotDetails(),
+                    instance.encryptedDataType(),
+                    instance.encryptedDataPasswordId()
                 );
             case 8:
                 final List<String> dataStreams = randomValueOtherThan(
@@ -286,7 +315,9 @@ public class SnapshotInfoTestUtils {
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.startTime(),
-                    instance.indexSnapshotDetails()
+                    instance.indexSnapshotDetails(),
+                    instance.encryptedDataType(),
+                    instance.encryptedDataPasswordId()
                 );
             case 9:
                 return new SnapshotInfo(
@@ -301,7 +332,9 @@ public class SnapshotInfoTestUtils {
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.startTime(),
-                    instance.indexSnapshotDetails()
+                    instance.indexSnapshotDetails(),
+                    instance.encryptedDataType(),
+                    instance.encryptedDataPasswordId()
                 );
             case 10:
                 return new SnapshotInfo(
@@ -316,7 +349,30 @@ public class SnapshotInfoTestUtils {
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.startTime(),
-                    randomValueOtherThan(instance.indexSnapshotDetails(), SnapshotInfoTestUtils::randomIndexSnapshotDetails)
+                    randomValueOtherThan(instance.indexSnapshotDetails(), SnapshotInfoTestUtils::randomIndexSnapshotDetails),
+                    instance.encryptedDataType(),
+                    instance.encryptedDataPasswordId()
+                );
+            case 11:
+                final String encryptedDataType = randomValueOtherThan(
+                    instance.encryptedDataType(),
+                    SnapshotInfoTestUtils::randomEncryptedDataType
+                );
+                return new SnapshotInfo(
+                    instance.snapshot(),
+                    instance.indices(),
+                    instance.dataStreams(),
+                    instance.featureStates(),
+                    instance.reason(),
+                    instance.endTime(),
+                    instance.totalShards(),
+                    instance.shardFailures(),
+                    instance.includeGlobalState(),
+                    instance.userMetadata(),
+                    instance.startTime(),
+                    instance.indexSnapshotDetails(),
+                    encryptedDataType,
+                    randomEncryptedDataPasswordId(encryptedDataType)
                 );
             default:
                 throw new IllegalArgumentException("invalid randomization case");

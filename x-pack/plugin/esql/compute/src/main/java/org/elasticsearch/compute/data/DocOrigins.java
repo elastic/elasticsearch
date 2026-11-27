@@ -33,11 +33,21 @@ public final class DocOrigins implements Writeable, Accountable {
 
     private DocOrigins(DocOrigin[] origins) {
         this.origins = origins;
-        long bytes = BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(origins);
+        long originBytes = 0;
         for (DocOrigin origin : origins) {
-            bytes += origin.ramBytesUsed();
+            originBytes += origin.ramBytesUsed();
         }
-        this.ramBytesUsed = bytes;
+        this.ramBytesUsed = ramBytesEstimated(origins.length, originBytes);
+    }
+
+    /**
+     * The {@link #ramBytesUsed} of a dictionary of {@code count} origins that use {@code originBytes} together. Lets a
+     * builder size the dictionary before it builds it.
+     */
+    public static long ramBytesEstimated(int count, long originBytes) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * count
+        ) + originBytes;
     }
 
     /**

@@ -9,11 +9,14 @@
 
 package org.elasticsearch.test.cluster.local;
 
+import com.carrotsearch.randomizedtesting.RandomizedRunner;
+
 import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.junit.After;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.util.Map;
 
@@ -23,6 +26,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /** What a node of an upgrade test's cluster is given that a node of any other test's is not. */
+// building a cluster spec makes random choices, which need a randomized context
+@RunWith(RandomizedRunner.class)
 public class DefaultSystemPropertyProviderTests {
 
     private static final String COLUMNAR_CODEC_FLAG = "es.columnar_codec_feature_flag_enabled";

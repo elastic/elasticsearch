@@ -8,15 +8,12 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 
 import java.io.IOException;
 import java.util.function.Consumer;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A local-only wrapper around {@link EsqlQueryRequest} that carries a
@@ -31,29 +28,25 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
 
     private final ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener;
     private final boolean dropNullColumns;
-    private final int batchSize;
     private final Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterConsumer;
 
     EsqlStreamQueryRequest(
         EsqlQueryRequest source,
         ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener,
-        boolean dropNullColumns,
-        int batchSize
+        boolean dropNullColumns
     ) {
-        this(source, resultStreamListener, dropNullColumns, batchSize, footer -> {});
+        this(source, resultStreamListener, dropNullColumns, footer -> {});
     }
 
     EsqlStreamQueryRequest(
         EsqlQueryRequest source,
         ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener,
         boolean dropNullColumns,
-        int batchSize,
         Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterConsumer
     ) {
         super(source);
         this.resultStreamListener = resultStreamListener;
         this.dropNullColumns = dropNullColumns;
-        this.batchSize = batchSize;
         this.preHeaderFailureFooterConsumer = preHeaderFailureFooterConsumer;
     }
 
@@ -67,19 +60,6 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
 
     public boolean dropNullColumns() {
         return dropNullColumns;
-    }
-
-    public int batchSize() {
-        return batchSize;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException e = super.validate();
-        if (batchSize < 1) {
-            e = addValidationError("[batch_size] must be greater than or equal to 1", e);
-        }
-        return e;
     }
 
     @Override

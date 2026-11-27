@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 public final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final double[] values;
+    private final int size;
     private final long preAdjustedBytes;
     /**
      * The next value to write into. {@code -1} means the vector has already
@@ -27,11 +28,21 @@ public final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder
 
     private boolean closed;
 
-    DoubleVectorFixedBuilder(int size, BlockFactory blockFactory) {
-        preAdjustedBytes = ramBytesUsed(size);
-        blockFactory.adjustBreaker(preAdjustedBytes);
+    private final boolean enablePooling;
+
+    DoubleVectorFixedBuilder(int size, BlockFactory blockFactory, boolean enablePooling) {
         this.blockFactory = blockFactory;
-        this.values = new double[size];
+        this.size = size;
+        this.enablePooling = enablePooling;
+        if (enablePooling) {
+            // a pooled array can be longer than size and is not zeroed
+            values = blockFactory.acquireDoubles(size);
+            preAdjustedBytes = LocalArrayPool.usedBytesForDoubles(values.length);
+        } else {
+            preAdjustedBytes = ramBytesUsed(size);
+            blockFactory.adjustBreaker(preAdjustedBytes);
+            values = new double[size];
+        }
     }
 
     @Override
@@ -56,7 +67,7 @@ public final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder
 
     @Override
     public long estimatedBytes() {
-        return ramBytesUsed(values.length);
+        return ramBytesUsed(size);
     }
 
     @Override
@@ -64,12 +75,16 @@ public final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder
         if (closed) {
             throw new IllegalStateException("already closed");
         }
-        closed = true;
         DoubleVector vector;
-        if (values.length == 1) {
-            vector = blockFactory.newConstantDoubleBlockWith(values[0], 1, preAdjustedBytes).asVector();
+        if (size == 1) {
+            vector = blockFactory.newConstantDoubleVector(values[0], 1, preAdjustedBytes);
         } else {
-            vector = blockFactory.newDoubleArrayVector(values, values.length, preAdjustedBytes);
+            vector = blockFactory.newDoubleArrayVector(values, size, preAdjustedBytes);
+        }
+        closed = true;
+        if (enablePooling) {
+            vector.enablePooling();
+            return vector;
         }
         assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
         return vector;
@@ -80,10 +95,15 @@ public final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder
         if (closed == false) {
             // If nextIndex < 0 we've already built the vector
             closed = true;
+            if (enablePooling) {
+                blockFactory.recycleDoubles(values);
+                return;
+            }
             blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

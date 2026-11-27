@@ -9,10 +9,13 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -24,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -89,6 +93,45 @@ public class ClientHitTests extends ESTestCase {
         }
     }
 
+    /** Verifies that a slice-enabled index, which exposes the slice as {@code _slice} and no {@code _routing}, routes by that slice. */
+    public void testSliceFieldIsRoutingFromSlice() {
+        String slice = randomAlphaOfLengthBetween(1, 20);
+        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
+        searchHit.addDocumentFields(
+            Map.of(),
+            Map.of(SliceIndexing.FIELD_NAME, new DocumentField(SliceIndexing.FIELD_NAME, List.of(slice)))
+        );
+        ClientHit clientHit = new ClientHit(searchHit);
+        try {
+            assertThat(clientHit.getRouting(), equalTo(slice));
+            assertTrue(clientHit.isRoutingFromSlice());
+        } finally {
+            clientHit.release();
+            searchHit.decRef();
+        }
+    }
+
+    /** Verifies that plain routing, and no routing at all, are not a slice. */
+    public void testPlainRoutingIsNotRoutingFromSlice() {
+        SearchHit routed = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
+        routed.addDocumentFields(
+            Map.of(),
+            Map.of(RoutingFieldMapper.NAME, new DocumentField(RoutingFieldMapper.NAME, List.of(randomAlphaOfLengthBetween(1, 20))))
+        );
+        SearchHit unrouted = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
+        ClientHit routedHit = new ClientHit(routed);
+        ClientHit unroutedHit = new ClientHit(unrouted);
+        try {
+            assertFalse(routedHit.isRoutingFromSlice());
+            assertFalse(unroutedHit.isRoutingFromSlice());
+        } finally {
+            routedHit.release();
+            routed.decRef();
+            unroutedHit.release();
+            unrouted.decRef();
+        }
+    }
+
     /** Verifies that routing is null when the _routing field is not present. */
     public void testReturnsNullRoutingWhenNotPresent() {
         SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
@@ -136,6 +179,25 @@ public class ClientHitTests extends ESTestCase {
             assertThat(clientHit.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
         } finally {
             clientHit.release();
+            searchHit.decRef();
+        }
+    }
+
+    /** If the coordinator already charged the hits, the page takes that charge over instead of charging them again. */
+    public void testReserveHeldPageTakesOverCoordinatorCharge() {
+        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLength(5)).sourceRef(new BytesArray("{\"f\":\"x\"}"));
+        ClientHit hit = new ClientHit(searchHit);
+        PaginatedHitSource.Response page = new PaginatedHitSource.Response(false, List.of(), 1, List.of(hit), null);
+        // Trips on any charge, so the test fails if the hits were charged again
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(1));
+        AtomicBoolean coordinatorChargeReleased = new AtomicBoolean();
+        try {
+            PaginatedHitSource.reserveHeldPage(breaker, "test", 0, () -> () -> coordinatorChargeReleased.set(true), page);
+            assertFalse(coordinatorChargeReleased.get());
+            page.closeBodyReleasable();
+            assertTrue(coordinatorChargeReleased.get());
+        } finally {
+            hit.release();
             searchHit.decRef();
         }
     }

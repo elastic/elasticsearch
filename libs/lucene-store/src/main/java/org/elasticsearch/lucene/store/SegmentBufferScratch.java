@@ -9,13 +9,12 @@
 
 package org.elasticsearch.lucene.store;
 
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.function.IntFunction;
 
 /**
- * Reusable, lazily-grown off-heap scratch buffer. Holding one instance
+ * Reusable, lazily-grown off-heap (native) scratch buffer. Holding one instance
  * avoids allocating on every call.
  *
  * <p>Not thread-safe; instances must not be shared across threads.
@@ -26,20 +25,24 @@ public final class SegmentBufferScratch implements IntFunction<MemorySegment> {
     private MemorySegment slice;
 
     /**
-     * Returns a {@link MemorySegment} of exactly {@code count} bytes, aligned for
+     * Returns an off-heap (native) {@link MemorySegment} of exactly {@code count} bytes, aligned for
      * any primitive layout. The backing allocation is grown lazily and never shrunk,
      * so a run of equally-sized requests allocates nothing at all.
-     *
-     * <p>Segments are returned from an auto arena, so they are garbage-collected.
      */
     @Override
     public MemorySegment apply(int count) {
         if (slice == null || slice.byteSize() != count) {
             if (backing == null || backing.byteSize() < count) {
-                backing = Arena.ofAuto().allocate(count, ValueLayout.JAVA_LONG.byteAlignment());
+                // allocate on a power-of-two to reduce the number of excessive re-allocations
+                // as allocated buffers are not deallocated until the arena is closed,
+                // and also to make things easier for malloc
+                int bufferSize = count <= 1 ? 2 : Integer.highestOneBit(count - 1) << 1;
+                backing = ThreadConfinedArena.allocate(bufferSize, ValueLayout.JAVA_LONG.byteAlignment());
             }
             slice = backing.asSlice(0, count);
         }
+        assert backing.scope().isAlive() : "Segment has been de-allocated";
+        assert backing.isAccessibleBy(Thread.currentThread()) : "Another thread is trying to access an allocated thread-confined buffer";
         return slice;
     }
 }

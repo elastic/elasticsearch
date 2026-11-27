@@ -44,6 +44,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -225,6 +226,77 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(config.sortSpecs[1].missingValue, equalTo("_first"));
         assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
         assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MAX));
+    }
+
+    /**
+     * The ES|QL plugin parses the expression, and its tests cover the syntax. Without it, tools that only read the index
+     * settings, like the shard CLI, still work.
+     */
+    public void testSortExpressionNeedsEsqlPlugin() {
+        Settings settings = Settings.builder().put("index.sort", "field1 DESC").build();
+        assertThat(IndexSortConfig.INDEX_SORT_SETTING.get(settings), equalTo("field1 DESC"));
+        IndexSettings indexSettings = indexSettings(settings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, indexSettings::getIndexSortConfig);
+        assertThat(e.getMessage(), equalTo("setting [index.sort] requires the ES|QL plugin"));
+    }
+
+    public void testSortExpressionNeedsIndexVersion() {
+        Settings settings = Settings.builder().put("index.sort", "field1 DESC").build();
+        IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORT_EXPRESSION);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexSettings(settings, previous).getIndexSortConfig()
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("setting [index.sort] requires an index created after all nodes support it, use [index.sort.field] instead")
+        );
+    }
+
+    public void testBlankSortExpression() {
+        Settings settings = Settings.builder().put("index.sort", "  ").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexSortConfig.INDEX_SORT_SETTING.get(settings));
+        assertThat(e.getMessage(), containsString("setting [index.sort] must not be blank"));
+    }
+
+    public void testEmptySortExpressionHasNoSort() {
+        assertFalse(indexSettings(Settings.builder().put("index.sort", "").build()).getIndexSortConfig().hasIndexSort());
+    }
+
+    public void testSortExpressionCannotBeCombinedWithSortSettings() {
+        for (String other : List.of("index.sort.field", "index.sort.order", "index.sort.mode", "index.sort.missing")) {
+            String value = switch (other) {
+                case "index.sort.field" -> "field1";
+                case "index.sort.order" -> "asc";
+                case "index.sort.mode" -> "min";
+                case "index.sort.missing" -> "_last";
+                default -> throw new AssertionError(other);
+            };
+            Settings settings = Settings.builder().put("index.sort", "field1").put(other, value).build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+            assertThat(e.getMessage(), containsString("setting [index.sort] cannot be combined with [" + other + "]"));
+        }
+    }
+
+    public void testSortExpressionIsNotReportedAsDefault() {
+        Settings.Builder diff = Settings.builder();
+        IndexSortConfig.INDEX_SORT_SETTING.diff(diff, Settings.EMPTY, Settings.EMPTY);
+        assertThat(diff.build().isEmpty(), equalTo(true));
+    }
+
+    public void testSortExpressionClearsIndexModeSortDefaults() {
+        Settings logsdb = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+            .build();
+        // Control: without index.sort the logsdb defaults apply.
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(logsdb), equalTo(List.of("@timestamp")));
+
+        Settings withExpression = Settings.builder().put(logsdb).put("index.sort", "field1 DESC").build();
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(withExpression), empty());
+        assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(withExpression), empty());
+        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(withExpression), empty());
+        assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(withExpression), empty());
     }
 
     public void testInvalidIndexSort() {

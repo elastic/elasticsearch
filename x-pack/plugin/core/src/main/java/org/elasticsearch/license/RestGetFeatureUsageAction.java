@@ -14,6 +14,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -22,6 +23,11 @@ public class RestGetFeatureUsageAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "get_feature_usage";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
     }
 
     @Override

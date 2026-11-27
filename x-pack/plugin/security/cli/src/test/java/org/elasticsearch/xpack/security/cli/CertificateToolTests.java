@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateCommand;
 import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateInformation;
 import org.elasticsearch.xpack.security.cli.CertificateTool.GenerateCertificateCommand;
 import org.elasticsearch.xpack.security.cli.CertificateTool.Name;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
 import org.junit.After;
 import org.junit.BeforeClass;
 

@@ -31,7 +31,10 @@ readonly EXPERIMENT_TIMEOUT_MINUTES="${BUILD_CACHE_VALIDATION_TIMEOUT_MINUTES:-1
 readonly ANNOTATION_CONTEXT="ctx-validation-summary"
 readonly RAW_OUTPUT_FILE="build-cache-validation.raw.log"
 readonly OUTPUT_FILE="build-cache-validation.log"
-readonly COMMIT="${BUILDKITE_COMMIT:-}"
+# Scheduled Buildkite builds can set BUILDKITE_COMMIT=HEAD. The validation script
+# creates a fresh repository with no HEAD yet, so pin it to the checked-out SHA.
+COMMIT=$(git rev-parse --verify 'HEAD^{commit}')
+readonly COMMIT
 readonly BRANCH="${BUILDKITE_BRANCH:-main}"
 
 # Exit codes of the build validation scripts, see lib/scripts/exit-code.sh
@@ -87,11 +90,7 @@ scan_id() {
 }
 
 reproduce_command() {
-  local commit_arg="-b ${BRANCH}"
-  if [[ -n "$COMMIT" ]]; then
-    commit_arg="-c ${COMMIT}"
-  fi
-  printf '%s' "./${VALIDATION_SCRIPTS_DIR}/03-validate-local-build-caching-different-locations.sh -r ${GIT_REPO} ${commit_arg} -s ${DEVELOCITY_SERVER} -t \"${GRADLE_TASKS}\" -a \"${GRADLE_ARGS}\""
+  printf '%s' "./${VALIDATION_SCRIPTS_DIR}/03-validate-local-build-caching-different-locations.sh -r ${GIT_REPO} -c ${COMMIT} -s ${DEVELOCITY_SERVER} -t \"${GRADLE_TASKS}\" -a \"${GRADLE_ARGS}\""
 }
 
 # Lists the cacheable tasks the second build executed instead of loading them from the
@@ -300,18 +299,12 @@ unzip -q -o "$validation_scripts_zip"
 # to become available through the Develocity API.
 echo "max.wait.time=PT10M" >> "${VALIDATION_SCRIPTS_DIR}/network.settings"
 
-commit_args=(-b "$BRANCH")
-if [[ -n "$COMMIT" ]]; then
-  # Validate exactly the commit this Buildkite build was created for.
-  commit_args=(-c "$COMMIT")
-fi
-
-log "Running build cache validation experiment for '${GRADLE_TASKS}'"
+log "Running build cache validation experiment for '${GRADLE_TASKS}' at ${COMMIT}"
 set +e
 timeout --signal=TERM --kill-after=2m "${EXPERIMENT_TIMEOUT_MINUTES}m" \
   "./${VALIDATION_SCRIPTS_DIR}/03-validate-local-build-caching-different-locations.sh" \
     -r "$GIT_REPO" \
-    "${commit_args[@]}" \
+    -c "$COMMIT" \
     --develocity-server "$DEVELOCITY_SERVER" \
     -t "$GRADLE_TASKS" \
     -a "$GRADLE_ARGS" \

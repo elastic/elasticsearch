@@ -9,7 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.KnnByteVectorField;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.Column;
@@ -19,11 +23,16 @@ import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.document.column.TokenStreamColumn;
+import org.apache.lucene.document.column.VectorColumn;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.bulk.BulkShardBatch;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +44,11 @@ import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -44,12 +57,18 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * Abstract base for compatibility tests that verify the columnar batch-mapping path produces the
@@ -128,15 +147,31 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         SourceEncoder encoder,
         Batch... scenarios
     ) throws IOException {
+        assertColumnarMatchesXContent(mapping, indexSettings, encoder, randomBoolean(), scenarios);
+    }
+
+    /**
+     * Runs the parity check with {@code encoder} producing the source columns. With {@code floatElementsFromMapping}, the encoder
+     * parses the elements of the mapping's float vectors as floats, as the coordinating node does for the fields an index already
+     * maps; without it, it parses them as it does for fields the coordinating node does not know yet. The other entry points pick
+     * one at random, as both must match the row path; tests that depend on one pin it here.
+     */
+    protected final void assertColumnarMatchesXContent(
+        XContentBuilder mapping,
+        Settings indexSettings,
+        SourceEncoder encoder,
+        boolean floatElementsFromMapping,
+        Batch... scenarios
+    ) throws IOException {
         final MapperService mapperService = createMapperService(indexSettings, mapping);
         for (Batch scenario : scenarios) {
-            assertScenario(mapperService, scenario, encoder);
+            assertScenario(mapperService, scenario, encoder, floatElementsFromMapping);
         }
         final Settings columnarStored = withColumnarStoredSource(indexSettings);
         if (columnarStored != null) {
             final MapperService columnarStoredService = createMapperService(columnarStored, mapping);
             for (Batch scenario : scenarios) {
-                assertScenario(columnarStoredService, scenario, encoder);
+                assertScenario(columnarStoredService, scenario, encoder, floatElementsFromMapping);
             }
         }
     }
@@ -151,15 +186,16 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         Settings indexSettings,
         Batch... scenarios
     ) throws IOException {
+        final boolean floatElementsFromMapping = randomBoolean();
         final MapperService mapperService = createMapperService(indexVersion, indexSettings, mapping);
         for (Batch scenario : scenarios) {
-            assertScenario(mapperService, scenario, SourceEncoder.SIMD);
+            assertScenario(mapperService, scenario, SourceEncoder.SIMD, floatElementsFromMapping);
         }
         final Settings columnarStored = withColumnarStoredSource(indexSettings);
         if (columnarStored != null) {
             final MapperService columnarStoredService = createMapperService(indexVersion, columnarStored, mapping);
             for (Batch scenario : scenarios) {
-                assertScenario(columnarStoredService, scenario, SourceEncoder.SIMD);
+                assertScenario(columnarStoredService, scenario, SourceEncoder.SIMD, floatElementsFromMapping);
             }
         }
     }
@@ -228,7 +264,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 indexSettings,
                 new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
             );
-            EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder)
+            EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder, floatElementPaths(mapperService))
         ) {
             final SourceSchema schema = escfBatch.schema();
             for (int c = 0; c < schema.leafCount(); c++) {
@@ -276,7 +312,8 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * {@code (seqNo, primaryTerm, version)} values to both paths after parsing, exactly as
      * {@code InternalEngine} does at indexing time.
      */
-    private void assertScenario(MapperService mapperService, Batch scenario, SourceEncoder encoder) throws IOException {
+    private void assertScenario(MapperService mapperService, Batch scenario, SourceEncoder encoder, boolean floatElementsFromMapping)
+        throws IOException {
         final List<Doc> docs = scenario.docs();
         final int docCount = docs.size();
 
@@ -297,7 +334,13 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
             )
         ) {
-            try (EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder)) {
+            try (
+                EscfBatch escfBatch = encode(
+                    Arrays.asList(sourceBytesArray),
+                    encoder,
+                    floatElementsFromMapping ? floatElementPaths(mapperService) : Set.of()
+                )
+            ) {
                 // Resolve the schema leaves exactly as production does, so the harness exercises every fallback decision that
                 // ShardBatchMapper makes before it calls a mapper, not just the mapper's own behaviour.
                 final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
@@ -347,8 +390,9 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     mc.setVersion(i, docs.get(i).version());
                 }
 
-                // Materialize x-content descriptors up front.
-                final List<List<FieldDescriptor>> xcDescsPerDoc = new ArrayList<>(docCount);
+                // The expected blocks from x-content: the nested children of each document, then its root.
+                final IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
+                final List<DocBlock> xcBlocks = new ArrayList<>(docCount);
                 for (int i = 0; i < docCount; i++) {
                     final Doc doc = docs.get(i);
                     // When the doc carries a coordinator-computed tsid (time-series path), pass it to
@@ -369,38 +413,39 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     // Apply the same engine values as the columnar path (mirrors InternalEngine lines 1910-1911).
                     pd.updateSeqID(doc.seqNo(), scenario.primaryTerm());
                     pd.version().setLongValue(doc.version());
-                    xcDescsPerDoc.add(toDescriptors(pd.rootDoc().getFields()));
+                    assertEquals(
+                        "Batch [" + scenario.name() + "] doc[" + i + "]: the root document must be the last of the parsed documents",
+                        pd.rootDoc(),
+                        pd.docs().getLast()
+                    );
+                    xcBlocks.add(toBlock(pd.docs(), indexVersionCreated));
                 }
 
-                // Materialize row-cursor descriptors.
-                final List<List<FieldDescriptor>> descsPerDoc = new ArrayList<>(docCount);
+                // Compare the blocks that the row cursor hands to the engine's row write with x-content.
                 final MappedColumns.RowCursor rowCursor = mc.rowCursor();
                 for (int i = 0; i < docCount; i++) {
-                    rowCursor.advance();
-                    descsPerDoc.add(toDescriptors(rowCursor.fields()));
-                }
-
-                // Compare row-cursor against x-content.
-                for (int i = 0; i < docCount; i++) {
-                    assertFieldSetsEqual(
-                        xcDescsPerDoc.get(i),
-                        descsPerDoc.get(i),
-                        "Batch ["
-                            + scenario.name()
-                            + "] doc["
-                            + i
-                            + "] id=["
-                            + docs.get(i).id()
-                            + "]: x-content vs row-cursor field sets differ"
+                    assertBlocksEqual(
+                        xcBlocks.get(i),
+                        actualBlock(rowCursor),
+                        "Batch [" + scenario.name() + "] doc[" + i + "] id=[" + docs.get(i).id() + "]: x-content vs row-cursor"
                     );
-                    descsPerDoc.get(i).clear();
                 }
 
-                // Populate the same per-doc lists with column-batch descriptors and compare.
+                // A column batch has one Lucene document per row and no place for nested children yet, so documents with children are
+                // only compared through the row cursor. Phase 2 of elastic/elasticsearch#167077 adds the block layout and removes this.
+                if (xcBlocks.stream().anyMatch(DocBlock::hasChildren)) {
+                    return;
+                }
+
+                // Compare the column batch with the x-content roots.
+                final List<List<FieldDescriptor>> descsPerDoc = new ArrayList<>(docCount);
+                for (int i = 0; i < docCount; i++) {
+                    descsPerDoc.add(new ArrayList<>());
+                }
                 populateColumnBatchDescriptors(mc, descsPerDoc);
                 for (int i = 0; i < docCount; i++) {
                     assertFieldSetsEqual(
-                        xcDescsPerDoc.get(i),
+                        xcBlocks.get(i).root(),
                         descsPerDoc.get(i),
                         "Batch ["
                             + scenario.name()
@@ -411,17 +456,160 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                             + "]: x-content vs column-batch field sets differ"
                     );
                 }
+
+                assertFilteredColumnBatchHoldsRemainingDocs(mc, docCount, scenario.name());
             }
         }
     }
 
-    private static EscfBatch encode(List<BytesReference> sources, SourceEncoder encoder) throws IOException {
-        try (EscfEncoder escfEncoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, encoder.allowSimd)) {
+    /**
+     * The paths whose array elements the coordinating node encodes as floats for this mapping, read from the mapping as
+     * {@code BulkBatchEncoders} reads them, so that the harness encodes the batch as production does.
+     */
+    private static Set<String> floatElementPaths(MapperService mapperService) {
+        final DocumentMapper documentMapper = mapperService.documentMapper();
+        return documentMapper == null || DenseVectorFieldMapper.sourceMayKeepVectorText(mapperService.getIndexSettings().getSettings())
+            ? Set.of()
+            : DenseVectorFieldMapper.floatElementPaths(
+                new MappingMetadata(documentMapper).sourceAsMap(),
+                mapperService.getIndexSettings().sourceKeepMode()
+            );
+    }
+
+    private static EscfBatch encode(List<BytesReference> sources, SourceEncoder encoder, Set<String> floatElementPaths) throws IOException {
+        try (EscfEncoder escfEncoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, encoder.allowSimd, floatElementPaths)) {
             for (BytesReference source : sources) {
                 escfEncoder.addDocument(source, XContentType.JSON, 0);
             }
             return escfEncoder.buildPartition(0);
         }
+    }
+
+    /**
+     * The Lucene documents of one input document, as the engine writes them in one block: the nested children grouped by
+     * {@code _nested_path}, each group in source order, then the root.
+     *
+     * @param childrenByNestedPath the field sets of the children of each nested path; empty without children
+     * @param root the field set of the root document
+     */
+    private record DocBlock(Map<String, List<List<FieldDescriptor>>> childrenByNestedPath, List<FieldDescriptor> root) {
+
+        boolean hasChildren() {
+            return childrenByNestedPath.isEmpty() == false;
+        }
+    }
+
+    /** Groups the documents of a parsed document: the last one is the root, and the others are children grouped by {@code _nested_path}. */
+    private static DocBlock toBlock(List<LuceneDocument> documents, IndexVersion indexVersionCreated) {
+        final String nestedPathField = NestedPathFieldMapper.name(indexVersionCreated);
+        final Map<String, List<List<FieldDescriptor>>> children = new TreeMap<>();
+        for (LuceneDocument child : documents.subList(0, documents.size() - 1)) {
+            final List<FieldDescriptor> descriptors = toDescriptors(child.getFields());
+            final List<BytesRef> paths = descriptors.stream()
+                .filter(d -> d.name().equals(nestedPathField))
+                .map(d -> d.bytesValue())
+                .toList();
+            assertEquals("a nested child document must have exactly one [" + nestedPathField + "] field: " + descriptors, 1, paths.size());
+            children.computeIfAbsent(paths.getFirst().utf8ToString(), p -> new ArrayList<>()).add(descriptors);
+        }
+        return new DocBlock(children, toDescriptors(documents.getLast().getFields()));
+    }
+
+    /**
+     * Reads the next document from the row cursor. For now a batch only has a root document, so the block has no children. Phase 1 of
+     * elastic/elasticsearch#167077 changes this when {@code MappedColumns} gets a block cursor.
+     */
+    private static DocBlock actualBlock(MappedColumns.RowCursor rowCursor) {
+        rowCursor.advance();
+        return new DocBlock(Map.of(), toDescriptors(rowCursor.fields()));
+    }
+
+    /** Asserts that two blocks have the same nested paths, the same children for each path in source order, and the same root. */
+    private void assertBlocksEqual(DocBlock expected, DocBlock actual, String message) {
+        assertEquals(message + ": nested paths", expected.childrenByNestedPath().keySet(), actual.childrenByNestedPath().keySet());
+        for (Map.Entry<String, List<List<FieldDescriptor>>> entry : expected.childrenByNestedPath().entrySet()) {
+            final String path = entry.getKey();
+            final List<List<FieldDescriptor>> expectedChildren = entry.getValue();
+            final List<List<FieldDescriptor>> actualChildren = actual.childrenByNestedPath().get(path);
+            assertEquals(message + ": number of children of nested path [" + path + "]", expectedChildren.size(), actualChildren.size());
+            for (int c = 0; c < expectedChildren.size(); c++) {
+                assertFieldSetsEqual(
+                    expectedChildren.get(c),
+                    actualChildren.get(c),
+                    message + ": field sets of child [" + c + "] of nested path [" + path + "] differ"
+                );
+            }
+        }
+        assertFieldSetsEqual(expected.root(), actual.root(), message + ": root field sets differ");
+    }
+
+    /** The shard state that {@link ShardBatchMapper#mapColumnBatch} reads, without a live shard. */
+    private record TestShardContext(MapperService mapperService, IndexSettings indexSettings) implements BatchMappingShardContext {
+
+        @Override
+        public long getOperationPrimaryTerm() {
+            return 1L;
+        }
+
+        @Override
+        public long getRelativeTimeInNanos() {
+            return System.nanoTime();
+        }
+    }
+
+    /**
+     * Asserts that the batch path does not take these documents, so production indexes them through the sequential path. The batch
+     * path can refuse in {@code resolveMappers} or in {@code mapColumnBatch}, which returns {@code null} for the data. Both are
+     * accepted, so a test does not depend on where Phase 1 of elastic/elasticsearch#167077 moves the refusal.
+     *
+     * @return where the batch path refused
+     */
+    protected final BatchRefusal assertBatchPathRefuses(MapperService mapperService, SourceEncoder encoder, String... sources)
+        throws IOException {
+        final List<BytesReference> sourceBytes = Arrays.stream(sources)
+            .<BytesReference>map(s -> new BytesArray(s.getBytes(StandardCharsets.UTF_8)))
+            .toList();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        try (EscfBatch escfBatch = encode(sourceBytes, encoder, floatElementPaths(mapperService))) {
+            final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
+                escfBatch,
+                mappingLookup,
+                indexSettings
+            );
+            if (resolution == null) {
+                return BatchRefusal.RESOLVE_MAPPERS;
+            }
+            final BulkItemRequest[] items = new BulkItemRequest[sources.length];
+            for (int i = 0; i < items.length; i++) {
+                items[i] = new BulkItemRequest(i, new IndexRequest("test-index").id("d" + i).source(BytesArray.EMPTY, XContentType.JSON));
+            }
+            BulkShardBatch.attachBatchToItems(escfBatch, items);
+            final EngineBatch mapped = ShardBatchMapper.mapColumnBatch(
+                items,
+                escfBatch,
+                new TestShardContext(mapperService, indexSettings),
+                0,
+                items.length,
+                resolution,
+                Engine.Operation.Origin.PRIMARY,
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)),
+                DocumentParsingProvider.EMPTY_INSTANCE
+            );
+            if (mapped != null) {
+                mapped.close();
+                fail("the batch path mapped documents that production must index through the sequential path: " + Arrays.toString(sources));
+            }
+            return BatchRefusal.MAP_COLUMN_BATCH;
+        }
+    }
+
+    /** Where the batch path refused documents, see {@link #assertBatchPathRefuses}. */
+    protected enum BatchRefusal {
+        /** {@code resolveMappers} refused the mapping and schema. */
+        RESOLVE_MAPPERS,
+        /** {@code resolveMappers} accepted them and {@code mapColumnBatch} returned {@code null} for the data. */
+        MAP_COLUMN_BATCH
     }
 
     /**
@@ -435,22 +623,21 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 causes.add("metadata mapper [" + m.typeName() + "] does not support columnar parse");
             }
         }
+        final Map<FieldMapper, Set<String>> groupKeys = new LinkedHashMap<>();
         for (int c = 0; c < schema.leafCount(); c++) {
             final String path = schema.getFullPath(c);
             final Mapper mapper = mappingLookup.getMapper(path);
             if (mapper instanceof FieldMapper fm) {
-                if (fm.supportsColumnarParse(indexSettings) == false) {
+                if (fm.supportsColumnarParse(indexSettings, Set.of()) == false) {
                     causes.add("field [" + path + "] has mapper [" + fm.typeName() + "] that does not support columnar parse");
                 }
             } else if (mapper == null) {
                 if (ColumnGroupResolver.findColumnGroup(path, mappingLookup) instanceof ColumnGroupResolver.ColumnGroupLookup.Owned owned) {
-                    if (owned.mapper().supportsColumnarParse(indexSettings) == false) {
+                    groupKeys.computeIfAbsent(owned.mapper(), m -> new TreeSet<>()).add(owned.relativeKey());
+                    if (owned.mapper().resolvesColumnGroup() == FieldMapper.ColumnGroup.SINGLE_OBJECT
+                        && ColumnGroupResolver.isDirectlyInOwnerObject(schema, c, path, owned.ownerPath()) == false) {
                         causes.add(
-                            "field ["
-                                + owned.ownerPath()
-                                + "] has mapper ["
-                                + owned.mapper().typeName()
-                                + "] that does not support columnar parse"
+                            "leaf [" + path + "] is not directly in an object at the group mapper's path [" + owned.ownerPath() + "]"
                         );
                     }
                 } else {
@@ -460,6 +647,18 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 causes.add("leaf [" + path + "] resolves to a non-field mapper");
             }
         }
+        groupKeys.forEach((mapper, keys) -> {
+            if (mapper.supportsColumnarParse(indexSettings, keys) == false) {
+                causes.add(
+                    "field ["
+                        + mapper.fullPath()
+                        + "] has mapper ["
+                        + mapper.typeName()
+                        + "] that does not support columnar parse of keys "
+                        + keys
+                );
+            }
+        });
         return causes.isEmpty()
             ? "No single leaf or mapper explains it; enable DEBUG logging for ShardBatchMapper to see the reason."
             : "Candidate causes: " + String.join("; ", causes) + ".";
@@ -523,10 +722,115 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 }
             } else if (column instanceof TokenStreamColumn) {
                 // inverted-index-only; no doc values to compare
+            } else if (column instanceof VectorColumn<?> vectorColumn) {
+                // Vectors are single-valued and have no dense bulk-fill cursor, so the tuple cursor is the only one to read.
+                final ObjectTupleCursor<?> cursor = vectorColumn.tuples();
+                for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                    perDoc.get(doc).add(new FieldDescriptor(name, ft, null, vectorBytes(cursor.value())));
+                }
             } else {
                 throw new AssertionError("unsupported column type in test harness: " + column.getClass());
             }
         }
+    }
+
+    /**
+     * Checks the batch {@code mc} hands to Lucene once some of its documents are filtered out, as {@code InternalEngine} does for the
+     * documents that fail their version check or that a replica has already processed. Lucene adds one document per doc id of the
+     * batch, so the batch must hold the remaining documents only, renumbered in order, each with the values it has in the unfiltered
+     * batch. That batch was just compared with x-content, which makes this a check against x-content too, and running it here
+     * covers every type of column a mapper builds.
+     */
+    private void assertFilteredColumnBatchHoldsRemainingDocs(MappedColumns mc, int docCount, String scenarioName) throws IOException {
+        if (docCount < 2) {
+            // The engine neither filters a batch it keeps all the documents of, nor adds one it keeps none of.
+            return;
+        }
+        final int kept = between(0, docCount - 1);
+        final int excluded = randomValueOtherThan(kept, () -> between(0, docCount - 1));
+        final FixedBitSet filter = new FixedBitSet(docCount);
+        final int[] compactedDocIds = new int[docCount];
+        int remainingDocs = 0;
+        for (int doc = 0; doc < docCount; doc++) {
+            if (doc == kept || (doc != excluded && randomBoolean())) {
+                filter.set(doc);
+                compactedDocIds[doc] = remainingDocs++;
+            } else {
+                compactedDocIds[doc] = -1;
+            }
+        }
+
+        final ColumnBatch filteredBatch = mc.withFilter(filter).toColumnBatch();
+        assertEquals("Batch [" + scenarioName + "]: documents in the filtered column batch", remainingDocs, filteredBatch.numDocs());
+        final Iterator<Column> filteredColumns = filteredBatch.columns().iterator();
+        for (Column column : mc.toColumnBatch().columns()) {
+            final String message = "Batch [" + scenarioName + "] column [" + column.name() + "] filtered to " + filter;
+            assertTrue(message, filteredColumns.hasNext());
+            final Column filteredColumn = filteredColumns.next();
+            assertEquals(message, column.name(), filteredColumn.name());
+            assertEquals(message, new FieldType(column.fieldType()), new FieldType(filteredColumn.fieldType()));
+            if (column instanceof LongColumn longColumn) {
+                assertEquals(message, longColumn.numericKind(), asInstanceOf(LongColumn.class, filteredColumn).numericKind());
+            } else if (column instanceof BinaryColumn binaryColumn) {
+                assertEquals(message, binaryColumn.storedType(), asInstanceOf(BinaryColumn.class, filteredColumn).storedType());
+            }
+            final List<ColumnValue> expected = new ArrayList<>();
+            for (ColumnValue value : columnValues(column)) {
+                if (compactedDocIds[value.doc()] >= 0) {
+                    expected.add(new ColumnValue(compactedDocIds[value.doc()], value.value()));
+                }
+            }
+            assertEquals(message, expected, columnValues(filteredColumn));
+        }
+        assertFalse("Batch [" + scenarioName + "]: the filtered column batch has extra columns", filteredColumns.hasNext());
+    }
+
+    /** A value that a column of a {@link ColumnBatch} holds for the document {@code doc}, in a form that compares by content. */
+    private record ColumnValue(int doc, Object value) {}
+
+    /**
+     * Every value of {@code column} in the order its tuple cursor returns them, the cursor that reads dense and sparse columns alike.
+     * A token stream is read as the terms it produces.
+     */
+    private static List<ColumnValue> columnValues(Column column) throws IOException {
+        final List<ColumnValue> values = new ArrayList<>();
+        if (column instanceof LongColumn longColumn) {
+            final LongTupleCursor cursor = longColumn.tuples();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                values.add(new ColumnValue(doc, cursor.longValue()));
+            }
+        } else if (column instanceof BinaryColumn binaryColumn) {
+            final ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                values.add(new ColumnValue(doc, BytesRef.deepCopyOf(cursor.value())));
+            }
+        } else if (column instanceof TokenStreamColumn tokenStreamColumn) {
+            final ObjectTupleCursor<TokenStream> cursor = tokenStreamColumn.tuples();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                values.add(new ColumnValue(doc, terms(cursor.value())));
+            }
+        } else if (column instanceof VectorColumn<?> vectorColumn) {
+            final ObjectTupleCursor<?> cursor = vectorColumn.tuples();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                values.add(new ColumnValue(doc, vectorBytes(cursor.value())));
+            }
+        } else {
+            throw new AssertionError("unsupported column type in test harness: " + column.getClass());
+        }
+        return values;
+    }
+
+    private static List<BytesRef> terms(TokenStream tokenStream) throws IOException {
+        final List<BytesRef> terms = new ArrayList<>();
+        // A stream that never produces a token, like the one of the synthetic _id, need not declare a term attribute at all.
+        final TermToBytesRefAttribute term = tokenStream.getAttribute(TermToBytesRefAttribute.class);
+        tokenStream.reset();
+        while (tokenStream.incrementToken()) {
+            terms.add(BytesRef.deepCopyOf(term.getBytesRef()));
+        }
+        tokenStream.end();
+        tokenStream.close();
+        return terms;
     }
 
     /**
@@ -595,6 +899,13 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             longValue = numeric != null ? numeric.longValue() : null;
         }
         BytesRef bytesValue = null;
+        if (field instanceof KnnFloatVectorField vectorField) {
+            // A vector field has neither a numeric nor a binary value; compare the vector itself.
+            return new FieldDescriptor(field.name(), ft, null, vectorBytes(vectorField.vectorValue()));
+        }
+        if (field instanceof KnnByteVectorField vectorField) {
+            return new FieldDescriptor(field.name(), ft, null, vectorBytes(vectorField.vectorValue()));
+        }
         if (longValue == null) {
             final BytesRef binary = field.binaryValue();
             if (binary != null) {
@@ -604,6 +915,24 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             }
         }
         return new FieldDescriptor(field.name(), ft, longValue, bytesValue);
+    }
+
+    /**
+     * A comparable encoding of a {@code float[]} or {@code byte[]} vector value: the raw bits of every float element, or the bytes
+     * themselves, so that two vectors compare equal exactly when every element is bit-for-bit identical.
+     */
+    private static BytesRef vectorBytes(Object vector) {
+        if (vector instanceof float[] floats) {
+            final ByteBuffer buffer = ByteBuffer.allocate(floats.length * Float.BYTES);
+            for (float value : floats) {
+                buffer.putInt(Float.floatToRawIntBits(value));
+            }
+            return new BytesRef(buffer.array());
+        }
+        if (vector instanceof byte[] bytes) {
+            return new BytesRef(bytes.clone());
+        }
+        throw new AssertionError("unsupported vector value type in test harness: " + vector.getClass());
     }
 
     private static IndexRequest[] buildIndexRequests(List<Doc> docs, BytesReference[] sourceBytes) {

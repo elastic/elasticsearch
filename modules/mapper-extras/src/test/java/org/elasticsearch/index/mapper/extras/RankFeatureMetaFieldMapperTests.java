@@ -40,7 +40,7 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject("field")
                 .field("type", "rank_feature")
@@ -50,12 +50,17 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
                 .endObject()
         );
 
-        Mapping parsedMapping = createMapperService(mapping).parseMapping(
-            "type",
-            MapperService.MergeReason.MAPPING_UPDATE,
-            new CompressedXContent(mapping)
+        MapperService mapperService = createMapperService(mapping);
+        CompressedXContent source = new CompressedXContent(mapping);
+        assertEquals(
+            mapping,
+            mapperService.parseMappings(source, MapperService.MergeReason.MAPPING_UPDATE).toCompressedXContent().toString()
         );
-        assertEquals(mapping, parsedMapping.toCompressedXContent().toString());
+        Mapping parsedMapping = mapperService.parseMapping(
+            MapperService.SINGLE_MAPPING_NAME,
+            MapperService.MergeReason.MAPPING_UPDATE,
+            source
+        );
         assertNotNull(parsedMapping.getMetadataMapperByClass(RankFeatureMetaFieldMapper.class));
     }
 

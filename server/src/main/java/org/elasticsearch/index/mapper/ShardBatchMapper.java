@@ -32,11 +32,15 @@ import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.IntPredicate;
 
 /**
@@ -76,7 +80,25 @@ public final class ShardBatchMapper {
      * <p>{@code columnGroups} holds one entry per group mapper (e.g. {@code flattened}), ordered by the
      * first schema leaf that mapped to that group.
      */
-    public record BatchMapperResolution(FieldMapper[] columnMappers, ColumnGroupResolution[] columnGroups) {}
+    public record BatchMapperResolution(
+        FieldMapper[] columnMappers,
+        ColumnGroupResolution[] columnGroups,
+        NestedGroupResolution[] nestedGroups
+    ) {}
+
+    /**
+     * The schema leaves that belong to one {@code nested} mapper. Their values do not map to root columns: each array element (or
+     * the object itself) becomes a child document. Strict columnar nests only one level, so a nested mapper is a direct child of the
+     * root, and its leaves are either the leaf at its own path or leaves directly inside the object at its path.
+     *
+     * @param mapper the nested mapper
+     * @param valueLeaves leaves whose full path is the nested path: the array spelling, {@code {}}, {@code null} and {@code []}
+     * @param objectSpellingLeaves leaves directly inside the object at the nested path, the {@code {"n":{"b":1}}} spelling
+     * @param relativeKeys the name of each object spelling leaf, which can contain dots; parallel to {@code objectSpellingLeaves}
+     */
+    public record NestedGroupResolution(NestedObjectMapper mapper, int[] valueLeaves, int[] objectSpellingLeaves, String[] relativeKeys) {}
+
+    private static final NestedGroupResolution[] NO_NESTED_GROUPS = new NestedGroupResolution[0];
 
     /**
      * Resolve each schema leaf to a {@link FieldMapper}. Returns {@code null} if any scenario
@@ -87,7 +109,7 @@ public final class ShardBatchMapper {
         ColumnSupport columnSupport = batch instanceof EscfBatch escf
             ? (mapper, leaf) -> mapper.supportsColumnKind(escf.column(leaf).kind())
             : (mapper, leaf) -> true;
-        return resolveMappers(batch.schema(), lookup, indexSettings, batch::isEmptyObjectColumn, columnSupport);
+        return resolveMappers(batch.schema(), lookup, indexSettings, batch::isEmptyObjectColumn, columnSupport, "");
     }
 
     /**
@@ -95,7 +117,7 @@ public final class ShardBatchMapper {
      * cannot be detected and any unmapped leaf under a dynamic parent causes the usual fallback.
      */
     public static BatchMapperResolution resolveMappers(SourceSchema schema, MappingLookup lookup, IndexSettings indexSettings) {
-        return resolveMappers(schema, lookup, indexSettings, leaf -> false, (mapper, leaf) -> true);
+        return resolveMappers(schema, lookup, indexSettings, leaf -> false, (mapper, leaf) -> true, "");
     }
 
     /**
@@ -111,39 +133,59 @@ public final class ShardBatchMapper {
         MappingLookup lookup,
         IndexSettings indexSettings,
         IntPredicate isEmptyObjectColumn,
-        ColumnSupport columnSupport
+        ColumnSupport columnSupport,
+        String keyPrefix
     ) {
+        // The elements of a nested field are resolved against the mapping with the nested path as a prefix of their key, after the
+        // mapping and the metadata mappers have been checked for the documents of the batch.
+        final boolean nestedElements = keyPrefix.isEmpty() == false;
         // Runtime fields or index-time scripts anywhere in the mapping would require the normal
         // parsing flow; the batch path does not support them.
-        if (lookup.getMapping().getRoot().runtimeFields().isEmpty() == false) {
+        if (nestedElements == false && lookup.getMapping().getRoot().runtimeFields().isEmpty() == false) {
             logger.debug("batch indexing disabled: mapping defines runtime fields");
             return null;
         }
-        if (lookup.indexTimeScriptMappers().isEmpty() == false) {
+        if (nestedElements == false && lookup.indexTimeScriptMappers().isEmpty() == false) {
             logger.debug("batch indexing disabled: mapping defines index-time scripts");
             return null;
         }
         // TODO: Implement
-        if (lookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME) instanceof SliceIdFieldMapper) {
+        if (nestedElements == false && lookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME) instanceof SliceIdFieldMapper) {
             logger.debug("batch indexing disabled: slice-enabled index");
             return null;
         }
-        // Columnar mode keeps nested objects as document boundaries rather than flattening them away, and every field
-        // under one lands in MappingLookup keyed by its full dotted path — indistinguishable from a root-level field
-        // here. Resolving those leaves would write them into the root Lucene document instead of the per-element
-        // nested documents the sequential path produces, so the whole batch has to fall back.
-        if (lookup.nestedLookup().getNestedMappers().isEmpty() == false) {
-            logger.debug("batch indexing disabled: mapping defines nested objects");
-            return null;
+        // Nested values become child documents, which only the strict columnar modes support: they nest one level deep and reject
+        // copy_to. A nested mapper in any other mode, or one that copies its fields to the parent or root (older indices still accept
+        // include_in_parent and include_in_root), needs the sequential path.
+        final Map<String, NestedObjectMapper> nestedMappers = nestedElements ? Map.of() : lookup.nestedLookup().getNestedMappers();
+        if (nestedMappers.isEmpty() == false) {
+            // Only the provided id is on the nested documents; the other id mappers derive the id from the document, which the
+            // elements have none of.
+            if (lookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME) instanceof ProvidedIdFieldMapper == false) {
+                logger.debug("batch indexing disabled: nested objects need a provided _id");
+                return null;
+            }
+            if (indexSettings.getMode().isStrictColumnar() == false) {
+                logger.debug("batch indexing disabled: nested objects need a strict columnar index mode");
+                return null;
+            }
+            for (NestedObjectMapper nested : nestedMappers.values()) {
+                if (nested.isIncludeInParent() || nested.isIncludeInRoot()) {
+                    logger.debug("batch indexing disabled: nested object [{}] has include_in_parent or include_in_root", nested.fullPath());
+                    return null;
+                }
+            }
         }
 
-        final MetadataFieldMapper[] metadataMappers = lookup.getMapping().getSortedMetadataMappers();
+        final MetadataFieldMapper[] metadataMappers = nestedElements
+            ? new MetadataFieldMapper[0]
+            : lookup.getMapping().getSortedMetadataMappers();
 
         // An empty metadata mapper array means the index has not yet received its first mapping — the
         // initial cluster-state mapping was null, so MapperService.mappingLookup() returned EMPTY. We
         // cannot determine columnar eligibility without metadata mappers (e.g. SourceFieldMapper governs
         // whether stored _source is compatible), so fall back to the sequential path.
-        if (metadataMappers.length == 0) {
+        if (nestedElements == false && metadataMappers.length == 0) {
             logger.debug("batch indexing disabled: mapping not yet established (no metadata mappers)");
             return null;
         }
@@ -169,9 +211,11 @@ public final class ShardBatchMapper {
         HashSet<String> mappedPaths = null;
         // Owner path → the one schema object a group that needs a single source object takes its leaves from.
         HashMap<String, Integer> groupObjects = null;
+        // Nested path → its leaves, ordered by path so that every node resolves the same batch the same way.
+        TreeMap<String, NestedGroupBuilder> nestedBuilders = null;
 
         for (int leaf = 0; leaf < leafCount; leaf++) {
-            final String fullPath = schema.getFullPath(leaf);
+            final String fullPath = keyPrefix + schema.getFullPath(leaf);
             if (hasBlankPathSegment(fullPath)) {
                 logger.debug("batch indexing disabled: malformed field name [{}]", fullPath);
                 return null;
@@ -180,6 +224,23 @@ public final class ShardBatchMapper {
             if (anyKeepAllObject && isUnderKeepAllObject(fullPath, lookup, indexSettings)) {
                 logger.debug("batch indexing disabled: leaf [{}] is under an object with synthetic_source_keep: all", fullPath);
                 return null;
+            }
+            if (nestedMappers.isEmpty() == false) {
+                final NestedLeaf nestedLeaf = claimNestedLeaf(schema, leaf, fullPath, nestedMappers);
+                if (nestedLeaf == NestedLeaf.UNSUPPORTED) {
+                    logger.debug("batch indexing disabled: leaf [{}] crosses the boundary of a nested object", fullPath);
+                    return null;
+                }
+                if (nestedLeaf != null) {
+                    if (nestedBuilders == null) {
+                        nestedBuilders = new TreeMap<>();
+                    }
+                    nestedBuilders.computeIfAbsent(nestedLeaf.path(), k -> new NestedGroupBuilder(nestedMappers.get(k)))
+                        .add(leaf, nestedLeaf);
+                    // the value is shredded into child documents, not mapped as a root column
+                    columnMappers[leaf] = null;
+                    continue;
+                }
             }
             final Mapper resolved = lookup.getMapper(fullPath);
 
@@ -199,6 +260,10 @@ public final class ShardBatchMapper {
                         mapper.typeName(),
                         ownerPath
                     );
+                    return null;
+                }
+                if (nestedElements && group instanceof ColumnGroupLookup.Owned) {
+                    logger.debug("batch indexing disabled: leaf [{}] of a nested object is owned by a group mapper", fullPath);
                     return null;
                 }
                 if (group instanceof ColumnGroupLookup.Owned owned) {
@@ -271,6 +336,10 @@ public final class ShardBatchMapper {
                     }
                     columnMappers[leaf] = null;
                     continue;
+                }
+                if (parentDynamic == ObjectMapper.Dynamic.FLATTENED && nestedElements) {
+                    logger.debug("batch indexing disabled: unmapped leaf [{}] of a nested object is absorbed by the sink", fullPath);
+                    return null;
                 }
                 if (parentDynamic == ObjectMapper.Dynamic.FLATTENED) {
                     final FieldMapper sink = unmappedSink(lookup, indexSettings);
@@ -349,7 +418,77 @@ public final class ShardBatchMapper {
                 return null;
             }
         }
-        return new BatchMapperResolution(columnMappers, columnGroups);
+        final NestedGroupResolution[] nestedGroups = nestedBuilders == null
+            ? NO_NESTED_GROUPS
+            : nestedBuilders.values().stream().map(NestedGroupBuilder::build).toArray(NestedGroupResolution[]::new);
+        return new BatchMapperResolution(columnMappers, columnGroups, nestedGroups);
+    }
+
+    /** Where a schema leaf sits relative to a nested mapper, see {@link #claimNestedLeaf}. */
+    private record NestedLeaf(String path, boolean objectSpelling, String relativeKey) {
+
+        /** The leaf is under a nested path in a way that needs the sequential path. */
+        static final NestedLeaf UNSUPPORTED = new NestedLeaf(null, false, null);
+    }
+
+    /**
+     * Whether the nested mapper at {@code path} owns schema leaf {@code leaf}:
+     * <ul>
+     *     <li>The leaf's full path is the nested path: the array spelling, {@code {}}, {@code null} and {@code []}, and also the
+     *     dotted value spelling {@code {"meta.comments":[...]}}, which the sequential path indexes the same way.</li>
+     *     <li>The leaf sits directly inside the object at the nested path, so {@code {"n":{"b":1}}} gives the leaf {@code b} under
+     *     the object {@code n}.</li>
+     * </ul>
+     * Any other leaf under the nested path, such as a dotted key across the boundary ({@code {"n.b":1}}) or a leaf in a deeper object,
+     * is {@link NestedLeaf#UNSUPPORTED}: the sequential path trips an assertion on the first and makes extra child documents for the
+     * second. Returns {@code null} for a leaf that is not under a nested path.
+     */
+    private static NestedLeaf claimNestedLeaf(SourceSchema schema, int leaf, String fullPath, Map<String, NestedObjectMapper> nested) {
+        if (nested.containsKey(fullPath)) {
+            return new NestedLeaf(fullPath, false, null);
+        }
+        // Strict columnar does not nest a nested mapper in another, so at most one prefix is a nested path.
+        int dot = fullPath.lastIndexOf('.');
+        while (dot > 0) {
+            final String prefix = fullPath.substring(0, dot);
+            if (nested.containsKey(prefix)) {
+                return ColumnGroupResolver.isDirectlyInOwnerObject(schema, leaf, fullPath, prefix)
+                    ? new NestedLeaf(prefix, true, schema.getLeafName(leaf))
+                    : NestedLeaf.UNSUPPORTED;
+            }
+            dot = fullPath.lastIndexOf('.', dot - 1);
+        }
+        return null;
+    }
+
+    /** Accumulates the leaves of one nested mapper while {@link #resolveMappers} walks the schema. */
+    private static final class NestedGroupBuilder {
+        private final NestedObjectMapper mapper;
+        private final List<Integer> valueLeaves = new ArrayList<>();
+        private final List<Integer> objectSpellingLeaves = new ArrayList<>();
+        private final List<String> relativeKeys = new ArrayList<>();
+
+        NestedGroupBuilder(NestedObjectMapper mapper) {
+            this.mapper = mapper;
+        }
+
+        void add(int leaf, NestedLeaf nestedLeaf) {
+            if (nestedLeaf.objectSpelling()) {
+                objectSpellingLeaves.add(leaf);
+                relativeKeys.add(nestedLeaf.relativeKey());
+            } else {
+                valueLeaves.add(leaf);
+            }
+        }
+
+        NestedGroupResolution build() {
+            return new NestedGroupResolution(
+                mapper,
+                valueLeaves.stream().mapToInt(Integer::intValue).toArray(),
+                objectSpellingLeaves.stream().mapToInt(Integer::intValue).toArray(),
+                relativeKeys.toArray(String[]::new)
+            );
+        }
     }
 
     /**
@@ -533,7 +672,6 @@ public final class ShardBatchMapper {
         DocumentParsingProvider documentParsingProvider
     ) {
         final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
-        final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
 
         final SourceBatch chunkSource = batch.slice(chunkStart, chunkEnd);
         final long[] normalizedSizes;
@@ -557,73 +695,17 @@ public final class ShardBatchMapper {
         final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings(), recycler);
 
         try {
-            for (MetadataFieldMapper metadataMapper : metadataMappers) {
-                metadataMapper.preColumnarParse(context);
-            }
-            // Invoke field mappers
-            final SourceBatch sourceBatch = indexBatch.sourceBatch();
-            if (sourceBatch instanceof EscfBatch escfChunk) {
-                final FieldMapper[] columnMappers = resolution.columnMappers();
-                for (int c = 0; c < columnMappers.length; c++) {
-                    final FieldMapper mapper = columnMappers[c];
-                    if (mapper != null) {
-                        mapper.mapColumnBatch(context, escfChunk.column(c));
-                    }
-                }
-                // Dispatch group mappers (e.g. flattened fields) after per-leaf mappers.
-                for (ColumnGroupResolution group : resolution.columnGroups()) {
-                    final int[] leafIndexes = group.leafIndexes();
-                    final EscfColumn[] groupColumns = new EscfColumn[leafIndexes.length];
-                    for (int i = 0; i < leafIndexes.length; i++) {
-                        groupColumns[i] = escfChunk.column(leafIndexes[i]);
-                    }
-                    group.mapper().mapColumnGroupBatch(context, groupColumns, group.relativeKeys());
-                }
-                // Enforce nullability=false for fields absent from the ESCF schema. Fields that
-                // are present in the schema but carry null/absent values are checked by
-                // FieldMapper.mapColumnBatch(); this block covers the remaining case where the
-                // field produced no column at all because every document in the batch omitted it.
-                if (mappingLookup.hasRequiredFields()) {
-                    final SourceSchema escfSchema = escfChunk.schema();
-                    final HashSet<String> schemaLeafPaths = new HashSet<>(escfSchema.leafCount() * 2);
-                    for (int c = 0; c < escfSchema.leafCount(); c++) {
-                        schemaLeafPaths.add(escfSchema.getFullPath(c));
-                    }
-                    final int batchDocCount = chunkEnd - chunkStart;
-                    // TODO: requiredFields("") returns only top-level required fields. This is
-                    // currently safe because resolveMappers() returns null for any mapping that
-                    // contains nested fields, so nested batches never reach this code. When batch
-                    // support is extended to nested fields, this will need to handle nested required
-                    // fields as well.
-                    for (String fieldName : mappingLookup.requiredFields("")) {
-                        // A multi-field has no column of its own: it is mapped from its parent's, so it is present whenever the parent is.
-                        final String sourcePath = isMultiFieldSubField(fieldName, mappingLookup)
-                            ? fieldName.substring(0, fieldName.lastIndexOf('.'))
-                            : fieldName;
-                        if (schemaLeafPaths.contains(sourcePath) == false) {
-                            final Mapper m = mappingLookup.getMapper(fieldName);
-                            assert m instanceof FieldMapper : "required field [" + fieldName + "] must be a FieldMapper";
-                            final FieldMapper fieldMapper = (FieldMapper) m;
-                            if (fieldMapper.onFailureBehavior() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
-                                for (int doc = 0; doc < batchDocCount; doc++) {
-                                    context.addIgnoredFieldColumnar(doc, fieldName);
-                                }
-                            } else {
-                                throw new UnsupportedOperationException(
-                                    "mapColumnBatch: nullability=false field [" + fieldName + "] is absent from the ESCF schema"
-                                );
-                            }
-                        }
-                    }
-                }
+            if (indexBatch.sourceBatch() instanceof EscfBatch escfChunk) {
+                mapInto(context, escfChunk, resolution);
             } else {
                 throw new IllegalStateException("unexpected batch mapping - only use escf currently");
             }
-            for (MetadataFieldMapper metadataMapper : metadataMappers) {
-                metadataMapper.postColumnarParse(context);
-            }
             // the engine's DocumentSizeReporter sees the metered sizes while columns can still be attached; a no-op without a reporter
             shard.onBatchParsingCompleted(context);
+        } catch (NestedBatchShredder.Fallback e) {
+            logger.debug("columnar batch mapping disabled: {}", e.getMessage());
+            context.close();
+            return null;
         } catch (Exception e) {
             logger.warn("columnar batch mapping failed on [{}], falling back", origin, e);
             context.close();
@@ -631,6 +713,185 @@ public final class ShardBatchMapper {
         }
 
         return new EngineBatch(indexBatch, context.columns(), context);
+    }
+
+    /**
+     * Maps the documents of {@code chunk}, which {@code context} wraps, into the columns of {@code context}: the metadata mappers
+     * before and after the field mappers, the field mappers for each resolved column, the group mappers, and the nested elements of
+     * each nested path as child scopes of {@code context}. Public for the compatibility tests, which drive the mapping like this.
+     *
+     * @throws NestedBatchShredder.Fallback when the chunk needs the sequential path
+     */
+    public static void mapInto(BatchMappingContext context, EscfBatch chunk, BatchMapperResolution resolution) throws IOException {
+        final MappingLookup mappingLookup = context.mappingLookup();
+        final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
+        for (MetadataFieldMapper metadataMapper : metadataMappers) {
+            metadataMapper.preColumnarParse(context);
+        }
+        // Invoke field mappers
+        final FieldMapper[] columnMappers = resolution.columnMappers();
+        for (int c = 0; c < columnMappers.length; c++) {
+            final FieldMapper mapper = columnMappers[c];
+            if (mapper != null) {
+                mapper.mapColumnBatch(context, chunk.column(c));
+            }
+        }
+        // Dispatch group mappers (e.g. flattened fields) after per-leaf mappers.
+        for (ColumnGroupResolution group : resolution.columnGroups()) {
+            final int[] leafIndexes = group.leafIndexes();
+            final EscfColumn[] groupColumns = new EscfColumn[leafIndexes.length];
+            for (int i = 0; i < leafIndexes.length; i++) {
+                groupColumns[i] = chunk.column(leafIndexes[i]);
+            }
+            group.mapper().mapColumnGroupBatch(context, groupColumns, group.relativeKeys());
+        }
+        enforceRequiredFields(context, mappingLookup, chunk.schema(), "", "", context.docCount());
+        mapNestedChildren(context, chunk, resolution.nestedGroups(), metadataMappers);
+        for (MetadataFieldMapper metadataMapper : metadataMappers) {
+            metadataMapper.postColumnarParse(context);
+        }
+    }
+
+    /**
+     * Maps the elements of each nested path of {@code chunk} in a child scope of {@code context}: the elements are shredded into a
+     * batch of their own, the field mappers map its columns, and the metadata mappers add what the nested documents need.
+     */
+    private static void mapNestedChildren(
+        BatchMappingContext context,
+        EscfBatch chunk,
+        NestedGroupResolution[] nestedGroups,
+        MetadataFieldMapper[] metadataMappers
+    ) throws IOException {
+        if (nestedGroups.length == 0) {
+            return;
+        }
+        final MappingLookup mappingLookup = context.mappingLookup();
+        final int[] childrenPerRow = new int[chunk.docCount()];
+        final long maxChildrenPerRow = context.indexSettings().getMappingNestedDocsLimit();
+        for (NestedGroupResolution group : nestedGroups) {
+            final NestedBatchShredder.Children children = NestedBatchShredder.shred(
+                chunk,
+                group,
+                context.recycler(),
+                childrenPerRow,
+                maxChildrenPerRow
+            );
+            if (children == null) {
+                continue;
+            }
+            // The columns of the elements alias the buffers of their batch, which lives as long as the columns do.
+            context.addResource(children.batch());
+            final String nestedPath = group.mapper().fullPath();
+            final FieldMapper[] mappers = resolveNestedElementMappers(children, nestedPath, mappingLookup, context.indexSettings());
+            if (mappers == null) {
+                throw new NestedBatchShredder.Fallback("the elements of nested field [" + nestedPath + "] cannot be mapped by columns");
+            }
+            final BatchMappingContext childScope = context.forNestedChildren(
+                group.mapper(),
+                children.parentOffsets(),
+                children.childToRow()
+            );
+            for (int c = 0; c < mappers.length; c++) {
+                final FieldMapper mapper = mappers[c];
+                if (mapper != null) {
+                    mapper.mapColumnBatch(childScope, children.batch().column(c));
+                }
+            }
+            enforceRequiredFields(
+                childScope,
+                mappingLookup,
+                children.batch().schema(),
+                nestedPath,
+                nestedPath + ".",
+                childScope.docCount()
+            );
+            for (MetadataFieldMapper metadataMapper : metadataMappers) {
+                metadataMapper.postColumnarParseNested(childScope);
+            }
+        }
+    }
+
+    /**
+     * Resolves the leaves of the elements of a nested field to field mappers, or returns {@code null} when the batch path cannot map
+     * them: a leaf that the mapping does not have, a group mapper, and a floating point number of an array element on a field that is
+     * not numeric, because a blob keeps no more than the value of the number and not how it was written.
+     */
+    private static FieldMapper[] resolveNestedElementMappers(
+        NestedBatchShredder.Children children,
+        String nestedPath,
+        MappingLookup lookup,
+        IndexSettings indexSettings
+    ) {
+        final EscfBatch elements = children.batch();
+        final BatchMapperResolution resolution = resolveMappers(
+            elements.schema(),
+            lookup,
+            indexSettings,
+            elements::isEmptyObjectColumn,
+            (mapper, leaf) -> mapper.supportsColumnKind(elements.column(leaf).kind()),
+            nestedPath + "."
+        );
+        if (resolution == null) {
+            return null;
+        }
+        assert resolution.columnGroups().length == 0 && resolution.nestedGroups().length == 0;
+        final FieldMapper[] mappers = resolution.columnMappers();
+        for (int leaf = 0; leaf < mappers.length; leaf++) {
+            if (mappers[leaf] != null
+                && children.floatingKeys().contains(elements.schema().getLeafName(leaf))
+                && mappers[leaf] instanceof NumberFieldMapper == false) {
+                logger.debug(
+                    "columnar batch mapping disabled: a floating point number of nested field [{}] is not for numeric field [{}]",
+                    nestedPath,
+                    mappers[leaf].fullPath()
+                );
+                return null;
+            }
+        }
+        return mappers;
+    }
+
+    /**
+     * Enforces {@code nullability: false} for the fields of {@code nestedParent} ({@code ""} for the root) that are absent from the
+     * ESCF schema. The paths of the schema are relative to {@code pathPrefix}, which is the nested path and a dot for the elements of a
+     * nested field. Fields that are in the schema but carry null or absent values are checked by {@link FieldMapper#mapColumnBatch};
+     * this covers the remaining case where the field produced no column at all because every document in the batch omitted it.
+     */
+    private static void enforceRequiredFields(
+        BatchMappingContext context,
+        MappingLookup mappingLookup,
+        SourceSchema schema,
+        String nestedParent,
+        String pathPrefix,
+        int docCount
+    ) {
+        if (mappingLookup.hasRequiredFields() == false) {
+            return;
+        }
+        final HashSet<String> schemaLeafPaths = new HashSet<>(schema.leafCount() * 2);
+        for (int c = 0; c < schema.leafCount(); c++) {
+            schemaLeafPaths.add(pathPrefix + schema.getFullPath(c));
+        }
+        for (String fieldName : mappingLookup.requiredFields(nestedParent)) {
+            // A multi-field has no column of its own: it is mapped from its parent's, so it is present whenever the parent is.
+            final String sourcePath = isMultiFieldSubField(fieldName, mappingLookup)
+                ? fieldName.substring(0, fieldName.lastIndexOf('.'))
+                : fieldName;
+            if (schemaLeafPaths.contains(sourcePath) == false) {
+                final Mapper m = mappingLookup.getMapper(fieldName);
+                assert m instanceof FieldMapper : "required field [" + fieldName + "] must be a FieldMapper";
+                final FieldMapper fieldMapper = (FieldMapper) m;
+                if (fieldMapper.onFailureBehavior() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
+                    for (int doc = 0; doc < docCount; doc++) {
+                        context.addIgnoredFieldColumnar(doc, fieldName);
+                    }
+                } else {
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: nullability=false field [" + fieldName + "] is absent from the ESCF schema"
+                    );
+                }
+            }
+        }
     }
 
     /**

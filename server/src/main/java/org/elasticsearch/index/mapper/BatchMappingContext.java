@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfColumnData;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.sourcebatch.MappedColumns.NestedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -40,10 +42,31 @@ import java.util.function.Predicate;
  * This context is a read-only view over that batch; it additionally accumulates the mapping-time
  * state (the assembled {@link LuceneColumn} list and the {@code _field_names} entries) that belongs
  * to the mapping phase rather than the operation record.
+ *
+ * <p>The documents of a nested field are the children of the documents of the batch. They are mapped in a child scope
+ * ({@link #forNestedChildren}), a context of its own whose documents are the nested elements of one nested path: it has its own
+ * columns and {@code _field_names}, and its own sequence numbers and versions, which the engine fills from those of the parent. It
+ * shares the resources of the root, so closing the root context releases them all, and records ignored fields on the root document
+ * that owns the element. What only a root document has, like the source, the routing and the timestamp, is not available in a child
+ * scope.
  */
 public final class BatchMappingContext implements Releasable {
 
     private final IndexOperationBatch batch;
+    /** The context of the batch for a child scope, {@code null} for the context of the batch itself. */
+    private final BatchMappingContext root;
+    private final NestedObjectMapper nestedMapper;
+    private final int docCount;
+    private final BytesRef seqNos;
+    private final BytesRef primaryTerms;
+    private final BytesRef versions;
+    private final BytesRef[] uids;
+    /** For a child scope: the children of parent {@code d} are the documents {@code [parentOffsets[d], parentOffsets[d + 1])}. */
+    private final int[] parentOffsets;
+    /** For a child scope: the document of the batch that owns each child. */
+    private final int[] childToRow;
+    /** The child scopes of the context of the batch, in the order that their children go in a block. */
+    private final List<BatchMappingContext> children = new ArrayList<>();
     private final MappingLookup mappingLookup;
     private final IndexSettings indexSettings;
     private final Recycler<BytesRef> recycler;
@@ -76,10 +99,80 @@ public final class BatchMappingContext implements Releasable {
         Recycler<BytesRef> recycler
     ) {
         this.batch = batch;
+        this.root = null;
+        this.nestedMapper = null;
+        this.docCount = batch.docCount();
+        this.seqNos = batch.seqNoBytes();
+        this.primaryTerms = batch.primaryTermBytes();
+        this.versions = batch.versionBytes();
+        this.uids = batch.uids();
+        this.parentOffsets = null;
+        this.childToRow = null;
         this.mappingLookup = mappingLookup;
         this.indexSettings = indexSettings;
         this.recycler = recycler;
         this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
+    }
+
+    private BatchMappingContext(BatchMappingContext root, NestedObjectMapper nestedMapper, int[] parentOffsets, int[] childToRow) {
+        this.batch = root.batch;
+        this.root = root;
+        this.nestedMapper = nestedMapper;
+        this.docCount = childToRow.length;
+        this.parentOffsets = parentOffsets;
+        this.childToRow = childToRow;
+        // The children take the sequence number and version of their parent from the engine, see MappedColumns#setSeqNo. They have no
+        // primary term of their own: the row path does not add one to a nested document either.
+        this.seqNos = new BytesRef(new byte[docCount * Long.BYTES]);
+        this.primaryTerms = new BytesRef();
+        this.versions = new BytesRef(new byte[docCount * Long.BYTES]);
+        final BytesRef[] parentUids = root.uids;
+        this.uids = new BytesRef[docCount];
+        for (int c = 0; c < docCount; c++) {
+            uids[c] = parentUids[childToRow[c]];
+        }
+        this.mappingLookup = root.mappingLookup;
+        this.indexSettings = root.indexSettings;
+        this.recycler = root.recycler;
+        this.fieldNamesFieldMapper = root.fieldNamesFieldMapper;
+    }
+
+    /**
+     * Creates the child scope of {@code nestedMapper}: a context whose documents are the nested elements of that path, in the order
+     * of their parents and in source order for each parent. Must be called on the context of the batch.
+     *
+     * @param parentOffsets the children of parent {@code d} are the elements {@code [parentOffsets[d], parentOffsets[d + 1])}
+     * @param childToRow the document of the batch that owns each element
+     */
+    public BatchMappingContext forNestedChildren(NestedObjectMapper nestedMapper, int[] parentOffsets, int[] childToRow) {
+        assert root == null : "a nested field cannot have nested fields in a strict columnar index";
+        assert frozen == false;
+        assert parentOffsets.length == docCount() + 1 && parentOffsets[docCount()] == childToRow.length;
+        final BatchMappingContext child = new BatchMappingContext(this, nestedMapper, parentOffsets, childToRow);
+        children.add(child);
+        return child;
+    }
+
+    /** The nested mapper whose elements are the documents of this child scope, or {@code null} for the context of the batch. */
+    @Nullable
+    public NestedObjectMapper nestedMapper() {
+        return nestedMapper;
+    }
+
+    /** Whether this is the context of the batch, as opposed to the child scope of a nested field. */
+    public boolean isRoot() {
+        return root == null;
+    }
+
+    /** Whether any child scope has been created, that is whether documents have nested children. */
+    public boolean hasNestedChildren() {
+        return children.isEmpty() == false;
+    }
+
+    private void assertRoot(String what) {
+        if (root != null) {
+            throw new IllegalStateException(what + " is only available for the documents of the batch, not for nested children");
+        }
     }
 
     public IndexSettings indexSettings() {
@@ -96,6 +189,7 @@ public final class BatchMappingContext implements Releasable {
      * @throws IllegalArgumentException if called more than once
      */
     public void setTimestamps(EscfLongColumn timestamps) {
+        assertRoot("the timestamp");
         if (this.timestamps != null) {
             throw new IllegalArgumentException(
                 "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
@@ -112,6 +206,7 @@ public final class BatchMappingContext implements Releasable {
      *     {@link DataStreamTimestampFieldMapper#extractTimestampValue})
      */
     public EscfLongColumn timestamps() {
+        assertRoot("the timestamp");
         if (timestamps == null) {
             throw new IllegalArgumentException(
                 "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
@@ -145,7 +240,7 @@ public final class BatchMappingContext implements Releasable {
     public void addColumn(LuceneColumn column, EscfColumnData owned) {
         assert frozen == false;
         columns.add(column);
-        resources.add(owned);
+        addResource(owned);
     }
 
     /**
@@ -154,7 +249,11 @@ public final class BatchMappingContext implements Releasable {
      */
     public void addResource(Releasable resource) {
         assert frozen == false;
-        resources.add(resource);
+        if (root != null) {
+            root.addResource(resource);
+        } else {
+            resources.add(resource);
+        }
     }
 
     /**
@@ -168,6 +267,14 @@ public final class BatchMappingContext implements Releasable {
      */
     public MappedColumns.RowCursor rowCursor(Predicate<? super LuceneColumn> include) {
         return mappedColumns().rowCursor(include);
+    }
+
+    /**
+     * Like {@link #rowCursor}, and the cursor also yields the nested children of each document, before the document itself. Use it
+     * when the documents have children, or {@link #hasNestedChildren()} is {@code false}, and the rows are enough.
+     */
+    public MappedColumns.BlockCursor blockCursor(Predicate<? super LuceneColumn> include) {
+        return mappedColumns().blockCursor(include);
     }
 
     /**
@@ -199,7 +306,7 @@ public final class BatchMappingContext implements Releasable {
      * {@link IndexOperationBatch#seqNoBytes()}; see that method for the aliasing contract.
      */
     public BytesRef seqNos() {
-        return batch.seqNoBytes();
+        return seqNos;
     }
 
     /**
@@ -207,7 +314,8 @@ public final class BatchMappingContext implements Releasable {
      * {@link IndexOperationBatch#primaryTermBytes()}.
      */
     public BytesRef primaryTerms() {
-        return batch.primaryTermBytes();
+        assertRoot("the primary term");
+        return primaryTerms;
     }
 
     /**
@@ -215,7 +323,7 @@ public final class BatchMappingContext implements Releasable {
      * {@link IndexOperationBatch#versionBytes()}.
      */
     public BytesRef versions() {
-        return batch.versionBytes();
+        return versions;
     }
 
     /**
@@ -224,11 +332,13 @@ public final class BatchMappingContext implements Releasable {
      * documents without routing.
      */
     public BytesRef[] routings() {
+        assertRoot("the routing");
         return batch.routings();
     }
 
     /** Returns the per-document content-type array; entries default to {@link XContentType#JSON} when the request had none. */
     public XContentType[] contentTypes() {
+        assertRoot("the content type");
         return batch.contentTypes();
     }
 
@@ -237,6 +347,7 @@ public final class BatchMappingContext implements Releasable {
      * that carry no source.
      */
     public BytesReference[] sources() {
+        assertRoot("the source");
         return batch.sources();
     }
 
@@ -250,6 +361,7 @@ public final class BatchMappingContext implements Releasable {
      * with neither has size {@code 0}.
      */
     public int[] sourceSizesInBytes() {
+        assertRoot("the source size");
         final int docCount = batch.docCount();
         final BytesReference[] sources = batch.sources();
         final int[] sizes = new int[docCount];
@@ -277,7 +389,7 @@ public final class BatchMappingContext implements Releasable {
      * Returns the {@code _id} (Uid-encoded) array.
      */
     public BytesRef[] uids() {
-        return batch.uids();
+        return uids;
     }
 
     /**
@@ -285,7 +397,7 @@ public final class BatchMappingContext implements Releasable {
      * For time-series indices the id is derived during mapping and set via {@link #setSyntheticId}.
      */
     public String id(int doc) {
-        return batch.id(doc);
+        return batch.id(root != null ? childToRow[doc] : doc);
     }
 
     /**
@@ -296,6 +408,7 @@ public final class BatchMappingContext implements Releasable {
      * {@link LuceneDocument} to add to on this path.
      */
     public long normalizedSize(int doc) {
+        assertRoot("the metered size");
         return batch.normalizedSize(doc);
     }
 
@@ -304,6 +417,7 @@ public final class BatchMappingContext implements Releasable {
      * columnar {@code _id} mapper during {@code postColumnarParse}.
      */
     public void setSyntheticId(int doc, String id, BytesRef uid) {
+        assertRoot("the synthetic id");
         assert frozen == false;
         batch.setSyntheticId(doc, id, uid);
     }
@@ -313,6 +427,7 @@ public final class BatchMappingContext implements Releasable {
      * carries a tsid (the common case for non-time-series indices).
      */
     public BytesRef[] tsids() {
+        assertRoot("the time series id");
         return batch.tsids();
     }
 
@@ -320,7 +435,7 @@ public final class BatchMappingContext implements Releasable {
      * Whether {@code _data_stream_timestamp} is present and enabled for this index..
      */
     public boolean isDataStreamTimestampFieldEnabled() {
-        return mappingLookup.isDataStreamTimestampFieldEnabled();
+        return root == null && mappingLookup.isDataStreamTimestampFieldEnabled();
     }
 
     /**
@@ -350,7 +465,7 @@ public final class BatchMappingContext implements Releasable {
      */
     void recordFieldName(int doc, BytesRef value) {
         if (fieldNames == null) {
-            fieldNames = new DeduplicatingStringColumnAccumulator(batch.docCount());
+            fieldNames = new DeduplicatingStringColumnAccumulator(docCount);
         }
         fieldNames.record(doc, value);
     }
@@ -374,8 +489,13 @@ public final class BatchMappingContext implements Releasable {
      */
     public void addIgnoredFieldColumnar(int doc, String field) {
         assert frozen == false;
+        if (root != null) {
+            // Like the row path: the _ignored field of a nested element is recorded on the root document that owns it.
+            root.addIgnoredFieldColumnar(childToRow[doc], field);
+            return;
+        }
         if (ignoredFields == null) {
-            ignoredFields = new DeduplicatingStringColumnAccumulator(batch.docCount());
+            ignoredFields = new DeduplicatingStringColumnAccumulator(docCount);
         }
         ignoredFields.record(doc, new BytesRef(field));
     }
@@ -389,7 +509,7 @@ public final class BatchMappingContext implements Releasable {
 
     /** The number of documents in this chunk. */
     public int docCount() {
-        return batch.docCount();
+        return docCount;
     }
 
     /**
@@ -404,10 +524,25 @@ public final class BatchMappingContext implements Releasable {
      */
     public MappedColumns columns() {
         frozen = true;
+        for (BatchMappingContext child : children) {
+            child.frozen = true;
+        }
         return mappedColumns();
     }
 
     private MappedColumns mappedColumns() {
-        return new MappedColumns(0, batch.docCount(), batch.seqNoBytes(), batch.primaryTermBytes(), batch.versionBytes(), columns);
+        if (children.isEmpty()) {
+            return new MappedColumns(0, docCount, seqNos, primaryTerms, versions, columns);
+        }
+        final List<NestedColumns> nested = new ArrayList<>(children.size());
+        for (BatchMappingContext child : children) {
+            nested.add(new NestedColumns(child.nestedMapper.nestedTypePath(), child.ownColumns(), child.parentOffsets));
+        }
+        return new MappedColumns(0, docCount, seqNos, primaryTerms, versions, columns, nested);
+    }
+
+    /** The columns of a child scope, which are the rows of one nested path. */
+    private MappedColumns ownColumns() {
+        return new MappedColumns(0, docCount, seqNos, primaryTerms, versions, columns);
     }
 }

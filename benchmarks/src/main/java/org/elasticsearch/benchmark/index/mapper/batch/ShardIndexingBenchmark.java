@@ -73,6 +73,13 @@ public class ShardIndexingBenchmark {
         LuceneSink sink;
         SeqNoStamper stamper;
         BenchShardContext ctx;
+        /** The Lucene documents that one invocation writes: the documents, and the nested children of a shape that has them. */
+        int expectedDocs = DOCS_PER_INVOCATION;
+
+        /** The Lucene documents that an invocation leaves in the writer. */
+        int writtenDocs() {
+            return expectedDocs;
+        }
 
         abstract String shapeName();
 
@@ -105,6 +112,9 @@ public class ShardIndexingBenchmark {
                 fixture = IndexingFixture.build(shape, sourceMode, docsPerRequest(), DOCS_PER_INVOCATION, seed);
                 stamper = new SeqNoStamper();
                 ctx = new BenchShardContext(fixture.mapperService(), fixture.indexSettings(), stamper.primaryTerm());
+                if (shape.expect() == Expect.COLUMN_ROWS) {
+                    expectedDocs = ColumnIndexer.countLuceneDocs(ctx, fixture.requests());
+                }
                 if (dryRuns()) {
                     checkStages(shape);
                 }
@@ -124,7 +134,9 @@ public class ShardIndexingBenchmark {
             RequestBatch[] requests = fixture.requests();
             for (int r = 0; r < requests.length; r++) {
                 Expect actual = ColumnIndexer.dryRunStage(ctx, requests[r]);
-                if (actual != shape.expect()) {
+                // the dry run only maps; a shape with nested children maps like COLUMN and is written as rows
+                Expect expected = shape.expect() == Expect.COLUMN_ROWS ? Expect.COLUMN : shape.expect();
+                if (actual != expected) {
                     throw new IllegalStateException(
                         "shape ["
                             + shape.name()
@@ -144,7 +156,7 @@ public class ShardIndexingBenchmark {
 
         @TearDown(Level.Invocation)
         public void afterInvocation() throws IOException {
-            sink.afterInvocation(DOCS_PER_INVOCATION);
+            sink.afterInvocation(writtenDocs());
         }
 
         @TearDown(Level.Iteration)
@@ -190,7 +202,8 @@ public class ShardIndexingBenchmark {
                 "integer.noindex",
                 "long.nullexplicit",
                 "scaled_float.dense",
-                "date.str" }
+                "date.str",
+                "nested.novalues" }
         )
         public String shape;
 
@@ -200,6 +213,7 @@ public class ShardIndexingBenchmark {
 
         CountingRecycler recycler;
         ColumnIndexer indexer;
+        ColumnIndexer rowWriteIndexer;
 
         @Override
         String shapeName() {
@@ -225,6 +239,48 @@ public class ShardIndexingBenchmark {
         void init() {
             recycler = CountingRecycler.pooled();
             indexer = new ColumnIndexer(ctx, recycler);
+            rowWriteIndexer = new ColumnIndexer(ctx, recycler, ColumnIndexer.WriteMode.ROWS);
+        }
+    }
+
+    /** Shapes with nested children: mapped through columns and written as blocks of rows, as {@code addBatch} cannot write blocks. */
+    @State(Scope.Benchmark)
+    public static class NestedState extends ShardFixtureState {
+
+        @Param({ "nested.dense" })
+        public String shape;
+
+        @Param({ "5000" })
+        @ExtraParam({ "1", "10", "100", "1000" })
+        public int docsPerRequest;
+
+        CountingRecycler recycler;
+        ColumnIndexer rowWriteIndexer;
+
+        @Override
+        String shapeName() {
+            return shape;
+        }
+
+        @Override
+        int docsPerRequest() {
+            return docsPerRequest;
+        }
+
+        @Override
+        EnumSet<Expect> accepts() {
+            return EnumSet.of(Expect.COLUMN_ROWS);
+        }
+
+        @Override
+        boolean dryRuns() {
+            return true;
+        }
+
+        @Override
+        void init() {
+            recycler = CountingRecycler.pooled();
+            rowWriteIndexer = new ColumnIndexer(ctx, recycler, ColumnIndexer.WriteMode.ROWS);
         }
     }
 
@@ -265,7 +321,9 @@ public class ShardIndexingBenchmark {
                 "scaled_float.dense",
                 "scaled_float.mv1to4",
                 "scaled_float.nullexplicit",
-                "date.str" }
+                "date.str",
+                "nested.novalues",
+                "nested.dense" }
         )
         public String shape;
 
@@ -358,6 +416,39 @@ public class ShardIndexingBenchmark {
         c.pagesFresh += s.recycler.pagesFresh();
         s.recycler.reset();
         return docs;
+    }
+
+    @Benchmark
+    public long columnRowWrite(ColumnState s, PageCounters c) throws IOException {
+        long docs = s.rowWriteIndexer.index(s.sink.writer(), s.stamper, s.fixture.requests());
+        c.pagesObtained += s.recycler.pagesObtained();
+        c.pagesFresh += s.recycler.pagesFresh();
+        s.recycler.reset();
+        return docs;
+    }
+
+    /** {@link NestedState} for the benchmark that only maps: it writes nothing. */
+    @State(Scope.Benchmark)
+    public static class NestedMapState extends NestedState {
+        @Override
+        int writtenDocs() {
+            return 0;
+        }
+    }
+
+    @Benchmark
+    public long columnRowWriteNested(NestedState s, PageCounters c) throws IOException {
+        long docs = s.rowWriteIndexer.index(s.sink.writer(), s.stamper, s.fixture.requests());
+        c.pagesObtained += s.recycler.pagesObtained();
+        c.pagesFresh += s.recycler.pagesFresh();
+        s.recycler.reset();
+        return docs;
+    }
+
+    /** The mapping of {@link #columnRowWriteNested}, with no write: the cost of the mapping, which includes the shredding. */
+    @Benchmark
+    public long mapOnlyNested(NestedMapState s) {
+        return s.rowWriteIndexer.mapOnly(s.fixture.requests());
     }
 
     @Benchmark

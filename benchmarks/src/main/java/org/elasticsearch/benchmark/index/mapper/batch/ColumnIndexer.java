@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.BatchMappingShardContext;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
@@ -30,21 +31,39 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * The columnar batch path without the engine: {@code mapColumnBatch} then {@code IndexWriter.addBatch}. It mirrors
  * {@code ShardBatchIndexer} chunking at {@code BATCH_CHUNK_SIZE} and the seqno, primary term and version stamping
  * {@code InternalEngine} applies to the column slice, so the Lucene input matches production while version map, translog and
  * locking stay out of the measurement.
+ *
+ * <p>{@link WriteMode#BATCH} is the columnar write ({@code addBatch}). {@link WriteMode#ROWS} maps the same columns and then writes
+ * each document through the row cursor and {@code addDocuments}, as the engine does for a sub-batch that cannot use
+ * {@code addBatch}, so it measures what column mapping alone gains over row parsing. It is also how documents with nested children
+ * are written, as blocks, because {@code addBatch} cannot write blocks yet.
  */
 public final class ColumnIndexer {
 
+    /** How the mapped columns reach Lucene. */
+    public enum WriteMode {
+        BATCH,
+        ROWS
+    }
+
     private final BenchShardContext ctx;
     private final Recycler<BytesRef> recycler;
+    private final WriteMode writeMode;
 
     public ColumnIndexer(BenchShardContext ctx, Recycler<BytesRef> recycler) {
+        this(ctx, recycler, WriteMode.BATCH);
+    }
+
+    public ColumnIndexer(BenchShardContext ctx, Recycler<BytesRef> recycler, WriteMode writeMode) {
         this.ctx = ctx;
         this.recycler = recycler;
+        this.writeMode = writeMode;
     }
 
     public record BenchShardContext(MapperService mapperService, IndexSettings indexSettings, long primaryTerm)
@@ -125,6 +144,40 @@ public final class ColumnIndexer {
         return docs;
     }
 
+    /** Maps every chunk and releases it without writing, to split the cost of mapping from the cost of the write. */
+    public int mapOnly(RequestBatch[] requests) {
+        int docs = 0;
+        for (RequestBatch request : requests) {
+            BatchMapperResolution resolution = resolve(ctx, request);
+            if (resolution == null) {
+                throw new IllegalStateException("resolveMappers refused request at offset [" + request.offset() + "]");
+            }
+            int size = request.size();
+            for (int chunkStart = 0; chunkStart < size; chunkStart += ShardBatchIndexer.BATCH_CHUNK_SIZE) {
+                int chunkEnd = Math.min(chunkStart + ShardBatchIndexer.BATCH_CHUNK_SIZE, size);
+                try (
+                    EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
+                        request.items(),
+                        request.batch(),
+                        ctx,
+                        chunkStart,
+                        chunkEnd,
+                        resolution,
+                        Engine.Operation.Origin.PRIMARY,
+                        recycler,
+                        DocumentParsingProvider.EMPTY_INSTANCE
+                    )
+                ) {
+                    if (engineBatch == null) {
+                        throw new IllegalStateException("mapColumnBatch fell back on request at offset [" + request.offset() + "]");
+                    }
+                    docs += chunkEnd - chunkStart;
+                }
+            }
+        }
+        return docs;
+    }
+
     private int indexChunk(
         IndexWriter writer,
         SeqNoStamper stamper,
@@ -158,9 +211,59 @@ public final class ColumnIndexer {
                 slice.setSeqNo(i, stamper.nextSeqNo());
                 slice.setVersion(i, stamper.version());
             }
-            writer.addBatch(slice.toColumnBatch());
+            switch (writeMode) {
+                case BATCH -> writer.addBatch(slice.toColumnBatch());
+                case ROWS -> {
+                    if (slice.hasChildren()) {
+                        MappedColumns.BlockCursor blocks = slice.blockCursor();
+                        for (int i = 0; i < n; i++) {
+                            writer.addDocuments(blocks.advance());
+                        }
+                    } else {
+                        MappedColumns.RowCursor cursor = slice.rowCursor();
+                        for (int i = 0; i < n; i++) {
+                            cursor.advance();
+                            writer.addDocuments(List.of(new LuceneDocument(cursor.fields())));
+                        }
+                    }
+                }
+            }
             return n;
         }
+    }
+
+    /**
+     * The number of Lucene documents that the requests make: one for each document and one for each nested child. Maps every chunk
+     * once, so call it in setup.
+     */
+    public static int countLuceneDocs(BenchShardContext ctx, RequestBatch[] requests) {
+        int docs = 0;
+        for (RequestBatch request : requests) {
+            BatchMapperResolution resolution = resolve(ctx, request);
+            int size = request.size();
+            for (int chunkStart = 0; chunkStart < size; chunkStart += ShardBatchIndexer.BATCH_CHUNK_SIZE) {
+                int chunkEnd = Math.min(chunkStart + ShardBatchIndexer.BATCH_CHUNK_SIZE, size);
+                try (
+                    EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
+                        request.items(),
+                        request.batch(),
+                        ctx,
+                        chunkStart,
+                        chunkEnd,
+                        resolution,
+                        Engine.Operation.Origin.PRIMARY,
+                        BytesRefRecycler.NON_RECYCLING_INSTANCE,
+                        DocumentParsingProvider.EMPTY_INSTANCE
+                    )
+                ) {
+                    MappedColumns columns = engineBatch.columns();
+                    for (int doc = 0; doc < columns.docCount(); doc++) {
+                        docs += 1 + columns.childCount(doc);
+                    }
+                }
+            }
+        }
+        return docs;
     }
 
     public static BatchMapperResolution resolve(BenchShardContext ctx, RequestBatch request) {

@@ -445,3 +445,99 @@ setup:
                 term:
                   comments.author: alice
   - match: { hits.total.value: 1 }
+
+---
+"columnar: nested values in a bulk request round-trip and are queryable per child":
+  - do:
+      indices.create:
+        index: test_columnar_nested_bulk
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              id:
+                type: keyword
+              comments:
+                type: nested
+                properties:
+                  author:
+                    type: keyword
+                  votes:
+                    type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "test_columnar_nested_bulk", "_id": "1" } }'
+          - '{ "id": "post-1", "comments": [ { "author": "alice", "votes": 3 }, { "author": "bob", "votes": 1 } ] }'
+          - '{ "index": { "_index": "test_columnar_nested_bulk", "_id": "2" } }'
+          - '{ "id": "post-2" }'
+          - '{ "index": { "_index": "test_columnar_nested_bulk", "_id": "3" } }'
+          - '{ "id": "post-3", "comments": { "author": "carol", "votes": 2 } }'
+  - match: { errors: false }
+
+  - do:
+      get:
+        index: test_columnar_nested_bulk
+        id: "1"
+  - match: { _source.comments.0.author: "alice" }
+  - match: { _source.comments.1.author: "bob" }
+
+  # a predicate that spans two children of one document must not match
+  - do:
+      search:
+        index: test_columnar_nested_bulk
+        body:
+          query:
+            nested:
+              path: comments
+              query:
+                bool:
+                  must:
+                    - term: { comments.author: "alice" }
+                    - term: { comments.votes: 1 }
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test_columnar_nested_bulk
+        body:
+          query:
+            nested:
+              path: comments
+              query:
+                term: { comments.author: "carol" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+  # updating a document replaces all its children
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "test_columnar_nested_bulk", "_id": "1" } }'
+          - '{ "id": "post-1", "comments": [ { "author": "dave", "votes": 7 } ] }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test_columnar_nested_bulk
+        body:
+          query:
+            nested:
+              path: comments
+              query:
+                term: { comments.author: "alice" }
+  - match: { hits.total.value: 0 }
+  - do:
+      search:
+        index: test_columnar_nested_bulk
+        body:
+          query:
+            nested:
+              path: comments
+              query:
+                term: { comments.author: "dave" }
+  - match: { hits.total.value: 1 }

@@ -734,7 +734,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final EscfColumnBuilder blobs = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, context.recycler());
         blobs.lockScalar(EscfColumnKind.BINARY);
         try (blobs) {
-            final MappedColumns.RowCursor rows = context.rowCursor(SourceFieldMapper::isReadByColumnarSourceWriter);
+            // With nested children each document is a block, and the writer reads the children of the root document from it, like the
+            // row path does with the documents in shard index order. Without them the rows are enough, and cheaper.
+            final boolean withChildren = context.hasNestedChildren();
+            final MappedColumns.RowCursor rows = withChildren ? null : context.rowCursor(SourceFieldMapper::isReadByColumnarSourceWriter);
+            final MappedColumns.BlockCursor blocks = withChildren
+                ? context.blockCursor(SourceFieldMapper::isReadByColumnarSourceWriter)
+                : null;
             // Every blob of the batch is built in this one buffer: the constant entry prefix is written first, the JSON streams in
             // behind it, and the finished bytes are exposed in place (BytesRefStreamOutput.get) and handed to the column builder,
             // which copies them before the next document overwrites the buffer. This collapses the two intermediate copies that
@@ -744,13 +750,19 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             final byte[] blobPrefix = columnarStoredBlobPrefix();
             final BytesRefStreamOutput blobBuffer = new BytesRefStreamOutput();
             for (int d = 0; d < docCount; d++) {
-                rows.advance();
-                // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
-                final LuceneDocument doc = new LuceneDocument(rows.fields());
+                final List<LuceneDocument> block;
+                if (withChildren) {
+                    block = blocks.advance();
+                } else {
+                    rows.advance();
+                    // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
+                    block = List.of(new LuceneDocument(rows.fields()));
+                }
+                final LuceneDocument doc = block.getLast();
                 blobBuffer.reset();
                 blobBuffer.writeBytes(blobPrefix, 0, blobPrefix.length);
                 try (var builder = new XContentBuilder(XContentType.JSON.xContent(), blobBuffer)) {
-                    columnarSourceWriter.write(context.mappingLookup(), List.of(doc), doc, builder);
+                    columnarSourceWriter.write(context.mappingLookup(), block, doc, builder);
                 }
                 blobs.setBinary(d, blobBuffer.get());
             }

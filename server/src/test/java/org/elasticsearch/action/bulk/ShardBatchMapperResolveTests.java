@@ -17,6 +17,7 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractShardBatchMapperResolveTestCase;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ColumnGroupResolver;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -846,48 +848,160 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         assertNotNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
     }
 
-    /**
-     * Columnar mode keeps a single level of nested objects as document boundaries rather than flattening
-     * them away, but their leaves land in {@code MappingLookup} keyed by full dotted path, indistinguishable
-     * from root-level fields. Resolving them would write the values into the root Lucene document instead of
-     * the per-element nested documents the sequential path produces, so the batch must fall back.
-     */
-    public void testNestedObjectFallsBack() throws IOException {
-        MapperService ms = columnarMapperService(mapping(b -> {
+    /** A root keyword {@code host} and a nested {@code comments} with a keyword {@code text}. */
+    private static CheckedConsumer<XContentBuilder, IOException> hostAndComments() {
+        return b -> {
             b.startObject("host").field("type", "keyword").endObject();
-            b.startObject("comments");
-            b.field("type", "nested");
-            b.startObject("properties");
+            b.startObject("comments").field("type", "nested").startObject("properties");
             b.startObject("text").field("type", "keyword").endObject();
-            b.endObject();
-            b.endObject();
-        }));
-        // The leaf under the nested object resolves to an ordinary KeywordFieldMapper, so nothing else
-        // in resolveMappers would catch it.
-        assertThat(ms.mappingLookup().getMapper("comments.text"), instanceOf(KeywordFieldMapper.class));
-
-        SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"comments\":{\"text\":\"a\"}}");
-        assertNull(
-            "a leaf under a nested object must not be mapped into the root document",
-            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings)
-        );
+            b.endObject().endObject();
+        };
     }
 
     /**
-     * The nested bail-out is mapping-wide rather than per-leaf: a batch whose columns never touch the
-     * nested path still falls back, because a nested mapping changes the shape of every document.
+     * The leaf under the nested object resolves to an ordinary keyword mapper in {@code MappingLookup}, so nothing else would stop
+     * the value from landing in the root document. The object spelling leaf must be claimed by the nested mapper instead.
      */
-    public void testNestedObjectFallsBackEvenWhenBatchDoesNotUseIt() throws IOException {
+    public void testNestedObjectSpellingLeafIsClaimed() throws IOException {
+        MapperService ms = columnarMapperService(mapping(hostAndComments()));
+        assertThat(ms.mappingLookup().getMapper("comments.text"), instanceOf(KeywordFieldMapper.class));
+
+        SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"comments\":{\"text\":\"a\"}}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        final int host = schema.findLeaf("host", 0);
+        final int text = schema.findLeaf("text", schema.findNonLeaf("comments", 0));
+        assertThat(resolution.columnMappers()[host], instanceOf(KeywordFieldMapper.class));
+        assertNull("the nested leaf is not mapped to a root column", resolution.columnMappers()[text]);
+        assertEquals(1, resolution.nestedGroups().length);
+        final ShardBatchMapper.NestedGroupResolution group = resolution.nestedGroups()[0];
+        assertEquals("comments", group.mapper().fullPath());
+        assertEquals(0, group.valueLeaves().length);
+        assertArrayEquals(new int[] { text }, group.objectSpellingLeaves());
+        assertArrayEquals(new String[] { "text" }, group.relativeKeys());
+    }
+
+    /** The array spelling is one leaf at the nested path. */
+    public void testNestedValueLeafIsClaimed() throws IOException {
+        MapperService ms = columnarMapperService(mapping(hostAndComments()));
+        SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"comments\":[{\"text\":\"a\"}]}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        final int comments = schema.findLeaf("comments", 0);
+        assertNull(resolution.columnMappers()[comments]);
+        assertEquals(1, resolution.nestedGroups().length);
+        assertArrayEquals(new int[] { comments }, resolution.nestedGroups()[0].valueLeaves());
+        assertEquals(0, resolution.nestedGroups()[0].objectSpellingLeaves().length);
+    }
+
+    /** Both spellings in one batch resolve: only a row that uses both is a problem, and the shredder checks rows. */
+    public void testNestedBothSpellingsInOneBatchAreClaimed() throws IOException {
+        MapperService ms = columnarMapperService(mapping(hostAndComments()));
+        SourceSchema schema = schemaOfJson("{\"comments\":[{\"text\":\"a\"}]}", "{\"comments\":{\"text\":\"b\"}}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertEquals(1, resolution.nestedGroups().length);
+        assertEquals(1, resolution.nestedGroups()[0].valueLeaves().length);
+        assertEquals(1, resolution.nestedGroups()[0].objectSpellingLeaves().length);
+    }
+
+    /** A nested mapping resolves for a batch that never touches it, so such a batch keeps the batch path. */
+    public void testNestedMappingResolvesWhenBatchDoesNotUseIt() throws IOException {
+        MapperService ms = columnarMapperService(mapping(hostAndComments()));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertThat(resolution.columnMappers()[0], instanceOf(KeywordFieldMapper.class));
+        assertEquals(0, resolution.nestedGroups().length);
+    }
+
+    /** A nested field under a plain object has the full path {@code meta.comments}, in both the object and the dotted spelling. */
+    public void testNestedUnderPlainObjectIsClaimed() throws IOException {
         MapperService ms = columnarMapperService(mapping(b -> {
-            b.startObject("host").field("type", "keyword").endObject();
-            b.startObject("comments");
-            b.field("type", "nested");
-            b.startObject("properties");
+            b.startObject("meta").startObject("properties");
+            b.startObject("comments").field("type", "nested").startObject("properties");
             b.startObject("text").field("type", "keyword").endObject();
-            b.endObject();
-            b.endObject();
+            b.endObject().endObject();
+            b.endObject().endObject();
         }));
-        assertNull(ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings));
+        for (String json : List.of(
+            "{\"meta\":{\"comments\":[{\"text\":\"a\"}]}}",
+            "{\"meta.comments\":[{\"text\":\"a\"}]}",
+            "{\"meta\":{\"comments\":{\"text\":\"a\"}}}"
+        )) {
+            BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), indexSettings);
+            assertNotNull(json, resolution);
+            assertEquals(json, 1, resolution.nestedGroups().length);
+            assertEquals(json, "meta.comments", resolution.nestedGroups()[0].mapper().fullPath());
+        }
+    }
+
+    /** The groups are ordered by nested path, so that every node resolves a batch alike whatever its source order. */
+    public void testNestedGroupsAreOrderedByPath() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> {
+            b.startObject("b").field("type", "nested").startObject("properties");
+            b.startObject("x").field("type", "keyword").endObject();
+            b.endObject().endObject();
+            b.startObject("a").field("type", "nested").startObject("properties");
+            b.startObject("y").field("type", "keyword").endObject();
+            b.endObject().endObject();
+        }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
+            schemaOfJson("{\"b\":[{\"x\":\"1\"}],\"a\":[{\"y\":\"2\"}]}"),
+            ms.mappingLookup(),
+            indexSettings
+        );
+        assertNotNull(resolution);
+        assertEquals(2, resolution.nestedGroups().length);
+        assertEquals("a", resolution.nestedGroups()[0].mapper().fullPath());
+        assertEquals("b", resolution.nestedGroups()[1].mapper().fullPath());
+    }
+
+    /**
+     * A dotted key across the nested boundary trips an assertion on the sequential path, and an object inside the nested object makes
+     * an extra level of child documents. Both fall back.
+     */
+    public void testNestedLeafThatCrossesTheBoundaryFallsBack() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> {
+            b.startObject("comments").field("type", "nested").startObject("properties");
+            b.startObject("text").field("type", "keyword").endObject();
+            b.startObject("o").startObject("properties").startObject("x").field("type", "long").endObject().endObject().endObject();
+            b.endObject().endObject();
+        }));
+        for (String json : List.of("{\"comments.text\":\"a\"}", "{\"comments\":{\"o\":{\"x\":1}}}")) {
+            assertNull(json, ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), indexSettings));
+        }
+    }
+
+    /** Only the strict columnar modes nest one level and reject copy_to, so a nested mapping in another mode falls back. */
+    public void testNestedInNonColumnarModeFallsBack() throws IOException {
+        MapperService ms = tsdbMapperService(Settings.EMPTY, mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("comments").field("type", "nested").startObject("properties");
+            b.startObject("text").field("type", "keyword").endObject();
+            b.endObject().endObject();
+        }));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("dim"), ms.mappingLookup(), ms.getIndexSettings()));
+    }
+
+    /**
+     * Strict columnar rejects {@code include_in_parent} and {@code include_in_root} on new indices. Older indices keep accepting them,
+     * and the batch path cannot copy the child fields to another document, so those fall back.
+     */
+    public void testNestedIncludeInParentOrRootFallsBack() throws IOException {
+        final IndexVersion olderVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_REJECTS_NESTED_INCLUDE_IN_PARENT);
+        for (String include : List.of("include_in_parent", "include_in_root")) {
+            MapperService ms = createMapperService(
+                olderVersion,
+                Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+                mapping(b -> {
+                    b.startObject("comments").field("type", "nested").field(include, true).startObject("properties");
+                    b.startObject("text").field("type", "keyword").endObject();
+                    b.endObject().endObject();
+                })
+            );
+            assertNull(include, ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), ms.getIndexSettings()));
+        }
     }
 
     private static void assumeUnmappedSinkAvailable() {

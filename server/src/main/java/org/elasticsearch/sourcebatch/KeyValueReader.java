@@ -10,8 +10,10 @@
 package org.elasticsearch.sourcebatch;
 
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 /**
  * A forward-only reader over a key-value structure in the batch key-value format (see {@link SourceBatchEncodeHelper}).
@@ -109,6 +111,19 @@ public final class KeyValueReader {
     public String stringValue() {
         int len = ByteUtils.readIntLE(data, dataStart);
         return new String(data, dataStart + 4, len, StandardCharsets.UTF_8);
+    }
+
+    /** The UTF-8 bytes of the current STRING value, as a view of the packed bytes, without decoding or copying them. */
+    public XContentString.UTF8Bytes utf8Value() {
+        return new XContentString.UTF8Bytes(data, dataStart + 4, ByteUtils.readIntLE(data, dataStart));
+    }
+
+    /**
+     * A copy of the payload of the current variable-length value (a STRING, KEY_VALUE, UNION_ARRAY or FIXED_ARRAY), without its length
+     * prefix: for an array the packed inline array, which {@code EscfRowBuffer#arrayField} takes as it is.
+     */
+    public byte[] valueBytes() {
+        return Arrays.copyOfRange(data, dataStart + 4, dataStart + 4 + ByteUtils.readIntLE(data, dataStart));
     }
 
     /** The payload length in bytes of the current variable-length value, read from its length prefix without decoding it. */

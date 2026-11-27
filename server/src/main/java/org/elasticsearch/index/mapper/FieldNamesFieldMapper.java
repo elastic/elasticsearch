@@ -202,6 +202,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
+    public void postColumnarParseNested(BatchMappingContext nestedChildren) {
+        postColumnarParse(nestedChildren);
+    }
+
+    @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return true;
     }

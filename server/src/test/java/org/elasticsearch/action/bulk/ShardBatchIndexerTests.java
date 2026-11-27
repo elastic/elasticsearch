@@ -10,11 +10,15 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -1042,5 +1046,233 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
             closeShards(shard, replica);
         }
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------------------
+    // Nested documents: the children and the root of a document are indexed in one block
+    // ---------------------------------------------------------------------------------------------------------------------------
+
+    private static final String NESTED_COLUMNAR_MAPPING = """
+        {
+          "dynamic": "strict",
+          "properties": {
+            "@timestamp": { "type": "date" },
+            "host": { "type": "keyword" },
+            "comments": {
+              "type": "nested",
+              "properties": {
+                "author": { "type": "keyword" },
+                "votes": { "type": "long" }
+              }
+            }
+          }
+        }""";
+
+    private IndexShard newNestedShard(boolean primary, IndexMode mode) throws IOException {
+        Settings settings = Settings.builder().put(COLUMNAR_SETTINGS).put(IndexSettings.MODE.getKey(), mode.getName()).build();
+        IndexMetadata metadata = IndexMetadata.builder("index")
+            .putMapping(NESTED_COLUMNAR_MAPPING)
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), primary, "n1", metadata, null);
+        trackedShards.add(shard);
+        if (primary) {
+            recoverShardFromStore(shard);
+        } else {
+            recoveryEmptyReplica(shard, true);
+        }
+        return shard;
+    }
+
+    /** A document with {@code children} comments. */
+    private static String nestedSource(String host, int children) {
+        StringBuilder comments = new StringBuilder();
+        for (int c = 0; c < children; c++) {
+            comments.append(c == 0 ? "" : ",").append("{\"author\":\"author-").append(c).append("\",\"votes\":").append(c).append("}");
+        }
+        return "{\"@timestamp\":\"2025-01-01T00:00:00Z\",\"host\":\""
+            + host
+            + "\""
+            + (children > 0 ? ",\"comments\":[" + comments + "]" : "")
+            + "}";
+    }
+
+    private static BulkItemRequest[] itemsFor(List<String> ids) {
+        BulkItemRequest[] items = new BulkItemRequest[ids.size()];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = new BulkItemRequest(i, new IndexRequest("index").id(ids.get(i)));
+        }
+        return items;
+    }
+
+    private static EscfBatch encode(List<String> sources) throws IOException {
+        return EscfEncoder.encode(sources.stream().<BytesReference>map(BytesArray::new).toList(), XContentType.JSON);
+    }
+
+    /** Indexes the documents with the batch path on the primary, and asserts that the whole batch was taken by it. */
+    private void indexNestedOnPrimary(IndexShard shard, BulkItemRequest[] items, EscfBatch batch) throws Exception {
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
+        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+        future.actionGet();
+        assertFalse("the batch path must take documents with nested values", context.hasMoreOperationsToExecute());
+        for (BulkItemRequest item : items) {
+            assertFalse(item.getPrimaryResponse().isFailed());
+        }
+    }
+
+    /**
+     * Reads the live Lucene documents of {@code shard} and asserts that they are blocks of the children, then their root, in which the
+     * children and the root have the sequence number of the root, and only the root has a primary term. {@code childrenBySeqNo[s]} is
+     * the number of children of the document with sequence number {@code s}.
+     */
+    private static void assertBlocks(IndexShard shard, int[] childrenBySeqNo) throws IOException {
+        shard.refresh("test");
+        int roots = 0;
+        int children = 0;
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
+                LeafReader reader = leaf.reader();
+                Bits liveDocs = reader.getLiveDocs();
+                NumericDocValues seqNos = reader.getNumericDocValues("_seq_no");
+                NumericDocValues versions = reader.getNumericDocValues("_version");
+                NumericDocValues primaryTerms = reader.getNumericDocValues("_primary_term");
+                int pendingChildren = 0;
+                long pendingSeqNo = -1;
+                for (int doc = 0; doc < reader.maxDoc(); doc++) {
+                    if (liveDocs != null && liveDocs.get(doc) == false) {
+                        continue;
+                    }
+                    assertTrue("doc " + doc + " has a _seq_no", seqNos.advanceExact(doc));
+                    assertTrue("doc " + doc + " has a _version", versions.advanceExact(doc));
+                    final long seqNo = seqNos.longValue();
+                    final boolean root = primaryTerms.advanceExact(doc);
+                    if (root) {
+                        assertThat(
+                            "the children before a root have its sequence number",
+                            pendingChildren == 0 || pendingSeqNo == seqNo,
+                            equalTo(true)
+                        );
+                        assertThat("children of seqNo [" + seqNo + "]", pendingChildren, equalTo(childrenBySeqNo[(int) seqNo]));
+                        roots++;
+                        pendingChildren = 0;
+                    } else {
+                        pendingSeqNo = pendingChildren == 0 ? seqNo : pendingSeqNo;
+                        assertThat("the children of one block share a sequence number", seqNo, equalTo(pendingSeqNo));
+                        pendingChildren++;
+                        children++;
+                    }
+                }
+                assertThat("a block does not end with children", pendingChildren, equalTo(0));
+            }
+            assertThat(searcher.getIndexReader().numDocs(), equalTo(roots + children));
+        }
+    }
+
+    private static int total(int[] counts) {
+        int total = 0;
+        for (int count : counts) {
+            total += count;
+        }
+        return total;
+    }
+
+    private static List<String> idsUpTo(int n) {
+        List<String> ids = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            ids.add("doc-" + i);
+        }
+        return ids;
+    }
+
+    public void testBatchIndexNestedOnPrimaryWritesBlocks() throws Exception {
+        // logsdb_columnar has an index sort, which makes Lucene need the parent field of the blocks
+        IndexShard shard = newNestedShard(true, randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR));
+        int numDocs = randomIntBetween(2, 12);
+        int[] children = new int[numDocs];
+        List<String> sources = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            children[i] = randomIntBetween(0, 3);
+            sources.add(nestedSource("host-" + i, children[i]));
+        }
+        children[0] = randomIntBetween(1, 3);
+        sources.set(0, nestedSource("host-0", children[0]));
+
+        try (EscfBatch batch = encode(sources)) {
+            indexNestedOnPrimary(shard, itemsFor(idsUpTo(numDocs)), batch);
+        }
+        assertBlocks(shard, children);
+        closeShards(shard);
+    }
+
+    public void testBatchIndexNestedUpdateReplacesTheWholeBlock() throws Exception {
+        IndexShard shard = newNestedShard(true, randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR));
+        try (EscfBatch batch = encode(List.of(nestedSource("a", 3), nestedSource("b", 2)))) {
+            indexNestedOnPrimary(shard, itemsFor(List.of("a", "b")), batch);
+        }
+        assertBlocks(shard, new int[] { 3, 2 });
+
+        // an update with fewer children, then with none: the children of the old version must not stay behind
+        try (EscfBatch batch = encode(List.of(nestedSource("a", 1)))) {
+            indexNestedOnPrimary(shard, itemsFor(List.of("a")), batch);
+        }
+        assertBlocks(shard, new int[] { 3, 2, 1 });
+        try (EscfBatch batch = encode(List.of(nestedSource("a", 0)))) {
+            indexNestedOnPrimary(shard, itemsFor(List.of("a")), batch);
+        }
+        assertBlocks(shard, new int[] { 3, 2, 1, 0 });
+        closeShards(shard);
+    }
+
+    public void testBatchIndexNestedThenDeleteLeavesNoChildren() throws Exception {
+        IndexShard shard = newNestedShard(true, randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR));
+        try (EscfBatch batch = encode(List.of(nestedSource("a", 3), nestedSource("b", 2)))) {
+            indexNestedOnPrimary(shard, itemsFor(List.of("a", "b")), batch);
+        }
+        deleteDoc(shard, "a");
+        shard.refresh("test");
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            assertThat("only b and its 2 children are left", searcher.getIndexReader().numDocs(), equalTo(3));
+        }
+        closeShards(shard);
+    }
+
+    public void testBatchIndexNestedOnReplica() throws Exception {
+        IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        IndexShard primary = newNestedShard(true, mode);
+        IndexShard replica = newNestedShard(false, mode);
+        int[] children = new int[] { 2, 0, 3 };
+        try (EscfBatch batch = encode(List.of(nestedSource("a", 2), nestedSource("b", 0), nestedSource("c", 3)))) {
+            BulkItemRequest[] items = itemsFor(List.of("a", "b", "c"));
+            indexNestedOnPrimary(primary, items, batch);
+            ShardBatchIndexer.ReplicaBatchResult result = shardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
+            assertThat("the replica takes the whole batch", result.processedItems(), equalTo(3));
+        }
+        assertBlocks(primary, children);
+        assertBlocks(replica, children);
+        closeShards(primary, replica);
+    }
+
+    public void testBatchIndexedNestedDocumentsAreReplayedFromTheTranslog() throws Exception {
+        IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        IndexShard shard = newNestedShard(true, mode);
+        int[] children = new int[] { 2, 0, 3 };
+        try (EscfBatch batch = encode(List.of(nestedSource("a", 2), nestedSource("b", 0), nestedSource("c", 3)))) {
+            indexNestedOnPrimary(shard, itemsFor(List.of("a", "b", "c")), batch);
+        }
+        assertBlocks(shard, children);
+        // closed without a flush, so that the new shard replays the translog, which holds the batch as one row for each document
+        IndexShard recovered = reinitShard(shard);
+        trackedShards.add(recovered);
+        recoverShardFromStore(recovered);
+        assertBlocks(recovered, children);
+        closeShards(recovered);
     }
 }

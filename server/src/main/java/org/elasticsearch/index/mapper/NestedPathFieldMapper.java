@@ -19,7 +19,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 
@@ -85,6 +87,16 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return NAME;
+    }
+
+    @Override
+    public void postColumnarParseNested(BatchMappingContext nestedChildren) {
+        // The row path adds the path in DocumentParserContext#createNestedContext, as the first field of the nested document.
+        final BytesRef[] paths = new BytesRef[nestedChildren.docCount()];
+        Arrays.fill(paths, new BytesRef(nestedChildren.nestedMapper().nestedTypePath()));
+        nestedChildren.addColumn(
+            MappedColumns.binaryColumn(paths, name(nestedChildren.indexSettings().getIndexVersionCreated()), StringField.TYPE_NOT_STORED)
+        );
     }
 
     @Override

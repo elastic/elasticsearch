@@ -313,12 +313,23 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         // Unlike the x-content pathway we do not need to handle tombstone. Tombstones are only ever used
         // inside the engine for applying a no-op.
         // TODO: We should eventually move tombstones to the columnar pathway for consistentcy
-        final boolean withPoints = context.indexSettings().sequenceNumbersDisabled() == false
-            && context.indexSettings().seqNoIndexOptions() == SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
-        final IndexableFieldType seqNoFieldType = withPoints ? POINTS_AND_DV_COLUMN_FIELD_TYPE : DV_ONLY_COLUMN_FIELD_TYPE;
-        context.addColumn(MappedColumns.longColumn(context.seqNos(), NAME, seqNoFieldType, LongColumn.NumericKind.LONG));
+        context.addColumn(MappedColumns.longColumn(context.seqNos(), NAME, seqNoColumnFieldType(context), LongColumn.NumericKind.LONG));
         context.addColumn(
             MappedColumns.longColumn(context.primaryTerms(), PRIMARY_TERM_NAME, PRIMARY_TERM_COLUMN_FIELD_TYPE, LongColumn.NumericKind.LONG)
+        );
+    }
+
+    private static IndexableFieldType seqNoColumnFieldType(BatchMappingContext context) {
+        final boolean withPoints = context.indexSettings().sequenceNumbersDisabled() == false
+            && context.indexSettings().seqNoIndexOptions() == SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
+        return withPoints ? POINTS_AND_DV_COLUMN_FIELD_TYPE : DV_ONLY_COLUMN_FIELD_TYPE;
+    }
+
+    @Override
+    public void postColumnarParseNested(BatchMappingContext nestedChildren) {
+        // Like postParse: a nested document has the sequence number of its root document, but not its primary term.
+        nestedChildren.addColumn(
+            MappedColumns.longColumn(nestedChildren.seqNos(), NAME, seqNoColumnFieldType(nestedChildren), LongColumn.NumericKind.LONG)
         );
     }
 

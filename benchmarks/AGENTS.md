@@ -33,10 +33,17 @@ dispatch to behave more like production.
 ## Shard indexing: row path vs columnar batch path
 
 `org.elasticsearch.benchmark.index.mapper.batch.ShardIndexingBenchmark` measures the data-node shard
-stage of indexing on identical documents through four paths:
+stage of indexing on identical documents through these paths:
 
 - `column`: `ShardBatchMapper.mapColumnBatch` then `IndexWriter.addBatch`, chunked at
   `ShardBatchIndexer.BATCH_CHUNK_SIZE`. This is the columnar batch path.
+- `columnRowWrite`: the same mapping, then each document through `MappedColumns.rowCursor()` and `addDocuments`. This is how
+  the engine writes a sub-batch that cannot use `addBatch` (for example nested children). `column` against `columnRowWrite` is
+  the cost of the row write; `columnRowWrite` against `rowBatch` is what column mapping alone gains.
+- `columnRowWriteNested` and `mapOnlyNested`: the nested shapes (`nested.dense`). `addBatch` cannot write blocks of nested children
+  yet, so they are written as blocks through the row cursor; `mapOnlyNested` maps without writing, so that the mapping, which
+  includes the shredding of the nested values, can be split from the write. `nested.novalues` is a nested mapping that no document
+  uses and runs on `column` like a flat shape.
 - `rowBatch`: the production fallback when a batch cannot go columnar: `RowSource` over the batch
   row through `IndexShard.prepareIndex` and `addDocuments`.
 - `rowJson`: classic `_bulk`, JSON bytes through `prepareIndex`.

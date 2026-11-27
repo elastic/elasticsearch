@@ -1,0 +1,36 @@
+{
+    "properties": {
+        "ip": {
+            "type": "ip"
+        },
+        "missing_keyword": {
+            "type": "keyword"
+        },
+        "event_type": {
+            "type": "keyword"
+        },
+        "event": {
+            "properties": {
+                "category": {
+                    "type": "alias",
+                    "path": "event_type"
+                }
+            }
+        },
+        "host": {
+            "type": "keyword"
+        },
+        "os": {
+            "type": "keyword"
+        },
+        "bool": {
+            "type": "boolean"
+        },
+        "uptime": {
+            "type": "long"
+        },
+        "port": {
+            "type": "long"
+        }
+    }
+}

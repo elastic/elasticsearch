@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -16,6 +17,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -74,6 +76,29 @@ public class OrcReaderStatusTests extends AbstractWireSerializingTestCase<OrcRea
                     + "\"predicate_pushdown_used\":true,\"predicate_columns\":[\"host\"],"
                     + "\"columns_projected\":7,\"columns_total\":9}"
             )
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileSchema() {
+        Map<String, Object> properties = (Map<String, Object>) OrcReaderStatus.PROFILE_SCHEMA.schema().get("properties");
+        assertEquals(ProfileSchema.constant("orc"), properties.get("format"));
+        assertEquals(
+            List.of(
+                "format",
+                "rows_emitted",
+                "footer_read_nanos",
+                "footer_size_bytes",
+                "footer_cache_hits",
+                "footer_cache_misses",
+                "stripes_in_file",
+                "stripes_total",
+                "predicate_pushdown_used",
+                "predicate_columns",
+                "columns_projected",
+                "columns_total"
+            ),
+            OrcReaderStatus.PROFILE_SCHEMA.schema().get("required")
         );
     }
 

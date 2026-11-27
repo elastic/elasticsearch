@@ -35,6 +35,7 @@ import org.junit.Before;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -99,6 +100,21 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(state.projectId(), index, policy, currentStepKey, stepInfo);
         ClusterState newState = task.execute(state);
         assertThat(newState, sameInstance(state.cluster()));
+    }
+
+    public void testExecuteNoopSameStepInfo() throws Exception {
+        StepKey currentStepKey = randomBoolean() ? null : new StepKey("current-phase", "current-action", "current-name");
+        if (currentStepKey != null) {
+            setStateToKey(currentStepKey);
+        }
+        ToXContentObject stepInfo = getRandomStepInfo();
+
+        ClusterState firstResult = new SetStepInfoUpdateTask(state.projectId(), index, policy, currentStepKey, stepInfo).execute(state);
+        assertThat(firstResult, not(sameInstance(state.cluster())));
+        state = firstResult.projectState(state.projectId());
+
+        ClusterState secondResult = new SetStepInfoUpdateTask(state.projectId(), index, policy, currentStepKey, stepInfo).execute(state);
+        assertThat(secondResult, sameInstance(state.cluster()));
     }
 
     public void testExecuteNoopDifferentPolicy() throws Exception {

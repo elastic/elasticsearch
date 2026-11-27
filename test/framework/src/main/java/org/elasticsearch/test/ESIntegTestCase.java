@@ -475,15 +475,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
 
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards()).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
-
-            // if the test class is annotated with SuppressCodecs("*"), it means don't use lucene's codec randomization
-            // otherwise, use it, it has assertions and so on that can find bugs.
-            SuppressCodecs annotation = getClass().getAnnotation(SuppressCodecs.class);
-            if (annotation != null && annotation.value().length == 1 && "*".equals(annotation.value()[0])) {
-                randomSettingsBuilder.put("index.codec", randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC));
-            } else {
-                randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
-            }
+            randomSettingsBuilder.put("index.codec", randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC));
 
             for (String setting : randomSettingsBuilder.keys()) {
                 assertThat("non index. prefix setting set on index template, its a node setting...", setting, startsWith("index."));
@@ -3360,6 +3352,35 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final var circuitBreaker = internalCluster().getInstance(CircuitBreakerService.class, targetNode).getBreaker(breakerName);
         final long totalAllocated = fullyAllocate(circuitBreaker);
         return () -> circuitBreaker.addWithoutBreaking(-totalAllocated);
+    }
+
+    /**
+     * Bytes the request breaker of {@code node} holds.
+     */
+    protected static long getRequestBreakerUsed(String node) {
+        return internalCluster().getInstance(CircuitBreakerService.class, node).getBreaker(CircuitBreaker.REQUEST).getUsed();
+    }
+
+    /**
+     * Bytes the request breakers of all nodes hold.
+     */
+    protected static long getRequestBreakerUsed() {
+        long used = 0;
+        for (CircuitBreakerService service : internalCluster().getInstances(CircuitBreakerService.class)) {
+            used += service.getBreaker(CircuitBreaker.REQUEST).getUsed();
+        }
+        return used;
+    }
+
+    /**
+     * How many times the request breakers of all nodes have tripped.
+     */
+    protected static long getRequestBreakerTrippedCount() {
+        long tripped = 0;
+        for (CircuitBreakerService service : internalCluster().getInstances(CircuitBreakerService.class)) {
+            tripped += service.getBreaker(CircuitBreaker.REQUEST).getTrippedCount();
+        }
+        return tripped;
     }
 
     /**

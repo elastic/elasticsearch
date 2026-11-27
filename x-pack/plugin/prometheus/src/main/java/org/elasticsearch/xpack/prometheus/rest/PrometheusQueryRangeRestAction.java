@@ -15,7 +15,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -93,18 +92,17 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
         TimeValue timeout = PromqlQueryExecutor.resolveTimeout(request, maxQueryTimeout.get());
 
-        PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement(
-            query,
-            index,
-            start,
-            end,
-            step,
-            limit,
-            PrometheusQueryResponseListener.QueryMode.RANGE
-        );
         var esqlRequest = new PromqlQueryRequest(
             index,
-            result.esqlStatement(),
+            () -> PromqlQueryPlanBuilder.buildStatement(
+                query,
+                index,
+                start,
+                end,
+                step,
+                limit,
+                PrometheusQueryResponseListener.QueryMode.RANGE
+            ),
             query,
             LIMIT_PARAM,
             limit == DEFAULT_LIMIT ? null : limit,
@@ -123,14 +121,14 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
             timeout,
             new PrometheusQueryResponseListener(
                 channel,
-                result.resultType(),
+                () -> esqlRequest.result().resultType(),
                 PrometheusQueryResponseListener.QueryMode.RANGE,
                 limit == 0 ? Integer.MAX_VALUE : limit
             )
         );
     }
 
-    private static String getRequiredParam(RestRequest request, String name) {
+    public static String getRequiredParam(RestRequest request, String name) {
         String value = request.param(name);
         if (value == null || value.isEmpty()) {
             throw new IllegalArgumentException("required parameter \"" + name + "\" is missing");

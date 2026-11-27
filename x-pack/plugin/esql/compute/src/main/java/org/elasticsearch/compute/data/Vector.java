@@ -125,6 +125,11 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     void allowPassingToDifferentDriver();
 
     /**
+     * Lets the driver reuse the values array once this is released.
+     */
+    default void enablePooling() {}
+
+    /**
      * Return a subset of this {@link Vector} from position {@code beginInclusive} to
      * position {@code endExclusive}. This <strong>may</strong> return the same
      * instance if the range covers all positions, but if it does it
@@ -158,6 +163,11 @@ public interface Vector extends Accountable, RefCounted, Releasable {
          * Builds the block. This method can be called multiple times.
          */
         Vector build();
+
+        /**
+         * Whether this build was released
+         */
+        boolean isReleased();
     }
 
     /**

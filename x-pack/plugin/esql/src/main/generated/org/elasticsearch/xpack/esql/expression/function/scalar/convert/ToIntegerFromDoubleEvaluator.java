@@ -50,7 +50,7 @@ public final class ToIntegerFromDoubleEvaluator extends AbstractConvertFunction.
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendInt(evalValue(vector, p));
@@ -72,7 +72,7 @@ public final class ToIntegerFromDoubleEvaluator extends AbstractConvertFunction.
   public Block evalBlock(Block b) {
     DoubleBlock block = (DoubleBlock) b;
     int positionCount = block.getPositionCount();
-    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);

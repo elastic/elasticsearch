@@ -11,17 +11,22 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParserBaseVisitor;
 
 class AbstractPromqlBuilder extends PromqlBaseParserBaseVisitor<Object> {
-    private final int startLine, startColumn;
+    /**
+     * The view whose definition this PromQL text belongs to, or {@code null} for the caller's query. Every {@link Source} is
+     * tagged with it, as {@code ExpressionBuilder} does for ES|QL, so a data node reads its text from the view's query.
+     */
+    @Nullable
+    private final String viewName;
 
-    AbstractPromqlBuilder(int startLine, int startColumn) {
-        this.startLine = startLine;
-        this.startColumn = startColumn;
+    AbstractPromqlBuilder(@Nullable String viewName) {
+        this.viewName = viewName;
     }
 
     @Override
@@ -51,23 +56,27 @@ class AbstractPromqlBuilder extends PromqlBaseParserBaseVisitor<Object> {
     }
 
     protected Source source(TerminalNode terminalNode) {
-        return PromqlParserUtils.adjustSource(ParserUtils.source(terminalNode), startLine, startColumn);
+        return tagSource(ParserUtils.source(terminalNode));
     }
 
     protected Source source(ParserRuleContext parserRuleContext) {
-        return PromqlParserUtils.adjustSource(ParserUtils.source(parserRuleContext), startLine, startColumn);
+        return tagSource(ParserUtils.source(parserRuleContext));
     }
 
     protected Source source(ParseTree parseTree) {
-        return PromqlParserUtils.adjustSource(ParserUtils.source(parseTree), startLine, startColumn);
+        return tagSource(ParserUtils.source(parseTree));
     }
 
     protected Source source(Token token) {
-        return PromqlParserUtils.adjustSource(ParserUtils.source(token), startLine, startColumn);
+        return tagSource(ParserUtils.source(token));
     }
 
     protected Source source(Token start, Token stop) {
-        return PromqlParserUtils.adjustSource(ParserUtils.source(start, stop), startLine, startColumn);
+        return tagSource(ParserUtils.source(start, stop));
+    }
+
+    private Source tagSource(Source source) {
+        return source.withViewName(viewName);
     }
 
 }

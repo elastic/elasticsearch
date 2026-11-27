@@ -7,15 +7,21 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
@@ -46,11 +52,13 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -60,6 +68,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.ShutdownAwarePlugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -88,17 +98,23 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
+import org.elasticsearch.xpack.esql.action.EsqlStreamDeleteAction;
+import org.elasticsearch.xpack.esql.action.EsqlStreamGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlDeleteStreamResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlGetStreamResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
@@ -144,12 +160,15 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.fetch.FetchOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
@@ -163,6 +182,8 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor;
+import org.elasticsearch.xpack.esql.timeseries.TransportTsidPrefixHistogramAction;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
@@ -192,10 +213,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin, ShutdownAwarePlugin, SystemIndexPlugin {
 
     private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
@@ -290,6 +312,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
+    /**
+     * Whether a name under a {@code flattened} field is a field: the key of that name.
+     */
+    public static final FeatureFlag FLATTENED_KEYS_FEATURE_FLAG = new FeatureFlag("esql_flattened_subfields");
+
     public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_WARN_SETTING = Setting.timeSetting(
         "esql.querylog.threshold.warn",
         TimeValue.timeValueMillis(-1),
@@ -377,6 +404,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
+    private final SetOnce<BooleanSupplier> batchIndexingSupported = new SetOnce<>();
+    private final SetOnce<EscfBulkService> escfBulkService = new SetOnce<>();
+    private final SetOnce<CircuitBreaker> storedStreamBreaker = new SetOnce<>();
 
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
@@ -393,6 +423,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public Collection<?> createComponents(PluginServices services) {
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
+        this.escfBulkService.set(
+            new EscfBulkService(services.indexingPressure(), services.threadPool().generic(), services.bigArrays().bytesRefRecycler())
+        );
+        this.storedStreamBreaker.set(services.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST));
+        BatchIndexingEnabled batchIndexingEnabled = new BatchIndexingEnabled(services.clusterService().getClusterSettings());
+        this.batchIndexingSupported.set(() -> ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, services.clusterService()));
         var blockFactoryProvider = blockFactoryProvider(
             BlockFactory.builder(bigArrays)
                 .maxPrimitiveArraySize(
@@ -491,6 +527,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         AtomicInteger maxDiscoveredFiles = new AtomicInteger();
         AtomicInteger maxGlobExpansion = new AtomicInteger();
         AtomicInteger maxListedObjects = new AtomicInteger();
+        AtomicInteger maxDirectoryListings = new AtomicInteger();
         var clusterSettings = services.clusterService().getClusterSettings();
         // initializeAndWatchIfRegistered seeds from node settings when federation is unregistered (the keys
         // are not in ClusterSettings then) and watches cluster state when they are. Resolution and split discovery
@@ -499,6 +536,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_GLOB_EXPANSION, maxGlobExpansion::set);
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS, maxDirectoryListings::set);
         if (federationRegistered) {
             clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
         }
@@ -511,7 +549,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             cacheService,
             maxDiscoveredFiles::get,
             maxGlobExpansion::get,
-            maxListedObjects::get
+            maxListedObjects::get,
+            maxDirectoryListings::get
         );
 
         // Create DataSourceModule with all discovered plugins.
@@ -535,7 +574,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.telemetryProvider().getMeterRegistry(),
             localFileAccess,
             services.threadPool().executor(externalBlobStorePool()),
-            listingService
+            listingService,
+            // The live flag, not the yml value: setEnabled doubles as the cache's clear operation.
+            cacheService::isEnabled
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -626,11 +667,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         allDataSourcePlugins.forEach(p -> secretNames.addAll(p.datasourceSecretSettingNames()));
         this.dataSourceSecretSettingNames = Set.copyOf(secretNames);
 
-        QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {
-            for (var c : metricsCollectors) {
-                c.onQueryCompleted(metrics);
-            }
-        };
+        QueryMetricsListener collector = QueryMetricsListener.composite(metricsCollectors);
         ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
             var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
             services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));
@@ -665,7 +702,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.indicesService().getAnalysis(),
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
-                maxListedObjects::get
+                maxListedObjects::get,
+                maxDirectoryListings::get
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -691,7 +729,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
             inventoryCounters,
             inventoryMetrics,
-            new PluginComponentBinding<>(QueryMetricsListener.class, collector)
+            new PluginComponentBinding<>(QueryMetricsListener.class, collector),
+            // Without federation no external split is ever dispatched, so there is nothing to hold a joining node back from.
+            new ExternalWorkerReadiness(
+                services.clusterService(),
+                services.client(),
+                services.threadPool(),
+                Federation.isAvailable(settings)
+            )
         );
     }
 
@@ -744,6 +789,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE,
                 EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,
                 EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE,
+                EsqlFlags.ESQL_TIME_SERIES_REDUCE_PER_INDEX,
+                EsqlFlags.ESQL_FETCH_PHASE,
+                EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION,
+                EsqlFlags.ESQL_MAX_PARENTHESES_COUNT,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
@@ -770,16 +819,36 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     }
 
     @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()
+            ? List.of(EsqlStreamResultsIndexDescriptor.getSystemIndexDescriptor())
+            : List.of();
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "esql";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Stores the results of streamed ES|QL queries";
+    }
+
+    @Override
     public List<ActionHandler> getActions() {
         return List.of(
             new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
             new ActionHandler(EsqlStreamQueryAction.INSTANCE, TransportEsqlStreamQueryAction.class),
+            new ActionHandler(EsqlStreamGetResultAction.INSTANCE, TransportEsqlStreamGetResultsAction.class),
+            new ActionHandler(EsqlStreamDeleteAction.INSTANCE, TransportEsqlStreamDeleteAction.class),
             new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
             new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
             new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
             new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
             new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
             new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+            new ActionHandler(TransportTsidPrefixHistogramAction.TYPE, TransportTsidPrefixHistogramAction.class),
             new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
             new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
             new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
@@ -799,6 +868,39 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
         );
     }
+
+    /**
+     * Graceful shutdown waits for the tasks that keep an ES|QL query's work alive on a node:
+     * <ul>
+     *     <li>on the coordinator, the async query tasks, which outlive the HTTP request that started them and only complete once the
+     *     result is stored;</li>
+     *     <li>on the nodes holding the queried shards, the data node tasks;</li>
+     *     <li>on the node of a remote cluster that a cross-cluster query enters through, the cluster tasks;</li>
+     *     <li>on the nodes holding the lookup or enrich shards, the lookup tasks.</li>
+     * </ul>
+     * The compute and exchange tasks are not listed: they only run while one of the above is still running, since those tasks wait
+     * for their drivers and for their exchange sinks to be fully consumed before completing. The synchronous {@link EsqlQueryAction}
+     * and {@link EsqlStreamQueryAction} tasks are not listed either: they are only started by REST requests on the coordinator and
+     * complete within them, so the HTTP server's shutdown already waits for them.
+     */
+    @Override
+    public Collection<String> getActionsToAwaitOnShutdown() {
+        return List.of(
+            EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX,
+            ComputeService.DATA_ACTION_NAME,
+            ComputeService.CLUSTER_ACTION_NAME,
+            EnrichLookupService.LOOKUP_ACTION_NAME,
+            LookupFromIndexService.LOOKUP_ACTION_NAME
+        );
+    }
+
+    @Override
+    public boolean safeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
+        return true;
+    }
+
+    @Override
+    public void signalShutdown(Collection<String> shutdownNodeIds) {}
 
     @Override
     public List<RestHandler> getRestHandlers(
@@ -821,6 +923,23 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new RestGetViewAction()
             )
         );
+        // Streaming is unreleased: on release builds the route is not registered, as if it had never been added.
+        if (RestEsqlStreamQueryAction.ENABLED) {
+            handlers.add(
+                new RestEsqlStreamQueryAction(
+                    capabilities,
+                    batchIndexingSupported.get(),
+                    escfBulkService.get(),
+                    storedStreamBreaker.get(),
+                    restHandlersServices.projectResolver()
+                )
+            );
+            // A stream can be read or deleted only where it can be created, and only when its results are stored.
+            if (EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()) {
+                handlers.add(new RestEsqlGetStreamResultAction());
+                handlers.add(new RestEsqlDeleteStreamResultAction());
+            }
+        }
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
         // framework's standard "no handler found for uri" (400), as if the feature never existed.
@@ -845,6 +964,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(DriverStatus.ENTRY);
         entries.add(AbstractPageMappingOperator.Status.ENTRY);
         entries.add(FetchDocsSourceOperator.Status.ENTRY);
+        entries.add(FetchOperator.Status.ENTRY);
         entries.add(AbstractPageMappingToIteratorOperator.Status.ENTRY);
         entries.add(AggregationOperator.Status.ENTRY);
         entries.add(EsqlQueryStatus.ENTRY);
@@ -865,6 +985,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(SingleValueQuery.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichQuerySourceOperator.Status.ENTRY);
+        entries.add(LookupQueryOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
@@ -927,6 +1048,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsExecutors.TaskTrackingConfig.builder()
                     .trackOngoingTasks()
                     .trackExecutionTime(ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA)
+                    .attributeTaskLoad()
                     .build()
             ),
             // Dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline, kept
@@ -934,13 +1056,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             // consume their output. Max is the heap- and CPU-scaled concurrency knob (memory-capped,
             // ceiling 100, or a max_concurrent_requests override still clipped by the memory term) that also
             // sizes the permit semaphore, so pool capacity tracks the concurrency the reads are permitted.
-            // Scales from 0 so idle nodes pay nothing.
+            // Scales from 0 so idle nodes pay nothing. Tracks execution time so TaskLoadAttribution.charging
+            // can attribute I/O wall as busy and CPU as compute, same as shards.
             new ScalingExecutorBuilder(
                 EXTERNAL_IO_THREAD_POOL_NAME,
                 0,
                 ExternalSourceSettings.externalIoThreads(settings),
                 TimeValue.timeValueSeconds(30),
-                false
+                false,
+                "thread_pool." + EXTERNAL_IO_THREAD_POOL_NAME,
+                EsExecutors.TaskTrackingConfig.builder()
+                    .trackExecutionTime(ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA)
+                    .attributeTaskLoad()
+                    .build(),
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             )
         );
     }

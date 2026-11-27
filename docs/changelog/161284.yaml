@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 161284
-summary: Make "HIGHLIGHT" generally available
+summary: Make `HIGHLIGHT` generally available
 type: feature

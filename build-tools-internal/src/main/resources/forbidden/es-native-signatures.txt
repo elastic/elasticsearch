@@ -1,0 +1,13 @@
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the "Elastic License
+# 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+# Public License v 1"; you may not use this file except in compliance with, at
+# your election, the "Elastic License 2.0", the "GNU Affero General Public
+# License v3.0 only", or the "Server Side Public License, v 1".
+
+# Only some projects have org.elasticsearch.nativeaccess on their classpath.
+@ignoreMissingClasses
+
+# A caller must be able to show that the buffer cannot be used once the memory is freed, so that is reviewed and suppressed per use with
+# @SuppressForbidden, naming what enforces it. BufferFillScope is the model.
+org.elasticsearch.nativeaccess.SegmentBuffers#unscopedByteBuffer(long, int) @ Unsafe: the buffer is not bound to its arena, so it can be used after the memory is freed. Use MemorySegment#asByteBuffer, or see BufferFillScope

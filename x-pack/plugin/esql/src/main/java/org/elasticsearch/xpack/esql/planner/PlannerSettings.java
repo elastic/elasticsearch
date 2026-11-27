@@ -16,6 +16,7 @@ import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
+import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -306,11 +307,16 @@ public class PlannerSettings {
      * Threshold for the number of values returned by an IN subquery above which a hash join is used
      * instead of an IN list filter. Below or equal to this threshold, the subquery result is inlined
      * as {@code WHERE field IN (v1, v2, ...)}. Above it, a LEFT hash join is used for better performance.
+     * <p>
+     * The default is {@code 100}. A value of {@code -1} picks by cost, as described on
+     * {@code AbstractInSubqueryJoin#filterPathThreshold}. A value of {@code 0} or more is used for every query, except that a
+     * single-column positive {@code IN} that the planner expects to push to local indices, such as one over a plain indexed key that is
+     * not a date, is capped by a known {@code index.max_terms_count} below 100. A {@code NOT IN}, a date key or a remote index is not.
      */
     public static final Setting<Integer> IN_SUBQUERY_HASH_JOIN_THRESHOLD = Setting.intSetting(
         "esql.in_subquery_hash_join_threshold",
         100,
-        0,
+        -1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -377,6 +383,20 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * The memory each data node driver of {@code TS_INFO} buffers before it sends its rows on early. Rows sent early are
+     * merged again on the coordinator, so this does not change the result. A smaller value lowers data node memory. A larger
+     * value merges more rows on the data node, so it sends fewer duplicate rows and serializes fewer pages.
+     */
+    public static final Setting<ByteSizeValue> TS_INFO_PARTIAL_EMIT_THRESHOLD = Setting.byteSizeSetting(
+        "esql.ts_info_partial_emit_threshold",
+        TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD,
+        ByteSizeValue.ofBytes(1),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -405,7 +425,8 @@ public class PlannerSettings {
             AGG_PARTITIONING_COUNT_THRESHOLD,
             AGG_PARTITIONING_MEMORY_THRESHOLD,
             TS_INFO_SAMPLE_MIN_ROWS,
-            TS_INFO_SAMPLE_LIMIT_MULTIPLIER
+            TS_INFO_SAMPLE_LIMIT_MULTIPLIER,
+            TS_INFO_PARTIAL_EMIT_THRESHOLD
         );
     }
 
@@ -491,6 +512,10 @@ public class PlannerSettings {
                 TS_INFO_SAMPLE_LIMIT_MULTIPLIER,
                 v -> settings.updateAndGet(s -> s.tsInfoSampleLimitMultiplier(v))
             );
+            clusterSettings.initializeAndWatch(
+                TS_INFO_PARTIAL_EMIT_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.tsInfoPartialEmitThreshold(v))
+            );
         }
 
         public PlannerSettings get() {
@@ -524,6 +549,7 @@ public class PlannerSettings {
     private final ByteSizeValue aggregationPartitioningMemoryThreshold;
     private final int tsInfoSampleMinRows;
     private final int tsInfoSampleLimitMultiplier;
+    private final ByteSizeValue tsInfoPartialEmitThreshold;
 
     /**
      * Defaults.
@@ -554,7 +580,8 @@ public class PlannerSettings {
         AGG_PARTITIONING_COUNT_THRESHOLD.getDefault(Settings.EMPTY),
         AGG_PARTITIONING_MEMORY_THRESHOLD.getDefault(Settings.EMPTY),
         TS_INFO_SAMPLE_MIN_ROWS.getDefault(Settings.EMPTY),
-        TS_INFO_SAMPLE_LIMIT_MULTIPLIER.getDefault(Settings.EMPTY)
+        TS_INFO_SAMPLE_LIMIT_MULTIPLIER.getDefault(Settings.EMPTY),
+        TS_INFO_PARTIAL_EMIT_THRESHOLD.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -586,7 +613,8 @@ public class PlannerSettings {
         int aggregationPartitioningCountThreshold,
         ByteSizeValue aggregationPartitioningMemoryThreshold,
         int tsInfoSampleMinRows,
-        int tsInfoSampleLimitMultiplier
+        int tsInfoSampleLimitMultiplier,
+        ByteSizeValue tsInfoPartialEmitThreshold
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
@@ -614,6 +642,7 @@ public class PlannerSettings {
         this.aggregationPartitioningMemoryThreshold = aggregationPartitioningMemoryThreshold;
         this.tsInfoSampleMinRows = tsInfoSampleMinRows;
         this.tsInfoSampleLimitMultiplier = tsInfoSampleLimitMultiplier;
+        this.tsInfoPartialEmitThreshold = tsInfoPartialEmitThreshold;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -643,7 +672,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -678,7 +708,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -713,7 +744,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -762,7 +794,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -797,7 +830,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -832,7 +866,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -867,7 +902,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -902,7 +938,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -944,7 +981,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -982,7 +1020,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1020,7 +1059,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1055,7 +1095,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1090,7 +1131,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1125,7 +1167,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1160,7 +1203,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1195,7 +1239,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1230,7 +1275,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1265,7 +1311,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1300,7 +1347,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1335,7 +1383,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1370,7 +1419,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1405,7 +1455,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1440,7 +1491,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1479,7 +1531,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1518,7 +1571,8 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
@@ -1553,11 +1607,48 @@ public class PlannerSettings {
             aggregationPartitioningCountThreshold,
             aggregationPartitioningMemoryThreshold,
             tsInfoSampleMinRows,
-            tsInfoSampleLimitMultiplier
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
         );
     }
 
     public int tsInfoSampleLimitMultiplier() {
         return tsInfoSampleLimitMultiplier;
+    }
+
+    public PlannerSettings tsInfoPartialEmitThreshold(ByteSizeValue tsInfoPartialEmitThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier,
+            tsInfoPartialEmitThreshold
+        );
+    }
+
+    public ByteSizeValue tsInfoPartialEmitThreshold() {
+        return tsInfoPartialEmitThreshold;
     }
 }

@@ -274,6 +274,20 @@ public class AzureHttpHandler implements HttpHandler {
                 // Get Blob (https://learn.microsoft.com/en-us/rest/api/storageservices/get-blob)
                 final MockAzureBlobStore.AzureBlockBlob blob = mockAzureBlobStore.getBlob(blobPath(exchange), leaseId(exchange));
 
+                // In case "If-Match" is provided but doesn't correspond to what's in the blob we return 412.
+                // See https://learn.microsoft.com/en-us/rest/api/storageservices/
+                // specifying-conditional-headers-for-blob-service-operations#read-operations
+                final String ifMatch = exchange.getRequestHeaders().getFirst("If-Match");
+                if (ifMatch != null && ifMatch.equals(blob.etag()) == false) {
+                    sendError(
+                        exchange,
+                        RestStatus.PRECONDITION_FAILED,
+                        "ConditionNotMet",
+                        "The condition specified using HTTP conditional header(s) is not met."
+                    );
+                    return;
+                }
+
                 final BytesReference responseContent;
                 final RestStatus successStatus;
                 // Azure SDK uses x-ms-range; fall back to the standard Range header for other clients

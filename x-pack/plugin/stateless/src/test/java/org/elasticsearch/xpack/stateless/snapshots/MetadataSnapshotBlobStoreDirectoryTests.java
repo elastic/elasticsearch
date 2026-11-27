@@ -30,7 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
@@ -44,6 +44,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -100,7 +101,7 @@ public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
                     blobLocations.put(
                         fileName,
                         new BlobLocation(
-                            new BlobFile(fileBlobName, new PrimaryTermAndGeneration(primaryTerm, fileGeneration)),
+                            new BccBlob(fileBlobName, new PrimaryTermAndGeneration(primaryTerm, fileGeneration)),
                             0,
                             fileLength
                         )
@@ -145,7 +146,7 @@ public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
             // Write files at a non-zero offset within a single blob (simulating compound commit)
             final var blobContainer = createBlobContainer();
             final long primaryTerm = randomNonNegativeLong();
-            final long generation = randomNonNegativeLong();
+            final long generation = randomNonZeroPositiveLong();
             final String blobName = "stateless_commit_" + generation;
             final Map<String, BlobLocation> blobLocations = new HashMap<>();
 
@@ -156,7 +157,7 @@ public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
             // Build the full blob: padding + file1 + file2 + ...
             var baos = new ByteArrayOutputStream();
             baos.write(paddingBytes);
-            final var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, generation));
+            final var blobFile = new BccBlob(blobName, new PrimaryTermAndGeneration(primaryTerm, generation));
             for (String fileName : localDir.listAll()) {
                 long fileLength = localDir.fileLength(fileName);
                 if (fileLength == 0) {

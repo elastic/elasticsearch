@@ -65,6 +65,14 @@ public class StatelessReshardDisruptionIT extends StatelessReshardDisruptionBase
         final int numDocs = randomIntBetween(10, 100);
         indexDocs(indexName, numDocs);
 
+        refresh(indexName);
+
+        var initialSearch = prepareSearch(indexName).setAllowPartialSearchResults(false)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setTrackTotalHits(true)
+            .setSize(numDocs * 2);
+        assertResponse(initialSearch, r -> assertEquals(numDocs, r.getHits().getTotalHits().value()));
+
         try (var disruptionExecutorService = Executors.newSingleThreadExecutor()) {
             logger.info("--> start inducing failures");
 
@@ -98,10 +106,7 @@ public class StatelessReshardDisruptionIT extends StatelessReshardDisruptionBase
 
             ensureGreen(indexName);
 
-            // Explicit refresh currently needed because it is not done in scope of split.
-            refresh(indexName);
-
-            // All data movement is done properly.
+            // All documents are present.
             var search = prepareSearch(indexName).setAllowPartialSearchResults(false)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setTrackTotalHits(true)

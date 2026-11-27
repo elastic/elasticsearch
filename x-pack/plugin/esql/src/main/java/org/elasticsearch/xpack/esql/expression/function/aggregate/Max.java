@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggre
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -59,7 +60,8 @@ public class Max extends UnaryAggregateFunction
         SurrogateExpression,
         AggregateMetricDoubleNativeSupport,
         AnyNullIsNull,
-        NonFiniteSupport {
+        NonFiniteSupport,
+        UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Max", Max::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Max.class).unary(Max::new).name("max");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
@@ -72,7 +74,8 @@ public class Max extends UnaryAggregateFunction
 
     /**
      * When {@code true}, the {@code double} maximum uses Prometheus non-finite semantics (NaN skipped unless all inputs
-     * are NaN). Set only by the PromQL translation; native ES|QL {@code MAX} uses the default strict aggregator.
+     * are NaN). Set only by the PromQL translation; native ES|QL {@code MAX} uses the default aggregator, which also skips
+     * NaN but orders -0.0 below 0.0.
      */
     private final boolean allowNonFinite;
 
@@ -144,7 +147,7 @@ public class Max extends UnaryAggregateFunction
 
     /**
      * Builds a {@code Max} that uses Prometheus non-finite semantics when {@code allowNonFinite} is true. Used by the
-     * PromQL translation; native ES|QL {@code MAX} uses the strict form.
+     * PromQL translation; native ES|QL {@code MAX} uses the default aggregator.
      */
     public Max(Source source, Expression field, boolean allowNonFinite) {
         this(source, field, Literal.TRUE, NO_WINDOW, allowNonFinite);

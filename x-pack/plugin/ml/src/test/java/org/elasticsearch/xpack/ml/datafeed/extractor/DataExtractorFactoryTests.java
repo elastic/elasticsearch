@@ -15,6 +15,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -25,6 +27,12 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
+import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -41,10 +49,12 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunnerTests;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 import org.junit.Before;
 
@@ -54,6 +64,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
 import static org.hamcrest.Matchers.containsString;
@@ -61,11 +72,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -142,6 +156,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -165,6 +180,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -189,6 +205,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -213,6 +230,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -241,6 +259,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -270,6 +289,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -299,6 +319,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -344,6 +365,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -380,6 +402,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -419,6 +442,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
 
@@ -435,6 +459,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
 
@@ -455,6 +480,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
 
@@ -471,6 +497,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -507,6 +534,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -533,6 +561,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -576,6 +605,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -616,6 +646,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
     }
@@ -656,8 +687,87 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
+    }
+
+    public void testCreateGivenEsqlQueryShouldRouteToChunkedEsqlFactoryAndBypassRollupCheck() {
+        givenAggregatableRollup("myField", "max", 5, "termField");
+
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+
+        DatafeedConfig datafeedConfig = esqlDatafeedBuilder("esql-datafeed", "foo").setChunkingConfig(ChunkingConfig.newAuto()).build();
+
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(dataExtractorFactory -> {
+            assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class));
+            assertThat(((ChunkedDataExtractorFactory) dataExtractorFactory).getDelegate(), instanceOf(EsqlDataExtractorFactory.class));
+        });
+
+        // The factory runs one DESCRIBE at creation.
+        withEsqlDescribingDateColumn(
+            "time",
+            () -> DataExtractorFactory.create(
+                client,
+                cloudCredentialManager,
+                datafeedConfig,
+                null,
+                jobBuilder.build(new Date()),
+                xContentRegistry(),
+                timingStatsReporter,
+                DatafeedSearchTelemetry.NOOP,
+                listener
+            )
+        );
+        verify(client, never()).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
+    }
+
+    /** Runs {@code body} with the ES|QL request builder stubbed so that every query is answered by {@code answer}. */
+    @SuppressWarnings("unchecked")
+    private static void withEsqlAnswer(Consumer<ActionListener<EsqlQueryResponse>> answer, Runnable body) {
+        EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = mock();
+        when(builder.query(any())).thenReturn(builder);
+        when(builder.allowPartialResults(anyBoolean())).thenReturn(builder);
+        doAnswer(invocation -> {
+            answer.accept((ActionListener<EsqlQueryResponse>) invocation.getArgument(0));
+            return null;
+        }).when(builder).execute(any(ActionListener.class));
+        SharedSecrets.setEsqlQueryRequestBuilderAccess(client -> builder);
+        try {
+            body.run();
+        } finally {
+            SharedSecrets.setEsqlQueryRequestBuilderAccess(null);
+        }
+    }
+
+    /** Runs {@code body} with every ES|QL query failing as an index that does not exist yet. */
+    private static void withMissingEsqlSource(Runnable body) {
+        withEsqlAnswer(listener -> listener.onFailure(new IndexNotFoundException("myIndex")), body);
+    }
+
+    /** Runs {@code body} with every ES|QL query answered as a DESCRIBE that reports {@code timeField} as a date column. */
+    @SuppressWarnings("unchecked")
+    private static void withEsqlDescribingDateColumn(String timeField, Runnable body) {
+        ColumnInfo name = mock(ColumnInfo.class);
+        when(name.name()).thenReturn("name");
+        ColumnInfo type = mock(ColumnInfo.class);
+        when(type.name()).thenReturn("type");
+        EsqlResponse response = mock(EsqlResponse.class);
+        doReturn(List.of(name, type)).when(response).columns();
+        when(response.rows()).thenReturn((Iterable<Iterable<Object>>) (Iterable<?>) List.of(List.<Object>of(timeField, "date")));
+        EsqlQueryResponse queryResponse = mock(EsqlQueryResponse.class);
+        when(queryResponse.response()).thenReturn(response);
+        withEsqlAnswer(listener -> listener.onResponse(queryResponse), body);
+    }
+
+    private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
+        builder.setEsqlQuery("FROM myIndex");
+        builder.setGroupingInterval(TimeValue.timeValueHours(1));
+        return builder;
     }
 
     private void givenAggregatableRollup(String field, String type, int minuteInterval, String... groupByTerms) {
@@ -722,6 +832,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             listener
         );
 

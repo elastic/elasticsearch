@@ -117,6 +117,14 @@ import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
 public class SearchExecutionContext extends QueryRewriteContext {
 
     /**
+     * The name of the field types built by {@link #buildAnonymousFieldType}. It ends up as the field name of the sort fields built
+     * for an {@code unmapped_type}, which is how the coordinating node tells them apart from the sort fields of mapped fields when
+     * merging shard results (see {@link org.elasticsearch.search.sort.SortFieldValidation}), so it must not change: nodes of other
+     * versions rely on it.
+     */
+    public static final String ANONYMOUS_FIELD_NAME = "__anonymous_";
+
+    /**
      * Per-call telemetry for the pre-flight reservation swap in
      * {@link #addCircuitBreakerMemory(long, long, String)}. Enable at {@code DEBUG} to observe
      * the {@code reservation/actual} ratio in production and inform tuning of the automaton peak
@@ -550,12 +558,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
-        Mapper.Builder builder = typeParser.parse("__anonymous_", Collections.emptyMap(), parserContext);
+        Mapper.Builder builder = typeParser.parse(ANONYMOUS_FIELD_NAME, Collections.emptyMap(), parserContext);
         Mapper mapper = builder.build(MapperBuilderContext.root(false, false));
         if (mapper instanceof FieldMapper) {
             return ((FieldMapper) mapper).fieldType();
         }
         throw new IllegalArgumentException("Mapper for type [" + type + "] must be a leaf field");
+    }
+
+    /** The index-time analyzer of {@code field}, or null if it has none. */
+    @Nullable
+    public NamedAnalyzer getIndexAnalyzer(String field) {
+        return mappingLookup.indexAnalyzer(field, f -> null);
     }
 
     /**
@@ -892,6 +906,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     @Nullable
     public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
+    }
+
+    @Override
+    protected CircuitBreaker parsedContentBreaker() {
         return circuitBreaker;
     }
 

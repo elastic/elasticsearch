@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166008
+summary: Recover from a concurrent first read of a non-us-east-1 S3 bucket without an explicit region
+type: bug

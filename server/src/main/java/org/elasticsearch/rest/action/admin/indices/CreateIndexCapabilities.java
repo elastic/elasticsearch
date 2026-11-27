@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.index.IndexSortParser;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
@@ -62,18 +63,30 @@ public class CreateIndexCapabilities {
     private static final String SLICE_INDEXING_CAPABILITY = "slice_indexing";
 
     /**
+     * Support for the {@code index.sort} expression setting, which needs the {@link IndexSortParser} of the ES|QL plugin.
+     */
+    private static final String INDEX_SORT_EXPRESSION_CAPABILITY = "index_sort_expression";
+
+    /**
+     * Support for computed keys in {@code index.sort}, which ES|QL parses and validates. Older nodes advertise
+     * {@link #INDEX_SORT_EXPRESSION_CAPABILITY} with a parser that only sorts on fields.
+     */
+    private static final String INDEX_SORT_ESQL_CAPABILITY = "index_sort_esql";
+
+    /**
      * Support for {@code doc_values.on_failure=ignore}. Always advertised now that the feature is no longer behind a flag; kept so
      * mixed-version yaml tests still skip against older nodes where the capability was not yet advertised.
      */
     private static final String DOC_VALUES_ON_FAILURE_CAPABILITY = "doc_values_on_failure";
 
     /**
-     * Support for the implicit {@code _unmapped} flattened sink ({@code index.mapping.flattened_unmapped_fields.enabled}). Advertised only
-     * when the feature flag is on, so yaml tests can gate on it and skip on builds where the sink is unavailable.
+     * Support for root {@code dynamic:flattened}, which absorbs unmapped fields into the {@code _unmapped} sink of strict columnar indices.
+     * Advertised only when the feature flag is on, so yaml tests can gate on it and skip on builds where the sink is unavailable. Replaces
+     * {@code flattened_unmapped_fields}, which older nodes advertise without accepting {@code dynamic: flattened}.
      */
-    private static final String FLATTENED_UNMAPPED_FIELDS_CAPABILITY = "flattened_unmapped_fields";
+    private static final String DYNAMIC_FLATTENED_CAPABILITY = "dynamic_flattened";
 
-    public static final Set<String> CAPABILITIES;
+    private static final Set<String> CAPABILITIES;
 
     static {
         var caps = new HashSet<>(
@@ -95,8 +108,18 @@ public class CreateIndexCapabilities {
             caps.add(SLICE_INDEXING_CAPABILITY);
         }
         if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
-            caps.add(FLATTENED_UNMAPPED_FIELDS_CAPABILITY);
+            caps.add(DYNAMIC_FLATTENED_CAPABILITY);
         }
         CAPABILITIES = Set.copyOf(caps);
+    }
+
+    public static Set<String> capabilities() {
+        if (IndexSortParser.get() == null) {
+            return CAPABILITIES;
+        }
+        Set<String> caps = new HashSet<>(CAPABILITIES);
+        caps.add(INDEX_SORT_EXPRESSION_CAPABILITY);
+        caps.add(INDEX_SORT_ESQL_CAPABILITY);
+        return Set.copyOf(caps);
     }
 }

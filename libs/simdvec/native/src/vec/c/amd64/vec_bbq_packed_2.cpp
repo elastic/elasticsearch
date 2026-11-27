@@ -229,8 +229,9 @@ EXPORT void vec_dotd2q4_packed_bulk_masked_2(
     int32_t count,
     f32_t* results
 ) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd2q4_packed_bulk_impl_avx512<int8_t, masked_mapper, 4, masked_output>(
-        docs, query, packed_len, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        docs, query, packed_len, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd2q4_packed_bulk_sparse_2(

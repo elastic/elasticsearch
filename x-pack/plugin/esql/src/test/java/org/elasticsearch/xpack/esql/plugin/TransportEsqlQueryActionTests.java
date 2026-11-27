@@ -18,6 +18,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class TransportEsqlQueryActionTests extends ComputeTestCase {
 
@@ -98,5 +100,24 @@ public class TransportEsqlQueryActionTests extends ComputeTestCase {
 
     private static CancellableTask newTask() {
         return new CancellableTask(1, "transport", EsqlQueryAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of());
+    }
+
+    /** A query that failed while it was planned never stopped the planning span: its wall time is measured up to now. */
+    public void testPlanningNanosOfAPlanningThatNeverStopped() {
+        EsqlQueryProfile profile = new EsqlQueryProfile().start();
+        profile.planning().start();
+        assertThat(TransportEsqlQueryAction.planningNanos(profile), greaterThanOrEqualTo(0L));
+    }
+
+    public void testPlanningNanosOfAPlanningThatStopped() {
+        EsqlQueryProfile profile = new EsqlQueryProfile().start();
+        profile.planning().start();
+        profile.planning().stop();
+        assertThat(TransportEsqlQueryAction.planningNanos(profile), equalTo(profile.planning().timeSpan().durationInNanos()));
+    }
+
+    /** A query that failed before planning started has no planning time. */
+    public void testPlanningNanosOfAPlanningThatNeverStarted() {
+        assertThat(TransportEsqlQueryAction.planningNanos(new EsqlQueryProfile().start()), equalTo(0L));
     }
 }

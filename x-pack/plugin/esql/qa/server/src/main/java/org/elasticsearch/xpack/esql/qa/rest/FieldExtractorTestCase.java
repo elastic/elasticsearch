@@ -391,6 +391,24 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         new Test("flattened").nullValue(replacement).test(input, equalTo(expected));
     }
 
+    public void testFlattenedFieldIgnoreAbove() throws IOException {
+        assumeFlattenedDatatype();
+        var capsName = EsqlCapabilities.Cap.FLATTENED_ROOT_DROPS_IGNORED_VALUES.name().toLowerCase(Locale.ROOT);
+        assumeTrue(
+            "the flattened root drops ignored values",
+            clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false)
+        );
+        // As for a keyword field, a value over ignore_above is not read
+        Map<String, Object> input = new TreeMap<>();
+        input.put("short", randomAlphaOfLength(5));
+        input.put("long", randomAlphaOfLength(20));
+        input.put("mixed", List.of(randomAlphaOfLength(5), randomAlphaOfLength(20)));
+        Map<String, Object> expected = new TreeMap<>();
+        expected.put("short", input.get("short"));
+        expected.put("mixed", ((List<?>) input.get("mixed")).getFirst());
+        new Test("flattened").ignoreAbove(10).test(input, equalTo(expected));
+    }
+
     public void testEmptyMapping() throws IOException {
         createIndex("test", index -> {});
         index("test", """
@@ -846,6 +864,18 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"file": {"raw": "o2"}}""");
 
+        var capsName = EsqlCapabilities.Cap.OBJECTS_ARE_NOT_FIELDS.name().toLowerCase(Locale.ROOT);
+        if (clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false)) {
+            // An object is not a leaf, so the column is the keyword
+            Map<String, Object> result = runEsql("FROM test* | SORT file, file.raw | LIMIT 3");
+            assertResultMap(
+                result,
+                List.of(columnInfo("file", "keyword"), columnInfo("file.raw", "keyword")),
+                List.of(matchesList().item("f1").item(null), matchesList().item(null).item("o2"))
+            );
+            return;
+        }
+
         ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT file, file.raw | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(
@@ -861,6 +891,36 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             result,
             List.of(unsupportedColumnInfo("file", "keyword", "object"), columnInfo("file.raw", "keyword")),
             List.of(matchesList().item(null).item("o2"), matchesList().item(null).item(null))
+        );
+    }
+
+    /**
+     * A key of a {@code flattened} field fills the column of the field another index maps there. Where a node does not read keys,
+     * that index reads {@code null}.
+     */
+    public void testMergeKeywordAndFlattenedKey() throws IOException {
+        createIndex("test1", index -> {
+            index.startObject("properties");
+            index.startObject("attrs").field("type", "flattened").endObject();
+            index.endObject();
+        });
+        index("test1", """
+            {"attrs": {"bar": "a"}}""");
+        createIndex("test2", index -> {
+            index.startObject("properties");
+            index.startObject("attrs.bar").field("type", "keyword").endObject();
+            index.endObject();
+        });
+        index("test2", """
+            {"attrs": {"bar": "c"}}""");
+
+        var capsName = EsqlCapabilities.Cap.FLATTENED_KEYS.name().toLowerCase(Locale.ROOT);
+        boolean keys = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        Map<String, Object> result = runEsql("FROM test* | KEEP attrs.bar | SORT attrs.bar | LIMIT 2");
+        assertResultMap(
+            result,
+            List.of(columnInfo("attrs.bar", "keyword")),
+            keys ? List.of(matchesList().item("a"), matchesList().item("c")) : List.of(matchesList().item("c"), matchesList().item(null))
         );
     }
 
@@ -908,6 +968,60 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             List.of(unsupportedColumnInfo("f", "ip_range"), unsupportedColumnInfo("f.raw", "ip_range")),
             List.of(matchesList().item(null).item(null))
         );
+    }
+
+    /**
+     * The same mapping as {@link #testPropagateUnsupportedToSubFields}, with a query that names only the sub-field: its parent is not
+     * one of the query's fields, so the sub-field keeps its own type.
+     */
+    public void testSubFieldOfUnsupportedFieldNamedAlone() throws IOException {
+        assumeOriginalTypesReported();
+        boolean keys = clusterHasCapability(EsqlCapabilities.Cap.FLATTENED_KEYS);
+        boolean parentPaths = clusterHasCapability(EsqlCapabilities.Cap.PARENT_PATHS_ARE_NOT_FIELDS);
+        List<String> modes = new ArrayList<>();
+        // Without keys only load asks for parent paths
+        if (keys == false || parentPaths) {
+            modes.add("");
+            if (clusterHasCapability(EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW)) {
+                modes.add("SET unmapped_fields=\"nullify\"; ");
+            }
+        }
+        if (parentPaths) {
+            modes.add("SET unmapped_fields=\"load\"; ");
+            if (clusterHasCapability(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2)) {
+                modes.add("SET unmapped_fields=\"load_all\"; ");
+            }
+        }
+        assumeFalse("a parent path is a field of the query in every mode", modes.isEmpty());
+        createIndex("test", index -> {
+            index.startObject("properties");
+            index.startObject("f");
+            {
+                index.field("type", "ip_range");
+                index.startObject("fields");
+                {
+                    index.startObject("raw").field("type", "keyword").endObject();
+                }
+                index.endObject();
+            }
+            index.endObject();
+            index.endObject();
+        });
+        index("test", """
+            {"f": "192.168.0.1/24"}""");
+
+        for (String mode : modes) {
+            assertResultMap(
+                runEsql(mode + "FROM test* | KEEP f.raw | LIMIT 2"),
+                List.of(columnInfo("f.raw", "keyword")),
+                List.of(matchesList().item("192.168.0.1/24"))
+            );
+            assertResultMap(
+                runEsql(mode + "FROM test* | WHERE f.raw == \"192.168.0.1/24\" | KEEP f.raw | LIMIT 2"),
+                List.of(columnInfo("f.raw", "keyword")),
+                List.of(matchesList().item("192.168.0.1/24"))
+            );
+        }
     }
 
     /**
@@ -1572,6 +1686,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/117054",
             requiredClusterCapability
         );
+    }
+
+    private boolean clusterHasCapability(EsqlCapabilities.Cap cap) throws IOException {
+        return clusterHasCapability("POST", "/_query", List.of(), List.of(cap.name().toLowerCase(Locale.ROOT))).orElse(false);
     }
 
     private void assumeOriginalTypesReported() throws IOException {

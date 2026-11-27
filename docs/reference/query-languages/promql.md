@@ -8,31 +8,31 @@ products:
   - id: elasticsearch
 ---
 
-# PromQL reference [promql-language]
+# {{promql}} reference [promql-language]
 
-The [Prometheus Query Language (PromQL)](https://prometheus.io/docs/prometheus/latest/querying/basics/) is a functional query language to select and aggregate metrics.
+The [{{prom}} Query Language ({{promql}})](https://prometheus.io/docs/prometheus/latest/querying/basics/) is a functional query language to select and aggregate metrics.
 
 
-## What is PromQL in {{es}}? [promql-what]
+## What is {{promql}} in {{es}}? [promql-what]
 
-{{es}} supports PromQL queries for metrics in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
-PromQL support is not limited to metrics ingested through [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md).
+{{es}} supports {{promql}} queries for metrics in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
+{{promql}} support is not limited to metrics ingested through [{{prom}} remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md).
 All TSDS are supported, including metrics ingested through [OpenTelemetry Protocol (OTLP)](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md), and the [bulk API]({{es-apis}}operation/operation-bulk).
 
-{{es}} supports PromQL in two ways: through a [Prometheus-compatible HTTP API](promql/promql-http-api.md) (for Prometheus-compatible clients) and as a [`PROMQL` source command](/reference/query-languages/esql/commands/promql.md) inside piped {{esql}} queries that allow post-processing through regular {{esql}}.
+{{es}} supports {{promql}} in two ways: through a [{{prom}}-compatible HTTP API](promql/promql-http-api.md) (for {{prom}}-compatible clients) and as a [`PROMQL` source command](/reference/query-languages/esql/commands/promql.md) inside piped {{esql}} queries that allow post-processing through regular {{esql}}.
 
 ## How does it work? [promql-how]
 
-When you use the Prometheus-compatible HTTP API or embed PromQL in an {{esql}} query through the `PROMQL` source command, {{es}} parses PromQL into {{esql}} logical plans and evaluates those plans against TSDS metrics.
+When you use the {{prom}}-compatible HTTP API or embed {{promql}} in an {{esql}} query through the `PROMQL` source command, {{es}} parses {{promql}} into {{esql}} logical plans and evaluates those plans against TSDS metrics.
 
-{{es}} uses the same {{esql}} compute engine for PromQL as for the [`TS` source command](/reference/query-languages/esql/commands/ts.md).
+{{es}} uses the same {{esql}} compute engine for {{promql}} as for the [`TS` source command](/reference/query-languages/esql/commands/ts.md).
 
 ## In this section
 
-* [Get started](promql/promql-tutorial.md): Ingest sample Prometheus metrics and query them with PromQL through the HTTP API and {{esql}}.
-* [HTTP API](promql/promql-http-api.md): Prometheus-compatible `/_prometheus/` endpoints for queries and discovery.
-* [Functions](promql/functions.md): PromQL function reference organized by category, including {{es}}-specific differences from Prometheus.
-* [Operators](promql/operators.md): PromQL operator reference organized by category, including {{es}}-specific differences from Prometheus.
-* [Prometheus data source in Grafana](promql/promql-grafana.md): Use {{es}} as a Prometheus data source in Grafana for dashboards, autocomplete, and Metrics Drilldown.
-* [Limitations](promql/promql-limitations.md): How behavior differs from Prometheus, including unsupported PromQL constructs, HTTP behavior, instant-query nuances, staleness semantics, exemplars, and related topics.
+* [Get started](promql/promql-tutorial.md): Ingest sample {{prom}} metrics and query them with {{promql}} through the HTTP API and {{esql}}.
+* [HTTP API](promql/promql-http-api.md): {{prom}}-compatible `/_prometheus/` endpoints for queries and discovery.
+* [Functions](promql/functions.md): {{promql}} function reference organized by category, including {{es}}-specific differences from {{prom}}.
+* [Operators](promql/operators.md): {{promql}} operator reference organized by category, including {{es}}-specific differences from {{prom}}.
+* [{{prom}} data source in Grafana](promql/promql-grafana.md): Use {{es}} as a {{prom}} data source in Grafana for dashboards, autocomplete, and Metrics Drilldown.
+* [{{prom}} compatibility](promql/prometheus-compatibility.md): What {{es}} supports, what isn't supported yet, and what behaves differently from {{prom}}, for both {{promql}} and the HTTP API.
 

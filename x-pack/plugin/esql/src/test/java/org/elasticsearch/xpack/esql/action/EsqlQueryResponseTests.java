@@ -59,6 +59,7 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -196,7 +197,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 "",
                 "",
                 "logs-1",
-                false,
                 EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
                 10,
                 10,
@@ -212,7 +212,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 "remote1",
                 "remote1",
                 "remote1:logs-1",
-                true,
                 EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
                 12,
                 12,
@@ -232,6 +231,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.TIME_DURATION
                 || t == DataType.AGGREGATE_METRIC_DOUBLE
                 || t == DataType.TSID_DATA_TYPE
+                || t == DataType.TIME_SERIES_METADATA_DATA_TYPE
                 || t == DataType.DATE_RANGE
                 || t == DataType.PARTIAL_AGG,
             () -> randomFrom(DataType.types())
@@ -640,7 +640,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 clusterAlias,
                 clusterAlias,
                 indexExpression,
-                true,
                 EsqlExecutionInfo.Cluster.Status.valueOf(status.toUpperCase(Locale.ROOT)),
                 totalShardsFinal,
                 successfulShardsFinal,
@@ -782,7 +781,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     /**
-     * {@code driver_nanos} round-trips on current nodes. Nodes that predate it read 0, while {@code cpu_nanos} still round-trips.
+     * {@code driver_nanos} and the search load round-trip on current nodes. Nodes that predate them read 0, while
+     * {@code cpu_nanos} still round-trips.
      */
     public void testDriverNanosSerialization() throws IOException {
         try (
@@ -797,6 +797,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 7777,
                 8888,
                 9999,
+                new SearchLoadMetrics(11, 12, 13),
                 null,
                 true,
                 null,
@@ -812,6 +813,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             try (EsqlQueryResponse copy = copyInstance(response, TransportVersion.current())) {
                 assertThat(copy.cpuNanos(), equalTo(8888L));
                 assertThat(copy.driverNanos(), equalTo(9999L));
+                assertThat(copy.searchLoad(), equalTo(new SearchLoadMetrics(11, 12, 13)));
+            }
+            TransportVersion beforeSearchLoad = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("search_load_report"));
+            try (EsqlQueryResponse copy = copyInstance(response, beforeSearchLoad)) {
+                assertThat(copy.driverNanos(), equalTo(9999L));
+                assertThat(copy.searchLoad(), equalTo(SearchLoadMetrics.EMPTY));
             }
             TransportVersion beforeDriverNanos = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_driver_nanos"));
             try (EsqlQueryResponse copy = copyInstance(response, beforeDriverNanos)) {
@@ -822,7 +829,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     /**
-     * Positive coverage of the four query-wide rollup fields at the response root. The existing
+     * Positive coverage of the query-wide rollup fields at the response root. The existing
      * XContent tests all assert zero — this one asserts the values appear in the JSON exactly
      * as supplied to the constructor, guarding against a regression that silently zeros them out.
      */
@@ -839,6 +846,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 7777, // read_cpu_nanos
                 8888, // cpu_nanos
                 9999, // driver_nanos
+                new SearchLoadMetrics(1212, 1313, 1414), // search_load
                 null,
                 true,
                 null,
@@ -861,6 +869,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 7777,
                   "cpu_nanos" : 8888,
                   "driver_nanos" : 9999,
+                  "search_load_nanos" : 1212,
+                  "search_cpu_nanos" : 1313,
+                  "search_waiting_nanos" : 1414,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -889,6 +900,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -924,6 +938,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "read_cpu_nanos" : 0,
                       "cpu_nanos" : 0,
                       "driver_nanos" : 0,
+                      "search_load_nanos" : 0,
+                      "search_cpu_nanos" : 0,
+                      "search_waiting_nanos" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -960,6 +977,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -995,6 +1015,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 0,
                 0,
                 0,
+                SearchLoadMetrics.EMPTY,
                 null,
                 true,
                 null,
@@ -1046,6 +1067,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1082,6 +1106,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1113,6 +1140,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1166,6 +1196,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1220,6 +1253,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1266,6 +1302,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1333,6 +1372,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     equalTo(
                         "{\"documents_found\":0,\"values_loaded\":0,\"rows_emitted\":0,\"bytes_read\":0,\"read_nanos\":0,"
                             + "\"read_cpu_nanos\":0,\"cpu_nanos\":0,\"driver_nanos\":0,"
+                            + "\"search_load_nanos\":0,\"search_cpu_nanos\":0,\"search_waiting_nanos\":0,"
                             + "\"columns\":[{\"name\":\"id\",\"type\":\"integer\"},{\"name\":\"_source\",\"type\":\"_source\"}],"
                             + "\"values\":[[1,"
                             + firstSource
@@ -1352,6 +1392,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "read_cpu_nanos" : 0,
                       "cpu_nanos" : 0,
                       "driver_nanos" : 0,
+                      "search_load_nanos" : 0,
+                      "search_cpu_nanos" : 0,
+                      "search_waiting_nanos" : 0,
                       "columns" : [
                         {
                           "name" : "id",
@@ -1431,6 +1474,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "read_cpu_nanos" : 0,
                       "cpu_nanos" : 0,
                       "driver_nanos" : 0,
+                      "search_load_nanos" : 0,
+                      "search_cpu_nanos" : 0,
+                      "search_waiting_nanos" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -1502,6 +1548,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                           "read_cpu_nanos" : 0,
                           "cpu_nanos" : 0,
                           "driver_nanos" : 0,
+                          "search_load_nanos" : 0,
+                          "search_cpu_nanos" : 0,
+                          "search_waiting_nanos" : 0,
                           "all_columns" : [
                             {
                               "name" : "foo",
@@ -1598,6 +1647,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1618,6 +1670,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "description" : "test",
                         "cluster_name" : "elasticsearch",
                         "node_name" : "node-1",
+                        "kind" : "test",
                         "start_millis" : 1723489812649,
                         "stop_millis" : 1723489819929,
                         "took_nanos" : 20021,
@@ -1653,6 +1706,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "description" : "test",
                         "cluster_name" : "elasticsearch",
                         "node_name" : "node-1",
+                        "kind" : "test",
                         "plan" : "plan tree"
                       }
                     ],

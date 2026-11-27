@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestChannel;
@@ -33,8 +37,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Listens for an {@link EsqlQueryResponse}, converts its columnar result into the
@@ -78,6 +84,8 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     // Column names expected in the ES|QL PROMQL response.
     static final String VALUE_COLUMN = "value";
     static final String STEP_PARAM = "step";
+    /** The {@code _timeseries} object holding the labels of a Prometheus series, which are named without its prefix. */
+    private static final String LABELS_NAMESPACE = "labels";
 
     // Fixed column indices produced by the PROMQL command + EVAL step = TO_LONG(step).
     // EVAL appends the new step column at the end, so dimension columns occupy indices 1..N-2.
@@ -90,11 +98,18 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     }
 
     private final RestChannel channel;
-    private final String resultType;
+    private final Supplier<String> resultType;
     private final QueryMode mode;
     private final int limit;
 
     PrometheusQueryResponseListener(RestChannel channel, String resultType, QueryMode mode, int limit) {
+        this(channel, () -> resultType, mode, limit);
+    }
+
+    /**
+     * @param resultType supplies the result type once the query has run, as it is only known once the query is parsed
+     */
+    PrometheusQueryResponseListener(RestChannel channel, Supplier<String> resultType, QueryMode mode, int limit) {
         this.channel = channel;
         this.resultType = resultType;
         this.mode = mode;
@@ -108,19 +123,40 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // and crash the node. Reading its pages/blocks directly (without incRef/decRef/close) is safe: the
         // response holds a live reference for the duration of this synchronous callback, same as the
         // generic EsqlResponse.rows()/ResponseValueUtils path this class used to go through.
+        // The body goes into the channel's output, which writes to recycled pages and fails with an exception near 2 GB
+        // instead of growing a single byte array until the node runs out of memory. A plain JSON builder keeps the
+        // response media type independent of the request's Accept header.
+        // TODO: the whole body is still buffered, next to the pages it is built from, and the circuit breaker does not see
+        // it. Send it as a chunked response instead, serializing each page into chunks and releasing the page once it is
+        // written, so the JSON never exceeds a chunk and memory goes down while the body is sent.
+        RestResponse response;
         try {
             XContentBuilder builder = convertToPrometheusJson(
+                XContentFactory.jsonBuilder(Streams.flushOnCloseStream(channel.bytesOutput())),
                 queryResponse.pages(),
                 queryResponse.columns(),
                 queryResponse.zoneId(),
-                resultType,
+                resultType.get(),
                 mode,
                 limit
             );
-            channel.sendResponse(new RestResponse(RestStatus.OK, builder));
+            // Building the response closes the builder, which flushes the rest of the body and can hit the limit too.
+            response = new RestResponse(RestStatus.OK, builder);
         } catch (Exception e) {
-            sendErrorResponse(e);
+            // The partial body is never sent: free its pages now rather than when the error response is written.
+            channel.releaseOutputBuffer();
+            // The query already ran, so failing to write its result, for example past the output's 2 GB limit, is a server
+            // error even when the exception, like that limit's IllegalArgumentException, would otherwise map to 400.
+            sendErrorResponse(
+                new ElasticsearchStatusException(
+                    "failed to write the query response: " + e.getMessage(),
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    e
+                )
+            );
+            return;
         }
+        channel.sendResponse(response);
     }
 
     @Override
@@ -162,6 +198,22 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         QueryMode mode,
         int limit
     ) throws IOException {
+        return convertToPrometheusJson(XContentFactory.jsonBuilder(), pages, columns, zoneId, resultType, mode, limit);
+    }
+
+    /**
+     * Writes the Prometheus-compatible JSON response into {@code builder}, see
+     * {@link #convertToPrometheusJson(List, List, ZoneId, String, QueryMode)}.
+     */
+    static XContentBuilder convertToPrometheusJson(
+        XContentBuilder builder,
+        List<Page> pages,
+        List<ColumnInfoImpl> columns,
+        ZoneId zoneId,
+        String resultType,
+        QueryMode mode,
+        int limit
+    ) throws IOException {
         if (columns.size() < 1 || VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
         }
@@ -172,7 +224,6 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // Column 1 is either _timeseries (a JSON blob) or the first of the individual dimension columns
         final boolean useSeriesCol = columns.size() > 2 && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
 
-        XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field("status", "success");
         builder.startObject("data");
@@ -430,7 +481,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
      * Converts a timestamp from the ES|QL response into Unix epoch seconds.
      * The step column is cast to {@code LONG} (epoch milliseconds) via {@code TO_LONG(step)} in the ES|QL query.
      */
-    private static double parseTimestamp(long millis) {
+    public static double parseTimestamp(long millis) {
         return millis / 1000.0;
     }
 
@@ -454,7 +505,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
      * Formats a sample value for the Prometheus JSON response.
      * Prometheus represents values as strings, with special handling for NaN and Infinity.
      */
-    static String formatSampleValue(double value) {
+    public static String formatSampleValue(double value) {
         if (Double.isNaN(value)) {
             return "NaN";
         } else if (Double.isInfinite(value)) {
@@ -473,24 +524,62 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
      * </ul>
      */
     static void writeMetricFromSeriesJson(XContentBuilder builder, String seriesJson) throws IOException {
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, seriesJson)) {
-            Map<String, Object> root = parser.map();
-            Object labelsObj = root.remove("labels");
-            if (labelsObj instanceof Map<?, ?> labels) {
-                writeMetricFields(builder, "", labels);
+        forEachEntryFlattened(parseLabelsJson(seriesJson, true), (name, value) -> {
+            String labelValue = labelValue(value);
+            if (labelValue != null) {
+                builder.field(name, labelValue);
             }
-            writeMetricFields(builder, "", root);
-        }
+        });
     }
 
-    private static void writeMetricFields(XContentBuilder builder, String prefix, Map<?, ?> map) throws IOException {
+    /**
+     * The Prometheus value of a label with the given value: its string representation, or {@code null} if that is empty, as a label
+     * with an empty value is absent in Prometheus.
+     */
+    @Nullable
+    public static String labelValue(Object value) {
+        String string = value.toString();
+        return string.isEmpty() ? null : string;
+    }
+
+    /**
+     * Parses a JSON object of labels, such as a {@code _timeseries} value. If {@code removeLabelsPrefix} is set, the {@code labels}
+     * namespace is unwrapped: the labels of a Prometheus series are named without its prefix.
+     */
+    public static Map<String, Object> parseLabelsJson(String labelsJson, boolean removeLabelsPrefix) throws IOException {
+        Map<String, Object> root;
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, labelsJson)) {
+            root = parser.map();
+        }
+        if (removeLabelsPrefix == false) {
+            return root;
+        }
+        Map<String, Object> dimensions = new LinkedHashMap<>();
+        if (root.remove(LABELS_NAMESPACE) instanceof Map<?, ?> labels) {
+            for (Map.Entry<?, ?> label : labels.entrySet()) {
+                dimensions.put(label.getKey().toString(), label.getValue());
+            }
+        }
+        dimensions.putAll(root);
+        return dimensions;
+    }
+
+    /**
+     * Calls {@code consumer} with the name and non-null value of each entry of {@code map}, with nested objects flattened into
+     * dot-separated names.
+     */
+    public static void forEachEntryFlattened(Map<?, ?> map, CheckedBiConsumer<String, Object, IOException> consumer) throws IOException {
+        forEachEntryFlattened("", map, consumer);
+    }
+
+    private static void forEachEntryFlattened(String prefix, Map<?, ?> map, CheckedBiConsumer<String, Object, IOException> consumer)
+        throws IOException {
         for (Map.Entry<?, ?> entry : map.entrySet()) {
-            String key = prefix + entry.getKey();
+            String name = prefix + entry.getKey();
             if (entry.getValue() instanceof Map<?, ?> nested) {
-                writeMetricFields(builder, key + ".", nested);
-            } else if (entry.getValue() != null && entry.getValue().toString().isEmpty() == false) {
-                // a label with an empty value is absent in Prometheus
-                builder.field(key, entry.getValue().toString());
+                forEachEntryFlattened(name + ".", nested, consumer);
+            } else if (entry.getValue() != null) {
+                consumer.accept(name, entry.getValue());
             }
         }
     }

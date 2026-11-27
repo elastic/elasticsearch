@@ -1,0 +1,6 @@
+FROM employees
+| KEEP first_name
+| SORT first_name
+| LIMIT 100
+| SORT first_name
+| LIMIT 10

@@ -203,6 +203,7 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         assertNotNull("workflow grant must have grantedFields", workflowFields);
         assertNotNull("step grant must have grantedFields", stepFields);
         assertNotNull("managed grant must have grantedFields", managedFields);
+        assertTrue("execution names must be readable", Arrays.asList(workflowFields).contains("runName"));
         assertArrayEquals(
             "workflow and step grants must carry the same grantedFields",
             Arrays.stream(workflowFields).sorted().toArray(),

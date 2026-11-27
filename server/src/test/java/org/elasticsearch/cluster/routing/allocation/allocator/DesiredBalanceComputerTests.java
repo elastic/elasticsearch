@@ -34,6 +34,9 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.MoveType;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -42,6 +45,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -108,6 +112,7 @@ import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClu
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -369,9 +374,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         routingNodes.startShard(iterator.initialize("node-1", null, 0L, changes), changes, 0L),
                         "node-2",
                         0L,
-                        "test",
+                        MoveReason.CANNOT_REMAIN,
                         changes,
-                        ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                        RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                     );
                 }
                 break;
@@ -422,9 +427,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         routingNodes.startShard(iterator.initialize("node-1", null, 0L, changes), changes, 0L),
                         "node-0",
                         0L,
-                        "test",
+                        MoveReason.CANNOT_REMAIN,
                         changes,
-                        ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                        RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                     );
                 }
                 break;
@@ -567,9 +572,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             randomRoutingNodes.startShard(iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L),
                             nodes.remove(0),
                             0L,
-                            "test",
+                            MoveReason.CANNOT_REMAIN,
                             changes,
-                            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
                     }
                     break;
@@ -589,9 +594,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             randomRoutingNodes.startShard(iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L),
                             nodes.remove(0),
                             0L,
-                            "test",
+                            MoveReason.CANNOT_REMAIN,
                             changes,
-                            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
                     }
                     break;
@@ -911,6 +916,55 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var value = randomFrom(values);
         values.remove(value);
         return value;
+    }
+
+    public void testRecordsAndCarriesComputedMoveReasons() {
+        final var settings = Settings.builder().put(AllocationService.PRESERVE_DECISION_LABELS_SETTING.getKey(), true).build();
+        final var indexMetadata = IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put("index.routing.allocation.exclude._id", "node-1"))
+            .build();
+        final var shardId = new ShardId(indexMetadata.getIndex(), 0);
+        final var key = new DesiredBalance.ShardCopy(shardId, "node-1");
+        final var cannotRemain = new MoveReason(MoveType.CANNOT_REMAIN, "filter");
+        final var computer = createDesiredBalanceComputer(new BalancedShardsAllocator(settings));
+
+        // the shard cannot remain on node-1, so the computation moves it and records why
+        final var onNode1 = twoNodeClusterState(indexMetadata, newShardRouting(shardId, "node-1", null, true, STARTED));
+        final var balance1 = computer.compute(
+            DesiredBalance.BECOME_MASTER_INITIAL,
+            new DesiredBalanceInput(1, routingAllocationWithDecidersOf(onNode1, ClusterInfo.EMPTY, settings), List.of()),
+            queue(),
+            ignored -> true
+        );
+        assertThat(balance1.getAssignment(shardId).nodeIds(), equalTo(Set.of("node-0")));
+        assertThat(balance1.computedMoveReasons(), equalTo(Map.of(key, cannotRemain)));
+
+        // the move is still pending: the next computation inherits the target and carries the reason forward
+        final var balance2 = computer.compute(
+            balance1,
+            new DesiredBalanceInput(2, routingAllocationWithDecidersOf(onNode1, ClusterInfo.EMPTY, settings), List.of()),
+            queue(),
+            ignored -> true
+        );
+        assertThat(balance2.computedMoveReasons(), equalTo(Map.of(key, cannotRemain)));
+
+        // once the shard has moved there is nothing to carry
+        final var onNode0 = twoNodeClusterState(indexMetadata, newShardRouting(shardId, "node-0", null, true, STARTED));
+        final var balance3 = computer.compute(
+            balance2,
+            new DesiredBalanceInput(3, routingAllocationWithDecidersOf(onNode0, ClusterInfo.EMPTY, settings), List.of()),
+            queue(),
+            ignored -> true
+        );
+        assertThat(balance3.computedMoveReasons(), anEmptyMap());
+    }
+
+    private static ClusterState twoNodeClusterState(IndexMetadata indexMetadata, ShardRouting shard) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-0")).add(newNode("node-1")))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shard)))
+            .build();
     }
 
     public void testComputeConsideringShardSizes() {
@@ -1497,9 +1551,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             shard,
                             "node-1",
                             0L,
-                            "test",
+                            MoveReason.CANNOT_REMAIN,
                             allocation.changes(),
-                            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
                 }
                 for (var shard : allocation.routingNodes().node("node-1").shardsWithState(STARTED).toList()) {
@@ -1508,9 +1562,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             shard,
                             "node-0",
                             0L,
-                            "test",
+                            MoveReason.CANNOT_REMAIN,
                             allocation.changes(),
-                            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
                 }
             }
@@ -1952,9 +2006,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             ),
             randomValueOtherThan(shard2PrimaryNodeId, () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()),
             randomLongBetween(100, 999),
-            "test",
+            MoveReason.CANNOT_REMAIN,
             routingChangesObserver,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         // Add the shard as started on the source node.
         existingStartedShards.add(relocationTuple.v1());
@@ -2072,9 +2126,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             ),
             "node-2",
             randomLongBetween(100, 999),
-            "test",
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
 
         // Shard 2: complete a first relocation (node-3 → node-4), then begin a second relocation
@@ -2083,9 +2137,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             startedShard2OnNode3,
             "node-4",
             randomLongBetween(100, 999),
-            "test",
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         final ShardRouting startedShard2OnNode4 = routingNodes.startShard(
             shard2FirstRelocationTuple.v2(),
@@ -2096,9 +2150,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             startedShard2OnNode4,
             "node-5",
             randomLongBetween(100, 999),
-            "test",
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
 
         DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);

@@ -69,6 +69,7 @@ public class ExternalSourceRequestShapeIT extends AbstractExternalDataSourceIT {
         ExternalSourceExec exec = exec(dataset, csv);
         DataNodeRequest request = new DataNodeRequest(
             "shape-empty-" + randomAlphaOfLength(8),
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             TEST_CFG,
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             List.of(),
@@ -119,6 +120,7 @@ public class ExternalSourceRequestShapeIT extends AbstractExternalDataSourceIT {
         ExternalSourceExec exec = exec("shape_never_registered", csv);
         DataNodeRequest request = new DataNodeRequest(
             "shape-unregistered-" + randomAlphaOfLength(8),
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             TEST_CFG,
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             List.of(),

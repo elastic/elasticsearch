@@ -1,18 +1,20 @@
-# Detects mismatches between Prometheus and Elasticsearch on a pull request and its merge base. Runs standalone:
-# a 'buildkite run promcheck' PR comment triggers it (see .buildkite/pull-requests.json), and the build
-# bot posts the report as a PR comment when this build ends.
+# Reuses the existing promcheck pipeline and its permissions. Schedules run nightly;
+# other builds compare a PR.
 env:
   PROMCHECK_VER: "0.11.0+prometheus-3.13.1"
   PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
+  PROMCHECK_WORKLOAD: grafanalabs-top100
 steps:
-  # Comments on the PR as soon as the build starts; the report replaces the comment when the build ends.
+  # The PR build bot posts this note before the comparison finishes.
   - label: notify
     key: notify
-    command: .buildkite/scripts/validate-prometheus-compliance.sh notify
+    if: build.source != "schedule"
+    command: .buildkite/scripts/validate-prometheus-compliance.sh oneshot notify
   - label: validate-prometheus-compliance
     key: validate-prometheus-compliance
-    command: .buildkite/scripts/validate-prometheus-compliance.sh
-    timeout_in_minutes: 120
+    if: build.source != "schedule"
+    command: .buildkite/scripts/validate-prometheus-compliance.sh oneshot
+    timeout_in_minutes: &promcheck-timeout 120
     retry:
       automatic:
         - exit_status: -1
@@ -21,10 +23,22 @@ steps:
           limit: 2
     artifact_paths:
       - "/tmp/validate-prometheus-compliance-output/*"
-    agents:
+    agents: &promcheck-agents
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-8
       docker: "true"
       diskType: pd-ssd
       buildDirectory: /dev/shm/bk
+  - label: elastic / prometheus / nightly
+    key: prometheus-nightly
+    if: build.source == "schedule"
+    command: .buildkite/scripts/validate-prometheus-compliance.sh nightly
+    timeout_in_minutes: *promcheck-timeout
+    artifact_paths:
+      - "/tmp/prometheus-nightly-output/*"
+    env:
+      PROMCHECK_RESULTS_URL: https://overview-elastic-cloud-com.es.us-east-1.aws.found.io
+      PROMCHECK_RESULTS_NAMESPACE: experimental
+      PROMCHECK_RESULTS_SECRET: secret/ci/elastic-elasticsearch/promcheck-results
+    agents: *promcheck-agents

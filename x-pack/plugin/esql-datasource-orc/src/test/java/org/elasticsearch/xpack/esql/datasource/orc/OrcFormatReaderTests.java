@@ -28,10 +28,15 @@ import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.apache.orc.impl.OrcTail;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -62,6 +67,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.Split
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -81,9 +87,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
@@ -130,6 +138,54 @@ public class OrcFormatReaderTests extends ESTestCase {
     public void testDoesNotSupportWholeFileCompression() {
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
         assertFalse("ORC requires random access and cannot be wrapped in a whole-file compressor", reader.supportsWholeFileCompression());
+    }
+
+    /**
+     * A node-singleton reader stays on its construction factory. {@code withBlockFactory} copies
+     * decode onto a per-read factory and keeps the footer caches. The node breaker is one byte, so
+     * any page that still hit it would trip; success plus live usage on the per-read breaker is the
+     * proof. Cache identity is pinned in {@link OrcFormatReaderStateLifecycleTests}.
+     */
+    public void testWithBlockFactoryChargesThePerReadBreakerNotTheFooterCache() throws Exception {
+        LimitedBreaker nodeBreaker = new LimitedBreaker("node", ByteSizeValue.ofBytes(1));
+        CircuitBreaker[] readBreaker = new CircuitBreaker[1];
+        BlockFactory nodeFactory = new BlockFactory(nodeBreaker, BigArrays.NON_RECYCLING_INSTANCE);
+        BlockFactory readFactory = trackingBlockFactory(readBreaker);
+        OrcFormatReader nodeReader = new OrcFormatReader(nodeFactory);
+        assertSame("same factory is a no-op so the node singleton is unchanged", nodeReader, nodeReader.withBlockFactory(nodeFactory));
+        OrcFormatReader perRead = nodeReader.withBlockFactory(readFactory);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+        assertSame("footer byte cache stays the node instance", nodeReader.footerBytesForTests(), perRead.footerBytesForTests());
+
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[1];
+            idCol.vector[0] = 1;
+            nameCol.setVal(0, "Alice".getBytes(StandardCharsets.UTF_8));
+            idCol.vector[1] = 2;
+            nameCol.setVal(1, "Bob".getBytes(StandardCharsets.UTF_8));
+        });
+        FormatReadContext context = FormatReadContext.builder().projectedColumns(List.of("id", "name")).batchSize(8).build();
+        try (CloseableIterator<Page> iterator = perRead.read(createStorageObject(orcData), context)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertThat("per-read page allocations must hit the bound factory", readBreaker[0].getUsed(), greaterThan(0L));
+            assertEquals("the node singleton must not see those allocations", 0L, nodeBreaker.getUsed());
+            page.releaseBlocks();
+        }
+        assertEquals(0L, readBreaker[0].getUsed());
+        assertEquals(0L, nodeBreaker.getUsed());
+    }
+
+    private static BlockFactory trackingBlockFactory(CircuitBreaker[] outBreaker) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        outBreaker[0] = breaker;
+        return BlockFactory.builder(bigArrays).breaker(breaker).build();
     }
 
     /**
@@ -584,6 +640,31 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals("orc", metadata.sourceType());
+    }
+
+    public void testDoubleStatisticsServeFiniteBoundsAndNeverANaNBound() throws Exception {
+        assertDoubleBounds(new double[] { 1.0, Double.NaN, 2.0 }, 1.0, 2.0);
+        assertDoubleBounds(new double[] { Double.NaN, 1.0, 2.0 }, null, null);
+        assertDoubleBounds(new double[] { Double.NaN, Double.NaN }, null, null);
+    }
+
+    private void assertDoubleBounds(double[] values, Double expectedMin, Double expectedMax) throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("d", TypeDescription.createDouble());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = values.length;
+            System.arraycopy(values, 0, ((DoubleColumnVector) batch.cols[0]).vector, 0, values.length);
+        });
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        String label = Arrays.toString(values);
+
+        SourceMetadata metadata = reader.metadata(createStorageObject(orcData));
+        SourceStatistics.ColumnStatistics d = metadata.statistics().get().columnStatistics().get().get("d");
+        assertEquals("file min of " + label, Optional.ofNullable(expectedMin), d.minValue());
+        assertEquals("file max of " + label, Optional.ofNullable(expectedMax), d.maxValue());
+
+        Map<String, Object> stripeStats = reader.discoverSplitRanges(createStorageObject(orcData)).getFirst().statistics();
+        assertEquals("stripe min of " + label, expectedMin, stripeStats.get("_stats.columns.d.min"));
+        assertEquals("stripe max of " + label, expectedMax, stripeStats.get("_stats.columns.d.max"));
     }
 
     public void testReadNullValuesInColumns() throws Exception {
@@ -2893,6 +2974,11 @@ public class OrcFormatReaderTests extends ESTestCase {
                 }
                 if (from == DataType.TEXT) {
                     continue; // no ORC leaf type maps to TEXT; the pair is unreachable from a file
+                }
+                if (from == DataType.DATE_NANOS) {
+                    // convertOrcTypeToEsql has no arm producing DATE_NANOS, so no ORC column can arrive as that
+                    // source type. Remove this skip if one ever does.
+                    continue;
                 }
                 TypeDescription schema = TypeDescription.createStruct();
                 BatchPopulator populator;

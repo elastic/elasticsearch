@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -60,7 +61,8 @@ public class Count extends UnaryAggregateFunction
         ToAggregator,
         SurrogateExpression,
         AggregateMetricDoubleNativeSupport,
-        OptionalArgument {
+        OptionalArgument,
+        UnitAware.Unitless {
     public static final TransportVersion ESQL_COUNT_HISTOGRAM_BUCKET = TransportVersion.fromName("esql_count_histogram_bucket");
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class)
@@ -72,7 +74,7 @@ public class Count extends UnaryAggregateFunction
         .description("Counts the number of elements in the input vector.")
         .example("count(http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
+        .stdDivergence(PromqlFunctionDefinition.COUNT_NOTE)
         .name("count");
 
     @FunctionInfo(
@@ -149,6 +151,9 @@ public class Count extends UnaryAggregateFunction
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
+                "counter_double",
+                "counter_integer",
+                "counter_long",
                 "exponential_histogram",
                 "date",
                 "date_nanos",
@@ -261,13 +266,7 @@ public class Count extends UnaryAggregateFunction
                 "tdigest"
             ).and(isType(bucket(), dt -> dt == DataType.DOUBLE_RANGE, sourceText(), SECOND, "double_range"));
         }
-        return isType(
-            field(),
-            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM,
-            sourceText(),
-            DEFAULT,
-            "any type except counter types or histogram"
-        );
+        return isType(field(), dt -> dt != DataType.HISTOGRAM, sourceText(), DEFAULT, "any type except histogram");
     }
 
     @Override

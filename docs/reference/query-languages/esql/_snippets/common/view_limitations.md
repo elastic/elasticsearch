@@ -96,12 +96,12 @@ destination index as the source in the view definition.
 #### Data Federation datasets
 ```yaml {applies_to}
 stack: preview 9.6+, experimental =9.5
-serverless: unavailable
+serverless: preview
 ```
 
 A view definition can read from a [dataset](/reference/query-languages/esql/esql-data-federation-datasets.md), which [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) uses to query external data.
 
-{applies_to}`stack: preview 9.6+` A wildcard in the view definition
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` A wildcard in the view definition
 matches datasets only when the view definition sets `wildcards_match_datasets`
 to `true`.
 
@@ -116,7 +116,7 @@ Only the following settings are supported in a view definition:
 |---|---|
 | [`unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) | `DEFAULT`, `NULLIFY`, and `LOAD` |
 | [`wildcards_match_views`](/reference/query-languages/esql/directives/set.md#esql-wildcards_match_views) | `true` and `false` |
-| [`wildcards_match_datasets`](/reference/query-languages/esql/directives/set.md#esql-wildcards_match_datasets) {applies_to}`stack: preview 9.6+` | `true` and `false` |
+| [`wildcards_match_datasets`](/reference/query-languages/esql/directives/set.md#esql-wildcards_match_datasets) {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` | `true` and `false` |
 
 {applies_to}`{"stack": "preview 9.6+", "serverless": "preview"}` `LOAD_ALL`
 is not supported in a view definition.
@@ -177,7 +177,7 @@ serverless: ga
 A view that starts with [`TS`](/reference/query-languages/esql/commands/ts.md)
 must also contain a `STATS` command after it. A view without `STATS` is
 rejected when you create or update it. This ensures the view returns plain
-tabular results. A `PROMQL` view must also use an aggregation function.
+tabular results.
 
 Query a time series view with `FROM view_name`. A view name cannot be used as a
 source in `TS` or `PROMQL`. An exact view name in one of those source commands is

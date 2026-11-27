@@ -94,21 +94,76 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals(-1L, stats.columnValueCount("does_not_exist"));
     }
 
-    public void testMergedMinMaxTreatNaNAsUnmergeable() {
-        // A NaN MERGED with a real value is unmergeable -> null (poison) -> the column safe-misses and a
-        // full scan returns the correct NaN. Comparable.compareTo would otherwise order NaN as the largest
-        // double and silently drop it from a MIN.
-        assertNull(SplitStats.mergedMin(Double.NaN, 5.0));
-        assertNull(SplitStats.mergedMin(5.0, Double.NaN));
-        assertNull(SplitStats.mergedMax(Double.NaN, 5.0));
-        assertNull(SplitStats.mergedMax(5.0, Double.NaN));
-        // Non-NaN doubles still merge normally.
+    public void testMergedMinMaxSkipNaN() {
+        assertEquals(5.0, SplitStats.mergedMin(Double.NaN, 5.0));
+        assertEquals(5.0, SplitStats.mergedMin(5.0, Double.NaN));
+        assertEquals(5.0, SplitStats.mergedMax(Double.NaN, 5.0));
+        assertEquals(5.0, SplitStats.mergedMax(5.0, Double.NaN));
+        assertEquals(5.0f, SplitStats.mergedMin(Float.NaN, 5.0f));
+        // NaN is the answer only when every contribution is NaN.
+        assertEquals(Double.NaN, SplitStats.mergedMin(Double.NaN, Double.NaN));
+        assertEquals(Double.NaN, SplitStats.mergedMax(Double.NaN, Double.NaN));
         assertEquals(1.0, SplitStats.mergedMin(1.0, 2.0));
         assertEquals(2.0, SplitStats.mergedMax(1.0, 2.0));
-        // A lone NaN contribution (other side null) is the column's value and is served as NaN — the poison
-        // only fires when NaN actually meets another value in a fold.
         assertEquals(Double.NaN, SplitStats.mergedMin(Double.NaN, null));
         assertEquals(Double.NaN, SplitStats.mergedMax(null, Double.NaN));
+        assertEquals(5.0, SplitStats.mergedMin(Float.NaN, 5.0));
+        assertEquals(5.0f, SplitStats.mergedMax(5.0f, Double.NaN));
+        assertEquals(-0.0, SplitStats.mergedMin(0.0, -0.0));
+        assertEquals(0.0, SplitStats.mergedMax(-0.0, 0.0));
+    }
+
+    public void testMergedMinMaxOrderSignedZeroAcrossFloatAndDouble() {
+        assertEquals(0.0, SplitStats.mergedMax(-0.0f, 0.0));
+        assertEquals(0.0, SplitStats.mergedMax(0.0, -0.0f));
+        assertEquals(-0.0, SplitStats.mergedMin(0.0f, -0.0));
+        assertEquals(-0.0, SplitStats.mergedMin(-0.0, 0.0f));
+        assertEquals(0.0, SplitStats.mergedMax(SplitStats.mergedMax(Double.NaN, -0.0f), 0.0));
+        assertEquals(-0.0, SplitStats.mergedMin(SplitStats.mergedMin(Double.NaN, 0.0f), -0.0));
+    }
+
+    public void testFoldOfAnAllNaNSplitKeepsTheFiniteBoundsOfItsSiblings() {
+        SplitStats finiteLow = splitWithBounds(5, 1.0, 5.0);
+        SplitStats allNaN = splitWithBounds(5, Double.NaN, Double.NaN);
+        SplitStats finiteHigh = splitWithBounds(5, 10.0, 20.0);
+
+        SplitStats folded = SplitStats.fold(List.of(finiteLow, allNaN, finiteHigh), false);
+
+        assertEquals(1.0, folded.columnMin("d"));
+        assertEquals(20.0, folded.columnMax("d"));
+        assertEquals(15L, folded.rowCount());
+    }
+
+    public void testFoldOfOnlyAllNaNSplitsKeepsNaNAsTheAnswer() {
+        SplitStats folded = SplitStats.fold(
+            List.of(splitWithBounds(5, Double.NaN, Double.NaN), splitWithBounds(5, Double.NaN, Double.NaN)),
+            false
+        );
+
+        assertEquals(Double.NaN, folded.columnMin("d"));
+        assertEquals(Double.NaN, folded.columnMax("d"));
+    }
+
+    public void testFoldOfASplitWithoutPublishedBoundsMakesTheBoundsUnservable() {
+        SplitStats.Builder noBounds = new SplitStats.Builder().rowCount(5);
+        int d = noBounds.addColumn("d");
+        noBounds.nullCount(d, 0L);
+        noBounds.valueCount(d, 5L);
+
+        SplitStats folded = SplitStats.fold(List.of(splitWithBounds(5, 1.0, 5.0), noBounds.build(), splitWithBounds(5, 10.0, 20.0)), false);
+
+        assertNull("a split with unknown values makes the minimum unservable", folded.columnMin("d"));
+        assertNull("a split with unknown values makes the maximum unservable", folded.columnMax("d"));
+    }
+
+    private static SplitStats splitWithBounds(long rows, double min, double max) {
+        SplitStats.Builder builder = new SplitStats.Builder().rowCount(rows);
+        int d = builder.addColumn("d");
+        builder.nullCount(d, 0L);
+        builder.valueCount(d, rows);
+        builder.min(d, min);
+        builder.max(d, max);
+        return builder.build();
     }
 
     public void testValueCountWireGatedByTransportVersion() throws IOException {
@@ -357,6 +412,66 @@ public class SplitStatsTests extends ESTestCase {
             case 2 -> (double) randomIntBetween(-100, 100);
             default -> Double.NaN;
         };
+    }
+
+    /**
+     * A fold must key its result on the name strings its pieces already hold, not on copies of them.
+     * <p>
+     * Staging folds a stripe's pieces as it reads, so this runs once per join and the result is what the read
+     * then holds. A fold that re-derived the names would therefore hand every stripe of a read its own copy of
+     * the schema's column names, which is the per-record cost this change exists to remove, reappearing one
+     * level down.
+     * <p>
+     * Identity is the assertion rather than equality. The two were always equal, so {@code assertEquals} would
+     * pass whichever way the fold builds the name and would discriminate nothing. A piece holds the producer's
+     * own string because {@link SplitStats.Builder#addColumn} stores what {@code String.split} hands it, and
+     * {@code split} returns the original string itself for a name with no separator in it; the fold reaches that
+     * same string only by returning it from the dictionary instead of rebuilding it through a buffer.
+     * <p>
+     * The dotted column is here for the other half: the single-segment shortcut must not have broken the join
+     * that a multi-segment name still needs. Its segments are copied by {@code split} on both paths, so there is
+     * no identity to assert for it — only that it still resolves.
+     */
+    public void testAFoldKeepsThePiecesOwnColumnNameStrings() {
+        // Equal to "value" but a distinct object, as a name parsed out of a header buffer is. A literal here
+        // would be interned, the fold's rebuilt copy would NOT be, and the assertion would then pass for the
+        // wrong reason on one side and fail on the other; building it through a buffer is also what really
+        // happens to a header cell.
+        String parsed = new StringBuilder("value").toString();
+        assertNotSame("the fixture must not hand both sides one interned literal", "value", parsed);
+
+        SplitStats left = onePiece(parsed, 1L);
+        SplitStats right = onePiece(parsed, 2L);
+
+        // The positive control: the pieces really do carry the one object, so an identity failure below is the
+        // fold's doing and not the fixture's.
+        assertSame("a piece must hold the string it was built from", parsed, left.columnName(left.findColumn("value")));
+        assertSame("a piece must hold the string it was built from", parsed, right.columnName(right.findColumn("value")));
+
+        SplitStats folded = SplitStats.fold(List.of(left, right), false);
+        assertNotNull("two pieces of one stripe must fold", folded);
+
+        int flat = folded.findColumn("value");
+        assertTrue("the fold must keep the flat column", flat >= 0);
+        assertSame("a folded record must reference its pieces' name string, not a copy of it", parsed, folded.columnName(flat));
+
+        int dotted = folded.findColumn("nested.b");
+        assertTrue("the fold must keep the dotted column", dotted >= 0);
+        assertEquals("a dotted name must still be joined from its segments", "nested.b", folded.columnName(dotted));
+    }
+
+    /** One stripe piece: a flat column named {@code flatName} and a dotted one, both carrying {@code value}. */
+    private static SplitStats onePiece(String flatName, long value) {
+        SplitStats.Builder builder = new SplitStats.Builder().rowCount(1);
+        int flat = builder.addColumn(flatName);
+        builder.nullCount(flat, 0L);
+        builder.valueCount(flat, 1L);
+        builder.min(flat, value);
+        builder.max(flat, value);
+        int dotted = builder.addColumn("nested.b");
+        builder.nullCount(dotted, 0L);
+        builder.valueCount(dotted, 1L);
+        return builder.build();
     }
 
     public void testBulkAddColumn() {

@@ -116,12 +116,13 @@ public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.Stored
     }
 
     /**
-     * Returns the raw byte size of the last loaded _source. This is useful for estimating
+     * Returns the raw byte size of the _source held for the last loaded one: its own, or that of the larger source it was cut
+     * from, such as a nested child's from its parent's. This is useful for estimating
      * the untracked memory overhead from source parsing (parsed Java Strings occupy
      * approximately 2x the raw byte size due to UTF-16 encoding).
      */
     public long lastSourceBytesSize() {
-        return source != null && source.internalSourceRef() != null ? source.internalSourceRef().length() : 0;
+        return source == null ? 0 : sourceLoader.sourceBytesHeld(source);
     }
 
     /**

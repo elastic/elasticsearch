@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 164886
+pr: 166666
+summary: Fix `t_test` losing values of sample b when used as a sub-aggregation
+type: bug

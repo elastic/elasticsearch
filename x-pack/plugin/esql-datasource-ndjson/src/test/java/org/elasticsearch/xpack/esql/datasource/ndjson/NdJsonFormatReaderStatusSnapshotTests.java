@@ -111,6 +111,21 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
         );
     }
 
+    public void testPerReadBlockFactoryCopyUsesTheSameCounters() throws IOException {
+        NdJsonFormatReader node = new NdJsonFormatReader(null, blockFactory);
+        BlockFactory other = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        NdJsonFormatReader perRead = node.withBlockFactory(other);
+        assertNotSame(node, perRead);
+        NdJsonReaderCounters counters = (NdJsonReaderCounters) node.newReadCounters();
+
+        drain(perRead, counters);
+
+        assertTrue(
+            "withBlockFactory runs per read; passing the same counters object threads work through to the caller",
+            counters.snapshot().rowsEmitted() > 0
+        );
+    }
+
     private static final List<Attribute> SCHEMA = List.of(
         new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG),
         new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)

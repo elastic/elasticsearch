@@ -51,3 +51,4 @@ The source command can be followed by zero or more piped processing commands:
 
 * [Use subqueries in a `FROM` command](/reference/query-languages/esql/esql-from-subquery.md): combine result sets from independently processed sources.
 * [Use subqueries with `IN` and `NOT IN`](/reference/query-languages/esql/esql-in-subquery.md): filter or evaluate rows against another query.
+* [Runtime search](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring): how a full-text search after a `FROM` with subqueries contributes to `_score`.

@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -108,9 +110,9 @@ public class MutableRoutingAllocationTests extends ESAllocationTestCase {
                 relocating,
                 targetNodeId,
                 0L,
-                "test",
+                MoveReason.CANNOT_REMAIN,
                 allocation.changes(),
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
 
         // cache was invalidated; recomputed with only shard1 started → 1.0

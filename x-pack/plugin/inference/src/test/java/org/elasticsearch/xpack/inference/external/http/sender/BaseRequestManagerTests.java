@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -15,7 +14,6 @@ import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -31,8 +29,7 @@ public class BaseRequestManagerTests extends ESTestCase {
             public void execute(
                 InferenceInputs inferenceInputs,
                 RequestSender requestSender,
-                Supplier<Boolean> hasRequestCompletedFunction,
-                ActionListener<InferenceServiceResults> listener
+                TimedListener<InferenceServiceResults> timedListener
             ) {
 
             }
@@ -43,8 +40,7 @@ public class BaseRequestManagerTests extends ESTestCase {
             public void execute(
                 InferenceInputs inferenceInputs,
                 RequestSender requestSender,
-                Supplier<Boolean> hasRequestCompletedFunction,
-                ActionListener<InferenceServiceResults> listener
+                TimedListener<InferenceServiceResults> timedListener
             ) {
 
             }
@@ -61,8 +57,7 @@ public class BaseRequestManagerTests extends ESTestCase {
             public void execute(
                 InferenceInputs inferenceInputs,
                 RequestSender requestSender,
-                Supplier<Boolean> hasRequestCompletedFunction,
-                ActionListener<InferenceServiceResults> listener
+                TimedListener<InferenceServiceResults> timedListener
             ) {
 
             }
@@ -73,8 +68,7 @@ public class BaseRequestManagerTests extends ESTestCase {
             public void execute(
                 InferenceInputs inferenceInputs,
                 RequestSender requestSender,
-                Supplier<Boolean> hasRequestCompletedFunction,
-                ActionListener<InferenceServiceResults> listener
+                TimedListener<InferenceServiceResults> timedListener
             ) {
 
             }
@@ -91,8 +85,7 @@ public class BaseRequestManagerTests extends ESTestCase {
             public void execute(
                 InferenceInputs inferenceInputs,
                 RequestSender requestSender,
-                Supplier<Boolean> hasRequestCompletedFunction,
-                ActionListener<InferenceServiceResults> listener
+                TimedListener<InferenceServiceResults> timedListener
             ) {
 
             }
@@ -103,8 +96,7 @@ public class BaseRequestManagerTests extends ESTestCase {
             public void execute(
                 InferenceInputs inferenceInputs,
                 RequestSender requestSender,
-                Supplier<Boolean> hasRequestCompletedFunction,
-                ActionListener<InferenceServiceResults> listener
+                TimedListener<InferenceServiceResults> timedListener
             ) {
 
             }

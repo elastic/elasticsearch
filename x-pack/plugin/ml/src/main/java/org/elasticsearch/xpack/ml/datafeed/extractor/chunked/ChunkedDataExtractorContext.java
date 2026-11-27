@@ -17,7 +17,8 @@ record ChunkedDataExtractorContext(
     TimeAligner timeAligner,
     boolean hasAggregations,
     Long histogramInterval,
-    boolean hasEsqlQuery
+    boolean hasEsqlQuery,
+    long singleChunkSpan
 ) {
     interface TimeAligner {
         long alignToFloor(long value);

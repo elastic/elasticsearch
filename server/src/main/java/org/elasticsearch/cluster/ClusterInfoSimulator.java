@@ -12,6 +12,7 @@ package org.elasticsearch.cluster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -247,7 +248,7 @@ public class ClusterInfoSimulator {
         final long expectedShardSize = startedShard.getExpectedShardSize();
         // Use the unknown recovery priority here: it does not make any difference to the calculation, and this routing will not be added to
         // the cluster state:
-        ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
+        RecoveryPriority recoveryPriority = RecoveryPriority.UNKNOWN;
         if (sourceNodeId != null) {
             final var relocatingShard = startedShard.moveToUnassigned(new UnassignedInfo(REINITIALIZED, "simulation"), recoveryPriority)
                 .initialize(sourceNodeId, null, expectedShardSize)

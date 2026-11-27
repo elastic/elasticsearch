@@ -44,7 +44,7 @@ public final class MvSumUnsignedLongEvaluator extends AbstractMultivalueFunction
   public Block evalNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         if (v.isNull(p)) {
           builder.appendNull();

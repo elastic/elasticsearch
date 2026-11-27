@@ -17,7 +17,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -35,6 +37,7 @@ import java.time.DateTimeException;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
+import java.util.function.IntToLongFunction;
 
 /**
  * The single source of truth for declared-type coercion on external datasets: which
@@ -91,9 +94,11 @@ import java.util.function.IntFunction;
  *       including below the epoch, where {@code ::datetime} nulls the value instead, because that
  *       bound belongs to {@code date_nanos} and not to {@code date}. This is what lets an annotated
  *       {@code TIMESTAMP(MICROS|NANOS)} column (which infers as {@code date_nanos}) be declared
- *       {@code date}, the conventional dashboard type, for any instant a signed epoch-nanosecond long can hold
- *       (1677-09-21 to 2262-04-11): a {@code TIMESTAMP(NANOS)} value always does, and a {@code TIMESTAMP(MICROS)}
- *       value outside that range is nulled on read before the narrowing runs.
+ *       {@code date}, the conventional dashboard type. The readable range is the declared type's own, not
+ *       {@code date_nanos}': the pair is {@link #fusedInDecode fused}, so a reader that honors the predicate scales
+ *       microseconds straight to milliseconds and materialises no nanosecond intermediate, whose own domain
+ *       would confine the value to 1677-09-21 .. 2262-04-11. This arm still runs for a reader that does not, and for a
+ *       {@code date_nanos} column the planner itself produced.
  *       Numeric sources follow the unit rule below
  *       ({@code date} = millis when no format is declared; a {@code double} rounds to the nearest
  *       milli, the {@code ::datetime} semantic);</li>
@@ -247,14 +252,15 @@ public final class DeclaredTypeCoercions {
      * The coercible pairs the columnar decode loops implement directly (fused into the decode,
      * no {@link #castBlock} pass): the lossless {@code integer → long} widen, the
      * {@code long → datetime} epoch-millis reinterpret <b>of a column with no declared format</b>, the
-     * {@code string → datetime} parse with the column's declared {@code format}, and the
-     * {@code keyword ↔ text} relabel (same bytes). Every other {@link #supports supported} pair decodes at
-     * the file's own type and coerces through {@link #castBlock}.
+     * {@code string → datetime} parse with the column's declared {@code format}, the
+     * {@code date_nanos → datetime} unit scale, and the {@code keyword ↔ text} relabel (same bytes). Every other
+     * {@link #supports supported} pair decodes at the file's own type and coerces through {@link #castBlock}.
      * <p>
      * This no-format overload is the plain predicate; the readers call
      * {@link #fusedInDecode(DataType, DataType, boolean)} so that a format-carrying whole-number column
-     * defuses onto {@code castBlock}. Both Parquet and ORC consult that one predicate, so the two readers
-     * cannot disagree about which path a pair takes.
+     * defuses onto {@code castBlock}. Both Parquet and ORC consult that one predicate, so the two readers cannot
+     * disagree about which path a pair takes — though only Parquet can reach {@code date_nanos → datetime}, ORC
+     * having no leaf type that renders {@code date_nanos}.
      */
     public static boolean fusedInDecode(DataType from, DataType to) {
         return fusedInDecode(from, to, false);
@@ -267,7 +273,9 @@ public final class DeclaredTypeCoercions {
      * column defuses onto {@link #castBlock}, whose {@code DATETIME} arm parses the value through the
      * format (the epoch-unit / parse-dialect semantic the text readers already implement). The
      * {@code string → datetime} pair stays fused either way — its fused BINARY decode arm already threads
-     * the declared formatter.
+     * the declared formatter — and so does {@code date_nanos → datetime}, whose {@code castBlock} arm ignores
+     * the format because the annotation has already stated the unit. A caller that decodes a fused pair natively
+     * therefore has to carry the formatter: the flag says which path a pair takes, never that no format exists.
      */
     public static boolean fusedInDecode(DataType from, DataType to, boolean hasDeclaredFormat) {
         if (from == to) {
@@ -279,11 +287,31 @@ public final class DeclaredTypeCoercions {
         if (from == DataType.LONG && to == DataType.DATETIME) {
             return hasDeclaredFormat == false;
         }
+        // A column the file renders date_nanos, read as `date`. Fused because nanoseconds cap the value at
+        // 1677..2262 and milliseconds do not; the two scales agree wherever raw * 1_000 does not overflow, which is
+        // all the two-step route could carry. A declared format does not defuse it -- castBlock's arm ignores it.
+        if (from == DataType.DATE_NANOS && to == DataType.DATETIME) {
+            return true;
+        }
         boolean fromString = from == DataType.KEYWORD || from == DataType.TEXT;
         if (fromString && (to == DataType.KEYWORD || to == DataType.TEXT)) {
             return true;
         }
         return fromString && to == DataType.DATETIME;
+    }
+
+    /**
+     * Whether a column stored as {@code fileType} must be decoded at that type and then cast to reach
+     * {@code declared}. Every columnar read path asks this here rather than restating the terms, so none of
+     * them can answer it differently.
+     *
+     * @param fileType the stored type, or {@code null} from a caller with no stored type, which declines
+     */
+    public static boolean needsBlockCast(@Nullable DataType fileType, DataType declared, boolean hasDeclaredFormat) {
+        return fileType != null
+            && declared != fileType
+            && fusedInDecode(fileType, declared, hasDeclaredFormat) == false
+            && supports(fileType, declared);
     }
 
     /**
@@ -345,6 +373,17 @@ public final class DeclaredTypeCoercions {
         }
         if (source.areAllValuesNull()) {
             return blockFactory.newConstantNullBlock(positions);
+        }
+        // INTEGER/LONG + a pure epoch format (epoch_second / epoch_millis) is an exact linear scale, already
+        // named by declaredEpochFormatScale. Scaling the primitive in place avoids boxing every cell and
+        // parsing String.valueOf(v) through the date formatter. UNSIGNED_LONG, DOUBLE, calendar formats and
+        // compound patterns (epoch_second||epoch_millis) stay on the boxed parse arm below. fusedInDecode is
+        // unchanged: a format-carrying whole-number column still defuses onto this method.
+        if ((from == DataType.INTEGER || from == DataType.LONG) && declaredFormat != null) {
+            Long scale = declaredEpochFormatScale(declaredFormat.pattern(), to);
+            if (scale != null) {
+                return castEpochIntegral(source, from, to, scale, blockFactory, columnName, warnings, failedPositionSink);
+            }
         }
         Function<Object, Object> coercer = scalarCoercer(from, to, declaredFormat);
         IntFunction<Object> read = valueReader(source, from);
@@ -558,7 +597,7 @@ public final class DeclaredTypeCoercions {
             // the string-coercion arm was the lone path rejecting non-finite doubles. A string source
             // parses with Double.parseDouble (accepts NaN/Infinity, still rejects garbage via NFE); a
             // numeric source (declared double over a physical int/long/unsigned_long) widens.
-            case DOUBLE -> fromString ? v -> Double.parseDouble((String) v) : v -> ((Number) v).doubleValue();
+            case DOUBLE -> fromString ? v -> parseDoubleText((String) v) : v -> ((Number) v).doubleValue();
             case UNSIGNED_LONG -> DeclaredTypeCoercions::exactToUnsignedLong;
             case BOOLEAN -> v -> strictParseBoolean((String) v);
             case DATETIME -> {
@@ -610,6 +649,8 @@ public final class DeclaredTypeCoercions {
                     // Whole-number source with a declared format: the format is the parse dialect / epoch unit,
                     // exactly as the text readers already treat it (NdJsonPageDecoder.decodeDatetimeValue,
                     // CsvFormatReader.tryParseDatetime): epoch_second reads seconds, yyyyMMdd reads 20260101.
+                    // INTEGER and LONG with a pure epoch format never reach here: castBlock scales them
+                    // arithmetically. UNSIGNED_LONG, calendar formats and compound patterns stay on this parse.
                     yield v -> parseDatetimeMillis(String.valueOf(v), declaredFormat);
                 }
                 // Whole-number source, no format: epoch-millis reinterpret; the mapper coercion supplies the range check.
@@ -632,6 +673,8 @@ public final class DeclaredTypeCoercions {
                         // The unit rule, same as the DATETIME arm: a declared format names the unit / parse
                         // dialect of the number, overriding the type's default. Without this a column declared
                         // {date_nanos, format: epoch_second} would silently reinterpret seconds as nanos.
+                        // INTEGER and LONG with a pure epoch format never reach here: castBlock scales them
+                        // arithmetically. UNSIGNED_LONG and calendar / compound formats stay on this parse.
                         yield v -> EsqlDataTypeConverter.dateNanosToLong(String.valueOf(v), declaredFormat);
                     }
                     // No format: the number is epoch millis (the unit rule), widened to nanos exactly like a
@@ -684,6 +727,65 @@ public final class DeclaredTypeCoercions {
             return false;
         }
         throw new InvalidArgumentException("Cannot parse [{}] as boolean; expected [true] or [false]", value);
+    }
+
+    /**
+     * Whether {@code text} avoids the number spellings that only Java's parsers define: a type suffix
+     * ({@code 10D}), a hexadecimal float ({@code 0x1p3}) and digits outside ASCII. Text that fails this check
+     * is not a number in a data file, whatever {@code Double.parseDouble} or {@code Character.digit} accept.
+     */
+    public static boolean isPlainNumberText(String text) {
+        int end = text.length();
+        while (end > 0 && text.charAt(end - 1) <= ' ') {
+            end--;
+        }
+        if (end == 0) {
+            return false;
+        }
+        for (int i = 0; i < end; i++) {
+            if (isJavaOnlyNumberChar(text.charAt(i))) {
+                return false;
+            }
+        }
+        return isTypeSuffix(text.charAt(end - 1)) == false;
+    }
+
+    /** {@link #isPlainNumberText(String)} over the {@code len} chars of {@code buf} starting at {@code start}. */
+    public static boolean isPlainNumberText(char[] buf, int start, int len) {
+        int end = start + len;
+        while (end > start && buf[end - 1] <= ' ') {
+            end--;
+        }
+        if (end == start) {
+            return false;
+        }
+        for (int i = start; i < end; i++) {
+            if (isJavaOnlyNumberChar(buf[i])) {
+                return false;
+            }
+        }
+        return isTypeSuffix(buf[end - 1]) == false;
+    }
+
+    private static boolean isJavaOnlyNumberChar(char c) {
+        return c > 127 || c == 'x' || c == 'X' || c == 'p' || c == 'P';
+    }
+
+    private static boolean isTypeSuffix(char c) {
+        return c == 'd' || c == 'D' || c == 'f' || c == 'F';
+    }
+
+    /**
+     * {@link Double#parseDouble} restricted to {@link #isPlainNumberText plain number text}; {@code NaN} and
+     * {@code Infinity} still pass.
+     *
+     * @throws NumberFormatException if the text is not a plain number
+     */
+    public static double parseDoubleText(String text) {
+        if (text.isBlank() == false && isPlainNumberText(text) == false) {
+            throw new NumberFormatException("Cannot parse number [" + text + "]");
+        }
+        return Double.parseDouble(text);
     }
 
     /**
@@ -757,6 +859,9 @@ public final class DeclaredTypeCoercions {
         if (value instanceof BigDecimal bigDecimal) {
             bd = bigDecimal;
         } else {
+            if (value.toString().isBlank() == false && isPlainNumberText(value.toString()) == false) {
+                throw new InvalidArgumentException("Cannot parse number [{}]", value);
+            }
             try {
                 bd = new BigDecimal(value.toString());
             } catch (NumberFormatException e) {
@@ -792,6 +897,7 @@ public final class DeclaredTypeCoercions {
      * Not used for reading a file value into a declared {@code unsigned_long} column — that path is
      * {@link #exactToUnsignedLong}. Kept for Hive partition folder names ({@code HivePartitionDetector})
      * and statistics serialization, where every value reaching this method is already integral.
+     * Text is parsed with {@link BigDecimal} as given; screening it with {@link #isPlainNumberText} is the caller's job.
      * <p>
      * Public for the same reason as {@link #strictParseBoolean} and {@link #parseDatetimeMillis}: callers
      * outside this class still need the truncate-toward-zero scalar.
@@ -1168,5 +1274,243 @@ public final class DeclaredTypeCoercions {
         // A format is only legal on a declared date/date_nanos (DeclaredSchemaValidator.validateFormat), so any
         // other declared type never reaches a scale question.
         return null;
+    }
+
+    /**
+     * Scales an INTEGER or LONG block through a pure epoch format without boxing or parsing.
+     * Range is checked against the raw input <em>before</em> multiplying so an overflowing
+     * {@code Long.MAX_VALUE} epoch-second cannot escape as {@link ArithmeticException} and abort
+     * the page; the failure is {@link IllegalArgumentException} and rides {@link #onCoercionFailure}
+     * like every other per-cell error.
+     */
+    private static Block castEpochIntegral(
+        Block source,
+        DataType from,
+        DataType to,
+        long scale,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink
+    ) {
+        long minRaw = epochMinRaw(to, scale);
+        long maxRaw = epochMaxRaw(to, scale);
+        if (from == DataType.INTEGER) {
+            IntBlock ints = (IntBlock) source;
+            IntVector vector = ints.asVector();
+            if (vector != null) {
+                return castEpochDense(
+                    i -> vector.getInt(i),
+                    source.getPositionCount(),
+                    scale,
+                    minRaw,
+                    maxRaw,
+                    from,
+                    to,
+                    blockFactory,
+                    columnName,
+                    warnings,
+                    failedPositionSink
+                );
+            }
+            return castEpochPositions(
+                ints,
+                i -> ints.getInt(i),
+                scale,
+                minRaw,
+                maxRaw,
+                from,
+                to,
+                blockFactory,
+                columnName,
+                warnings,
+                failedPositionSink
+            );
+        }
+        LongBlock longs = (LongBlock) source;
+        LongVector vector = longs.asVector();
+        if (vector != null) {
+            return castEpochDense(
+                vector::getLong,
+                source.getPositionCount(),
+                scale,
+                minRaw,
+                maxRaw,
+                from,
+                to,
+                blockFactory,
+                columnName,
+                warnings,
+                failedPositionSink
+            );
+        }
+        return castEpochPositions(
+            longs,
+            i -> longs.getLong(i),
+            scale,
+            minRaw,
+            maxRaw,
+            from,
+            to,
+            blockFactory,
+            columnName,
+            warnings,
+            failedPositionSink
+        );
+    }
+
+    private static Block castEpochDense(
+        IntToLongFunction readRaw,
+        int positions,
+        long scale,
+        long minRaw,
+        long maxRaw,
+        DataType from,
+        DataType to,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink
+    ) {
+        boolean skipRow = failedPositionSink != null;
+        try (LongBlock.Builder builder = (LongBlock.Builder) builderFor(to, blockFactory, positions)) {
+            for (int pos = 0; pos < positions; pos++) {
+                try {
+                    builder.appendLong(scaleEpoch(readRaw.applyAsLong(pos), scale, minRaw, maxRaw));
+                } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
+                    onCoercionFailure(columnName, from, to, e, warnings);
+                    if (skipRow) failedPositionSink.accept(pos);
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private static Block castEpochPositions(
+        Block source,
+        IntToLongFunction readRaw,
+        long scale,
+        long minRaw,
+        long maxRaw,
+        DataType from,
+        DataType to,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink
+    ) {
+        int positions = source.getPositionCount();
+        boolean skipRow = failedPositionSink != null;
+        try (LongBlock.Builder builder = (LongBlock.Builder) builderFor(to, blockFactory, positions)) {
+            for (int pos = 0; pos < positions; pos++) {
+                int count = source.getValueCount(pos);
+                if (source.isNull(pos) || count == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int first = source.getFirstValueIndex(pos);
+                if (count == 1) {
+                    try {
+                        builder.appendLong(scaleEpoch(readRaw.applyAsLong(first), scale, minRaw, maxRaw));
+                    } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
+                        onCoercionFailure(columnName, from, to, e, warnings);
+                        if (skipRow) failedPositionSink.accept(pos);
+                        builder.appendNull();
+                    }
+                } else {
+                    boolean open = false;
+                    for (int v = 0; v < count; v++) {
+                        long scaled;
+                        try {
+                            scaled = scaleEpoch(readRaw.applyAsLong(first + v), scale, minRaw, maxRaw);
+                        } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
+                            if (skipRow) {
+                                onCoercionFailure(columnName, from, to, e, warnings);
+                                failedPositionSink.accept(pos);
+                                break;
+                            }
+                            onCoercionFailure(columnName, from, to, e, warnings, true);
+                            continue;
+                        }
+                        if (open == false) {
+                            builder.beginPositionEntry();
+                            open = true;
+                        }
+                        builder.appendLong(scaled);
+                    }
+                    if (open) {
+                        builder.endPositionEntry();
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Inclusive minimum raw tick that {@code raw * scale} can store in {@code to}. DATE_NANOS rejects
+     * pre-epoch (the {@link DateUtils#toLong} / {@code TO_DATE_NANOS} floor). DATETIME identity
+     * ({@code epoch_millis}) admits every long; {@code epoch_second} is bounded so {@code * 1000}
+     * cannot overflow.
+     */
+    private static long epochMinRaw(DataType to, long scale) {
+        if (to == DataType.DATE_NANOS) {
+            return 0L;
+        }
+        if (scale == 1L) {
+            // Identity. Long.MIN_VALUE is a valid epoch-millis instant; the string parser cannot
+            // round-trip it (unsigned magnitude is Long.MAX_VALUE+1), so this path is strictly more
+            // complete than parseDatetimeMillis(String.valueOf(Long.MIN_VALUE)).
+            return Long.MIN_VALUE;
+        }
+        return Math.ceilDiv(Long.MIN_VALUE, scale);
+    }
+
+    /**
+     * Inclusive maximum raw tick that {@code raw * scale} can store in {@code to}. DATE_NANOS is
+     * capped at {@link DateUtils#MAX_NANOSECOND} (year 2262); DATETIME {@code epoch_second} at the
+     * last seconds value whose millis still fit in a long.
+     */
+    private static long epochMaxRaw(DataType to, long scale) {
+        if (to == DataType.DATE_NANOS) {
+            return DateUtils.MAX_NANOSECOND / scale;
+        }
+        if (scale == 1L) {
+            return Long.MAX_VALUE;
+        }
+        return Long.MAX_VALUE / scale;
+    }
+
+    /** Range-check {@code raw} then multiply. Never {@link Math#multiplyExact}: overflow is a per-cell IAE. */
+    private static long scaleEpoch(long raw, long scale, long minRaw, long maxRaw) {
+        if (raw < minRaw || raw > maxRaw) {
+            throw new IllegalArgumentException("epoch value [" + raw + "] is out of range for the declared date type");
+        }
+        return raw * scale;
+    }
+
+    /**
+     * Footer-stats twin of {@link #scaleEpoch}: range-check {@code raw} against the same
+     * {@link #epochMinRaw}/{@link #epochMaxRaw} bounds {@link #castEpochIntegral} uses, then multiply.
+     * Returns {@code null} when the raw tick cannot be stored in {@code to} — callers poison rather than
+     * serving a truncated extremum. Does not use {@link #rawStatToDecoded}: that {@code multiplyExact}s and
+     * DATE_NANOS decode rejects pre-epoch ({@code epochMinRaw} is 0) while a negative raw second would
+     * still decode-fail in the scan.
+     *
+     * @param raw   the file's physical min or max tick (INTEGER/LONG footer value, already {@code longValue()}d)
+     * @param to    declared {@code datetime} or {@code date_nanos}
+     * @param scale units-per-tick from {@link #declaredEpochFormatScale}
+     */
+    @Nullable
+    public static Long scaleEpochExtremum(long raw, DataType to, long scale) {
+        long minRaw = epochMinRaw(to, scale);
+        long maxRaw = epochMaxRaw(to, scale);
+        if (raw < minRaw || raw > maxRaw) {
+            return null;
+        }
+        return raw * scale;
     }
 }

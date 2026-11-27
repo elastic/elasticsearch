@@ -35,6 +35,8 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -129,23 +131,36 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         return ShardIterator.allSearchableShards(iterator);
     }
 
+    /**
+     * Charges the sources this shard loads to the request breaker until {@code listener} has been completed, see
+     * {@link SourceBytesReservation}.
+     */
     @Override
-    protected void asyncShardOperation(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)
-        throws IOException {
+    protected void asyncShardOperation(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener) {
+        final var reservation = new SourceBytesReservation(indicesService.getCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
+        asyncShardOperation(request, shardId, reservation, ActionListener.releaseAfter(listener, reservation));
+    }
+
+    private void asyncShardOperation(
+        MultiGetShardRequest request,
+        ShardId shardId,
+        SourceBytesReservation reservation,
+        ActionListener<MultiGetShardResponse> listener
+    ) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
-            handleMultiGetOnUnpromotableShard(request, shardId, listener);
+            handleMultiGetOnUnpromotableShard(request, shardId, reservation, listener);
             return;
         }
         assert DiscoveryNode.isStateless(clusterService.getSettings()) == false
             : "in Stateless a promotable to primary shard should not receive a TransportShardMultiGetAction";
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
-            asyncShardMultiGet(request, shardId, listener);
+            asyncShardMultiGet(request, shardId, reservation, listener);
         } else {
             indexShard.ensureShardSearchActive(b -> {
                 try {
-                    asyncShardMultiGet(request, shardId, listener);
+                    asyncShardMultiGet(request, shardId, reservation, listener);
                 } catch (Exception ex) {
                     listener.onFailure(ex);
                 }
@@ -155,13 +170,27 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     @Override
     protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
+        assert false : "unused, since asyncShardOperation is overridden to charge the loaded sources";
+        throw new UnsupportedOperationException();
+    }
+
+    private MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId, SourceBytesReservation reservation) {
         MultiGetShardResponse response = new MultiGetShardResponse();
         getIndexShard(shardId).mget(mget -> {
             for (int i = 0; i < request.locations.size(); i++) {
-                getAndAddToResponse(shardId, mget, i, request, response);
+                getAndAddToResponse(shardId, mget, i, request, reservation, response);
             }
         });
         return response;
+    }
+
+    private void executeShardOperation(
+        MultiGetShardRequest request,
+        ShardId shardId,
+        SourceBytesReservation reservation,
+        ActionListener<MultiGetShardResponse> listener
+    ) {
+        getExecutor(shardId).execute(ActionRunnable.supplyAndDecRef(listener, () -> shardOperation(request, shardId, reservation)));
     }
 
     @Override
@@ -177,8 +206,9 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private void handleMultiGetOnUnpromotableShard(
         MultiGetShardRequest request,
         ShardId shardId,
+        SourceBytesReservation reservation,
         ActionListener<MultiGetShardResponse> listener
-    ) throws IOException {
+    ) {
         if (request.refresh()) {
             logger.trace("send refresh action for shard {}", shardId);
             final var indexMetadata = projectResolver.getProjectMetadata(clusterService.state()).index(shardId.getIndex());
@@ -187,7 +217,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             client.execute(
                 TransportShardRefreshAction.TYPE,
                 refreshRequest,
-                listener.delegateFailureAndWrap((l, replicationResponse) -> super.asyncShardOperation(request, shardId, l))
+                listener.delegateFailureAndWrap((l, replicationResponse) -> executeShardOperation(request, shardId, reservation, l))
             );
             return;
         }
@@ -200,10 +230,10 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 logger,
                 threadPool.getThreadContext()
             );
-            shardMultiGetFromTranslog(request, shardId, projectResolver.getProjectState(state), observer, listener);
+            shardMultiGetFromTranslog(request, shardId, projectResolver.getProjectState(state), observer, reservation, listener);
         } else {
             // A non-real-time mget with no explicit refresh requested.
-            super.asyncShardOperation(request, shardId, listener);
+            executeShardOperation(request, shardId, reservation, listener);
         }
     }
 
@@ -212,6 +242,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         ShardId shardId,
         ProjectState state,
         ClusterStateObserver observer,
+        SourceBytesReservation reservation,
         ActionListener<MultiGetShardResponse> listener
     ) {
         DiscoveryNode node;
@@ -238,7 +269,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                     observer.waitForNextChange(new ClusterStateObserver.Listener() {
                         @Override
                         public void onNewClusterState(ClusterState state) {
-                            shardMultiGetFromTranslog(request, shardId, state.projectState(projectId), observer, l);
+                            shardMultiGetFromTranslog(request, shardId, state.projectState(projectId), observer, reservation, l);
                         }
 
                         @Override
@@ -260,13 +291,14 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 l.onFailure(e);
             }
         });
-        tryShardMultiGetFromTranslog(request, shardId, node, retryingListener);
+        tryShardMultiGetFromTranslog(request, shardId, node, reservation, retryingListener);
     }
 
     private void tryShardMultiGetFromTranslog(
         MultiGetShardRequest request,
         ShardId shardId,
         DiscoveryNode node,
+        SourceBytesReservation reservation,
         ActionListener<MultiGetShardResponse> listener
     ) {
         TransportShardMultiGetFomTranslogAction.Request mgetFromTranslogRequest = new TransportShardMultiGetFomTranslogAction.Request(
@@ -279,6 +311,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             TransportShardMultiGetFomTranslogAction.NAME,
             mgetFromTranslogRequest,
             new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((l, r) -> {
+                chargeReceivedDocuments(request, r.multiGetShardResponse(), reservation);
                 var responseHasMissingLocations = false;
                 for (int i = 0; i < r.multiGetShardResponse().locations.size(); i++) {
                     if (r.multiGetShardResponse().responses.get(i) == null && r.multiGetShardResponse().failures.get(i) == null) {
@@ -296,14 +329,17 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                     );
                     if (r.segmentGeneration() == -1) {
                         // Nothing to wait for (no previous unsafe generation), just handle the rest locally.
-                        ActionRunnable.supply(l, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId)).run();
+                        ActionRunnable.supply(l, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId, reservation)).run();
                     } else {
                         assert r.segmentGeneration() > -1L;
                         assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
                         final ActionListener<Long> termAndGenerationListener = ContextPreservingActionListener.wrapPreservingContext(
                             listener.delegateFailureAndWrap(
                                 (ll, aLong) -> getExecutor(shardId).execute(
-                                    ActionRunnable.supply(ll, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId))
+                                    ActionRunnable.supply(
+                                        ll,
+                                        () -> handleLocalGets(request, r.multiGetShardResponse(), shardId, reservation)
+                                    )
                                 )
                             ),
                             threadPool.getThreadContext()
@@ -319,12 +355,39 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         );
     }
 
-    private MultiGetShardResponse handleLocalGets(MultiGetShardRequest request, MultiGetShardResponse response, ShardId shardId) {
+    /**
+     * Charges the documents received from the indexing shard, which released its own charge when it serialized them. A document the
+     * breaker has no room for becomes a failure item, which {@code handleLocalGets} skips.
+     */
+    private static void chargeReceivedDocuments(
+        MultiGetShardRequest request,
+        MultiGetShardResponse response,
+        SourceBytesReservation reservation
+    ) {
+        for (int i = 0; i < response.locations.size(); i++) {
+            final GetResponse getResponse = response.responses.get(i);
+            if (getResponse != null) {
+                try {
+                    reservation.add(getResponse.getResult);
+                } catch (CircuitBreakingException e) {
+                    response.responses.set(i, null);
+                    response.failures.set(i, new MultiGetResponse.Failure(request.index(), getResponse.getId(), e));
+                }
+            }
+        }
+    }
+
+    private MultiGetShardResponse handleLocalGets(
+        MultiGetShardRequest request,
+        MultiGetShardResponse response,
+        ShardId shardId,
+        SourceBytesReservation reservation
+    ) {
         logger.trace("handling local gets for missing locations");
         getIndexShard(shardId).mget(mget -> {
             for (int i = 0; i < response.locations.size(); i++) {
                 if (response.responses.get(i) == null && response.failures.get(i) == null) {
-                    getAndAddToResponse(shardId, mget, i, request, response);
+                    getAndAddToResponse(shardId, mget, i, request, reservation, response);
                 }
             }
         });
@@ -336,6 +399,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         MultiEngineGet mget,
         int location,
         MultiGetShardRequest request,
+        SourceBytesReservation reservation,
         MultiGetShardResponse response
     ) {
         var indexShard = getIndexShard(shardId);
@@ -355,6 +419,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                     request.getSplitShardCountSummary(),
                     request.refresh()
                 );
+            reservation.add(getResult);
             response.add(request.locations.get(location), new GetResponse(getResult));
         } catch (RuntimeException e) {
             if (TransportActions.isShardNotAvailableException(e)) {
@@ -369,15 +434,19 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         }
     }
 
-    private void asyncShardMultiGet(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)
-        throws IOException {
+    private void asyncShardMultiGet(
+        MultiGetShardRequest request,
+        ShardId shardId,
+        SourceBytesReservation reservation,
+        ActionListener<MultiGetShardResponse> listener
+    ) {
         if (request.refresh() && request.realtime() == false) {
             getExecutor(shardId).execute(ActionRunnable.wrap(listener, l -> {
                 var indexShard = getIndexShard(shardId);
-                indexShard.externalRefresh("refresh_flag_mget", l.map(r -> shardOperation(request, shardId)));
+                indexShard.externalRefresh("refresh_flag_mget", l.map(r -> shardOperation(request, shardId, reservation)));
             }));
         } else {
-            super.asyncShardOperation(request, shardId, listener);
+            executeShardOperation(request, shardId, reservation, listener);
         }
     }
 

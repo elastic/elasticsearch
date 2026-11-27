@@ -15,6 +15,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.SearchHeapPressureTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -39,9 +40,10 @@ import static org.hamcrest.Matchers.greaterThan;
  * the local part of every search parks, and the local node holds each remote response until its search completes. Together they hold
  * more than the local node's heap. Charged to the breaker, the excess searches are rejected; uncharged, the node runs out of memory.
  *
- * <p>{@link #testHeldRemoteResponsesTripBreaker} sends the searches one at a time, each once the previous response is charged or rejected,
- * so it checks that every response the merge holds is charged. {@link #testRemoteResponsesArrivingAtOnceTripBreaker} sends them all at
- * once, so many responses wait to be read at the same time, and checks that the node survives them.
+ * <p>{@link #testHeldRemoteResponsesTripBreaker} sends each search once the previous response has started to be charged, or was
+ * rejected. Only the merge holds a response until its search completes, so the test checks that every response the merge holds is
+ * charged. {@link #testRemoteResponsesArrivingAtOnceTripBreaker} sends them all at once, so many responses wait to be read at the same
+ * time, and checks that the node survives them.
  */
 public class CrossClusterSearchHeapPressureIT extends SearchHeapPressureTestCase {
 

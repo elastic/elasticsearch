@@ -132,7 +132,7 @@ public class DateUnitCount extends EsqlConfigurationFunction implements AnyNullI
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object doFold(Source source, FoldContext ctx) {
         DateDiff.Part dst = foldedPart(toUnit, ctx);
         DateDiff.Part src = foldedPart(fromUnit, ctx);
 
@@ -143,7 +143,7 @@ public class DateUnitCount extends EsqlConfigurationFunction implements AnyNullI
             }
         }
 
-        return super.fold(ctx);
+        return super.doFold(source, ctx);
     }
 
     @Override

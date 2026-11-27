@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -97,6 +98,7 @@ public class LongLongSwissHashBenchmark {
     public static class TestThreadPool extends ThreadPool implements Releasable {
         public TestThreadPool(String name, Settings settings, ExecutorBuilder<?>... customBuilders) {
             super(
+                new ThreadContext(settings),
                 Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(),
                 MeterRegistry.NOOP,
                 new DefaultBuiltInExecutorBuilders(),

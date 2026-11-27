@@ -1,5 +1,5 @@
 area: Inference
 issues: []
 pr: 162389
-summary: "[Inference API] Make GET _inference/_services public on Serverless"
+summary: Make GET `_inference/_services` public on Serverless
 type: enhancement

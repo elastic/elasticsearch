@@ -16,19 +16,23 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.Unit;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
-public class Mod extends EsqlArithmeticOperation implements AnyNullIsNull, NonFiniteSupport {
+public class Mod extends EsqlArithmeticOperation implements AnyNullIsNull, NonFiniteSupport, UnitAware, Reproducible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mod", Mod::new);
 
     /**
@@ -177,5 +181,10 @@ public class Mod extends EsqlArithmeticOperation implements AnyNullIsNull, NonFi
     @Evaluator(extraName = "NonFiniteDoublesByConstant")
     static double processNonFiniteDoublesByConstant(double lhs, @Fixed(jitConstant = true) double rhs) {
         return lhs % rhs;
+    }
+
+    @Override
+    public Unit unit(Function<Expression, Unit> unitOf) {
+        return unitOf.apply(left());
     }
 }

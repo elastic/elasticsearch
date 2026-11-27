@@ -126,6 +126,34 @@ public class SimdVecLibraryInt7uTests extends SimdVecLibraryTests {
         doTestInt7uBulkMasked(0, true);
     }
 
+    public void testInt7uBulkMaskedIgnoresVectorsPastTheBlock() {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("bulk masked is only implemented for dot product", function == SimdVecLibrary.SimilarityFunction.DOT_PRODUCT);
+        final int dims = size;
+        final int count = randomIntBetween(0, Integer.SIZE - 1);
+        final int mask = randomInvalidBulkMask(count);
+
+        // vectors and scores for all the 32 positions a mask can select, so that scoring past the block fails the
+        // assertions instead of accessing unallocated memory
+        var vectors = new byte[Integer.SIZE][dims];
+        var vectorsSegment = arena.allocate((long) Integer.SIZE * dims);
+        for (int i = 0; i < Integer.SIZE; i++) {
+            randomBytesBetween(vectors[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
+            MemorySegment.copy(vectors[i], 0, vectorsSegment, ValueLayout.JAVA_BYTE, (long) i * dims, dims);
+        }
+        var query = new byte[dims];
+        randomBytesBetween(query, MIN_INT7_VALUE, MAX_INT7_VALUE);
+        var nativeQuerySeg = arena.allocate(dims);
+        MemorySegment.copy(query, 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
+
+        float[] expectedScores = unselectedScores(Integer.SIZE);
+        ScalarOperations.bulkMasked(function, query, vectors, mask & BulkMask.all(count), expectedScores);
+
+        var bulkScoresSeg = unselectedScoresSegment(Integer.SIZE);
+        getVectorDistance().dotProductI7uBulkMasked_raw(vectorsSegment, nativeQuerySeg, dims, dims, mask, count, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
     private void doTestInt7uBulkMasked(int extraData, boolean heapQueryAndScores) {
         final int dims = size;
         final int pitch = dims + extraData;

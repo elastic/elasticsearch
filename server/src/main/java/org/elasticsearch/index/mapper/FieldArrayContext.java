@@ -99,9 +99,17 @@ public class FieldArrayContext {
 
     /**
      * Like {@link #recordNull(String)}, but also registers a fallback writer; see
-     * {@link #recordOffset(String, Comparable, CheckedBiConsumer)}.
+     * {@link #recordOffset(String, Comparable, CheckedBiConsumer)}. Records nothing for a null that
+     * {@link MultiValuedBinaryDocValuesField#keepsNullSlot} treats as the field being absent, so that synthetic source drops it.
      */
-    public void recordNull(String field, CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter) {
+    public void recordNull(
+        DocumentParserContext context,
+        String field,
+        CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter
+    ) {
+        if (MultiValuedBinaryDocValuesField.keepsNullSlot(context, context.indexSettings().getMode()) == false) {
+            return;
+        }
         var offsets = offsetsFor(field);
         assert offsets.fallbackWriter == null || offsets.fallbackWriter == fallbackWriter
             : "a field must always record offsets with the same fallback writer";

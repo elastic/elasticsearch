@@ -1,0 +1,179 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /_ml/datafeeds/{datafeed_id}
+          capabilities: [ ml_datafeed_esql_query ]
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ describe_command ]
+      reason: "ES|QL datafeeds validate their query with DESCRIBE"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      ml.put_job:
+        job_id: esql-ccs-job
+        body: >
+          {
+            "results_index_name": "esql-ccs-job",
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "date"
+            }
+          }
+
+---
+teardown:
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: esql-ccs-feed
+        force: true
+        ignore: 404
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: esql-ccs-wildcard-feed
+        force: true
+        ignore: 404
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: esql-ccs-missing-feed
+        force: true
+        ignore: 404
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: esql-ccs-preview-feed
+        force: true
+        ignore: 404
+  - do:
+      ml.delete_job:
+        job_id: esql-ccs-job
+        force: true
+        ignore: 404
+
+---
+"Test put and start ES|QL datafeed on a remote cluster index":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: esql-ccs-feed
+        body: >
+          {
+            "job_id": "esql-ccs-job",
+            "esql_query": "FROM my_remote_cluster:remote_test_index | KEEP date, user",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+  - match: { datafeed_id: "esql-ccs-feed" }
+
+  - do:
+      ml.open_job:
+        job_id: esql-ccs-job
+
+  - do:
+      ml.start_datafeed:
+        datafeed_id: esql-ccs-feed
+        start: "2018-10-29T12:00:00Z"
+        end: "2018-10-29T13:00:00Z"
+  - match: { started: true }
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: esql-ccs-feed
+  - match: { stopped: true }
+
+  - do:
+      ml.close_job:
+        job_id: esql-ccs-job
+
+---
+"Test preview ES|QL datafeed returns the rows of a remote cluster index":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: esql-ccs-preview-feed
+        body: >
+          {
+            "job_id": "esql-ccs-job",
+            "esql_query": "FROM my_remote_cluster:remote_test_index | KEEP date, user",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+
+  - do:
+      ml.preview_datafeed:
+        datafeed_id: esql-ccs-preview-feed
+        start: "2018-10-29T12:00:00Z"
+        end: "2018-10-29T13:00:00Z"
+  - length: { $body: 9 }
+  - is_true: 0.date
+  - is_true: 0.user
+
+---
+"Test put and start ES|QL datafeed on a wildcard remote cluster index":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: esql-ccs-wildcard-feed
+        body: >
+          {
+            "job_id": "esql-ccs-job",
+            "esql_query": "FROM my_remote_cluster:remote_test_* | KEEP date, user",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+  - match: { datafeed_id: "esql-ccs-wildcard-feed" }
+
+  - do:
+      ml.open_job:
+        job_id: esql-ccs-job
+
+  - do:
+      ml.start_datafeed:
+        datafeed_id: esql-ccs-wildcard-feed
+        start: "2018-10-29T12:00:00Z"
+        end: "2018-10-29T13:00:00Z"
+  - match: { started: true }
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: esql-ccs-wildcard-feed
+  - match: { stopped: true }
+
+  - do:
+      ml.close_job:
+        job_id: esql-ccs-job
+
+---
+"Test start of ES|QL datafeed fails when the only source is on a skipped remote":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: esql-ccs-missing-feed
+        body: >
+          {
+            "job_id": "esql-ccs-job",
+            "esql_query": "FROM my_remote_cluster:does_not_exist",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+  - match: { datafeed_id: "esql-ccs-missing-feed" }
+
+  - do:
+      ml.open_job:
+        job_id: esql-ccs-job
+
+  - do:
+      catch: bad_request
+      ml.start_datafeed:
+        datafeed_id: esql-ccs-missing-feed
+        start: "2018-10-29T12:00:00Z"
+        end: "2018-10-29T13:00:00Z"
+  - match: { error.reason: '/.*skipped\sthe\sclusters.*/' }
+
+  - do:
+      ml.close_job:
+        job_id: esql-ccs-job

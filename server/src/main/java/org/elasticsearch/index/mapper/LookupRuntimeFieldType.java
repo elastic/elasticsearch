@@ -54,41 +54,29 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
     public static final String CONTENT_TYPE = "lookup";
 
     private static class Builder extends RuntimeField.Builder {
-        private final FieldMapper.Parameter<String> targetIndex = FieldMapper.Parameter.stringParam(
-            "target_index",
-            false,
-            RuntimeField.initializerNotSupported(),
-            null
-        ).addValidator(v -> {
-            if (Strings.isEmpty(v)) {
-                throw new IllegalArgumentException("[target_index] parameter must be specified");
-            }
-        });
+        private final FieldMapper.Parameter<String> targetIndex = FieldMapper.Parameter.stringParam("target_index", false, null)
+            .addValidator(v -> {
+                if (Strings.isEmpty(v)) {
+                    throw new IllegalArgumentException("[target_index] parameter must be specified");
+                }
+            });
 
-        private final FieldMapper.Parameter<String> inputField = FieldMapper.Parameter.stringParam(
-            "input_field",
-            false,
-            RuntimeField.initializerNotSupported(),
-            null
-        ).addValidator(inputField -> {
-            if (Strings.isEmpty(inputField)) {
-                throw new IllegalArgumentException("[input_field] parameter must be specified");
-            }
-            if (inputField.equals(name)) {
-                throw new IllegalArgumentException("lookup field [" + name + "] can't use input from itself");
-            }
-        });
+        private final FieldMapper.Parameter<String> inputField = FieldMapper.Parameter.stringParam("input_field", false, null)
+            .addValidator(inputField -> {
+                if (Strings.isEmpty(inputField)) {
+                    throw new IllegalArgumentException("[input_field] parameter must be specified");
+                }
+                if (inputField.equals(name)) {
+                    throw new IllegalArgumentException("lookup field [" + name + "] can't use input from itself");
+                }
+            });
 
-        private final FieldMapper.Parameter<String> targetField = FieldMapper.Parameter.stringParam(
-            "target_field",
-            false,
-            RuntimeField.initializerNotSupported(),
-            null
-        ).addValidator(targetField -> {
-            if (Strings.isEmpty(targetField)) {
-                throw new IllegalArgumentException("[target_field] parameter must be specified");
-            }
-        });
+        private final FieldMapper.Parameter<String> targetField = FieldMapper.Parameter.stringParam("target_field", false, null)
+            .addValidator(targetField -> {
+                if (Strings.isEmpty(targetField)) {
+                    throw new IllegalArgumentException("[target_field] parameter must be specified");
+                }
+            });
 
         private static FieldMapper.Parameter<List<FieldAndFormat>> newFetchFields() {
             final FieldMapper.Parameter<List<FieldAndFormat>> fetchFields = new FieldMapper.Parameter<>(
@@ -96,7 +84,6 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
                 false,
                 List::of,
                 (s, ctx, o) -> parseFetchFields(o),
-                RuntimeField.initializerNotSupported(),
                 XContentBuilder::field,
                 Object::toString
             );

@@ -19,6 +19,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -550,6 +552,39 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
         return DocValuesType.SORTED_NUMERIC;
+    }
+
+    /**
+     * A number field reads an empty string as null (unless {@code coerce} is off), so it does not satisfy {@code nullability=false}: the
+     * field goes in {@code _ignored} under {@code on_failure=ignore} and the document is rejected under {@code on_failure=fail}.
+     */
+    public void testNullabilityFalseEmptyStringIsNoValue() throws IOException {
+        final String json = "{\"field\":" + randomFrom("\"\"", "[\"\"]", "[\"\",null]") + "}";
+        final DocumentMapper ignoring = createColumnarModeDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("nullability", false).field("on_failure", "ignore");
+        }));
+        final ParsedDocument doc = ignoring.parse(source(json));
+        assertThat(json, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), contains("field"));
+
+        final DocumentMapper failing = createColumnarModeDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("nullability", false);
+        }));
+        final DocumentParsingException e = expectThrows(DocumentParsingException.class, json, () -> failing.parse(source(json)));
+        assertThat(e.getMessage(), containsString("configured with [nullability=false] but no value was provided"));
+    }
+
+    /**
+     * With {@code coerce} off an empty string is a malformed value rather than no value, so it satisfies {@code nullability=false}: with
+     * {@code ignore_malformed} the document is kept even under {@code on_failure=fail}.
+     */
+    public void testNullabilityFalseCoerceFalseEmptyStringIsAValue() throws IOException {
+        final DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("nullability", false).field("coerce", false).field("ignore_malformed", true);
+        }));
+        mapper.parse(source("{\"field\":" + randomFrom("\"\"", "[\"\"]") + "}"));
     }
 
     /**

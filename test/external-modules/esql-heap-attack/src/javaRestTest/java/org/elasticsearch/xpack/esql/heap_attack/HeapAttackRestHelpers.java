@@ -283,11 +283,8 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
     ) {}
 
     @SuppressWarnings("unchecked")
-    protected StreamSummary streamQuery(String esqlQuery, int batchSize) throws IOException {
-        Request request = new Request("POST", "/_query");
-        request.addParameter("streaming", "true");
-        request.addParameter("format", "ndjson");
-        request.addParameter("batch_size", Integer.toString(batchSize));
+    protected StreamSummary streamQuery(String esqlQuery) throws IOException {
+        Request request = new Request("POST", "/_query/stream");
         request.addParameter("error_trace", "");
         String body = "{\"query\":\"" + esqlQuery.replace("\n", "\\n") + "\"}";
         request.setJsonEntity(body);
@@ -310,14 +307,17 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
                 if (line.isBlank()) {
                     continue;
                 }
+                if (line.startsWith("[")) {
+                    // A row: one line per row, written as a bare array of values. There is no need to parse it to count it.
+                    rowCount++;
+                    continue;
+                }
                 Map<String, Object> parsed = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, false);
                 if (parsed.containsKey("error")) {
                     errors.add(parsed);
                 }
                 if (parsed.containsKey("columns")) {
                     columns = (List<Map<String, Object>>) parsed.get("columns");
-                } else if (parsed.containsKey("values")) {
-                    rowCount += ((List<List<Object>>) parsed.get("values")).size();
                 } else if (parsed.containsKey("took")) {
                     footer = parsed;
                 }

@@ -60,7 +60,7 @@ import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.TestResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
@@ -83,12 +83,12 @@ import static org.junit.Assert.fail;
 public final class CsvAssert {
     private CsvAssert() {}
 
-    public static void assertMetadata(ExpectedResults expected, List<String> actualNames, List<Type> actualTypes, Logger logger) {
+    public static void assertMetadata(TestResults expected, List<String> actualNames, List<Type> actualTypes, Logger logger) {
         assertMetadata(expected, actualNames, actualTypes, List.of(), logger);
     }
 
     public static void assertMetadata(
-        ExpectedResults expected,
+        TestResults expected,
         List<String> actualNames,
         List<Type> actualTypes,
         List<Page> pages,
@@ -211,7 +211,7 @@ public final class CsvAssert {
     private record DataFailure(int row, int column, Object expected, Object actual) {}
 
     public static void assertData(
-        ExpectedResults expected,
+        TestResults expected,
         List<List<Object>> actualValues,
         boolean ignoreOrder,
         boolean ignoreValueOrder,
@@ -221,7 +221,7 @@ public final class CsvAssert {
     }
 
     public static void assertDataWithValueConverter(
-        ExpectedResults expected,
+        TestResults expected,
         List<List<Object>> actualValues,
         boolean ignoreOrder,
         boolean ignoreValueOrder,
@@ -339,7 +339,7 @@ public final class CsvAssert {
     }
 
     private static void assertData(
-        ExpectedResults expected,
+        TestResults expected,
         List<List<Object>> actualValues,
         boolean ignoreOrder,
         boolean ignoreValueOrder,
@@ -455,7 +455,7 @@ public final class CsvAssert {
     private static void dataFailure(
         String description,
         List<DataFailure> dataFailures,
-        ExpectedResults expectedValues,
+        TestResults expectedValues,
         List<List<Object>> actualValues,
         BiFunction<Type, Object, Object> valueTransformer
     ) {

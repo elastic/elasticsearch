@@ -95,3 +95,4 @@ Integrations are not plugins, but are external tools or modules that make it eas
 
 * [Wireshark](https://www.wireshark.org/): Protocol dissection for HTTP and the transport protocol
 * [ItemsAPI](https://www.itemsapi.com/): Search backend for mobile and web
+* [Nightingale](https://n9e.io/docs/data/elasticsearch): Open-source alerting from application logs stored in Elasticsearch. Use [log rules](https://n9e.io/docs/alerting/log-rules) to count HTTP 5xx responses by service and notify when a threshold is exceeded or the alert recovers.

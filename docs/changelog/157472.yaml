@@ -1,0 +1,6 @@
+area: Geo
+issues:
+ - 157471
+pr: 157472
+summary: Fix bounded geohex parent cell pruning
+type: bug

@@ -81,6 +81,28 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         assertThat(preLaneCopy.getShardSearchLaneRequirements(), equalTo(Map.of()));
     }
 
+    public void testSearchLoadMetricsAreTransportVersionGated() throws Exception {
+        final var nodeAndShard = new ClusterInfo.NodeAndShard(randomIdentifier(), randomShardId());
+        final var searchCopyDemands = Map.of(nodeAndShard, new SearchCopyDemand(randomDouble(), randomDouble()));
+        final var nodeSearchCapacities = Map.of(
+            randomIdentifier(),
+            new NodeSearchCapacity(randomDoubleBetween(0.1, 64.0, true), randomDoubleBetween(0.1, 64.0, true))
+        );
+        final var clusterInfo = ClusterInfo.builder()
+            .searchCopyDemands(searchCopyDemands)
+            .nodeSearchCapacities(nodeSearchCapacities)
+            .build();
+
+        final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
+        assertThat(currentVersionCopy.getSearchCopyDemands(), equalTo(searchCopyDemands));
+        assertThat(currentVersionCopy.getNodeSearchCapacities(), equalTo(nodeSearchCapacities));
+
+        final var preSearchLoadMetricsVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.SEARCH_LOAD_METRICS_IN_CLUSTER_INFO);
+        final var preSearchLoadMetricsCopy = copyInstance(clusterInfo, preSearchLoadMetricsVersion);
+        assertThat(preSearchLoadMetricsCopy.getSearchCopyDemands(), equalTo(Map.of()));
+        assertThat(preSearchLoadMetricsCopy.getNodeSearchCapacities(), equalTo(Map.of()));
+    }
+
     public void testSearchLoadsAreTransportVersionGated() throws Exception {
         final var clusterInfo = ClusterInfo.builder().shardSearchLoads(randomPerShardDoubles()).build();
 
@@ -104,91 +126,89 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
 
     @Override
     protected ClusterInfo mutateInstance(ClusterInfo instance) {
-        ClusterInfo.Builder builder = builderFrom(instance);
-        return switch (between(0, 17)) {
-            case 0 -> builder.leastAvailableSpaceUsage(
-                randomValueOtherThan(instance.getNodeLeastAvailableDiskUsages(), ClusterInfoTests::randomDiskUsage)
-            ).build();
-            case 1 -> builder.mostAvailableSpaceUsage(
-                randomValueOtherThan(instance.getNodeMostAvailableDiskUsages(), ClusterInfoTests::randomDiskUsage)
-            ).build();
-            case 2 -> builder.shardSizes(randomValueOtherThan(instance.shardSizes, ClusterInfoTests::randomShardSizes)).build();
-            case 3 -> builder.shardDataSetSizes(
-                randomValueOtherThan(instance.shardDataSetSizes, ClusterInfoTests::randomDataSetSizes)
-            ).build();
-            case 4 -> builder.dataPath(randomValueOtherThan(instance.dataPath, ClusterInfoTests::randomRoutingToDataPath)).build();
-            case 5 -> builder.reservedSpace(
-                randomValueOtherThan(instance.reservedSpace, ClusterInfoTests::randomReservedSpace)
-            ).build();
-            case 6 -> builder.nodeHeapMetrics(
-                randomValueOtherThan(instance.nodeHeapMetrics, ClusterInfoTests::randomNodeHeapUsage)
-            ).build();
-            case 7 -> builder.estimatedShardHeapUsages(
-                randomValueOtherThan(instance.estimatedShardHeapUsages, ClusterInfoTests::randomShardHeapUsages)
-            ).build();
-            case 8 -> builder.defaultShardHeapUsageForShardsWithoutMetrics(
-                randomValueOtherThan(
-                    instance.getDefaultShardHeapUsageForShardsWithoutMetrics(),
-                    ClusterInfoTests::randomShardAndIndexHeapUsage
-                )
-            ).build();
-            case 9 -> builder.nodeUsageStatsForThreadPools(
-                randomValueOtherThan(instance.nodeUsageStatsForThreadPools, ClusterInfoTests::randomNodeUsageStatsForThreadPools)
-            ).build();
-            case 10 -> builder.shardWriteLoads(
-                randomValueOtherThan(instance.shardWriteLoads, ClusterInfoTests::randomPerShardDoubles)
-            ).build();
-            case 11 -> builder.maxHeapSizePerNode(
-                randomValueOtherThan(instance.getMaxHeapSizePerNode(), ClusterInfoTests::randomMaxHeapSizes)
-            ).build();
-            case 12 -> builder.nodeIdsWriteLoadHotspotting(
-                randomValueOtherThan(instance.nodeIdsWriteLoadHotspotting, ClusterInfoTests::randomNodeIdsWriteLoadHotspottingSet)
-            ).build();
-            case 13 -> builder.nodeCacheSizeAndCommitments(
-                randomValueOtherThan(
-                    instance.getNodeCacheSizeAndCommitments(),
-                    ClusterInfoTests::randomNodeCacheSizeAndCommitmentsMap
-                )
-            ).build();
-            case 14 -> builder.shardCacheRequirements(
-                randomValueOtherThan(instance.getShardCacheRequirements(), ClusterInfoTests::randomShardCacheRequirements)
-            ).build();
-            case 15 -> builder.hostedShardsPartitionSizeByNodeId(
-                randomValueOtherThan(
-                    instance.getHostedShardsPartitionSizeByNodeId(),
-                    ClusterInfoTests::randomHostedShardsPartitionSizes
-                )
-            ).build();
-            case 16 -> builder.shardSearchLaneRequirements(
-                randomValueOtherThan(instance.shardSearchLaneRequirements, ClusterInfoTests::randomPerShardDoubles)
-            ).build();
-            case 17 -> builder.shardSearchLoads(
-                randomValueOtherThan(instance.shardSearchLoads, ClusterInfoTests::randomPerShardDoubles)
-            ).build();
-            default -> throw new AssertionError("illegal mutate branch");
-        };
-    }
-
-    private static ClusterInfo.Builder builderFrom(ClusterInfo instance) {
-        return ClusterInfo.builder()
-            .leastAvailableSpaceUsage(instance.getNodeLeastAvailableDiskUsages())
-            .mostAvailableSpaceUsage(instance.getNodeMostAvailableDiskUsages())
-            .shardSizes(instance.shardSizes)
-            .shardDataSetSizes(instance.shardDataSetSizes)
-            .dataPath(instance.dataPath)
-            .reservedSpace(instance.reservedSpace)
-            .nodeHeapMetrics(instance.nodeHeapMetrics)
-            .estimatedShardHeapUsages(instance.estimatedShardHeapUsages)
-            .defaultShardHeapUsageForShardsWithoutMetrics(instance.getDefaultShardHeapUsageForShardsWithoutMetrics())
-            .nodeUsageStatsForThreadPools(instance.nodeUsageStatsForThreadPools)
-            .shardWriteLoads(instance.shardWriteLoads)
-            .maxHeapSizePerNode(instance.getMaxHeapSizePerNode())
-            .nodeIdsWriteLoadHotspotting(instance.nodeIdsWriteLoadHotspotting)
-            .nodeCacheSizeAndCommitments(instance.getNodeCacheSizeAndCommitments())
-            .shardCacheRequirements(instance.getShardCacheRequirements())
-            .hostedShardsPartitionSizeByNodeId(instance.getHostedShardsPartitionSizeByNodeId())
-            .shardSearchLaneRequirements(instance.shardSearchLaneRequirements)
-            .shardSearchLoads(instance.shardSearchLoads);
+        var leastAvailableSpaceUsage = instance.getNodeLeastAvailableDiskUsages();
+        var mostAvailableSpaceUsage = instance.getNodeMostAvailableDiskUsages();
+        var shardSizes = instance.shardSizes;
+        var shardDataSetSizes = instance.shardDataSetSizes;
+        var dataPath = instance.dataPath;
+        var reservedSpace = instance.reservedSpace;
+        var nodeHeapMetrics = instance.getNodeHeapMetrics();
+        var estimatedShardHeapUsages = instance.getEstimatedShardHeapUsages();
+        var defaultShardHeapUsage = instance.getDefaultShardHeapUsageForShardsWithoutMetrics();
+        var nodeUsageStatsForThreadPools = instance.getNodeUsageStatsForThreadPools();
+        var shardWriteLoads = instance.getShardWriteLoads();
+        var maxHeapSizePerNode = instance.getMaxHeapSizePerNode();
+        var nodeIdsWriteLoadHotspotting = instance.nodeIdsWriteLoadHotspotting;
+        var nodeCacheSizeAndCommitments = instance.getNodeCacheSizeAndCommitments();
+        var shardCacheRequirements = instance.getShardCacheRequirements();
+        var hostedShardsPartitionSizeByNodeId = instance.getHostedShardsPartitionSizeByNodeId();
+        var shardSearchLaneRequirements = instance.getShardSearchLaneRequirements();
+        var shardSearchLoads = instance.getShardSearchLoads();
+        var searchCopyDemands = instance.getSearchCopyDemands();
+        var nodeSearchCapacities = instance.getNodeSearchCapacities();
+        switch (between(0, 19)) {
+            case 0 -> leastAvailableSpaceUsage = randomValueOtherThan(leastAvailableSpaceUsage, ClusterInfoTests::randomDiskUsage);
+            case 1 -> mostAvailableSpaceUsage = randomValueOtherThan(mostAvailableSpaceUsage, ClusterInfoTests::randomDiskUsage);
+            case 2 -> shardSizes = randomValueOtherThan(shardSizes, ClusterInfoTests::randomShardSizes);
+            case 3 -> shardDataSetSizes = randomValueOtherThan(shardDataSetSizes, ClusterInfoTests::randomDataSetSizes);
+            case 4 -> dataPath = randomValueOtherThan(dataPath, ClusterInfoTests::randomRoutingToDataPath);
+            case 5 -> reservedSpace = randomValueOtherThan(reservedSpace, ClusterInfoTests::randomReservedSpace);
+            case 6 -> nodeHeapMetrics = randomValueOtherThan(nodeHeapMetrics, ClusterInfoTests::randomNodeHeapUsage);
+            case 7 -> estimatedShardHeapUsages = randomValueOtherThan(estimatedShardHeapUsages, ClusterInfoTests::randomShardHeapUsages);
+            case 8 -> defaultShardHeapUsage = randomValueOtherThan(defaultShardHeapUsage, ClusterInfoTests::randomShardAndIndexHeapUsage);
+            case 9 -> nodeUsageStatsForThreadPools = randomValueOtherThan(
+                nodeUsageStatsForThreadPools,
+                ClusterInfoTests::randomNodeUsageStatsForThreadPools
+            );
+            case 10 -> shardWriteLoads = randomValueOtherThan(shardWriteLoads, ClusterInfoTests::randomPerShardDoubles);
+            case 11 -> maxHeapSizePerNode = randomValueOtherThan(maxHeapSizePerNode, ClusterInfoTests::randomMaxHeapSizes);
+            case 12 -> nodeIdsWriteLoadHotspotting = randomValueOtherThan(
+                nodeIdsWriteLoadHotspotting,
+                ClusterInfoTests::randomNodeIdsWriteLoadHotspottingSet
+            );
+            case 13 -> nodeCacheSizeAndCommitments = randomValueOtherThan(
+                nodeCacheSizeAndCommitments,
+                ClusterInfoTests::randomNodeCacheSizeAndCommitmentsMap
+            );
+            case 14 -> shardCacheRequirements = randomValueOtherThan(
+                shardCacheRequirements,
+                ClusterInfoTests::randomShardCacheRequirements
+            );
+            case 15 -> hostedShardsPartitionSizeByNodeId = randomValueOtherThan(
+                hostedShardsPartitionSizeByNodeId,
+                ClusterInfoTests::randomHostedShardsPartitionSizes
+            );
+            case 16 -> shardSearchLaneRequirements = randomValueOtherThan(
+                shardSearchLaneRequirements,
+                ClusterInfoTests::randomPerShardDoubles
+            );
+            case 17 -> shardSearchLoads = randomValueOtherThan(shardSearchLoads, ClusterInfoTests::randomPerShardDoubles);
+            case 18 -> searchCopyDemands = randomValueOtherThan(searchCopyDemands, ClusterInfoTests::randomSearchCopyDemands);
+            case 19 -> nodeSearchCapacities = randomValueOtherThan(nodeSearchCapacities, ClusterInfoTests::randomNodeSearchCapacities);
+            default -> throw new IllegalArgumentException();
+        }
+        return new ClusterInfo(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            dataPath,
+            reservedSpace,
+            nodeHeapMetrics,
+            estimatedShardHeapUsages,
+            defaultShardHeapUsage,
+            nodeUsageStatsForThreadPools,
+            shardWriteLoads,
+            maxHeapSizePerNode,
+            nodeIdsWriteLoadHotspotting,
+            nodeCacheSizeAndCommitments,
+            shardCacheRequirements,
+            hostedShardsPartitionSizeByNodeId,
+            shardSearchLaneRequirements,
+            shardSearchLoads,
+            searchCopyDemands,
+            nodeSearchCapacities
+        );
     }
 
     public static ClusterInfo randomClusterInfo() {
@@ -210,8 +230,34 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomShardCacheRequirements(),
             randomHostedShardsPartitionSizes(),
             randomPerShardDoubles(),
-            randomPerShardDoubles()
+            randomPerShardDoubles(),
+            randomSearchCopyDemands(),
+            randomNodeSearchCapacities()
         );
+    }
+
+    private static Map<ClusterInfo.NodeAndShard, SearchCopyDemand> randomSearchCopyDemands() {
+        final int numEntries = randomIntBetween(0, 128);
+        final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            demands.put(
+                new ClusterInfo.NodeAndShard(randomIdentifier(), randomShardId()),
+                new SearchCopyDemand(randomDouble(), randomDouble())
+            );
+        }
+        return demands;
+    }
+
+    private static Map<String, NodeSearchCapacity> randomNodeSearchCapacities() {
+        final int numEntries = randomIntBetween(0, 128);
+        final Map<String, NodeSearchCapacity> capacities = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            capacities.put(
+                randomIdentifier(),
+                new NodeSearchCapacity(randomDoubleBetween(0.1, 64.0, true), randomDoubleBetween(0.1, 64.0, true))
+            );
+        }
+        return capacities;
     }
 
     private static Map<ShardId, Double> randomPerShardDoubles() {

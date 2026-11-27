@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 
 import java.io.IOException;
@@ -112,20 +113,6 @@ public class GoogleVertexAiChatCompletionTaskSettingsTests extends InferenceSett
     }
 
     @Override
-    protected GoogleVertexAiChatCompletionTaskSettings mutateInstance(GoogleVertexAiChatCompletionTaskSettings instance) throws IOException {
-        ThinkingConfig thinkingConfig = instance.thinkingConfig();
-        Integer maxTokens = instance.maxTokens();
-
-        switch (between(0, 1)) {
-            case 0 -> thinkingConfig = randomValueOtherThan(thinkingConfig, () -> new ThinkingConfig(randomInt()));
-            case 1 -> maxTokens = randomValueOtherThan(maxTokens, () -> randomNonNegativeIntOrNull());
-            default -> throw new AssertionError("Illegal randomisation branch");
-        }
-
-        return new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens);
-    }
-
-    @Override
     protected GoogleVertexAiChatCompletionTaskSettings mutateInstanceForVersion(
         GoogleVertexAiChatCompletionTaskSettings instance,
         TransportVersion version
@@ -145,5 +132,20 @@ public class GoogleVertexAiChatCompletionTaskSettingsTests extends InferenceSett
     @Override
     protected GoogleVertexAiChatCompletionTaskSettings createTestInstance() {
         return new GoogleVertexAiChatCompletionTaskSettings(new ThinkingConfig(randomInt()), randomNonNegativeIntOrNull());
+    }
+
+    @Override
+    protected GoogleVertexAiChatCompletionTaskSettings mutateInstance(GoogleVertexAiChatCompletionTaskSettings instance)
+        throws IOException {
+        var thinkingConfig = instance.thinkingConfig();
+        var maxTokens = instance.maxTokens();
+
+        switch (randomInt(1)) {
+            case 0 -> thinkingConfig = randomValueOtherThan(thinkingConfig, () -> new ThinkingConfig(randomNonNegativeIntOrNull()));
+            case 1 -> maxTokens = randomValueOtherThan(maxTokens, ESTestCase::randomNonNegativeIntOrNull);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens);
     }
 }

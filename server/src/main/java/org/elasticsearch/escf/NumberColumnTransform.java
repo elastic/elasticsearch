@@ -143,6 +143,8 @@ public final class NumberColumnTransform {
                     case SourceValueType.LONG -> builder.setLong(doc, longToSortable(source.getLongValue(doc), type));
                     case SourceValueType.INT -> builder.setLong(doc, longToSortable(source.getIntValue(doc), type));
                     case SourceValueType.DOUBLE -> builder.setLong(doc, doubleToSortable(source.getDoubleValue(doc), type, coerce));
+                    // The row path widens a float to a double, as the implicit conversion does here.
+                    case SourceValueType.FLOAT -> builder.setLong(doc, doubleToSortable(source.getFloatValue(doc), type, coerce));
                     case SourceValueType.STRING -> {
                         if (coerceChecked == false) {
                             AbstractXContentParser.checkCoerceString(coerce, classForType(type));
@@ -162,8 +164,8 @@ public final class NumberColumnTransform {
                             builder.setLong(doc, nullReplacement);
                         }
                     }
-                    case SourceValueType.FLOAT, SourceValueType.TRUE, SourceValueType.FALSE, SourceValueType.BINARY,
-                        SourceValueType.KEY_VALUE, SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY, SourceValueType.ABSENT ->
+                    case SourceValueType.TRUE, SourceValueType.FALSE, SourceValueType.BINARY, SourceValueType.KEY_VALUE,
+                        SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY, SourceValueType.ABSENT ->
                         throw new UnsupportedOperationException(
                             "toSortableLongColumn: UNION row type [" + SourceValueType.name(rowType) + "] is not supported for a number"
                         );

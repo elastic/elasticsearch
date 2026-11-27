@@ -21,11 +21,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 
 public class NumberColumnTransformTests extends ESTestCase {
@@ -1356,6 +1359,50 @@ public class NumberColumnTransformTests extends ESTestCase {
                 expectThrows(UnsupportedOperationException.class, () -> fromUnion(batch, NumberType.LONG, true, null));
             }
         }
+    }
+
+    public void testUnion_emptyString_withNullValue_usesNullValue() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 1}", "{\"f\": \"\"}", "{\"f\": 2.5}")) {
+            long[] vals = readValues(fromUnion(batch, NumberType.DOUBLE, true, NumericUtils.doubleToSortableLong(-1d)), 3);
+            assertEquals(NumericUtils.doubleToSortableLong(-1d), vals[1]);
+        }
+    }
+
+    /** A union column with raw FLOAT rows, which the encoders do not produce for scalars, next to LONG rows. */
+    private static EscfColumn longAndFloatUnion(float floatValue) {
+        try (EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE)) {
+            builder.hintUnion();
+            builder.addLong(3);
+            byte[] payload = new byte[Float.BYTES];
+            ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN).putFloat(floatValue);
+            builder.addRawUnionRow(SourceValueType.FLOAT, new BytesRef(payload));
+            return EscfColumn.from(builder.finish(2));
+        }
+    }
+
+    public void testUnion_floatRows() {
+        final float value = 0.1f;
+        final EscfColumn source = longAndFloatUnion(value);
+        assertEquals(SourceValueType.FLOAT, source.getTypeByte(1));
+        final BytesRefRecycler recycler = BytesRefRecycler.NON_RECYCLING_INSTANCE;
+
+        long[] floats = readValues(NumberColumnTransform.toSortableLongColumn(source, NumberType.FLOAT, false, recycler), 2);
+        assertEquals(NumericUtils.floatToSortableInt(3f), floats[0]);
+        assertEquals(NumericUtils.floatToSortableInt(value), floats[1]);
+
+        long[] halfFloats = readValues(NumberColumnTransform.toSortableLongColumn(source, NumberType.HALF_FLOAT, false, recycler), 2);
+        assertEquals(HalfFloatPoint.halfFloatToSortableShort(value), halfFloats[1]);
+
+        // A double field gets the widened float, as the row path parses it, not the decimal literal.
+        long[] doubles = readValues(NumberColumnTransform.toSortableLongColumn(source, NumberType.DOUBLE, false, recycler), 2);
+        assertEquals(NumericUtils.doubleToSortableLong((double) value), doubles[1]);
+
+        long[] longs = readValues(NumberColumnTransform.toSortableLongColumn(longAndFloatUnion(2.5f), NumberType.LONG, true, recycler), 2);
+        assertEquals(2L, longs[1]);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(longAndFloatUnion(2.5f), NumberType.INTEGER, false, recycler)
+        );
     }
 
     public void testUnion_doubleMidpoint_throws() throws IOException {

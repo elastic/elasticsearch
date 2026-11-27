@@ -4846,12 +4846,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved UnionTypeEsField
                 if (typeResolutions.size() == tcf.getTypesToIndices().size()) {
                     for (Map.Entry<TypeResolutionKey, Expression> typeResolution : typeResolutions.entrySet()) {
-                        // The conversion of a type it doesn't accept, which a lenient conversion keeps, is null and not evaluated
-                        if (supportedTypes.contains(typeResolution.getKey().fieldType().widenSmallNumeric())) {
-                            String unusable = unusableAsFieldConversion(typeResolution.getValue(), convertExpression);
-                            if (unusable != null) {
-                                return new UnresolvedAttribute(fa.source(), fa.name(), unusable);
-                            }
+                        Expression conversion = typeResolution.getValue();
+                        // The conversion of a type it doesn't accept, which a lenient conversion keeps, is null and not evaluated, but
+                        // its other arguments must be valid
+                        String unusable = supportedTypes.contains(typeResolution.getKey().fieldType().widenSmallNumeric())
+                            ? unusableAsFieldConversion(conversion, convertExpression)
+                            : conversion.children().size() > 1 ? invalidArgumentsWithoutInput(conversion)
+                            : null;
+                        if (unusable != null) {
+                            return new UnresolvedAttribute(fa.source(), fa.name(), unusable);
                         }
                     }
                     boolean loadUnmappedFields = context.unmappedResolution().loadsUnmappedFields();
@@ -5186,7 +5189,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             children.set(0, resolvedAttr);
             Expression e = ((Expression) convert).replaceChildren(children);
             boolean nullForThisType = convert.lenientOnInputType() && convert.supportedTypes().contains(type.widenSmallNumeric()) == false;
-            boolean invalid = nullForThisType ? resolvesWithoutInput(e) == false : e.typeResolved().unresolved();
+            boolean invalid = nullForThisType ? invalidArgumentsWithoutInput(e) != null : e.typeResolved().unresolved();
             if (e.children().size() > 1 && invalid) {
                 // Only with other arguments, like the options of TO_IP or the base of TO_LONG: a surrogate can only be substituted when
                 // they are valid. The caller reports the error. Conversions of the field alone don't resolve for every type they
@@ -5204,13 +5207,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Whether {@code conversion} resolves when its input is {@code null}, which every conversion accepts: only its other arguments,
-         * like the options of TO_IP, can make it fail.
+         * Why {@code conversion} doesn't resolve when its input is {@code null}, which every conversion accepts: only its other
+         * arguments, like the options of TO_IP, can make it fail. {@code null} if they are valid.
          */
-        private static boolean resolvesWithoutInput(Expression conversion) {
+        private static @Nullable String invalidArgumentsWithoutInput(Expression conversion) {
             List<Expression> children = new ArrayList<>(conversion.children());
             children.set(0, Literal.NULL);
-            return conversion.replaceChildren(children).typeResolved().resolved();
+            Expression.TypeResolution resolution = conversion.replaceChildren(children).typeResolved();
+            return resolution.unresolved() ? resolution.message() : null;
         }
     }
 

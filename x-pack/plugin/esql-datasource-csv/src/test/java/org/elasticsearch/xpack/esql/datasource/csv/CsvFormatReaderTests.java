@@ -98,6 +98,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -8312,11 +8314,13 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /**
      * A duplicate name too wide for the cap is counted at its escaped width, quotes and all, without being escaped
-     * whole: the marker reports the list's rendered width and the kept ends are the escape's.
+     * whole: the marker reports the list's rendered width, and neither cut lands inside a quote's escape. The name is
+     * sized so both cuts would otherwise fall mid-escape: the head budget is not a multiple of the escape's six
+     * characters, and the tail's distinguishable end leaves its budget one short of one.
      */
     public void testAWideQuotedDuplicateNameIsCountedAtItsEscapedWidth() {
         // A distinguishable end, quotes included, so the tail the reverse walk builds is checked as well as the head.
-        String name = "'".repeat(300) + "z'end'";
+        String name = "'".repeat(300) + "z'end'x";
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
         Exception e = expectThrows(
             ExternalClientException.class,
@@ -8326,10 +8330,21 @@ public class CsvFormatReaderTests extends ESTestCase {
             )
         );
         String escaped = name.replace("'", "\\u0027");
-        assertThat(e.getMessage(), containsString("(truncated, " + escaped.length() + " chars total)"));
-        // The whole capped excerpt, against the one the fully escaped name renders: both ends and the marker.
-        assertThat(e.getMessage(), containsString("['" + ErrorExcerpts.summarizeEscaped(escaped) + "']"));
-        assertThat(e.getMessage(), containsString("z\\u0027end\\u0027']"));
+        String marker = "… (truncated, " + escaped.length() + " chars total) …";
+        String message = e.getMessage();
+        int open = message.indexOf("['");
+        int close = message.indexOf("']", open);
+        assertThat(message, open, greaterThanOrEqualTo(0));
+        assertThat(message, close, greaterThan(open));
+        String excerpt = message.substring(open + 2, close);
+        int cut = excerpt.indexOf(marker);
+        assertThat(excerpt, cut, greaterThan(0));
+        String head = excerpt.substring(0, cut);
+        String tail = excerpt.substring(cut + marker.length());
+        // Whole escapes only: a cut inside one would leave a stump such as a bare backslash-u-0.
+        assertTrue(head, head.matches("(\\\\u0027)+"));
+        assertTrue(tail, tail.matches("(\\\\u0027)+z\\\\u0027end\\\\u0027x"));
+        assertThat(excerpt.length(), lessThanOrEqualTo(ErrorExcerpts.MAX_EXCERPT_CHARS));
     }
 
     /**

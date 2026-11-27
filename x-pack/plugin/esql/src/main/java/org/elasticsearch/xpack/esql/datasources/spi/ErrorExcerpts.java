@@ -91,6 +91,16 @@ public final class ErrorExcerpts {
      * two kept windows together are narrower than the cap and the value is wider.
      */
     public static String summarizeEscaped(String head, String tail, int totalLength) {
+        return summarizeEscaped(head, tail, totalLength, null);
+    }
+
+    /**
+     * {@link #summarizeEscaped(String, String, int)} for ends that already carry an escape of the caller's own, such as
+     * the duplicate-name list's quote escape: neither cut lands inside an occurrence of {@code unsplittable}, which
+     * would leave a stump that spells nothing. A cut that would gives the whole occurrence up, so the kept windows only
+     * get narrower and still fit the cap. {@code null} cuts anywhere.
+     */
+    public static String summarizeEscaped(String head, String tail, int totalLength, String unsplittable) {
         assert head.length() >= Math.min(totalLength, MAX_EXCERPT_CHARS) : "head window narrower than the cap can draw";
         assert tail.length() >= Math.min(totalLength, MAX_EXCERPT_CHARS) : "tail window narrower than the cap can draw";
         if (totalLength <= MAX_EXCERPT_CHARS) {
@@ -101,10 +111,30 @@ public final class ErrorExcerpts {
         int remaining = Math.max(0, MAX_EXCERPT_CHARS - marker.length());
         int headBudget = remaining / 2;
         int headChars = charsEscapingWithin(head, headBudget, true);
-        int tailChars = charsEscapingWithin(tail, remaining - headBudget, false);
+        int tailStart = tail.length() - charsEscapingWithin(tail, remaining - headBudget, false);
+        if (unsplittable != null) {
+            int straddled = straddledAt(head, headChars, unsplittable);
+            if (straddled >= 0) {
+                headChars = straddled;
+            }
+            straddled = straddledAt(tail, tailStart, unsplittable);
+            if (straddled >= 0) {
+                tailStart = straddled + unsplittable.length();
+            }
+        }
         return RowLocation.escapedForDisplay(head.substring(0, headChars)) + marker + RowLocation.escapedForDisplay(
-            tail.substring(tail.length() - tailChars)
+            tail.substring(tailStart)
         );
+    }
+
+    /** Where an occurrence of {@code token} starts if a cut at {@code cut} would split it, or -1 if none would be split. */
+    private static int straddledAt(String value, int cut, String token) {
+        for (int start = Math.max(0, cut - token.length() + 1); start < cut; start++) {
+            if (value.startsWith(token, start) && start + token.length() > cut) {
+                return start;
+            }
+        }
+        return -1;
     }
 
     /**

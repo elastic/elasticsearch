@@ -195,4 +195,28 @@ public class ErrorExcerptsTests extends ESTestCase {
             }
         }
     }
+
+    /**
+     * A token the caller escaped before the cut is never split by either end: at every alignment of the token
+     * against the two cuts, each kept end holds only whole tokens, and what a {@code null} token keeps is unchanged.
+     */
+    public void testAnUnsplittableTokenIsNeverCutInHalf() {
+        String token = "<tok>";
+        for (int pad = 0; pad < token.length(); pad++) {
+            String value = "x".repeat(pad) + token.repeat(200) + "y".repeat(pad);
+            int window = ErrorExcerpts.MAX_EXCERPT_CHARS;
+            String head = value.substring(0, window);
+            String tail = value.substring(value.length() - window);
+            assertEquals(ErrorExcerpts.summarizeEscaped(value), ErrorExcerpts.summarizeEscaped(head, tail, value.length(), null));
+            String kept = ErrorExcerpts.summarizeEscaped(head, tail, value.length(), token);
+            String marker = "… (truncated, " + value.length() + " chars total) …";
+            int cut = kept.indexOf(marker);
+            assertThat(kept, cut, greaterThan(0));
+            String keptHead = kept.substring(0, cut);
+            String keptTail = kept.substring(cut + marker.length());
+            assertTrue(keptHead, keptHead.matches("x{" + pad + "}(<tok>)+"));
+            assertTrue(keptTail, keptTail.matches("(<tok>)+y{" + pad + "}"));
+            assertThat(kept.length(), lessThanOrEqualTo(ErrorExcerpts.MAX_EXCERPT_CHARS));
+        }
+    }
 }

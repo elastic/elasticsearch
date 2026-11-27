@@ -1515,7 +1515,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         // The sum is the join's true width and only has to fit an int for the marker: a header carrying 2GB of names
         // would have failed the read long before binding.
-        return ErrorExcerpts.summarizeEscaped(head.toString(), tail.toString(), (int) Math.min(total, Integer.MAX_VALUE));
+        // QUOTE_ESCAPE is unsplittable: the escape was taken before the cut, so a cut inside one would leave a stump.
+        return ErrorExcerpts.summarizeEscaped(head.toString(), tail.toString(), (int) Math.min(total, Integer.MAX_VALUE), QUOTE_ESCAPE);
     }
 
     /**
@@ -1544,7 +1545,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Appends {@link #quoteSafe} of {@code name}, escaping only the characters it keeps, and leaves {@code sb} exactly
-     * {@code window} wide once it is full -- the width {@link ErrorExcerpts#summarizeEscaped(String, String, int)}
+     * {@code window} wide once it is full -- the width {@link ErrorExcerpts#summarizeEscaped(String, String, int, String)}
      * requires of each end.
      */
     private static void appendQuoteSafeBounded(StringBuilder sb, String name, int window) {

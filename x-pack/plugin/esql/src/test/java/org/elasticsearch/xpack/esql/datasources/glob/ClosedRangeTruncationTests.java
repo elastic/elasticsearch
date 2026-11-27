@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.GlobExpander.doExpan
 
 /**
  * {@code expand} accepts a bounded glob with filter hints. These tests call
- * {@link GlobExpander#doExpandGlob} to inspect the first pass before any retry.
+ * {@link GlobExpander#doExpandGlob} to inspect the one pass a bounded listing gets.
  */
 public class ClosedRangeTruncationTests extends ESTestCase {
 
@@ -47,14 +47,16 @@ public class ClosedRangeTruncationTests extends ESTestCase {
     }
 
     /**
-     * A two-segment wildcard glob does not bind {@code year} in the drain, so the bound fills with
-     * out-of-range files. The closed-range post-filter then drops them. That empty result must stay
-     * truncated so {@code expand} retries instead of caching a complete miss.
+     * A two-segment wildcard glob does not bind {@code year} in the drain; the closed-range post-filter
+     * drops the out-of-range files afterwards. They do not consume {@code maxFiles} either: the drain sets
+     * each full batch aside and reads on, so the miss is conclusive and one schema anchor is kept instead
+     * of a truncated empty set nothing would list again.
      */
-    public void testClosedRangePostFilterOnTruncatedListingStaysEmpty() throws IOException {
+    public void testClosedRangePostFilterRejectsDoNotConsumeTheBound() throws IOException {
         FileList result = expandClosedRange("s3://bucket/data/*/*.parquet");
-        assertEquals(0, result.fileCount());
-        assertTrue(result.isTruncated());
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertFalse(result.isTruncated());
     }
 
     private static FileList expandClosedRange(String glob) throws IOException {

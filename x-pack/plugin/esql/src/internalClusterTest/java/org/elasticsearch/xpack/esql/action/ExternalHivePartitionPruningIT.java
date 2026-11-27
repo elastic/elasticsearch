@@ -727,6 +727,62 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     }
 
     /**
+     * Two hours of one day, asked for as a {@code FORK} and as an {@code OR}, on a day that is not first in key order.
+     * Resolution lists once for the dataset with the hints every branch shares, which stop at the day, and it only
+     * wants a {@code partition_sample_size} sample. The day holds twelve files against a {@code max_discovered_files}
+     * of six, and the first keys of the tree belong to the day before: a sample that comes back empty and is then
+     * listed again without its bound enumerates the whole day and fails the query on files it never reads.
+     */
+    public void testSameDayBranchesOnALaterDayResolveUnderALowCap() throws Exception {
+        assumeTrue("requires FORK", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        Path root = createTempDir().resolve("csv_hourly");
+        for (int day : List.of(17, 18)) {
+            for (int hour = 0; hour < 12; hour++) {
+                Path dir = root.resolve("year=2026").resolve("month=11").resolve("day=" + day).resolve("hour=" + pad2(hour));
+                Files.createDirectories(dir);
+                writeRow(dir, day * 100 + hour, "csv");
+            }
+        }
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset(
+            "csv_hourly",
+            glob,
+            Map.of("partition_detection", "hive", "schema_resolution", "first_file_wins", "partition_sample_size", 2)
+        );
+        // The same tree behind a glob with no key= segment and no globstar: no walk and no value filter in the
+        // drain, so a closed range is applied by the folder post-filter. The day before must not fill the
+        // sample, and the folders outside the range must not count toward the cap in split discovery either.
+        String flatDataset = registerDataset(
+            "csv_hourly_flat",
+            StoragePath.fileUri(root) + "/*/*/*/*/*.csv",
+            Map.of("partition_detection", "hive", "schema_resolution", "first_file_wins", "partition_sample_size", 2)
+        );
+        String day = "year == 2026 AND month == 11 AND day == 18";
+        updateClusterSettings(Settings.builder().put("esql.external.max_discovered_files", 6));
+        try {
+            for (String tail : List.of(
+                "FORK (WHERE " + day + " AND hour == 5) (WHERE " + day + " AND hour == 7)",
+                "WHERE " + day + " | FORK (WHERE hour == 5) (WHERE hour == 7)",
+                "WHERE " + day + " AND (hour == 5 OR hour == 7)"
+            )) {
+                try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | " + tail + " | KEEP id | SORT id"))) {
+                    List<Long> ids = getValuesList(response).stream().map(row -> ((Number) row.get(0)).longValue()).toList();
+                    assertThat("[" + tail + "]", ids, equalTo(List.of(1805L, 1807L)));
+                }
+            }
+            String range = "day >= 18 AND day <= 18 AND hour >= ";
+            String flatTail = "FORK (WHERE " + range + "5 AND hour <= 5) (WHERE " + range + "7 AND hour <= 7)";
+            try (var response = run(syncEsqlQueryRequest("FROM " + flatDataset + " | " + flatTail + " | KEEP id | SORT id"))) {
+                List<Long> ids = getValuesList(response).stream().map(row -> ((Number) row.get(0)).longValue()).toList();
+                assertThat("[flat glob]", ids, equalTo(List.of(1805L, 1807L)));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull("esql.external.max_discovered_files"));
+        }
+    }
+
+    /**
      * A branch that pins {@code year} with two spellings of one number still matches the {@code year=2025} folder, as
      * ES|QL compares them numerically. The branch must keep its value in the union, or the listing narrows to 2024 and
      * the 2025 rows are lost.

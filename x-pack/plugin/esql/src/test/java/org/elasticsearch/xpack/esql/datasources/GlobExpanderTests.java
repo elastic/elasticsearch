@@ -3323,10 +3323,10 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * A bound that fills with {@code _file.*} rejects is truncated-empty, not a conclusive miss. TEMPLATE retries
-     * the exact spliced prefix unbounded and must not list the parent.
+     * A {@code _file.*} reject does not fill the bound: the drain of the exact spliced prefix keeps going to the
+     * file the hint keeps. One pass over that prefix, no retry, and the parent is never listed.
      */
-    public void testTemplateTruncatedEmptyRetryListsExactPrefix() throws IOException {
+    public void testTemplateBoundSkipsFileHintRejectsOnTheExactPrefix() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
             Map.of(
                 "s3://bucket/logs/us-east-1/",
@@ -3358,8 +3358,8 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         assertEquals(List.of("s3://bucket/logs/us-east-1/big.parquet"), paths(result));
-        assertFalse(result.isTruncated());
-        assertEquals(List.of("s3://bucket/logs/us-east-1/", "s3://bucket/logs/us-east-1/"), provider.listedPrefixes);
+        assertTrue("the one survivor fills the bound of 1", result.isTruncated());
+        assertEquals("one pass over the exact prefix", List.of("s3://bucket/logs/us-east-1/"), provider.listedPrefixes);
         assertThat(provider.listedPrefixes, not(hasItem("s3://bucket/logs/")));
     }
 
@@ -6932,10 +6932,9 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("the one matching file, found past 800 keys the bound must not have counted", 1, result.fileCount());
         assertEquals("s3://bucket/data/year=2024/only.parquet", result.path(0).toString());
         assertFalse("a drain that exhausted its prefix below the bound is the whole pattern, not a prefix of it", result.isTruncated());
-        // The load-bearing assertion. A bound counting keys returns empty-truncated here, and the expander then
-        // re-lists unbounded and produces the same three answers above from the retry - so without this the test
-        // passes against the defect it is named for. One pass means the first, bounded listing answered.
-        assertEquals("the bounded listing must answer, not be thrown away and retried", 1, provider.listedPrefixes.size());
+        // A bound counting keys returns empty-truncated here, which is "matched no files" for a dataset that
+        // has one. One pass means the bounded listing itself answered.
+        assertEquals("the bounded listing must answer in one pass", 1, provider.listedPrefixes.size());
     }
 
     /**
@@ -8248,8 +8247,8 @@ public class GlobExpanderTests extends ESTestCase {
             new ListingExtents(2),
             PlanningMemory.NONE
         );
-        // doExpandGlob itself does not promote a truncated all-excluded page. The bound-empty retry then
-        // lists unbounded, Stage 2 trusts the prune, and one inference-anchor file is kept.
+        // Value-excluded files do not fill the bound, so the bounded drain reads to the end. Stage 2 trusts
+        // the prune over that complete listing and one inference-anchor file is kept, in one pass.
         assertEquals(1, truncated.fileCount());
         assertTrue(truncated.isInferenceAnchor());
         assertFalse(truncated.isTruncated());
@@ -8689,9 +8688,9 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * A bounded pattern that matches nothing, and that nothing narrowed, lists once.
      *
-     * <p>The retry is for a listing that stopped short: a rewrite that missed a folder's spelling, or a bound
-     * reached before the first match. A listing that read to the end of the pattern and found nothing has neither,
-     * so the dataset really holds no match and a second, unbounded pass buys the same empty answer twice. Counted
+     * <p>The retry is for a rewrite that missed a folder's spelling. A listing that read to the end of the pattern
+     * and found nothing has no rewrite to doubt, so the dataset really holds no match and a second pass buys the
+     * same empty answer twice. Counted
      * in keys pulled rather than in calls, because a second pass over the same prefix pulls the same keys again —
      * which is also what a page costs on a paging store.
      */
@@ -8752,7 +8751,7 @@ public class GlobExpanderTests extends ESTestCase {
      * A bounded page holding nothing the glob matches is not an empty dataset. Reporting one would turn a working
      * query into "matched no files" for any dataset whose first keys happen to be another format.
      */
-    public void testBoundedListingMatchingNothingRelistsInFull() throws IOException {
+    public void testBoundedListingReadsPastKeysTheGlobDoesNotMatch() throws IOException {
         List<StorageEntry> listing = new ArrayList<>();
         for (int i = 0; i < 1000; i++) {
             listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/part-%06d.csv", i), 50));
@@ -8779,10 +8778,10 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A range filter cannot splice the prefix. Counting the excluded 2024 key toward {@code maxFiles}
-     * would fill a bound of 1 before 2025, truncated-empty, and retry unbounded. Survivors-after-filter
+     * would fill a bound of 1 before 2025 and leave the listing truncated and empty. Survivors-after-filter
      * keep 2025 on the first pass ({@code keysPulled == 2}) and mark truncated.
      */
-    public void testBoundedRangeFilterMatchingPastTheBoundRelistsInFull() throws IOException {
+    public void testBoundedRangeFilterKeepsTheMatchPastTheExcludedKeys() throws IOException {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/year=2024/a.parquet", 100),
             entry("s3://bucket/data/year=2025/b.parquet", 100)
@@ -8805,7 +8804,7 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("the matching file past the bound must still be found", 1, result.fileCount());
         assertEquals("s3://bucket/data/year=2025/b.parquet", result.path(0).toString());
         assertTrue("the bound filled with the later survivor", result.isTruncated());
-        assertEquals("value-excluded files must not force an unbounded retry", 2, provider.keysPulled());
+        assertEquals("value-excluded files must not fill the bound: one pass", 2, provider.keysPulled());
     }
 
     /**
@@ -8853,8 +8852,8 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * A bounded drain that value-excludes every file still keeps one schema anchor. Unbounded retry
-     * would list the dataset again and can fail "matched no files".
+     * A bounded drain that value-excludes every file still keeps one schema anchor, in the one pass it
+     * makes, rather than an empty listing the resolver reports as "matched no files".
      */
     public void testBoundedAllValueExcludedKeepsSchemaAnchor() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -9124,12 +9123,12 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * {@code _file.*} promotion of a schema-inference stash is only sound over a listing that saw the
      * whole pattern: the first reject is then a well-defined choice. A bound that fills with files the
-     * hint drops has not seen the rest; a match may sit past it. The empty truncated listing must
-     * retry unbounded. That retry is not the partition-value-filter path: value-excluded keys do not
-     * fill {@code maxFiles} and must not relist. FIRST_FILE_WINS would otherwise infer schema from a
-     * file the query excluded.
+     * hint drops has not seen the rest; a match may sit past it. So those files do not fill the bound,
+     * any more than value-excluded keys do: the drain keeps going to the files the hint keeps, in one
+     * pass and without a second, unbounded listing. FIRST_FILE_WINS would otherwise infer schema from
+     * a file the query excluded.
      */
-    public void testBoundedFileHintRejectingThePrefixRelistsInFull() throws IOException {
+    public void testBoundedFileHintRejectsDoNotFillTheBound() throws IOException {
         List<StorageEntry> listing = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/file%02d.parquet", i), 10));
@@ -9168,15 +9167,261 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("the five files past the bound that survive _file.size > 50", 5, bounded.fileCount());
         assertEquals(5, unbounded.fileCount());
         assertEquals("s3://bucket/data/file10.parquet", bounded.path(0).toString());
-        assertEquals("the first file of the retried listing equals the unbounded listing's", unbounded.path(0), bounded.path(0));
-        assertFalse("the retry listed to the end of the pattern", bounded.isTruncated());
+        assertEquals("the first file of the bounded listing equals the unbounded listing's", unbounded.path(0), bounded.path(0));
+        assertFalse("five survivors under a bound of 8: the drain read to the end of the pattern", bounded.isTruncated());
         assertFalse(bounded.isInferenceAnchor());
-        assertEquals("bound 8 then the full 15 on retry", 23, boundedProvider.keysPulled());
+        assertEquals("one pass, no retry", 15, boundedProvider.keysPulled());
         assertEquals("an unbounded pass lists once", 15, unboundedProvider.keysPulled());
         for (int i = 0; i < bounded.fileCount(); i++) {
             assertEquals("index " + i, unbounded.path(i), bounded.path(i));
             assertEquals(100L, bounded.size(i));
         }
+    }
+
+    /**
+     * The bound is on the files the {@code _file.*} hint keeps. Ten rejects, then five keeps under a bound of 3:
+     * the drain stops at the third keep, truncated, having pulled thirteen keys once. Sync and async.
+     */
+    public void testBoundedFileHintStopsAtTheBoundOfSurvivors() throws Exception {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/file%02d.parquet", i), 10));
+        }
+        for (int i = 10; i < 15; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/file%02d.parquet", i), 100));
+        }
+        var hints = List.of(hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 50));
+
+        CountingStubProvider syncProvider = new CountingStubProvider(listing);
+        FileList sync = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            syncProvider,
+            hints,
+            HIVE_OFF,
+            MAX,
+            MAX,
+            MAX,
+            new ListingExtents(3),
+            PlanningMemory.NONE
+        );
+        CountingStubProvider asyncProvider = new CountingStubProvider(listing);
+        FileList async = expandSync("s3://bucket/data/*.parquet", asyncProvider, hints, HIVE_OFF, MAX, MAX, MAX, 3, 4, () -> false);
+
+        for (FileList result : List.of(sync, async)) {
+            assertEquals(
+                List.of("s3://bucket/data/file10.parquet", "s3://bucket/data/file11.parquet", "s3://bucket/data/file12.parquet"),
+                paths(result)
+            );
+            assertTrue(result.isTruncated());
+        }
+        assertEquals(13, syncProvider.keysPulled());
+        assertEquals(13, asyncProvider.keysPulled());
+    }
+
+    /**
+     * A glob with no {@code key=} segment is not value-filtered in the drain; the closed range is applied by the
+     * folder post-filter. Thirty out-of-range files sort first. They must not fill the bound (the listing would be
+     * empty and truncated) nor count toward {@code max_discovered_files}: the drain stops counting them and keeps
+     * going to the day the range keeps. Thirty is not a multiple of the bound, so the two days share a batch and
+     * the bound is still four files of the day asked for. One pass, sync and async.
+     */
+    public void testBoundedPostFilterRejectsDoNotFillTheBound() throws Exception {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/day=17/f%02d.parquet", i), 100));
+        }
+        for (int i = 0; i < 30; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/day=18/f%02d.parquet", i), 100));
+        }
+        var hints = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 18),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 18)
+        );
+
+        CountingStubProvider syncProvider = new CountingStubProvider(listing);
+        FileList sync = GlobExpander.expand(
+            "s3://bucket/data/*/*.parquet",
+            syncProvider,
+            hints,
+            HIVE_ON,
+            8,
+            MAX,
+            MAX,
+            new ListingExtents(4),
+            PlanningMemory.NONE
+        );
+        CountingStubProvider asyncProvider = new CountingStubProvider(listing);
+        FileList async = expandSync("s3://bucket/data/*/*.parquet", asyncProvider, hints, HIVE_ON, 8, MAX, MAX, 4, 4, () -> false);
+
+        for (FileList result : List.of(sync, async)) {
+            assertEquals(4, result.fileCount());
+            assertTrue(paths(result).stream().allMatch(p -> p.contains("day=18")));
+            assertEquals("s3://bucket/data/day=18/f00.parquet", result.path(0).toString());
+            assertTrue(result.isTruncated());
+        }
+        assertEquals("thirty passed over, four kept, one pass", 34, syncProvider.keysPulled());
+        assertEquals(34, asyncProvider.keysPulled());
+    }
+
+    /**
+     * Same shape with nothing in range: the drain reads to the end, so the miss is conclusive. The files are
+     * judged together and one of them is kept as the schema anchor rather than an empty listing the resolver
+     * reports as "matched no files". Thirty files against a {@code max_discovered_files} of 8 do not throw: none
+     * of them is a file the listing keeps. Bounded, unbounded and async answer the same.
+     */
+    public void testPostFilterKeepingNothingReturnsASchemaAnchor() throws Exception {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/day=17/f%02d.parquet", i), 100));
+        }
+        var hints = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 18),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 18)
+        );
+        for (ListingExtents extents : List.of(new ListingExtents(4), ListingExtents.UNBOUNDED)) {
+            CountingStubProvider provider = new CountingStubProvider(listing);
+            FileList result = GlobExpander.expand(
+                "s3://bucket/data/*/*.parquet",
+                provider,
+                hints,
+                HIVE_ON,
+                8,
+                MAX,
+                MAX,
+                extents,
+                PlanningMemory.NONE
+            );
+            CountingStubProvider asyncProvider = new CountingStubProvider(listing);
+            FileList async = expandSync(
+                "s3://bucket/data/*/*.parquet",
+                asyncProvider,
+                hints,
+                HIVE_ON,
+                8,
+                MAX,
+                MAX,
+                extents.maxFiles(),
+                4,
+                () -> false
+            );
+            for (FileList list : List.of(result, async)) {
+                assertEquals(1, list.fileCount());
+                assertEquals("s3://bucket/data/day=17/f00.parquet", list.path(0).toString());
+                assertTrue(list.isInferenceAnchor());
+                assertFalse(list.isTruncated());
+            }
+            assertEquals(30, provider.keysPulled());
+        }
+    }
+
+    /**
+     * The discovery cap is on the files a listing keeps. A {@code max_discovered_files} below both the bound and
+     * the out-of-range folder that sorts first must not fail a listing whose kept files fit: bounded and unbounded.
+     * One more in-range file than the cap still throws.
+     */
+    public void testPostFilterRejectsDoNotCountTowardTheDiscoveryCap() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            listing.add(entry("s3://bucket/data/day=17/f" + i + ".parquet", 100));
+        }
+        for (int i = 0; i < 3; i++) {
+            listing.add(entry("s3://bucket/data/day=18/f" + i + ".parquet", 100));
+        }
+        var hints = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 18),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 18)
+        );
+        for (ListingExtents extents : List.of(new ListingExtents(8), ListingExtents.UNBOUNDED)) {
+            FileList result = GlobExpander.expand(
+                "s3://bucket/data/*/*.parquet",
+                new CountingStubProvider(listing),
+                hints,
+                HIVE_ON,
+                3,
+                MAX,
+                MAX,
+                extents,
+                PlanningMemory.NONE
+            );
+            assertEquals(
+                List.of("s3://bucket/data/day=18/f0.parquet", "s3://bucket/data/day=18/f1.parquet", "s3://bucket/data/day=18/f2.parquet"),
+                paths(result)
+            );
+            assertFalse(result.isTruncated());
+            expectThrows(
+                DiscoveredFilesLimitException.class,
+                () -> GlobExpander.expand(
+                    "s3://bucket/data/*/*.parquet",
+                    new CountingStubProvider(listing),
+                    hints,
+                    HIVE_ON,
+                    2,
+                    MAX,
+                    MAX,
+                    extents,
+                    PlanningMemory.NONE
+                )
+            );
+        }
+    }
+
+    /**
+     * Files a bounded drain stopped counting are still the post-filter's to decide once it reads to the end,
+     * because that pass types a folder level over the files it is given: {@code day=abc} makes {@code day} a
+     * keyword, an integer range no longer decides, and every file is kept. That is the whole glob, so it is not
+     * truncated, and it answers to {@code max_discovered_files} as the unbounded listing does.
+     */
+    public void testBoundedPostFilterUncountedFilesReturnWhenTheTypeWidens() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            listing.add(entry("s3://bucket/data/day=17/f" + i + ".parquet", 100));
+        }
+        listing.add(entry("s3://bucket/data/day=abc/g.parquet", 100));
+        var hints = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 18),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 18)
+        );
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/*/*.parquet",
+            new CountingStubProvider(listing),
+            hints,
+            HIVE_ON,
+            MAX,
+            MAX,
+            MAX,
+            new ListingExtents(3),
+            PlanningMemory.NONE
+        );
+        FileList unbounded = GlobExpander.expand(
+            "s3://bucket/data/*/*.parquet",
+            new CountingStubProvider(listing),
+            hints,
+            HIVE_ON,
+            MAX,
+            MAX,
+            MAX,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE
+        );
+        assertEquals(paths(unbounded), paths(result));
+        assertEquals(7, result.fileCount());
+        assertFalse(result.isTruncated());
+
+        expectThrows(
+            DiscoveredFilesLimitException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/data/*/*.parquet",
+                new CountingStubProvider(listing),
+                hints,
+                HIVE_ON,
+                5,
+                MAX,
+                MAX,
+                new ListingExtents(3),
+                PlanningMemory.NONE
+            )
+        );
     }
 
     /**
@@ -9211,11 +9456,11 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * String {@code region == "west"} splices {@code region=west}. The on-disk folder is {@code region=w%65st}
-     * (an extra-escaped {@code e}); the spliced prefix is empty. Bound 1 does not change that. The Hive retry
-     * lists the original glob unbounded, so {@code year} is typed from every matching file rather than from a
-     * one-file sample.
+     * (an extra-escaped {@code e}); the spliced prefix is empty. The Hive retry lists the original glob under the
+     * same bound of 1: a sample that came back empty is still a sample, so it is one file, truncated, and
+     * {@code year} is typed from what the sample visited, as for any other bounded listing.
      */
-    public void testRelistAfterANarrowingThatMatchedNothingTypesPartitionsFromEveryFile() throws IOException {
+    public void testRelistAfterANarrowingThatMatchedNothingKeepsTheBound() throws IOException {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/year=2024/region=w%65st/a.parquet", 100),
             entry("s3://bucket/data/year=abc/region=w%65st/b.parquet", 100)
@@ -9234,13 +9479,111 @@ public class GlobExpanderTests extends ESTestCase {
             PlanningMemory.NONE
         );
 
-        assertEquals("the re-list is unbounded, so both files are returned", 2, result.fileCount());
-        assertFalse(result.isTruncated());
+        assertEquals("the re-list keeps the bound", 1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2024/region=w%65st/a.parquet", result.path(0).toString());
+        assertTrue(result.isTruncated());
         assertEquals(
-            "year is typed from every path the re-list returned, not from the first one",
-            DataType.KEYWORD,
+            "year is typed from the sample, like any bounded listing",
+            DataType.INTEGER,
             result.partitionMetadata().partitionColumns().get("year")
         );
+    }
+
+    /**
+     * The splice-miss retry must not enumerate what the hints match. Forty files sit under the folder the splice
+     * missed; with {@code max_discovered_files} at 10 an unbounded re-list throws, the bounded one returns its sample.
+     */
+    public void testRelistAfterASpliceMissStaysUnderTheDiscoveryCap() throws Exception {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/year=2024/region=w%%65st/f%02d.parquet", i), 100));
+        }
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "west"));
+
+        FileList sync = GlobExpander.expand(
+            "s3://bucket/data/year=*/region=*/*.parquet",
+            new CountingStubProvider(listing),
+            hints,
+            HIVE_ON,
+            10,
+            MAX,
+            MAX,
+            new ListingExtents(3),
+            PlanningMemory.NONE
+        );
+        FileList async = expandSync(
+            "s3://bucket/data/year=*/region=*/*.parquet",
+            new CountingStubProvider(listing),
+            hints,
+            HIVE_ON,
+            10,
+            MAX,
+            MAX,
+            3,
+            4,
+            () -> false
+        );
+        for (FileList result : List.of(sync, async)) {
+            assertEquals(3, result.fileCount());
+            assertTrue(result.isTruncated());
+            assertFalse(result.isInferenceAnchor());
+        }
+        expectThrows(
+            DiscoveredFilesLimitException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/data/year=*/region=*/*.parquet",
+                new CountingStubProvider(listing),
+                hints,
+                HIVE_ON,
+                10,
+                MAX,
+                MAX,
+                ListingExtents.UNBOUNDED,
+                PlanningMemory.NONE
+            )
+        );
+    }
+
+    /**
+     * A bounded splice-miss retry that keeps nothing still answers with a schema anchor, not an empty listing the
+     * resolver would report as "matched no files": the retry read to the end, so the all-excluded prune is trusted.
+     * The unbounded retry answered the same; this pins that keeping the bound did not lose the anchor.
+     */
+    public void testRelistAfterASpliceMissKeepingNothingReturnsASchemaAnchor() throws Exception {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            listing.add(entry("s3://bucket/data/year=2024/region=east/f" + i + ".parquet", 100));
+        }
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "west"));
+
+        FileList sync = GlobExpander.expand(
+            "s3://bucket/data/year=*/region=*/*.parquet",
+            new CountingStubProvider(listing),
+            hints,
+            HIVE_ON,
+            3,
+            MAX,
+            MAX,
+            new ListingExtents(2),
+            PlanningMemory.NONE
+        );
+        FileList async = expandSync(
+            "s3://bucket/data/year=*/region=*/*.parquet",
+            new CountingStubProvider(listing),
+            hints,
+            HIVE_ON,
+            3,
+            MAX,
+            MAX,
+            2,
+            4,
+            () -> false
+        );
+        for (FileList result : List.of(sync, async)) {
+            assertEquals(1, result.fileCount());
+            assertTrue(result.isInferenceAnchor());
+            assertFalse(result.isTruncated());
+        }
     }
 
     /**
@@ -9597,9 +9940,8 @@ public class GlobExpanderTests extends ESTestCase {
      */
 
     public void testTheExpanderHonoursTheExtentsItIsGiven() throws IOException {
-        // The hint must keep the page's first key, or the value filter empties the bounded page and the listing
-        // re-lists in full - which is its own documented behaviour (testBoundedListingMatchingNothingRelistsInFull)
-        // and would not exercise the bound at all. hiveTree lists year=2024 first.
+        // The hint keeps the page's first key, so the bound is reached on the first files listed and the
+        // comparison below is over the front of the tree. hiveTree lists year=2024 first.
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
 
         FileList bounded = GlobExpander.expand(

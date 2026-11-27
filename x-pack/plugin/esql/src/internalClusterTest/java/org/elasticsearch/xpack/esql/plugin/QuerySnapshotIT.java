@@ -157,6 +157,7 @@ public class QuerySnapshotIT extends AbstractEsqlIntegTestCase {
         QuerySnapshot snapshot = query.open(null, TimeValue.timeValueSeconds(5));
         assertThat(activeContexts(), equalTo(snapshot.shards().size()));
         internalCluster().stopNode(coordinator);
+        assertTrue("the query never closed its snapshot", snapshot.markClosed());
         assertBusy(() -> assertThat("the readers expired", activeContexts(), equalTo(0)), 30, TimeUnit.SECONDS);
     }
 

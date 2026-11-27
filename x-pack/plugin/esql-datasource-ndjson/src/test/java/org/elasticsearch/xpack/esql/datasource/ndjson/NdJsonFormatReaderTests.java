@@ -880,6 +880,18 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         assertThat("no mtime is about the stats cache, not about the byte axis", undated, containsString("counted from byte [9999]"));
     }
 
+    /**
+     * The first macro-split of a block-aligned compressed object starts at a non-zero boundary in the compressed file,
+     * but its ordinals are the object's. It says nothing about a byte or a split, as the CSV reader says nothing there.
+     */
+    public void testTheFirstSplitCountsFromTheTopOfTheObject() throws IOException {
+        byte[] bytes = "{\"v\":1}\n{\"v\":\"nope\"}\n".getBytes(StandardCharsets.UTF_8);
+        List<Attribute> schema = List.of(NdJsonSchemaInferrer.attribute("v", DataType.LONG, true));
+        String first = warningsFromSplit(new BytesObject(bytes), schema, false, true).toString();
+        assertThat(first, containsString("row [2], column [v]: cannot read [nope] as [long]"));
+        assertThat("the first split's ordinal is the object's", first, not(containsString("counted")));
+    }
+
     /** An object the store serves with no Last-Modified, which {@code read()} treats as unable to join the stats cache. */
     private static final class UndatedBytesObject extends BytesObject {
         UndatedBytesObject(byte[] bytes) {
@@ -893,15 +905,20 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     }
 
     private List<String> warningsFromSplit(byte[] bytes, List<Attribute> schema, boolean recordAligned) throws IOException {
-        return warningsFromSplit(new BytesObject(bytes), schema, recordAligned);
+        return warningsFromSplit(new BytesObject(bytes), schema, recordAligned, false);
     }
 
     private List<String> warningsFromSplit(StorageObject object, List<Attribute> schema, boolean recordAligned) throws IOException {
+        return warningsFromSplit(object, schema, recordAligned, false);
+    }
+
+    private List<String> warningsFromSplit(StorageObject object, List<Attribute> schema, boolean recordAligned, boolean firstSplit)
+        throws IOException {
         List<String> warnings = new ArrayList<>();
         FormatReadContext context = FormatReadContext.builder()
             .batchSize(100)
             .errorPolicy(ErrorPolicy.LENIENT)
-            .firstSplit(false)
+            .firstSplit(firstSplit)
             .lastSplit(true)
             .recordAligned(recordAligned)
             .splitStartByte(9999L)

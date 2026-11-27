@@ -50,6 +50,7 @@ public final class WithinFileWideningWarnings {
         }
         SkipWarnings keywordWarnings = null;
         SkipWarnings precisionWarnings = null;
+        String location = RowLocation.escapedForDisplay(sourceLocation);
         for (WidenedColumn widened : widenedColumns) {
             // The column name is store-supplied too -- an NDJSON field name is an arbitrary JSON key -- and it is
             // printed first inside this same bracketed sentence, so leaving it raw would let it forge the whole
@@ -65,7 +66,7 @@ public final class WithinFileWideningWarnings {
                 + " ["
                 + widened.sampleRow()
                 + "] of ["
-                + RowLocation.escapedForDisplay(sourceLocation)
+                + location
                 + "]: value ["
                 + widened.value()
                 + "] forced type ["

@@ -994,7 +994,7 @@ public class NdJsonPageDecoder implements Closeable {
      * The 400 every failure this decoder raises for the user's data is thrown as. Each names the object, and the
      * object is whatever the user called it -- {@code logs.amazonaws.com.ndjson} included -- so the message is marked
      * as quoting the read's input: unmarked, the read boundary's storage-path assertion reads the name as a host and
-     * turns the refusal into an {@link AssertionError} under {@code -ea}. A {@code ParsingException}, which these were,
+     * turns the refusal into an {@link AssertionError} under {@code -ea}. A {@code ParsingException}
      * cannot carry the mark. The shape is the one the CSV reader's typed refusals take, and {@code cause}, when there
      * is one, is the parser's exception: logged on this node and never sent.
      */
@@ -1057,6 +1057,11 @@ public class NdJsonPageDecoder implements Closeable {
      */
     void withholdMessageStartByte() {
         this.messageOffsetBase = RowLocation.BYTE_UNKNOWN;
+    }
+
+    /** Counts messages from the top of the object: called for the first split, whose ordinals are the object's. */
+    void countMessagesFromObjectStart() {
+        this.messageOffsetBase = 0L;
     }
 
     /**

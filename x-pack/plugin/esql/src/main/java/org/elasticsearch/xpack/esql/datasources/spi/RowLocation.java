@@ -107,11 +107,9 @@ public final class RowLocation {
      * compression signal to branch on.
      */
     public static String countedIn(long readStartByte) {
-        // Any negative takes the unknown clause, not BYTE_UNKNOWN alone, and deliberately: the clause says only that
-        // this message cannot name a byte, which is true of every negative a caller could arrive at, including one it
-        // arrived at by arithmetic it got wrong. Narrowing it to BYTE_UNKNOWN would mean asserting here, and an
-        // assertion in a rendering helper turns a cosmetic uncertainty on an error path into a fatal failure under
-        // -ea -- which is the thing this clause is part of a change to stop doing.
+        // Any negative takes the unknown clause, not BYTE_UNKNOWN alone: the clause says only that no byte can be
+        // named, which is true of every negative. Asserting BYTE_UNKNOWN instead would turn a cosmetic uncertainty on
+        // an error path into a fatal failure under -ea.
         if (readStartByte > 0L) {
             return " counted from byte [" + readStartByte + "] of the decoded stream";
         }
@@ -139,26 +137,17 @@ public final class RowLocation {
     }
 
     /**
-     * The escape alone, for store-supplied text about to be printed inside brackets, and deliberately no cap. A
-     * whole source location is the main caller; a column name is the other.
+     * The escape alone, with no cap, for store-supplied text printed inside brackets: a whole source location, or a
+     * column name.
      * <p>
-     * A location is the string that RESOLVES the shared-basename collision {@link #displayObjectName} accepts, so
-     * capping it destroys the one distinction it is printed for: the discriminating segment of a path sits
-     * wherever the layout puts it — a region, a date, a partition key — which is inside the window a fixed-width
-     * cut removes, and the warning text is itself the deduplication key, so the collision deletes a message rather
-     * than shortening one.
+     * A location is not capped because it is what tells two objects sharing a basename apart, and the segment that
+     * does so -- a region, a date, a partition key -- sits wherever the layout puts it, inside the window a fixed cut
+     * removes. The warning text is its own deduplication key, so a collision deletes a message rather than shortening
+     * it. The cost is that nothing bounds its width: neither {@code http.max_warning_header_size} nor
+     * {@code SkipWarnings#MAX_ADDED_WARNINGS} caps one warning's length.
      * <p>
-     * The cost is that nothing then bounds the width. A key may be any length the store permits, each escaped
-     * character costs six in the warning text and more on the wire, and nothing downstream re-bounds it:
-     * {@code http.max_warning_header_size} and {@code http.max_warning_header_count} both default to unbounded,
-     * and {@code SkipWarnings#MAX_ADDED_WARNINGS} caps the NUMBER of distinct warnings rather than any one's
-     * length. Bounding a location without losing its discriminator needs a cut that keeps the discriminating
-     * segment, which is a policy owed to every message embedding a store-supplied path.
-     * <p>
-     * A key legitimately holding a bracket — {@code part[0].ndjson} is an ordinary name — therefore renders
-     * escaped, so what the message prints is not a string the store will accept back. A location whose authority is an IPv6 literal
-     * pays the same on brackets the URI grammar contributed: {@code https://[2001:db8::1]/b/x} renders ten
-     * characters wider. Telling those apart would mean trusting a parse of the very text being protected.
+     * A key legitimately holding a bracket -- {@code part[0].ndjson} -- renders escaped too, as do the brackets of an
+     * IPv6 authority: telling those apart would mean trusting a parse of the text being protected.
      */
     public static String escapedForDisplay(String storeSuppliedText) {
         return storeSuppliedText == null ? "" : escapeImpersonatingCharacters(storeSuppliedText);
@@ -169,47 +158,31 @@ public final class RowLocation {
         if (displayable.length() <= MAX_OBJECT_NAME_CHARS) {
             return displayable;
         }
+        // Cut on the name and escape the two ends, so a cut never lands inside a six-character escape and leaves a
+        // stump that spells nothing, and the escape is counted against the cap. charsEscapingWithin also gives up a
+        // surrogate half orphaned by either cut: a lone surrogate encodes to no UTF-8 sequence, so keeping it spends a
+        // position in the cap to say nothing.
         int remaining = MAX_OBJECT_NAME_CHARS - CUT_MARKER.length();
-        int head = remaining / 2;
-        int tailStart = displayable.length() - (remaining - head);
-        // Either cut can land between the halves of a surrogate pair. One step each way is enough for a name
-        // decoded from UTF-8. The orphan is given up rather than kept: a lone surrogate encodes to no UTF-8
-        // sequence, so it cannot show the character the name had there, and keeping it spends a position in the
-        // cap to say nothing.
-        if (head > 0 && Character.isHighSurrogate(displayable.charAt(head - 1))) {
-            head--;
-        }
-        if (tailStart < displayable.length() && Character.isLowSurrogate(displayable.charAt(tailStart))) {
-            tailStart++;
-        }
-        return displayable.substring(0, head) + CUT_MARKER + displayable.substring(tailStart);
+        int headBudget = remaining / 2;
+        int head = ErrorExcerpts.charsEscapingWithin(objectName, headBudget, true);
+        int tail = ErrorExcerpts.charsEscapingWithin(objectName, remaining - headBudget, false);
+        return escapeImpersonatingCharacters(objectName.substring(0, head)) + CUT_MARKER + escapeImpersonatingCharacters(
+            objectName.substring(objectName.length() - tail)
+        );
     }
 
     /**
      * Replaces every character a name could use to impersonate the text around it with a backslash-u escape of its
-     * code point — six ASCII characters where the original was one. The escape is spelled out in words rather than
-     * written, because a backslash followed by {@code u} is a unicode escape anywhere in a Java source file,
-     * comments included.
+     * code point, six ASCII characters for one. (Spelled out, because a backslash followed by {@code u} is a unicode
+     * escape anywhere in a Java source file, comments included.)
      * <p>
-     * A control character, because the readers hand this clause to the node log beside the client warning, and the
-     * console and legacy log layouts write a message as it stands — so a key holding a newline, which S3 permits,
-     * counterfeits a log line. The response channel is safe against U+000A either way, {@code HeaderWarning.encode}
-     * percent-encoding it, but its unencoded set keeps tab and U+0080 through U+00FF, of which U+0085 is a line
-     * break. The predicate is {@code Character.isISOControl}, so U+2028 and U+2029 stay raw: a consumer breaking
-     * lines on those can still be fed a forged one through the log.
+     * A control character, because the node log writes a message as it stands, so a key holding a newline -- which
+     * S3 permits -- would counterfeit a log line; {@code HeaderWarning} encodes a newline but passes tab and U+0085.
+     * A square bracket, because the clause is concatenated: {@code v.csv] counted from byte [12} would otherwise
+     * render exactly what a byte-12 read of {@code v.csv} renders, and deduplication would keep the forgery.
      * <p>
-     * A square bracket, because the clause is built by concatenation, so a name is free to close its own bracket
-     * and open the next field: an object called {@code v.csv] counted from byte [12} renders character for
-     * character what a byte-12 read of {@code v.csv} renders, and {@code InformationalWarningBudget} then
-     * deduplicates the forgery against the real line. Both brackets are escaped, so the rule is "a bracket in a
-     * name is never a bracket in the message".
-     * <p>
-     * Escaping is one-way, which bounds what it buys: a name holding the six characters of a bracket's escape
-     * renders as one holding the bracket. Escaping the backslash too would close that, and is declined because
-     * this method's output would then hold an escapable character while {@link #of} applies it a second time over
-     * an already-reduced name — the idempotence {@code RowLocationTests} pins.
-     * <p>
-     * Applied before the cap, so {@link #MAX_OBJECT_NAME_CHARS} bounds what is emitted rather than what was read.
+     * The backslash is not escaped, so a name holding a bracket's six-character escape renders like one holding the
+     * bracket. Escaping it would make this not idempotent, and {@link #of} applies it again to a reduced name.
      */
     private static String escapeImpersonatingCharacters(String objectName) {
         int firstEscapable = -1;

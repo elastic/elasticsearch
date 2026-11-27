@@ -136,6 +136,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
     private static final String GARBAGE_PARQUET = "data/garbage.parquet";
     private static final String TRUNCATED_PARQUET = "data/truncated.parquet";
     private static final String RAGGED_CSV = "data/ragged.csv";
+    /** Named like a storage host, which is what the read boundary's guard looks for in a message it does not trust. */
+    private static final String MALFORMED_NDJSON = "data/logs.amazonaws.com.ndjson";
     private static final String DUPLICATE_HEADER_CSV = "data/duplicate_header.csv";
     private static final String GLOB_A = "glob/a.csv";
     private static final String GLOB_B = "glob/b.csv";
@@ -163,6 +165,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         seed(TRUNCATED_PARQUET, "PAR1" + "x".repeat(64));
         // Row 2 has one field too many for the declared header.
         seed(RAGGED_CSV, "id,city\n1,Vienna\n2,Berlin,extra\n");
+        // Line 2 is not JSON. Sampling reads line 1 only, so the strict read meets it, not inference.
+        seed(MALFORMED_NDJSON, "{\"id\":1,\"city\":\"Vienna\"}\n{\"id\":2,\"city\":\n{\"id\":3,\"city\":\"Prague\"}\n");
         // A header naming one column twice: by-name binding cannot say which physical column a schema column means.
         seed(DUPLICATE_HEADER_CSV, "id,city,id\n1,Vienna,2\n");
         seed(GLOB_A, "id,city\n1,Vienna\n");
@@ -289,6 +293,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("parquet extension over non-parquet bytes", 400),
         entry("parquet with correct magic but truncated body", 400),
         entry("zero-byte object", 400),
+        entry("malformed NDJSON line in an object named like a storage host", 400),
         entry("unknown setting key on the dataset", 400),
         entry("multi-character delimiter", 400),
         entry("invalid encoding name", 400),
@@ -354,6 +359,11 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry(
             "duplicate header name under a declared schema",
             List.of("duplicate_header.csv", "duplicate column names ['id']", "columns cannot bind by name")
+        ),
+        // The object's name looks like a storage host. The refusal quotes it anyway, as a 400, and says how to read on.
+        entry(
+            "malformed NDJSON line in an object named like a storage host",
+            List.of("of [logs.amazonaws.com.ndjson]", "set [error_mode] to [skip_row] to skip the row instead")
         )
     );
 
@@ -405,6 +415,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("parquet extension over non-parquet bytes", "illegal_argument_exception"),
         entry("parquet with correct magic but truncated body", "illegal_argument_exception"),
         entry("zero-byte object", "external_client_exception"),
+        entry("malformed NDJSON line in an object named like a storage host", "external_client_exception"),
         entry("unknown setting key on the dataset", "validation_exception"),
         entry("multi-character delimiter", "validation_exception"),
         entry("invalid encoding name", "validation_exception"),
@@ -832,6 +843,15 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             null
         );
         queryProbe("format", "zero-byte object", "say the object is empty", "empty_csv", "good_ds", s3(EMPTY_CSV), null);
+        queryProbeWithSettings(
+            "format",
+            "malformed NDJSON line in an object named like a storage host",
+            "refuse the row as a 400 that names the object, rather than trip the storage-path guard",
+            "malformed_ndjson",
+            "good_ds",
+            s3(MALFORMED_NDJSON),
+            Map.of("schema_sample_size", 1)
+        );
     }
 
     // -------- reader options ---------------------------------------------------------------------

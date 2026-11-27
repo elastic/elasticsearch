@@ -20,6 +20,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonPageIterator.MessageStartByte;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
@@ -832,16 +833,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             chunkMode,
             // From context.recordAligned(), not chunkMode: chunkMode is demoted above when the object has no
             // last-modified time, which is about cache participation and says nothing about the byte axis.
-            //
-            // Keyed on the offset rather than on firstSplit(), which is what CsvFormatReader keys on. The flag
-            // is binary, so the first macro-split of a block-aligned compressed object -- whose non-zero start
-            // is on the COMPRESSED axis -- can only choose between printing that cross-axis byte and printing
-            // no clause. It withholds, and says "within a split" over an ordinal that is in fact the file's:
-            // weaker than the truth rather than wrong. Their other disagreement, firstSplit=false with
-            // splitStartByte==0, is unreachable, both being derived from one FileSplit by
-            // AsyncExternalSourceOperatorFactory. Taking the long messageStartByte CsvBatchIterator takes
-            // would unify them, and changes NdJsonPageIterator's constructor contract.
-            context.recordAligned() == false && context.splitStartByte() != 0L,
+            context.firstSplit() ? MessageStartByte.OBJECT_START
+                : context.recordAligned() ? MessageStartByte.RECORD_BOUNDARY
+                : MessageStartByte.WITHHELD,
             context.readCounters() instanceof NdJsonReaderCounters c ? c : null,
             context.splitStartByte(),
             context.maxRecordBytes(),

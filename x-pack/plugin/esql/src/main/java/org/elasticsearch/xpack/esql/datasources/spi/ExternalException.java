@@ -184,6 +184,12 @@ public abstract class ExternalException extends QlException {
      * detach every classified failure goes through.
      */
     private volatile boolean messageQuotesInput;
+    /**
+     * Set when the failure this exception stands for has already been logged with its stack on this node, so
+     * {@link ExternalFailures#detach} need not log it again. Node-local: it is not serialized, and copied by the copy
+     * constructor only so it survives a detach on the same node.
+     */
+    private volatile boolean failureLogged;
 
     protected ExternalException(String message, Throwable cause) {
         super(message, cause);
@@ -273,6 +279,7 @@ public abstract class ExternalException extends QlException {
         this.detail = source.detail;
         this.datasetContext = source.datasetContext;
         this.messageQuotesInput = source.messageQuotesInput;
+        this.failureLogged = source.failureLogged;
         recordConditionMetadata();
     }
 
@@ -434,6 +441,15 @@ public abstract class ExternalException extends QlException {
     /** See {@link #markMessageQuotesInput()}. */
     boolean messageQuotesInput() {
         return messageQuotesInput;
+    }
+
+    /** Records that this failure was logged with its stack where it was built; see {@link ExternalFailures#detach}. */
+    void markFailureLogged() {
+        this.failureLogged = true;
+    }
+
+    boolean failureLogged() {
+        return failureLogged;
     }
 
     /**

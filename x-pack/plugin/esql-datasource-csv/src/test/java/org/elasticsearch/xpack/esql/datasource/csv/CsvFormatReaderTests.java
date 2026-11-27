@@ -6780,10 +6780,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertThat("the escape must have fired", illegalType.getMessage(), containsString("\\u005D"));
 
-        // The quote is the one delimiter the escape does not cover, on both paths, by the decision
-        // checkUniqueAttributeNames states and rejectDuplicateHeaderNames now repeats. A name holding the
-        // separator splits in two, so the sentence names three columns for two -- recorded here so the decline
-        // is a choice a reader finds rather than a gap they rediscover. It inverts if the quote is ever escaped.
+        // The quote is the list's own delimiter, so a quote inside a name is escaped too: a name holding the
+        // separator would otherwise split in two, and the sentence would name three columns for two.
         // CSV-quoted, because the name has to carry the comma to carry the separator at all.
         String forgesByQuote = "\"a', 'b\"";
         ExternalClientException quoted = expectThrows(
@@ -6793,9 +6791,9 @@ public class CsvFormatReaderTests extends ESTestCase {
             )
         );
         assertThat(
-            "the quote passes through, so the two names render as three entries",
+            "the quote is escaped, so the two names render as two entries",
             quoted.getMessage(),
-            containsString("duplicate column names ['a', 'b', 'ts']")
+            containsString("duplicate column names ['a\\u0027, \\u0027b', 'ts']")
         );
     }
 
@@ -7978,6 +7976,28 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A comment line is not a row, on the data path or here: a sample's refusal names the malformed row by the ordinal a
+     * read of the same file would, not one past it for every comment above it.
+     */
+    public void testSamplingDoesNotCountACommentAsARow() {
+        StringBuilder csv = new StringBuilder("# exported nightly\n# do not edit\n");
+        for (int i = 0; i < CsvFormatReader.MAX_CONSECUTIVE_SAMPLING_FAILURES + 4; i++) {
+            csv.append(i).append(",\"unterminated\n");
+        }
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "multi_value_syntax", "NONE", "multiline_fields", true, "comment", "#")
+        );
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(createStorageObject(csv.toString()), null, 10)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(e.getMessage(), containsString("row [1] of [test.csv]"));
+    }
+
+    /**
      * Sampling under FAIL_FAST (the default) surfaces the very first malformed row as a
      * client error (HTTP 400), with the row index, capped excerpt, and the hint pointing at
      * skip_row. Same exception type and message shape the data-row path uses.
@@ -8203,21 +8223,69 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(rendered, containsString("\\u005D counted from byte \\u005B999"));
     }
 
-    /** With nothing to escape, the escaped window is the unescaped one, character for character. */
-    public void testTheEscapedExcerptIsTheSameWindowWhenNothingNeedsEscaping() {
-        StringBuilder huge = new StringBuilder();
-        for (int i = 0; i < 1000; i++) {
-            huge.append((char) ('a' + i % 26));
-        }
-        String row = huge.toString();
-        for (int offset : new int[] { -1, 0, 5, CsvErrorMessages.OFFSET_LOOKBACK_CHARS, 500, 990, 1000, 5000 }) {
-            assertEquals(
-                "offset " + offset,
-                CsvErrorMessages.summarizeAround(row, offset),
-                CsvErrorMessages.summarizeEscapedAround(row, offset)
-            );
-        }
-        assertEquals("short", CsvErrorMessages.summarizeEscapedAround("short", 2));
+    /**
+     * Jackson ends its message with its own parser's position, counted in the stream it was handed -- the split, not the
+     * object. The row clause already places the row, so that suffix is dropped rather than escaped into a second,
+     * contradicting location.
+     */
+    public void testAParsersOwnLocationIsNotQuotedBesideTheRows() {
+        String jackson = "Unexpected end-of-input within/between Object entries\n at [Source: (StringReader); line: 3, column: 17]";
+        RuntimeException surfaced = ExternalFailures.surface(new IOException(jackson), CsvFormatReader.readRecordFailure("csv"));
+        String rendered = CsvFormatReader.rowErrorReason(surfaced, "csv");
+        assertThat(rendered, endsWith("Unexpected end-of-input within/between Object entries"));
+        assertThat(rendered, not(containsString("Source")));
+    }
+
+    /**
+     * Under {@code fail_fast} the tokeniser fault is the failure's cause, and it quotes the line it could not close. A
+     * line holding a URL is row content, so the read refuses it with a 400 rather than tripping the storage-path
+     * assertion through the cause.
+     */
+    public void testAnUnclosedQuoteBesideAUrlFailsFastAsAClientError() {
+        // The shape testMalformedRowErrorAnchorsOnQuoteOffset reads: a quote left open at the end of the object.
+        StorageObject object = createStorageObject("id:long,name:keyword\n1,\"https://example.com/data/x.csv");
+        CsvFormatReader reader = mvcReader(blockFactory);
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(e.getMessage(), containsString("Unclosed quoted field"));
+        assertThat(e.getMessage(), containsString("of [test.csv]"));
+        assertThat(e.getMessage(), containsString("https://example.com/data/x.csv"));
+    }
+
+    /**
+     * The duplicate list quotes each name, so a quote inside a name is escaped: a header naming {@code a', 'b} twice
+     * reports one duplicate, not the two it would otherwise spell.
+     */
+    public void testAQuoteInADuplicateNameCannotSplitIt() {
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
+        Exception e = expectThrows(
+            ExternalClientException.class,
+            () -> bindingReader(new CsvFormatReader(blockFactory)).read(
+                createStorageObject("\"a', 'b\",ts,\"a', 'b\"\n1,2,3\n"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat(e.getMessage(), containsString("duplicate column names ['a\\u0027, \\u0027b']"));
+    }
+
+    /** A failure with no message still says so, rather than printing {@code null} as if a parser had. */
+    public void testAFailureWithNoMessageSaysSo() {
+        assertEquals("(no message)", CsvFormatReader.rowErrorReason(null, "csv"));
+    }
+
+    /** The fault-anchored excerpt at the excerpt cap, which is how a tokeniser fault quotes its line. */
+    private static String faultExcerpt(String value, int offset) {
+        return CsvErrorMessages.summarizeEscapedAround(value, offset, ErrorExcerpts.MAX_EXCERPT_CHARS);
     }
 
     /**
@@ -8227,7 +8295,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testTheFaultSurvivesTheEscapesInFrontOfIt() {
         String row = "[".repeat(200) + "\"FAULT" + "x".repeat(200);
         int fault = 200;
-        String excerpt = CsvErrorMessages.summarizeEscapedAround(row, fault);
+        String excerpt = faultExcerpt(row, fault);
         assertThat(excerpt, containsString("\"FAULT"));
         assertThat(excerpt, startsWith("… (offset 200 of " + row.length() + " chars) … \\u005B"));
         assertThat(excerpt.length(), lessThanOrEqualTo(ErrorExcerpts.MAX_EXCERPT_CHARS));
@@ -8313,13 +8381,13 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testCsvErrorMessagesSummarizeAroundShortValuePassesThrough() {
-        assertEquals("hello", CsvErrorMessages.summarizeAround("hello", 0));
-        assertEquals("hello", CsvErrorMessages.summarizeAround("hello", 4));
+        assertEquals("hello", faultExcerpt("hello", 0));
+        assertEquals("hello", faultExcerpt("hello", 4));
         // Short values must pass through regardless of offset value (including negative and out-of-range).
-        assertEquals("hello", CsvErrorMessages.summarizeAround("hello", -1));
-        assertEquals("hello", CsvErrorMessages.summarizeAround("hello", 100));
-        assertEquals("null", CsvErrorMessages.summarizeAround(null, 0));
-        assertEquals("null", CsvErrorMessages.summarizeAround(null, -1));
+        assertEquals("hello", faultExcerpt("hello", -1));
+        assertEquals("hello", faultExcerpt("hello", 100));
+        assertEquals("null", faultExcerpt(null, 0));
+        assertEquals("null", faultExcerpt(null, -1));
     }
 
     public void testCsvErrorMessagesSummarizeAroundLongValueAnchorsOnOffset() {
@@ -8333,7 +8401,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         int faultOffset = 500;
         String marker = "FAULTHERE";
         huge.replace(faultOffset, faultOffset + marker.length(), marker);
-        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
+        String summarized = faultExcerpt(huge.toString(), faultOffset);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length() + ": " + summarized,
             summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
@@ -8356,7 +8424,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         for (int i = 0; i < 1000; i++) {
             huge.append('a');
         }
-        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), 5);
+        String summarized = faultExcerpt(huge.toString(), 5);
         assertFalse("did not expect leading ellipsis, got: " + summarized, summarized.startsWith("… "));
         assertTrue("expected offset annotation, got: " + summarized, summarized.contains("(offset 5 of 1000 chars)"));
     }
@@ -8369,9 +8437,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         for (int i = 0; i < 1000; i++) {
             huge.append('b');
         }
-        String atBoundary = CsvErrorMessages.summarizeAround(huge.toString(), CsvErrorMessages.OFFSET_LOOKBACK_CHARS);
+        String atBoundary = faultExcerpt(huge.toString(), CsvErrorMessages.OFFSET_LOOKBACK_CHARS);
         assertFalse("expected no leading ellipsis at offset == OFFSET_LOOKBACK_CHARS, got: " + atBoundary, atBoundary.startsWith("… "));
-        String pastBoundary = CsvErrorMessages.summarizeAround(huge.toString(), CsvErrorMessages.OFFSET_LOOKBACK_CHARS + 1);
+        String pastBoundary = faultExcerpt(huge.toString(), CsvErrorMessages.OFFSET_LOOKBACK_CHARS + 1);
         assertTrue("expected leading ellipsis at offset == OFFSET_LOOKBACK_CHARS + 1, got: " + pastBoundary, pastBoundary.startsWith("… "));
     }
 
@@ -8382,7 +8450,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         for (int i = 0; i < 1000; i++) {
             huge.append('z');
         }
-        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), 990);
+        String summarized = faultExcerpt(huge.toString(), 990);
         assertFalse("did not expect trailing ellipsis, got: " + summarized, summarized.endsWith("…"));
         // The final char of the underlying value must therefore be the final char of the excerpt.
         assertTrue("expected excerpt to end with the last char of value, got: " + summarized, summarized.endsWith("z"));
@@ -8393,7 +8461,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         for (int i = 0; i < 5000; i++) {
             huge.append('x');
         }
-        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), -1);
+        String summarized = faultExcerpt(huge.toString(), -1);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
             summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
@@ -8417,7 +8485,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String marker = "FAULTHERE";
         int faultOffset = 50_000;
         huge.replace(faultOffset, faultOffset + marker.length(), marker);
-        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
+        String summarized = faultExcerpt(huge.toString(), faultOffset);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
             summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS

@@ -889,8 +889,8 @@ public class ExternalFailuresTests extends ESTestCase {
             ExternalFailures.class,
             new MockLog.UnseenEventExpectation("causeless client", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
         );
-        // Nor does a causeless 503. An object rewritten under a read raises one, every provider does it, and the read
-        // retries: a WARN and a stack per occurrence would be noise, and the record is for the invariant breach above.
+        // Nor does a causeless 503. An object rewritten under a read raises one, and the query ends for the client to
+        // retry: a WARN and a stack per occurrence would be noise, and the record is for the invariant breach above.
         var changed = new ExternalObjectChangedException(StoragePath.of("s3://bucket/a.csv"));
         assertNull(changed.getCause());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, changed.status());
@@ -899,6 +899,52 @@ public class ExternalFailuresTests extends ESTestCase {
             ExternalFailures.class,
             new MockLog.UnseenEventExpectation("causeless 503", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
         );
+    }
+
+    /**
+     * {@link ExternalFailures#surface} logs a non-IO failure with its own stack before standing a causeless 500 in for
+     * it, so detaching that 500 must not log it a second time: one failure, one WARN.
+     */
+    public void testASurfacedServerFailureIsLoggedOnce() {
+        RuntimeException[] surfaced = new RuntimeException[1];
+        MockLog.assertThatLogger(
+            () -> surfaced[0] = ExternalFailures.surface(new InterruptedException("worker interrupted"), "Failed to read"),
+            ExternalFailures.class,
+            new MockLog.SeenEventExpectation(
+                "surface",
+                ExternalFailures.class.getCanonicalName(),
+                Level.WARN,
+                "External read failed (cause logged, not forwarded)"
+            )
+        );
+        ExternalServerException server = (ExternalServerException) surfaced[0];
+        assertNull(server.getCause());
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(server),
+            ExternalFailures.class,
+            new MockLog.UnseenEventExpectation("second record", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
+        );
+        // The copy a detach returns still says so, so a second detach on this node stays quiet too.
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(ExternalFailures.detach(server)),
+            ExternalFailures.class,
+            new MockLog.UnseenEventExpectation("third record", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
+    /**
+     * A tokeniser fault quotes its line, so a row holding a URL near an unclosed quote puts that URL in the cause's
+     * message. That is row content, held to the rule the failure's own message is: unchecked. What sits below the cause
+     * is still asserted.
+     */
+    public void testARowErrorQuotingTheRowLeavesTheCausesMessageAlone() {
+        var quoting = new IllegalStateException("Unclosed quoted field in line [1,\"https://example.com/x]");
+        ExternalClientException result = ExternalFailures.rowErrorQuotingTheRow(quoting, "Row [1] of [a.csv]: unclosed quote");
+        assertEquals(RestStatus.BAD_REQUEST, result.status());
+        assertSame(quoting, result.getCause());
+        expectThrows(AssertionError.class, () -> ExternalFailures.rowError(quoting, "Row [1] of [a.csv]: unclosed quote"));
+        var leaking = new IllegalStateException("row", new IOException("s3://bucket/data/a.csv"));
+        expectThrows(AssertionError.class, () -> ExternalFailures.rowErrorQuotingTheRow(leaking, "Row [1] of [a.csv]: row"));
     }
 
     /**

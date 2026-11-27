@@ -204,9 +204,8 @@ public final class ExternalFailures {
      * Whether every failure suppressed on {@code e} itself is free of a location. Its cause chain is walked
      * separately, and so is each suppressed failure's own: this reads one level and the message only, while
      * {@link #detach} rebuilds the suppressed tree recursively and the response renderer serializes all of it. A
-     * location nested below a suppressed failure therefore crosses the wire unasserted. Stated rather than closed,
-     * because deepening the walk widens what can raise an {@link AssertionError} on a read path this change exists
-     * to stop doing that.
+     * location nested below a suppressed failure therefore crosses the wire unasserted. Left open, because a deeper
+     * walk is more places an {@link AssertionError} can be raised on a read path that should answer with a status.
      */
     private static boolean suppressedNameNoLocation(Throwable e) {
         for (Throwable suppressed : e.getSuppressed()) {
@@ -351,10 +350,29 @@ public final class ExternalFailures {
      * @param safeMessage a caller-controlled message naming only the object (never the full path), plus row content
      */
     public static ExternalClientException rowError(Throwable cause, String safeMessage) {
+        ExternalClientException result = quotedRowError(cause, safeMessage);
+        assert chainNamesNoLocation(cause) : "storage path leaked via row error cause chain: " + result.getMessage();
+        return result;
+    }
+
+    /**
+     * {@link #rowError} for a cause whose own message quotes the row too: a reader's tokeniser fault, which names the
+     * line it could not read so the user can find it. That message is row content in the same sense
+     * {@code safeMessage} is, so it is held to the same rule -- left unchecked, while everything below it and suppressed
+     * on it is still asserted -- and a row that holds a URL near its unclosed quote stays the 400 it is meant to be
+     * instead of an {@link AssertionError} under {@code -ea}.
+     */
+    public static ExternalClientException rowErrorQuotingTheRow(Throwable cause, String safeMessage) {
+        ExternalClientException result = quotedRowError(cause, safeMessage);
+        assert cause == null || (chainNamesNoLocation(cause.getCause()) && suppressedNameNoLocation(cause))
+            : "storage path leaked via row error cause chain: " + result.getMessage();
+        return result;
+    }
+
+    private static ExternalClientException quotedRowError(Throwable cause, String safeMessage) {
         Exception e = cause instanceof Exception ex ? ex : null;
         ExternalClientException result = new ExternalClientException(e, "{}", safeMessage);
         result.markMessageQuotesInput();
-        assert chainNamesNoLocation(cause) : "storage path leaked via row error cause chain: " + result.getMessage();
         return result;
     }
 
@@ -468,19 +486,17 @@ public final class ExternalFailures {
      *     <p>
      *     A 500 is logged whether or not it has a cause, which no other status is. A 500 from this package is a bug on
      *     this node and its stack is what an operator has to work from; raised directly, with no cause under it, that
-     *     stack exists nowhere else, because only the message crosses the wire. Logging just the cause would make an
-     *     invariant breach the quietest failure the read path has. Why the rest of the server-side band is left
-     *     alone is on the condition that selects it, not repeated here.
+     *     stack exists nowhere else, because only the message crosses the wire. Exactly 500 and not the band above it,
+     *     which is mostly the opposite: an object rewritten under a read is a causeless 503 that ends the query for the
+     *     client to retry, and a WARN with a stack for it would be noise on every query it happens to. A 500 that
+     *     {@link #surface} built is the exception, because surface logged the failure it stands for already.
      */
     private static ExternalException detach(ExternalException e, Level serverFailureLevel) {
         boolean hasCause = e.getCause() != null;
         boolean serverSide = e.status().getStatus() >= 500;
-        // Exactly 500, not every server-side status: the record is for an invariant breach raised with nothing under
-        // it, and the band above 500 is mostly the opposite of that. An object rewritten under a read is a causeless
-        // 503 that ends the query for the client to retry against the new generation -- nothing retries it here --
-        // so admitting the band would put a WARN and a stack in the log for an expected storage condition, on every
-        // query it happens to.
-        boolean causelessInvariantBreach = hasCause == false && e.status() == RestStatus.INTERNAL_SERVER_ERROR;
+        boolean causelessInvariantBreach = hasCause == false
+            && e.status() == RestStatus.INTERNAL_SERVER_ERROR
+            && e.failureLogged() == false;
         if (hasCause || causelessInvariantBreach) {
             Level level;
             if (serverSide) {
@@ -651,7 +667,11 @@ public final class ExternalFailures {
             result = new ExternalClientException("{}: {}", fallbackMessage, detail);
         } else {
             logger.warn("External read failed (cause logged, not forwarded)", failure);
-            result = new ExternalServerException("{}: {}", fallbackMessage, detail);
+            ExternalServerException server = new ExternalServerException("{}: {}", fallbackMessage, detail);
+            // The line above is this failure's record, and the stack it carries is the failure's own, which says more
+            // than this wrapper's would. detach() would otherwise log the wrapper a second time at WARN.
+            server.markFailureLogged();
+            result = server;
         }
         assert noStoragePathLeaked(result) : "storage path leaked in surfaced exception: " + result.getMessage();
         return result;

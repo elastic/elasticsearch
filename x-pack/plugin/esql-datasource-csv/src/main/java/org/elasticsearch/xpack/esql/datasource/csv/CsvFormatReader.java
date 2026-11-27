@@ -125,7 +125,6 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
-import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -463,6 +462,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@link #rowErrorReason} strips it from any message {@link #JACKSON_FIELD_TOO_LONG} does not match, so a reworded
      * Jackson message still does not name a Jackson class.
      */
+    /** Where Jackson's own location starts in its message; see {@link #rowErrorReason}. */
+    private static final String JACKSON_LOCATION_SUFFIX = "\n at [Source: ";
+
     private static final Pattern JACKSON_CONSTRAINT_REFERENCE = Pattern.compile(",?\\s*from\\s+`?StreamReadConstraints[\\w.()]*`?");
 
     /**
@@ -1479,19 +1481,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * spent between each pair of them -- and not the header's spelling of the same names, which separates with one.
      */
     private static String renderDuplicateNames(Collection<String> duplicates) {
+        assert duplicates.isEmpty() == false : "a refusal for duplicate names needs at least one";
         int window = ErrorExcerpts.MAX_EXCERPT_CHARS;
-        long total = (long) DUPLICATE_NAME_SEPARATOR.length() * (duplicates.size() - 1);
+        String[] names = new String[duplicates.size()];
+        long total = (long) DUPLICATE_NAME_SEPARATOR.length() * (names.length - 1);
+        int n = 0;
         for (String name : duplicates) {
-            total += name.length();
+            names[n] = quoteSafe(name);
+            total += names[n].length();
+            n++;
         }
         if (total <= window) {
-            StringJoiner whole = new StringJoiner(DUPLICATE_NAME_SEPARATOR);
-            for (String name : duplicates) {
-                whole.add(name);
-            }
-            return ErrorExcerpts.summarizeEscaped(whole.toString());
+            return ErrorExcerpts.summarizeEscaped(String.join(DUPLICATE_NAME_SEPARATOR, names));
         }
-        String[] names = duplicates.toArray(new String[0]);
         StringBuilder head = new StringBuilder(window);
         // Position, not head.isEmpty(): an empty name is a duplicate like any other -- two leading commas are the
         // common way to get one -- and it appends nothing, so emptiness cannot tell the first name from the second.
@@ -1511,6 +1513,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // The sum is the join's true width and only has to fit an int for the marker: a header carrying 2GB of names
         // would have failed the read long before binding.
         return ErrorExcerpts.summarizeEscaped(head.toString(), tail.toString(), (int) Math.min(total, Integer.MAX_VALUE));
+    }
+
+    /**
+     * {@code name} with its single quotes written as {@code \u0027}, the form {@link RowLocation#escapedForDisplay}
+     * gives a bracket. The list quotes each name, so a quote inside one closes it: a column named {@code a', 'b} would
+     * read as two duplicates where the file has one. The escape is per name because only here is it known which quotes
+     * are the list's own.
+     */
+    private static String quoteSafe(String name) {
+        return name.indexOf('\'') < 0 ? name : name.replace("'", "\\u0027");
     }
 
     /** Appends as much of {@code text} as leaves {@code sb} no wider than {@code window}. */
@@ -2472,7 +2484,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         break;
                     }
                     List<?> rowList = csvIterator.next();
-                    totalRowCount++;
                     String[] row = new String[rowList.size()];
                     for (int i = 0; i < rowList.size(); i++) {
                         Object val = rowList.get(i);
@@ -2483,6 +2494,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             continue;
                         }
                     }
+                    // Counted after the comment check, as the data-row path counts: a refusal later in this sample
+                    // names its row by the same ordinal a read of the same file would.
+                    totalRowCount++;
                     long rowBytes = estimateRowBytes(row);
                     breaker.addEstimateBytesAndMaybeBreak(rowBytes, "csv_schema_inference");
                     reservedBytes += rowBytes;
@@ -2724,6 +2738,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return fieldSizeExceededDetail(Integer.parseInt(tooLong.group(1)), Integer.parseInt(tooLong.group(2)));
             }
             reason = JACKSON_CONSTRAINT_REFERENCE.matcher(reason).replaceAll("");
+            // Jackson closes its message with where its own parser stood: a newline, then a line and column counted in
+            // the stream it was handed, which is this split and not the object. The row clause already says where the
+            // row is, and escaped, the suffix would print as a literal newline escape and a second location.
+            int suffix = reason.indexOf(JACKSON_LOCATION_SUFFIX);
+            if (suffix >= 0) {
+                reason = reason.substring(0, suffix);
+            }
         }
         boolean composedHere = failure instanceof MalformedRowException || isRecordCapDrop(failure);
         return composedHere ? ErrorExcerpts.summarize(reason) : ErrorExcerpts.summarizeEscaped(reason);
@@ -8398,7 +8419,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                 assert rowExcerpt != null : "fail_fast quotes the row, so a caller must supply its excerpt";
                 String description = describeRow(null, message);
-                throw ExternalFailures.rowError(cause, Strings.capitalize(description) + "; row: " + rowExcerpt + fault.hint());
+                String failure = Strings.capitalize(description) + "; row: " + rowExcerpt + fault.hint();
+                // A tokeniser fault's own message quotes the line, the same row content the failure quotes itself.
+                throw cause instanceof MalformedRowException
+                    ? ExternalFailures.rowErrorQuotingTheRow(cause, failure)
+                    : ExternalFailures.rowError(cause, failure);
             }
             if (fault.projectionIndependent() == false) {
                 // Reached only under SKIP_ROW: NULL_FIELD routes coercion failures to onFieldError and keeps the

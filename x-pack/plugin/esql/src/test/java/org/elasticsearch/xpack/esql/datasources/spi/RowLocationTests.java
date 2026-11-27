@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -226,6 +227,32 @@ public class RowLocationTests extends ESTestCase {
         // A Warning response header percent-encodes outside ASCII, so a non-ASCII marker reaches the user as
         // an escape sequence. Nothing else in this clause may carry one either.
         assertTrue("the clause must be ASCII, got: " + clause, clause.chars().allMatch(c -> c < 128));
+    }
+
+    /**
+     * The cut is taken on the name, not on its escaped spelling, so a name dense with brackets is never cut inside an
+     * escape: every backslash in the clause still begins a whole six-character escape, and the clause stays inside the
+     * cap.
+     */
+    public void testAnOverLongNameIsNeverCutInsideAnEscape() {
+        for (int lead = 0; lead < 6; lead++) {
+            String name = "x".repeat(lead) + "[]".repeat(200) + ".csv";
+            String shown = RowLocation.displayObjectName(name);
+            assertThat(shown.length(), lessThanOrEqualTo(RowLocation.MAX_OBJECT_NAME_CHARS));
+            assertThat("the tail keeps the extension", shown, endsWith(".csv"));
+            for (int at = shown.indexOf('\\'); at >= 0; at = shown.indexOf('\\', at + 1)) {
+                assertTrue("a cut escape at " + at + " in " + shown, shown.regionMatches(at + 1, "u00", 0, 3) && at + 6 <= shown.length());
+            }
+        }
+    }
+
+    /** With no object to name, the clause is dropped whole rather than leaving a dangling preposition or {@code of []}. */
+    public void testAnObjectClauseWithNoObjectIsEmpty() {
+        for (String leadIn : new String[] { " of", " for", " in", "" }) {
+            assertEquals("", RowLocation.objectClause(leadIn, null));
+            assertEquals("", RowLocation.objectClause(leadIn, ""));
+            assertEquals(leadIn + " [a.csv]", RowLocation.objectClause(leadIn, "a.csv"));
+        }
     }
 
     /** A name exactly at the cap is printed whole — the guard must not cut what fits. */

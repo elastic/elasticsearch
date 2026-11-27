@@ -202,6 +202,26 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         return map;
     }
 
+    /**
+     * Which byte a row failure's message says the count started from. The same three-way decision
+     * {@code CsvFormatReader} makes, so one situation reads the same in both formats.
+     */
+    enum MessageStartByte {
+        /** The split starts at a record boundary on the records' own axis: the first record this split reads. */
+        RECORD_BOUNDARY,
+        /**
+         * The first split: its ordinals are the object's, so no byte qualifies them, even where its start offset is a
+         * non-zero boundary in a compressed object.
+         */
+        OBJECT_START,
+        /**
+         * A later split that does not start at a record boundary -- the block-aligned split of a compressed object
+         * among them, whose start is a boundary in the compressed file while the ordinal counts decompressed records.
+         * No byte can be said to start the count.
+         */
+        WITHHELD
+    }
+
     NdJsonPageIterator(
         StorageObject object,
         List<String> projectedColumns,
@@ -217,7 +237,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         Function<List<Attribute>, String> fingerprinter,
         String readConfig,
         boolean chunkMode,
-        boolean withholdMessageStartByte,
+        MessageStartByte messageStartByte,
         @Nullable NdJsonReaderCounters counters,
         long splitStartByte,
         int maxRecordBytes,
@@ -351,12 +371,12 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         }
         // _rowPosition / _file.record_ref substrate: file-global per-record start offset.
         this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
-        if (withholdMessageStartByte) {
-            // A later split that does not start at a record boundary -- the block-aligned split of a compressed
-            // object among them, whose splitStartByte is a boundary in the compressed file while the ordinal counts
-            // decompressed records. Whatever the cause, no byte here can be said to start the count. _rowPosition is unaffected -- the
-            // operator factory null-splices its slot for a compressed-offset split.
-            this.pageDecoder.withholdMessageStartByte();
+        // _rowPosition is unaffected by either arm: the operator factory null-splices its slot for a compressed-offset split.
+        switch (messageStartByte) {
+            case RECORD_BOUNDARY -> {
+            }
+            case OBJECT_START -> this.pageDecoder.countMessagesFromObjectStart();
+            case WITHHELD -> this.pageDecoder.withholdMessageStartByte();
         }
         this.pageDecoder.setMaxRecordBytes(maxRecordBytes);
         this.pageDecoder.setReportAbsentDeclaredColumns(statsFileFinal);

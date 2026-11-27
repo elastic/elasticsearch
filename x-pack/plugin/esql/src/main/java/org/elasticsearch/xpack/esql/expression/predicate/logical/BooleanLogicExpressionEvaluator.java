@@ -96,10 +96,31 @@ public record BooleanLogicExpressionEvaluator(BinaryLogic bl, ExpressionEvaluato
     private Block eval(BooleanVector lhs, BooleanVector rhs) {
         int positionCount = lhs.getPositionCount();
         try (var result = lhs.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
-            for (int p = 0; p < positionCount; p++) {
-                result.appendBoolean(p, bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
+            switch (bl.function()) {
+                case AND -> andVectors(lhs, rhs, result);
+                case OR -> orVectors(lhs, rhs, result);
             }
             return result.build().asBlock();
+        }
+    }
+
+    /**
+     * 2VL only: vectors have no nulls and no multi-values. Do not reuse on the block path.
+     */
+    private static void andVectors(BooleanVector lhs, BooleanVector rhs, BooleanVector.FixedBuilder result) {
+        int positionCount = lhs.getPositionCount();
+        for (int p = 0; p < positionCount; p++) {
+            result.appendBoolean(p, lhs.getBoolean(p) & rhs.getBoolean(p));
+        }
+    }
+
+    /**
+     * 2VL only: vectors have no nulls and no multi-values. Do not reuse on the block path.
+     */
+    private static void orVectors(BooleanVector lhs, BooleanVector rhs, BooleanVector.FixedBuilder result) {
+        int positionCount = lhs.getPositionCount();
+        for (int p = 0; p < positionCount; p++) {
+            result.appendBoolean(p, lhs.getBoolean(p) | rhs.getBoolean(p));
         }
     }
 

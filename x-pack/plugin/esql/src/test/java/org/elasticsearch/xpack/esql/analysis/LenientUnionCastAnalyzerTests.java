@@ -265,12 +265,13 @@ public class LenientUnionCastAnalyzerTests extends AnalyzerTestCase {
 
     /**
      * A cast of a cast of the union converts the types the inner cast accepts, and only the inner cast warns: the outer one reads
-     * the result of the inner one, which has a single type.
+     * the result of the inner one, which has a single type. The outer cast is to {@code keyword}, which every type converts to, so the
+     * null of the inner cast is the only reason for a null.
      */
     public void testChainedCasts() {
         TestAnalyzer analyzer = analyzerWithUnion("ip", "keyword");
-        String chained = "FROM foo, bar | EVAL x = value::long::double | KEEP x | LIMIT 1";
-        String functions = "FROM foo, bar | EVAL x = TO_DOUBLE(TO_LONG(value)) | KEEP x | LIMIT 1";
+        String chained = "FROM foo, bar | EVAL x = value::long::keyword | KEEP x | LIMIT 1";
+        String functions = "FROM foo, bar | EVAL x = TO_STRING(TO_LONG(value)) | KEEP x | LIMIT 1";
         if (lenient() == false) {
             analyzer.error(chained, ambiguous());
             analyzer.error(functions, ambiguous());
@@ -279,7 +280,7 @@ public class LenientUnionCastAnalyzerTests extends AnalyzerTestCase {
         for (String query : List.of(chained, functions)) {
             LogicalPlan plan = analyzer.query(query);
             assertTrue(plan.resolved());
-            assertThat(plan.output().getLast().dataType(), equalTo(DataType.DOUBLE));
+            assertThat(plan.output().getLast().dataType(), equalTo(DataType.KEYWORD));
             assertWarnings(warning("ip", "foo", "LONG"));
         }
 
@@ -319,5 +320,24 @@ public class LenientUnionCastAnalyzerTests extends AnalyzerTestCase {
             "FROM foo, bar | EVAL x = TO_IP(value, {\"unknown\": \"x\"}) | LIMIT 1",
             containsString("Invalid option [unknown]")
         );
+        if (lenient() == false) {
+            return;
+        }
+        // No type of the union is one TO_IP converts, so every leg is null, but the options are still invalid
+        for (String[] types : new String[][] { { "long", "boolean" }, { "rank_feature", "long" }, { "rank_feature", "boolean" } }) {
+            analyzerWithUnion(types[0], types[1]).error(
+                "FROM foo, bar | EVAL x = TO_IP(value, {\"unknown\": \"x\"}) | LIMIT 1",
+                containsString("Invalid option [unknown]")
+            );
+        }
+        // The same options are valid for the types TO_IP does convert
+        for (String type : List.of("long", "rank_feature")) {
+            LogicalPlan plan = analyzerWithUnion(type, "keyword").query(
+                "FROM foo, bar | EVAL x = TO_IP(value, {\"leading_zeros\": \"octal\"}) | KEEP x | LIMIT 1"
+            );
+            assertTrue(plan.resolved());
+            assertThat(plan.output().getLast().dataType(), equalTo(DataType.IP));
+            assertWarnings(warning(type, "foo", "IP"));
+        }
     }
 }

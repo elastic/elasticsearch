@@ -5186,12 +5186,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             children.set(0, resolvedAttr);
             Expression e = ((Expression) convert).replaceChildren(children);
             boolean nullForThisType = convert.lenientOnInputType() && convert.supportedTypes().contains(type.widenSmallNumeric()) == false;
-            if (e.children().size() > 1 && e.typeResolved().unresolved() && nullForThisType == false) {
+            boolean invalid = nullForThisType ? resolvesWithoutInput(e) == false : e.typeResolved().unresolved();
+            if (e.children().size() > 1 && invalid) {
                 // Only with other arguments, like the options of TO_IP or the base of TO_LONG: a surrogate can only be substituted when
                 // they are valid. The caller reports the error. Conversions of the field alone don't resolve for every type they
                 // convert, like small numerics, which are widened when converting. The conversion of a type that a lenient
-                // conversion doesn't accept is unresolved too, but it is null and has no error to report: it still has to be
-                // substituted, because the surrogates are not serializable.
+                // conversion doesn't accept is unresolved too, but it is null and has no error to report when the other arguments are
+                // valid, which it checks with a null input: it still has to be substituted, because the surrogates are not serializable.
                 return e;
             }
             /*
@@ -5200,6 +5201,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
              * TO_IP is expected to be resolved there.
              */
             return SubstituteSurrogateExpressions.rule(e);
+        }
+
+        /**
+         * Whether {@code conversion} resolves when its input is {@code null}, which every conversion accepts: only its other arguments,
+         * like the options of TO_IP, can make it fail.
+         */
+        private static boolean resolvesWithoutInput(Expression conversion) {
+            List<Expression> children = new ArrayList<>(conversion.children());
+            children.set(0, Literal.NULL);
+            return conversion.replaceChildren(children).typeResolved().resolved();
         }
     }
 

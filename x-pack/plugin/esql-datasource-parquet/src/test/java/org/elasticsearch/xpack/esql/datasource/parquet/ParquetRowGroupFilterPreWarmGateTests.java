@@ -636,11 +636,9 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
         @Override
         public InputStream newStream(long position, long length) {
             syncGets.incrementAndGet();
-            // Windowed footer/header fills start at 0 or the tail; those overlap RG0's
-            // dictionary the same way a real dict GET would, so ignore them. A RowGroupFilter
-            // miss on a later group or a bloom page lands at a distinct offset.
-            boolean footerOrHeader = position == 0
-                || position >= Math.max(0L, data.length - ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES);
+            // Whole-file window, or the bounded tail prefetch that starts at fileLength-64KiB
+            // and runs to EOF. A bloom GET in the tail starts at bloomOffset, not that boundary.
+            boolean footerOrHeader = ParquetOpenRequestCountTests.isFooterPrefetch(position, length, data.length);
             if (footerOrHeader == false) {
                 for (long[] range : dictBloomRanges) {
                     if (position < range[0] + range[1] && range[0] < position + length) {

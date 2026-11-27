@@ -386,7 +386,11 @@ final class PreloadedRowGroupMetadata implements Releasable {
     /**
      * Same as the no-mask preload, with per-row-group flags for dictionary and bloom pre-warm.
      * A {@code null} mask means every row group (today's behaviour). A {@code false} bit skips
-     * dictionary / bloom ranges for that group; index ranges are unchanged.
+     * dictionary / bloom ranges for that group; ColumnIndex and OffsetIndex ranges are unchanged
+     * (page-index GETs for STATISTICS-MISS groups stay this PR).
+     *
+     * @param dictUseful  per-row-group dictionary pre-warm, or {@code null} for every group
+     * @param bloomUseful per-row-group bloom pre-warm, or {@code null} for every group
      */
     static PreloadedRowGroupMetadata preload(
         ParquetFileReader reader,
@@ -750,7 +754,11 @@ final class PreloadedRowGroupMetadata implements Releasable {
         }
     }
 
-    /** {@code true} when {@code mask} is {@code null} (today: all row groups) or {@code mask[rgIdx]} is true. */
+    /**
+     * {@code true} when {@code mask} is {@code null} (today: preload every row group) or
+     * {@code mask[rgIdx]} is {@code true}. A {@code false} bit skips dictionary / bloom ranges
+     * for that group; index ranges are decided separately.
+     */
     private static boolean maskAllows(@Nullable boolean[] mask, int rgIdx) {
         return mask == null || mask[rgIdx];
     }
@@ -893,6 +901,10 @@ final class PreloadedRowGroupMetadata implements Releasable {
      * column-path and OffsetIndex row-group cap as {@link #preloadCoalesced}. Intentional: a
      * coalesced-preload failure must not silently re-fetch every page index (that used to undo
      * {@code computeIndexColumnPaths} gating, including the full-scan zero-index-GET path).
+     *
+     * <p>Does not fetch dictionary pages or bloom filters. {@code computeSurvivingRowGroups} then
+     * drops those levels because {@code preWarmedChunks} is empty, so the unhappy path cannot
+     * reintroduce dict/bloom GETs. Masks are unused here for that reason.
      */
     private static PreloadedRowGroupMetadata preloadSequential(
         ParquetFileReader reader,

@@ -215,6 +215,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      */
     static final int FOOTER_TAIL_PREFETCH_BYTES = 64 * 1024;
 
+    /**
+     * Test-only. When true, the open path skips {@link FilterLevelUsefulness} and preloads every
+     * predicate dictionary/bloom page (null masks — today's behaviour). Production is always false.
+     * Tests restore this in {@code try/finally}.
+     */
+    static final ThreadLocal<Boolean> SKIP_FILTER_LEVEL_USEFULNESS_FOR_TESTS = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     /** The 4-byte magic that both opens and closes a (non-encrypted) Parquet file. */
     private static final byte[] PARQUET_MAGIC = { 'P', 'A', 'R', '1' };
 
@@ -2988,9 +2995,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         boolean[] bloomUseful = null;
         // Footer-only STATISTICS, then preload dictionary/bloom only where those levels can still
         // drop a group. Legacy FilterPredicateCompat (predicateColumnPaths == null) skips this and
-        // preloads every row group as today. All-false masks still build the iterator; they just
+        // preloads every row group as today. All-false masks still build the iterator and still
+        // fetch ColumnIndex/OffsetIndex (skipping those for MISS groups is a follow-up); they just
         // issue no dict/bloom GETs.
-        if (FilterCompat.isFilteringRequired(recordFilter) && predicateColumnPaths != null && filterPredicate != null) {
+        if (FilterCompat.isFilteringRequired(recordFilter)
+            && predicateColumnPaths != null
+            && filterPredicate != null
+            && SKIP_FILTER_LEVEL_USEFULNESS_FOR_TESTS.get() == false) {
             boolean[] statsSurvivors = new boolean[blocks.size()];
             markSurvivors(blocks, filterRowGroups(ROW_GROUP_FILTER_LEVELS_STATISTICS_ONLY, recordFilter, blocks, reader), statsSurvivors);
             dictUseful = new boolean[blocks.size()];
@@ -3421,6 +3432,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * length is never pre-warmed, so this returns {@code false} and the level is dropped — closing
      * the sync {@code newStream} parquet-mr would otherwise issue. Columns with no bloom do not
      * disable the level.
+     * <p>
+     * All-or-nothing per row group: one predicate column whose bloom length is unknown (or whose
+     * page was not pre-warmed) drops BLOOMFILTER for the whole group. That is the no-hidden-GET
+     * trade; other columns in the group that have a usable bloom are not consulted either.
      */
     static boolean bloomFilterLevelApplies(
         BlockMetaData block,

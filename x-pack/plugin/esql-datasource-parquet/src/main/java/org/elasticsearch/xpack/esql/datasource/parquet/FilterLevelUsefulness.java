@@ -15,6 +15,8 @@ import org.apache.parquet.filter2.statisticslevel.StatisticsFilter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +32,9 @@ import java.util.Set;
  * Over-fetching is today's behaviour and cannot drop rows incorrectly. Skipping a useful level
  * only keeps extra row groups; the pushed predicate still filters rows.
  *
+ * <p>{@code Contains} is not pushed by ES|QL today and always returns {@code NONE}. Revisit the
+ * leaf if a contains pushdown is added.
+ *
  * <p>Per leaf on a stats-survivor group:
  * <ul>
  *   <li>MISS ({@link StatisticsFilter#canDrop}): the leaf cannot keep the group; neither level
@@ -39,19 +44,27 @@ import java.util.Set;
  *   <li>AMBIGUOUS or missing stats: dictionary is useful when
  *       {@link ParquetFormatReader#dictionaryFilterReadsDictionary} and the op is {@code Eq} /
  *       {@code In} / {@code NotIn} / {@code UserDefined}. Comparison and {@code NotEq} are useful
- *       only when min/max are missing — when stats exist and are AMBIGUOUS those ops cannot
- *       uniquely drop after STATISTICS. Bloom is useful when the chunk records a bloom offset and
- *       length and the op is {@code Eq} / {@code In}.</li>
+ *       only when min/max are missing. parquet-mr does not shorten row-group min/max in the footer
+ *       by default (it does for page indexes), so the dictionary's min and max equal the footer's:
+ *       an extra dictionary GET cannot drop more groups than STATISTICS. Writers that truncate
+ *       footer stats would lose that extra pruning; those files still filter rows correctly, they
+ *       just keep extra groups. This is the rule that lets the VPC shape skip the dictionary GET.
+ *       Bloom is useful when the chunk records a bloom offset and length and the op is {@code Eq}
+ *       / {@code In}.</li>
  * </ul>
  */
 final class FilterLevelUsefulness {
+
+    private static final Logger logger = LogManager.getLogger(FilterLevelUsefulness.class);
 
     private FilterLevelUsefulness() {}
 
     /**
      * Fills {@code dictUseful} and {@code bloomUseful} for each stats-survivor in {@code blocks}.
-     * Indexes where {@code statsSurvivors[i]} is {@code false} stay {@code false}. A {@code null}
-     * predicate is a no-op. Arrays must be {@code blocks.size()} long.
+     * Indexes where {@code statsSurvivors[i]} is {@code false} stay {@code false} — MISS groups
+     * do not pre-warm dictionary or bloom pages. A {@code null} predicate is a no-op. Arrays must
+     * be {@code blocks.size()} long. A {@code false} bit is the skip; {@code true} is today's
+     * preload for that group.
      */
     static void fill(
         FilterPredicate predicate,
@@ -136,6 +149,7 @@ final class FilterLevelUsefulness {
             try {
                 return StatisticsFilter.canDrop(leaf, columnsList);
             } catch (RuntimeException e) {
+                logger.debug("StatisticsFilter.canDrop failed; treating leaf as not MISS", e);
                 return false;
             }
         }
@@ -303,6 +317,7 @@ final class FilterLevelUsefulness {
             return ambiguous(notIn.getColumn(), true, false, false);
         }
 
+        /** ES|QL does not push {@code Contains}; neither level is useful. */
         @Override
         public <T extends Comparable<T>> Usefulness visit(Operators.Contains<T> contains) {
             return Usefulness.NONE;

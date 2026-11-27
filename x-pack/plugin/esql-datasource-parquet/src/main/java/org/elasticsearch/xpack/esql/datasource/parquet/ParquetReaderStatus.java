@@ -27,8 +27,9 @@ import java.util.TreeMap;
  * carrier required.
  *
  * @param rowGroupsDictionaryFilterSkipped row groups filtered without parquet-mr's DICTIONARY level
- *                                         because their dictionary pages were not pre-warmed; zero
- *                                         when received from a node that predates the field
+ *                                         (pages not pre-warmed, or skipped as not dictionary-useful
+ *                                         after STATISTICS); zero when received from a node that
+ *                                         predates the field
  * @param predicateColumns                 columns referenced by pushed-down predicates, sorted for
  *                                         determinism
  * @param columns                          per-column read counters keyed by column path

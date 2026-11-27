@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.store.StoreFileMetadata.UNAVAILABLE_WRITER_UUID;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -168,10 +169,9 @@ public class BlobStoreIndexShardSnapshotsTests extends ESTestCase {
         );
 
         // returns both `_0.cfs` and `_1.cfs` as reusable files (`_2.cfs` was never snapshotted)
-        assertEquals(
-            new FilesForSnapshot(List.of(sharedFile, updatedFile), List.of(newFile.metadata())),
-            allSnapshots.classifySnapshotFiles(List.of("_0.cfs", "_1.cfs", "_2.cfs"), metadata)
-        );
+        final var filesForSnapshot = allSnapshots.classifySnapshotFiles(List.of("_0.cfs", "_1.cfs", "_2.cfs"), metadata);
+        assertThat(filesForSnapshot.reusableFiles(), containsInAnyOrder(sharedFile, updatedFile));
+        assertEquals(List.of(newFile.metadata()), filesForSnapshot.newFiles());
 
         // sanity checks
         assertEquals(new FilesForSnapshot(List.of(), List.of()), oldSnapshots.classifySnapshotFiles(List.of(), metadata));

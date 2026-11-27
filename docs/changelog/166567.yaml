@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 161746
+pr: 166567
+summary: Runtime search after `FORK` now adds to `_score` when the branches carry the metadata `_score`.
+type: bug

@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -2330,6 +2331,88 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             assertThat(from, score, instanceOf(ReferenceAttribute.class));
             assertThat(from, score.dataType(), is(DOUBLE));
         }
+    }
+
+    /** FORK classifies the merged {@code _score} from its branches the same way a union does. */
+    public void testForkMergesScoreAsMetadataWhenABranchScores() {
+        for (String query : List.of(
+            "FROM test METADATA _score | FORK (WHERE emp_no > 1 | LIMIT 5) (WHERE emp_no < 1 | LIMIT 5)",
+            "FROM test METADATA _score | FORK (WHERE emp_no > 1 | LIMIT 5) (WHERE emp_no < 1 | EVAL _score = null::double | LIMIT 5)",
+            "FROM test METADATA _score | FORK (WHERE emp_no > 1 | LIMIT 5) (WHERE emp_no < 1 | KEEP emp_no | LIMIT 5)"
+        )) {
+            Attribute score = forkScore(query);
+            assertThat(query, score, instanceOf(MetadataAttribute.class));
+            assertThat(query, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /** A FORK branch that computed its own {@code _score} keeps the merged column out of scoring. */
+    public void testForkMergesScoreAsReferenceWhenABranchComputesIt() {
+        for (String query : List.of(
+            "FROM test METADATA _score | FORK (WHERE emp_no > 1 | EVAL _score = 1.0 | LIMIT 5) (WHERE emp_no < 1 | LIMIT 5)",
+            "FROM test METADATA _score | FORK (WHERE emp_no > 1 | LIMIT 5) (WHERE emp_no < 1 | EVAL _score = salary::double | LIMIT 5)"
+        )) {
+            Attribute score = forkScore(query);
+            assertThat(query, score, instanceOf(ReferenceAttribute.class));
+            assertThat(query, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /** No metadata {@code _score} in the top level query, so the merged column is a plain reference. */
+    public void testForkMergesScoreAsReferenceWhenNoBranchScores() {
+        Attribute score = forkScore(
+            "FROM test | FORK (WHERE emp_no > 1 | EVAL _score = null::double | LIMIT 5) (WHERE emp_no < 1 | LIMIT 5)"
+        );
+        assertThat(score, instanceOf(ReferenceAttribute.class));
+    }
+
+    /**
+     * First sub-query produces {@code _score} metadata attribute, second sub-query has no {@code _score}.
+     * Merged {@code _score} should be a {@link MetadataAttribute}
+     */
+    public void testUnionAllWithNestedForkMergesScoreAsMetadataAttribute() {
+        Attribute score = mergedScore("""
+            FROM (FROM test METADATA _score
+                    | FORK (WHERE emp_no > 1 | LIMIT 5)
+                           (WHERE emp_no < 1 | EVAL _score = null::double | LIMIT 5)
+                    | LIMIT 5),
+                 (FROM test
+                    | FORK (WHERE emp_no > 1 | LIMIT 5)
+                           (WHERE emp_no < 1 | LIMIT 5)
+                    | LIMIT 5)
+            """);
+        assertThat(score, instanceOf(MetadataAttribute.class));
+    }
+
+    /**
+     * First sub-query produces {@code _score} metadata attribute, however second sub-query has user-defined {@code _score}.
+     * Merged {@code _score} should be a {@link ReferenceAttribute}
+     */
+    public void testUnionAllWithNestedForkMergesScoreAsReferenceAttribute() {
+        Attribute score = mergedScore("""
+            FROM (FROM test METADATA _score
+                    | FORK (WHERE emp_no > 1 | LIMIT 5)
+                           (WHERE emp_no < 1 | EVAL _score = null::double | LIMIT 5)
+                    | LIMIT 5),
+                 (FROM test
+                    | FORK (WHERE emp_no > 1 | LIMIT 5)
+                           (WHERE emp_no < 1 | EVAL _score = salary::double | LIMIT 5)
+                    | LIMIT 5)
+            """);
+        assertThat(score, instanceOf(ReferenceAttribute.class));
+    }
+
+    private Attribute forkScore(String query) {
+        LogicalPlan plan = analyzer().addEmployees("test").query(query);
+        Fork fork = plan.collect(Fork.class).getFirst();
+        Attribute score = null;
+        for (Attribute attr : fork.output()) {
+            if (attr.name().equals(MetadataAttribute.SCORE)) {
+                score = attr;
+            }
+        }
+        assertNotNull(query, score);
+        return score;
     }
 
     /** The {@code _score} column of the {@link UnionAll} that {@code from} resolves to, with every branch aligned to it. */

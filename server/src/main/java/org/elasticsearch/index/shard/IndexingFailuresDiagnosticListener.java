@@ -90,9 +90,7 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
 
     @Override
     public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
-        if (LOGGER.isDebugEnabled()) {
-            logEntireBatchFailure(batch, ex);
-        }
+        logFailure(ex, true, prefix -> getBatchMessageSupplier(prefix, batch));
     }
 
     private void logFailure(Exception ex, boolean mayWarn, Function<String, Supplier<Object>> messageSupplierForPrefix) {
@@ -142,21 +140,19 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
         };
     }
 
-    private void logEntireBatchFailure(IndexOperationBatch batch, Exception ex) {
-        LOGGER.debug(
-            () -> format(
-                "index-fail batch docCount [%s] startingSeqNo [%s] allocation-id [%s] primaryTerm [%s] "
-                    + "operationPrimaryTerm [%s] origin [%s] index [%s] index-mode [%s]",
-                batch.docCount(),
-                batch.seqNo(0),
-                indexShard.routingEntry().allocationId(),
-                batch.primaryTerm(),
-                indexShard.getOperationPrimaryTerm(),
-                batch.origin(),
-                indexShard.indexSettings().getIndex().getName(),
-                indexShard.indexSettings().getMode()
-            ),
-            ex
+    private Supplier<Object> getBatchMessageSupplier(String messagePrefix, IndexOperationBatch batch) {
+        return () -> format(
+            "%s batch docCount [%s] startingSeqNo [%s] allocation-id [%s] primaryTerm [%s] "
+                + "operationPrimaryTerm [%s] origin [%s] index [%s] index-mode [%s]",
+            messagePrefix,
+            batch.docCount(),
+            batch.seqNo(0),
+            indexShard.routingEntry().allocationId(),
+            batch.primaryTerm(),
+            indexShard.getOperationPrimaryTerm(),
+            batch.origin(),
+            indexShard.indexSettings().getIndex().getName(),
+            indexShard.indexSettings().getMode()
         );
     }
 }

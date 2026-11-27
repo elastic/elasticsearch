@@ -59,13 +59,15 @@ public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
         Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build()
     );
 
-    /** The three ways a single failed document reaches the listener. */
+    /** The ways a failure reaches the listener. */
     private enum FailurePath {
         INDEX_RESULT,
         INDEX_EXCEPTION,
-        BATCH_RESULT
+        BATCH_RESULT,
+        BATCH_EXCEPTION
     }
 
+    private final int batchExceptionDocCount = randomIntBetween(1, 8);
     private final ShardRouting shardRouting = TestShardRouting.newShardRouting(SHARD_ID, "node-id", true, ShardRoutingState.STARTED);
     private final AtomicLong clock = new AtomicLong(
         randomLongBetween(-1000, 1000) * WARN_WINDOW.nanos() + randomLongBetween(0, WARN_WINDOW.nanos() - 1)
@@ -96,12 +98,16 @@ public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
                     Loggers.setLevel(LOGGER, level);
                     appender.events.clear();
                     logFailure(listener(newLimiter()), path, userError ? randomUserError() : randomRealError());
-                    String docId = path == FailurePath.BATCH_RESULT ? "doc-0" : "1";
+                    String operation = switch (path) {
+                        case INDEX_RESULT, INDEX_EXCEPTION -> "[1] seq# [-2]";
+                        case BATCH_RESULT -> "[doc-0] seq# [-2]";
+                        case BATCH_EXCEPTION -> "batch docCount [" + batchExceptionDocCount + "] startingSeqNo [-2]";
+                    };
                     String context = path + " " + level + " userError=" + userError;
                     if (userError == false) {
-                        assertSingleEvent(context, Level.WARN, expectedMessage("real-index-fail [" + docId + "] seq# [-2]"));
+                        assertSingleEvent(context, Level.WARN, expectedMessage("real-index-fail " + operation));
                     } else if (level == Level.TRACE) {
-                        assertSingleEvent(context, Level.TRACE, expectedMessage("index-fail [" + docId + "] seq# [-2]"));
+                        assertSingleEvent(context, Level.TRACE, expectedMessage("index-fail " + operation));
                     } else {
                         assertThat(context, appender.events, empty());
                     }
@@ -116,17 +122,6 @@ public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
         listener.postIndex(SHARD_ID, singleDocIndex(), successResult());
         listener.postIndexBatch(SHARD_ID, primaryBatch(1), List.of(successResult()));
         assertThat(appender.events, empty());
-    }
-
-    public void testBatchEngineExceptionLoggedAsOneLine() {
-        Loggers.setLevel(LOGGER, randomFrom(Level.TRACE, Level.DEBUG));
-        int docCount = randomIntBetween(1, 8);
-        listener(sharedLimiter).postIndexBatch(SHARD_ID, primaryBatch(docCount), new RuntimeException("test exception"));
-        assertSingleEvent(
-            "engine exception",
-            Level.DEBUG,
-            expectedMessage("index-fail batch docCount [" + docCount + "] startingSeqNo [-2]")
-        );
     }
 
     /**
@@ -192,6 +187,7 @@ public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
             case INDEX_RESULT -> listener.postIndex(SHARD_ID, singleDocIndex(), failedResult(failure));
             case INDEX_EXCEPTION -> listener.postIndex(SHARD_ID, singleDocIndex(), failure);
             case BATCH_RESULT -> listener.postIndexBatch(SHARD_ID, primaryBatch(1), List.of(failedResult(failure)));
+            case BATCH_EXCEPTION -> listener.postIndexBatch(SHARD_ID, primaryBatch(batchExceptionDocCount), failure);
         }
     }
 

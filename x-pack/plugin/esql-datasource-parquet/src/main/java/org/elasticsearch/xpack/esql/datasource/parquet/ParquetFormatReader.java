@@ -196,8 +196,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     private final boolean forceBaselinePath;
     /**
      * Test-only. When true, open skips {@link FilterLevelUsefulness} and preloads every predicate
-     * dictionary/bloom page (null masks — today's behaviour). Copied by {@code with*} so it
-     * survives {@link #withPushedFilter}. Production constructors leave it false.
+     * dictionary/bloom page (null masks — today's behaviour). Other {@code with*} copies reset
+     * this to false, so {@link #withSkipFilterLevelUsefulness} must be the last wither applied.
+     * Production constructors leave it false.
      */
     private final boolean skipFilterLevelUsefulness;
     private final boolean optimizedReader;
@@ -692,8 +693,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Test-only: today's null-mask preload (skip the usefulness visitor). Package-private so
-     * GET-count tests can A/B against the masked path without a {@code ThreadLocal}.
+     * Test-only: today's null-mask preload (skip the usefulness visitor). Must be the last
+     * wither applied — a later {@code with*} copy resets the flag to false.
      */
     ParquetFormatReader withSkipFilterLevelUsefulness() {
         if (skipFilterLevelUsefulness) {

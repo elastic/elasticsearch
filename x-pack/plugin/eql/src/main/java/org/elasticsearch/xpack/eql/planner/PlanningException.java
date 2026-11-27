@@ -18,7 +18,7 @@ public class PlanningException extends EqlClientException {
     }
 
     protected PlanningException(Collection<Failure> sources) {
-        super(Failure.failMessage(sources));
+        super(sources);
     }
 
 }

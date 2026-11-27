@@ -714,6 +714,29 @@ public class IndexingPressure implements IndexingPressureMonitor {
         return operationLimit;
     }
 
+    public long coordinatingLimit() {
+        return coordinatingLimit;
+    }
+
+    /** The bytes counted now in this node's coordinating, primary and replica operations. */
+    public long currentUsageInBytes() {
+        return currentCombinedCoordinatingAndPrimaryBytes.get() + currentReplicaBytes.get();
+    }
+
+    /**
+     * In bytes, the node's usage from which a streaming bulk splits once it holds {@link #splitBulkLowWatermarkSize()}.
+     */
+    public long splitBulkLowWatermark() {
+        return lowWatermark;
+    }
+
+    /**
+     * In bytes, the size a streaming bulk reaches before it splits while the node's usage is above {@link #splitBulkLowWatermark()}.
+     */
+    public long splitBulkLowWatermarkSize() {
+        return lowWatermarkSize;
+    }
+
     @Override
     public void addListener(IndexingPressureListener listener) {
         listeners.add(listener);

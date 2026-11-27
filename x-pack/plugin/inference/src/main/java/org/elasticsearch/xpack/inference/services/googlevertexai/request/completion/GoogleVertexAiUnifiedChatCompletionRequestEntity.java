@@ -77,7 +77,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private static final String FUNCTION_CALLING_CONFIG = "functionCallingConfig";
     private static final String TOOL_MODE = "mode";
     private static final String TOOL_MODE_ANY = "ANY";
-    private static final String TOOL_MODE_AUTO = "auto";
+    private static final String TOOL_MODE_NONE = "NONE";
+    private static final String TOOL_CHOICE_AUTO = "auto";
+    private static final String TOOL_CHOICE_NONE = "none";
+    private static final String TOOL_CHOICE_REQUIRED = "required";
     private static final String ALLOWED_FUNCTION_NAMES = "allowedFunctionNames";
 
     private static final String FUNCTION_CALL = "functionCall";
@@ -247,15 +250,19 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
 
     /**
      * Groups non-system messages into Gemini content turns, one turn per run of consecutive messages that map to the
-     * same Gemini role. Gemini expects contents to alternate between {@code user} and {@code model}, and the unified
-     * API does not guarantee that once {@code tool} messages become {@code user} contents: a tool result followed by
-     * a user message would otherwise be two adjacent {@code user} contents, for which Gemini 2.5 returns an empty
-     * answer.
+     * same Gemini role, so that consecutive user messages or consecutive assistant messages become a single content.
      * <p>
      * This also keeps the {@code functionResponse} parts that answer a parallel function call step in a single
      * {@code user} content, as Gemini requires, whereas the unified API carries one {@code tool} message per tool
      * call. The number of {@code functionResponse} parts then matches the number of {@code functionCall} parts in the
      * preceding model turn.
+     * <p>
+     * The one exception is a user message that follows a tool result. Both map to the {@code user} role, but the user
+     * message starts a new turn, because a content with a {@code text} part after a {@code functionResponse} part is
+     * rejected by Gemini 3.6 and later with a misleading 400 ("Requests ending with a model turn are not supported")
+     * and answered with an empty response by Gemini 3.1 Pro. Two adjacent {@code user} contents are accepted by all of
+     * Gemini 2.5, 3.1, 3.6 and 3.8. A user message before a tool result is accepted in the same content and stays
+     * merged.
      */
     private static List<List<Message>> toContentTurns(List<Message> messages) {
         var turns = new ArrayList<List<Message>>();
@@ -266,17 +273,20 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                 continue;
             }
             var role = messageRoleToGoogleVertexAiSupportedRole(message.role());
-            if (role.equals(turnRole)) {
-                // Append to the current turn so that the contents keep alternating between user and model.
-                turns.getLast().add(message);
-            } else {
+            if (role.equals(turnRole) == false || isUserTextAfterToolResult(turns.getLast().getLast(), message)) {
                 var turn = new ArrayList<Message>();
                 turn.add(message);
                 turns.add(turn);
                 turnRole = role;
+            } else {
+                turns.getLast().add(message);
             }
         }
         return turns;
+    }
+
+    private static boolean isUserTextAfterToolResult(Message previous, Message message) {
+        return isToolMessage(previous) && isToolMessage(message) == false;
     }
 
     private void buildContents(XContentBuilder builder) throws IOException {
@@ -304,8 +314,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                 // Shared by every message of the turn: Gemini validates the first function call of the whole content,
                 // so the signature sentinel must not restart for each merged message.
                 var thoughtSignatures = new GoogleVertexAiThoughtSignatures();
-                // A merged turn keeps its messages' parts in message order, e.g. a tool result's functionResponse
-                // followed by the text of the user message after it.
+                // A merged turn keeps its messages' parts in message order, e.g. the functionResponse parts of the
+                // tool results that answer a parallel function call step.
                 for (var message : turn) {
                     if (isToolMessage(message)) {
                         buildFunctionResponsePart(builder, message, functionNameById);
@@ -525,17 +535,29 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             toolChoice = toolChoiceObject;
         } else if (request.toolChoice() instanceof ToolChoiceString) {
             ToolChoiceString toolChoiceString = (ToolChoiceString) request.toolChoice();
-            if (toolChoiceString.value().equals(TOOL_MODE_AUTO)) {
-                return;
+            switch (toolChoiceString.value()) {
+                case TOOL_CHOICE_AUTO -> {
+                    return;
+                }
+                case TOOL_CHOICE_REQUIRED -> {
+                    writeToolMode(builder, TOOL_MODE_ANY);
+                    return;
+                }
+                case TOOL_CHOICE_NONE -> {
+                    writeToolMode(builder, TOOL_MODE_NONE);
+                    return;
+                }
+                default -> throw new ElasticsearchStatusException(
+                    format(
+                        "Tool choice value [%s] not supported by Google VertexAI ChatCompletion. Supported values: [%s, %s, %s]",
+                        toolChoiceString.value(),
+                        TOOL_CHOICE_AUTO,
+                        TOOL_CHOICE_NONE,
+                        TOOL_CHOICE_REQUIRED
+                    ),
+                    RestStatus.BAD_REQUEST
+                );
             }
-            throw new ElasticsearchStatusException(
-                format(
-                    "Tool choice value [%s] not supported by Google VertexAI ChatCompletion. Supported values: [%s]",
-                    toolChoiceString.value(),
-                    TOOL_MODE_AUTO
-                ),
-                RestStatus.BAD_REQUEST
-            );
         } else {
             return;
         }
@@ -562,9 +584,18 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                 builder.endArray();
             }
 
-            builder.endObject();
-            builder.endObject();
         }
+
+        builder.endObject();
+        builder.endObject();
+    }
+
+    private static void writeToolMode(XContentBuilder builder, String mode) throws IOException {
+        builder.startObject(TOOL_CONFIG);
+        builder.startObject(FUNCTION_CALLING_CONFIG);
+        builder.field(TOOL_MODE, mode);
+        builder.endObject();
+        builder.endObject();
     }
 
     private void buildGenerationConfig(XContentBuilder builder) throws IOException {

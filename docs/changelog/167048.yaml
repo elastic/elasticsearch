@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 167003
+pr: 167048
+summary: Log the requested time range bounds of ES|QL queries
+type: enhancement

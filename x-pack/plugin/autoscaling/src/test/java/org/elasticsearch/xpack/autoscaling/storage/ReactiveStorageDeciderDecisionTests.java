@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -287,7 +288,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                                     shard,
                                     randomNodeId(allocation.routingNodes(), DATA_WARM_NODE_ROLE),
                                     0L,
-                                    "test",
+                                    MoveReason.CANNOT_REMAIN,
                                     allocation.changes(),
                                     RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                                 )
@@ -728,7 +729,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                                 toMove,
                                 randomFrom(candidates).nodeId(),
                                 0L,
-                                "test",
+                                MoveReason.CANNOT_REMAIN,
                                 allocation.changes(),
                                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                             );

@@ -246,6 +246,34 @@ public class NumberColumnTransformTests extends ESTestCase {
         }
     }
 
+    /**
+     * Texts on either side of the midpoint between two floats parse to the double that is the midpoint, which a cast narrows to the
+     * even float. The transform narrows them to the float the row path parses from each text, as in
+     * https://github.com/elastic/elasticsearch/issues/165790; the last text is the canonical rendering of the midpoint itself.
+     */
+    public void testDoubleToFloat_midpoint() throws IOException {
+        String[] texts = { "1.0000001788139343261718749", "1.0000001788139343261718751", "1.0000001788139343" };
+        String[] docs = java.util.Arrays.stream(texts).map(t -> "{\"f\": " + t + "}").toArray(String[]::new);
+        try (EscfBatch batch = encode(docs)) {
+            EscfColumn src = column(batch, "f");
+            long[] floats = readValues(
+                NumberColumnTransform.toSortableLongColumn(src, NumberType.FLOAT, false, BytesRefRecycler.NON_RECYCLING_INSTANCE),
+                texts.length
+            );
+            long[] halfFloats = readValues(
+                NumberColumnTransform.toSortableLongColumn(src, NumberType.HALF_FLOAT, false, BytesRefRecycler.NON_RECYCLING_INSTANCE),
+                texts.length
+            );
+            for (int i = 0; i < texts.length; i++) {
+                float expected = Float.parseFloat(texts[i]);
+                assertEquals(texts[i], (long) NumericUtils.floatToSortableInt(expected), floats[i]);
+                assertEquals(texts[i], (long) HalfFloatPoint.halfFloatToSortableShort(expected), halfFloats[i]);
+            }
+            assertEquals(Math.nextUp(1f), Float.parseFloat(texts[0]), 0f);
+            assertEquals(Math.nextUp(Math.nextUp(1f)), Float.parseFloat(texts[1]), 0f);
+        }
+    }
+
     public void testDoubleToLong_wholeValue() throws IOException {
         try (EscfBatch batch = encode("{\"f\": 3.0}", "{\"f\": -7.0}")) {
             EscfColumn src = column(batch, "f");

@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.containsString;
  * Four shapes are exercised:
  * <ul>
  *     <li>The size of the intermediate results LocalRelation exceeds esql.intermediate_local_relation_max_size.</li>
- *     <li>The size of the intermediate results trips the BlockHash used by duplication removal in AbstractSubqueryJoin. This shared
+ *     <li>The size of the intermediate results trips the BlockHash used by duplication removal in AbstractInSubqueryJoin. This shared
  *     dedup path is exercised for all three join shapes: IN (SemiJoin), NOT IN (AntiJoin) and IN-under-OR (MarkJoin).</li>
  *     <li>The IN subquery carries a large amount of data (many big fields, or a giant text field) through to the output.</li>
  *     <li>The IN subquery carries a sort over many big fields or a grouping aggregation with a large grouping set.</li>
@@ -81,7 +81,7 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
     }
 
     /**
-     * Trips the circuit breaker inside the IN-subquery <em>duplication removal</em> step, where {@code AbstractSubqueryJoin} runs the
+     * Trips the circuit breaker inside the IN-subquery <em>duplication removal</em> step, where {@code AbstractInSubqueryJoin} runs the
      * subquery's key column through a {@link org.elasticsearch.compute.aggregation.blockhash.BlockHash} on the coordinator before deciding
      * the join shape. The values are distinct giant texts so the dedup {@code BlockHash} retains one entry per document, and the
      * per-request {@code esql.intermediate_local_relation_max_size} cap is raised so the large subquery result reaches dedup instead
@@ -89,7 +89,7 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
      * <p>
      * The subquery shape is randomized per attempt by {@link #giantTextInSubquery(int)}: {@code IN} (a {@code SemiJoin}), {@code NOT IN}
      * (an {@link org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin AntiJoin}), or {@code IN (...) OR id < 0} (a
-     * {@link org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin MarkJoin}). All three are siblings of {@code AbstractSubqueryJoin}
+     * {@link org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin MarkJoin}). All three are siblings of {@code AbstractInSubqueryJoin}
      * and run the subquery key column through the <em>same</em> dedup {@code BlockHash} in {@code inlineData} before any
      * join-type-specific routing, so each trips the breaker identically — the memory math below is independent of which shape is picked.
      * <p>
@@ -126,7 +126,7 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
      * {@code getKeys} output reservation (another {@code 136382028}) pushes it over:
      * {@code Data too large, data for [<esql_block_factory>] would be [381868192/364.1mb], which is larger than the limit of
      * [322122547/307.1mb]}. The {@code CircuitBreakingException} fires <em>inside</em> that {@code getKeys} allocation, so its stack
-     * contains both {@code AbstractSubqueryJoin} (the dedup caller) and {@code BlockHash} (the allocation site), which is what
+     * contains both {@code AbstractInSubqueryJoin} (the dedup caller) and {@code BlockHash} (the allocation site), which is what
      * {@link #assertCircuitBreaksVia} matches on.
      * <p>
      * The workload is still ramped — {@code giantTextInSubquery(48 + attempt * 4)} sets {@code LIMIT} to {@code 52, 56, 60, 64} on
@@ -157,7 +157,7 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
             // (60% of the 512mb heap) is crossed inside BlockHash. In practice attempt 1 (LIMIT 52) already reaches ~364mb and trips.
             int baseLimit = scaleToHeap(48);
             int limitStep = scaleToHeap(4);
-            assertCircuitBreaksVia(attempt -> giantTextInSubquery(baseLimit + attempt * limitStep), "AbstractSubqueryJoin", "BlockHash");
+            assertCircuitBreaksVia(attempt -> giantTextInSubquery(baseLimit + attempt * limitStep), "AbstractInSubqueryJoin", "BlockHash");
         } finally {
             setIntermediateLocalRelationMaxSize(null);
         }
@@ -259,7 +259,8 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
 
     /**
      * Builds the ramped IN-subquery query for {@link #testDedupBlockHashWithInSubquery()}, randomly choosing one of the three join shapes
-     * that {@code InSubqueryResolver} produces and that all share {@code AbstractSubqueryJoin}'s coordinator-side dedup {@code BlockHash}:
+     * that {@code InSubqueryResolver} produces and that all share {@code AbstractInSubqueryJoin}'s coordinator-side dedup
+     * {@code BlockHash}:
      * <ul>
      *   <li>{@code 0}: {@code f IN (subquery)} &rarr; {@code SemiJoin};</li>
      *   <li>{@code 1}: {@code f NOT IN (subquery)} &rarr; {@link org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin AntiJoin};</li>

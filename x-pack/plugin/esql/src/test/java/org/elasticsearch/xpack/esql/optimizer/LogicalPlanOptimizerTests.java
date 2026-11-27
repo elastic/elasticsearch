@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedi
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ChangeCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
@@ -6977,6 +6978,33 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(filter.child(), EsRelation.class);
     }
 
+    /**
+     * A multi-valued literal must stay on {@code Equals}. Rewriting it to {@code InsensitiveEquals}
+     * compares the field with the collection's string form and drops the multi-value warning.
+     * https://github.com/elastic/elasticsearch/issues/166897
+     */
+    public void testReplaceStringCasingWithInsensitiveEqualsMultiValuedConstant() {
+        for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
+            for (var op : List.of("==", "!=")) {
+                var query = "FROM test | WHERE " + fn + "(first_name) " + op + " [\"georgi\", \"bezalel\"]";
+                var plan = optimizedPlan(query);
+                var limit = as(plan, Limit.class);
+                var filter = as(limit.child(), Filter.class);
+                Equals equals;
+                if (op.equals("!=")) {
+                    var not = as(filter.condition(), Not.class);
+                    equals = as(not.field(), Equals.class);
+                } else {
+                    equals = as(filter.condition(), Equals.class);
+                }
+                as(equals.left(), ChangeCase.class);
+                var literal = as(equals.right(), Literal.class);
+                assertThat(query, literal.value(), instanceOf(List.class));
+                as(filter.child(), EsRelation.class);
+            }
+        }
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
@@ -8032,11 +8060,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        // Avg(long) surrogate wraps Sum's input in ToDouble; the cast is extracted into an Eval above the TimeSeriesAggregate.
-        Eval evalToDouble = as(finalAgg.child(), Eval.class);
-        assertThat(evalToDouble.fields(), hasSize(1));
-        as(Alias.unwrap(evalToDouble.fields().get(0)), ToDouble.class);
-        TimeSeriesAggregate aggsByTsid = as(evalToDouble.child(), TimeSeriesAggregate.class);
+        // Avg(long) sums the long as a double itself, so there is no cast to extract into an Eval above the TimeSeriesAggregate.
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -8044,7 +8069,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
 
-        as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        assertTrue(as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class).sumsLongAsDouble());
         as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
 
         LastOverTime lastOverTime = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), LastOverTime.class);
@@ -8312,11 +8337,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        // Avg(long) surrogate wraps Sum's input in ToDouble; the cast is extracted into an Eval above the TimeSeriesAggregate.
-        Eval evalToDouble = as(finalAgg.child(), Eval.class);
-        assertThat(evalToDouble.fields(), hasSize(1));
-        as(Alias.unwrap(evalToDouble.fields().get(0)), ToDouble.class);
-        TimeSeriesAggregate aggsByTsid = as(evalToDouble.child(), TimeSeriesAggregate.class);
+        // Avg(long) sums the long as a double itself, so there is no cast to extract into an Eval above the TimeSeriesAggregate.
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -8326,6 +8348,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(sum.hasFilter());
+        assertTrue(sum.sumsLongAsDouble());
         var count = as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
         assertFalse(count.hasFilter());
 

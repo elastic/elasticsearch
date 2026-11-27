@@ -32,9 +32,10 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -278,7 +279,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     /**
      * Resolves a raw compound-commit timestamp range into a stampable cache-region timestamp.
      */
-    public long resolveRegionTimestampMillis(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
+    public long resolveRegionTimestampMillis(@Nullable TimestampFieldValueRange range) {
         return resolveRegionTimestampMillis(BlobFileRanges.midpointMillisOrUnknownForCache(range));
     }
 
@@ -443,10 +444,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         BlobCacheMetrics blobCacheMetrics,
         @Nullable Releasable releasable
     ) {
-        var blobFile = blobFileRanges.blobLocation().bccBlob();
+        var blob = blobFileRanges.blobLocation().blob();
         var reader = new CacheFileReader(
             getCacheFile(blobFileRanges),
-            getCacheBlobReader(name, blobFile),
+            getCacheBlobReader(name, blob),
             blobFileRanges,
             blobCacheMetrics,
             cacheService.getThreadPool().relativeTimeInMillisSupplier(),
@@ -488,19 +489,19 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * Returns a CacheBlobReader for reading a specific file from the blob store.
      *
      * @param fileName the name of the file to be read
-     * @param bccBlob the blob file
+     * @param blob the blob that contains the file
      * @return a CacheBlobReader for reading the specified file
      */
-    protected abstract CacheBlobReader getCacheBlobReader(String fileName, BccBlob bccBlob);
+    protected abstract CacheBlobReader getCacheBlobReader(String fileName, Blob blob);
 
     /**
      * Returns a CacheBlobReader for reading a specific file from the blob store
      * for warming purposes.
      *
-     * @param bccBlob the blob file
+     * @param blob the blob that contains the file
      * @return a CacheBlobReader for reading the specified file
      */
-    public abstract CacheBlobReader getCacheBlobReaderForWarming(BccBlob bccBlob);
+    public abstract CacheBlobReader getCacheBlobReaderForWarming(Blob blob);
 
     @Override
     public void close() throws IOException {

@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -709,7 +709,11 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         if (node instanceof LookupJoin lj) {
             Set<String> leftOutputNames = new HashSet<>(Expressions.names(lj.left().output()));
             Set<String> rightOutputNames = new HashSet<>(Expressions.names(lj.right().output()));
-            collectUnresolvedLeftKeys(lj, leftOutputNames, sink);
+            // For a join ON expression the parser puts both operands of every comparison (==, !=, <, <=, >, >=) in leftFields, as it
+            // cannot tell the sides apart. The one that the lookup index has is a right key, not an unmapped left field: loading it onto
+            // the left side would make the name ambiguous once ResolveRefs resolves the join.
+            Set<String> operandsOfTheRight = lj.config().joinOnConditions() != null ? rightOutputNames : Set.of();
+            collectUnresolvedLeftKeys(lj, leftOutputNames, operandsOfTheRight, sink);
             // joinOnConditions UAs not found in either child → load candidates.
             Expression conds = lj.config().joinOnConditions();
             if (conds != null) {
@@ -720,7 +724,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
                 });
             }
             // Unresolved right keys are intentionally ignored — a query that references them is invalid and will fail verification.
-        } else if (node instanceof AbstractSubqueryJoin sj) {
+        } else if (node instanceof AbstractInSubqueryJoin sj) {
             // RHS surfaces the same single-column name, so the generic else-branch would mask an unmapped IN left key. #142033
             collectUnresolvedLeftKeys(sj, new HashSet<>(Expressions.names(sj.left().output())), sink);
         } else {
@@ -745,8 +749,22 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * candidates. Left keys must resolve against the left side only (mirrors {@code ResolveRefs} join resolution).
      */
     private static void collectUnresolvedLeftKeys(Join join, Set<String> leftOutputNames, Consumer<UnresolvedAttribute> sink) {
+        collectUnresolvedLeftKeys(join, leftOutputNames, Set.of(), sink);
+    }
+
+    /**
+     * @param notLeftKeys names to leave out: of the right side, for the left fields of a join ON expression, that has both operands there
+     */
+    private static void collectUnresolvedLeftKeys(
+        Join join,
+        Set<String> leftOutputNames,
+        Set<String> notLeftKeys,
+        Consumer<UnresolvedAttribute> sink
+    ) {
         for (Attribute lf : join.config().leftFields()) {
-            if (lf instanceof UnresolvedAttribute ua && leftOutputNames.contains(ua.name()) == false) {
+            if (lf instanceof UnresolvedAttribute ua
+                && leftOutputNames.contains(ua.name()) == false
+                && notLeftKeys.contains(ua.name()) == false) {
                 sink.accept(ua);
             }
         }

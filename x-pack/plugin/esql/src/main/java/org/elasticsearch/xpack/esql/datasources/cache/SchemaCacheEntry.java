@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 
@@ -292,6 +293,8 @@ public final class SchemaCacheEntry {
         // _stats.stripe.<k>) weigh their inner entries the same way so a many-striped file doesn't
         // under-count against the cache budget.
         bytes += HeapEstimates.mapBytes(safeMetadata);
+        // The nested-column description is deeper than the two levels mapBytes weighs
+        bytes += NestedColumns.estimatedBytes(safeMetadata);
         bytes += HeapEstimates.mapBytes(connectorConfig);
         return bytes;
     }

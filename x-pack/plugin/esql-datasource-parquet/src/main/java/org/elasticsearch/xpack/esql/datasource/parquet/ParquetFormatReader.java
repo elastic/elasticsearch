@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
@@ -176,6 +177,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * node budget by this so concurrent opens share the room.
      */
     private final int externalIoThreads;
+
+    /**
+     * Whether this reader describes lists of structures as nested columns; see {@link #withNestedColumns}. Off, a file's
+     * metadata and footer statistics are what they are on main: nothing extra is written, serialized or cached, and the
+     * leaves of a list of structures are folded into the statistics as before.
+     */
+    private final boolean describesNestedColumns;
 
     /**
      * Node-wide cap on retained Parquet I/O bytes ({@code heap / 8}). Shared by every derived
@@ -466,7 +474,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             PoolingHeapByteBufferAllocator.forHeap(),
             MAX_FOOTER_READ_BYTES,
             ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(settings),
-            ExternalSourceSettings.externalIoThreads(settings)
+            ExternalSourceSettings.externalIoThreads(settings),
+            false
         );
     }
 
@@ -492,7 +501,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             PoolingHeapByteBufferAllocator.forHeap(),
             MAX_FOOTER_READ_BYTES,
             ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
-            ExternalSourceSettings.externalIoThreads(Settings.EMPTY)
+            ExternalSourceSettings.externalIoThreads(Settings.EMPTY),
+            false
         );
     }
 
@@ -516,7 +526,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             PoolingHeapByteBufferAllocator.forHeap(),
             maxFooterReadBytes,
             ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
-            ExternalSourceSettings.externalIoThreads(Settings.EMPTY)
+            ExternalSourceSettings.externalIoThreads(Settings.EMPTY),
+            false
         );
     }
 
@@ -539,7 +550,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         PoolingHeapByteBufferAllocator heapBufferPool,
         int maxFooterReadBytes,
         int schemaMaxFields,
-        int externalIoThreads
+        int externalIoThreads,
+        boolean describesNestedColumns
     ) {
         this(
             blockFactory,
@@ -557,6 +569,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             maxFooterReadBytes,
             schemaMaxFields,
             externalIoThreads,
+            describesNestedColumns,
             false
         );
     }
@@ -577,6 +590,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         int maxFooterReadBytes,
         int schemaMaxFields,
         int externalIoThreads,
+        boolean describesNestedColumns,
         boolean skipFilterLevelUsefulness
     ) {
         this.blockFactory = blockFactory;
@@ -601,6 +615,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         this.maxFooterReadBytes = maxFooterReadBytes;
         this.schemaMaxFields = schemaMaxFields;
         this.externalIoThreads = externalIoThreads;
+        this.describesNestedColumns = describesNestedColumns;
     }
 
     /** The one per-dataset key Parquet claims. */
@@ -658,7 +673,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             heapBufferPool,
             maxFooterReadBytes,
             maxFields,
-            externalIoThreads
+            externalIoThreads,
+            describesNestedColumns
         );
     }
 
@@ -670,6 +686,31 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     @Override
     public ParquetFormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
         return declaredProvenanceBinding ? withSchemaMaxFields(Integer.MAX_VALUE) : this;
+    }
+
+    @Override
+    public ParquetFormatReader withNestedColumns(boolean nestedColumns) {
+        if (nestedColumns == describesNestedColumns) {
+            return this;
+        }
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            footerBytes,
+            parsedFooters,
+            ioWatermark,
+            heapBufferPool,
+            maxFooterReadBytes,
+            schemaMaxFields,
+            externalIoThreads,
+            nestedColumns
+        );
     }
 
     ParquetFormatReader copySharingCachesForTests() {
@@ -688,7 +729,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             heapBufferPool,
             maxFooterReadBytes,
             schemaMaxFields,
-            externalIoThreads
+            externalIoThreads,
+            describesNestedColumns
         );
     }
 
@@ -716,6 +758,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             maxFooterReadBytes,
             schemaMaxFields,
             externalIoThreads,
+            describesNestedColumns,
             true
         );
     }
@@ -741,7 +784,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             heapBufferPool,
             maxFooterReadBytes,
             schemaMaxFields,
-            externalIoThreads
+            externalIoThreads,
+            describesNestedColumns
         );
     }
 
@@ -766,7 +810,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 heapBufferPool,
                 maxFooterReadBytes,
                 schemaMaxFields,
-                externalIoThreads
+                externalIoThreads,
+                describesNestedColumns
             );
         }
         if (pushedFilter instanceof FilterCompat.Filter filter) {
@@ -785,7 +830,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 heapBufferPool,
                 maxFooterReadBytes,
                 schemaMaxFields,
-                externalIoThreads
+                externalIoThreads,
+                describesNestedColumns
             );
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
@@ -804,7 +850,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 heapBufferPool,
                 maxFooterReadBytes,
                 schemaMaxFields,
-                externalIoThreads
+                externalIoThreads,
+                describesNestedColumns
             );
         }
         return this;
@@ -827,7 +874,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             heapBufferPool,
             maxFooterReadBytes,
             schemaMaxFields,
-            externalIoThreads
+            externalIoThreads,
+            describesNestedColumns
         );
     }
 
@@ -858,7 +906,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             heapBufferPool,
             maxFooterReadBytes,
             schemaMaxFields,
-            externalIoThreads
+            externalIoThreads,
+            describesNestedColumns
         );
     }
 
@@ -890,7 +939,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             heapBufferPool,
             maxFooterReadBytes,
             schemaMaxFields,
-            externalIoThreads
+            externalIoThreads,
+            describesNestedColumns
         );
     }
 
@@ -915,7 +965,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             heapBufferPool,
             maxFooterReadBytes,
             schemaMaxFields,
-            externalIoThreads
+            externalIoThreads,
+            describesNestedColumns
         );
     }
 
@@ -939,7 +990,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             heapBufferPool,
             maxFooterReadBytes,
             schemaMaxFields,
-            externalIoThreads
+            externalIoThreads,
+            describesNestedColumns
         );
     }
 
@@ -967,7 +1019,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pool,
             maxFooterReadBytes,
             schemaMaxFields,
-            externalIoThreads
+            externalIoThreads,
+            describesNestedColumns
         );
     }
 
@@ -1352,7 +1405,44 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         validateFooterIntegrity(parquetSchema, footer.getBlocks());
         List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
         SourceStatistics statistics = extractStatistics(footer.getBlocks(), schema, parquetSchema);
-        return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
+        Map<String, Object> described = describedNestedColumns(parquetSchema);
+        if (described == null) {
+            return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
+        }
+        return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null, described, null);
+    }
+
+    /**
+     * The nested-column description {@link #buildFooterMetadata} adds to a file's source metadata, or {@code null} when
+     * this reader describes no nested columns, in which case it adds nothing.
+     */
+    @Nullable
+    private Map<String, Object> describedNestedColumns(MessageType parquetSchema) {
+        if (describesNestedColumns == false) {
+            return null;
+        }
+        // The element walk is charged and capped as the column walk is: a list's element can be as wide as a file
+        try (SchemaBudget budget = new SchemaBudget(blockFactory.breaker())) {
+            return nestedColumns(ParquetCollections.describe(parquetSchema, budget::add, schemaMaxFields)).writeTo(null);
+        }
+    }
+
+    /** The file's lists of structures, as the nested columns its schema describes. */
+    static NestedColumns nestedColumns(MessageType parquetSchema) {
+        return nestedColumns(ParquetCollections.describe(parquetSchema));
+    }
+
+    private static NestedColumns nestedColumns(List<ParquetCollections.Collection> collections) {
+        List<NestedColumns.NestedColumn> columns = new ArrayList<>();
+        for (ParquetCollections.Collection collection : collections) {
+            Map<String, DataType> leaves = new HashMap<>();
+            for (ParquetCollections.Leaf leaf : collection.leaves()) {
+                leaves.put(leaf.name(), leaf.type());
+            }
+            // A shape the reader cannot read is no disagreement between files: one file says it alone
+            columns.add(new NestedColumns.NestedColumn(collection.path(), leaves, null, collection.unsupported()));
+        }
+        return NestedColumns.of(columns);
     }
 
     /**
@@ -2015,12 +2105,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
                 String[] path = col.getPath().toArray();
                 ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
-                if (desc != null && isMapOrVariantDescendedLeaf(parquetSchema, path)) {
-                    // A MAP's key/value leaves — and a VARIANT's metadata/value/typed_value.* leaves — all
-                    // collapse to the same logical name (they stop at the enclosing MAP/VARIANT group) and can
-                    // be heterogeneously typed, so folding their footer stats into one entry trips the
-                    // heterogeneity net in the min/max merge. Both groups are UNSUPPORTED downstream and their
-                    // stats are never consumed, so skip those leaves entirely. See isMapOrVariantDescendedLeaf.
+                if (desc != null && isUnsupportedGroupDescendedLeaf(parquetSchema, path)) {
+                    // A MAP's key/value leaves, a VARIANT's metadata/value/typed_value.* leaves, and, with
+                    // nested columns on, the leaves of a LIST whose element is a group all collapse to the same
+                    // logical name (they stop at the enclosing annotated group) and can be heterogeneously
+                    // typed, so folding their footer stats into one entry trips the heterogeneity net in the
+                    // min/max merge. Every such group is UNSUPPORTED downstream and its stats are never
+                    // consumed, so skip those leaves entirely. With nested columns off a LIST's leaves are
+                    // folded as on main. See isUnsupportedGroupDescendedLeaf.
                     continue;
                 }
                 if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
@@ -2036,9 +2128,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 // Key non-top-level leaves on the flattener's logical leaf name so the stats bind to the
                 // same attribute name the planner uses (a struct-nested list leaf answers.text.list.element
-                // is surfaced as answers.text). MAP and VARIANT leaves are excluded above
-                // (isMapOrVariantDescendedLeaf) because several of them share this one name yet can be
-                // heterogeneously typed, which would fold into one entry and trip the min/max merge net.
+                // is surfaced as answers.text). MAP and VARIANT leaves, and with nested columns on a list of
+                // structures' leaves, are excluded above (isUnsupportedGroupDescendedLeaf) because several of
+                // them share this one name yet can be heterogeneously typed, which would fold into one entry
+                // and trip the min/max merge net.
                 String colName = desc != null ? logicalLeafName(parquetSchema, path) : col.getPath().toDotString();
                 colSizes.merge(colName, new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
                     a[0] += b[0];
@@ -2380,10 +2473,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      */
     @Override
     public void discoverSplitRangesAsync(StorageObject object, Executor executor, ActionListener<List<SplitRange>> listener) {
-        loadFooterAsync(object, executor, listener.map(ParquetFormatReader::rangesFromFooter));
+        loadFooterAsync(object, executor, listener.map(this::rangesFromFooter));
     }
 
-    private static List<SplitRange> rangesFromFooter(ParquetMetadata footer) {
+    private List<SplitRange> rangesFromFooter(ParquetMetadata footer) {
         List<BlockMetaData> rowGroups = footer.getBlocks();
         if (rowGroups.isEmpty()) {
             return List.of();
@@ -2412,20 +2505,22 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     @SuppressWarnings("rawtypes")
-    private static Map<String, Object> buildRowGroupStats(BlockMetaData rowGroup, MessageType parquetSchema) {
+    private Map<String, Object> buildRowGroupStats(BlockMetaData rowGroup, MessageType parquetSchema) {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowGroup.getRowCount());
         stats.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, rowGroup.getTotalByteSize());
         for (ColumnChunkMetaData col : rowGroup.getColumns()) {
             String[] path = col.getPath().toArray();
             ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
-            if (desc != null && isMapOrVariantDescendedLeaf(parquetSchema, path)) {
-                // Skip map- and variant-descended leaves: their several leaves collapse to one logical name
-                // that put() here would silently record as wrong last-writer-wins stats (value-over-key for a
-                // MAP, one Variant internal over another for a VARIANT), and both groups are UNSUPPORTED
+            if (desc != null && isUnsupportedGroupDescendedLeaf(parquetSchema, path)) {
+                // Skip leaves under a group that folds several of them onto one logical name — a MAP, a
+                // VARIANT, or, with nested columns on, a LIST whose element is a group. put() here would
+                // silently record wrong last-writer-wins stats (value-over-key for a MAP, one Variant internal
+                // over another, one element field over its sibling), and every such group is UNSUPPORTED
                 // downstream so the stats are never consumed. Unlike extractStatistics there is no UNSUPPORTED
                 // publish filter here, so this skip is the only thing keeping those keys out of a split's
-                // serialized stats. Mirrors extractStatistics.
+                // serialized stats. With nested columns off a LIST's leaves are recorded as on main.
+                // Mirrors extractStatistics.
                 continue;
             }
             if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
@@ -2441,8 +2536,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // Publish non-top-level leaves under the flattener's logical leaf name (which stops at an
             // enclosing LIST/MAP/VARIANT) so a COUNT/MIN/MAX(answers.text) lookup resolves. The raw leaf path
             // "answers.text.list.element" would never be found by the planner's attribute name.
-            // See extractStatistics for the logical-name keying rationale; MAP and VARIANT leaves are skipped
-            // above (isMapOrVariantDescendedLeaf) since several of theirs collapse to one shared name.
+            // See extractStatistics for the logical-name keying rationale; MAP and VARIANT leaves, and with
+            // nested columns on a list of structures' leaves, are skipped above (isUnsupportedGroupDescendedLeaf)
+            // since several of theirs collapse to one shared name.
             String colName = desc != null ? logicalLeafName(parquetSchema, path) : col.getPath().toDotString();
             stats.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), col.getTotalUncompressedSize());
             Statistics colStats = col.getStatistics();
@@ -2574,17 +2670,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
         // Last-resort net: heterogeneously typed extrema (e.g. a MAP key String against a value Long, or a
         // VARIANT's BINARY metadata against a shredded INT32 typed_value) must not cross-cast into a raw
-        // ClassCastException. The statistics producers already skip map- and variant-descended leaves
-        // (isMapOrVariantDescendedLeaf), so in production only same-type extrema reach here — a mismatch means
-        // a fold regression upstream. Fail loudly under -ea (tests/CI) to catch it, and fall back to a safe 0
-        // in production rather than crashing on the cross-cast.
+        // ClassCastException. The statistics producers skip MAP and VARIANT leaves, and with nested columns on
+        // the leaves of a list of structures (isUnsupportedGroupDescendedLeaf). With nested columns off, as in a
+        // release build, a struct-nested list of structures is folded as on main, so differently typed element
+        // fields still reach here: a known defect, unchanged from main. Otherwise a mismatch means a fold
+        // regression upstream. Fail loudly under
+        // -ea (tests/CI) to catch it, and fall back to a safe 0 in production rather than crashing on the
+        // cross-cast; the folded entry is UNSUPPORTED and extractStatistics drops it before publishing.
         if (a.getClass() != b.getClass()) {
             assert false
                 : "heterogeneous stat extrema ["
                     + a.getClass()
                     + "] vs ["
                     + b.getClass()
-                    + "]; map- and variant-descended leaves must be skipped upstream";
+                    + "]; leaves folded onto a shared logical name must be skipped upstream";
             return 0;
         }
         return a.compareTo(b);
@@ -3930,9 +4029,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * </ul>
      * Driven off the schema's logical annotation (like {@link #logicalLeafName}) rather than a name or depth
      * heuristic, so it covers every shape at any depth: {@code struct<map>}, {@code map<string,list>},
-     * {@code map<string,struct>}, and both unshredded and shredded VARIANT.
+     * {@code map<string,struct>}, and both unshredded and shredded VARIANT. When this reader describes nested columns,
+     * it covers a {@code LIST} whose element is a group too — {@code struct<list<struct>>}, whose string and long
+     * leaves otherwise meet in {@link #compareStatExtremum}. Skipping those came with nested columns, so with them
+     * off, as in a release build, a {@code LIST} is walked through as on main and its leaves are folded.
+     * <p>
+     * The condition is the enclosing group's own ESQL type rather than a list of shapes:
+     * {@link #convertGroupTypeToEsql} resolves a {@code LIST} of a single primitive to that element's type, so
+     * a list of primitives keeps publishing min/max under its one logical name, while every group that folds
+     * several leaves onto one name resolves {@code UNSUPPORTED} and is skipped here.
      */
-    private static boolean isMapOrVariantDescendedLeaf(GroupType schema, String[] descriptorPath) {
+    private boolean isUnsupportedGroupDescendedLeaf(GroupType schema, String[] descriptorPath) {
         Type current = schema;
         for (String segment : descriptorPath) {
             // The descriptor path is always resolvable within the schema it came from, so every
@@ -3940,9 +4047,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             Type child = current.asGroupType().getType(segment);
             if (child.isPrimitive() == false) {
                 LogicalTypeAnnotation logical = child.asGroupType().getLogicalTypeAnnotation();
+                // Stopping at the first annotated group is the same rule logicalLeafName applies, so the two provably
+                // agree about which group a leaf's statistics are keyed under
                 if (logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation
                     || logical instanceof LogicalTypeAnnotation.VariantLogicalTypeAnnotation) {
                     return true;
+                }
+                if (describesNestedColumns && logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation) {
+                    // A list of primitives keeps its statistics under its one name; any other list folds several leaves
+                    return convertGroupTypeToEsql(child.asGroupType()) == DataType.UNSUPPORTED;
                 }
             }
             current = child;
@@ -4179,7 +4292,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
     }
 
-    private static DataType convertParquetTypeToEsql(Type parquetType) {
+    static DataType convertParquetTypeToEsql(Type parquetType) {
         if (parquetType.isPrimitive() == false) {
             return convertGroupTypeToEsql(parquetType.asGroupType());
         }
@@ -4265,25 +4378,33 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * everything else (MAP, VARIANT, LIST&lt;STRUCT&gt;, UNION) is UNSUPPORTED.
      */
     private static DataType convertGroupTypeToEsql(GroupType groupType) {
-        LogicalTypeAnnotation logical = groupType.getLogicalTypeAnnotation();
-        if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation && groupType.getFieldCount() == 1) {
-            Type repeatedType = groupType.getType(0);
-            if (repeatedType.isRepetition(Type.Repetition.REPEATED) == false) {
-                return DataType.UNSUPPORTED;
-            }
-            Type elementType = isListElementType(repeatedType, groupType.getName()) ? repeatedType : repeatedType.asGroupType().getType(0);
-            if (elementType.isPrimitive()) {
-                return convertParquetTypeToEsql(elementType);
-            }
+        Type elementType = listElementOf(groupType);
+        if (elementType != null && elementType.isPrimitive()) {
+            return convertParquetTypeToEsql(elementType);
         }
         return DataType.UNSUPPORTED;
+    }
+
+    /**
+     * The element type of a {@code LIST} group, by Parquet's backward-compatibility rules, or {@code null} when
+     * {@code group} is not a well-formed list. The one decision the column mapping and the collection description share.
+     */
+    @Nullable
+    static Type listElementOf(GroupType group) {
+        if (group.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation == false
+            || group.getFieldCount() != 1
+            || group.getType(0).isRepetition(Type.Repetition.REPEATED) == false) {
+            return null;
+        }
+        Type repeated = group.getType(0);
+        return isListElementType(repeated, group.getName()) ? repeated : repeated.asGroupType().getType(0);
     }
 
     /**
      * Applies Parquet's backward-compatibility rules for deciding whether the repeated type in a LIST
      * is itself the element or is the standard three-level wrapper around the element.
      */
-    private static boolean isListElementType(Type repeatedType, String parentName) {
+    static boolean isListElementType(Type repeatedType, String parentName) {
         if (repeatedType.isPrimitive()) {
             return true;
         }

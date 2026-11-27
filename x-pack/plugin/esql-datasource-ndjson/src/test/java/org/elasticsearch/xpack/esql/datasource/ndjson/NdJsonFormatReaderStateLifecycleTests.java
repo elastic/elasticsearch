@@ -91,7 +91,8 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withPushedFilter", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withDeclaredTypeColumns", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.SHARES_COUNTERS),
-        Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY)
+        Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withNestedColumns", WitherLifecycle.IDENTITY_NO_COPY)
     );
 
     /** Every declared instance field must be classified: immutable/config, or shared-mutable. */
@@ -257,6 +258,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
             case "withDeclaredTypeColumns" -> new Object[] { Set.of("a") };
             case "withDeclaredProvenanceBinding" -> new Object[] { true };
             case "withHeaderBindingByProvenance" -> new Object[] { true };
+            case "withNestedColumns" -> new Object[] { true };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };
     }

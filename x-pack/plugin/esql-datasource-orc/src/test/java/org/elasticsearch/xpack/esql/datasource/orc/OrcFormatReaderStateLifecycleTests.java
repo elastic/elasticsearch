@@ -78,6 +78,7 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withSchema", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withNestedColumns", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withBlockFactory", WitherLifecycle.CREATES_COPY),
         Map.entry("withSchemaSampleShare", WitherLifecycle.IDENTITY_NO_COPY)
@@ -233,6 +234,7 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
             case "withSchema" -> new Object[] { List.of() };
             case "withDeclaredProvenanceBinding" -> new Object[] { false };
             case "withHeaderBindingByProvenance" -> new Object[] { false };
+            case "withNestedColumns" -> new Object[] { true };
             case "withReadConfig" -> new Object[] { "" };
             case "withBlockFactory" -> new Object[] {
                 BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build() };

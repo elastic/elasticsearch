@@ -16,6 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -405,7 +406,9 @@ public final class DataSourceModule implements Closeable {
                                 + "] but formatReaders() did not return it"
                         );
                     }
-                    return real.create(s, bf);
+                    // The one place the build's capability reaches a reader: every reader core hands out derives from
+                    // this one, and a reader does not consult the capabilities itself
+                    return real.create(s, bf).withNestedColumns(EsqlCapabilities.Cap.NESTED_EXPAND_DATASET.isEnabled());
                 };
                 formatReaderRegistry.registerLazy(format, delegating, settings, blockFactory);
                 for (String ext : spec.extensions()) {

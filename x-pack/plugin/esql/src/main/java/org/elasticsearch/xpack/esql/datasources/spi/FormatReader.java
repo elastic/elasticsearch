@@ -358,6 +358,22 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Returns a reader that describes each file's lists of structures as nested columns ({@link NestedColumns}) in the
+     * file's source metadata, for {@code NESTED_EXPAND} over a dataset, when {@code nestedColumns} is true. When it is
+     * false, as for a reader nobody configured, the reader's metadata and statistics are what they are without nested
+     * columns. Core decides once, where it creates a reader (the factory {@code DataSourceModule} registers); a reader does not consult
+     * the build's capabilities itself.
+     * <p>
+     * Only Parquet describes nested columns; every other reader keeps the no-op default.
+     *
+     * @param nestedColumns whether this build reads nested columns of datasets
+     * @return a new reader honoring the setting, or {@code this} when it does not apply
+     */
+    default FormatReader withNestedColumns(boolean nestedColumns) {
+        return this;
+    }
+
+    /**
      * Returns a reader that binds a header-bearing file as a node before {@code esql_external_text_header_every_split}
      * does: a pinned schema of DECLARED provenance by the header's names, an INFERRED one by position. Set while such a
      * node is in the cluster, so that one query never binds splits of a glob both ways and mixes their rows into one

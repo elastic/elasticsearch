@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
@@ -36,6 +38,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -1780,5 +1783,221 @@ public class SchemaReconciliationTests extends ESTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("per-file read schemas"));
+    }
+
+    // === nested columns ===
+
+    /** Reconciles {@code metadata} under union_by_name and returns its nested columns, collecting the warnings. */
+    private static NestedColumns nestedUnion(Map<StoragePath, SourceMetadata> metadata, List<String> warnings) {
+        return SchemaReconciliation.reconcileUnionByName(metadata, warnings::add).nestedColumns();
+    }
+
+    public void testNestedUnionWidensAndUnitesFields() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            nestedMeta(new NestedColumns.NestedColumn("answers", Map.of("type", DataType.KEYWORD, "ttl", DataType.INTEGER), null)),
+            f2,
+            nestedMeta(new NestedColumns.NestedColumn("answers", Map.of("ttl", DataType.LONG, "data", DataType.KEYWORD), null))
+        );
+        List<String> warnings = new ArrayList<>();
+        assertThat(
+            nestedUnion(metadata, warnings),
+            equalTo(
+                NestedColumns.of(
+                    List.of(
+                        new NestedColumns.NestedColumn(
+                            "answers",
+                            Map.of("type", DataType.KEYWORD, "ttl", DataType.LONG, "data", DataType.KEYWORD),
+                            null
+                        )
+                    )
+                )
+            )
+        );
+        // integer and long widen without loss, as for a column
+        assertThat(warnings, equalTo(List.of()));
+    }
+
+    /** A nested field whose type differs between files warns as a column's does, keyword fallback and precision alike. */
+    public void testNestedUnionWarnsAsColumnsDo() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            nestedMeta(new NestedColumns.NestedColumn("answers", Map.of("code", DataType.LONG, "score", DataType.LONG), null)),
+            f2,
+            nestedMeta(new NestedColumns.NestedColumn("answers", Map.of("code", DataType.KEYWORD, "score", DataType.DOUBLE), null))
+        );
+        List<String> warnings = new ArrayList<>();
+        NestedColumns.NestedColumn merged = nestedUnion(metadata, warnings).get("answers");
+        assertThat(merged.leaves(), equalTo(Map.of("code", DataType.KEYWORD, "score", DataType.DOUBLE)));
+        assertThat(warnings, hasItem(containsString("are read as [keyword]")));
+        assertThat(warnings, hasItem(containsString("answers.code")));
+        assertThat(warnings, hasItem(containsString("losing precision")));
+        assertThat(warnings, hasItem(containsString("answers.score")));
+    }
+
+    /**
+     * A column and a nested field whose types both change are named under one warning, the column first, and the merged
+     * schema holds the columns only: the nested fields are merged on their own, never as columns.
+     */
+    public void testNestedAndColumnTypeChangesShareOneWarning() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            nestedMeta(new NestedColumns.NestedColumn("answers", Map.of("code", DataType.LONG), null), attr("question", DataType.LONG)),
+            f2,
+            nestedMeta(
+                new NestedColumns.NestedColumn("answers", Map.of("code", DataType.KEYWORD), null),
+                attr("question", DataType.KEYWORD)
+            )
+        );
+        List<String> warnings = new ArrayList<>();
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, warnings::add);
+        assertThat(
+            result.unifiedSchema().attributes().stream().map(a -> a.name() + ":" + a.dataType().typeName()).toList(),
+            equalTo(List.of("answers:unsupported", "question:keyword"))
+        );
+        assertThat(warnings.stream().filter(w -> w.contains("are read as [keyword]")).count(), equalTo(1L));
+        assertThat(warnings, hasSize(3));
+        assertThat(warnings.get(1), containsString("question"));
+        assertThat(warnings.get(2), containsString("answers.code"));
+    }
+
+    /** With no file describing a nested column, there is nothing to merge, under either policy. */
+    public void testNoNestedColumnsMergesNothing() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            meta(List.of(attr("question", DataType.KEYWORD))),
+            f2,
+            meta(List.of(attr("question", DataType.KEYWORD)))
+        );
+        assertThat(nestedUnion(metadata, new ArrayList<>()), equalTo(NestedColumns.NONE));
+        assertThat(SchemaReconciliation.reconcileStrict(f1, metadata).nestedColumns(), equalTo(NestedColumns.NONE));
+    }
+
+    /** A file without the column contributes no elements and no conflict. */
+    public void testNestedUnionKeepsColumnAbsentFromAFile() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        NestedColumns.NestedColumn answers = new NestedColumns.NestedColumn("answers", Map.of("type", DataType.KEYWORD), null);
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            nestedMeta(answers),
+            f2,
+            meta(List.of(attr("question", DataType.KEYWORD)))
+        );
+        assertThat(nestedUnion(metadata, new ArrayList<>()), equalTo(NestedColumns.of(List.of(answers))));
+    }
+
+    /** A column that is a list of structures in one file and a scalar or a structure in another cannot be read as nested. */
+    public void testNestedUnionConflictsWithAnotherShape() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        NestedColumns.NestedColumn answers = new NestedColumns.NestedColumn("answers", Map.of("type", DataType.KEYWORD), null);
+        for (Attribute other : List.of(attr("answers", DataType.KEYWORD), attr("answers.type", DataType.KEYWORD))) {
+            Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, nestedMeta(answers), f2, meta(List.of(other)));
+            NestedColumns.NestedColumn merged = nestedUnion(metadata, new ArrayList<>()).get("answers");
+            assertThat(merged.conflict(), equalTo("[answers] is a list of structures in [f1.parquet] but not in [f2.parquet]"));
+            assertThat(merged.unreadable(), equalTo(null));
+        }
+    }
+
+    /**
+     * A collection inside the element in one file, and a structure's fields at that path in another: the files disagree on
+     * the inner one's nested path, so the outer one cannot be read, with the message an index gives for that.
+     */
+    public void testNestedUnionConflictsOnAnInnerCollectionThatIsAStructureElsewhere() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        NestedColumns.NestedColumn items = new NestedColumns.NestedColumn("items", Map.of("qty", DataType.LONG), null);
+        NestedColumns.NestedColumn discounts = new NestedColumns.NestedColumn("items.discounts", Map.of("code", DataType.KEYWORD), null);
+        SourceMetadata nestedInside = new SimpleSourceMetadata(
+            List.of(attr("items", DataType.UNSUPPORTED)),
+            "parquet",
+            "s3://b/f1",
+            null,
+            null,
+            NestedColumns.of(List.of(items, discounts)).writeTo(null),
+            null
+        );
+        SourceMetadata structInside = nestedMeta(
+            new NestedColumns.NestedColumn("items", Map.of("qty", DataType.LONG, "discounts.code", DataType.KEYWORD), null)
+        );
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, nestedInside, f2, structInside);
+        NestedColumns merged = nestedUnion(metadata, new ArrayList<>());
+        assertThat(
+            merged.get("items").conflict(),
+            equalTo("its nested path is [items.discounts] in [f1.parquet] but [items] in [f2.parquet]")
+        );
+        assertThat(merged.get("items.discounts").conflict(), equalTo(null));
+
+        // Positive control: both files nest it the same way
+        Map<StoragePath, SourceMetadata> agreeing = orderedMap(f1, nestedInside, f2, nestedInside);
+        assertThat(nestedUnion(agreeing, new ArrayList<>()).get("items").conflict(), equalTo(null));
+    }
+
+    /** A shape one file's reader cannot read stays unreadable whatever the other files say, and is no conflict. */
+    public void testNestedUnionKeepsUnreadable() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            nestedMeta(new NestedColumns.NestedColumn("answers", Map.of("type", DataType.KEYWORD), null)),
+            f2,
+            nestedMeta(new NestedColumns.NestedColumn("answers", Map.of("type", DataType.KEYWORD), null, "cannot be read yet"))
+        );
+        NestedColumns.NestedColumn merged = nestedUnion(metadata, new ArrayList<>()).get("answers");
+        assertThat(merged.unreadable(), equalTo("cannot be read yet"));
+        assertThat(merged.conflict(), equalTo(null));
+    }
+
+    /** Strict refuses files whose nested columns differ, naming only the first field that differs. */
+    public void testNestedStrictRejectsDifferentFields() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            nestedMeta(new NestedColumns.NestedColumn("answers", Map.of("a", DataType.KEYWORD, "ttl", DataType.INTEGER), null)),
+            f2,
+            nestedMeta(
+                new NestedColumns.NestedColumn("answers", Map.of("a", DataType.KEYWORD, "ttl", DataType.LONG, "z", DataType.LONG), null)
+            )
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
+        assertEquals(
+            "nested field [answers.ttl] is [long] in [f2.parquet], [integer] in [f1.parquet]"
+                + "; set [schema_resolution] to [union_by_name] to merge schemas",
+            e.getMessage()
+        );
+    }
+
+    public void testNestedStrictAcceptsEqualFields() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        NestedColumns.NestedColumn answers = new NestedColumns.NestedColumn("answers", Map.of("ttl", DataType.LONG), null);
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, nestedMeta(answers), f2, nestedMeta(answers));
+        assertThat(SchemaReconciliation.reconcileStrict(f1, metadata).nestedColumns(), equalTo(NestedColumns.of(List.of(answers))));
+    }
+
+    /** A file whose nested column is {@code column}, the unsupported column it reads as, then {@code columns}. */
+    private static SourceMetadata nestedMeta(NestedColumns.NestedColumn column, Attribute... columns) {
+        List<Attribute> schema = new ArrayList<>();
+        schema.add(attr(column.path(), DataType.UNSUPPORTED));
+        schema.addAll(List.of(columns));
+        return new SimpleSourceMetadata(
+            schema,
+            "parquet",
+            "s3://b/" + column.path(),
+            null,
+            null,
+            NestedColumns.of(List.of(column)).writeTo(null),
+            null
+        );
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -118,6 +119,29 @@ public final class HeapEstimates {
             }
         }
         return bytes;
+    }
+
+    /**
+     * A deep estimate of a value built of maps, lists and strings at any depth: the per-entry charge of {@link #mapBytes}
+     * for each map entry and list element, plus every key and value string. For a record nested deeper than the two
+     * levels {@link #mapBytes} weighs.
+     */
+    public static long deepBytes(@Nullable Object value) {
+        if (value instanceof Map<?, ?> map) {
+            long bytes = mapShapeBytes(map);
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                bytes += deepBytes(entry.getKey()) + deepBytes(entry.getValue());
+            }
+            return bytes;
+        }
+        if (value instanceof List<?> list) {
+            long bytes = MAP_ENTRY_BYTES * list.size();
+            for (Object element : list) {
+                bytes += deepBytes(element);
+            }
+            return bytes;
+        }
+        return valuePayloadBytes(value);
     }
 
     private static long valuePayloadBytes(@Nullable Object value) {

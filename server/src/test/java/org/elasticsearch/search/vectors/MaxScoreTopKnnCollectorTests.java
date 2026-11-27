@@ -16,7 +16,11 @@ public class MaxScoreTopKnnCollectorTests extends ESTestCase {
 
     public void testMaxScorePropagation() {
         SharedMinCompetitiveScore sharedScore = new SharedMinCompetitiveScore();
-        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore));
+        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(
+            2,
+            1000,
+            new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, QueryTransformCache.NONE)
+        );
         long competitiveScore = NeighborQueue.encodeRaw(1, 0.9f);
 
         collector.updateMinCompetitiveDocScore(competitiveScore);
@@ -44,7 +48,11 @@ public class MaxScoreTopKnnCollectorTests extends ESTestCase {
 
     public void testUpdateMinCompetitiveDocScoreIgnoresPartialQueue() {
         SharedMinCompetitiveScore sharedScore = new SharedMinCompetitiveScore();
-        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore));
+        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(
+            2,
+            1000,
+            new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, QueryTransformCache.NONE)
+        );
         collector.collect(2, 2.0f);
 
         long globalCompetitiveScore = NeighborQueue.encodeRaw(10, 0.2f);

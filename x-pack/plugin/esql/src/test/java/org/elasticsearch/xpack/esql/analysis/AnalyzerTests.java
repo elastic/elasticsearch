@@ -1409,6 +1409,35 @@ public class AnalyzerTests extends AnalyzerTestCase {
         }
     }
 
+    public void testImplicitLimitOnDescribeIsTheNumberOfColumns() {
+        int columns = basic().query("from test | limit 0").output().size();
+        for (String query : List.of(
+            "from test | describe",
+            "from test | describe | keep name, type",
+            "from test | describe | where type == \"keyword\" | eval n = name | sort name",
+            "from test | describe | dissect name \"%{a}_%{b}\""
+        )) {
+            var limit = as(basic().query(query), Limit.class);
+            assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(columns));
+        }
+    }
+
+    public void testImplicitLimitAfterDescribeAddingRows() {
+        for (String query : List.of("from test | describe | mv_expand unit", "from test | describe | stats c = count(*) by unit")) {
+            var limit = as(basic().query(query), Limit.class);
+            assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        }
+    }
+
+    public void testImplicitMaxLimitAfterDescribeAndLimit() {
+        for (int explicit : List.of(1, MAX_LIMIT + 1)) {
+            var limit = as(basic().query("from test | describe | sort name | limit " + explicit), Limit.class);
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
+            limit = as(limit.child(), Limit.class);
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(explicit));
+        }
+    }
+
     public void testImplicitDefaultLimitAfterLimitBy() {
         var plan = basic().query("from test | limit 1 by emp_no");
 
@@ -3585,8 +3614,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
         Map<String, IndexFieldCapabilities> stdFields = Map.of("@timestamp", timestamp, "status", metricField, "bytes_in", counter);
         return new FieldCapabilitiesResponse(
             List.of(
-                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES, 0, 0, 0, 0),
-                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD, 0, 0, 0, 0)
+                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES, 0, 0, 0, 0, null),
+                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD, 0, 0, 0, 0, null)
             ),
             List.of()
         );
@@ -4102,7 +4131,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     private LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
-            new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD, 0, 0, 0, 0)
+            new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD, 0, 0, 0, 0, null)
         );
         IndexResolution resolution = mergedResolution("test*", new FieldCapabilitiesResponse(idxResponses, List.of()));
         return analyzer().addIndex(resolution).query(query);

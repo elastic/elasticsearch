@@ -2,6 +2,9 @@
 navigation_title: "Geo-distance"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-geodistance-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Geo-distance aggregation [search-aggregations-bucket-geodistance-aggregation]

@@ -378,9 +378,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
             switch (description) {
                 case "data" -> assertMap(
                     sig,
+                    // No EvalOperator: the sum reads the long itself, instead of a TO_DOUBLE of it.
                     matchesList().item("LuceneSourceOperator")
                         .item("ValuesSourceReaderOperator")
-                        .item("EvalOperator")
                         .item("AggregationOperator")
                         .item("ExchangeSinkOperator")
                 );

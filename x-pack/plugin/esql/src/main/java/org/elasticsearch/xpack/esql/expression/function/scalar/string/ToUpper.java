@@ -28,7 +28,12 @@ import java.io.IOException;
 
 public class ToUpper extends ChangeCase implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToUpper", ToUpper::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToUpper.class).unaryConfig(ToUpper::new).name("to_upper");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToUpper.class)
+        .unaryConfig(ToUpper::new)
+        // Fix an NPE when compared to a foldable expression that evaluates to null.
+        // Leave comparisons against a multi-valued constant for Equals to reject.
+        .capabilities("fix_null_folded_comparison", "fix_mv_constant_case_comparison")
+        .name("to_upper");
     private static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = TransportVersion.fromName(
         "esql_serialize_source_functions_warnings"
     );

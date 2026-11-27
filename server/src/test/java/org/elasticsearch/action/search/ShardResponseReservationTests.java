@@ -88,4 +88,16 @@ public class ShardResponseReservationTests extends ESTestCase {
         assertTrue(reservation.reportTrip());
         assertThat(trips, contains(sameInstance(trip)));
     }
+
+    public void testReservedTotalCountsOnlyWhatWasReserved() {
+        CircuitBreaker breaker = newLimitedBreaker(TRIPPING_LIMIT);
+        ShardResponseReservation reservation = new ShardResponseReservation(breaker, ShardResponseReservation.BREAKER_LABEL, e -> {});
+
+        Releasable first = reservation.reserve(60);
+        expectThrows(CircuitBreakingException.class, () -> reservation.reserve(60));
+        assertThat(reservation.reservedTotal(), equalTo(60L));
+        // Released pieces still count, since the total is the size the response arrived with
+        first.close();
+        assertThat(reservation.reservedTotal(), equalTo(60L));
+    }
 }

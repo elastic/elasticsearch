@@ -65,7 +65,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
@@ -120,6 +121,17 @@ public class FieldNameUtils {
                 // source and mapped path here; the target name may be an alias in the query.
                 collections.add(expand.target().name());
             }
+        });
+        // NESTED_ANY names child fields the same way. The marker keeps them in the private schema instead of dropping them.
+        parsed.forEachExpressionDown(UnresolvedFunction.class, function -> {
+            if (function.name().equalsIgnoreCase("nested_any") == false) {
+                return;
+            }
+            function.forEachDown(UnresolvedAttribute.class, attribute -> {
+                String name = attribute.name();
+                int dot = name.indexOf('.');
+                collections.add(dot < 0 ? name : name.substring(0, dot));
+            });
         });
         if (collections.isEmpty()) {
             return result;
@@ -242,7 +254,7 @@ public class FieldNameUtils {
                 var mergeKeepRefsResult = AttributeSet.builder();
                 mergeKeepRefsResult.addAll(parentKeepRefs);
                 // When this fork sits inside a branch of an enclosing fork (nested subqueries), the enclosing fork is mid-loop and
-                // its own branch state must survive this one. Restored at every exit below, the same way the AbstractSubqueryJoin
+                // its own branch state must survive this one. Restored at every exit below, the same way the IndependentSubqueryJoin
                 // handler restores state around an independent subquery. Note that holding the enclosing builder and putting it
                 // back is safe only because currentBranchKeepRefs is replaced, never cleared; keepRefs is cleared, so it is saved
                 // by copy into parentKeepRefs above.
@@ -328,14 +340,14 @@ public class FieldNameUtils {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
                     joinRefs.addAll(keepRefs);
                 }
-            } else if (p instanceof AbstractSubqueryJoin sj) {
+            } else if (p instanceof Join sj && p instanceof IndependentSubqueryJoin) {
                 // The top-down traversal has already collected references from plans above this join. For a MarkJoin, those references
                 // include the synthetic mark produced by the join itself, which must not be requested from field_caps as an index field.
                 if (sj instanceof MarkJoin markJoin) {
                     referencesBuilder.get().remove(markJoin.markAttribute());
                 }
-                // The IN operand (left join key) is an ordinary outer-pipeline reference (like any WHERE reference), so it goes through
-                // the regular builder where outer aliases can shadow it.
+                // The left join keys (the IN operand, or the ON fields of a JOIN) are ordinary outer-pipeline references (like any WHERE
+                // reference), so they go through the regular builder where outer aliases can shadow them.
                 referencesBuilder.get().addAll(sj.leftReferences());
                 // The subquery (right side) is an independent query: save all mutable traversal state, traverse it
                 // with a clean slate, then restore before traversing the left (main pipeline) side. Only joinRefs,
@@ -556,7 +568,7 @@ public class FieldNameUtils {
     }
 
     /**
-     * Checks whether the main query (excluding subquery plans inside SemiJoin/AntiJoin right children)
+     * Checks whether the main query (excluding the right side of every {@link IndependentSubqueryJoin})
      * contains a plan node that requires explicit field collection (e.g. KEEP, STATS).
      * Subquery plans are skipped because a KEEP inside a subquery should not force field collection
      * for the main query — the main query may still need all fields.
@@ -565,9 +577,9 @@ public class FieldNameUtils {
         if (shouldCollectReferencedFields(plan, inlinestatsAggs)) {
             return true;
         }
-        // Skip the right (subquery) child of SemiJoin/AntiJoin/MarkJoin — its KEEP/STATS should not
+        // Skip the right (subquery) child of an independent subquery join: its KEEP/STATS should not
         // force the main pipeline into explicit field collection.
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
             return mainQueryRequiresFieldCollection(subqueryJoin.left(), inlinestatsAggs);
         }
         for (LogicalPlan child : plan.children()) {
@@ -580,8 +592,13 @@ public class FieldNameUtils {
 
     private static boolean subqueryRequiresFieldCollection(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
         Holder<Boolean> requireFieldCollection = new Holder<>(true);
-        plan.forEachUp(AbstractSubqueryJoin.class, sj -> {
-            if (sj.right().anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
+        plan.forEachUp(p -> {
+            // A KEEP or STATS inside a subquery nested in this one narrows only the nested subquery, not this one.
+            if (p instanceof IndependentSubqueryJoin sj
+                && IndependentSubqueryJoin.anyMatchInMainScope(
+                    sj.right(),
+                    sub -> shouldCollectReferencedFields(sub, inlinestatsAggs)
+                ) == false) {
                 requireFieldCollection.set(false);
             }
         });

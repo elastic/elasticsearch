@@ -62,9 +62,24 @@ def remoteDatasetInvisibleTest = tasks.register("remoteDatasetInvisibleTest", St
     includeTestsMatching remoteDatasetInvisibleTestPattern
   }
 }
+// The FILLNULL suites prove the command works across clusters, including against an older remote; the BWC meaning lives
+// in the newToOld matrix run below. The base javaRestTest task is disabled by the bwc-test plugin, so a current-to-current
+// runner keeps the CCS path under `check` on every build (and makes the suites runnable without a BWC distribution).
+def fillNullTestPattern = "org.elasticsearch.xpack.esql.ccq.FillNull*IT"
+def fillNullCurrentToCurrent = tasks.register("fillNullCurrentToCurrent", StandaloneRestIntegTestTask) {
+  systemProperty("tests.version.remote_cluster", currentVersion)
+  systemProperty("tests.version.local_cluster", currentVersion)
+  maxParallelForks = 1
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    includeTestsMatching fillNullTestPattern
+  }
+}
 tasks.named("check").configure {
   dependsOn remoteDatasetInvisibleTest
   dependsOn currentToCurrent
+  dependsOn fillNullCurrentToCurrent
 }
 
 def supportedVersion = bwcVersion -> {

@@ -74,7 +74,11 @@ public class BlockHashTests extends BlockHashTestCase {
                 assertOrds(ordsAndKeys.ords(), 0, 1, 2, 0, 1, 2, 0, 1, 2);
                 assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
             } else {
-                assertThat(ordsAndKeys.description(), equalTo("IntBlockHash{channel=0, entries=3, seenNull=false}"));
+                // The keys repeat after every row, so the page has no runs and is hashed row by row, which the description counts.
+                assertThat(
+                    ordsAndKeys.description(),
+                    equalTo("IntBlockHash{channel=0, entries=3, seenNull=false, runPages=0, rowByRowPages=1}")
+                );
                 assertOrds(ordsAndKeys.ords(), 1, 2, 3, 1, 2, 3, 1, 2, 3);
                 assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 4)));
             }

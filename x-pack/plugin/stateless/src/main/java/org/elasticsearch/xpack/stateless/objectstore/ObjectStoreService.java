@@ -120,8 +120,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.parseGenerationFromBlobName;
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.startsWithBlobPrefix;
+import static org.elasticsearch.xpack.stateless.commits.BccBlob.parseGenerationFromBlobName;
+import static org.elasticsearch.xpack.stateless.commits.BccBlob.startsWithBlobPrefix;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 
 public class ObjectStoreService extends AbstractLifecycleComponent implements ClusterStateApplier {
@@ -367,17 +367,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     );
 
     /**
-     * How often to capture hot threads while a batched compound commit (VBCC) upload is in flight. Set to {@code 0} to disable.
-     */
-    public static final Setting<TimeValue> OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL = Setting.timeSetting(
-        "stateless.object_store.upload_hot_threads_log_interval",
-        TimeValue.ZERO,
-        TimeValue.ZERO,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * Translog uploads that exceed this threshold are logged at WARN instead of DEBUG level.
      */
     public static final Setting<TimeValue> OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING = Setting.timeSetting(
@@ -414,6 +403,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     static final String GCS_MULTIPART_THRESHOLD_SETTING_KEY = "multipart_upload_chunk_size";
     static final String AZURE_MULTIPART_THRESHOLD_SETTING_KEY = "max_single_part_upload_size";
     static final String AZURE_MULTIPART_PART_SIZE_SETTING_KEY = "multipart_upload_part_size";
+    static final String AZURE_CLIENT_SETTING_PREFIX = "azure.client";
+    static final String S3_CLIENT_SETTING_PREFIX = "s3.client";
+    static final String MAX_CONNECTIONS_SETTING_KEY = "max_connections";
 
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
@@ -517,6 +509,36 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             "milliseconds",
             UploadDurationBuckets.BOUNDARIES_IN_MILLIS
         );
+    }
+
+    /// Returns a set of settings that are needed to configure connection pools of object store client used.
+    /// Note this assumes that `stateless.object_store.type` and `stateless.object_store.client` is available.
+    public static Settings connectionPoolSettings(Settings settings, StatelessThreadPools.ThreadPoolConfig threadPoolConfig) {
+        ObjectStoreType type = TYPE_SETTING.get(settings);
+        if (type != ObjectStoreType.S3 && type != ObjectStoreType.AZURE) {
+            return Settings.EMPTY;
+        }
+
+        String client = CLIENT_SETTING.get(settings);
+
+        // Add a 10% buffer to account for possible miscalculations.
+        // This is translated into the maximum size of a connection pool, and we will only use as much as we need.
+        // We only bump the ceiling.
+        int objectStoreAccessConcurrency = threadPoolConfig.expectedBlobStoreConcurrency() + threadPoolConfig.expectedBlobStoreConcurrency()
+            / 10;
+        assert objectStoreAccessConcurrency > 0 : "Object store access concurrency can't be negative";
+
+        logger.info("Setting max_connections for blob store client based on calculated concurrency of " + objectStoreAccessConcurrency);
+
+        if (type == ObjectStoreType.S3) {
+            return Settings.builder()
+                .put(S3_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY, objectStoreAccessConcurrency)
+                .build();
+        } else {
+            return Settings.builder()
+                .put(AZURE_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY, objectStoreAccessConcurrency)
+                .build();
+        }
     }
 
     @Override
@@ -1022,7 +1044,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength
     ) throws IOException {
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BccBlob.blobNameFromGeneration(blobTermAndGen.generation());
         var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
         return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
     }
@@ -1055,7 +1077,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long maxBlobLength
     ) {
         assert directory.getBlobContainer(blobTermAndGen.primaryTerm()) != null;
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BccBlob.blobNameFromGeneration(blobTermAndGen.generation());
         logger.trace(
             () -> format(
                 "%s reading blob [name=%s, length=%d]%s from object store using cache",
@@ -1341,12 +1363,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
-    public void copyShard(CancellableTask task, ShardId source, ShardId destination, long primaryTerm) throws IOException {
+    public void copyShard(CancellableTask task, ShardId source, ShardId destination, PrimaryTermAndGeneration latestCommitToCopy)
+        throws IOException {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         assert projectResolver.supportsMultipleProjects() == false || assertShardsAreInSameProject(source, destination);
 
         var sourceShardContainer = getProjectBlobContainer(source);
-        var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, primaryTerm);
+        var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, latestCommitToCopy.primaryTerm());
 
         record BlobCopyTask(BlobContainer src, BlobContainer dst, BlobMetadata blob) {}
         final List<BlobCopyTask> tasks = new ArrayList<>();
@@ -1355,6 +1378,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
             var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
             for (BlobMetadata blob : blobs.values()) {
+                if (startsWithBlobPrefix(blob.name())
+                    && new PrimaryTermAndGeneration(blobContainerWithTerm.v1(), parseGenerationFromBlobName(blob.name())).after(
+                        latestCommitToCopy
+                    )) {
+                    logger.debug("CopyShard skipping {} as it was uploaded after {}", blob.name(), latestCommitToCopy);
+                    continue;
+                }
                 tasks.add(new BlobCopyTask(sourceContainerForTerm, destinationContainerForTerm, blob));
             }
         }

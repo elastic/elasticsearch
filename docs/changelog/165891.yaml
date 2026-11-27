@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165891
+summary: Drain oversized CSV record by walker state
+type: bug

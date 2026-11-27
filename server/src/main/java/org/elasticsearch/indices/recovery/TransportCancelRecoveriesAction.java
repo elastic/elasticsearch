@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -110,8 +111,8 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
                 tryCancelStartedRecovery(cancellation.shardId(), cancellation.allocationId());
             }
         }
-        final Set<CancelRecoveriesAction.CancelledInQueue> cancelledInQueue = allocationIdsCancelledInQueue.stream()
-            .map(allocationId -> new CancelRecoveriesAction.CancelledInQueue(toCancel.get(allocationId), allocationId))
+        final Set<ShardAllocationId> cancelledInQueue = allocationIdsCancelledInQueue.stream()
+            .map(allocationId -> new ShardAllocationId(toCancel.get(allocationId), allocationId))
             .collect(Collectors.toSet());
         listener.onResponse(new CancelRecoveriesAction.Response(cancelledInQueue));
     }

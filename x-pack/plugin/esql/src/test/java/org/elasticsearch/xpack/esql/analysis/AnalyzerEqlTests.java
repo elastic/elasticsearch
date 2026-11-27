@@ -107,71 +107,73 @@ public class AnalyzerEqlTests extends ESTestCase {
             .error("EQL missing_index \"process where true\"", containsString("Unknown index [missing_index]"));
     }
 
-    public void testMappedFieldCollidingWithSequenceSyntheticFails() {
+    public void testSampleJoinKeysColumnShadowsMappedFieldOfAnotherType() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
 
-        // A mapped field literally named _sequence collides with the sequence synthetic column; fail loud at analysis
-        // rather than emit two output columns of the same name (which a downstream KEEP/SORT could not disambiguate).
-        IndexResolution resolution = indexWith(
-            "eql_collide",
-            Map.of("_sequence", field("_sequence", KEYWORD), "name", field("name", KEYWORD))
+        IndexResolution resolution = indexWith("eql_shadow", Map.of("join_keys", field("join_keys", LONG), "name", field("name", KEYWORD)));
+        LogicalPlan analyzed = analyze(
+            "eql_shadow",
+            resolution,
+            "EQL eql_shadow \"sample by name [process where true] [network where true]\" | EVAL keys = join_keys | KEEP keys"
         );
-        analyzer().addIndex("eql_collide", resolution)
-            .error(
-                "EQL eql_collide \"sequence [process where true] [network where true]\"",
-                containsString("[_sequence] collides with the EQL command's reserved column")
-            );
+
+        assertThat(types(eqlLeafOutput(analyzed)), contains(LONG, INTEGER, KEYWORD, KEYWORD));
+        assertThat(types(analyzed.output()), contains(KEYWORD));
+        assertWarnings(shadowedWarning("1:1", "join_keys"));
     }
 
-    public void testMappedJoinKeysFieldCollidesInSequenceMode() {
+    public void testEveryShadowedFieldIsReported() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
 
-        // join_keys is the one reserved synthetic name a real index can plausibly map (it is not a leading-underscore
-        // metadata name); a sequence/sample query over such an index must fail loud rather than emit two join_keys.
         IndexResolution resolution = indexWith(
-            "eql_jk_collide",
-            Map.of("join_keys", field("join_keys", KEYWORD), "name", field("name", KEYWORD))
+            "eql_shadow",
+            Map.of(
+                "_sequence",
+                field("_sequence", KEYWORD),
+                "_sequence_stage",
+                field("_sequence_stage", KEYWORD),
+                "join_keys",
+                field("join_keys", KEYWORD),
+                "name",
+                field("name", KEYWORD)
+            )
         );
-        analyzer().addIndex("eql_jk_collide", resolution)
-            .error(
-                "EQL eql_jk_collide \"sequence [process where true] [network where true]\"",
-                containsString("[join_keys] collides with the EQL command's reserved column")
-            );
+        List<Attribute> output = eqlLeafOutput(
+            analyze("eql_shadow", resolution, "FROM (EQL eql_shadow \"sequence [a where true] [b where true]\") | KEEP _sequence, name")
+        );
+
+        assertThat(names(output), contains("_sequence", "_sequence_stage", "join_keys", "name"));
+        assertThat(types(output), contains(LONG, INTEGER, KEYWORD, KEYWORD));
+        assertWarnings(shadowedWarning("1:7", "_sequence"), shadowedWarning("1:7", "_sequence_stage"), shadowedWarning("1:7", "join_keys"));
     }
 
-    public void testMappedFieldCollidingWithDeclaredMetadataFails() {
+    public void testMetadataColumnShadowsMappedFieldOfTheSameName() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
 
-        // A mapped field named _id collides with a declared METADATA _id column (the metadata arm of the guard).
-        IndexResolution resolution = indexWith("eql_meta_collide", Map.of("_id", field("_id", KEYWORD), "name", field("name", KEYWORD)));
-        analyzer().addIndex("eql_meta_collide", resolution)
-            .error(
-                "EQL eql_meta_collide \"process where true\" METADATA _id",
-                containsString("[_id] collides with the EQL command's reserved column")
-            );
+        IndexResolution resolution = indexWith("eql_shadow", Map.of("_id", field("_id", LONG), "name", field("name", KEYWORD)));
+        List<Attribute> output = eqlLeafOutput(analyze("eql_shadow", resolution, "EQL eql_shadow \"process where true\" METADATA _id"));
+
+        assertThat(names(output), contains("name", "_id"));
+        assertThat(output.get(1), instanceOf(MetadataAttribute.class));
+        assertThat(output.get(1).dataType(), equalTo(KEYWORD));
+        assertWarnings(shadowedWarning("1:1", "_id"));
     }
 
     public void testMappedSequenceFieldAllowedInEventMode() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
 
-        // In EVENT mode there is no _sequence synthetic, so a mapped field named _sequence is an ordinary column, not
-        // a collision — the guard must not reject it.
         IndexResolution resolution = indexWith(
             "eql_event_seq",
             Map.of("_sequence", field("_sequence", KEYWORD), "name", field("name", KEYWORD))
         );
-        List<Attribute> output = eqlLeafOutput(
-            analyzer().addIndex("eql_event_seq", resolution)
-                .buildAnalyzer()
-                .analyze(TEST_PARSER.parseQuery("EQL eql_event_seq \"process where true\""))
-        );
+        List<Attribute> output = eqlLeafOutput(analyze("eql_event_seq", resolution, "EQL eql_event_seq \"process where true\""));
         assertThat(names(output), containsInAnyOrder("_sequence", "name"));
     }
 
     public void testUnconvertibleTypeBecomesUnsupportedColumn() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
 
-        // date_nanos is not in EqlPageConverter.CONVERTIBLE_TYPES, so the column must surface as unsupported (like FROM).
+        // date_nanos is not in EqlRelation.CONVERTIBLE_TYPES, so the column must surface as unsupported (like FROM).
         IndexResolution resolution = indexWith(
             "eql_unconv",
             Map.of("name", field("name", KEYWORD), "ts_nanos", field("ts_nanos", DATE_NANOS))
@@ -522,6 +524,19 @@ public class AnalyzerEqlTests extends ESTestCase {
             .unmappedResolution(unmappedResolution)
             .buildAnalyzer()
             .analyze(TEST_PARSER.parseQuery(query));
+    }
+
+    private static LogicalPlan analyze(String index, IndexResolution resolution, String query) {
+        return analyzer().addIndex(index, resolution).buildAnalyzer().analyze(TEST_PARSER.parseQuery(query));
+    }
+
+    private static String shadowedWarning(String location, String field) {
+        return "Line "
+            + location
+            + ": Mapped field ["
+            + field
+            + "] is shadowed by the EQL command's column of the same name; "
+            + "read it with FROM, or with JSON_EXTRACT on METADATA _source if the document stores it";
     }
 
     private static IndexResolution indexWith(String name, Map<String, EsField> mapping) {

@@ -178,7 +178,7 @@ public class TermsQueryCostEstimatorBenchmark {
         metrics.executionEstimateOverMeasuredRatio = executionRatio;
     }
 
-    /** The breaker estimate: {@link TermsQueryCostEstimator#executionBytesForLeaf} per leaf, as {@code MultiTermBreakerWeight} charges it. */
+    /** The breaker estimate: {@link TermsQueryCostEstimator#executionBytesForLeaf} per leaf, as {@code MultiTermExecutionEstimator} sizes it. */
     private static long estimateExecutionRam(IndexSearcher searcher, DirectoryReader reader, TermInSetQuery query) throws IOException {
         Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         long total = 0L;

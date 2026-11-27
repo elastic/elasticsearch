@@ -96,7 +96,6 @@ import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.MergeBlob;
@@ -237,9 +236,15 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         if (MERGE_BLOBS_ENABLED && mergeBlobLogCapture != null) {
             try {
                 assertInjectedMergeBlobsStillPresent();
-            } finally {
-                assertNoMergeBlobLoggingWarnings();
+            } catch (Throwable t) {
+                try {
+                    assertNoMergeBlobLoggingWarnings();
+                } catch (Throwable suppressed) {
+                    t.addSuppressed(suppressed);
+                }
+                throw t;
             }
+            assertNoMergeBlobLoggingWarnings();
         }
     }
 
@@ -1225,6 +1230,20 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     }
 
     protected static IndexShard findShard(Index index, int shardId, DiscoveryNodeRole nodeRole, ShardRouting.Role shardRole) {
+        IndexShard shardOrNull = findShardOrNull(index, shardId, nodeRole, shardRole);
+        if (shardOrNull == null) {
+            throw new AssertionError(
+                "IndexShard instance not found for shard "
+                    + new ShardId(index, shardId)
+                    + " on nodes with ["
+                    + nodeRole.roleName()
+                    + "] role"
+            );
+        }
+        return shardOrNull;
+    }
+
+    protected static IndexShard findShardOrNull(Index index, int shardId, DiscoveryNodeRole nodeRole, ShardRouting.Role shardRole) {
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
             if (DiscoveryNode.hasRole(indicesService.clusterService().getSettings(), nodeRole)) {
                 IndexService indexService = indicesService.indexService(index);
@@ -1237,9 +1256,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
                 }
             }
         }
-        throw new AssertionError(
-            "IndexShard instance not found for shard " + new ShardId(index, shardId) + " on nodes with [" + nodeRole.roleName() + "] role"
-        );
+        return null;
     }
 
     protected static IndexShard findIndexShard(Index index, int shardId, String nodeName) {
@@ -1330,7 +1347,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return blobContainer.listBlobs(operationPurpose)
             .keySet()
             .stream()
-            .filter(BatchedCompoundCommit::startsWithBlobPrefix)
+            .filter(BccBlob::startsWithBlobPrefix)
             .collect(Collectors.toSet());
     }
 
@@ -1408,8 +1425,8 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             var primaryTerm = Long.parseLong(entry.getKey());
             Set<String> statelessCompoundCommits = entry.getValue().listBlobs(operationPurpose).keySet();
             statelessCompoundCommits.forEach(filename -> {
-                if (BatchedCompoundCommit.startsWithBlobPrefix(filename)) {
-                    set.add(new PrimaryTermAndGeneration(primaryTerm, BatchedCompoundCommit.parseGenerationFromBlobName(filename)));
+                if (BccBlob.startsWithBlobPrefix(filename)) {
+                    set.add(new PrimaryTermAndGeneration(primaryTerm, BccBlob.parseGenerationFromBlobName(filename)));
                 }
             });
         }

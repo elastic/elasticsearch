@@ -22,6 +22,8 @@ sum by (app, proc) (
 ) / 1024 / 1024;
 //topk(3, sum by (app, proc) (rate(instance_cpu_time_ns[5m])));
 count by (app) (instance_cpu_time_ns);
+absent(nonexistent{job="myjob"});
+absent(sum(nonexistent{job="myjob"}));
 
 //
 // Queries inspired by https://github.com/prometheus/prometheus/blob/v3.5.0/promql/parser/parse_test.go

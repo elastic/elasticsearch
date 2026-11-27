@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
@@ -1580,6 +1581,110 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(rewritten, matchesPlan(query("TS emp | STATS count(*)")));
     }
 
+    public void testViewNextToIndexInEqlTargetIsRejected() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        addView("view_b", "FROM emp");
+        expectThrows(
+            VerificationException.class,
+            containsString("line 1:1: Views are not supported in EQL command, found view(s) [view_b]; use FROM view_b instead"),
+            () -> replaceViews(query("EQL emp,view_b,-view_a \"process where true\""))
+        );
+    }
+
+    public void testViewAsEqlTargetInViewBodyIsRejected() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("inner_view", "FROM emp");
+        addView("outer_view", "EQL inner_view \"process where true\"");
+        expectThrows(
+            VerificationException.class,
+            containsString(
+                "line 1:1 (in view [outer_view]): Views are not supported in EQL command, found view(s) [inner_view]; "
+                    + "use FROM inner_view instead"
+            ),
+            () -> replaceViews(query("FROM outer_view"))
+        );
+    }
+
+    public void testViewAsEqlTargetInSubqueryIsRejected() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        expectThrows(
+            VerificationException.class,
+            containsString("line 1:12: Views are not supported in EQL command, found view(s) [view_a]; use FROM view_a instead"),
+            () -> replaceViews(query("FROM emp, (EQL view_a \"process where true\")"))
+        );
+    }
+
+    public void testViewRepeatedInEqlTargetIsReportedOnce() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        expectThrows(
+            VerificationException.class,
+            containsString("Views are not supported in EQL command, found view(s) [view_a]; use FROM view_a instead"),
+            () -> replaceViews(query("EQL view_a,view_a \"process where true\""))
+        );
+    }
+
+    public void testEveryViewInEqlTargetIsReported() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        addView("view_b", "FROM emp");
+        expectThrows(
+            VerificationException.class,
+            containsString("found view(s) [view_a, view_b]; use FROM view_a, view_b instead"),
+            () -> replaceViews(query("EQL view_a,emp,view_b \"process where true\""))
+        );
+    }
+
+    public void testEqlTargetMatchingAViewOnlyThroughAWildcardIsLeftAlone() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        assertThat(eqlTarget(replaceViews(query("EQL view_* \"process where true\""), true)), equalTo("view_*"));
+    }
+
+    public void testViewExcludedFromEqlTargetIsLeftAlone() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        for (String pattern : List.of("emp,-view_a", "emp,view_a,-view_a", "emp,view_a,-view_*")) {
+            assertThat(eqlTarget(replaceViews(query("EQL " + pattern + " \"any where true\""))), equalTo(pattern));
+        }
+    }
+
+    public void testRemoteEqlTargetIsNotLookedUpOutsideCrossProjectMode() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        for (String pattern : List.of("remote:view_a", "*:view_a", "remote:view_a,remote:-view_a")) {
+            InMemoryViewResolver resolver = viewService.getViewResolver();
+            assertThat(eqlTarget(replaceViews(query("EQL " + pattern + " \"process where true\""), resolver)), equalTo(pattern));
+            assertThat(pattern, resolver.requestedIndices(), empty());
+        }
+    }
+
+    public void testRemoteNameNextToAViewInEqlTargetIsNotLookedUp() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        InMemoryViewResolver resolver = viewService.getViewResolver();
+        expectThrows(
+            VerificationException.class,
+            containsString("found view(s) [view_a]; use FROM view_a instead"),
+            () -> replaceViews(query("EQL remote:logs,view_a \"process where true\""), resolver)
+        );
+        assertThat(resolver.requestedIndices(), contains(List.of("view_a")));
+    }
+
+    public void testRemoteEqlTargetIsLookedUpInCrossProjectMode() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        InMemoryViewResolver resolver = cpsViewResolver();
+        assertThat(eqlTarget(replaceViews(query("EQL remote:view_a \"process where true\""), resolver)), equalTo("remote:view_a"));
+        assertThat(resolver.requestedIndices(), contains(List.of("remote:view_a")));
+    }
+
+    private static String eqlTarget(LogicalPlan plan) {
+        return as(plan, UnresolvedEqlRelation.class).indexPattern().indexPattern();
+    }
+
     /**
      * The PromQL sub-parser tags its {@link Source}s with the view name like the ES|QL parser does, so a data node reads
      * their text from the view's query rather than the caller's, which can be shorter than the source position.
@@ -2555,12 +2660,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     /**
-     * A {@code LET} binding keys its branch by its name, but a view of the same name can sit at the same level: the binding
+     * A {@code LET} named subquery keys its branch by its name, but a view of the same name can sit at the same level: the named subquery
      * shadows the view only where the name is written, so a wildcard still reaches the view. A view's key is recorded
-     * verbatim and asserted unique, and the binding comes first, so the binding's key must step aside for the view's.
+     * verbatim and asserted unique, and the named subquery comes first, so the named subquery's key must step aside for the view's.
      */
     public void testLetBindingKeyStepsAsideForSameNamedView() {
-        assumeTrue("Requires LET support", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         addIndex("let-key-index");
         addView("let_key_view", "FROM let-key-index | LIMIT 1");

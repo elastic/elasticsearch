@@ -256,6 +256,10 @@ dls_user:
     - names: [ 'lookup-user2' ]
       privileges: [ 'read' ]
       query: '{"match": {"org": "marketing"}}'
+    # Also used to prove an ungrouped MIN/MAX is not answered from segment metadata, which covers all documents
+    - names: [ 'min-max-dls' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "marketing"}}'
 
 # Reads eql-events, but document-level security exposes only its process events. Used to prove the EQL source command's
 # delegated search runs in the caller's security context (its DLS filter applies to the delegated EQL search).
@@ -627,3 +631,30 @@ fls_flattened_except_key:
       field_security:
         grant: [ '*' ]
         except: [ 'attrs.bar' ]
+
+# Can write to an INTO destination, but refreshing it afterwards needs the maintenance privilege, which write does not grant.
+# ES|QL needs some read privilege to run at all, so both roles read an index that is not a destination.
+into_write_only:
+  cluster: []
+  indices:
+    - names: [ 'into-dest' ]
+      privileges: [ 'write' ]
+    - names: [ 'into-unrelated' ]
+      privileges: [ 'read' ]
+
+into_write_and_maintenance:
+  cluster: []
+  indices:
+    - names: [ 'into-dest' ]
+      privileges: [ 'write', 'maintenance' ]
+    - names: [ 'into-unrelated' ]
+      privileges: [ 'read' ]
+
+# May refresh an index, but not the destination: the action itself is allowed, the destination is not.
+into_write_and_maintenance_elsewhere:
+  cluster: []
+  indices:
+    - names: [ 'into-dest' ]
+      privileges: [ 'write' ]
+    - names: [ 'into-unrelated' ]
+      privileges: [ 'read', 'maintenance' ]

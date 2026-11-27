@@ -2,6 +2,9 @@
 navigation_title: "Extended stats"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-extendedstats-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Extended stats aggregation [search-aggregations-metrics-extendedstats-aggregation]

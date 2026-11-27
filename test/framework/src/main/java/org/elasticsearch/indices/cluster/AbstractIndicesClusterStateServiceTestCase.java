@@ -16,10 +16,12 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -110,7 +112,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
                 final var failedShard = failedShardFor(pendingAllocationStates, shardRouting.shardId());
                 final boolean isAwaitingRetry = pendingAllocationStates.get(
-                    IndicesClusterStateService.ShardAllocationKey.fromRouting(shardRouting)
+                    ShardAllocationId.fromRouting(shardRouting)
                 ) instanceof IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry;
 
                 if (state.blocks().disableStatePersistence()) {
@@ -220,7 +222,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
     @Nullable
     private static IndicesClusterStateService.PendingAllocationState.FailureReported failedShardFor(
-        Map<IndicesClusterStateService.ShardAllocationKey, IndicesClusterStateService.PendingAllocationState> pendingAllocationStates,
+        Map<ShardAllocationId, IndicesClusterStateService.PendingAllocationState> pendingAllocationStates,
         ShardId shardId
     ) {
         for (final var entry : pendingAllocationStates.entrySet()) {
@@ -280,14 +282,14 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             IndexRemovalReason reason,
             String extraInfo,
             Executor shardCloseExecutor,
-            ActionListener<Void> shardsClosedListener
+            Releasable onShardsClosed
         ) {
             if (hasIndex(index)) {
                 Map<String, MockIndexService> newIndices = new HashMap<>(indices);
                 newIndices.remove(index.getUUID());
                 indices = unmodifiableMap(newIndices);
             }
-            shardsClosedListener.onResponse(null);
+            onShardsClosed.close();
         }
 
         @Override
@@ -377,7 +379,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public synchronized void removeShard(int shardId, String reason, Executor closeExecutor, ActionListener<Void> closeListener) {
+        public synchronized void removeShard(int shardId, String reason, Executor closeExecutor, Releasable onClosed) {
             try {
                 if (shards.containsKey(shardId) == false) {
                     return;
@@ -387,7 +389,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 assert indexShard != null;
                 shards = unmodifiableMap(newShards);
             } finally {
-                closeListener.onResponse(null);
+                onClosed.close();
             }
         }
 

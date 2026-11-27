@@ -56,20 +56,20 @@ public class NodeReplyChargeTests extends ESTestCase {
         from.charge(100);
         to.charge(50);
 
-        from.transferTo(to, 1.0);
+        from.transferTo(to, 1_000);
         from.close();
         assertThat(breaker.getUsed(), equalTo(150L));
         to.close();
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testTransferringAFractionReleasesTheRest() {
+    public void testTransferringSomeBytesReleasesTheRest() {
         final LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofKb(1));
         final TransportTasksAction.NodeReplyCharge from = new TransportTasksAction.NodeReplyCharge(breaker);
         final TransportTasksAction.NodeReplyCharge to = new TransportTasksAction.NodeReplyCharge(breaker);
         from.charge(100);
 
-        from.transferTo(to, 0.25);
+        from.transferTo(to, 25);
 
         assertThat(breaker.getUsed(), equalTo(25L));
         to.close();
@@ -83,7 +83,7 @@ public class NodeReplyChargeTests extends ESTestCase {
         from.charge(100);
         to.close();
 
-        from.transferTo(to, 1.0);
+        from.transferTo(to, 1_000);
 
         assertThat(breaker.getUsed(), equalTo(0L));
     }

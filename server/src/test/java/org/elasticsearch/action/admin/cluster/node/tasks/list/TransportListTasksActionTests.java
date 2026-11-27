@@ -15,6 +15,8 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -160,29 +162,46 @@ public class TransportListTasksActionTests extends ESTestCase {
 
     // -- preferNewer --
 
-    public void testTasksOfTheFirstPassKeptByTheMerge() {
+    private static long serializedSize(final Writeable item) throws IOException {
+        final CountingStreamOutput out = new CountingStreamOutput();
+        item.writeTo(out);
+        return out.position();
+    }
+
+    public void testBytesOfTheFirstPassKeptByTheMerge() throws IOException {
         final TaskId taskId = randomTaskId();
         final TaskInfo olderCopy = randomTaskInfoWithTaskIdAndRunningTimeNanos(taskId, 2_000);
         final TaskInfo newerCopy = randomTaskInfoWithTaskIdAndRunningTimeNanos(taskId, 1_000);
         final TaskInfo missed = randomTaskInfo();
-        final ListTasksResponse firstPass = new ListTasksResponse(List.of(olderCopy, missed), List.of(), List.of());
-        final ListTasksResponse secondPass = new ListTasksResponse(List.of(newerCopy), List.of(), List.of());
+        final TaskOperationFailure keptFailure = new TaskOperationFailure("node", 1L, new ElasticsearchException("boom"));
+        final TaskOperationFailure droppedFailure = new TaskOperationFailure("node", 2L, new ElasticsearchException("dropped"));
+        final ListTasksResponse firstPass = new ListTasksResponse(
+            List.of(olderCopy, missed),
+            List.of(keptFailure, droppedFailure),
+            List.of()
+        );
 
-        assertEquals(0, TransportListTasksAction.tasksKeptFrom(firstPass, secondPass));
         assertEquals(
-            1,
-            TransportListTasksAction.tasksKeptFrom(firstPass, new ListTasksResponse(List.of(newerCopy, missed), List.of(), List.of()))
+            0L,
+            TransportListTasksAction.bytesKeptFrom(firstPass, new ListTasksResponse(List.of(newerCopy), List.of(), List.of()))
+        );
+        assertEquals(
+            serializedSize(missed) + serializedSize(keptFailure),
+            TransportListTasksAction.bytesKeptFrom(
+                firstPass,
+                new ListTasksResponse(List.of(newerCopy, missed), List.of(keptFailure), List.of())
+            )
         );
     }
 
-    public void testNodeFailuresOfTheFirstPassAreNotTasksKeptByTheMerge() {
+    public void testNodeFailuresOfTheFirstPassAreNotBytesKeptByTheMerge() {
         final FailedNodeException failure = new FailedNodeException("node", "failed", new ElasticsearchException("boom"));
         final ListTasksResponse firstPass = new ListTasksResponse(List.of(), List.of(), List.of(failure));
         final ListTasksResponse secondPass = new ListTasksResponse(List.of(), List.of(), List.of());
 
         assertEquals(
-            0,
-            TransportListTasksAction.tasksKeptFrom(firstPass, TransportListTasksAction.deduplicateAndMerge(firstPass, secondPass))
+            0L,
+            TransportListTasksAction.bytesKeptFrom(firstPass, TransportListTasksAction.deduplicateAndMerge(firstPass, secondPass))
         );
     }
 

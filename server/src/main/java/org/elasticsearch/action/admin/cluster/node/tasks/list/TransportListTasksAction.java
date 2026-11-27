@@ -24,6 +24,8 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -49,6 +51,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -138,8 +142,8 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         // example: Tasks are captured from the destination node before the relocation and from the source node after, so we miss both.
         // therefore, we double-list and de-dupe, which will ensure we see a task *at least* once.
         // elsewhere, we also prevent quick back-to-back relocations during shutdown, to make hitting the race twice vanishingly unlikely.
-        // the first pass stays charged while the second one runs. At the merge the share of its charge that matches the tasks of the first
-        // pass that the response keeps moves to the charge of the second pass, which goes on with the response, and the rest is released.
+        // the first pass stays charged while the second one runs. At the merge the bytes of the tasks and task failures of the first pass
+        // that the response keeps move to the charge of the second pass, which goes on with the response, and the rest is released.
         final NodeReplyCharge firstPassCharge = newNodeReplyCharge(task);
         final ActionListener<ListTasksResponse> merged = ActionListener.runBefore(handOver(charge, listener), firstPassCharge::close);
         if (request.getWaitForCompletion()) {
@@ -217,26 +221,43 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         }));
     }
 
-    /// Moves to the charge of the second pass the share of the charge of the first pass that matches the tasks of the first pass that the
-    /// merged response keeps, so that data stays accounted for as long as the response is held. Task and node failures are not charged.
+    /// Moves to the charge of the second pass the bytes of the tasks and task failures of the first pass that the merged response keeps,
+    /// so that data stays accounted for as long as the response is held. Node failures are not charged, so they do not count.
     private static ListTasksResponse carryOver(
         final ListTasksResponse firstPass,
         final ListTasksResponse merged,
         final NodeReplyCharge firstPassCharge,
         final NodeReplyCharge secondPassCharge
     ) {
-        final int kept = tasksKeptFrom(firstPass, merged);
-        if (kept > 0) {
-            firstPassCharge.transferTo(secondPassCharge, (double) kept / firstPass.getTasks().size());
+        final long keptBytes = bytesKeptFrom(firstPass, merged);
+        if (keptBytes > 0) {
+            firstPassCharge.transferTo(secondPassCharge, keptBytes);
         }
         return merged;
     }
 
     // visible for testing
-    static int tasksKeptFrom(final ListTasksResponse firstPass, final ListTasksResponse merged) {
-        final Set<TaskInfo> firstPassTasks = Collections.newSetFromMap(new IdentityHashMap<>());
-        firstPassTasks.addAll(firstPass.getTasks());
-        return Math.toIntExact(merged.getTasks().stream().filter(firstPassTasks::contains).count());
+    static long bytesKeptFrom(final ListTasksResponse firstPass, final ListTasksResponse merged) {
+        return serializedSizeOfKept(firstPass.getTasks(), merged.getTasks()) + serializedSizeOfKept(
+            firstPass.getTaskFailures(),
+            merged.getTaskFailures()
+        );
+    }
+
+    private static <T extends Writeable> long serializedSizeOfKept(final List<T> firstPass, final List<T> merged) {
+        final Set<T> kept = Collections.newSetFromMap(new IdentityHashMap<>());
+        kept.addAll(merged);
+        final CountingStreamOutput out = new CountingStreamOutput();
+        try {
+            for (final T item : firstPass) {
+                if (kept.contains(item)) {
+                    item.writeTo(out);
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return out.position();
     }
 
     /// Finds reindex tasks that appeared in the first pass but are missing from the second pass, perhaps because the operation relocated

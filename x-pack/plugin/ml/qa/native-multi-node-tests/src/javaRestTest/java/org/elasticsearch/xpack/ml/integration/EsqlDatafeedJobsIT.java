@@ -139,16 +139,30 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertEvenlySpreadPrefix(rows, step);
     }
 
-    /** 720 hourly buckets over 30 days fit in one chunk, so the aggregated preview returns every bucket row. */
+    /**
+     * 720 hourly buckets over 30 days fit in one chunk, so the aggregated preview returns every bucket row. Each bucket holds
+     * 8 source documents, so the 5,760 documents exceed the 5,000-row chunk target while the 720 aggregated rows do not. A chunk
+     * sized from source documents instead of aggregated rows would cut the preview short.
+     */
     public void testPreviewOfAggregatedWindowOf720BucketsShouldReturnEveryBucketInTimeOrder() throws Exception {
         String index = "esql-preview-aggregated";
         String jobId = "esql-preview-aggregated-job";
         String datafeedId = jobId + "-datafeed";
         int buckets = 720;
+        int docsPerBucket = 8;
         createSourceIndex(index);
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < buckets; i++) {
-            bulk.add(new IndexRequest(index).source("event_time", BASE_TIME + i * BUCKET_SPAN.millis() + 1_000L, "value", i));
+            for (int j = 0; j < docsPerBucket; j++) {
+                bulk.add(
+                    new IndexRequest(index).source(
+                        "event_time",
+                        BASE_TIME + i * BUCKET_SPAN.millis() + 1_000L + j,
+                        "value",
+                        i * docsPerBucket + j
+                    )
+                );
+            }
         }
         BulkResponse bulkResponse = bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         for (BulkItemResponse item : bulkResponse) {
@@ -169,7 +183,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(rows.size(), equalTo(buckets));
         for (int i = 0; i < buckets; i++) {
             assertThat(((Number) rows.get(i).get("event_time")).longValue(), equalTo(BASE_TIME + i * BUCKET_SPAN.millis()));
-            assertThat(((Number) rows.get(i).get("docs")).longValue(), equalTo(1L));
+            assertThat(((Number) rows.get(i).get("docs")).longValue(), equalTo((long) docsPerBucket));
         }
     }
 

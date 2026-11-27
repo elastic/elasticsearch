@@ -171,7 +171,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
 
         final List<FileInfo> reusableFiles = new ArrayList<>();
 
-        for (FileInfo candidate: files.values()) {
+        for (FileInfo candidate : files.values()) {
             if (remainingFilesByName.isEmpty()) {
                 break;
             }

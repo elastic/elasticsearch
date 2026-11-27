@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -101,20 +100,27 @@ public class DatafeedJobBuilder {
         return restartTimeInfo.getLatestRecordTimeMs() == null ? -1 : restartTimeInfo.getLatestRecordTimeMs();
     }
 
+    private static long latencyMs(Job job) {
+        TimeValue latency = job.getAnalysisConfig().getLatency();
+        return latency == null ? 0 : latency.millis();
+    }
+
     private static long latestFinalBucketEndMs(Job job, RestartTimeInfo restartTimeInfo) {
         return restartTimeInfo.getLatestFinalBucketTimeMs() == null
             ? -1
             : restartTimeInfo.getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
     }
 
-    /** Maps the latest posted record time to the last time the datafeed has fully read. */
-    private static LongUnaryOperator lastEndTimeForRecord(DatafeedConfig datafeedConfig) {
-        if (EsqlDataExtractor.emitsBucketTimes(datafeedConfig.getEsqlQuery()) == false) {
+    /**
+     * Maps the latest posted record time to the last time the datafeed has fully read. Rows of a bucketed ES|QL query carry the bucket
+     * start, so the whole bucket of the DESCRIBE interval has been posted.
+     */
+    private static LongUnaryOperator lastEndTimeForRecord(DataExtractorFactory dataExtractorFactory) {
+        long bucketMs = dataExtractorFactory.timeBucketMillis();
+        if (bucketMs <= 0) {
             return LongUnaryOperator.identity();
         }
-        // Bucket-stamped rows carry the bucket start, so the whole bucket has been posted.
-        long groupingIntervalMs = datafeedConfig.getGroupingInterval().millis();
-        return recordMs -> recordMs + groupingIntervalMs - 1;
+        return recordMs -> recordMs + bucketMs - 1;
     }
 
     private void setDelayedDataCheckFreq(TimeValue value) {
@@ -126,7 +132,6 @@ public class DatafeedJobBuilder {
         final DatafeedConfig datafeedConfig = context.datafeedConfig();
         final Job job = context.job();
         final long latestFinalBucketEndMs = latestFinalBucketEndMs(job, context.restartTimeInfo());
-        final long latestRecordTimeMs = latestRecordTimeMs(context.restartTimeInfo());
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
@@ -164,7 +169,6 @@ public class DatafeedJobBuilder {
                 parentTaskAssigningClient,
                 cloudCredentialId,
                 latestFinalBucketEndMs,
-                latestRecordTimeMs,
                 timingStatsReporter,
                 dataExtractorFactory
             );
@@ -204,7 +208,6 @@ public class DatafeedJobBuilder {
         final DatafeedConfig datafeedConfig = context.datafeedConfig();
         final Job job = context.job();
         final long latestFinalBucketEndMs = latestFinalBucketEndMs(job, context.restartTimeInfo());
-        final long latestRecordTimeMs = latestRecordTimeMs(context.restartTimeInfo());
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
@@ -233,7 +236,6 @@ public class DatafeedJobBuilder {
             parentTaskAssigningClient,
             cloudCredentialId,
             latestFinalBucketEndMs,
-            latestRecordTimeMs,
             timingStatsReporter,
             dataExtractorFactory
         );
@@ -248,11 +250,15 @@ public class DatafeedJobBuilder {
         ParentTaskAssigningClient parentTaskAssigningClient,
         String cloudCredentialId,
         long latestFinalBucketEndMs,
-        long latestRecordTimeMs,
         DatafeedTimingStatsReporter timingStatsReporter,
         DataExtractorFactory dataExtractorFactory
     ) {
-        TimeValue frequency = getFrequencyOrDefault(datafeedConfig, job, xContentRegistry);
+        final long latestRecordTimeMs = latestRecordTimeMs(context.restartTimeInfo());
+        TimeValue frequency = datafeedConfig.getFrequencyOrDefault(
+            job.getAnalysisConfig().getBucketSpan(),
+            xContentRegistry,
+            dataExtractorFactory.timeBucketMillis()
+        );
         TimeValue queryDelay = datafeedConfig.getQueryDelay();
         DelayedDataDetector delayedDataDetector = DelayedDataDetectorFactory.buildDetector(
             job,
@@ -287,7 +293,11 @@ public class DatafeedJobBuilder {
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
             crossClusterSearchStats,
-            lastEndTimeForRecord(datafeedConfig)
+            lastEndTimeForRecord(dataExtractorFactory),
+            // Only ES|QL datafeeds skip long empty gaps for now. Search-query datafeeds get the same fix in #167833.
+            datafeedConfig.getEsqlQuery() != null,
+            job.getAnalysisConfig().getBucketSpan().millis(),
+            latencyMs(job)
         );
         listener.onResponse(datafeedJob);
     }
@@ -329,15 +339,6 @@ public class DatafeedJobBuilder {
                 );
             }
         }
-    }
-
-    private static TimeValue getFrequencyOrDefault(DatafeedConfig datafeed, Job job, NamedXContentRegistry xContentRegistry) {
-        TimeValue frequency = datafeed.getFrequency();
-        if (frequency == null) {
-            TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
-            return datafeed.defaultFrequency(bucketSpan, xContentRegistry);
-        }
-        return frequency;
     }
 
     private static DataDescription buildDataDescription(Job job) {

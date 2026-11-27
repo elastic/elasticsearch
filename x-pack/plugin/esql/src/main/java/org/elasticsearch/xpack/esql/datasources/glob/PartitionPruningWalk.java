@@ -639,7 +639,8 @@ final class PartitionPruningWalk {
      * it returns so the walk retains folder values, not the full {@link StorageChildren} payload. Returns
      * a stop reason when a peek could not complete (budget exhausted or directory too wide to buffer) — the
      * caller should return {@code null} (fall back to flat listing) in that case. Issues at most the remaining
-     * listing budget, matching the sequential walk's greedy ceiling.
+     * listing budget, matching the sequential walk's greedy ceiling. Callers may skip leftover peeks when
+     * survivors already typed the new key.
      */
     @Nullable
     private static WalkDiagnostics.StopReason processPendingPeeks(
@@ -677,8 +678,8 @@ final class PartitionPruningWalk {
     }
 
     /**
-     * First {@code min(peeks, remaining budget)} dirs, or {@code null} when none fit. A truncated
-     * slice must still be listed then fail closed so issued counts match the sequential greedy ceiling.
+     * First {@code min(peeks, remaining budget)} dirs, or {@code null} when none fit. Callers skip leftover
+     * peeks when survivors already typed the new key; otherwise list the slice then fail closed.
      */
     @Nullable
     private static List<StoragePath> peeksToIssue(List<StoragePath> peeks, int issued, int maxDirectoryListings) {
@@ -1559,6 +1560,12 @@ final class PartitionPruningWalk {
         @Nullable
         private WalkDiagnostics.StopReason applyPeeksIfNeeded(ClassifiedLevel level) throws IOException {
             if (level.newKeyLevel && pendingPeeks.isEmpty() == false) {
+                List<StoragePath> toPeek = peeksToIssue(pendingPeeks, listings.get(), maxDirectoryListings);
+                boolean truncated = toPeek == null || toPeek.size() < pendingPeeks.size();
+                if (truncated && peekKeysTyped(level)) {
+                    pendingPeeks = List.of();
+                    return null;
+                }
                 WalkDiagnostics.StopReason fail = processPendingPeeks(
                     provider,
                     pendingPeeks,
@@ -1575,6 +1582,23 @@ final class PartitionPruningWalk {
                 pendingPeeks = List.of();
             }
             return null;
+        }
+
+        /**
+         * Survivors at this new-key level bound the key. Pruned siblings at this listing are not a
+         * proof: skipping peeks then would drop type-widening spellings that live only under a pruned
+         * parent. Empty {@link ClassifiedLevel#survivorKeys} is untyped — fail closed.
+         */
+        private boolean peekKeysTyped(ClassifiedLevel level) {
+            if (level.levelKeys.isEmpty()) {
+                return false;
+            }
+            for (String key : level.levelKeys) {
+                if (level.survivorKeys.contains(key) == false) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         /**
@@ -1598,11 +1622,16 @@ final class PartitionPruningWalk {
                 return;
             }
             List<StoragePath> toPeek = peeksToIssue(pendingPeeks, listings.get(), maxDirectoryListings);
+            boolean truncated = toPeek == null || toPeek.size() < pendingPeeks.size();
+            if (truncated && peekKeysTyped(level)) {
+                pendingPeeks = List.of();
+                listener.onResponse(null);
+                return;
+            }
             if (toPeek == null) {
                 listener.onResponse(WalkDiagnostics.StopReason.PEEK_BUDGET);
                 return;
             }
-            boolean truncated = toPeek.size() < pendingPeeks.size();
             listChildrenParallel(provider, toPeek, concurrency, executor, listings, cancelled, children -> {
                 synchronized (seenValues) {
                     applyPeekChildren(children, seenValues, templateLayout, walkLevel);
@@ -1894,6 +1923,12 @@ final class PartitionPruningWalk {
                     }
                 }
             }
+            Set<String> survivorKeys = new HashSet<>();
+            for (int i = 0; i < keep.length; i++) {
+                if (keep[i]) {
+                    survivorKeys.add(shapedKeys.get(i));
+                }
+            }
             return new ClassifiedLevel(
                 listedDirs,
                 shapedDirs,
@@ -1901,6 +1936,7 @@ final class PartitionPruningWalk {
                 next,
                 levelFiles,
                 byKey.keySet(),
+                Set.copyOf(survivorKeys),
                 hintedLevel,
                 newKeyLevel,
                 false,
@@ -1995,6 +2031,7 @@ final class PartitionPruningWalk {
         final List<StoragePath> next;
         final List<StorageEntry> levelFiles;
         final Set<String> levelKeys;
+        final Set<String> survivorKeys;
         final boolean hintedLevel;
         final boolean newKeyLevel;
         final boolean withdraw;
@@ -2008,6 +2045,7 @@ final class PartitionPruningWalk {
                 new boolean[0],
                 new ArrayList<>(),
                 levelFiles,
+                Set.of(),
                 Set.of(),
                 false,
                 false,
@@ -2023,6 +2061,7 @@ final class PartitionPruningWalk {
             List<StoragePath> next,
             List<StorageEntry> levelFiles,
             Set<String> levelKeys,
+            Set<String> survivorKeys,
             boolean hintedLevel,
             boolean newKeyLevel,
             boolean withdraw,
@@ -2034,6 +2073,7 @@ final class PartitionPruningWalk {
             this.next = next;
             this.levelFiles = levelFiles;
             this.levelKeys = levelKeys;
+            this.survivorKeys = survivorKeys;
             this.hintedLevel = hintedLevel;
             this.newKeyLevel = newKeyLevel;
             this.withdraw = withdraw;

@@ -42,6 +42,7 @@ public class RestAnalyzeIndexDiskUsageAction extends BaseRestHandler {
         "flush"
     );
     private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index");
+    private static final Set<String> CAPABILITIES = Set.of("doc_values_skipper_stats");
 
     @Override
     public List<RestHandler.Route> routes() {
@@ -69,6 +70,11 @@ public class RestAnalyzeIndexDiskUsageAction extends BaseRestHandler {
             final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancelClient.execute(TransportAnalyzeIndexDiskUsageAction.TYPE, analyzeRequest, new RestToXContentListener<>(channel));
         };
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
     }
 
     @Override

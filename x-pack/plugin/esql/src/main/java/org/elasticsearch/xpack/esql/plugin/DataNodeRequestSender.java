@@ -337,7 +337,7 @@ abstract class DataNodeRequestSender {
             }
 
             @Override
-            public void onFailure(Exception e, boolean receivedData) {
+            public void onFailure(Exception e, boolean receivedData, DriverCompletionInfo usage) {
                 try {
                     for (var shard : request.shards) {
                         ShardId shardId = shard.shardId();
@@ -350,7 +350,8 @@ abstract class DataNodeRequestSender {
                     listener.onFailure(ex);
                     return;
                 }
-                listener.onResponse(DriverCompletionInfo.EMPTY);
+                // what the failed request did is part of the query's work, whether the query fails or goes on without it
+                listener.onResponse(usage);
             }
 
             @Override
@@ -380,7 +381,14 @@ abstract class DataNodeRequestSender {
     interface NodeListener {
         void onResponse(DataNodeComputeResponse response);
 
-        void onFailure(Exception e, boolean receivedData);
+        default void onFailure(Exception e, boolean receivedData) {
+            onFailure(e, receivedData, DriverCompletionInfo.EMPTY);
+        }
+
+        /**
+         * @param usage what the request did before it failed, as far as it is known
+         */
+        void onFailure(Exception e, boolean receivedData, DriverCompletionInfo usage);
 
         void onSkip();
     }

@@ -65,6 +65,7 @@ public class FailedComputeUsageTransportTests extends ESTestCase {
             70,
             80,
             SearchLoadMetrics.EMPTY,
+            0L,
             List.of(),
             List.of(),
             Map.of(),

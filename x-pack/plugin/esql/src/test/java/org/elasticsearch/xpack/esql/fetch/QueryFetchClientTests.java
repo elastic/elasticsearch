@@ -90,6 +90,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
         0,
         0,
         SearchLoadMetrics.EMPTY,
+        0L,
         List.of(),
         List.of(),
         Map.of(),

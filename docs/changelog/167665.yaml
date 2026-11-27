@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 167665
+summary: Report the peak memory of a query
+type: enhancement

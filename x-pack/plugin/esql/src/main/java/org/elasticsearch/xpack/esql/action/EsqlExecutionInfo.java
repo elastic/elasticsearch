@@ -290,7 +290,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     /**
      * Adds what a compute that failed did before it failed. A failure carries no {@link DriverCompletionInfo}, so this is where the
      * work of a query that failed or was cancelled is kept, to be reported with it. Each compute that fails adds its own work
-     * once. Only the counters are kept. Not serialized.
+     * once. Only the counters and the peak memory are kept. Not serialized.
      */
     public void addFailedWork(DriverCompletionInfo work) {
         DriverCompletionInfo counters = new DriverCompletionInfo(
@@ -303,6 +303,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             work.cpuNanos(),
             work.driverNanos(),
             work.searchLoad(),
+            work.peakMemoryBytes(),
             List.of(),
             List.of(),
             Map.of(),

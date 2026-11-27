@@ -51,6 +51,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.scheduling.QueryLoad;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -277,12 +278,20 @@ public final class FetchService {
          */
         private final List<DefaultShardContext> contexts;
         private final AtomicBoolean released = new AtomicBoolean();
+        /**
+         * The part of the query the request is, a child of the query's task. Its drivers allocate through the query's breaker,
+         * so the memory of the fetch is the query's.
+         */
+        private final QueryScheduler.QueryPart part;
+        private final BlockFactory queryBlockFactory;
 
         Execution(FetchRequest request, CancellableTask task, ActionListener<FetchResponse> listener) {
             this.request = request;
             this.task = task;
             this.listener = listener;
             this.contexts = new ArrayList<>(request.shards().size());
+            this.part = searchService.queryScheduler().part(task.getParentTaskId(), task.getId());
+            this.queryBlockFactory = blockFactory.newQueryFactory(part.breaker(), part.bigArrays(bigArrays));
         }
 
         void start() {
@@ -445,7 +454,7 @@ public final class FetchService {
             List<List<Page>> pagesBySlice
         ) {
             LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
-                blockFactory.breaker(),
+                queryBlockFactory.breaker(),
                 localBreakerSettings.overReservedBytes(),
                 localBreakerSettings.maxOverReservedBytes()
             );
@@ -454,8 +463,8 @@ public final class FetchService {
             boolean success = false;
             try {
                 DriverContext driverContext = new DriverContext(
-                    bigArrays,
-                    blockFactory.newChildFactory(localBreaker),
+                    queryBlockFactory.bigArrays(),
+                    queryBlockFactory.newChildFactory(localBreaker),
                     localBreakerSettings,
                     DESCRIPTION
                 );
@@ -544,12 +553,13 @@ public final class FetchService {
                     new PlanTimeProfile(),
                     0L,
                     new QueryLoad(),
+                    part.peakMemoryBytes(),
                     false,
                     null,
                     null
                 );
             }
-            return DriverCompletionInfo.excludingProfiles(drivers, 0L, new QueryLoad(), false);
+            return DriverCompletionInfo.excludingProfiles(drivers, 0L, new QueryLoad(), part.peakMemoryBytes(), false);
         }
 
         private void fail(Exception e) {
@@ -569,6 +579,8 @@ public final class FetchService {
             if (released.compareAndSet(false, true) == false) {
                 return;
             }
+            // the pages of the response may outlive it, the query stays tracked until they are released
+            part.close();
             searchService.getFreeContextExecutor().execute(new AbstractRunnable() {
                 @Override
                 protected void doRun() {

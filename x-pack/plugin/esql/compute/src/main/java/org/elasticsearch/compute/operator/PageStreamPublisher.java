@@ -55,6 +55,10 @@ import java.util.concurrent.Flow;
  */
 public class PageStreamPublisher implements Flow.Publisher<Page> {
 
+    /**
+     * @param failedPeakMemoryBytes The most memory a failed query held at once on one of its nodes, as far as it is known. A
+     *                              footer with {@code completionInfo} reports the peak from there.
+     */
     public record StreamFooter(
         int status,
         long tookMillis,
@@ -63,8 +67,22 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
         DriverCompletionInfo completionInfo,
         @Nullable ToXContent clusters,
         Exception error,
-        @Nullable ChunkedToXContent profile
-    ) {}
+        @Nullable ChunkedToXContent profile,
+        long failedPeakMemoryBytes
+    ) {
+        public StreamFooter(
+            int status,
+            long tookMillis,
+            boolean isPartial,
+            List<String> warnings,
+            DriverCompletionInfo completionInfo,
+            @Nullable ToXContent clusters,
+            Exception error,
+            @Nullable ChunkedToXContent profile
+        ) {
+            this(status, tookMillis, isPartial, warnings, completionInfo, clusters, error, profile, 0L);
+        }
+    }
 
     private final ArrayDeque<Page> buffer = new ArrayDeque<>();
 

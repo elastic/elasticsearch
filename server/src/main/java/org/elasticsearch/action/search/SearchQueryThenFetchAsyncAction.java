@@ -56,6 +56,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.search.scheduling.SearchLoadMetrics;
+import org.elasticsearch.search.scheduling.SearchMemoryMetrics;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -1031,15 +1032,17 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
 
         /**
-         * Charges merging the shard results so far and returns its load, reported with one of them.
+         * Charges merging the shard results so far and returns its load and the peak memory of the query on this node,
+         * reported with one of them.
          */
         private DirectoryMetrics chargeMergeSoFar() {
+            DirectoryMetrics memory = SearchMemoryMetrics.directoryMetricsOf(part);
             QueryLoad.Charging mergeLoad = queryPhaseResultConsumer.mergeLoad();
             if (mergeLoad != null) {
                 chargeMerge();
-                return SearchLoadMetrics.directoryMetricsOf(mergeLoad.load());
+                return memory.merge(SearchLoadMetrics.directoryMetricsOf(mergeLoad.load()));
             }
-            return DirectoryMetrics.EMPTY;
+            return memory;
         }
 
         private BytesTransportResponse buildResponse() throws Exception {

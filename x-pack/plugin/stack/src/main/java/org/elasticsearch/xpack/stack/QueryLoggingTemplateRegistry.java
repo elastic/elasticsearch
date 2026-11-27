@@ -44,7 +44,8 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     // version 11: view_settings, flattened since its keys are user-chosen view names
     // version 12: search load
     // version 13: time_range_filter.from/to dates
-    public static final int INDEX_TEMPLATE_VERSION = 13;
+    // version 14: search peak memory
+    public static final int INDEX_TEMPLATE_VERSION = 14;
 
     public static final String QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE = "xpack.stack.querylog.template.version";
 

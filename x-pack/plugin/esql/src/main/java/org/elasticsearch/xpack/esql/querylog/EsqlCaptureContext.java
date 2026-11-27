@@ -136,9 +136,18 @@ public class EsqlCaptureContext extends QueryCaptureContext {
                 response.readCpuNanos(),
                 response.cpuNanos(),
                 response.driverNanos(),
-                response.searchLoad()
+                response.searchLoad(),
+                response.peakMemoryBytes()
             )
         );
+    }
+
+    /**
+     * The peak memory of a query that failed, as far as it is known, or 0. A failed query has no {@link #getRollupCounters()},
+     * but how much memory it held tells how close it came to the memory limits.
+     */
+    long getFailedPeakMemoryBytes() {
+        return request.failedPeakMemoryBytes();
     }
 
     /** Snapshot of the query-level rollup counters surfaced into the slow log. */
@@ -151,7 +160,8 @@ public class EsqlCaptureContext extends QueryCaptureContext {
         long readCpuNanos,
         long cpuNanos,
         long driverNanos,
-        SearchLoadMetrics searchLoad
+        SearchLoadMetrics searchLoad,
+        long peakMemoryBytes
     ) {}
 
     @Override

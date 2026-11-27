@@ -334,6 +334,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             cpuNanos,
             0,
             SearchLoadMetrics.EMPTY,
+            0L,
             List.of(),
             List.of(),
             Map.of(),

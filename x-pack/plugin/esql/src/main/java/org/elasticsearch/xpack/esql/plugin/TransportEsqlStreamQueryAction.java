@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -263,6 +262,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
         // The metrics of the query are reported once, with the first outcome that is decided for it.
         AtomicBoolean metricsCollected = new AtomicBoolean();
+        // the completion info of the final compute, once it completed
+        AtomicReference<DriverCompletionInfo> finalWork = new AtomicReference<>();
 
         PlanRunner planRunner = new PlanRunner() {
             @Override
@@ -402,6 +403,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             coordination.breaker(),
             ActionListener.wrap(versionedResult -> {
                 Result result = versionedResult.inner();
+                finalWork.set(result.completionInfo());
                 try {
                     TransportEsqlQueryAction.failIfCancelled(task, result);
                 } catch (TaskCancelledException cancelled) {
@@ -480,18 +482,16 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             }, ex -> {
                 computeDone.set(true);
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, ex);
-                transportEsqlQueryAction.collectMetricsOnce(
-                    metricsCollected,
-                    executionInfo,
-                    workDoneBeforeFailure(executionInfo, resultRef.get()),
-                    PlanExecutor.outcomeOf(ex)
-                );
+                DriverCompletionInfo workDone = TransportEsqlQueryAction.workDoneBeforeFailure(executionInfo, finalWork.get());
+                transportEsqlQueryAction.collectMetricsOnce(metricsCollected, executionInfo, workDone, PlanExecutor.outcomeOf(ex));
                 PageStreamPublisher.StreamFooter footer = failureFooter(
                     ex,
                     executionInfo,
                     completedWork.finish(),
+                    workDone.peakMemoryBytes(),
                     threadPool.getThreadContext()
                 );
+                request.setFailedPeakMemoryBytes(footer.failedPeakMemoryBytes());
                 if (streamStarted.get()) {
                     publisher.failStream(ex, footer);
                 } else {
@@ -500,16 +500,6 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 listener.onFailure(ex);
             })
         );
-    }
-
-    /**
-     * What is known to have been done by a query that failed. If its final compute completed and the failure came after it, for
-     * example while the footer was written, that is everything the query did: its completion info includes the intermediate computes.
-     * Otherwise it is what the computes that failed and the sub-plans that completed before them did, see
-     * {@link EsqlExecutionInfo#addFailedWork}.
-     */
-    static DriverCompletionInfo workDoneBeforeFailure(EsqlExecutionInfo executionInfo, @Nullable Result finalResult) {
-        return finalResult != null ? finalResult.completionInfo() : executionInfo.failedWork();
     }
 
     static ToXContent footerClusters(EsqlExecutionInfo executionInfo) {
@@ -651,10 +641,15 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         return executionInfo.tookOrElapsed().millis();
     }
 
+    /**
+     * The footer of a failed query. It reports no stats, but the peak memory, the highest of {@code peakMemoryBytes} and the peak of
+     * {@code completedWork}, since it tells how close the query came to the memory limits.
+     */
     static PageStreamPublisher.StreamFooter failureFooter(
         Exception ex,
         EsqlExecutionInfo executionInfo,
         DriverCompletionInfo completedWork,
+        long peakMemoryBytes,
         ThreadContext threadContext
     ) {
         return new PageStreamPublisher.StreamFooter(
@@ -665,7 +660,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             null,
             null,
             ex,
-            null
+            null,
+            Math.max(peakMemoryBytes, completedWork.peakMemoryBytes())
         );
     }
 

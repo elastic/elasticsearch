@@ -682,6 +682,34 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         assertTrue("error part should be the last part", errorPart.isLastPart());
     }
 
+    /**
+     * The last line of a failed stream reports the peak memory of the query, without the other stats.
+     */
+    public void testFailStreamReportsThePeakMemory() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildSimplePage(1, "first"));
+        encodeBodyPart(pagePart);
+        RuntimeException failure = new RuntimeException("compute failed");
+        long peakMemoryBytes = randomLongBetween(1, Integer.MAX_VALUE);
+        PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
+            500,
+            1,
+            false,
+            List.of(),
+            null,
+            null,
+            failure,
+            null,
+            peakMemoryBytes
+        );
+        ChunkedRestResponseBodyPart errorPart = nextPart(pagePart, () -> s.publisher().failStream(failure, footer));
+
+        Map<String, Object> line = decodeLine(errorPart);
+        assertThat(line, hasKey("error"));
+        assertThat(((Number) line.get("search_peak_memory_bytes")).longValue(), equalTo(peakMemoryBytes));
+        assertThat(line, not(hasKey("documents_found")));
+    }
+
     public void testFailStreamMidStreamReportsTheRowsAlreadyWritten() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
         ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(3, 1));

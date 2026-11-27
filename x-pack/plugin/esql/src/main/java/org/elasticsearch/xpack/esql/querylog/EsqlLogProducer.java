@@ -89,7 +89,8 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlCaptureContext> 
         // log carries the same I/O / row / CPU cost signal that {@code profile=true} would show
         // under the top-level {@code profile.*} keys. Field names mirror the JSON profile so log
         // and profile readers see the same vocabulary.
-        context.getRollupCounters().ifPresent(rollup -> {
+        var rollupCounters = context.getRollupCounters();
+        rollupCounters.ifPresent(rollup -> {
             msg.field(PROFILE_PREFIX + "documents_found", rollup.documentsFound());
             msg.field(PROFILE_PREFIX + "values_loaded", rollup.valuesLoaded());
             msg.field(PROFILE_PREFIX + "rows_emitted", rollup.rowsEmitted());
@@ -101,7 +102,11 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlCaptureContext> 
             msg.field(PROFILE_PREFIX + "search_load_nanos", rollup.searchLoad().loadNanos());
             msg.field(PROFILE_PREFIX + "search_cpu_nanos", rollup.searchLoad().cpuNanos());
             msg.field(PROFILE_PREFIX + "search_waiting_nanos", rollup.searchLoad().waitingNanos());
+            msg.field(PROFILE_PREFIX + "search_peak_memory_bytes", rollup.peakMemoryBytes());
         });
+        if (rollupCounters.isEmpty() && context.getFailedPeakMemoryBytes() > 0) {
+            msg.field(PROFILE_PREFIX + "search_peak_memory_bytes", context.getFailedPeakMemoryBytes());
+        }
         var clusters = context.getClusters();
         var remotes = context.getRemoteClusterAliases(clusters);
         if (remotes.isEmpty() == false) {

@@ -17,9 +17,11 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.AllocatingQueryPlugin.AllocatingQueryBuilder;
+import org.elasticsearch.search.LargeResultAggregationPlugin.LargeResultAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.scheduling.SearchMemoryMetrics;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -30,10 +32,12 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * The memory a search allocates on a node is its query's there.
@@ -44,7 +48,7 @@ public class SearchQueryMemoryIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(AllocatingQueryPlugin.class);
+        return List.of(AllocatingQueryPlugin.class, LargeResultAggregationPlugin.class);
     }
 
     /**
@@ -91,6 +95,77 @@ public class SearchQueryMemoryIT extends ESIntegTestCase {
                 assertThat(searchService.queryScheduler().queries(), equalTo(0));
             }
         });
+    }
+
+    /**
+     * A search reports the peak of its query on the data node that held it, also when it is coordinated elsewhere.
+     */
+    public void testSearchReportsThePeakOfItsQuery() {
+        createIndex();
+        assertResponse(
+            internalCluster().coordOnlyNodeClient().prepareSearch("test").setQuery(new AllocatingQueryBuilder(BYTES)),
+            response -> {
+                assertNoFailures(response);
+                assertThat(peakMemoryBytes(response), greaterThanOrEqualTo(BYTES));
+            }
+        );
+    }
+
+    /**
+     * Peaks on different nodes need not overlap, so a search reports the highest of them, not their sum.
+     */
+    public void testSearchReportsTheHighestPeakOfItsNodes() {
+        List<String> nodes = internalCluster().startDataOnlyNodes(2);
+        long bytes = ByteSizeValue.ofMb(1).getBytes();
+        for (int i = 0; i < nodes.size(); i++) {
+            assertAcked(
+                prepareCreate("test-" + i).setSettings(indexSettings(1, 0).put("index.routing.allocation.require._name", nodes.get(i)))
+            );
+            prepareIndex("test-" + i).setSource("k", "a").get();
+        }
+        ensureGreen("test-*");
+        indicesAdmin().prepareRefresh("test-*").get();
+        assertResponse(
+            internalCluster().coordOnlyNodeClient().prepareSearch("test-*").setQuery(new AllocatingQueryBuilder(bytes)),
+            response -> {
+                assertNoFailures(response);
+                assertThat(response.getSuccessfulShards(), equalTo(2));
+                assertThat(peakMemoryBytes(response), allOf(greaterThanOrEqualTo(bytes), lessThan(2 * bytes)));
+            }
+        );
+    }
+
+    /**
+     * The coordinator holds the results of all the nodes until it merges them, so its own peak can be the highest.
+     */
+    public void testSearchReportsThePeakOfItsCoordinator() {
+        List<String> nodes = internalCluster().startDataOnlyNodes(3);
+        for (int i = 0; i < nodes.size(); i++) {
+            assertAcked(
+                prepareCreate("results-" + i).setSettings(indexSettings(1, 0).put("index.routing.allocation.require._name", nodes.get(i)))
+            );
+            prepareIndex("results-" + i).setSource("k", "a").get();
+        }
+        ensureGreen("results-*");
+        indicesAdmin().prepareRefresh("results-*").get();
+        assertResponse(
+            internalCluster().coordOnlyNodeClient()
+                .prepareSearch("results-*")
+                .setSize(0)
+                .addAggregation(new LargeResultAggregationBuilder("large")),
+            response -> {
+                assertNoFailures(response);
+                assertThat(response.getSuccessfulShards(), equalTo(nodes.size()));
+                // the shards charge nothing for their results, the coordinator holds those of every node
+                assertThat(peakMemoryBytes(response), greaterThanOrEqualTo(nodes.size() * LargeResultAggregationPlugin.RESULT_BYTES));
+            }
+        );
+    }
+
+    private static long peakMemoryBytes(SearchResponse response) {
+        SearchMemoryMetrics metrics = (SearchMemoryMetrics) response.getDirectoryMetrics().metrics(SearchMemoryMetrics.NAME);
+        assertNotNull("the search reports its peak memory", metrics);
+        return metrics.peakBytes();
     }
 
     private void createIndex() {

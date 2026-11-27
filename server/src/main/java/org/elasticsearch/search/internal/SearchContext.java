@@ -51,6 +51,7 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.scheduling.QueryLoad;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.tasks.CancellableTask;
@@ -163,6 +164,14 @@ public abstract class SearchContext implements Releasable {
      */
     @Nullable
     public QueryLoad.Charging searchLoad() {
+        return null;
+    }
+
+    /**
+     * The part of the query this context belongs to on this node, or {@code null} if it reports no memory.
+     */
+    @Nullable
+    public QueryScheduler.QueryPart queryPart() {
         return null;
     }
 

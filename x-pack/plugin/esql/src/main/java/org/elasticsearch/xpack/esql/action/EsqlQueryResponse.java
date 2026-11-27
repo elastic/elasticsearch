@@ -61,6 +61,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
     private static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
     private static final TransportVersion SEARCH_LOAD_REPORT = TransportVersion.fromName("search_load_report");
+    private static final TransportVersion SEARCH_PEAK_MEMORY = TransportVersion.fromName("search_peak_memory");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -103,6 +104,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final long cpuNanos;
     private final long driverNanos;
     private final SearchLoadMetrics searchLoad;
+    private final long peakMemoryBytes;
     private final Profile profile;
     private final boolean columnar;
     private final String asyncExecutionId;
@@ -134,6 +136,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long cpuNanos,
         long driverNanos,
         SearchLoadMetrics searchLoad,
+        long peakMemoryBytes,
         @Nullable Profile profile,
         boolean columnar,
         @Nullable String asyncExecutionId,
@@ -157,6 +160,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.cpuNanos = cpuNanos;
         this.driverNanos = driverNanos;
         this.searchLoad = searchLoad;
+        this.peakMemoryBytes = peakMemoryBytes;
         this.profile = profile;
         this.columnar = columnar;
         this.asyncExecutionId = asyncExecutionId;
@@ -195,6 +199,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             0L,
             0L,
             SearchLoadMetrics.EMPTY,
+            0L,
             profile,
             columnar,
             asyncExecutionId,
@@ -295,6 +300,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             if (in.getTransportVersion().supports(SEARCH_LOAD_REPORT)) {
                 searchLoad = new SearchLoadMetrics(in.readVLong(), in.readVLong(), in.readVLong());
             }
+            long peakMemoryBytes = in.getTransportVersion().supports(SEARCH_PEAK_MEMORY) ? in.readVLong() : 0;
             EsqlQueryResponse response = new EsqlQueryResponse(
                 columns,
                 pages,
@@ -307,6 +313,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 cpuNanos,
                 driverNanos,
                 searchLoad,
+                peakMemoryBytes,
                 profile,
                 columnar,
                 asyncExecutionId,
@@ -370,6 +377,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeVLong(searchLoad.loadNanos());
             out.writeVLong(searchLoad.cpuNanos());
             out.writeVLong(searchLoad.waitingNanos());
+        }
+        if (out.getTransportVersion().supports(SEARCH_PEAK_MEMORY)) {
+            out.writeVLong(peakMemoryBytes);
         }
     }
 
@@ -440,6 +450,13 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
      */
     public SearchLoadMetrics searchLoad() {
         return searchLoad;
+    }
+
+    /**
+     * The most memory the query held at once on one of its nodes.
+     */
+    public long peakMemoryBytes() {
+        return peakMemoryBytes;
     }
 
     public long documentsFound() {
@@ -540,7 +557,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 .field("driver_nanos", driverNanos)
                 .field("search_load_nanos", searchLoad.loadNanos())
                 .field("search_cpu_nanos", searchLoad.cpuNanos())
-                .field("search_waiting_nanos", searchLoad.waitingNanos());
+                .field("search_waiting_nanos", searchLoad.waitingNanos())
+                .field("search_peak_memory_bytes", peakMemoryBytes);
 
             if (startTimeMillis != 0L) {
                 builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
@@ -611,6 +629,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             && cpuNanos == that.cpuNanos
             && driverNanos == that.driverNanos
             && Objects.equals(searchLoad, that.searchLoad)
+            && peakMemoryBytes == that.peakMemoryBytes
             && Objects.equals(profile, that.profile)
             && Objects.equals(executionInfo, that.executionInfo);
     }
@@ -633,6 +652,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             cpuNanos,
             driverNanos,
             searchLoad,
+            peakMemoryBytes,
             profile,
             executionInfo
         );

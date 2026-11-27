@@ -57,7 +57,7 @@ public class DriverCompletionInfoSearchLoadTests extends ESTestCase {
     public void testIncludesTheLoadOfTheComputeOutsideItsDrivers() {
         QueryLoad computeLoad = new QueryLoad();
         computeLoad.charging((nanos, cpuNanos, finishNanos) -> {}).charge(100, 40, 0);
-        DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(), 0, computeLoad, false);
+        DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(), 0, computeLoad, 0L, false);
         assertThat(info.searchLoad().loadNanos(), equalTo(100L));
         assertThat(info.searchLoad().cpuNanos(), equalTo(40L));
     }
@@ -73,6 +73,7 @@ public class DriverCompletionInfoSearchLoadTests extends ESTestCase {
             0,
             7,
             new SearchLoadMetrics(loadNanos, cpuNanos, waitingNanos),
+            0L,
             List.of(),
             List.of(),
             null,

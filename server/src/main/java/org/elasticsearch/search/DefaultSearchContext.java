@@ -80,6 +80,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.scheduling.QueryLoad;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -115,6 +116,8 @@ final class DefaultSearchContext extends SearchContext {
     private DirectoryMetrics fetchThreadsMetrics = DirectoryMetrics.EMPTY;
     @Nullable
     private volatile QueryLoad.Charging searchLoad;
+    @Nullable
+    private QueryScheduler.QueryPart queryPart;
     private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
@@ -298,6 +301,19 @@ final class DefaultSearchContext extends SearchContext {
      */
     public void searchLoad(QueryLoad.Charging searchLoad) {
         this.searchLoad = searchLoad;
+    }
+
+    @Override
+    @Nullable
+    public QueryScheduler.QueryPart queryPart() {
+        return queryPart;
+    }
+
+    /**
+     * Reports the memory of the query that {@code queryPart} belongs to with the results of this context.
+     */
+    public void queryPart(QueryScheduler.QueryPart queryPart) {
+        this.queryPart = queryPart;
     }
 
     @Override

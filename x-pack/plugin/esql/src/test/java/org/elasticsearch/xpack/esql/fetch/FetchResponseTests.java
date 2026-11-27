@@ -52,6 +52,7 @@ public class FetchResponseTests extends ComputeTestCase {
             19,
             31,
             new SearchLoadMetrics(37, 41, 43),
+            0L,
             List.of(),
             List.of(),
             Map.of(),

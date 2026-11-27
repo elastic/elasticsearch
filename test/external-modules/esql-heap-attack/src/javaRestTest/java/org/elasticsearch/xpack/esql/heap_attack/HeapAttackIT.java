@@ -167,6 +167,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 .entry("search_load_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("search_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("search_waiting_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("search_peak_memory_bytes", IntOrLongMatcher.isIntOrLong())
                 .entry("completion_time_in_millis", greaterThan(0L))
                 .entry("expiration_time_in_millis", greaterThan(0L))
                 .entry("start_time_in_millis", greaterThan(0L))

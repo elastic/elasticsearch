@@ -2404,6 +2404,7 @@ public class ComputeService {
                 logicalPlanJson,
                 planTimeProfile,
                 planningBytesRead,
+                computePart,
                 approximationApplied
             );
             QueryDriverExecutor driverExecutor = new QueryDriverExecutor(
@@ -2433,7 +2434,8 @@ public class ComputeService {
                 Releasables.close(context.searchContexts().iterable());
             }
             LOGGER.debug("Error in ComputeService.runCompute for : " + context.description());
-            listener.onFailure(e);
+            // no driver ran, but building them may have charged the query's breaker
+            failWithUsage(listener, e, List.of(), 0L, context.queryLoad(), computePart.peakMemoryBytes(), false);
         }
     }
 
@@ -2446,6 +2448,7 @@ public class ComputeService {
         String logicalPlanJson,
         PlanTimeProfile planTimeProfile,
         long planningBytesRead,
+        QueryScheduler.QueryPart computePart,
         boolean approximated
     ) {
         /*
@@ -2469,6 +2472,7 @@ public class ComputeService {
                     planTimeProfile,
                     planningBytesRead,
                     context.queryLoad(),
+                    computePart.peakMemoryBytes(),
                     approximated,
                     planJson,
                     logicalPlanJson
@@ -2484,11 +2488,17 @@ public class ComputeService {
                 }
             }
 
-            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, context.queryLoad(), approximated);
+            return DriverCompletionInfo.excludingProfiles(
+                drivers,
+                planningBytesRead,
+                context.queryLoad(),
+                computePart.peakMemoryBytes(),
+                approximated
+            );
         });
         return ActionListener.wrap(
             onDriversSucceeded::onResponse,
-            e -> failWithUsage(listener, e, drivers, planningBytesRead, context.queryLoad(), approximated)
+            e -> failWithUsage(listener, e, drivers, planningBytesRead, context.queryLoad(), computePart.peakMemoryBytes(), approximated)
         );
     }
 
@@ -2503,10 +2513,11 @@ public class ComputeService {
         List<Driver> drivers,
         long planningBytesRead,
         QueryLoad queryLoad,
+        long peakMemoryBytes,
         boolean approximated
     ) {
         if (listener instanceof ComputeCompletionListener completionListener) {
-            completionListener.onFailure(e, usageOfFailedDrivers(drivers, planningBytesRead, queryLoad, approximated));
+            completionListener.onFailure(e, usageOfFailedDrivers(drivers, planningBytesRead, queryLoad, peakMemoryBytes, approximated));
         } else {
             listener.onFailure(e);
         }
@@ -2522,10 +2533,11 @@ public class ComputeService {
         List<Driver> drivers,
         long planningBytesRead,
         QueryLoad queryLoad,
+        long peakMemoryBytes,
         boolean approximated
     ) {
         try {
-            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, queryLoad, approximated);
+            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, queryLoad, peakMemoryBytes, approximated);
         } catch (Exception e) {
             LOGGER.debug("failed to read the usage of the drivers of a failed compute", e);
             return DriverCompletionInfo.EMPTY;

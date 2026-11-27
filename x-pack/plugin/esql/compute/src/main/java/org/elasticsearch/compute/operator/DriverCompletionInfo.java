@@ -58,6 +58,7 @@ import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
  * @param searchLoad The search load charged for this work, by the drivers and by other compute tasks such as parallel
  *                   workers, the part of it the threads spent on CPU, and the time the query waited on the nodes of this
  *                   work with tasks queued and none running.
+ * @param peakMemoryBytes The most memory the query held at once on one of the nodes of this work.
  * @param driverProfiles {@link DriverProfile}s from each driver. These are fairly cheap to build but
  *                          not free so this will be empty if the {@code profile} option was not set in
  *                          the request.
@@ -89,6 +90,7 @@ public record DriverCompletionInfo(
     long cpuNanos,
     long driverNanos,
     SearchLoadMetrics searchLoad,
+    long peakMemoryBytes,
     List<DriverProfile> driverProfiles,
     List<PlanProfile> planProfiles,
     Map<String, List<Map<String, Object>>> capturedSourceMetadata,
@@ -112,6 +114,7 @@ public record DriverCompletionInfo(
         0,
         0,
         SearchLoadMetrics.EMPTY,
+        0L,
         List.of(),
         List.of(),
         Map.of(),
@@ -139,6 +142,7 @@ public record DriverCompletionInfo(
             cpuNanos,
             driverNanos,
             searchLoad,
+            peakMemoryBytes,
             driverProfiles,
             planProfiles,
             capturedSourceMetadata,
@@ -166,6 +170,7 @@ public record DriverCompletionInfo(
             cpuNanos,
             driverNanos,
             searchLoad,
+            peakMemoryBytes,
             driverProfiles.stream().map(p -> p.withPhase(phase, phaseKind)).toList(),
             planProfiles.stream().map(p -> p.withPhase(phase, phaseKind)).toList(),
             capturedSourceMetadata,
@@ -197,6 +202,7 @@ public record DriverCompletionInfo(
             cpuNanos,
             driverNanos,
             searchLoad,
+            peakMemoryBytes,
             driverProfiles,
             planProfiles,
             capturedSourceMetadata,
@@ -214,6 +220,7 @@ public record DriverCompletionInfo(
      *                          sort builders, etc.) before drivers were dispatched. Added to the
      *                          aggregate {@code bytesRead}.
      * @param queryLoad The load of the compute outside its drivers, and its waiting
+     * @param peakMemoryBytes The most memory the query held at once on this node
      */
     public static DriverCompletionInfo includingProfiles(
         List<Driver> drivers,
@@ -225,6 +232,7 @@ public record DriverCompletionInfo(
         PlanTimeProfile planTimeProfile,
         long planningBytesRead,
         QueryLoad queryLoad,
+        long peakMemoryBytes,
         boolean approximationApplied,
         @Nullable String planJson,
         @Nullable String logicalPlanJson
@@ -264,6 +272,7 @@ public record DriverCompletionInfo(
             cpuNanos,
             driverNanos,
             searchLoad,
+            peakMemoryBytes,
             collectedProfiles,
             List.of(
                 new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile, planJson, logicalPlanJson)
@@ -283,11 +292,13 @@ public record DriverCompletionInfo(
      *                          sort builders, etc.) before drivers were dispatched. Added to the
      *                          aggregate {@code bytesRead}.
      * @param queryLoad The load of the compute outside its drivers, and its waiting
+     * @param peakMemoryBytes The most memory the query held at once on this node
      */
     public static DriverCompletionInfo excludingProfiles(
         List<Driver> drivers,
         long planningBytesRead,
         QueryLoad queryLoad,
+        long peakMemoryBytes,
         boolean approximationApplied
     ) {
         long documentsFound = 0;
@@ -324,6 +335,7 @@ public record DriverCompletionInfo(
             cpuNanos,
             driverNanos,
             searchLoad,
+            peakMemoryBytes,
             List.of(),
             List.of(),
             collectCapturedSourceMetadata(drivers),
@@ -405,6 +417,7 @@ public record DriverCompletionInfo(
     private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
     private static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
     private static final TransportVersion SEARCH_LOAD_REPORT = TransportVersion.fromName("search_load_report");
+    private static final TransportVersion SEARCH_PEAK_MEMORY = TransportVersion.fromName("search_peak_memory");
 
     public static DriverCompletionInfo readFrom(StreamInput in, ThreadContext threadContext) throws IOException {
         long documentsFound = in.readVLong();
@@ -461,6 +474,7 @@ public record DriverCompletionInfo(
         if (in.getTransportVersion().supports(SEARCH_LOAD_REPORT)) {
             searchLoad = new SearchLoadMetrics(in.readVLong(), in.readVLong(), in.readVLong());
         }
+        long peakMemoryBytes = in.getTransportVersion().supports(SEARCH_PEAK_MEMORY) ? in.readVLong() : 0;
         return new DriverCompletionInfo(
             documentsFound,
             valuesLoaded,
@@ -471,6 +485,7 @@ public record DriverCompletionInfo(
             cpuNanos,
             driverNanos,
             searchLoad,
+            peakMemoryBytes,
             driverProfiles,
             planProfiles,
             captured,
@@ -525,6 +540,9 @@ public record DriverCompletionInfo(
             out.writeVLong(searchLoad.cpuNanos());
             out.writeVLong(searchLoad.waitingNanos());
         }
+        if (out.getTransportVersion().supports(SEARCH_PEAK_MEMORY)) {
+            out.writeVLong(peakMemoryBytes);
+        }
     }
 
     public static class Accumulator {
@@ -537,6 +555,7 @@ public record DriverCompletionInfo(
         private long cpuNanos;
         private long driverNanos;
         private SearchLoadMetrics searchLoad = SearchLoadMetrics.EMPTY;
+        private long peakMemoryBytes;
         private final List<DriverProfile> driverProfiles = new ArrayList<>();
         private final List<PlanProfile> planProfiles = new ArrayList<>();
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
@@ -554,6 +573,7 @@ public record DriverCompletionInfo(
             this.cpuNanos += info.cpuNanos;
             this.driverNanos += info.driverNanos;
             this.searchLoad = searchLoad.merge(info.searchLoad);
+            this.peakMemoryBytes = Math.max(peakMemoryBytes, info.peakMemoryBytes);
             this.driverProfiles.addAll(info.driverProfiles);
             this.planProfiles.addAll(info.planProfiles);
             mergeCapturedSourceMetadata(capturedSourceMetadata, info.capturedSourceMetadata);
@@ -573,6 +593,7 @@ public record DriverCompletionInfo(
                 cpuNanos,
                 driverNanos,
                 searchLoad,
+                peakMemoryBytes,
                 driverProfiles,
                 planProfiles,
                 capturedSourceMetadata.isEmpty() ? Map.of() : new HashMap<>(capturedSourceMetadata),
@@ -593,6 +614,7 @@ public record DriverCompletionInfo(
         private final AtomicLong cpuNanos = new AtomicLong();
         private final AtomicLong driverNanos = new AtomicLong();
         private final AtomicReference<SearchLoadMetrics> searchLoad = new AtomicReference<>(SearchLoadMetrics.EMPTY);
+        private final AtomicLong peakMemoryBytes = new AtomicLong();
         private final List<DriverProfile> collectedProfiles = Collections.synchronizedList(new ArrayList<>());
         private final List<PlanProfile> planProfiles = Collections.synchronizedList(new ArrayList<>());
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
@@ -610,6 +632,7 @@ public record DriverCompletionInfo(
             this.cpuNanos.addAndGet(info.cpuNanos);
             this.driverNanos.addAndGet(info.driverNanos);
             this.searchLoad.accumulateAndGet(info.searchLoad, SearchLoadMetrics::merge);
+            this.peakMemoryBytes.accumulateAndGet(info.peakMemoryBytes, Math::max);
             this.collectedProfiles.addAll(info.driverProfiles);
             this.planProfiles.addAll(info.planProfiles);
             synchronized (capturedSourceMetadata) {
@@ -649,6 +672,7 @@ public record DriverCompletionInfo(
                 cpuNanos.get(),
                 driverNanos.get(),
                 searchLoad.get(),
+                peakMemoryBytes.get(),
                 collectedProfiles,
                 planProfiles,
                 snapshot,

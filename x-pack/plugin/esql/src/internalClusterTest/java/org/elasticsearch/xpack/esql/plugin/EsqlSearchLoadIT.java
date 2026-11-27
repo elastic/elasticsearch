@@ -141,6 +141,8 @@ public class EsqlSearchLoadIT extends AbstractExternalDataSourceIT {
                 assertThat(response.searchLoad().loadNanos(), greaterThan(0L));
                 assertThat(response.searchLoad().cpuNanos(), lessThanOrEqualTo(response.searchLoad().loadNanos()));
                 reported += response.searchLoad().loadNanos();
+                // the drivers allocate their pages through the query's breaker
+                assertThat(response.peakMemoryBytes(), greaterThan(0L));
             }
         }
 

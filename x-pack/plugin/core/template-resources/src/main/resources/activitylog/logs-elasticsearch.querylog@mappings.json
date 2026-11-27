@@ -184,6 +184,10 @@
                   "type": "long",
                   "index": false
                 },
+                "search_peak_memory_bytes": {
+                  "type": "long",
+                  "index": false
+                },
                 "search_waiting_nanos": {
                   "type": "long",
                   "index": false

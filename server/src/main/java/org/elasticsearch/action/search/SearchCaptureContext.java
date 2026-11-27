@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.scheduling.SearchLoadMetrics;
+import org.elasticsearch.search.scheduling.SearchMemoryMetrics;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Map;
@@ -123,6 +124,17 @@ public class SearchCaptureContext extends QueryCaptureContext {
             return null;
         }
         return response.getDirectoryMetrics().metrics(SearchLoadMetrics.NAME) instanceof SearchLoadMetrics metrics ? metrics : null;
+    }
+
+    /**
+     * The peak memory of the search, or {@code null} if it reported none.
+     */
+    @Nullable
+    SearchMemoryMetrics getSearchMemory() {
+        if (response == null) {
+            return null;
+        }
+        return response.getDirectoryMetrics().metrics(SearchMemoryMetrics.NAME) instanceof SearchMemoryMetrics metrics ? metrics : null;
     }
 
     @Override

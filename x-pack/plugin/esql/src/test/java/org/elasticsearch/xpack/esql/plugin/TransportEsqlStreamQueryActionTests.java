@@ -437,6 +437,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             SearchLoadMetrics.EMPTY,
+            0L,
             List.of(),
             List.of(),
             Map.of(),
@@ -461,6 +462,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             SearchLoadMetrics.EMPTY,
+            0L,
             List.of(),
             List.of(),
             Map.of(),
@@ -493,6 +495,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             SearchLoadMetrics.EMPTY,
+            0L,
             List.of(),
             List.of(),
             Map.of(),
@@ -535,6 +538,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             ex,
             executionInfo,
             DriverCompletionInfo.EMPTY,
+            0L,
             new ThreadContext(Settings.EMPTY)
         );
 
@@ -555,6 +559,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             new RuntimeException("boom"),
             executionInfo,
             DriverCompletionInfo.EMPTY,
+            0L,
             threadContext
         );
 
@@ -669,6 +674,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             cause,
             executionInfo,
             DriverCompletionInfo.EMPTY,
+            0L,
             threadContext
         );
 
@@ -691,6 +697,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             200,
             300,
             SearchLoadMetrics.EMPTY,
+            0L,
             List.of(),
             List.of(),
             Map.of(),
@@ -703,10 +710,50 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             new RuntimeException("boom"),
             executionInfo,
             nonEmpty,
+            0L,
             threadContext
         );
 
         assertNull("stats must always be omitted from failure footers", footer.completionInfo());
+    }
+
+    /**
+     * A failure footer omits the stats but keeps the highest peak memory known, of the computes that failed or of the work that
+     * completed before.
+     */
+    public void testFailureFooterKeepsTheHighestPeakMemory() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        long completedPeak = randomLongBetween(1, 1_000_000);
+        long failedPeak = randomLongBetween(1, 1_000_000);
+        DriverCompletionInfo completedWork = new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            SearchLoadMetrics.EMPTY,
+            completedPeak,
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            false,
+            Set.of()
+        );
+
+        PageStreamPublisher.StreamFooter footer = TransportEsqlStreamQueryAction.failureFooter(
+            new RuntimeException("boom"),
+            executionInfo,
+            completedWork,
+            failedPeak,
+            new ThreadContext(Settings.EMPTY)
+        );
+
+        assertNull(footer.completionInfo());
+        assertThat(footer.failedPeakMemoryBytes(), equalTo(Math.max(completedPeak, failedPeak)));
     }
 
     public void testFailureFooterMergesWarningsFromCompletedWorkAndThreadContext() {
@@ -724,6 +771,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             SearchLoadMetrics.EMPTY,
+            0L,
             List.of(),
             List.of(),
             Map.of(),
@@ -736,6 +784,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             new RuntimeException("boom"),
             executionInfo,
             completedWork,
+            0L,
             threadContext
         );
 
@@ -758,6 +807,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             SearchLoadMetrics.EMPTY,
+            0L,
             List.of(),
             List.of(),
             Map.of(),
@@ -770,6 +820,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             new RuntimeException("boom"),
             executionInfo,
             partialWork,
+            0L,
             new ThreadContext(Settings.EMPTY)
         );
 
@@ -787,6 +838,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             SearchLoadMetrics.EMPTY,
+            0L,
             List.of(),
             List.of(),
             Map.of(),
@@ -802,12 +854,11 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
      */
     public void testWorkDoneBeforeFailure() {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
-        assertThat(TransportEsqlStreamQueryAction.workDoneBeforeFailure(executionInfo, null).bytesRead(), equalTo(0L));
+        assertThat(TransportEsqlQueryAction.workDoneBeforeFailure(executionInfo, null).bytesRead(), equalTo(0L));
         executionInfo.addFailedWork(usageWithBytesRead(1));
         executionInfo.addFailedWork(usageWithBytesRead(10));
-        Result finalResult = new Result(List.of(), List.of(), null, null, usageWithBytesRead(100), executionInfo, null);
 
-        assertThat(TransportEsqlStreamQueryAction.workDoneBeforeFailure(executionInfo, null).bytesRead(), equalTo(11L));
-        assertThat(TransportEsqlStreamQueryAction.workDoneBeforeFailure(executionInfo, finalResult).bytesRead(), equalTo(100L));
+        assertThat(TransportEsqlQueryAction.workDoneBeforeFailure(executionInfo, null).bytesRead(), equalTo(11L));
+        assertThat(TransportEsqlQueryAction.workDoneBeforeFailure(executionInfo, usageWithBytesRead(100)).bytesRead(), equalTo(100L));
     }
 }

@@ -280,7 +280,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             footer.completionInfo(),
             footer.clusters(),
             e,
-            footer.profile()
+            footer.profile(),
+            footer.failedPeakMemoryBytes()
         );
     }
 
@@ -799,6 +800,10 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                             b.field("search_load_nanos", ci.searchLoad().loadNanos());
                             b.field("search_cpu_nanos", ci.searchLoad().cpuNanos());
                             b.field("search_waiting_nanos", ci.searchLoad().waitingNanos());
+                            b.field("search_peak_memory_bytes", ci.peakMemoryBytes());
+                        } else if (footer.failedPeakMemoryBytes() > 0) {
+                            // a failed query reports no stats, but how much memory it held
+                            b.field("search_peak_memory_bytes", footer.failedPeakMemoryBytes());
                         }
                         if (footer.clusters() != null) {
                             b.field("_clusters");

@@ -15,6 +15,7 @@ import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.search.scheduling.SearchLoadMetrics;
+import org.elasticsearch.search.scheduling.SearchMemoryMetrics;
 
 import java.util.Arrays;
 import java.util.Optional;
@@ -30,6 +31,7 @@ public class SearchLogProducer implements ActivityLogProducer<SearchCaptureConte
     public static final String QUERY_FIELD_SEARCH_LOAD = ES_QUERY_FIELDS_PREFIX + SearchLoadMetrics.LOAD_NANOS_KEY;
     public static final String QUERY_FIELD_SEARCH_CPU = ES_QUERY_FIELDS_PREFIX + SearchLoadMetrics.CPU_NANOS_KEY;
     public static final String QUERY_FIELD_SEARCH_WAITING = ES_QUERY_FIELDS_PREFIX + SearchLoadMetrics.WAITING_NANOS_KEY;
+    public static final String QUERY_FIELD_SEARCH_PEAK_MEMORY = ES_QUERY_FIELDS_PREFIX + SearchMemoryMetrics.PEAK_BYTES_KEY;
 
     @Override
     public Optional<ESLogMessage> produce(SearchCaptureContext context, ActionLoggingFields additionalFields) {
@@ -57,6 +59,10 @@ public class SearchLogProducer implements ActivityLogProducer<SearchCaptureConte
             msg.field(QUERY_FIELD_SEARCH_LOAD, searchLoad.loadNanos());
             msg.field(QUERY_FIELD_SEARCH_CPU, searchLoad.cpuNanos());
             msg.field(QUERY_FIELD_SEARCH_WAITING, searchLoad.waitingNanos());
+        }
+        var searchMemory = context.getSearchMemory();
+        if (searchMemory != null) {
+            msg.field(QUERY_FIELD_SEARCH_PEAK_MEMORY, searchMemory.peakBytes());
         }
 
         var clusters = context.getClusters();

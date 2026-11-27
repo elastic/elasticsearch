@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.scheduling.SearchLoadMetrics;
+import org.elasticsearch.search.scheduling.SearchMemoryMetrics;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -78,7 +79,8 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         CollectionUtils.appendToCopyNoNullElements(
             new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables(),
             new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, StoreMetrics.NAME, StoreMetrics::new),
-            new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, SearchLoadMetrics.NAME, SearchLoadMetrics::new)
+            new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, SearchLoadMetrics.NAME, SearchLoadMetrics::new),
+            new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, SearchMemoryMetrics.NAME, SearchMemoryMetrics::new)
         )
     );
 

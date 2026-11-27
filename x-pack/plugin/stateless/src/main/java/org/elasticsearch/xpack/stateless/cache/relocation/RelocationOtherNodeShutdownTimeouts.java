@@ -60,7 +60,7 @@ public class RelocationOtherNodeShutdownTimeouts {
     /// their grace deadlines. The fair share is worked out for each grace deadline:
     ///
     /// 1. The recoveries that compete for the slots up to the deadline are: this shard, the shards of the shutting-down nodes due by it and
-    /// the other recoveries on the target. The shards due later have time to spare, so they are not counted.
+    /// the other recoveries not related to shutting-down nodes on the target. The shards due later have time to spare, so they are not counted.
     /// 2. The time left until the deadline is split equally between those recoveries, and scaled to the slots they can use at once.
     ///
     /// The smallest of these shares is the wait, so that no deadline is missed.

@@ -51,6 +51,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Shared coverage of the null contract of the strict columnar index modes for one field type at a time: a null array element is
@@ -448,30 +449,54 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         Predicate<Configuration> slice,
         List<DocumentGroup> groups,
         IndexedAssertion assertion
-    ) throws IOException {
+    ) {
         final List<TestDocument> documents = groups.stream().flatMap(group -> group.documents().stream()).toList();
-        final List<String> failures = new ArrayList<>();
+        final List<AssertionError> failures = new ArrayList<>();
         final List<Configuration> configurations = configurations(scenario).stream().filter(slice).toList();
         assertFalse("the slice selects no configuration of " + scenario.type(), configurations.isEmpty());
         for (final Configuration configuration : configurations) {
-            final MapperService mapperService = createMapperService(scenario, configuration);
-            // NOTE: newDirectory() keeps every directory and its creation stack referenced until the suite ends. These tests create one
-            // per configuration, which exhausts a small heap under -Dtests.iters. This wrapper still checks the index on close.
-            try (
-                Directory directory = new MockDirectoryWrapper(random(), new ByteBuffersDirectory());
-                IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig(mapperService))
-            ) {
-                indexGroups(scenario, strategy, configuration, mapperService, indexWriter, groups);
-                try {
-                    assertion.accept(configuration, mapperService, indexWriter, documents);
-                } catch (AssertionError e) {
-                    failures.add(configuration + ": " + e.getMessage());
-                }
+            try {
+                checkConfiguration(scenario, strategy, configuration, groups, documents, assertion);
+            } catch (AssertionError | IOException | RuntimeException e) {
+                failures.add(withContext(scenario.type() + " " + scenario.parameters() + " " + strategy + " " + configuration, e));
             }
         }
         if (failures.isEmpty() == false) {
-            fail(failures.size() + " of " + configurations.size() + " configurations failed:\n" + String.join("\n", failures));
+            throw aggregate(failures.size() + " of " + configurations.size() + " configurations failed", failures);
         }
+    }
+
+    private void checkConfiguration(
+        Scenario scenario,
+        IndexingStrategy strategy,
+        Configuration configuration,
+        List<DocumentGroup> groups,
+        List<TestDocument> documents,
+        IndexedAssertion assertion
+    ) throws IOException {
+        final MapperService mapperService = createMapperService(scenario, configuration);
+        // NOTE: newDirectory() keeps every directory and its creation stack referenced until the suite ends. These tests create one
+        // per configuration, which exhausts a small heap under -Dtests.iters. This wrapper still checks the index on close.
+        try (
+            Directory directory = new MockDirectoryWrapper(random(), new ByteBuffersDirectory());
+            IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig(mapperService))
+        ) {
+            indexGroups(scenario, strategy, configuration, mapperService, indexWriter, groups);
+            assertion.accept(configuration, mapperService, indexWriter, documents);
+        }
+    }
+
+    private static AssertionError withContext(String context, Throwable cause) {
+        return new AssertionError(context + ": " + cause.getMessage(), cause);
+    }
+
+    private static AssertionError aggregate(String summary, List<AssertionError> failures) {
+        final AssertionError error = new AssertionError(
+            summary + ":\n" + failures.stream().map(Throwable::getMessage).collect(Collectors.joining("\n")),
+            failures.get(0)
+        );
+        failures.stream().skip(1).forEach(error::addSuppressed);
+        return error;
     }
 
     protected final void assertExistsMatchesOnlyDocumentsWithValue(Scenario scenario, IndexingStrategy strategy) throws IOException {
@@ -638,7 +663,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         List<TestDocument> documents,
         SourceComparison comparison
     ) throws IOException {
-        final List<String> failures = new ArrayList<>();
+        final List<AssertionError> failures = new ArrayList<>();
         for (final boolean merged : new boolean[] { false, true }) {
             if (merged) {
                 indexWriter.forceMerge(1);
@@ -649,12 +674,12 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                 try {
                     comparison.accept(scenario, scenario.expected(documents.get(i)), sources.get(i));
                 } catch (AssertionError e) {
-                    failures.add("merged=" + merged + " document=" + documents.get(i) + " source=" + sources.get(i) + " " + e.getMessage());
+                    failures.add(withContext("merged=" + merged + " document=" + documents.get(i) + " source=" + sources.get(i), e));
                 }
             }
         }
         if (failures.isEmpty() == false) {
-            fail(failures.size() + " documents failed:\n" + String.join("\n", failures));
+            throw aggregate(failures.size() + " documents failed", failures);
         }
     }
 

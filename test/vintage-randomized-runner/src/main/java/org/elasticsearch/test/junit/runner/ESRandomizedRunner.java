@@ -126,7 +126,7 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
          * A {@link RunNotifier} turns an exception thrown by a listener into a failure of {@link Description#TEST_MECHANISM}, which it
          * tells the other listeners of the same notifier about. The listeners of the wrapper would never notify the listeners of the actual
          * (wrapped) notifier, whose listeners report the failure to the Vintage test engine; the {@link FailureReportingListener} forwards
-         * the errors to the actual notifier.
+         * the errors to the actual notifier (through the wrapper).
          */
         @Override
         public void addListener(RunListener listener) {
@@ -144,7 +144,7 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
             super.removeListener(wrapped == null ? listener : wrapped);
         }
 
-        /** Passes on the events to a listener, and gives what it throws to the actual notifier as a failure of the test mechanism. */
+        /** Passes on the events to a listener, and gives what it throws to the notifier as a failure of the test mechanism. */
         private final class FailureReportingListener extends RunListener {
             private final RunListener listener;
 
@@ -156,7 +156,7 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
                 try {
                     call.run();
                 } catch (Exception e) {
-                    actual.fireTestFailure(new Failure(Description.TEST_MECHANISM, e));
+                    ExposingNotifier.this.fireTestFailure(new Failure(Description.TEST_MECHANISM, e));
                 }
             }
 

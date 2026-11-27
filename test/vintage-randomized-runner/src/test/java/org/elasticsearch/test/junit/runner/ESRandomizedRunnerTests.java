@@ -532,7 +532,18 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
         }
     }
 
-    @Listeners({ RejectingListener.class })
+    /** The failures that the peer of {@link RejectingListener} was told about. */
+    private static final List<String> PEER_FAILURES = new CopyOnWriteArrayList<>();
+
+    /** Registered with {@code @Listeners} after {@link RejectingListener}, which does not throw, and records the failures it hears of. */
+    public static final class PeerListener extends RunListener {
+        @Override
+        public void testFailure(Failure failure) {
+            PEER_FAILURES.add(failure.getDescription() + " : " + failure.getException());
+        }
+    }
+
+    @Listeners({ RejectingListener.class, PeerListener.class })
     @TestMethodProviders({ JUnit3MethodProvider.class })
     public static class RejectedFixture {
         public void testOne() {}
@@ -540,16 +551,25 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
 
     /**
      * {@link RandomizedRunner} gives an exception thrown by one of the listeners to the wrapped notifier.
-     * It has to reach the actual notifier from the wrapper, too, so that Vintage reports it as a test mechanism failure.
+     * It has to reach the actual notifier from the wrapper, too, so that Vintage reports it as a test mechanism failure, and the other
+     * listeners of the test class, which handled the event without a problem, have to hear of it, as they do from a plain
+     * {@link RandomizedRunner}.
      */
     public void testExceptionOfAListenerOfTheTestClassIsReportedToTheActualNotifier() throws Exception {
+        PEER_FAILURES.clear();
         List<Failure> plainFailures = runAndCollectFailures(plainRunnerWithoutIterations(RejectedFixture.class));
+        List<String> plainPeerFailures = List.copyOf(PEER_FAILURES);
+
+        PEER_FAILURES.clear();
         List<Failure> failures = runAndCollectFailures(runnerWithoutIterations(RejectedFixture.class, VINTAGE_LIKE_FILTER_PREFIX));
+        List<String> peerFailures = List.copyOf(PEER_FAILURES);
 
         assertThat(plainFailures.size(), equalTo(1));
         assertThat(failures.size(), equalTo(1));
         assertThat(failures.get(0).getDescription(), equalTo(Description.TEST_MECHANISM));
         assertThat(failures.get(0).getException().getMessage(), equalTo(plainFailures.get(0).getException().getMessage()));
+        assertThat(plainPeerFailures.size(), equalTo(1));
+        assertThat(peerFailures, equalTo(plainPeerFailures));
     }
 
     private static List<Failure> runAndCollectFailures(Runner runner) {

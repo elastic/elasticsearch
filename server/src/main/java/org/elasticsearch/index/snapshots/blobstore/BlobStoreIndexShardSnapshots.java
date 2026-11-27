@@ -170,17 +170,20 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         }
 
         final List<FileInfo> reusableFiles = new ArrayList<>();
-
-        for (FileInfo candidate : files.values()) {
-            if (remainingFilesByName.isEmpty()) {
-                break;
-            }
-
-            final String name = candidate.physicalName();
-            final StoreFileMetadata currentFile = remainingFilesByName.get(name);
-            if (currentFile != null && candidate.isSame(currentFile)) {
-                reusableFiles.add(candidate);
-                remainingFilesByName.remove(name);
+        for (SnapshotFiles snapshot : shardSnapshots) {
+            for (FileInfo fileInfo : snapshot.indexFiles()) {
+                final String name = fileInfo.physicalName();
+                final StoreFileMetadata currentFile = remainingFilesByName.get(name);
+                if (currentFile != null) {
+                    final FileInfo candidate = files.get(fileInfo.name());
+                    if (candidate.isSame(currentFile)) {
+                        reusableFiles.add(candidate);
+                        remainingFilesByName.remove(name);
+                        if (remainingFilesByName.isEmpty()) {
+                            return new FilesForSnapshot(List.copyOf(reusableFiles), List.of());
+                        }
+                    }
+                }
             }
         }
 

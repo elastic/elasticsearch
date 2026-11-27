@@ -128,8 +128,7 @@ public class GzipPageInflaterTests extends ESTestCase {
         byte[] data = compressibleBytes(between(1, 256));
         byte[] headerOnly = new byte[] { 0x1f, (byte) 0x8b, 8, 0, 0, 0, 0, 0, 0, (byte) 0xff };
         byte[] gz = concat(gzip(data), headerOnly);
-        // GZIPInputStream is not a valid oracle here: JDK 21 treats a header-only suffix as end of stream, while JDK 25
-        // always starts the next member and fails with EOFException. The fast path defines it as end of stream.
+        // No GZIPInputStream oracle: JDK 21 and JDK 25 disagree on this input (see class Javadoc).
         assertArrayEquals(data, inflateViaFastPath(gz, data.length));
 
         byte[] oversized = new byte[data.length + between(1, 32)];
@@ -144,6 +143,13 @@ public class GzipPageInflaterTests extends ESTestCase {
         for (int i = data.length; i < oversized.length; i++) {
             assertEquals((byte) 0x5A, oversized[i]);
         }
+    }
+
+    public void testPartialHeaderSuffixAfterCompleteMemberIsEos() throws IOException {
+        byte[] data = compressibleBytes(between(1, 256));
+        byte[] headerOnly = new byte[] { 0x1f, (byte) 0x8b, 8, 0, 0, 0, 0, 0, 0, (byte) 0xff };
+        byte[] gz = concat(gzip(data), Arrays.copyOf(headerOnly, between(1, headerOnly.length - 1)));
+        assertFastMatchesInputStream(gz, data.length);
     }
 
     public void testTrailingJunkIgnoredWhenDestLenMatches() throws IOException {

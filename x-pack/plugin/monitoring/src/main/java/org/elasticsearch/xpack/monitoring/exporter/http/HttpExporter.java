@@ -513,7 +513,7 @@ public class HttpExporter extends Exporter {
 
         // for a mixed cluster upgrade, ensure that if master changes and this is the master, allow the resources to re-publish
         onLocalMasterListener = clusterChangedEvent -> {
-            if (clusterChangedEvent.nodesDelta().masterNodeChanged() && clusterChangedEvent.localNodeMaster()) {
+            if (clusterChangedEvent.localNodeIsNewMaster()) {
                 resource.markDirty();
             }
         };

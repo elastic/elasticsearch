@@ -181,6 +181,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             if (event.localNodeMaster() == false) {
                 onNoLongerMaster();
             }
+            // NB if re-elected in a new term without an intervening not-master state, no need to call onNoLongerMaster(): the re-election
+            // always triggers a reroute() which ensures any pending listeners/move-commands are eventually processed and nothing else needs
+            // resetting.
         });
     }
 

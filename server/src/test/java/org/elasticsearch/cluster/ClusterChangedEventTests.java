@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.ClusterChangedEventUtils;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -98,6 +99,98 @@ public class ClusterChangedEventTests extends ESTestCase {
         newState = createState(numNodesInCluster, false, initialIndices);
         event = new ClusterChangedEvent("_na_", newState, previousState);
         assertFalse("local node should not be master", event.localNodeMaster());
+    }
+
+    /// Tests that [ClusterChangedEvent#masterChanged] detects changes to the master node ID or term.
+    public void testMasterChanged() {
+        final ClusterState base = createState(3, randomBoolean(), initialIndices);
+        final ClusterState state = ClusterState.builder(base)
+            .nodes(DiscoveryNodes.builder(base.nodes()).masterNodeId(NODE_ID_PREFIX + 1).build())
+            .build();
+        assertFalse(new ClusterChangedEvent("_na_", state, state).masterChanged());
+        assertFalse(new ClusterChangedEvent("_na_", nextState(state, List.of()), state).masterChanged());
+
+        final ClusterState differentTerm = withNewTerm(state);
+        assertTrue(new ClusterChangedEvent("_na_", differentTerm, state).masterChanged());
+        assertTrue(new ClusterChangedEvent("_na_", state, differentTerm).masterChanged());
+
+        final ClusterState differentMaster = ClusterState.builder(state)
+            .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(NODE_ID_PREFIX + 0).build())
+            .build();
+        assertTrue(new ClusterChangedEvent("_na_", differentMaster, state).masterChanged());
+        assertTrue(new ClusterChangedEvent("_na_", state, differentMaster).masterChanged());
+
+        final ClusterState noMaster = ClusterState.builder(state)
+            .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(null).build())
+            .build();
+        assertTrue(new ClusterChangedEvent("_na_", noMaster, state).masterChanged());
+        assertTrue(new ClusterChangedEvent("_na_", state, noMaster).masterChanged());
+    }
+
+    /// Tests that [ClusterChangedEvent#localNodeIsNewMaster] detects the local node's election, including a re-election in a new term
+    /// without any intervening state that has no master.
+    public void testLocalNodeIsNewMaster() {
+        final ClusterState localMaster = withNewTerm(createState(3, true, initialIndices));
+        assertTrue(localMaster.nodes().isLocalNodeElectedMaster());
+
+        final ClusterState newTerm = withNewTerm(localMaster);
+        final ClusterState noMaster = ClusterState.builder(localMaster)
+            .nodes(DiscoveryNodes.builder(localMaster.nodes()).masterNodeId(null).build())
+            .build();
+        final ClusterState otherMaster = ClusterState.builder(localMaster)
+            .nodes(DiscoveryNodes.builder(localMaster.nodes()).masterNodeId(NODE_ID_PREFIX + 1).build())
+            .build();
+
+        // no change in master
+        assertFalse(new ClusterChangedEvent("_na_", localMaster, localMaster).localNodeIsNewMaster());
+        assertFalse(new ClusterChangedEvent("_na_", nextState(localMaster, List.of()), localMaster).localNodeIsNewMaster());
+
+        // local node elected, previously no master or a different master
+        assertTrue(new ClusterChangedEvent("_na_", localMaster, noMaster).localNodeIsNewMaster());
+        assertTrue(new ClusterChangedEvent("_na_", localMaster, otherMaster).localNodeIsNewMaster());
+
+        // local node re-elected in a new term, without an intervening state with no master
+        assertTrue(new ClusterChangedEvent("_na_", newTerm, localMaster).localNodeIsNewMaster());
+
+        // local node no longer master
+        assertFalse(new ClusterChangedEvent("_na_", noMaster, localMaster).localNodeIsNewMaster());
+        assertFalse(new ClusterChangedEvent("_na_", otherMaster, localMaster).localNodeIsNewMaster());
+
+        // local node is not the master, even though the master changed
+        final ClusterState remoteMaster = withNewTerm(createState(3, false, initialIndices));
+        assertFalse(remoteMaster.nodes().isLocalNodeElectedMaster());
+        assertFalse(new ClusterChangedEvent("_na_", withNewTerm(remoteMaster), remoteMaster).localNodeIsNewMaster());
+        assertFalse(
+            new ClusterChangedEvent(
+                "_na_",
+                remoteMaster,
+                ClusterState.builder(remoteMaster).nodes(DiscoveryNodes.builder(remoteMaster.nodes()).masterNodeId(null).build()).build()
+            ).localNodeIsNewMaster()
+        );
+    }
+
+    private static ClusterState withNewTerm(ClusterState state) {
+        return ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder(state.coordinationMetadata()).term(state.term() + between(1, 100)).build()
+                    )
+                    .build()
+            )
+            .build();
+    }
+
+    /// Tests that [ClusterChangedEvent#clusterJustRecovered] detects the removal of the [GatewayService#STATE_NOT_RECOVERED_BLOCK].
+    public void testClusterJustRecovered() {
+        final int numNodes = 3;
+        final ClusterState recovered = createState(numNodes, randomBoolean(), initialIndices);
+        final ClusterState notRecovered = createNonInitializedState(numNodes, randomBoolean());
+
+        assertTrue(new ClusterChangedEvent("_na_", recovered, notRecovered).clusterJustRecovered());
+        assertFalse(new ClusterChangedEvent("_na_", recovered, recovered).clusterJustRecovered());
+        assertFalse(new ClusterChangedEvent("_na_", notRecovered, notRecovered).clusterJustRecovered());
+        assertFalse(new ClusterChangedEvent("_na_", notRecovered, recovered).clusterJustRecovered());
     }
 
     /**

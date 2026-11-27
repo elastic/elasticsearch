@@ -30,8 +30,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.core.XPackField;
 
-import java.util.Objects;
-
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 
 public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateListener, ClusterStateListener {
@@ -86,10 +84,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
         hasIngestGeoIpMetadata = event.state().metadata().custom(INGEST_GEOIP_CUSTOM_METADATA_TYPE) != null;
         final boolean ingestGeoIpCustomMetaChangedInEvent = event.metadataChanged()
             && event.changedCustomMetadataSet().contains(INGEST_GEOIP_CUSTOM_METADATA_TYPE);
-        final boolean masterNodeChanged = Objects.equals(
-            event.state().nodes().getMasterNode(),
-            event.previousState().nodes().getMasterNode()
-        ) == false;
+        final boolean masterNodeChanged = event.masterChanged();
         /*
          * We don't want to potentially start the task on every cluster state change, so only maybeUpdateTaskState if this cluster change
          * event involved the modification of custom geoip metadata OR a master node change

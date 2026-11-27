@@ -132,7 +132,8 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
             if (event.previousState().nodes().isLocalNodeElectedMaster()
                 && event.routingTableChanged() == false
                 && event.nodesChanged() == false) {
-                // we neither just became master nor did the routing table change, nothing to update
+                // We did not just become master, nor did the routing table or nodes change, so there's nothing to do. NB we might have
+                // just been re-elected master in a new term, but that's ok, we can carry on with the state from the older term.
                 return;
             }
             final Set<SnapshotShard> onGoingSnapshotRecoveries = listOfSnapshotShards(event.state());

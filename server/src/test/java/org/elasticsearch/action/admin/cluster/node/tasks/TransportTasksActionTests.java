@@ -51,6 +51,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -1030,6 +1031,87 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         checkLatch.countDown();
         assertEquals(0, future.get().failureCount());
+    }
+
+    private Task registerTaskWithDescription(TestNode node, int descriptionLength) {
+        final String description = "x".repeat(descriptionLength);
+        return node.transportService.getTaskManager().register("test", "internal:test/described", new TaskAwareRequest() {
+            private TaskId parentTask = TaskId.EMPTY_TASK_ID;
+
+            @Override
+            public void setParentTask(TaskId taskId) {
+                parentTask = taskId;
+            }
+
+            @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return parentTask;
+            }
+
+            @Override
+            public String getDescription() {
+                return description;
+            }
+        });
+    }
+
+    private static ListTasksRequest doubleListRequest() {
+        final ListTasksRequest request = new ListTasksRequest();
+        request.setDetailed(true);
+        request.setActions("internal:test/described", TransportListTasksAction.RELOCATABLE_ACTIONS.iterator().next());
+        return request;
+    }
+
+    public void testSecondListingPassIsCheckedAgainstTheFirstPass() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final Task task1 = registerTaskWithDescription(testNodes[1], 12_000);
+        final Task task2 = registerTaskWithDescription(testNodes[2], 12_000);
+        try {
+            final ListTasksResponse response = ActionTestUtils.executeBlockingWithTask(
+                testNodes[0].transportService.getTaskManager(),
+                testNodes[0].transportService.getLocalNodeConnection(),
+                testNodes[0].transportListTasksAction,
+                doubleListRequest()
+            );
+
+            assertThat(response.getNodeFailures().size(), greaterThan(0));
+            assertNotNull(ExceptionsHelper.unwrap(response.getNodeFailures().get(0), CircuitBreakingException.class));
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            testNodes[1].transportService.getTaskManager().unregister(task1);
+            testNodes[2].transportService.getTaskManager().unregister(task2);
+        }
+    }
+
+    public void testBothListingPassesStayChargedUntilTheMergedResponseIsDelivered() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final int descriptionLength = 5_000;
+        final Task task1 = registerTaskWithDescription(testNodes[1], descriptionLength);
+        final Task task2 = registerTaskWithDescription(testNodes[2], descriptionLength);
+        try {
+            final PlainActionFuture<Long> usedWhileDelivering = new PlainActionFuture<>();
+            testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    doubleListRequest(),
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    ActionListener.wrap(r -> usedWhileDelivering.onResponse(breaker.getUsed()), usedWhileDelivering::onFailure)
+                );
+
+            assertThat(safeGet(usedWhileDelivering), greaterThanOrEqualTo(usedBefore + 4L * descriptionLength));
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            testNodes[1].transportService.getTaskManager().unregister(task1);
+            testNodes[2].transportService.getTaskManager().unregister(task2);
+        }
     }
 
     public void testNodeReplyReservationReleasedAfterSuccessfulReply() throws Exception {

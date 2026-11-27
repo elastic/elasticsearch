@@ -143,11 +143,17 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         final ListTasksRequest request,
         final ActionListener<ListTasksResponse> listener
     ) {
-        super.doExecute(task, request, listener.delegateFailureAndWrap((l1, firstResponse) -> {
-            super.doExecute(task, request, l1.delegateFailureAndWrap((l2, secondResponse) -> {
-                l2.onResponse(deduplicateAndMerge(firstResponse, secondResponse));
-            }));
-        }));
+        final NodeReplyCharge charge = newNodeReplyCharge(task);
+        executeCharged(
+            task,
+            request,
+            charge,
+            ActionListener.runAfter(listener, charge::close).delegateFailureAndWrap((l1, firstResponse) -> {
+                executeCharged(task, request, charge, l1.delegateFailureAndWrap((l2, secondResponse) -> {
+                    l2.onResponse(deduplicateAndMerge(firstResponse, secondResponse));
+                }));
+            })
+        );
     }
 
     /// `WFC=true` path: first pass snapshots (`WFC=false`), then second pass does `WFC=true`, then reconcile parents missed due to
@@ -158,11 +164,17 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         final ActionListener<ListTasksResponse> listener
     ) {
         final ListTasksRequest firstPassRequest = copyWithoutWaitForCompletion(request);
-        super.doExecute(task, firstPassRequest, listener.delegateFailureAndWrap((l1, firstPass) -> {
-            super.doExecute(task, request, l1.delegateFailureAndWrap((l2, secondPass) -> {
-                reconcileMissedRelocations(task, firstPass, secondPass, l2);
-            }));
-        }));
+        final NodeReplyCharge charge = newNodeReplyCharge(task);
+        executeCharged(
+            task,
+            firstPassRequest,
+            charge,
+            ActionListener.runAfter(listener, charge::close).delegateFailureAndWrap((l1, firstPass) -> {
+                executeCharged(task, request, charge, l1.delegateFailureAndWrap((l2, secondPass) -> {
+                    reconcileMissedRelocations(task, firstPass, secondPass, l2);
+                }));
+            })
+        );
     }
 
     /// Finds reindex tasks that appeared in the first pass but are missing from the second pass, perhaps because the operation relocated

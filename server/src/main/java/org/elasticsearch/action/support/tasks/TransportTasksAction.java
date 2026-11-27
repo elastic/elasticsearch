@@ -99,13 +99,29 @@ public abstract class TransportTasksAction<
 
     @Override
     protected void doExecute(Task task, TasksRequest request, ActionListener<TasksResponse> listener) {
+        final NodeReplyCharge charge = newNodeReplyCharge(task);
+        executeCharged(task, request, charge, ActionListener.runAfter(listener, charge::close));
+    }
+
+    /**
+     * Creates the charge for the replies of the other nodes, released when it is closed or the task is cancelled. An action that lists
+     * more than once keeps one charge for all the passes and closes it after it has handed over the final response.
+     */
+    protected final NodeReplyCharge newNodeReplyCharge(Task task) {
+        final NodeReplyCharge charge = new NodeReplyCharge(nodeReplyBreaker());
+        if (task instanceof CancellableTask cancellableTask) {
+            cancellableTask.addListener(charge::close);
+        }
+        return charge;
+    }
+
+    /**
+     * Fans out to the nodes and charges their replies to {@code charge}, which the caller closes.
+     */
+    protected final void executeCharged(Task task, TasksRequest request, NodeReplyCharge charge, ActionListener<TasksResponse> listener) {
         final var discoveryNodes = clusterService.state().nodes();
         final String[] nodeIds = resolveNodes(request, discoveryNodes);
-        final CircuitBreaker breaker = nodeReplyBreaker();
-        final RetainedReplyBytes retainedReplyBytes = new RetainedReplyBytes(breaker);
-        if (task instanceof CancellableTask cancellableTask) {
-            cancellableTask.addListener(retainedReplyBytes::close);
-        }
+        final CircuitBreaker breaker = charge.breaker;
 
         new CancellableFanOut<String, NodeTasksResponse, TasksResponse>() {
             final ArrayList<TaskResponse> taskResponses = new ArrayList<>();
@@ -139,7 +155,7 @@ public abstract class TransportTasksAction<
             @Override
             protected void onItemResponse(String nodeId, NodeTasksResponse nodeTasksResponse) {
                 try {
-                    retainedReplyBytes.charge(nodeTasksResponse.arrivedBytes);
+                    charge.charge(nodeTasksResponse.arrivedBytes);
                 } catch (CircuitBreakingException e) {
                     onItemFailure(nodeId, e);
                     return;
@@ -175,7 +191,7 @@ public abstract class TransportTasksAction<
             public String toString() {
                 return actionName;
             }
-        }.run(task, Iterators.forArray(nodeIds), ActionListener.runAfter(listener, retainedReplyBytes::close));
+        }.run(task, Iterators.forArray(nodeIds), listener);
     }
 
     private CircuitBreaker nodeReplyBreaker() {
@@ -212,12 +228,12 @@ public abstract class TransportTasksAction<
         };
     }
 
-    private static final class RetainedReplyBytes implements Releasable {
+    protected static final class NodeReplyCharge implements Releasable {
         private final CircuitBreaker breaker;
         private long retained;
         private boolean closed;
 
-        RetainedReplyBytes(CircuitBreaker breaker) {
+        private NodeReplyCharge(CircuitBreaker breaker) {
             this.breaker = breaker;
         }
 

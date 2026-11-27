@@ -885,45 +885,27 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     private EscfColumnData scaledFromStrings(EscfColumn source, Recycler<BytesRef> recycler) {
-        AbstractXContentParser.checkCoerceString(coerce.value(), Double.class);
         try (EscfColumnBuilder builder = newLongColumn(recycler)) {
             // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
             final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                final BytesRef value = cursor.value();
-                if (value.length == 0) {
-                    // An empty string is a null on the row path.
-                    if (nullValue != null) {
-                        builder.setLong(doc, encode(nullValue, scalingFactor));
-                    }
-                    // else leave absent — no slot written, validity bit stays clear
-                    continue;
-                }
-                if (value.length > AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH) {
-                    throw new IllegalArgumentException(
-                        "Numeric value length ["
-                            + value.length
-                            + "] exceeds the maximum of ["
-                            + AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH
-                            + "]"
-                    );
-                }
-                builder.setLong(doc, encodeFinite(Double.parseDouble(value.utf8ToString())));
+                setFromString(builder, doc, cursor.value());
             }
             return builder.finish(source.docCount());
         }
     }
 
-    // A field that has JSON integers and JSON doubles in one batch, for example 0 and 0.25, is a UNION column.
+    // A field that has more than one JSON value type in one batch, for example 0, 0.25 and "0.5", is a UNION column.
     private EscfColumnData scaledFromUnion(EscfColumn source, Recycler<BytesRef> recycler) {
         try (EscfColumnBuilder builder = newLongColumn(recycler)) {
             final PresentDocIterator docs = source.presentDocs();
             for (int doc = docs.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = docs.nextDoc()) {
                 final byte type = source.getTypeByte(doc);
-                final double value = switch (type) {
-                    case SourceValueType.LONG -> (double) source.getLongValue(doc);
-                    case SourceValueType.DOUBLE -> source.getDoubleValue(doc);
-                    // Nulls, strings and arrays in a UNION column stay on the row path.
+                switch (type) {
+                    case SourceValueType.LONG -> builder.setLong(doc, encodeFinite((double) source.getLongValue(doc)));
+                    case SourceValueType.DOUBLE -> builder.setLong(doc, encodeFinite(source.getDoubleValue(doc)));
+                    case SourceValueType.STRING -> setFromString(builder, doc, source.getBinaryValue(doc));
+                    // Nulls, booleans and arrays in a UNION column stay on the row path.
                     default -> throw new UnsupportedOperationException(
                         Strings.format(
                             "mapColumnBatch: ESCF value type [%s] is not yet supported for field [%s]",
@@ -931,11 +913,32 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                             fullPath()
                         )
                     );
-                };
-                builder.setLong(doc, encodeFinite(value));
+                }
             }
             return builder.finish(source.docCount());
         }
+    }
+
+    private void setFromString(EscfColumnBuilder builder, int doc, BytesRef value) {
+        AbstractXContentParser.checkCoerceString(coerce.value(), Double.class);
+        if (value.length == 0) {
+            // An empty string is a null on the row path.
+            if (nullValue != null) {
+                builder.setLong(doc, encode(nullValue, scalingFactor));
+            }
+            // else leave absent — no slot written, validity bit stays clear
+            return;
+        }
+        if (value.length > AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH) {
+            throw new IllegalArgumentException(
+                "Numeric value length ["
+                    + value.length
+                    + "] exceeds the maximum of ["
+                    + AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH
+                    + "]"
+            );
+        }
+        builder.setLong(doc, encodeFinite(Double.parseDouble(value.utf8ToString())));
     }
 
     private static EscfColumnBuilder newLongColumn(Recycler<BytesRef> recycler) {

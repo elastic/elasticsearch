@@ -160,6 +160,23 @@ public class ScaledFloatFieldMapperColumnarCompatibilityTests extends AbstractCo
         );
     }
 
+    public void testMixedNumberAndStringColumn() throws IOException {
+        assertColumnarMatchesXContent(
+            randomBoolean() ? scaledFloat(100) : scaledFloat(100, b -> b.field("null_value", 2.5)),
+            randomFrom(columnarSettings(), singleValueColumnarSettings()),
+            batch("double then string", 1L, doc("d1", 1L, "{\"f\":0.2}"), doc("d2", 2L, "{\"f\":\"0.2\"}"), doc("d3", 3L, "{}")),
+            batch(
+                "string then numbers",
+                1L,
+                doc("d1", 1L, "{\"f\":\"-2.25\"}"),
+                doc("d2", 2L, "{\"f\":7}"),
+                doc("d3", 3L, "{\"f\":79.99}"),
+                doc("d4", 4L, "{\"f\":\"7\"}")
+            ),
+            batch("empty string", 1L, doc("d1", 1L, "{\"f\":1.5}"), doc("d2", 2L, "{\"f\":\"\"}"), doc("d3", 3L, "{\"f\":3}"))
+        );
+    }
+
     public void testStringColumn() throws IOException {
         assertColumnarMatchesXContent(
             scaledFloat(100),
@@ -288,6 +305,11 @@ public class ScaledFloatFieldMapperColumnarCompatibilityTests extends AbstractCo
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"" + randomFrom("1.5", "") + "\"}")
         );
         assertThat(e.getMessage(), containsString("Double value passed as String"));
+        final IllegalArgumentException mixed = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":1.5}", "{\"f\":\"2.5\"}")
+        );
+        assertThat(mixed.getMessage(), containsString("Double value passed as String"));
         assertEquals(BatchRefusal.MAP_COLUMN_BATCH, assertBatchPathRefuses(mapperService, SourceEncoder.JACKSON, "{\"f\":\"1.5\"}"));
     }
 
@@ -301,7 +323,10 @@ public class ScaledFloatFieldMapperColumnarCompatibilityTests extends AbstractCo
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"1.5\"}", "{\"f\":\"" + randomFrom("NaN", "Infinity", "-Infinity") + "\"}")
         );
         assertThat(nonFinite.getMessage(), containsString("[scaled_float] only supports finite values"));
-        expectThrows(NumberFormatException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"1.5\"}", "{\"f\":\"abc\"}"));
+        expectThrows(
+            NumberFormatException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":" + randomFrom("\"1.5\"", "1.5") + "}", "{\"f\":\"abc\"}")
+        );
         assertEquals(
             BatchRefusal.MAP_COLUMN_BATCH,
             assertBatchPathRefuses(mapperService, SourceEncoder.JACKSON, "{\"f\":\"1.5\"}", "{\"f\":\"NaN\"}")
@@ -333,7 +358,7 @@ public class ScaledFloatFieldMapperColumnarCompatibilityTests extends AbstractCo
 
     public void testUnionWithOtherValueTypesFallsBack() throws IOException {
         final MapperService mapperService = createMapperService(columnarSettings(), scaledFloat(100));
-        final String other = randomFrom("\"2.5\"", "[1.5,2.5]", "true");
+        final String other = randomFrom("[1.5,2.5]", "true");
         final UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":1.5}", "{\"f\":" + other + "}")

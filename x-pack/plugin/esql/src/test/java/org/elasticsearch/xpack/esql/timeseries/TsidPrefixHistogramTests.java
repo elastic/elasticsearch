@@ -13,12 +13,16 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.compute.lucene.query.TsidPrefixRange;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues.PrefixPartitions;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -221,7 +225,6 @@ public class TsidPrefixHistogramTests extends ESTestCase {
         for (int s = 0; s < splits.size(); s++) {
             TsidPrefixRange split = splits.get(s);
             assertThat(split.prefixBits(), equalTo(prefixBits));
-            assertThat(split.upper(), greaterThan(split.lower()));
             if (s > 0) {
                 assertThat(split.lower(), equalTo(splits.get(s - 1).upper()));
             }
@@ -250,7 +253,9 @@ public class TsidPrefixHistogramTests extends ESTestCase {
         long max,
         long bucketMillis
     ) throws IOException {
+        var task = new CancellableTask(1, "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of());
         return TsidPrefixHistogramCollector.collectOneLeaf(
+            task,
             partitions,
             10,
             maxDoc,

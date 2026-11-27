@@ -10,15 +10,18 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -29,6 +32,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
@@ -38,6 +42,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -46,12 +51,16 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class IntoIT extends AbstractEsqlIntegTestCase {
@@ -92,6 +101,13 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             // The setting is rejected while the feature flag is off, which would fail the cluster before the tests can be skipped.
             settings.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true);
         }
+        // The size of the bulks that INTO sends comes from these settings, which the test cluster randomizes: with the defaults, a few
+        // hundred rows go in one 4MB bulk, and tests that fail or count the bulks of a write have no second bulk to work on. Pin the
+        // small sizes, so that they always get several.
+        settings.put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "512B");
+        settings.put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1KB");
+        settings.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "16KB");
+        settings.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "256B");
         return settings.build();
     }
 
@@ -184,6 +200,41 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), containsString("unmapped_col"));
+    }
+
+    public void testKeepGoingSkipsRefusedRows() {
+        String query = Strings.format("""
+            ROW k = ["ok1", "bad", "ok2"]
+            | MV_EXPAND k
+            | EVAL unmapped_col = CASE(k == "bad", "nope", null)
+            | INTO %s WITH {"keep_going": true}
+            """, DESTINATION);
+        try (EsqlQueryResponse response = run(query)) {
+            assertIntoColumns(response);
+            List<Object> summary = singleValue(getValuesList(response));
+            assertThat(summary.subList(0, 3), equalTo(List.of(3L, 2L, 1L)));
+            assertThat((String) summary.get(3), startsWith("[400] "));
+            assertThat((String) summary.get(3), containsString("unmapped_col"));
+        }
+        assertReadBack("KEEP k | SORT k", List.of(List.of("ok1"), List.of("ok2")));
+    }
+
+    public void testKeepGoingFromSourceCountsEveryRefusal() {
+        createSource();
+        try (
+            EsqlQueryResponse response = run(
+                "FROM " + SOURCE + " | EVAL unmapped_col = k | INTO " + DESTINATION + " WITH {\"keep_going\": true}"
+            )
+        ) {
+            List<Object> summary = getValuesList(response).getFirst();
+            assertThat(summary.subList(0, 3), equalTo(List.of(3L, 0L, 3L)));
+            List<?> details = (List<?>) summary.get(3);
+            assertThat(details, hasSize(3));
+            for (Object detail : details) {
+                assertThat(detail.toString(), allOf(startsWith("[400] "), containsString("unmapped_col")));
+            }
+        }
+        assertReadBack(List.of());
     }
 
     public void testFromSource() {
@@ -311,9 +362,55 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             true,
             IntStream.range(0, 2000).mapToObj(i -> client().prepareIndex(SOURCE).setSource("k", wide + i)).collect(Collectors.toList())
         );
-        EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION);
+        try (EsqlQueryResponse response = run(requestWithManyWriters("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION))) {
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(2000L, 2000L, 0L, null))));
+            assertThat(countWriters(response), greaterThan(1L));
+        }
+        assertReadBack("STATS c = COUNT(*) BY k | STATS groups = COUNT(*), rows = SUM(c)", List.of(List.of(2000L, 2000L)));
+    }
+
+    /**
+     * Writers on several nodes each create some rows and refuse others, which is where the stats of the writers meet: the counts add up
+     * exactly, the details stop at the cap however many each writer reports, and every accepted row is there.
+     */
+    public void testKeepGoingAddsUpTheStatsOfEveryWriter() {
+        int rows = 600;
+        // No node holds more than three of the five shards, so the source is spread over at least two nodes
+        assertAcked(
+            indicesAdmin().prepareCreate(SOURCE)
+                .setSettings(indexSettings(5, 0).put("index.routing.allocation.total_shards_per_node", 3))
+                .setMapping(MAPPING)
+        );
+        indexRandom(
+            true,
+            IntStream.range(0, rows)
+                .mapToObj(i -> client().prepareIndex(SOURCE).setSource("k", "k" + i, "l", i))
+                .collect(Collectors.toList())
+        );
+        // The rows with an even l are refused, since the mapping of the destination has no unmapped_col
+        String query = "FROM "
+            + SOURCE
+            + " | KEEP k, l | EVAL unmapped_col = CASE(l % 2 == 0, \"nope\", null) | INTO "
+            + DESTINATION
+            + " WITH {\"keep_going\": true}";
+        try (EsqlQueryResponse response = run(requestWithManyWriters(query))) {
+            List<Object> summary = singleValue(getValuesList(response));
+            assertThat(summary.subList(0, 3), equalTo(List.of(600L, 300L, 300L)));
+            List<?> details = (List<?>) summary.get(3);
+            assertThat(details, hasSize(IntoStats.MAX_FAILURE_DETAILS));
+            for (Object detail : details) {
+                assertThat(detail.toString(), allOf(startsWith("[400] "), containsString("unmapped_col")));
+            }
+            // Writers on one node share their stats, so the stats of several nodes are only merged if writers ran on several nodes
+            assertThat(writerNodes(response), hasSize(greaterThan(1)));
+        }
+        assertReadBack("STATS c = COUNT(*), s = SUM(l)", List.of(List.of(300L, 90_000L)));
+    }
+
+    /** A request with several slices per shard and several drivers, instead of whatever the randomized pragmas pick. */
+    private static EsqlQueryRequest requestWithManyWriters(String query) {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query);
         request.profile(true);
-        // Several slices per shard and several drivers, instead of whatever the randomized pragmas pick
         request.pragmas(
             new QueryPragmas(
                 Settings.builder()
@@ -324,17 +421,26 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             )
         );
         request.acceptedPragmaRisks(true);
-        try (EsqlQueryResponse response = run(request)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(2000L, 2000L))));
-            long writers = response.profile()
-                .drivers()
-                .stream()
-                .filter(driver -> driver.description().equals(ComputeService.DATA_DESCRIPTION))
-                .filter(driver -> driver.operators().stream().anyMatch(op -> op.operator().contains("IntoOperator")))
-                .count();
-            assertThat(writers, greaterThan(1L));
-        }
-        assertReadBack("STATS c = COUNT(*) BY k | STATS groups = COUNT(*), rows = SUM(c)", List.of(List.of(2000L, 2000L)));
+        return request;
+    }
+
+    private static Set<String> writerNodes(EsqlQueryResponse response) {
+        return response.profile()
+            .drivers()
+            .stream()
+            .filter(driver -> driver.description().equals(ComputeService.DATA_DESCRIPTION))
+            .filter(driver -> driver.operators().stream().anyMatch(op -> op.operator().contains("IntoOperator")))
+            .map(driver -> driver.nodeName())
+            .collect(Collectors.toSet());
+    }
+
+    private static long countWriters(EsqlQueryResponse response) {
+        return response.profile()
+            .drivers()
+            .stream()
+            .filter(driver -> driver.description().equals(ComputeService.DATA_DESCRIPTION))
+            .filter(driver -> driver.operators().stream().anyMatch(op -> op.operator().contains("IntoOperator")))
+            .count();
     }
 
     public void testDestinationCannotAlsoBeRead() {
@@ -423,7 +529,12 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             });
         }
         try {
-            expectThrows(Exception.class, () -> run("FROM " + RETRY_SOURCE + " | KEEP k | INTO " + DESTINATION).close());
+            // The writer takes a whole page before it looks at the size of its bulk, so all rows in one page are one bulk, and there
+            // would be no second one to fail. The randomized pragmas can pick a page of any size, so pick a small one.
+            EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + RETRY_SOURCE + " | KEEP k | INTO " + DESTINATION);
+            request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.PAGE_SIZE.getKey(), 10).build()));
+            request.acceptedPragmaRisks(true);
+            expectThrows(Exception.class, () -> run(request).close());
             assertThat("the second bulk was reached", bulks.get(), greaterThan(1));
             assertThat(dataNodeRequests.get(), equalTo(1));
         } finally {
@@ -444,9 +555,68 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertThat(failed.getMessage(), containsString("unmapped_col"));
     }
 
+    public void testRefreshByDefaultMakesRowsVisible() {
+        disableDestinationRefresh();
+        assertInto("ROW k = [\"a\", \"b\"] | MV_EXPAND k", 2);
+        assertThat(countDestinationDocuments(), equalTo(2L));
+    }
+
+    public void testRefreshByDefaultMakesRowsFromSourceVisible() {
+        createSource();
+        disableDestinationRefresh();
+        assertInto("FROM " + SOURCE, 3);
+        assertThat(countDestinationDocuments(), equalTo(3L));
+    }
+
+    public void testRefreshFalseLeavesRowsInvisibleUntilRefreshed() {
+        disableDestinationRefresh();
+        assertRefreshFalseLeavesThreeRowsInvisibleUntilRefreshed("ROW k = [\"a\", \"b\", \"c\"] | MV_EXPAND k");
+    }
+
+    public void testRefreshFalseLeavesRowsFromSourceInvisibleUntilRefreshed() {
+        createSource();
+        disableDestinationRefresh();
+        assertRefreshFalseLeavesThreeRowsInvisibleUntilRefreshed("FROM " + SOURCE);
+    }
+
+    public void testRefreshSkipsAClosedNonWriteMemberOfTheDestinationAlias() {
+        String older = "dest-into-older";
+        String alias = "dest-into-alias";
+        assertAcked(indicesAdmin().prepareCreate(older).setSettings(batchIndexingSettings()).setMapping(MAPPING));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(older).alias(alias).writeIndex(false))
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(DESTINATION).alias(alias).writeIndex(true))
+        );
+        assertAcked(indicesAdmin().prepareClose(older));
+        disableDestinationRefresh();
+
+        assertIntoTarget("ROW k = [\"a\", \"b\"] | MV_EXPAND k", alias, 2);
+        assertThat("the write index was refreshed", countDestinationDocuments(), equalTo(2L));
+    }
+
     public void testIntoRunsOnCoordinatorWithoutDataNodeRequests() {
         assertThat(countDataNodeRequests(() -> assertInto("ROW k = [\"r1\", \"r2\"] | MV_EXPAND k", 2)), equalTo(0));
         assertReadBack("KEEP k | SORT k", List.of(List.of("r1"), List.of("r2")));
+    }
+
+    private void disableDestinationRefresh() {
+        assertAcked(indicesAdmin().prepareUpdateSettings(DESTINATION).setSettings(Settings.builder().put("index.refresh_interval", -1)));
+    }
+
+    private void assertRefreshFalseLeavesThreeRowsInvisibleUntilRefreshed(String producer) {
+        try (EsqlQueryResponse response = run(producer + " | INTO " + DESTINATION + " WITH {\"refresh\": false}")) {
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(3L, 3L, 0L, null))));
+        }
+        assertThat(countDestinationDocuments(), equalTo(0L));
+        refresh(DESTINATION);
+        assertThat(countDestinationDocuments(), equalTo(3L));
+    }
+
+    private long countDestinationDocuments() {
+        try (EsqlQueryResponse response = run("FROM " + DESTINATION + " | STATS c = COUNT(*)")) {
+            return (long) getValuesList(response).getFirst().getFirst();
+        }
     }
 
     private int countDataNodeRequests(Runnable action) {
@@ -551,10 +721,14 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     private void assertIntoTarget(String producer, String target, long rows) {
         try (EsqlQueryResponse response = run(producer + " | INTO " + target)) {
-            assertColumnNames(response.columns(), List.of("total", "created"));
-            assertColumnTypes(response.columns(), List.of("long", "long"));
-            assertThat(getValuesList(response), equalTo(List.of(List.of(rows, rows))));
+            assertIntoColumns(response);
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(rows, rows, 0L, null))));
         }
+    }
+
+    private static void assertIntoColumns(EsqlQueryResponse response) {
+        assertColumnNames(response.columns(), List.of("total", "created", "failures", "failure_details"));
+        assertColumnTypes(response.columns(), List.of("long", "long", "long", "keyword"));
     }
 
     private void assertReadBack(List<List<Object>> expected) {

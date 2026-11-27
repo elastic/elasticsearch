@@ -650,6 +650,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         TaskProvider<Task> bwcTaskProvider,
         BwcMode bwcMode
     ) {
+        // Evaluate isCi at configuration time so the task state does not capture the whole build parameter extension,
+        // which would be serialized into the configuration cache.
+        boolean isCi = buildParams.getCi();
         // Evaluate bwcMode at configuration time so the value is captured in the doFirst
         // action rather than the Project instance (which is not CC-serializable).
         bwcSetupExtension.bwcTask(bwcTaskName, c -> {
@@ -660,7 +663,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             } else {
                 c.getOutputs().files(expectedOutputFile);
             }
-            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
+            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> isCi == false);
             c.getArgs().add("-p");
             c.getArgs().add(artifact.projectPath());
             c.getArgs().add(artifact.assembleTaskName());

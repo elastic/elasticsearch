@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167544
+summary: Charge external planning memory to the per-query breaker
+type: enhancement

@@ -839,7 +839,8 @@ public class JobConfigProvider {
             effectiveConfig.getProjectRouting(),
             job.getDataDescription().getTimeField(),
             EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveConfig, job),
-            DatafeedConfig.isCPSAllowed(crossProjectModeDecider),
+            job.getAnalysisConfig().getBucketSpan(),
+            effectiveConfig.getFrequency(),
             listener,
             effectiveConfig.getId()
         );

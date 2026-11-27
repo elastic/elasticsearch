@@ -17,7 +17,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -35,6 +37,7 @@ import java.time.DateTimeException;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
+import java.util.function.IntToLongFunction;
 
 /**
  * The single source of truth for declared-type coercion on external datasets: which
@@ -371,6 +374,17 @@ public final class DeclaredTypeCoercions {
         if (source.areAllValuesNull()) {
             return blockFactory.newConstantNullBlock(positions);
         }
+        // INTEGER/LONG + a pure epoch format (epoch_second / epoch_millis) is an exact linear scale, already
+        // named by declaredEpochFormatScale. Scaling the primitive in place avoids boxing every cell and
+        // parsing String.valueOf(v) through the date formatter. UNSIGNED_LONG, DOUBLE, calendar formats and
+        // compound patterns (epoch_second||epoch_millis) stay on the boxed parse arm below. fusedInDecode is
+        // unchanged: a format-carrying whole-number column still defuses onto this method.
+        if ((from == DataType.INTEGER || from == DataType.LONG) && declaredFormat != null) {
+            Long scale = declaredEpochFormatScale(declaredFormat.pattern(), to);
+            if (scale != null) {
+                return castEpochIntegral(source, from, to, scale, blockFactory, columnName, warnings, failedPositionSink);
+            }
+        }
         Function<Object, Object> coercer = scalarCoercer(from, to, declaredFormat);
         IntFunction<Object> read = valueReader(source, from);
         boolean skipRow = failedPositionSink != null;
@@ -635,6 +649,8 @@ public final class DeclaredTypeCoercions {
                     // Whole-number source with a declared format: the format is the parse dialect / epoch unit,
                     // exactly as the text readers already treat it (NdJsonPageDecoder.decodeDatetimeValue,
                     // CsvFormatReader.tryParseDatetime): epoch_second reads seconds, yyyyMMdd reads 20260101.
+                    // INTEGER and LONG with a pure epoch format never reach here: castBlock scales them
+                    // arithmetically. UNSIGNED_LONG, calendar formats and compound patterns stay on this parse.
                     yield v -> parseDatetimeMillis(String.valueOf(v), declaredFormat);
                 }
                 // Whole-number source, no format: epoch-millis reinterpret; the mapper coercion supplies the range check.
@@ -657,6 +673,8 @@ public final class DeclaredTypeCoercions {
                         // The unit rule, same as the DATETIME arm: a declared format names the unit / parse
                         // dialect of the number, overriding the type's default. Without this a column declared
                         // {date_nanos, format: epoch_second} would silently reinterpret seconds as nanos.
+                        // INTEGER and LONG with a pure epoch format never reach here: castBlock scales them
+                        // arithmetically. UNSIGNED_LONG and calendar / compound formats stay on this parse.
                         yield v -> EsqlDataTypeConverter.dateNanosToLong(String.valueOf(v), declaredFormat);
                     }
                     // No format: the number is epoch millis (the unit rule), widened to nanos exactly like a
@@ -1256,5 +1274,243 @@ public final class DeclaredTypeCoercions {
         // A format is only legal on a declared date/date_nanos (DeclaredSchemaValidator.validateFormat), so any
         // other declared type never reaches a scale question.
         return null;
+    }
+
+    /**
+     * Scales an INTEGER or LONG block through a pure epoch format without boxing or parsing.
+     * Range is checked against the raw input <em>before</em> multiplying so an overflowing
+     * {@code Long.MAX_VALUE} epoch-second cannot escape as {@link ArithmeticException} and abort
+     * the page; the failure is {@link IllegalArgumentException} and rides {@link #onCoercionFailure}
+     * like every other per-cell error.
+     */
+    private static Block castEpochIntegral(
+        Block source,
+        DataType from,
+        DataType to,
+        long scale,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink
+    ) {
+        long minRaw = epochMinRaw(to, scale);
+        long maxRaw = epochMaxRaw(to, scale);
+        if (from == DataType.INTEGER) {
+            IntBlock ints = (IntBlock) source;
+            IntVector vector = ints.asVector();
+            if (vector != null) {
+                return castEpochDense(
+                    i -> vector.getInt(i),
+                    source.getPositionCount(),
+                    scale,
+                    minRaw,
+                    maxRaw,
+                    from,
+                    to,
+                    blockFactory,
+                    columnName,
+                    warnings,
+                    failedPositionSink
+                );
+            }
+            return castEpochPositions(
+                ints,
+                i -> ints.getInt(i),
+                scale,
+                minRaw,
+                maxRaw,
+                from,
+                to,
+                blockFactory,
+                columnName,
+                warnings,
+                failedPositionSink
+            );
+        }
+        LongBlock longs = (LongBlock) source;
+        LongVector vector = longs.asVector();
+        if (vector != null) {
+            return castEpochDense(
+                vector::getLong,
+                source.getPositionCount(),
+                scale,
+                minRaw,
+                maxRaw,
+                from,
+                to,
+                blockFactory,
+                columnName,
+                warnings,
+                failedPositionSink
+            );
+        }
+        return castEpochPositions(
+            longs,
+            i -> longs.getLong(i),
+            scale,
+            minRaw,
+            maxRaw,
+            from,
+            to,
+            blockFactory,
+            columnName,
+            warnings,
+            failedPositionSink
+        );
+    }
+
+    private static Block castEpochDense(
+        IntToLongFunction readRaw,
+        int positions,
+        long scale,
+        long minRaw,
+        long maxRaw,
+        DataType from,
+        DataType to,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink
+    ) {
+        boolean skipRow = failedPositionSink != null;
+        try (LongBlock.Builder builder = (LongBlock.Builder) builderFor(to, blockFactory, positions)) {
+            for (int pos = 0; pos < positions; pos++) {
+                try {
+                    builder.appendLong(scaleEpoch(readRaw.applyAsLong(pos), scale, minRaw, maxRaw));
+                } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
+                    onCoercionFailure(columnName, from, to, e, warnings);
+                    if (skipRow) failedPositionSink.accept(pos);
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private static Block castEpochPositions(
+        Block source,
+        IntToLongFunction readRaw,
+        long scale,
+        long minRaw,
+        long maxRaw,
+        DataType from,
+        DataType to,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink
+    ) {
+        int positions = source.getPositionCount();
+        boolean skipRow = failedPositionSink != null;
+        try (LongBlock.Builder builder = (LongBlock.Builder) builderFor(to, blockFactory, positions)) {
+            for (int pos = 0; pos < positions; pos++) {
+                int count = source.getValueCount(pos);
+                if (source.isNull(pos) || count == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int first = source.getFirstValueIndex(pos);
+                if (count == 1) {
+                    try {
+                        builder.appendLong(scaleEpoch(readRaw.applyAsLong(first), scale, minRaw, maxRaw));
+                    } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
+                        onCoercionFailure(columnName, from, to, e, warnings);
+                        if (skipRow) failedPositionSink.accept(pos);
+                        builder.appendNull();
+                    }
+                } else {
+                    boolean open = false;
+                    for (int v = 0; v < count; v++) {
+                        long scaled;
+                        try {
+                            scaled = scaleEpoch(readRaw.applyAsLong(first + v), scale, minRaw, maxRaw);
+                        } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
+                            if (skipRow) {
+                                onCoercionFailure(columnName, from, to, e, warnings);
+                                failedPositionSink.accept(pos);
+                                break;
+                            }
+                            onCoercionFailure(columnName, from, to, e, warnings, true);
+                            continue;
+                        }
+                        if (open == false) {
+                            builder.beginPositionEntry();
+                            open = true;
+                        }
+                        builder.appendLong(scaled);
+                    }
+                    if (open) {
+                        builder.endPositionEntry();
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Inclusive minimum raw tick that {@code raw * scale} can store in {@code to}. DATE_NANOS rejects
+     * pre-epoch (the {@link DateUtils#toLong} / {@code TO_DATE_NANOS} floor). DATETIME identity
+     * ({@code epoch_millis}) admits every long; {@code epoch_second} is bounded so {@code * 1000}
+     * cannot overflow.
+     */
+    private static long epochMinRaw(DataType to, long scale) {
+        if (to == DataType.DATE_NANOS) {
+            return 0L;
+        }
+        if (scale == 1L) {
+            // Identity. Long.MIN_VALUE is a valid epoch-millis instant; the string parser cannot
+            // round-trip it (unsigned magnitude is Long.MAX_VALUE+1), so this path is strictly more
+            // complete than parseDatetimeMillis(String.valueOf(Long.MIN_VALUE)).
+            return Long.MIN_VALUE;
+        }
+        return Math.ceilDiv(Long.MIN_VALUE, scale);
+    }
+
+    /**
+     * Inclusive maximum raw tick that {@code raw * scale} can store in {@code to}. DATE_NANOS is
+     * capped at {@link DateUtils#MAX_NANOSECOND} (year 2262); DATETIME {@code epoch_second} at the
+     * last seconds value whose millis still fit in a long.
+     */
+    private static long epochMaxRaw(DataType to, long scale) {
+        if (to == DataType.DATE_NANOS) {
+            return DateUtils.MAX_NANOSECOND / scale;
+        }
+        if (scale == 1L) {
+            return Long.MAX_VALUE;
+        }
+        return Long.MAX_VALUE / scale;
+    }
+
+    /** Range-check {@code raw} then multiply. Never {@link Math#multiplyExact}: overflow is a per-cell IAE. */
+    private static long scaleEpoch(long raw, long scale, long minRaw, long maxRaw) {
+        if (raw < minRaw || raw > maxRaw) {
+            throw new IllegalArgumentException("epoch value [" + raw + "] is out of range for the declared date type");
+        }
+        return raw * scale;
+    }
+
+    /**
+     * Footer-stats twin of {@link #scaleEpoch}: range-check {@code raw} against the same
+     * {@link #epochMinRaw}/{@link #epochMaxRaw} bounds {@link #castEpochIntegral} uses, then multiply.
+     * Returns {@code null} when the raw tick cannot be stored in {@code to} — callers poison rather than
+     * serving a truncated extremum. Does not use {@link #rawStatToDecoded}: that {@code multiplyExact}s and
+     * DATE_NANOS decode rejects pre-epoch ({@code epochMinRaw} is 0) while a negative raw second would
+     * still decode-fail in the scan.
+     *
+     * @param raw   the file's physical min or max tick (INTEGER/LONG footer value, already {@code longValue()}d)
+     * @param to    declared {@code datetime} or {@code date_nanos}
+     * @param scale units-per-tick from {@link #declaredEpochFormatScale}
+     */
+    @Nullable
+    public static Long scaleEpochExtremum(long raw, DataType to, long scale) {
+        long minRaw = epochMinRaw(to, scale);
+        long maxRaw = epochMaxRaw(to, scale);
+        if (raw < minRaw || raw > maxRaw) {
+            return null;
+        }
+        return raw * scale;
     }
 }

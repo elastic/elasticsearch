@@ -115,7 +115,6 @@ public class EqlGenerator implements CommandGenerator {
         List<String> numerics,
         List<String> booleans,
         List<String> ips,
-        boolean hasSyntheticName,
         boolean allConvertible
     ) {}
 
@@ -240,7 +239,6 @@ public class EqlGenerator implements CommandGenerator {
         List<String> numerics = new ArrayList<>();
         List<String> booleans = new ArrayList<>();
         List<String> ips = new ArrayList<>();
-        boolean hasSyntheticName = false;
         boolean allConvertible = true;
         int sourceIndex = columnIndex(sample, SOURCE);
         for (int c = 0; c < sample.columns().size(); c++) {
@@ -250,7 +248,6 @@ public class EqlGenerator implements CommandGenerator {
             if (c == sourceIndex) {
                 continue;
             }
-            hasSyntheticName |= SYNTHETIC_COLUMNS.contains(name);
             allConvertible &= CONVERTIBLE_TYPES.contains(type);
             if (isEqlFieldName(name) == false) {
                 continue;
@@ -282,18 +279,7 @@ public class EqlGenerator implements CommandGenerator {
                 ips.add(name);
             }
         }
-        return new Fields(
-            timestamps,
-            sequenceTimestamps,
-            keys,
-            tiebreakers,
-            keywords,
-            numerics,
-            booleans,
-            ips,
-            hasSyntheticName,
-            allConvertible
-        );
+        return new Fields(timestamps, sequenceTimestamps, keys, tiebreakers, keywords, numerics, booleans, ips, allConvertible);
     }
 
     private static int columnIndex(IndexSample sample, String name) {
@@ -376,10 +362,10 @@ public class EqlGenerator implements CommandGenerator {
         if (fields.timestamps().isEmpty() == false) {
             modes.add(Mode.EVENT);
         }
-        if (fields.sequenceTimestamps().isEmpty() == false && fields.hasSyntheticName() == false) {
+        if (fields.sequenceTimestamps().isEmpty() == false) {
             modes.add(Mode.SEQUENCE);
         }
-        if (fields.keys().isEmpty() == false && fields.hasSyntheticName() == false) {
+        if (fields.keys().isEmpty() == false) {
             modes.add(Mode.SAMPLE);
         }
         if (modes.isEmpty()) {

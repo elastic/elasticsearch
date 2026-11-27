@@ -32,10 +32,12 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -56,8 +58,11 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
@@ -94,7 +99,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     private CoordinationState.PersistedState newGatewayPersistedState() {
-        final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
+        final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode, null);
         gateway.start(settings, nodeEnvironment, xContentRegistry());
         final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
         assertThat(persistedState, instanceOf(GatewayMetaState.LucenePersistedState.class));
@@ -379,11 +384,22 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 .put(nonMasterNode())
                 .put(Node.NODE_NAME_SETTING.getKey(), "test")
                 .build();
-            final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
+            TestThreadPool threadPool = new TestThreadPool("testMarkAcceptedConfigAsCommittedOnDataOnlyNode");
+            cleanup.add(() -> ThreadPool.terminate(threadPool, SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+            // a single thread, as in production, tracked so that we can wait for all the async writes to complete
+            final ExecutorService asyncWriteExecutor = EsExecutors.newFixed(
+                "async-persisted-state-writes",
+                1,
+                1,
+                EsExecutors.daemonThreadFactory("test", "async-persisted-state-writes"),
+                threadPool.getThreadContext(),
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            );
+            cleanup.add(() -> ThreadPool.terminate(asyncWriteExecutor, SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+            final TrackingExecutor trackingExecutor = new TrackingExecutor(asyncWriteExecutor);
+            final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode, trackingExecutor);
             cleanup.add(gateway);
             final TransportService transportService = mock(TransportService.class);
-            TestThreadPool threadPool = new TestThreadPool("testMarkAcceptedConfigAsCommittedOnDataOnlyNode");
-            cleanup.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             when(transportService.getThreadPool()).thenReturn(threadPool);
             ClusterService clusterService = mock(ClusterService.class);
             when(clusterService.getClusterSettings()).thenReturn(
@@ -422,7 +438,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             );
             persistedState.setCurrentTerm(state.term());
             persistedState.setLastAcceptedState(state);
-            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()), 30, TimeUnit.SECONDS);
+            trackingExecutor.awaitAllTasksComplete();
 
             assertThat(
                 persistedState.getLastAcceptedState().getLastAcceptedConfiguration(),
@@ -440,7 +456,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             );
 
             persistedState.markLastAcceptedStateAsCommitted();
-            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()), 30, TimeUnit.SECONDS);
+            trackingExecutor.awaitAllTasksComplete();
 
             CoordinationMetadata expectedCoordinationMetadata = CoordinationMetadata.builder(coordinationMetadata)
                 .lastCommittedConfiguration(coordinationMetadata.getLastAcceptedConfiguration())
@@ -494,7 +510,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             assertTrue(wroteState); // must write it at least once
             assertEquals(currentTerm, persistedState.getCurrentTerm());
             assertClusterStateEqual(state, persistedState.getLastAcceptedState());
-            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()), 30, TimeUnit.SECONDS);
+            trackingExecutor.awaitAllTasksComplete();
 
             gateway.close();
             assertTrue(cleanup.remove(gateway));
@@ -509,6 +525,73 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             }
         } finally {
             IOUtils.close(cleanup);
+        }
+    }
+
+    /**
+     * Runs tasks on a delegate executor, tracking how many have been submitted but not yet completed, and checking that there is never
+     * more than one task submitted that has not yet started to run.
+     */
+    private static class TrackingExecutor extends AbstractExecutorService {
+        private final ExecutorService delegate;
+        private final AtomicInteger queuedTasks = new AtomicInteger();
+        private final AtomicInteger incompleteTasks = new AtomicInteger();
+
+        @SuppressForbidden(reason = "delegates to an executor that properly rethrows errors")
+        TrackingExecutor(ExecutorService delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            assertEquals("update task already queued", 0, queuedTasks.getAndIncrement());
+            incompleteTasks.incrementAndGet();
+            boolean submitted = false;
+            try {
+                delegate.execute(() -> {
+                    queuedTasks.decrementAndGet();
+                    try {
+                        command.run();
+                    } finally {
+                        incompleteTasks.decrementAndGet();
+                    }
+                });
+                submitted = true;
+            } finally {
+                if (submitted == false) {
+                    queuedTasks.decrementAndGet();
+                    incompleteTasks.decrementAndGet();
+                }
+            }
+        }
+
+        void awaitAllTasksComplete() throws Exception {
+            assertBusy(() -> assertEquals("incomplete tasks", 0, incompleteTasks.get()), 30, TimeUnit.SECONDS);
+        }
+
+        @Override
+        public void shutdown() {
+            delegate.shutdown();
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            return delegate.shutdownNow();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return delegate.isShutdown();
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return delegate.isTerminated();
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+            return delegate.awaitTermination(timeout, unit);
         }
     }
 

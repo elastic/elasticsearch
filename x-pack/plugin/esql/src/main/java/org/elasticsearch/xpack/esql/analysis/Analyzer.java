@@ -160,7 +160,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
@@ -187,6 +186,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
@@ -203,6 +203,7 @@ import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
@@ -575,17 +576,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
             resolutions.addAll(context.lookupResolution().values());
-            Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
-            Map<NameId, Attribute> datasetColumns = ColumnSemantics.datasetColumns(describe.child());
-            Set<NameId> timeColumns = ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns);
             return describe.withTable(
-                describe.describe(
-                    semantics,
-                    datasetColumns,
-                    ColumnUnits.collect(describe.child(), semantics),
-                    timeColumns,
-                    ColumnIntervals.collect(describe.child(), context.configuration().newFoldContext())
-                )
+                describe.describe(ColumnDescription.collect(describe.child(), resolutions, context.configuration().newFoldContext()))
             );
         }
 
@@ -1211,10 +1203,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             List<Attribute> mapped = mappingAsAttributes(plan.source(), resolution.get().mapping());
             List<Attribute> synthetics = EqlRelation.syntheticColumns(plan.source(), plan.mode());
-            // A mapped field whose name collides with a synthetic (_sequence/_sequence_stage/join_keys) or a declared
-            // metadata column would produce two output columns of the same name. Values stay correct (the converter
-            // dispatches by attribute class, not name), but a downstream KEEP/SORT on that name is ambiguous, so fail
-            // loud here instead of emitting an ambiguous schema.
             Set<String> reserved = new HashSet<>();
             for (Attribute synthetic : synthetics) {
                 reserved.add(synthetic.name());
@@ -1222,18 +1210,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (NamedExpression metadata : plan.metadataFields()) {
                 reserved.add(metadata.name());
             }
-            for (Attribute attr : mapped) {
-                if (reserved.contains(attr.name())) {
-                    return unresolvedWith(
-                        plan,
-                        "mapped field [" + attr.name() + "] collides with the EQL command's reserved column of the same name"
-                    );
-                }
-            }
             List<Attribute> output = new ArrayList<>(mapped.size() + synthetics.size() + plan.metadataFields().size());
             output.addAll(synthetics);
             for (Attribute attr : mapped) {
-                output.add(gateUnconvertibleType(plan.source(), attr));
+                if (reserved.contains(attr.name())) {
+                    context.deferredHeaderWarnings().add(shadowedByEqlColumnWarning(plan.source(), attr.name()));
+                } else {
+                    output.add(gateUnconvertibleType(plan.source(), attr));
+                }
             }
             // Metadata columns come last (matching FROM) and must NOT pass through gateUnconvertibleType — _source is
             // DataType.SOURCE, which is not convertible, so gating would wrongly turn it into an unsupported column.
@@ -1273,6 +1257,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.metadataFields(),
                     message
                 );
+        }
+
+        private static String shadowedByEqlColumnWarning(Source source, String field) {
+            String location = source.viewName() == null
+                ? Strings.format("Line %s:%s: ", source.lineNumber(), source.columnNumber())
+                : Strings.format("Line %s:%s (in view [%s]): ", source.lineNumber(), source.columnNumber(), source.viewName());
+            return Strings.format(
+                "%sMapped field [%s] is shadowed by the EQL command's column of the same name; "
+                    + "read it with FROM, or with JSON_EXTRACT on METADATA _source if the document stores it",
+                location,
+                field
+            );
         }
 
         /**
@@ -4109,12 +4105,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    /**
+     * The {@code DESCRIBE} that {@code plan} ends with, followed only by commands that don't add rows and no {@code LIMIT},
+     * or {@code null}. Such a plan returns at most one row per column of the input of the {@code DESCRIBE}.
+     */
+    @Nullable
+    private static Describe boundingDescribe(LogicalPlan plan) {
+        while (plan instanceof Project
+            || plan instanceof Eval
+            || plan instanceof Filter
+            || plan instanceof OrderBy
+            || plan instanceof RegexExtract) {
+            plan = ((UnaryPlan) plan).child();
+        }
+        return plan instanceof Describe describe ? describe : null;
+    }
+
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             if (logicalPlan instanceof Into) {
                 // INTO returns one stats row, so the default 1000 cap must not truncate the rows it writes.
                 return logicalPlan;
+            }
+            Describe describe = boundingDescribe(logicalPlan);
+            if (describe != null) {
+                // DESCRIBE returns one row per column, so a lower limit would only drop columns.
+                var source = logicalPlan.source();
+                return new Limit(source, new Literal(source, describe.child().output().size(), DataType.INTEGER), logicalPlan);
             }
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
@@ -4791,7 +4809,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <p>There are three cases to handle.
          * <ol>
          *   <li>If the field has unresolved type conflicts ({@link TypeConflictedField}), we try to build a {@link UnionTypeEsField} with
-         *   per-type conversions.</li>
+         *   per-type conversions. The conversions run while loading the field, so besides the field they can only have constant
+         *   arguments, like the base of {@code TO_LONG(x, 16)}; otherwise, or if an argument is invalid for one of the types, we return an
+         *   {@link UnresolvedAttribute} with the reason.</li>
          *   <li>If the field was already implicitly cast to a union type ({@link UnionTypeEsField}), rewrap with the explicit cast, or
          *   return an {@link UnresolvedAttribute} if the cast cannot consume one of the field's original mapped types.</li>
          *   <li>If the convert's input is itself a convert, e.g.: {@code foo::long::double}, recurse and resolve the inner one first.</li>
@@ -4810,6 +4830,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // For to_text on a type-conflicted field, the analyzer option is rejected here in the same way the
                     // post-analysis verifier rejects it on a single-typed field.
                     return new UnresolvedAttribute(fa.source(), fa.name(), ToText.analyzerOnMappedFieldMessage(fa.name()));
+                }
+                if (convertExpression.childrenResolved() == false) {
+                    // An argument that doesn't resolve, like an unknown column in the base of TO_LONG, is reported by itself, instead of
+                    // by the conversion of the field.
+                    return convertExpression;
                 }
                 // The field has an unresolved type conflict (TypeConflictedField), so we attempt to create UnionTypeEsField with
                 // index-specific conversions
@@ -4838,6 +4863,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved UnionTypeEsField
                 if (typeResolutions.size() == tcf.getTypesToIndices().size()) {
+                    for (Expression conversion : typeResolutions.values()) {
+                        String unusable = unusableAsFieldConversion(conversion, convertExpression);
+                        if (unusable != null) {
+                            return new UnresolvedAttribute(fa.source(), fa.name(), unusable);
+                        }
+                    }
                     boolean loadUnmappedFields = context.unmappedResolution().loadsUnmappedFields();
                     if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, tcf, supportedTypes)) {
                         return convertExpression;
@@ -4896,11 +4927,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                     return createIfDoesNotAlreadyExist(fa, rewrapped, unionFieldAttributes);
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                    return convertExpression.replaceChildren(
-                        singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, context))
-                    );
+                    // Only the input is replaced, so the other arguments, like the options of TO_IP, are kept and validated later.
+                    List<Expression> children = new ArrayList<>(convertExpression.children());
+                    children.set(0, resolveConvertFunction(subConvert, unionFieldAttributes, context));
+                    return convertExpression.replaceChildren(children);
                 }
             return convertExpression;
+        }
+
+        /**
+         * Why the conversion of one type of a union can't be used to load the field, or {@code null} if it can. The conversion is
+         * evaluated by {@code ValuesSourceReaderOperator}, where the only attribute it can read is the field being loaded, so its other
+         * arguments have to be constants.
+         */
+        private static @Nullable String unusableAsFieldConversion(Expression conversion, Expression original) {
+            if (conversion.children().size() == 1) {
+                // Only the field. Not looking at it further also avoids caching the references of every conversion of the union, which
+                // are retained by the field in the plan and add up for fields with many types.
+                return null;
+            }
+            if (conversion.typeResolved().unresolved()) {
+                // An argument that is invalid for this type, like a non-numeric base. Surrogates are not substituted in this case.
+                return conversion.typeResolved().message();
+            }
+            for (int i = 1; i < conversion.children().size(); i++) {
+                if (conversion.children().get(i).foldable() == false) {
+                    return "["
+                        + original.sourceText()
+                        + "] can't convert a field with multiple types if its other arguments are not constants, "
+                        + "as the conversion happens when loading the field";
+                }
+            }
+            return null;
         }
 
         private static boolean skipMultiTypeForPotentiallyUnmappedKeyword(
@@ -5039,7 +5097,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression fn = (Expression) convert;
             List<Expression> children = new ArrayList<>(fn.children());
             children.set(0, resolvedAttr);
+            for (int i = 1; i < children.size(); i++) {
+                // The conversion is serialized with the field, so the surrogates in its constant arguments have to be resolved too
+                children.set(i, children.get(i).transformUp(Expression.class, SubstituteSurrogateExpressions::rule));
+            }
             Expression e = ((Expression) convert).replaceChildren(children);
+            if (e.children().size() > 1 && e.typeResolved().unresolved()) {
+                // Only with other arguments, like the options of TO_IP or the base of TO_LONG: a surrogate can only be substituted when
+                // they are valid. The caller reports the error. Conversions of the field alone don't resolve for every type they
+                // convert, like small numerics, which are widened when converting.
+                return e;
+            }
             /*
              * Resolve surrogates immediately because these type specific conversions are serialized
              * and SurrogateExpressions are expected to be resolved on the coordinating node. At least,

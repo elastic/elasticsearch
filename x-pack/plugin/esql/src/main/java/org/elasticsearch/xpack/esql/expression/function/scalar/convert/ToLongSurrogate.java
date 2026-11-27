@@ -240,7 +240,14 @@ public class ToLongSurrogate extends EsqlScalarFunction
 
     @Override
     public Set<DataType> supportedTypes() {
-        return ToLong.EVALUATORS.keySet();
+        // With a base only strings can be converted, see resolveType.
+        return base == null ? ToLong.EVALUATORS.keySet() : Set.of(DataType.KEYWORD, DataType.TEXT);
+    }
+
+    @Override
+    public boolean isNoop() {
+        // A base is not an input of a conversion from long, it's an error, so dropping it silently is wrong.
+        return base == null && ConvertFunction.super.isNoop();
     }
 
 }

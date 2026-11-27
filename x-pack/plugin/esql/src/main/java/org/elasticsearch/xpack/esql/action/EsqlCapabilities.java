@@ -5120,6 +5120,26 @@ public class EsqlCapabilities {
          */
         FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
+        /**
+         * The type conflict error reports the right number of indices for each type when {@code unmapped_fields="load"} is set and the
+         * field is missing from some indices, as it does without that setting.
+         * <p>
+         * Before, the index names were shortened twice, so the error listed the placeholder {@code ...} as if it were an index and the
+         * "and [N] other indices" count was too low. For example, {@code [long] in [..., l1, l2] and [1] other index} instead of
+         * {@code [long] in [l1, l2, l3] and [2] other indices}.
+         */
+        PARTIALLY_UNMAPPED_CONFLICT_INDEX_COUNT,
+
+        /**
+         * Conversions of a union type (a field mapped to different types across indices) keep and validate their other arguments.
+         * {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)} on a field mapped as keyword and text keep the base, instead of
+         * failing. The options of {@code TO_IP(x, {...})} are validated, including when {@code x} is converted first, as in
+         * {@code x::keyword}. An argument that is invalid for one of the types, or a base that isn't a constant, is a verification
+         * error. Older nodes failed with an internal server error, silently dropped these arguments, or reported invalid options
+         * without the position of the call.
+         */
+        UNION_TYPES_CONVERSION_WITH_BASE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

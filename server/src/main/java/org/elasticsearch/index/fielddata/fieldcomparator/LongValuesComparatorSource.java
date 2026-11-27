@@ -266,7 +266,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         final int last = context.reader().maxDoc() - 1;
         if (indexFieldData != null) {
             final SortedNumericLongValues values = indexFieldData.load(context).getLongValues();
-            return SortedNumericLongValues.unwrapSingleton(values) != null && values.advanceExact(last);
+            return values.isSingleton() && values.advanceExact(last);
         }
         final NumericDocValues values = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), field));
         return values != null && values.advanceExact(last);

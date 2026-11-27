@@ -404,18 +404,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Footer rescale is parquet/orc only. Text harvests, first_file_wins files without a native-type
-     * snapshot, and non-integral inferred types stay poisoned.
+     * snapshot, and non-integral inferred types stay poisoned. A string epoch sibling does not block
+     * a LONG epoch column.
      */
-    public void testCanRescaleDeclaredEpochGates() {
+    public void testRescaleableEpochScalesGates() {
         DeclaredReadSpec spec = DeclaredReadSpec.of(
             Map.of("@timestamp", "start"),
             Map.of("@timestamp", "epoch_second"),
             Set.of("@timestamp")
         );
-        Map<String, SourceStatisticsSerializer.EpochScale> scales = Map.of(
-            "@timestamp",
-            new SourceStatisticsSerializer.EpochScale(DataType.DATETIME, 1_000L)
-        );
+        SourceStatisticsSerializer.EpochScale millis = new SourceStatisticsSerializer.EpochScale(DataType.DATETIME, 1_000L);
+        Map<String, SourceStatisticsSerializer.EpochScale> scales = Map.of("@timestamp", millis);
         StoragePath a = StoragePath.of("s3://b/a.parquet");
         StoragePath b = StoragePath.of("s3://b/b.parquet");
         ExternalSchema schema = new ExternalSchema(List.of(attr("start", DataType.LONG)));
@@ -432,18 +431,38 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Map.of("start", DataType.BOOLEAN)
         );
         SchemaReconciliation.FileSchemaInfo unknown = new SchemaReconciliation.FileSchemaInfo(schema, null, null, null);
-        assertTrue(ExternalSourceResolver.canRescaleDeclaredEpoch(true, false, Map.of(a, longInfo), spec, scales));
-        assertFalse(
+        assertEquals(
+            Set.of("@timestamp"),
+            ExternalSourceResolver.rescaleableEpochScales(true, false, Map.of(a, longInfo), spec, scales).keySet()
+        );
+        assertTrue(
             "csv harvest is already in the declared unit",
-            ExternalSourceResolver.canRescaleDeclaredEpoch(false, false, Map.of(a, longInfo), spec, scales)
+            ExternalSourceResolver.rescaleableEpochScales(false, false, Map.of(a, longInfo), spec, scales).isEmpty()
         );
-        assertFalse(
+        assertTrue(
             "first_file_wins sibling without a native-type snapshot",
-            ExternalSourceResolver.canRescaleDeclaredEpoch(true, true, Map.of(a, longInfo, b, unknown), spec, scales)
+            ExternalSourceResolver.rescaleableEpochScales(true, true, Map.of(a, longInfo, b, unknown), spec, scales).isEmpty()
         );
-        assertFalse(
+        assertTrue(
             "BOOLEAN sibling is not a linear epoch map",
-            ExternalSourceResolver.canRescaleDeclaredEpoch(true, false, Map.of(a, longInfo, b, boolInfo), spec, scales)
+            ExternalSourceResolver.rescaleableEpochScales(true, false, Map.of(a, longInfo, b, boolInfo), spec, scales).isEmpty()
+        );
+
+        DeclaredReadSpec mixedSpec = DeclaredReadSpec.of(
+            Map.of("@timestamp", "start", "event", "day"),
+            Map.of("@timestamp", "epoch_second", "event", "epoch_second"),
+            Set.of("@timestamp", "event")
+        );
+        Map<String, SourceStatisticsSerializer.EpochScale> mixedScales = Map.of("@timestamp", millis, "event", millis);
+        SchemaReconciliation.FileSchemaInfo mixedInfo = new SchemaReconciliation.FileSchemaInfo(
+            schema,
+            null,
+            null,
+            Map.of("start", DataType.LONG, "day", DataType.KEYWORD)
+        );
+        assertEquals(
+            Set.of("@timestamp"),
+            ExternalSourceResolver.rescaleableEpochScales(true, false, Map.of(a, mixedInfo), mixedSpec, mixedScales).keySet()
         );
     }
 

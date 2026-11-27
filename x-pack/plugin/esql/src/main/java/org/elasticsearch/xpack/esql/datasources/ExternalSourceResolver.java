@@ -5757,10 +5757,12 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Footer epoch rescale is parquet/orc only (raw ticks). A first_file_wins sibling without a native-type
-     * snapshot, or any file whose inferred type is not INTEGER/LONG, keeps the column poisoned.
+     * Footer epoch scales that are safe to unpoison: parquet/orc raw ticks whose inferred type is
+     * INTEGER/LONG on every file that has a snapshot. Text harvests, a first_file_wins sibling without
+     * native types, and non-integral physical types stay out (those columns remain poisoned). Per column:
+     * a string {@code epoch_second} sibling does not block a LONG one.
      */
-    static boolean canRescaleDeclaredEpoch(
+    static Map<String, SourceStatisticsSerializer.EpochScale> rescaleableEpochScales(
         boolean fileTyped,
         boolean firstFileWinsMultiFile,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
@@ -5768,25 +5770,28 @@ public class ExternalSourceResolver {
         Map<String, SourceStatisticsSerializer.EpochScale> epochScales
     ) {
         if (fileTyped == false || epochScales == null || epochScales.isEmpty() || schemaMap == null || schemaMap.isEmpty()) {
-            return false;
+            return Map.of();
         }
+        for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
+            if (info.inferredTypes() == null && firstFileWinsMultiFile) {
+                return Map.of();
+            }
+        }
+        Map<String, SourceStatisticsSerializer.EpochScale> eligible = new HashMap<>(epochScales);
         for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
             Map<String, DataType> fileTypes = info.inferredTypes();
             if (fileTypes == null) {
-                if (firstFileWinsMultiFile) {
-                    return false;
-                }
                 continue;
             }
             for (String logical : epochScales.keySet()) {
                 String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
                 DataType inferred = fileTypes.get(physical);
                 if (inferred != null && inferred != DataType.LONG && inferred != DataType.INTEGER) {
-                    return false;
+                    eligible.remove(logical);
                 }
             }
         }
-        return true;
+        return eligible.isEmpty() ? Map.of() : Map.copyOf(eligible);
     }
 
     /**
@@ -6024,18 +6029,19 @@ public class ExternalSourceResolver {
         Map<String, Object> statsForOverlay = servableStats;
         // Footer ticks only: text-reader harvests already hold declared-unit values (and stamp a matching
         // read-config), so rescale would multiply twice. Skip also when a first_file_wins sibling has no
-        // native-type snapshot, or any file's inferred type is not INTEGER/LONG.
-        if (canRescaleDeclaredEpoch(
+        // native-type snapshot. Non-integral physical types are dropped per column, not for the dataset.
+        Map<String, SourceStatisticsSerializer.EpochScale> rescaleable = rescaleableEpochScales(
             fileTyped,
             anchorPinnedFirstFileWins && overlaidSchemaMap.size() > 1,
             overlaidSchemaMap,
             declaredReadSpec,
             epochScales
-        )) {
+        );
+        if (rescaleable.isEmpty() == false) {
             SourceStatisticsSerializer.EpochRescale rescale = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
                 servableStats,
                 physicalToLogical,
-                epochScales,
+                rescaleable,
                 inferredTypes
             );
             poisonColumns.removeAll(rescale.unpoisoned());

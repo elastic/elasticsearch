@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.coordination.JoinAttributeBarrier;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
@@ -112,6 +113,7 @@ public class DiscoveryModule extends AbstractModule {
         ClusterService clusterService
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
+        final List<JoinAttributeBarrier> joinAttributeBarriers = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedSeedHostsProvider(settings, transportService));
         hostProviders.put("file", () -> new FileBasedSeedHostsProvider(configFile));
@@ -129,6 +131,10 @@ public class DiscoveryModule extends AbstractModule {
             BiConsumer<DiscoveryNode, ClusterState> joinValidator = plugin.getJoinValidator();
             if (joinValidator != null) {
                 joinValidators.add(joinValidator);
+            }
+            JoinAttributeBarrier joinAttributeBarrier = plugin.getJoinAttributeBarrier();
+            if (joinAttributeBarrier != null) {
+                joinAttributeBarriers.add(joinAttributeBarrier);
             }
             plugin.getElectionStrategies().forEach((key, value) -> {
                 if (electionStrategies.put(key, value) != null) {
@@ -187,6 +193,7 @@ public class DiscoveryModule extends AbstractModule {
                 seedHostsProvider,
                 clusterApplier,
                 joinValidators,
+                joinAttributeBarriers,
                 new Random(Randomness.get().nextLong()),
                 rerouteService,
                 electionStrategy,

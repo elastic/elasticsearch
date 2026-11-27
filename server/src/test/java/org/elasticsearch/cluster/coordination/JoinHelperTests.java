@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -93,7 +94,24 @@ public class JoinHelperTests extends ESTestCase {
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(List.of()),
+            List.of(new JoinAttributeBarrier() {
+                @Override
+                public Set<String> joinAttributes() {
+                    return Set.of("shared", "first");
+                }
+
+                @Override
+                public void check(DiscoveryNode node, Set<String> joinAttributes, ClusterState state) {}
+            }, new JoinAttributeBarrier() {
+                @Override
+                public Set<String> joinAttributes() {
+                    return Set.of("shared", "other");
+                }
+
+                @Override
+                public void check(DiscoveryNode node, Set<String> joinAttributes, ClusterState state) {}
+            })
         );
         transportService.start();
 
@@ -112,6 +130,7 @@ public class JoinHelperTests extends ESTestCase {
         assertThat(capturedRequests1.length, equalTo(1));
         CapturedRequest capturedRequest1 = capturedRequests1[0];
         assertEquals(node1, capturedRequest1.node());
+        assertEquals(Set.of("shared", "first", "other"), ((JoinRequest) capturedRequest1.request()).getJoinAttributes());
 
         assertTrue(joinHelper.isJoinPending());
         final var join1Term = optionalJoin1.stream().mapToLong(Join::term).findFirst().orElse(0L);
@@ -273,7 +292,8 @@ public class JoinHelperTests extends ESTestCase {
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(List.of()),
+            List.of()
         );
         transportService.start();
 
@@ -349,12 +369,13 @@ public class JoinHelperTests extends ESTestCase {
             Function.identity(),
             (listener, term) -> listener.onFailure(new ElasticsearchException("simulated")),
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(List.of()),
+            List.of()
         );
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();
         final var joinListener = new PlainActionFuture<Void>();
-        joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinListener);
+        joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), Set.of(), joinListener);
         assert joinListener.isDone() == false;
 
         try (var mockLog = MockLog.capture(JoinHelper.class)) {

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
@@ -47,6 +48,7 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,6 +61,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect;
@@ -640,6 +643,224 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         // extra check that the recorded cluster features are as they should be, and newNodeNextMajor hasn't gained af1
         assertThat(getRecordedNodeFeatures(clusterState), equalTo(features));
+    }
+
+    public void testJoinAttributeBarrierChecksNewNodesAgainstTheStateTheyJoin() throws Exception {
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode existingNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(existingNode)
+            )
+            .build();
+
+        Set<String> checkedNodeIds = new HashSet<>();
+        NodeJoinExecutor executor = joinAttributeBarrierExecutor((node, joinAttributes, state) -> {
+            assertSame(clusterState, state);
+            checkedNodeIds.add(node.getId());
+            if (joinAttributes.contains("test.can_join") == false) {
+                throw new IllegalStateException("node [" + node.getName() + "] cannot join");
+            }
+        });
+
+        DiscoveryNode acceptedNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode rejectedNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        AtomicReference<Exception> rejection = new AtomicReference<>();
+        ClusterState resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                joinTask(acceptedNode, Set.of("test.can_join"), NO_FAILURE_LISTENER),
+                joinTask(rejectedNode, Set.of(), ActionListener.wrap(o -> fail("should have failed"), rejection::set)),
+                joinTask(existingNode, Set.of(), NO_FAILURE_LISTENER)
+            )
+        );
+
+        assertEquals(Set.of(acceptedNode.getId(), rejectedNode.getId()), checkedNodeIds);
+        assertThat(rejection.get().getMessage(), containsString("cannot join"));
+        assertTrue(resultingState.nodes().nodeExists(acceptedNode));
+        assertFalse(resultingState.nodes().nodeExists(rejectedNode));
+        assertTrue(resultingState.nodes().nodeExists(existingNode));
+    }
+
+    /** A node on a version that doesn't send join attributes isn't checked, since it can't report them. */
+    public void testJoinAttributeBarrierSkipsNodesThatCannotSendJoinAttributes() throws Exception {
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()))
+            .build();
+        Set<DiscoveryNode> checkedNodes = new HashSet<>();
+        NodeJoinExecutor executor = joinAttributeBarrierExecutor((node, joinAttributes, state) -> checkedNodes.add(node));
+
+        DiscoveryNode olderNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode newerNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    olderNode,
+                    new CompatibilityVersions(TransportVersionUtils.getPreviousVersion(JoinRequest.JOIN_REQUEST_ATTRIBUTES), Map.of()),
+                    Set.of(),
+                    Set.of(),
+                    TEST_REASON,
+                    NO_FAILURE_LISTENER,
+                    0L
+                ),
+                joinTask(newerNode, Set.of(), NO_FAILURE_LISTENER)
+            )
+        );
+
+        assertEquals(Set.of(newerNode), checkedNodes);
+        assertTrue(resultingState.nodes().nodeExists(olderNode));
+        assertTrue(resultingState.nodes().nodeExists(newerNode));
+    }
+
+    /**
+     * A new master builds its first state from the latest stored state if that is newer than the state the master service started from,
+     * as in stateless, and checks joins against that one.
+     */
+    public void testJoinAttributeBarrierChecksElectionJoinsAgainstTheLatestStoredState() throws Exception {
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode storedOnlyNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState localState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()))
+            .version(1L)
+            .build();
+        ClusterState storedState = ClusterState.builder(localState)
+            .nodes(DiscoveryNodes.builder(localState.nodes()).add(storedOnlyNode))
+            .version(2L)
+            .build();
+
+        Map<DiscoveryNode, ClusterState> checkedStates = new HashMap<>();
+        NodeJoinExecutor executor = joinAttributeBarrierExecutor((node, joinAttributes, state) -> checkedStates.put(node, state));
+
+        DiscoveryNode joiningNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            localState,
+            executor,
+            List.of(
+                electionTask(nodeJoinTask(masterNode, NO_FAILURE_LISTENER), nodeJoinTask(joiningNode, NO_FAILURE_LISTENER))
+                    .alsoRefreshState(storedState)
+            )
+        );
+
+        assertEquals(Set.of(joiningNode), checkedStates.keySet());
+        assertTrue(checkedStates.get(joiningNode).nodes().nodeExists(storedOnlyNode));
+        assertTrue(resultingState.nodes().nodeExists(joiningNode));
+    }
+
+    /** An unexpected exception from a barrier rejects only that node, so it can't fail an election, and is logged. */
+    public void testUnexpectedJoinAttributeBarrierExceptionRejectsOnlyThatNode() throws Exception {
+        final boolean electing = randomBoolean();
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode acceptedNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode rejectedNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(electing ? nodes : nodes.masterNodeId(masterNode.getId()))
+            .build();
+
+        RuntimeException unexpected = randomFrom(new NullPointerException("unexpected"), new NumberFormatException("unexpected"));
+        NodeJoinExecutor executor = joinAttributeBarrierExecutor((node, joinAttributes, state) -> {
+            if (node.equals(rejectedNode)) {
+                throw unexpected;
+            }
+        });
+
+        AtomicReference<Exception> rejection = new AtomicReference<>();
+        ActionListener<Void> rejectedListener = ActionListener.wrap(o -> fail("should have failed"), rejection::set);
+        List<JoinTask> tasks = electing
+            ? List.of(
+                electionTask(
+                    nodeJoinTask(masterNode, NO_FAILURE_LISTENER),
+                    nodeJoinTask(acceptedNode, NO_FAILURE_LISTENER),
+                    nodeJoinTask(rejectedNode, rejectedListener)
+                )
+            )
+            : List.of(joinTask(acceptedNode, Set.of(), NO_FAILURE_LISTENER), joinTask(rejectedNode, Set.of(), rejectedListener));
+
+        ClusterState resultingState;
+        try (var mockLog = MockLog.capture(NodeJoinExecutor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "unexpected failure",
+                    LOGGER_NAME,
+                    Level.WARN,
+                    "failed to check the join attributes of [" + rejectedNode.descriptionWithoutAttributes() + "]"
+                )
+            );
+            resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, executor, tasks);
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        assertEquals(masterNode.getId(), resultingState.nodes().getMasterNodeId());
+        assertTrue(resultingState.nodes().nodeExists(acceptedNode));
+        assertFalse(resultingState.nodes().nodeExists(rejectedNode));
+        assertThat(rejection.get(), instanceOf(IllegalStateException.class));
+        assertSame(unexpected, rejection.get().getCause());
+    }
+
+    /** In an election the master logs each rejection, since the joining node only gets the publication failure if the election fails. */
+    public void testElectionLogsJoinAttributeBarrierRejections() throws Exception {
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode rejectedNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()))
+            .build();
+        NodeJoinExecutor executor = joinAttributeBarrierExecutor((node, joinAttributes, state) -> {
+            throw new IllegalStateException("node cannot join");
+        });
+
+        AtomicReference<Exception> rejection = new AtomicReference<>();
+        ClusterState resultingState;
+        try (var mockLog = MockLog.capture(NodeJoinExecutor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "rejection",
+                    LOGGER_NAME,
+                    Level.INFO,
+                    "rejecting join of [" + rejectedNode.descriptionWithoutAttributes() + "] in election: node cannot join"
+                )
+            );
+            resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+                clusterState,
+                executor,
+                List.of(
+                    electionTask(
+                        nodeJoinTask(masterNode, NO_FAILURE_LISTENER),
+                        nodeJoinTask(rejectedNode, ActionListener.wrap(o -> fail("should have failed"), rejection::set))
+                    )
+                )
+            );
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        assertEquals(masterNode.getId(), resultingState.nodes().getMasterNodeId());
+        assertFalse(resultingState.nodes().nodeExists(rejectedNode));
+        assertThat(rejection.get().getMessage(), containsString("node cannot join"));
+    }
+
+    private static NodeJoinExecutor joinAttributeBarrierExecutor(JoinAttributeBarrier barrier) {
+        return new NodeJoinExecutor(
+            createAllocationService(),
+            (reason, priority, listener) -> listener.onResponse(null),
+            createFeatureService(),
+            Function.identity(),
+            List.of(barrier)
+        );
+    }
+
+    private static JoinTask joinTask(DiscoveryNode node, Set<String> joinAttributes, ActionListener<Void> listener) {
+        return JoinTask.singleNode(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinAttributes, TEST_REASON, listener, 0L);
+    }
+
+    private static JoinTask.NodeJoinTask nodeJoinTask(DiscoveryNode node, ActionListener<Void> listener) {
+        return new JoinTask.NodeJoinTask(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, listener);
+    }
+
+    private static JoinTask electionTask(JoinTask.NodeJoinTask... nodeJoinTasks) {
+        return JoinTask.completingElection(Stream.of(nodeJoinTasks), 1L);
     }
 
     public void testSuccess() {

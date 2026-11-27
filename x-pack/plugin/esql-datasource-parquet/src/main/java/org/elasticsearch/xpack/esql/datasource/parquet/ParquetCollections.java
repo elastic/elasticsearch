@@ -93,7 +93,11 @@ final class ParquetCollections {
             Type elementType = ParquetFormatReader.isListElementType(repeated, group.getName())
                 ? repeated
                 : repeated.asGroupType().getType(0);
-            return elementType.isPrimitive() ? null : elementType.asGroupType();
+            // Only a structure is an element with fields; a list or map as the element is not a list of structures
+            if (elementType.isPrimitive() || elementType.getLogicalTypeAnnotation() != null) {
+                return null;
+            }
+            return elementType.asGroupType();
         }
         return null;
     }

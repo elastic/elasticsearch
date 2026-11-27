@@ -9414,6 +9414,29 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * A repeated group with no annotation is a list in Parquet's older layout. A list of structures below it is not described:
      * its elements would merge across the outer list's entries.
      */
+    /** Only a list whose element is a structure is described: a list of lists or of maps is not a list of structures. */
+    public void testListOfListsOrMapsIsNotDescribed() {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              optional group lists (LIST) {
+                repeated group list { optional group element (LIST) { repeated group list { optional int32 element; } } }
+              }
+              optional group maps (LIST) {
+                repeated group list {
+                  optional group element (MAP) { repeated group key_value { required binary key (UTF8); optional int64 value; } }
+                }
+              }
+              optional group structs (LIST) {
+                repeated group list { optional group element { optional binary t (UTF8); } }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(schema).stream().map(ParquetCollections.Collection::path).toList(),
+            equalTo(List.of("structs"))
+        );
+    }
+
     public void testListOfStructsUnderLegacyRepeatedGroupIsNotDescribed() {
         MessageType schema = MessageTypeParser.parseMessageType("""
             message t {

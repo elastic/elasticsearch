@@ -750,6 +750,175 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertSame(stats, SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, Map.of(), Set.of()));
     }
 
+    /**
+     * Table-driven pin of {@link SourceStatisticsSerializer#rescaleDeclaredEpochColumns}: physical keys
+     * are rewritten in the declared unit; overlay is the only rekey. INTEGER extrema {@code longValue()};
+     * out-of-range / already-marked / calendar / compound stay poisoned.
+     */
+    public void testRescaleDeclaredEpochColumns() {
+        long rawMin = 1_763_596_800L;
+        long rawMax = 1_763_597_100L;
+        SourceStatisticsSerializer.EpochScale datetimeSeconds = new SourceStatisticsSerializer.EpochScale(DataType.DATETIME, 1_000L);
+        SourceStatisticsSerializer.EpochScale nanosSeconds = new SourceStatisticsSerializer.EpochScale(DataType.DATE_NANOS, 1_000_000_000L);
+
+        // in-range exact, no rename
+        {
+            Map<String, Object> stats = epochStats("start", rawMin, rawMax, 12L);
+            SourceStatisticsSerializer.EpochRescale out = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                stats,
+                Map.of(),
+                Map.of("start", datetimeSeconds),
+                Map.of("start", DataType.LONG)
+            );
+            assertEquals(Set.of("start"), out.unpoisoned());
+            assertEquals(rawMin * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMinKey("start")));
+            assertEquals(rawMax * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMaxKey("start")));
+            assertEquals(12L, out.stats().get(SourceStatisticsSerializer.columnValueCountKey("start")));
+            assertEquals(rawMin, stats.get(SourceStatisticsSerializer.columnMinKey("start"))); // input not mutated
+        }
+
+        // path rename: physical start scaled in place; overlay will rekey to @timestamp
+        {
+            Map<String, Object> stats = epochStats("start", rawMin, rawMax, 12L);
+            SourceStatisticsSerializer.EpochRescale out = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                stats,
+                Map.of("start", "@timestamp"),
+                Map.of("@timestamp", datetimeSeconds),
+                Map.of("start", DataType.LONG)
+            );
+            assertEquals(Set.of("@timestamp"), out.unpoisoned());
+            assertEquals(rawMin * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMinKey("start")));
+            assertEquals(rawMax * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMaxKey("start")));
+            assertNull("helper does not write logical keys", out.stats().get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+            Map<String, Object> overlaid = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(
+                out.stats(),
+                Map.of("start", "@timestamp"),
+                Set.of()
+            );
+            assertEquals(rawMin * 1_000L, overlaid.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+            assertEquals(rawMax * 1_000L, overlaid.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+            assertNull(overlaid.get(SourceStatisticsSerializer.columnMinKey("start")));
+        }
+
+        // INTEGER extrema
+        {
+            Map<String, Object> stats = new HashMap<>();
+            stats.put(SourceStatisticsSerializer.columnMinKey("ts"), Integer.valueOf(1_704_067_200));
+            stats.put(SourceStatisticsSerializer.columnMaxKey("ts"), Integer.valueOf(1_704_067_299));
+            stats.put(SourceStatisticsSerializer.columnValueCountKey("ts"), 10L);
+            SourceStatisticsSerializer.EpochRescale out = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                stats,
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.INTEGER)
+            );
+            assertEquals(Set.of("ts"), out.unpoisoned());
+            assertEquals(1_704_067_200L * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMinKey("ts")));
+            assertEquals(1_704_067_299L * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        }
+
+        // min below range / max above range / DATE_NANOS pre-epoch / DATETIME overflow → poison
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", Math.ceilDiv(Long.MIN_VALUE, 1_000L) - 1, rawMax, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.LONG)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", rawMin, Long.MAX_VALUE / 1_000L + 1, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.LONG)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", -1L, 10L, 1L),
+                Map.of(),
+                Map.of("ts", nanosSeconds),
+                Map.of("ts", DataType.LONG)
+            ).unpoisoned().isEmpty()
+        );
+
+        // existing unservable marker stays; column not unpoisoned
+        {
+            Map<String, Object> stats = epochStats("ts", rawMin, rawMax, 1L);
+            stats.put(SourceStatisticsSerializer.columnMinUnservableKey("ts"), Boolean.TRUE);
+            SourceStatisticsSerializer.EpochRescale out = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                stats,
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.LONG)
+            );
+            assertTrue(out.unpoisoned().isEmpty());
+            assertSame(stats, out.stats());
+        }
+
+        // absent column / UNSIGNED_LONG / DOUBLE / calendar / compound → never unpoisoned
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("other", rawMin, rawMax, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("other", DataType.LONG)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", rawMin, rawMax, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.UNSIGNED_LONG)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", rawMin, rawMax, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.DOUBLE)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            "calendar formats have no scale",
+            SourceStatisticsSerializer.epochScales(Map.of("ts", "yyyyMMdd"), Map.of("ts", DataType.DATETIME)).isEmpty()
+        );
+        assertTrue(
+            "compound formats have no scale",
+            SourceStatisticsSerializer.epochScales(Map.of("ts", "epoch_second||epoch_millis"), Map.of("ts", DataType.DATETIME)).isEmpty()
+        );
+    }
+
+    public void testRestoreVerifiedExtremaSurvivesFoldPoison() {
+        Map<String, Object> before = epochStats("ts", 1_000L, 2_000L, 12L);
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.columnMinUnservableKey("ts"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnMaxUnservableKey("ts"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnValueCountKey("ts"), 12L);
+        folded.put(SourceStatisticsSerializer.columnNullCountKey("ts"), 0L);
+        Map<String, Object> afterFold = SourceStatisticsSerializer.alignHarvestWithFold(before, folded);
+        assertEquals(Boolean.TRUE, afterFold.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+        assertNull(afterFold.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        Map<String, Object> restored = SourceStatisticsSerializer.restoreVerifiedExtrema(afterFold, before, Set.of("ts"));
+        assertEquals(1_000L, restored.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertEquals(2_000L, restored.get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        assertNull(restored.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+        assertEquals(12L, restored.get(SourceStatisticsSerializer.columnValueCountKey("ts")));
+    }
+
+    private static Map<String, Object> epochStats(String column, long min, long max, long valueCount) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, valueCount);
+        stats.put(SourceStatisticsSerializer.columnMinKey(column), min);
+        stats.put(SourceStatisticsSerializer.columnMaxKey(column), max);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey(column), valueCount);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey(column), 0L);
+        return stats;
+    }
+
     public void testRewriteColumnAsAllNullCopiesAndStripsLeftoverUnservableMarkers() {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
@@ -999,7 +1168,7 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
     /** The one licensed crossing: under FAIL_FAST the physical record count is the same number for every read. */
     public void testRestrictToReadConfigKeepsOnlyTheLicensedCount() {
         Map<String, Object> stats = statsWithReadConfig("config-inferred", 100L, 7L);
-        stats.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        stats.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
 
         Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-declared");
 
@@ -1008,6 +1177,28 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
             "a column extremum depends on the type the column was read at and never crosses",
             restricted.containsKey(SourceStatisticsSerializer.columnMinKey("id"))
         );
+    }
+
+    /**
+     * The licence is granted under a decode-semantics revision and honoured only under the same one. A producer
+     * from before the value carried a revision wrote {@code Boolean.TRUE}; one from a later revision writes that
+     * revision. Either way the count measured rows this node would not produce, and the rolling upgrade across a
+     * revision bump is exactly when both appear, so the count is refused rather than served under a rule it never
+     * ran. Without this the fingerprint bump separates only the per-column statistics, since the count is the one
+     * measurement licensed to cross a fingerprint mismatch.
+     */
+    public void testRestrictToReadConfigRefusesACountLicensedUnderAnotherRevision() {
+        for (Object foreign : List.of(Boolean.TRUE, ExternalStats.ROW_COUNT_LICENCE + 1)) {
+            Map<String, Object> stats = statsWithReadConfig("config-inferred", 100L, 7L);
+            stats.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, foreign);
+
+            Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-declared");
+
+            assertFalse(
+                "a count licensed under [" + foreign + "] must not cross: " + restricted,
+                restricted.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
     }
 
     /** Its own configuration serves everything, or the gate would take every warm read cold. */
@@ -1112,12 +1303,12 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
      */
     public void testMergeStatisticsLicenceRequiresEveryInput() {
         Map<String, Object> first = statsWithReadConfig("aaa", 100L, 7L);
-        first.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        first.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
         Map<String, Object> second = statsWithReadConfig("ccc", 200L, 9L);
-        second.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        second.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
 
         Map<String, Object> allLicensed = SourceStatisticsSerializer.mergeStatistics(List.of(first, second));
-        assertEquals(Boolean.TRUE, allLicensed.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        assertEquals(ExternalStats.ROW_COUNT_LICENCE, allLicensed.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
         Map<String, Object> served = SourceStatisticsSerializer.restrictToReadConfig(allLicensed, "foreign");
         assertEquals("the licensed count crosses", 300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         assertFalse("the extrema do not", served.containsKey(SourceStatisticsSerializer.columnMinKey("id")));

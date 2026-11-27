@@ -897,6 +897,82 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         assertEquals(0, as(minLocal.supplier().get().getBlock(0), IntBlock.class).getInt(0));
     }
 
+    public void testMinMaxTimestampServedFromRescaledEpochStats() {
+        ReferenceAttribute ts = referenceAttribute("@timestamp", DataType.DATETIME);
+        long minMillis = 1_763_596_800_000L;
+        long maxMillis = 1_763_597_100_000L;
+        Map<String, Object> metadata = statsMetadata(12L, "@timestamp", 0L);
+        metadata.put(SourceStatisticsSerializer.columnMinKey("@timestamp"), minMillis);
+        metadata.put(SourceStatisticsSerializer.columnMaxKey("@timestamp"), maxMillis);
+        metadata.put(SourceStatisticsSerializer.columnValueCountKey("@timestamp"), 12L);
+
+        List<Attribute> attrs = List.of(ts);
+        ExternalSourceExec extMin = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            attrs,
+            Map.of(),
+            metadata,
+            null
+        );
+        LocalSourceExec minLocal = as(
+            applyRule(aggregateExec(AggregatorMode.SINGLE, extMin, alias("mn", new Min(Source.EMPTY, ts)))),
+            LocalSourceExec.class
+        );
+        assertEquals(minMillis, as(minLocal.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+
+        ExternalSourceExec extMax = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            attrs,
+            Map.of(),
+            new HashMap<>(metadata),
+            null
+        );
+        LocalSourceExec maxLocal = as(
+            applyRule(aggregateExec(AggregatorMode.SINGLE, extMax, alias("mx", new Max(Source.EMPTY, ts)))),
+            LocalSourceExec.class
+        );
+        assertEquals(maxMillis, as(maxLocal.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
+    public void testYyyyMMddTimestampStillScans() {
+        ReferenceAttribute ts = referenceAttribute("@timestamp", DataType.DATETIME);
+        Map<String, Object> metadata = statsMetadata(12L, "@timestamp", 0L);
+        metadata.put(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp"), Boolean.TRUE);
+        metadata.put(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp"), Boolean.TRUE);
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            List.of(ts),
+            Map.of(),
+            metadata,
+            null
+        );
+        as(applyRule(aggregateExec(AggregatorMode.SINGLE, ext, alias("mn", new Min(Source.EMPTY, ts)))), AggregateExec.class);
+    }
+
+    /** Same poison marker as calendar formats; the producer (resolver overlay) is what distinguishes OOB from yyyyMMdd. */
+    public void testOutOfRangeEpochTimestampStillScans() {
+        ReferenceAttribute ts = referenceAttribute("@timestamp", DataType.DATETIME);
+        Map<String, Object> metadata = statsMetadata(12L, "@timestamp", 0L);
+        metadata.put(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp"), Boolean.TRUE);
+        metadata.put(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp"), Boolean.TRUE);
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            List.of(ts),
+            Map.of(),
+            metadata,
+            null
+        );
+        as(applyRule(aggregateExec(AggregatorMode.SINGLE, ext, alias("mx", new Max(Source.EMPTY, ts)))), AggregateExec.class);
+    }
+
     public void testCountFieldNotPushedWhenMergedNullCountPoisoned() {
         // Defensive end-to-end check for the present-but-stats-less poison path:
         // mergeStatistics drops null_count for `bonus` when any present file lacks it, so the

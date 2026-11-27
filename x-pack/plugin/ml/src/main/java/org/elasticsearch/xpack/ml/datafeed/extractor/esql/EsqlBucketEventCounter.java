@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.ExecutionMetadata;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.BucketEventCounter;
@@ -33,8 +34,8 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
 
     // Without a LIMIT, ES|QL truncates at result_truncation_default_size (1000) rows and reports it only in a Warning header.
     // A custom check_window can span up to MAX_NUMBER_SPANABLE_BUCKETS buckets (one row each). A dropped bucket hides its delayed data.
-    private static final String BUCKET_EVENT_COUNT_SUFFIX = " " + Strings.format("""
-        | STATS %s = SUM(??countField) BY %s = TO_LONG(TO_DATETIME(??timeField)) / ?bucketSpan
+    private static final String BUCKET_EVENT_COUNT_PIPES = Strings.format("""
+        STATS %s = SUM(??countField) BY %s = TO_LONG(TO_DATETIME(??timeField)) / ?bucketSpan
         | LIMIT %d""", ML_COUNT_COLUMN, ML_BUCKET_COLUMN, MAX_NUMBER_SPANABLE_BUCKETS);
 
     // STATS emits its aggregates first and its grouping keys after them.
@@ -69,7 +70,7 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
             sourceTimeField,
             (query, filter, params) -> EsqlQueryExecutor.executeSync(
                 client,
-                EsqlQueryExecutor.newRequest(client, query, filter, params, projectRouting),
+                EsqlQueryExecutor.newRequest(client, query, filter, params, projectRouting, ExecutionMetadata.NEVER),
                 headers
             )
         );
@@ -95,7 +96,7 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
     }
 
     static String bucketEventCountQuery(String userQuery) {
-        return EsqlQueryClauseScanner.appendGeneratedPipeline(userQuery, BUCKET_EVENT_COUNT_SUFFIX);
+        return EsqlDataExtractorQueryUtils.appendPipe(userQuery, BUCKET_EVENT_COUNT_PIPES);
     }
 
     @Override

@@ -769,11 +769,6 @@ tests:
   - :modules:repository-gcs:test
   method: testResumableWrite
   issue: https://github.com/elastic/elasticsearch/issues/156513
-- class: org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExecSerializationTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testDeeplyNestedFields
-  issue: https://github.com/elastic/elasticsearch/issues/167380
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

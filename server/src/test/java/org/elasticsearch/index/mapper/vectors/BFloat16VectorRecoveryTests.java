@@ -117,10 +117,120 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
                       "index": false
                     }
                   }
+                },
+                "nst": {
+                  "type": "nested",
+                  "properties": {
+                    "vector7": {
+                      "type": "dense_vector",
+                      "element_type": "bfloat16",
+                      "dims": 5,
+                      "index": true
+                    },
+                    "vector8": {
+                      "type": "dense_vector",
+                      "element_type": "bfloat16",
+                      "dims": 5,
+                      "index": false
+                    }
+                  }
+                },
+                "flat": {
+                  "subobjects": false,
+                  "properties": {
+                    "v.vector7": {
+                      "type": "dense_vector",
+                      "element_type": "bfloat16",
+                      "dims": 5,
+                      "index": true
+                    },
+                    "v.vector8": {
+                      "type": "dense_vector",
+                      "element_type": "bfloat16",
+                      "dims": 5,
+                      "index": false
+                    }
+                  }
                 }
               }
             }
             """;
+    }
+
+    /** vector7 as the client sends it, and as an older node synthesizes it. */
+    private static final String RAW7 = "[230.0,300.33,-34.8988,15.555,-200.0]";
+    private static final String SYNTHESIZED7 = "[229.90425,300.38586,-34.821266,15.522733,-199.69786]";
+    private static final String RAW8 = "[130.0,115.0,-1.02,15.555,-100.0]";
+
+    /**
+     * Each element of a nested array holds an indexed and a non-indexed vector, so the array differs in
+     * every pairing of whole forms and has to be compared element by element. The recovered sources
+     * follow the form an older node sends for an object, with only the indexed vector synthesized.
+     */
+    public void testTranslogOperationAsserterAcceptsRecoveredSourceWithVectorsInNestedArray() throws IOException {
+        assertSameOperation(
+            "{\"nst\":[{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "}]}",
+            "{\"nst\":[{\"vector8\":" + RAW8 + ",\"vector7\":" + SYNTHESIZED7 + "}]}"
+        );
+        assertSameOperation(
+            "{\"nst\":[{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "},{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "}]}",
+            "{\"nst\":[{\"vector8\":"
+                + RAW8
+                + ",\"vector7\":"
+                + SYNTHESIZED7
+                + "},{\"vector8\":"
+                + RAW8
+                + ",\"vector7\":"
+                + SYNTHESIZED7
+                + "}]}"
+        );
+    }
+
+    public void testTranslogOperationAsserterRejectsDifferentVectorInNestedArray() throws IOException {
+        String replicated = "{\"nst\":[{\"vector7\":"
+            + RAW7
+            + ",\"vector8\":"
+            + RAW8
+            + "},{\"vector7\":"
+            + RAW7
+            + ",\"vector8\":"
+            + RAW8
+            + "}]}";
+        // the second element has a different vector8
+        assertDifferentOperation(
+            replicated,
+            "{\"nst\":[{\"vector8\":"
+                + RAW8
+                + ",\"vector7\":"
+                + SYNTHESIZED7
+                + "},{\"vector8\":[131.0,115.0,-1.02,15.555,-100.0],\"vector7\":"
+                + SYNTHESIZED7
+                + "}]}"
+        );
+        // one element fewer
+        assertDifferentOperation(replicated, "{\"nst\":[{\"vector8\":" + RAW8 + ",\"vector7\":" + SYNTHESIZED7 + "}]}");
+    }
+
+    /**
+     * Under an object without subobjects the vectors keep their dotted names, and the client can also
+     * send them inside an object.
+     */
+    public void testTranslogOperationAsserterAcceptsRecoveredSourceWithoutSubobjects() throws IOException {
+        String recovered = "{\"flat\":{\"v.vector8\":" + RAW8 + ",\"v.vector7\":" + SYNTHESIZED7 + "}}";
+        assertSameOperation("{\"flat\":{\"v.vector7\":" + RAW7 + ",\"v.vector8\":" + RAW8 + "}}", recovered);
+        assertSameOperation("{\"flat\":{\"v\":{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "}}}", recovered);
+    }
+
+    /**
+     * Recovery synthesizes all indexed vectors of a document together. A copy with one vector
+     * synthesized and the other not, against a copy with the opposite, is not what recovery produces
+     * from either of them.
+     */
+    public void testTranslogOperationAsserterRejectsVectorsSynthesizedInOppositeCopies() throws IOException {
+        assertDifferentOperation(
+            "{\"vector7\":" + RAW7 + ",\"obj\":{\"vector7\":" + SYNTHESIZED7 + "}}",
+            "{\"vector7\":" + SYNTHESIZED7 + ",\"obj\":{\"vector7\":" + RAW7 + "}}"
+        );
     }
 
     public void testTranslogOperationAsserterAcceptsRecoveredSourceFromOlderNode() throws IOException {

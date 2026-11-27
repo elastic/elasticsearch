@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 166827
+summary: Add a query parameter value, set by `param_any_value`, that makes supported
+  conditions using it match everything
+type: enhancement

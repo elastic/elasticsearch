@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 
 /**
  * The parameters that stand for "Any" and that nothing drops or replaces stay in the plan as unresolvable markers, and the
@@ -142,6 +143,60 @@ public class AnyParamVerifierTests extends ESTestCase {
             }
         }
         assertThat(String.join("\n", problems), problems, empty());
+    }
+
+    /** A condition that would be replaced if it were resolved is not reported as "Any": what keeps it from resolving is. */
+    public void testUnsupportedAnyDoesNotHideOtherErrorsAndIsNotAddedToThem() {
+        QueryParams params = new QueryParams(List.of(paramAsConstant("x", ANY), paramAsConstant("y", ANY)));
+        for (String query : List.of(
+            "FROM test | WHERE nope == ?x",
+            "FROM test | WHERE ?x == nope",
+            "FROM test | WHERE nope IN (1, ?x)",
+            "FROM test | WHERE MV_CONTAINS(nope, ?x)",
+            "FROM test | WHERE MV_INTERSECTS(?x, nope)",
+            "FROM test | WHERE ?x IS NULL OR nope == ?y",
+            "FROM test | WHERE emp_no == ?x | EVAL y = nope",
+            "FROM test | EVAL y = nope == ?x",
+            "FROM test | STATS c = COUNT(*) WHERE nope == ?x"
+        )) {
+            String error = analyzer().error(query, containsString("Unknown column [nope]"), params);
+            assertThat(query, error, not(containsString("\"Any\"")));
+        }
+    }
+
+    public void testUnknownFunctionIsReportedInsteadOfItsAnyArgument() {
+        QueryParams params = new QueryParams(List.of(paramAsConstant("x", ANY)));
+        String error = analyzer().error(
+            "FROM test | WHERE MV_CONTAIN(languages, ?x)",
+            containsString("Unknown function [MV_CONTAIN]"),
+            params
+        );
+        assertThat(error, not(containsString("\"Any\"")));
+        error = analyzer().error("FROM test | WHERE MV_CONTAIN(nope, ?x)", containsString("Unknown column [nope]"), params);
+        assertThat(error, not(containsString("\"Any\"")));
+    }
+
+    /** What stays unsupported is reported next to the other errors, not instead of them. */
+    public void testUnsupportedAnyIsReportedWithOtherErrors() {
+        QueryParams params = new QueryParams(List.of(paramAsConstant("x", ANY)));
+        for (String query : List.of(
+            "FROM test | WHERE emp_no > ?x AND nope == 1",
+            "FROM test | WHERE nope == 1 AND emp_no > ?x",
+            "FROM test | WHERE NOT (nope == ?x)",
+            "FROM test | WHERE nope == ?x AND emp_no != ?x"
+        )) {
+            analyzer().error(query, allOf(containsString("Unknown column [nope]"), containsString("stands for \"Any\"")), params);
+        }
+    }
+
+    /** As for any unresolved command, the errors of what comes after a command that fails are hidden. */
+    public void testErrorsDownstreamOfAFailingCommandAreHidden() {
+        String error = analyzer().error(
+            "FROM test | EVAL y = ?x | WHERE nope == 1",
+            containsString("stands for \"Any\""),
+            new QueryParams(List.of(paramAsConstant("x", ANY)))
+        );
+        assertThat(error, not(containsString("Unknown column")));
     }
 
     public void testEveryMarkerIsReported() {

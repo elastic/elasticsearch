@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167910
+summary: Parse NDJSON pooled chunks in place
+type: enhancement

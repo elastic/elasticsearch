@@ -4823,11 +4823,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             AnalyzerContext context
         ) {
             Expression convertExpression = (Expression) convert;
+            if (convert.canBeUnionTypeEsFieldConversion() == false) {
+                // Left unresolved, so the field keeps its type conflict and the Verifier reports it.
+                return convertExpression;
+            }
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
                 if (convert instanceof ToText toText && toText.valuesAnalyzer() != null) {
                     // For to_text on a type-conflicted field, the analyzer option is rejected here in the same way the
                     // post-analysis verifier rejects it on a single-typed field.
                     return new UnresolvedAttribute(fa.source(), fa.name(), ToText.analyzerOnMappedFieldMessage(fa.name()));
+                }
+                Expression invalidArguments = withInvalidOtherArguments(convert);
+                if (invalidArguments != null) {
+                    return invalidArguments;
                 }
                 // The field has an unresolved type conflict (TypeConflictedField), so we attempt to create UnionTypeEsField with
                 // index-specific conversions
@@ -4878,6 +4886,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // example, an expression like multiTypeEsField(synthetic=false, date_nanos)::date_nanos::datetime is rewritten to
                     // multiTypeEsField(synthetic=true, date_nanos)::datetime, the implicit casting is overwritten by explicit casting and
                     // the multiTypeEsField is not casted to datetime directly.
+                    Expression invalidArguments = withInvalidOtherArguments(convert);
+                    if (invalidArguments != null) {
+                        return invalidArguments;
+                    }
                     if (convert.isNoop()
                         && (unionTypeEsField.getUnmappedConversionExpression() == null || convert.supportedTypes().contains(KEYWORD))) {
                         return createIfDoesNotAlreadyExist(fa, fa.field(), unionFieldAttributes);
@@ -4919,6 +4931,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     );
                 }
             return convertExpression;
+        }
+
+        /**
+         * The conversion with its input replaced by a {@code null}, if its other arguments, like the options of
+         * {@code TO_IP(x, {...})}, are invalid, or {@code null} otherwise. Resolving the union replaces the conversion with per-type
+         * conversions whose surrogates drop such arguments, so they're checked first. The replaced input keeps the error on the
+         * arguments, instead of the ambiguity error of the field.
+         */
+        private static Expression withInvalidOtherArguments(ConvertFunction convert) {
+            Expression expression = (Expression) convert;
+            if (expression.children().size() == 1) {
+                return null;
+            }
+            List<Expression> children = new ArrayList<>(expression.children());
+            children.set(children.indexOf(convert.field()), new Literal(expression.source(), null, DataType.NULL));
+            Expression withNullInput = expression.replaceChildren(children);
+            return withNullInput.typeResolved().unresolved() ? withNullInput : null;
         }
 
         private static boolean skipMultiTypeForPotentiallyUnmappedKeyword(

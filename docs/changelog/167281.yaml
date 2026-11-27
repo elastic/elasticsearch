@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167281
+summary: Fix conversions with options or a base on union types
+type: bug

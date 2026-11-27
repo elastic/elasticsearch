@@ -167,6 +167,33 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    /**
+     * Resolving a union type replaces the conversion with per-type conversions, so its other arguments, like the options of
+     * {@code TO_IP}, are validated first instead of being dropped.
+     */
+    public void testUnionTypeConversionValidatesOtherArguments() {
+        EsField ipOrKeyword = new InvalidMappedField("ip_or_keyword", Map.of("ip", Set.of("test1"), "keyword", Set.of("test2")));
+        // date and date_nanos are resolved to a union of date_nanos before the explicit conversion
+        EsField dateOrNanos = new InvalidMappedField("date_or_nanos", Map.of("date", Set.of("test1"), "date_nanos", Set.of("test2")));
+        Map<String, EsField> mapping = Map.of("ip_or_keyword", ipOrKeyword, "date_or_nanos", dateOrNanos);
+        TestAnalyzer analyzer = analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping)))
+            .stripErrorPrefix(true);
+
+        analyzer.error(
+            "from test* | eval x = to_ip(ip_or_keyword, {\"unknown\": \"x\"})",
+            equalTo("1:23: Invalid option [unknown] in [to_ip(ip_or_keyword, {\"unknown\": \"x\"})], expected one of [leading_zeros]")
+        );
+        analyzer.error(
+            "from test* | eval x = to_ip(ip_or_keyword, {\"leading_zeros\": \"bad\"})",
+            equalTo("1:23: Illegal leading_zeros [bad]")
+        );
+        analyzer.error(
+            "from test* | eval x = to_ip(date_or_nanos, {\"unknown\": \"x\"})",
+            equalTo("1:23: Invalid option [unknown] in [to_ip(date_or_nanos, {\"unknown\": \"x\"})], expected one of [leading_zeros]")
+        );
+        analyzer.query("from test* | eval x = to_ip(ip_or_keyword, {\"leading_zeros\": \"octal\"})");
+    }
+
     public void testUnsupportedAndMultiTypedFields() {
         final String unsupported = "unsupported";
         final String multiTyped = "multi_typed";

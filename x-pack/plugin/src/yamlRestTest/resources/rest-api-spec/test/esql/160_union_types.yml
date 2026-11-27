@@ -701,6 +701,83 @@ load two indexes, convert client_ip and group by something invalid:
         body:
           query: 'FROM events_*_long | STATS count = COUNT(client_ip::ip) BY x'
 
+---
+load two indexes, convert client_ip with an unknown option:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_validate_conversion_arguments]
+      reason: "Conversions of union types validate their options"
+  - do:
+      catch: '/line 1:\d+: Invalid option \[unknown\] in \[TO_IP\(client_ip, \{"unknown": "x"\}\)\], expected one of \[leading_zeros\]/'
+      esql.query:
+        body:
+          query: 'FROM events_*_long | EVAL x = TO_IP(client_ip, {"unknown": "x"}) | KEEP x'
+
+---
+load two indexes, convert client_ip with an invalid option value:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_validate_conversion_arguments]
+      reason: "Conversions of union types validate their options"
+  - do:
+      catch: '/line 1:\d+: Illegal leading_zeros \[bad\]/'
+      esql.query:
+        body:
+          query: 'FROM events_*_long | EVAL x = TO_IP(client_ip, {"leading_zeros": "bad"}) | KEEP x'
+
+---
+load two indexes, convert client_ip with a valid option:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM events_*_long | EVAL x = TO_IP(client_ip, {"leading_zeros": "octal"}) | STATS c = COUNT(x)'
+
+  - match: { columns.0.name: "c" }
+  - match: { values.0.0: 14 }
+
+---
+load two indices and convert event_duration with a base:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_validate_conversion_arguments]
+      reason: "Conversions with a base of union types fail like any other type conflict"
+  - do:
+      catch: '/Cannot use field \[event_duration\] due to ambiguities/'
+      esql.query:
+        body:
+          query: 'FROM events_ip_* | EVAL x = TO_LONG(event_duration, 16) | KEEP x'
+  - do:
+      catch: '/Cannot use field \[event_duration\] due to ambiguities/'
+      esql.query:
+        body:
+          query: 'FROM events_ip_* | EVAL x = TO_INTEGER(event_duration, 16) | KEEP x'
+
+---
+load two indices and convert event_duration to a string, then with a base:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM events_ip_* | EVAL x = TO_LONG(event_duration::keyword, 16) | STATS c = COUNT(x)'
+
+  - match: { columns.0.name: "c" }
+  - match: { values.0.0: 14 }
+
 ############################################################################################################
 # Test four indices with both the client_IP (IP and KEYWORD) and event_duration (LONG and KEYWORD) mappings
 

@@ -26,6 +26,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.DocValuesSkippers;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -141,8 +142,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context)
                         throws IOException {
                         if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false
-                        // check that last document has a value to confirm that all documents have a value
-                            || lastDocumentHasValue(context.reader(), fieldname) == false) {
+                        // the tail holds the best hits only if every document has one value, which the last one confirms
+                            || lastDocumentHasSingleValue(context, fieldname) == false) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }
                         int maxDoc = context.reader().maxDoc();
@@ -257,8 +258,18 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         };
     }
 
-    private static boolean lastDocumentHasValue(LeafReader reader, String field) throws IOException {
-        return DocValues.getSortedNumeric(reader, field).advanceExact(reader.maxDoc() - 1);
+    /**
+     * Whether the segment's last document has a value and no document has more than one, so that the index sort and the search
+     * sort order documents by the same value.
+     */
+    private boolean lastDocumentHasSingleValue(LeafReaderContext context, String field) throws IOException {
+        final int last = context.reader().maxDoc() - 1;
+        if (indexFieldData != null) {
+            final SortedNumericLongValues values = indexFieldData.load(context).getLongValues();
+            return values.isSingleton() && values.advanceExact(last);
+        }
+        final NumericDocValues values = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), field));
+        return values != null && values.advanceExact(last);
     }
 
     private static boolean firstAndLastDocumentsHaveValue(SortedSetDocValues values, int maxDoc) throws IOException {
@@ -295,7 +306,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
     // Whether every document of the segment has a value for the field, false if that can't be determined cheaply.
     private static boolean allDocsHaveValue(LeafReader reader, String field) throws IOException {
-        DocValuesSkipper skipper = reader.getDocValuesSkipper(field);
+        DocValuesSkipper skipper = DocValuesSkippers.get(reader, field);
         if (skipper != null) {
             return skipper.docCount() == reader.maxDoc();
         }

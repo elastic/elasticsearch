@@ -81,6 +81,7 @@ import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestU
 import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestUtils.initializingSearchReplica;
 import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestUtils.mockIndexShard;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.totalBytesToWarm;
+import static org.elasticsearch.xpack.stateless.cache.relocation.OtherNodeShutdownClusterStates.relocationFromSourceWithOtherNodeShuttingDown;
 import static org.elasticsearch.xpack.stateless.cache.relocation.OtherNodeShutdownClusterStates.relocationWithOtherNodeShuttingDown;
 import static org.elasticsearch.xpack.stateless.cache.relocation.OtherNodeShutdownClusterStates.selfOfRelocation;
 import static org.elasticsearch.xpack.stateless.cache.relocation.OtherNodeShutdownClusterStates.slotSharingSettings;
@@ -2892,6 +2893,74 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     equalTo(SearchRecoveryTimeout.skip())
                 );
             }
+        }
+    }
+
+    /// The relocation source starts shutting down while the shard waits on the equal-share plan made for 'another shutting-down node' plan,
+    /// and the wait is extended past what the source's own shutdown plan would give. With a 10m grace period and 10 slots, node A has 30
+    /// shards relocating to the target and the source B has this shard and one other. The 32 recoveries share the 600s left until A's
+    /// deadline, so the plan waits `18.75s * 10 slots = 187.5s`. B started shutting down 7.5s after A, so when the plan expires B has
+    /// 420s left. Its 2 shards get an equal share of `420s / 2 = 210s`, and the 2 of the 32 relocations to the target that are B's get
+    /// `10 slots * 2 / 32 = 0.625` slots. The re-evaluation extends the wait by the part of that share above the 18.75s that the plan
+    /// budgeted, scaled to the slots: `(210s - 18.75s) * 0.625 ~ 119.5s`. That is 307s in all, whereas the source's plan from scratch is
+    /// `210s * 0.625 = 131.25s`. The previous plan's share is what the extension is measured from, and it does not come from the deadline
+    /// that now applies.
+    public void testRelocationSourceShuttingDownDuringOtherNodePlanExtendsBeyondTheSourceShutdownPlan() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var settings = Settings.builder()
+                .put(slotSharingSettings())
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10m")
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 10)
+                .put(reevaluationSettings(true, TimeValue.timeValueMinutes(10), TimeValue.timeValueMillis(300)))
+                .build();
+            final var service = newCalculationService(threadPool, settings, 0L);
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final long shutdownStartedAt = threadPool.absoluteTimeInMillis();
+            final long sourceShutdownStartedAt = shutdownStartedAt + 7_500;
+            final var index = new Index("idx", randomUUID());
+
+            final var firstState = relocationFromSourceWithOtherNodeShuttingDown(1, null, 30, index, shutdownStartedAt);
+            final var self = mockIndexShard(selfOfRelocation(firstState, index));
+            final var firstPlan = service.searchRecoveryTimeout(firstState, self, 0L, null);
+            assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+            assertThat(firstPlan.timeout(), equalTo(TimeValue.timeValueMillis(187_500)));
+            assertThat(firstPlan.perShardShareMs(), closeTo(18_750.0, 1e-6));
+
+            // the plan expires with the source 420s from its deadline, having started shutting down 180s before
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + firstPlan.timeout().millis());
+            final var stateWithSourceShuttingDown = relocationFromSourceWithOtherNodeShuttingDown(
+                1,
+                sourceShutdownStartedAt,
+                30,
+                index,
+                shutdownStartedAt
+            );
+
+            final var sourceShutdownPlan = service.searchRecoveryTimeout(stateWithSourceShuttingDown, self, 0L, null);
+            assertThat(sourceShutdownPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
+            assertThat(sourceShutdownPlan.timeout(), equalTo(TimeValue.timeValueMillis(131_250)));
+            assertThat(sourceShutdownPlan.perShardShareMs(), closeTo(210_000.0, 1e-6));
+
+            final var extension = service.extendedTimeout(stateWithSourceShuttingDown, self, 0L, 0L, firstPlan, firstPlan.timeout());
+            assertThat(extension.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
+            assertThat(extension.timeout(), equalTo(TimeValue.timeValueMillis(119_531)));
+            assertThat(extension.perShardShareMs(), closeTo(210_000.0, 1e-6));
+
+            final var totalWait = firstPlan.timeout().millis() + extension.timeout().millis();
+            assertThat(totalWait, equalTo(307_031L));
+            assertThat("the wait goes on past the source shutdown plan", totalWait, greaterThan(sourceShutdownPlan.timeout().millis()));
+            assertThat(
+                "but the extension alone is less than the source shutdown plan, as the first plan's share is deducted",
+                extension.timeout(),
+                lessThan(sourceShutdownPlan.timeout())
+            );
         }
     }
 

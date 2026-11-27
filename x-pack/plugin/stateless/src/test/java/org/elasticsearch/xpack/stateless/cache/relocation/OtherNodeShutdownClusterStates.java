@@ -111,6 +111,27 @@ public final class OtherNodeShutdownClusterStates {
         );
     }
 
+    /// Like [#relocationWithOtherNodeShuttingDown], with `otherShardsFromSource` more search shards relocating from `healthy-source` to
+    /// the target, and with `healthy-source` marked for REMOVE since `sourceShutdownStartedAtMillis` unless that is `null`, as when the
+    /// source starts shutting down while the shard is recovering.
+    public static ClusterState relocationFromSourceWithOtherNodeShuttingDown(
+        int otherShardsFromSource,
+        @Nullable Long sourceShutdownStartedAtMillis,
+        int relocatingShards,
+        Index index,
+        long shutdownStartedAtMillis
+    ) {
+        return relocationWithOtherNodesShuttingDown(
+            index,
+            List.of(new ShuttingDownNode("shutting-node", relocatingShards, shutdownStartedAtMillis)),
+            0,
+            0,
+            true,
+            otherShardsFromSource,
+            sourceShutdownStartedAtMillis
+        );
+    }
+
     /// Like [#relocationWithOtherNodeShuttingDown], with several shutting-down nodes, which may have different deadlines.
     static ClusterState relocationWithOtherNodesShuttingDown(Index index, List<ShuttingDownNode> shuttingDownNodes) {
         return relocationWithOtherNodesShuttingDown(index, shuttingDownNodes, 0);
@@ -134,14 +155,22 @@ public final class OtherNodeShutdownClusterStates {
         int otherRecoveriesOnTarget,
         int criticalRecoveriesOnTarget
     ) {
-        return relocationWithOtherNodesShuttingDown(index, shuttingDownNodes, otherRecoveriesOnTarget, criticalRecoveriesOnTarget, true);
+        return relocationWithOtherNodesShuttingDown(
+            index,
+            shuttingDownNodes,
+            otherRecoveriesOnTarget,
+            criticalRecoveriesOnTarget,
+            true,
+            0,
+            null
+        );
     }
 
     /// The cluster state of [#relocationWithOtherNodesShuttingDown] once the master has cancelled the relocation of the shard under
     /// test: the shard is not among the recoveries on the target any more, though the routing the shard was recovering with still showed
     /// it relocating there.
     static ClusterState relocationCancelledWithOtherNodesShuttingDown(Index index, List<ShuttingDownNode> shuttingDownNodes) {
-        return relocationWithOtherNodesShuttingDown(index, shuttingDownNodes, 0, 0, false);
+        return relocationWithOtherNodesShuttingDown(index, shuttingDownNodes, 0, 0, false, 0, null);
     }
 
     private static ClusterState relocationWithOtherNodesShuttingDown(
@@ -149,13 +178,17 @@ public final class OtherNodeShutdownClusterStates {
         List<ShuttingDownNode> shuttingDownNodes,
         int otherRecoveriesOnTarget,
         int criticalRecoveriesOnTarget,
-        boolean shardUnderTestRelocating
+        boolean shardUnderTestRelocating,
+        int otherShardsFromSource,
+        @Nullable Long sourceShutdownStartedAtMillis
     ) {
-        // shard 0 is the one under test, the relocating and the pending shards of each shutting-down node follow it
+        // shard 0 is the one under test, the other shards of its source, and the relocating and the pending shards of each shutting-down
+        // node follow it
         final var searchShards = new ArrayList<SearchShardSpec>();
         if (shardUnderTestRelocating) {
             searchShards.add(new SearchShardSpec(RELOCATION_SOURCE_NODE, RELOCATING));
         }
+        searchShards.addAll(Collections.nCopies(otherShardsFromSource, new SearchShardSpec(RELOCATION_SOURCE_NODE, RELOCATING)));
         for (final var shuttingDownNode : shuttingDownNodes) {
             searchShards.addAll(
                 Collections.nCopies(shuttingDownNode.relocatingShards(), new SearchShardSpec(shuttingDownNode.nodeId(), RELOCATING))
@@ -182,11 +215,16 @@ public final class OtherNodeShutdownClusterStates {
                 new SearchShardSpec(RELOCATION_TARGET_NODE, INITIALIZING, RecoveryPriority.UNASSIGNED_UNEXPECTED)
             )
         );
+        // the source is already a node of the cluster state, so it only needs the shutdown metadata
+        final var shutdowns = new ArrayList<>(shuttingDownNodes);
+        if (sourceShutdownStartedAtMillis != null) {
+            shutdowns.add(new ShuttingDownNode(RELOCATION_SOURCE_NODE, 0, sourceShutdownStartedAtMillis));
+        }
         return ClusterState.builder(new ClusterName("test"))
             .nodes(nodes(shuttingDownNodes))
             .metadata(
                 Metadata.builder()
-                    .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(shuttingDownNodes))
+                    .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(shutdowns))
                     .put(ProjectMetadata.builder(DEFAULT_PROJECT_ID).put(indexMetadata(index, searchShards.size()), false))
                     .build()
             )

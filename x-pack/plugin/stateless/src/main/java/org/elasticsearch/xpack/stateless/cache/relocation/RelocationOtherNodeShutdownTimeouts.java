@@ -55,12 +55,13 @@ public class RelocationOtherNodeShutdownTimeouts {
         );
     }
 
-    /// Returns the warming timeout for a shard relocating to `targetNodeId` from a source that is not shutting down, while some other nodes are.
-    /// The shard must not use the slots of the target for longer than its fair share, or the shards of the shutting-down nodes may miss
-    /// their grace deadlines. The fair share is worked out for each grace deadline:
+    /// Returns the warming timeout for a shard relocating to `targetNodeId` from a source that is not shutting down, while some other nodes
+    /// are. The shard must not use the slots of the target for longer than its fair share, or the shards of the shutting-down nodes may
+    /// miss their grace deadlines. The fair share is worked out for each grace deadline:
     ///
     /// 1. The recoveries that compete for the slots up to the deadline are: this shard, the shards of the shutting-down nodes due by it and
-    /// the other recoveries not related to shutting-down nodes on the target. The shards due later have time to spare, so they are not counted.
+    /// the other recoveries not related to shutting-down nodes on the target. The shards due later have time to spare, so they are not
+    /// counted.
     /// 2. We estimate the wait of this shard as the time left until the deadline divided by the number of those recoveries, scaled to
     /// the slots they can use at once. The estimate is only for this shard: the other recoveries are not timed by it, but by their own
     /// plans.

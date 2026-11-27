@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -91,7 +90,7 @@ import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
-/// Source-side stateless primary relocation protocol. Mirrors [PeerRecoverySourceService].
+/// Source-side stateless primary relocation protocol. Mirrors [org.elasticsearch.indices.recovery.PeerRecoverySourceService].
 /// See [StatelessPrimaryRelocationTargetService] for target side logic.
 public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleComponent {
 
@@ -270,7 +269,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     }
 
     /// @param listener is completed with `true` once the target has finished prewarming and with `false` if the prewarm is not sent,
-    ///                 or with a failure if sending the prewarm or the prewarm itself failed
+    /// or with a failure if sending the prewarm or the prewarm itself failed
     private void initiatePrewarm(
         Client parentClient,
         StatelessPrimaryRelocationAction.Request request,
@@ -405,256 +404,306 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             // Completed with the pinned upload bound by markRelocating, failed below if the handoff never gets that far.
             // See StatelessCommitService#installUploadBoundListener
             final var uploadBoundListener = new SubscribableListener<Long>();
-            final CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> handoffConsumer = (
-                primaryContext,
-                handoffResultListener) -> {
-                threadDumpListener.onResponse(null);
-                // Install the upload bound listener before the final flush, so that a registering search shard cannot pick up a
-                // commit above the upload bound that markRelocating pins after it.
-                statelessCommitServiceProvider.get().installUploadBoundListener(indexShard, uploadBoundListener);
-                Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
-                logShardStats("obtained primary context", indexShard, engine);
-                logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
-                final var acquirePermitsDuration = getTimeSince(beforeAcquiringPermits);
+            final var primaryHandoff = new PrimaryHandoff(
+                threadDumpListener,
+                indexShard,
+                uploadBoundListener,
+                request,
+                beforeAcquiringPermits,
+                beforeRelocation,
+                relocationSourceMetricsBuilder,
+                initialFlushDuration,
+                parentClient
+            );
+            indexShard.relocated(
+                request.targetNode().getId(),
+                request.targetAllocationId(),
+                primaryHandoff::run,
+                listener0.map(unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build()))
+            );
+        }), recoveryExecutor, threadContext);
+    }
 
-                // Do not wait on flush durability as we will wait at the stateless commit service level for the upload
-                final long beforeFinalFlush = threadPool.relativeTimeInMillis();
+    private class PrimaryHandoff {
+        private final ActionListener<Void> threadDumpListener;
+        private final IndexShard indexShard;
+        private final SubscribableListener<Long> uploadBoundListener;
+        private final StatelessPrimaryRelocationAction.Request request;
+        private final long beforeAcquiringPermits;
+        private final long beforeRelocation;
+        private final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder;
+        private final TimeValue initialFlushDuration;
+        private final Client parentClient;
 
-                final var shardId = indexShard.shardId();
-                final boolean hasRecentIdLookup = engine.hasRecentIdLookup(idLookupRecencyThreshold);
-                if (engine instanceof IndexEngine indexEngine) {
-                    if (hollowShardsService.isHollowableIndexShard(indexShard, false)) {
-                        // Resetting the IndexEngine hollows the shard and switches to a HollowIndexEngine and blocks ingestion
-                        // The block will be removed when the source shard is successfully relocated and closed,
-                        // or will remain in place if the relocation fails until the shard is unhollowed.
-                        logger.debug(() -> "hollowing index engine for shard " + shardId);
+        PrimaryHandoff(
+            ActionListener<Void> threadDumpListener,
+            IndexShard indexShard,
+            SubscribableListener<Long> uploadBoundListener,
+            StatelessPrimaryRelocationAction.Request request,
+            long beforeAcquiringPermits,
+            long beforeRelocation,
+            RelocationSourceMetrics.Builder relocationSourceMetricsBuilder,
+            TimeValue initialFlushDuration,
+            Client parentClient
+        ) {
+            this.threadDumpListener = threadDumpListener;
+            this.indexShard = indexShard;
+            this.uploadBoundListener = uploadBoundListener;
+            this.request = request;
+            this.beforeAcquiringPermits = beforeAcquiringPermits;
+            this.beforeRelocation = beforeRelocation;
+            this.relocationSourceMetricsBuilder = relocationSourceMetricsBuilder;
+            this.initialFlushDuration = initialFlushDuration;
+            this.parentClient = parentClient;
+        }
 
-                        final var idxVersion = indexShard.indexSettings().getIndexVersionCreated();
-                        if (idxVersion.before(IndexVersions.READ_SI_FILES_FROM_MEMORY_FOR_HOLLOW_COMMITS)) {
-                            // The HollowIndexEngine potentially needs to read referenced .si files.
-                            // On or after the READ_SI_FILES_FROM_MEMORY_FOR_HOLLOW_COMMITS index version those files wil be read from
-                            // memory but before that version, we should prewarm to brings them in the cache in parallel, rather than
-                            // letting the engine fetch them on-demand sequentially.
-                            indexShardCacheWarmer.preWarmIndexShardCache(indexShard, SharedBlobCacheWarmingService.Type.HOLLOWING);
-                        }
+        void run(ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> handoffResultListener) throws Exception {
+            try {
+                doRun(primaryContext, handoffResultListener);
+            } catch (Exception e) {
+                // Unwind before IndexShard#relocated releases the operation permits, such that a retry stays blocked
+                // until state is clean. No-op if markRelocating already completed the listener.
+                uploadBoundListener.onFailure(e);
+                throw e;
+            }
+        }
 
-                        long startTime = threadPool.relativeTimeInMillisSupplier().getAsLong();
-                        try {
-                            indexShard.resetEngine(newEngine -> {
-                                assert newEngine instanceof HollowIndexEngine : shardId + " has non-hollow engine " + newEngine;
-                                assert newEngine.getEngineConfig().getEngineResetLock().isWriteLockedByCurrentThread() : shardId;
-                                newEngine.refresh("hollowing"); // warms up reader managers
-                            });
-                        } catch (Exception e) {
-                            indexShard.failShard("failed to reset index engine for shard " + shardId, e);
-                            throw e;
-                        }
-                        hollowShardsService.addHollowShard(indexShard, "hollowing");
-                        hollowShardsMetrics.hollowSuccessCounter().increment();
-                        hollowShardsMetrics.hollowTimeMs().record(threadPool.relativeTimeInMillisSupplier().getAsLong() - startTime);
-                        engine = indexShard.getEngineOrNull();
-                        assert engine == null || engine instanceof HollowIndexEngine : engine;
-                        if (engine == null) {
-                            throw new AlreadyClosedException("shard " + shardId + " closed during relocation");
-                        }
-                    } else {
-                        indexEngine.flush(false, true, ActionListener.noop());
+        private void doRun(ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> handoffResultListener) throws Exception {
+            threadDumpListener.onResponse(null);
+            // Install the upload bound listener before the final flush, so that a registering search shard cannot pick up a
+            // commit above the upload bound that markRelocating pins after it.
+            statelessCommitServiceProvider.get().installUploadBoundListener(indexShard, uploadBoundListener);
+            Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
+            logShardStats("obtained primary context", indexShard, engine);
+            logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
+            final var acquirePermitsDuration = getTimeSince(beforeAcquiringPermits);
+
+            // Do not wait on flush durability as we will wait at the stateless commit service level for the upload
+            final long beforeFinalFlush = threadPool.relativeTimeInMillis();
+
+            final var shardId = indexShard.shardId();
+            final boolean hasRecentIdLookup = engine.hasRecentIdLookup(idLookupRecencyThreshold);
+            if (engine instanceof IndexEngine indexEngine) {
+                if (hollowShardsService.isHollowableIndexShard(indexShard, false)) {
+                    // Resetting the IndexEngine hollows the shard and switches to a HollowIndexEngine and blocks ingestion
+                    // The block will be removed when the source shard is successfully relocated and closed,
+                    // or will remain in place if the relocation fails until the shard is unhollowed.
+                    logger.debug(() -> "hollowing index engine for shard " + shardId);
+
+                    final var idxVersion = indexShard.indexSettings().getIndexVersionCreated();
+                    if (idxVersion.before(IndexVersions.READ_SI_FILES_FROM_MEMORY_FOR_HOLLOW_COMMITS)) {
+                        // The HollowIndexEngine potentially needs to read referenced .si files.
+                        // On or after the READ_SI_FILES_FROM_MEMORY_FOR_HOLLOW_COMMITS index version those files wil be read from
+                        // memory but before that version, we should prewarm to brings them in the cache in parallel, rather than
+                        // letting the engine fetch them on-demand sequentially.
+                        indexShardCacheWarmer.preWarmIndexShardCache(indexShard, SharedBlobCacheWarmingService.Type.HOLLOWING);
                     }
-                } else if (engine instanceof HollowIndexEngine) {
-                    hollowShardsService.ensureHollowShard(
-                        indexShard.shardId(),
-                        true,
-                        "hollow shard " + shardId + " should have an ingestion blocker"
-                    );
+
+                    long startTime = threadPool.relativeTimeInMillisSupplier().getAsLong();
+                    try {
+                        indexShard.resetEngine(newEngine -> {
+                            assert newEngine instanceof HollowIndexEngine : shardId + " has non-hollow engine " + newEngine;
+                            assert newEngine.getEngineConfig().getEngineResetLock().isWriteLockedByCurrentThread() : shardId;
+                            newEngine.refresh("hollowing"); // warms up reader managers
+                        });
+                    } catch (Exception e) {
+                        indexShard.failShard("failed to reset index engine for shard " + shardId, e);
+                        throw e;
+                    }
+                    hollowShardsService.addHollowShard(indexShard, "hollowing");
+                    hollowShardsMetrics.hollowSuccessCounter().increment();
+                    hollowShardsMetrics.hollowTimeMs().record(threadPool.relativeTimeInMillisSupplier().getAsLong() - startTime);
+                    engine = indexShard.getEngineOrNull();
+                    assert engine == null || engine instanceof HollowIndexEngine : engine;
+                    if (engine == null) {
+                        throw new AlreadyClosedException("shard " + shardId + " closed during relocation");
+                    }
+                } else {
+                    indexEngine.flush(false, true, ActionListener.noop());
                 }
-                logShardStats("flush after acquiring primary context completed", indexShard, engine);
-                final boolean relocatedAsHollow = engine instanceof HollowIndexEngine;
-                long lastFlushedGeneration = engine instanceof HollowIndexEngine hollowEngine
-                    ? hollowEngine.getHollowCommitMetadata().generation()
-                    : engine.getLastCommittedSegmentInfos().getGeneration();
-
-                final var localCheckpoints = new HashMap<>(primaryContext.getCheckpointStates());
-                final var sourceCheckpoints = localCheckpoints.get(indexShard.routingEntry().allocationId().getId());
-                localCheckpoints.put(request.targetAllocationId(), sourceCheckpoints);
-
-                final var targetNodeId = request.targetNode().getId();
-                try {
-                    indexShard.removePeerRecoveryRetentionLease(targetNodeId, ActionListener.noop());
-                } catch (RetentionLeaseNotFoundException e) {
-                    // ok, we don't know it exists here
-                }
-                indexShard.cloneLocalPeerRecoveryRetentionLease(targetNodeId, ActionListener.noop());
-
-                final var retentionLeases = indexShard.getRetentionLeases();
-                final var leaseId = ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetNodeId);
-                if (retentionLeases.contains(leaseId) == false) {
-                    // This is practically impossible, we only just created this lease, but in theory it could happen since leases have
-                    // time-based expiry.
-                    throw new RetentionLeaseNotFoundException(leaseId);
-                }
-
-                final var beforeSendingContext = new AtomicLong();
-                final var latestBccBlobLength = new AtomicLong(-1L);
-                final var otherBlobFilesCount = new AtomicLong(-1L);
-                final var markedShardAsRelocating = new SubscribableListener<Void>();
-                final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
-                ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocating(
+            } else if (engine instanceof HollowIndexEngine) {
+                hollowShardsService.ensureHollowShard(
                     indexShard.shardId(),
-                    lastFlushedGeneration,
-                    markedShardAsRelocating
+                    true,
+                    "hollow shard " + shardId + " should have an ingestion blocker"
                 );
+            }
+            logShardStats("flush after acquiring primary context completed", indexShard, engine);
+            final boolean relocatedAsHollow = engine instanceof HollowIndexEngine;
+            long lastFlushedGeneration = engine instanceof HollowIndexEngine hollowEngine
+                ? hollowEngine.getHollowCommitMetadata().generation()
+                : engine.getLastCommittedSegmentInfos().getGeneration();
 
-                // Create a compound listener which will trigger both the stateless commit service listener and top-level
-                // handoffResultListener
-                ActionListener<ActionResponse.Empty> compoundHandoffListener = new ActionListener<>() {
-                    @Override
-                    public void onResponse(ActionResponse.Empty unused) {
-                        final var relocationDuration = getTimeSince(beforeRelocation);
+            final var localCheckpoints = new HashMap<>(primaryContext.getCheckpointStates());
+            final var sourceCheckpoints = localCheckpoints.get(indexShard.routingEntry().allocationId().getId());
+            localCheckpoints.put(request.targetAllocationId(), sourceCheckpoints);
 
-                        logger.debug("[{}] primary context handoff succeeded", request.shardId());
-                        final TimeValue secondFlushDuration = getTimeBetween(beforeFinalFlush, beforeSendingContext.get());
-                        final TimeValue handOffDuration = getTimeSince(beforeSendingContext.get());
-                        relocationSourceMetricsBuilder.recordInitialFlushDuration(initialFlushDuration.millis());
-                        relocationSourceMetricsBuilder.recordAcquirePermitsDuration(acquirePermitsDuration.millis());
-                        relocationSourceMetricsBuilder.recordSecondFlushDuration(secondFlushDuration.millis());
-                        relocationSourceMetricsBuilder.recordHandoffDuration(handOffDuration.millis());
+            final var targetNodeId = request.targetNode().getId();
+            try {
+                indexShard.removePeerRecoveryRetentionLease(targetNodeId, ActionListener.noop());
+            } catch (RetentionLeaseNotFoundException e) {
+                // ok, we don't know it exists here
+            }
+            indexShard.cloneLocalPeerRecoveryRetentionLease(targetNodeId, ActionListener.noop());
 
-                        boolean aboveThreshold = relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis();
-                        if (aboveThreshold || logger.isDebugEnabled()) {
-                            final var indexingStats = indexShard.indexingStats().getTotal();
-                            final boolean shuttingDown = isShuttingDown();
-                            final var fields = new HashMap<String, Object>();
-                            fields.put("elasticsearch.primary.relocation.shard", request.shardId().toString());
-                            fields.put("elasticsearch.primary.relocation.target_allocation_id", request.targetAllocationId());
-                            fields.put("elasticsearch.primary.relocation.source_node", clusterService.localNode().getName());
-                            fields.put("elasticsearch.primary.relocation.target_node", request.targetNode().getName());
-                            fields.put("elasticsearch.primary.relocation.shutting_down", shuttingDown);
-                            fields.put("elasticsearch.primary.relocation.hollow", relocatedAsHollow);
-                            fields.put("elasticsearch.primary.relocation.duration", relocationDuration.millis());
-                            fields.put("elasticsearch.primary.relocation.initial_flush_duration", initialFlushDuration.millis());
-                            fields.put("elasticsearch.primary.relocation.acquire_permits_duration", acquirePermitsDuration.millis());
-                            fields.put("elasticsearch.primary.relocation.second_flush_duration", secondFlushDuration.millis());
-                            fields.put("elasticsearch.primary.relocation.handoff_duration", handOffDuration.millis());
-                            fields.put("elasticsearch.primary.relocation.has_recent_id_lookup", hasRecentIdLookup);
-                            fields.put("elasticsearch.primary.write_load", indexingStats.getWriteLoad());
-                            fields.put("elasticsearch.primary.recent_write_load", indexingStats.getRecentWriteLoad());
-                            fields.put("elasticsearch.primary.peak_write_load", indexingStats.getPeakWriteLoad());
-                            if (latestBccBlobLength.get() >= 0) {
-                                fields.put("elasticsearch.primary.relocation.bcc_blob_length_in_bytes", latestBccBlobLength.get());
-                                fields.put("elasticsearch.primary.relocation.other_blobs_count", otherBlobFilesCount.get());
-                            }
-                            final var message = new ESLogMessage(
-                                "[{}] primary shard relocation took [{}] (shutting down={}, has recent id lookup={}) "
-                                    + "(including [{}] to flush, [{}] to acquire permits, [{}] to flush again and [{}] to handoff context) "
-                                    + "which is {} the warn threshold of [{}]",
-                                request.shardId(),
-                                relocationDuration,
-                                shuttingDown,
-                                hasRecentIdLookup,
-                                initialFlushDuration,
-                                acquirePermitsDuration,
-                                secondFlushDuration,
-                                handOffDuration,
-                                aboveThreshold ? "above" : "below",
-                                slowRelocationWarningThreshold
-                            ).withFields(fields);
-                            logger.log(Level.INFO, message);
+            final var retentionLeases = indexShard.getRetentionLeases();
+            final var leaseId = ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetNodeId);
+            if (retentionLeases.contains(leaseId) == false) {
+                // This is practically impossible, we only just created this lease, but in theory it could happen since leases have
+                // time-based expiry.
+                throw new RetentionLeaseNotFoundException(leaseId);
+            }
+
+            final var beforeSendingContext = new AtomicLong();
+            final var latestBccBlobLength = new AtomicLong(-1L);
+            final var otherBlobFilesCount = new AtomicLong(-1L);
+            final var markedShardAsRelocating = new SubscribableListener<Void>();
+            final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
+            ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocating(
+                indexShard.shardId(),
+                lastFlushedGeneration,
+                markedShardAsRelocating
+            );
+
+            // Create a compound listener which will trigger both the stateless commit service listener and top-level
+            // handoffResultListener
+            ActionListener<ActionResponse.Empty> compoundHandoffListener = new ActionListener<>() {
+                @Override
+                public void onResponse(ActionResponse.Empty unused) {
+                    final var relocationDuration = getTimeSince(beforeRelocation);
+
+                    logger.debug("[{}] primary context handoff succeeded", request.shardId());
+                    final TimeValue secondFlushDuration = getTimeBetween(beforeFinalFlush, beforeSendingContext.get());
+                    final TimeValue handOffDuration = getTimeSince(beforeSendingContext.get());
+                    relocationSourceMetricsBuilder.recordInitialFlushDuration(initialFlushDuration.millis());
+                    relocationSourceMetricsBuilder.recordAcquirePermitsDuration(acquirePermitsDuration.millis());
+                    relocationSourceMetricsBuilder.recordSecondFlushDuration(secondFlushDuration.millis());
+                    relocationSourceMetricsBuilder.recordHandoffDuration(handOffDuration.millis());
+
+                    boolean aboveThreshold = relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis();
+                    if (aboveThreshold || logger.isDebugEnabled()) {
+                        final var indexingStats = indexShard.indexingStats().getTotal();
+                        final boolean shuttingDown = isShuttingDown();
+                        final var fields = new HashMap<String, Object>();
+                        fields.put("elasticsearch.primary.relocation.shard", request.shardId().toString());
+                        fields.put("elasticsearch.primary.relocation.target_allocation_id", request.targetAllocationId());
+                        fields.put("elasticsearch.primary.relocation.source_node", clusterService.localNode().getName());
+                        fields.put("elasticsearch.primary.relocation.target_node", request.targetNode().getName());
+                        fields.put("elasticsearch.primary.relocation.shutting_down", shuttingDown);
+                        fields.put("elasticsearch.primary.relocation.hollow", relocatedAsHollow);
+                        fields.put("elasticsearch.primary.relocation.duration", relocationDuration.millis());
+                        fields.put("elasticsearch.primary.relocation.initial_flush_duration", initialFlushDuration.millis());
+                        fields.put("elasticsearch.primary.relocation.acquire_permits_duration", acquirePermitsDuration.millis());
+                        fields.put("elasticsearch.primary.relocation.second_flush_duration", secondFlushDuration.millis());
+                        fields.put("elasticsearch.primary.relocation.handoff_duration", handOffDuration.millis());
+                        fields.put("elasticsearch.primary.relocation.has_recent_id_lookup", hasRecentIdLookup);
+                        fields.put("elasticsearch.primary.write_load", indexingStats.getWriteLoad());
+                        fields.put("elasticsearch.primary.recent_write_load", indexingStats.getRecentWriteLoad());
+                        fields.put("elasticsearch.primary.peak_write_load", indexingStats.getPeakWriteLoad());
+                        if (latestBccBlobLength.get() >= 0) {
+                            fields.put("elasticsearch.primary.relocation.bcc_blob_length_in_bytes", latestBccBlobLength.get());
+                            fields.put("elasticsearch.primary.relocation.other_blobs_count", otherBlobFilesCount.get());
                         }
-
-                        try {
-                            handoffCompleteListener.onResponse(null);
-                        } finally {
-                            handoffResultListener.onResponse(null);
-                        }
+                        final var message = new ESLogMessage(
+                            "[{}] primary shard relocation took [{}] (shutting down={}, has recent id lookup={}) "
+                                + "(including [{}] to flush, [{}] to acquire permits, [{}] to flush again and [{}] to handoff context) "
+                                + "which is {} the warn threshold of [{}]",
+                            request.shardId(),
+                            relocationDuration,
+                            shuttingDown,
+                            hasRecentIdLookup,
+                            initialFlushDuration,
+                            acquirePermitsDuration,
+                            secondFlushDuration,
+                            handOffDuration,
+                            aboveThreshold ? "above" : "below",
+                            slowRelocationWarningThreshold
+                        ).withFields(fields);
+                        logger.log(Level.INFO, message);
                     }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            handoffCompleteListener.onFailure(e);
-                        } finally {
-                            handoffResultListener.onFailure(e);
-                        }
+                    try {
+                        handoffCompleteListener.onResponse(null);
+                    } finally {
+                        handoffResultListener.onResponse(null);
                     }
-                };
+                }
 
-                markedShardAsRelocating.addListener(compoundHandoffListener.delegateFailureAndWrap((finalHandoffListener, v) -> {
-                    logger.debug("[{}] flush complete, handing off primary context", request.shardId());
-                    beforeSendingContext.set(threadPool.relativeTimeInMillis());
-
-                    assert assertLastCommitSequenceNumberConsistency(indexShard, sourceCheckpoints, false);
-
-                    // We send info about the latest BCC and blobs, so target node can avoid LISTing the object store.
-                    final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
-                    assert latestBcc != null : "no uploaded BCC for shard " + shardId;
-                    final long blobLength = latestBcc.calculateBccBlobLength();
-                    final BccBlob latestBccBlob = latestBcc.toBccBlob();
-                    final Set<BccBlob> lastCommitBlobs = new HashSet<>();
-                    for (Blob blob : latestBcc.lastCompoundCommit().getBlobs()) {
-                        // TODO(merge-blobs) Ignoring merge blobs here until the feature is fully supported
-                        if (blob instanceof BccBlob bccBlob) {
-                            lastCommitBlobs.add(bccBlob);
-                        }
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        handoffCompleteListener.onFailure(e);
+                    } finally {
+                        handoffResultListener.onFailure(e);
                     }
-                    final var lastCommitIsHollow = latestBcc.lastCompoundCommit().hollow();
-                    // This happens after markRelocating() has triggered the listener. The latest uploaded BCC will be the last. No new
-                    // BCCs will be uploaded after that. However, there could still be VBCCs after the last BCC that we need to ignore.
-                    // Thus, we pass the generation of the last BCC.
-                    final Set<BccBlob> otherBccBlobs = statelessCommitService.getTrackedUploadedBccBlobsUpTo(
-                        shardId,
-                        latestBcc.primaryTermAndGeneration().generation()
-                    );
-                    otherBccBlobs.remove(latestBccBlob);
-                    latestBccBlobLength.set(blobLength);
-                    otherBlobFilesCount.set(otherBccBlobs.size());
-
-                    final var handoffEngine = indexShard.getEngineOrNull();
-                    if (handoffEngine == null) {
-                        finalHandoffListener.onFailure(new AlreadyClosedException("shard " + shardId + " closed during relocation"));
-                        return;
-                    }
-                    final HollowShardRecoveryState hollowRecoveryState = transferHollowCommitMetadata
-                        && handoffEngine instanceof HollowIndexEngine hollowEngine
-                            ? hollowRecoveryState(shardId, hollowEngine.getHollowCommitMetadata(), latestBcc)
-                            : null;
-                    parentClient.execute(
-                        TransportStatelessPrimaryRelocationHandoffAction.TYPE,
-                        new TransportStatelessPrimaryRelocationHandoffAction.HandoffRequest(
-                            request.targetNode(),
-                            new TransportStatelessPrimaryRelocationHandoffAction.Request(
-                                request.recoveryId(),
-                                request.shardId(),
-                                new ReplicationTracker.PrimaryContext(
-                                    primaryContext.clusterStateVersion(),
-                                    localCheckpoints,
-                                    primaryContext.getRoutingTable()
-                                ),
-                                retentionLeases,
-                                statelessCommitService.getSearchNodesPerCommit(indexShard.shardId()),
-                                new BlobFileWithLength(latestBccBlob, blobLength),
-                                otherBccBlobs,
-                                hasRecentIdLookup,
-                                lastCommitBlobs,
-                                lastCommitIsHollow,
-                                hollowRecoveryState
-                            )
-                        ),
-                        finalHandoffListener
-                    );
-                }), recoveryExecutor, threadContext);
+                }
             };
 
-            indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
-                try {
-                    handoffConsumer.accept(primaryContext, handoffResultListener);
-                } catch (Exception e) {
-                    // Unwind before IndexShard#relocated releases the operation permits, such that a retry stays blocked
-                    // until state is clean. No-op if markRelocating already completed the listener.
-                    uploadBoundListener.onFailure(e);
-                    throw e;
+            markedShardAsRelocating.addListener(compoundHandoffListener.delegateFailureAndWrap((finalHandoffListener, v) -> {
+                logger.debug("[{}] flush complete, handing off primary context", request.shardId());
+                beforeSendingContext.set(threadPool.relativeTimeInMillis());
+
+                assert assertLastCommitSequenceNumberConsistency(indexShard, sourceCheckpoints, false);
+
+                // We send info about the latest BCC and blobs, so target node can avoid LISTing the object store.
+                final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
+                assert latestBcc != null : "no uploaded BCC for shard " + shardId;
+                final long blobLength = latestBcc.calculateBccBlobLength();
+                final BccBlob latestBccBlob = latestBcc.toBccBlob();
+                final Set<BccBlob> lastCommitBlobs = new HashSet<>();
+                for (Blob blob : latestBcc.lastCompoundCommit().getBlobs()) {
+                    // TODO(merge-blobs) Ignoring merge blobs here until the feature is fully supported
+                    if (blob instanceof BccBlob bccBlob) {
+                        lastCommitBlobs.add(bccBlob);
+                    }
                 }
-            }, listener0.map(unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())));
-        }), recoveryExecutor, threadContext);
+                final var lastCommitIsHollow = latestBcc.lastCompoundCommit().hollow();
+                // This happens after markRelocating() has triggered the listener. The latest uploaded BCC will be the last. No new
+                // BCCs will be uploaded after that. However, there could still be VBCCs after the last BCC that we need to ignore.
+                // Thus, we pass the generation of the last BCC.
+                final Set<BccBlob> otherBccBlobs = statelessCommitService.getTrackedUploadedBccBlobsUpTo(
+                    shardId,
+                    latestBcc.primaryTermAndGeneration().generation()
+                );
+                otherBccBlobs.remove(latestBccBlob);
+                latestBccBlobLength.set(blobLength);
+                otherBlobFilesCount.set(otherBccBlobs.size());
+
+                final var handoffEngine = indexShard.getEngineOrNull();
+                if (handoffEngine == null) {
+                    finalHandoffListener.onFailure(new AlreadyClosedException("shard " + shardId + " closed during relocation"));
+                    return;
+                }
+                final HollowShardRecoveryState hollowRecoveryState = transferHollowCommitMetadata
+                    && handoffEngine instanceof HollowIndexEngine hollowEngine
+                        ? hollowRecoveryState(shardId, hollowEngine.getHollowCommitMetadata(), latestBcc)
+                        : null;
+                parentClient.execute(
+                    TransportStatelessPrimaryRelocationHandoffAction.TYPE,
+                    new TransportStatelessPrimaryRelocationHandoffAction.HandoffRequest(
+                        request.targetNode(),
+                        new TransportStatelessPrimaryRelocationHandoffAction.Request(
+                            request.recoveryId(),
+                            request.shardId(),
+                            new ReplicationTracker.PrimaryContext(
+                                primaryContext.clusterStateVersion(),
+                                localCheckpoints,
+                                primaryContext.getRoutingTable()
+                            ),
+                            retentionLeases,
+                            statelessCommitService.getSearchNodesPerCommit(indexShard.shardId()),
+                            new BlobFileWithLength(latestBccBlob, blobLength),
+                            otherBccBlobs,
+                            hasRecentIdLookup,
+                            lastCommitBlobs,
+                            lastCommitIsHollow,
+                            hollowRecoveryState
+                        )
+                    ),
+                    finalHandoffListener
+                );
+            }), recoveryExecutor, threadContext);
+        }
     }
 
     /**

@@ -10,6 +10,10 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
@@ -59,6 +63,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -212,7 +218,21 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
             ActionFilters actionFilters = ActionFilters.EMPTY;
-            final Client client = new NoOpClient(threadPool);
+            final Client client = new NoOpClient(threadPool) {
+                @Override
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    final BiConsumer<ActionRequest, ActionListener<?>> behaviour = clientBehaviour.get();
+                    if (behaviour == null) {
+                        super.doExecute(action, request, listener);
+                    } else {
+                        behaviour.accept(request, listener);
+                    }
+                }
+            };
             transportListTasksAction = new TransportListTasksAction(
                 clusterService,
                 transportService,
@@ -224,6 +244,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             transportService.acceptIncomingRequests();
         }
 
+        public final AtomicReference<BiConsumer<ActionRequest, ActionListener<?>>> clientBehaviour = new AtomicReference<>();
         public final ClusterService clusterService;
         public final TransportService transportService;
         private final SetOnce<DiscoveryNode> discoveryNode = new SetOnce<>();

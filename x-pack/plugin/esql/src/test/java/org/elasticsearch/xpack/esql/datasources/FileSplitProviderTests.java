@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -357,6 +359,26 @@ public class FileSplitProviderTests extends ESTestCase {
             PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), hive),
             FileSplitProvider.listingHintsForQuery(filters, Set.of(), hive, PartitionSpec.EMPTY)
         );
+    }
+
+    /**
+     * Empty spec never calls a non-empty {@code projectListingHints}, so RANGE must still
+     * drop here: otherwise listing-cache identity includes BoundRange.toString() while
+     * {@code EsqlSession} (through EMPTY.projectListingHints) does not.
+     */
+    public void testListingHintsForQueryEmptySpecDropsRange() {
+        Expression filter = new Or(
+            SRC,
+            new GreaterThanOrEqual(SRC, fieldAttr("year"), intLiteral(2024)),
+            new LessThanOrEqual(SRC, fieldAttr("year"), intLiteral(2020))
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = FileSplitProvider.listingHintsForQuery(
+            List.of(filter),
+            Set.of(),
+            Set.of("year"),
+            PartitionSpec.EMPTY
+        );
+        assertTrue(hints.stream().noneMatch(h -> h.operator() == PartitionFilterHintExtractor.Operator.RANGE));
     }
 
     public void testListingHintsForQueryIdentityRemapKeepsHiveKey() {
@@ -6296,6 +6318,323 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(100L, stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
     }
 
+    /**
+     * Footer {@code start} in epoch seconds, mapping {@code @timestamp <- start, epoch_second}: split stats
+     * land on {@code @timestamp} in millis. An hourly filter drops non-overlapping splits; a full-day filter
+     * drops none.
+     */
+    public void testRangeAwareSplitsRescaleEpochSecondAndDropStatsMisses() {
+        long rawMin = 1_763_596_800L; // 2025-11-20T00:00:00Z
+        long rawMax = 1_763_597_100L; // +5 minutes
+        long hourLaterMin = 1_763_600_400L; // 01:00
+        long hourLaterMax = 1_763_600_700L;
+        Map<String, Object> inHour = harvestStats("start", rawMin, rawMax);
+        Map<String, Object> nextHour = harvestStats("start", hourLaterMin, hourLaterMax);
+
+        RangeAwareFormatReader mockReader = createMockRangeReader(
+            List.of(new SplitRange(100, 400, inHour), new SplitRange(500, 400, nextHour))
+        );
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 2000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+
+        List<Attribute> overlaid = List.of(new ReferenceAttribute(SRC, "@timestamp", DataType.DATETIME));
+        ExternalSchema schema = new ExternalSchema(overlaid);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(schema, null, null, Map.of("start", DataType.LONG))
+        );
+        DeclaredReadSpec spec = DeclaredReadSpec.of(
+            Map.of("@timestamp", "start"),
+            Map.of("@timestamp", "epoch_second"),
+            Set.of("@timestamp")
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            schema,
+            schema,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            spec
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(2, splits.size());
+        Map<String, Object> first = ((FileSplit) splits.get(0)).statistics();
+        assertEquals(rawMin * 1_000L, first.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertEquals(rawMax * 1_000L, first.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertEquals(2L, first.get(SourceStatisticsSerializer.columnValueCountKey("@timestamp")));
+        assertNull(first.get(SourceStatisticsSerializer.columnMinKey("start")));
+        assertNull(first.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+
+        Expression hourly = timestampRange(rawMin * 1_000L, hourLaterMin * 1_000L);
+        List<ExternalSplit> hourKept = FileSplitProvider.dropStatsMisses(splits, List.of(hourly));
+        assertEquals(1, hourKept.size());
+        assertEquals(
+            rawMin * 1_000L,
+            ((FileSplit) hourKept.get(0)).statistics().get(SourceStatisticsSerializer.columnMinKey("@timestamp"))
+        );
+
+        Expression fullDay = timestampRange(rawMin * 1_000L, (rawMin + 86_400L) * 1_000L);
+        assertEquals(2, FileSplitProvider.dropStatsMisses(splits, List.of(fullDay)).size());
+    }
+
+    /**
+     * Dataset-level poison (one sibling out of range) must not wipe per-split rescaled bounds.
+     * Hourly prune still drops the non-overlapping range.
+     */
+    public void testRangeAwareSplitsFoldPoisonKeepsEpochBounds() {
+        long rawMin = 1_763_596_800L;
+        long rawMax = 1_763_597_100L;
+        long hourLaterMin = 1_763_600_400L;
+        long hourLaterMax = 1_763_600_700L;
+        RangeAwareFormatReader mockReader = createMockRangeReader(
+            List.of(
+                new SplitRange(100, 400, harvestStats("start", rawMin, rawMax)),
+                new SplitRange(500, 400, harvestStats("start", hourLaterMin, hourLaterMax))
+            )
+        );
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 2000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+        List<Attribute> overlaid = List.of(new ReferenceAttribute(SRC, "@timestamp", DataType.DATETIME));
+        ExternalSchema schema = new ExternalSchema(overlaid);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(schema, null, null, Map.of("start", DataType.LONG))
+        );
+        DeclaredReadSpec spec = DeclaredReadSpec.of(
+            Map.of("@timestamp", "start"),
+            Map.of("@timestamp", "epoch_second"),
+            Set.of("@timestamp")
+        );
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp"), Boolean.TRUE);
+        SourceMetadata metadata = new SimpleSourceMetadata(overlaid, "parquet", "s3://b/*.parquet", null, null, folded, Map.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            metadata,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            schema,
+            schema,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            spec
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(2, splits.size());
+        Map<String, Object> first = ((FileSplit) splits.get(0)).statistics();
+        assertEquals(rawMin * 1_000L, first.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertEquals(rawMax * 1_000L, first.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertNull(first.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+
+        Expression hourly = timestampRange(rawMin * 1_000L, hourLaterMin * 1_000L);
+        assertEquals(1, FileSplitProvider.dropStatsMisses(splits, List.of(hourly)).size());
+    }
+
+    /**
+     * Pin {@code statsFileTypes} to the declared DATETIME so DATETIME+DATE_NANOS union conversion
+     * sees millis and scales ×1e6, not LONG (identity, millis served as nanos).
+     */
+    public void testRangeAwareSplitsEpochSecondUnionByNameArrivesInNanos() {
+        long rawMin = 1_763_596_800L;
+        long rawMax = 1_763_597_100L;
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, harvestStats("start", rawMin, rawMax))));
+        FileSplitProvider splitter = splitterFor(mockReader);
+        List<Attribute> overlaid = List.of(new ReferenceAttribute(SRC, "@timestamp", DataType.DATETIME));
+        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "@timestamp", DataType.DATE_NANOS)));
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-a.parquet"), 2000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(overlaid), null, null, Map.of("start", DataType.LONG))
+        );
+        DeclaredReadSpec spec = DeclaredReadSpec.of(
+            Map.of("@timestamp", "start"),
+            Map.of("@timestamp", "epoch_second"),
+            Set.of("@timestamp")
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            new ExternalSchema(overlaid),
+            unified,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            spec
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(1, splits.size());
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+        assertEquals(rawMin * 1_000_000_000L, stats.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertEquals(rawMax * 1_000_000_000L, stats.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.columnValueCountKey("@timestamp"))).longValue());
+    }
+
+    public void testRangeAwareSplitsYyyyMMddOnLongStillPoisons() {
+        RangeAwareFormatReader mockReader = createMockRangeReader(
+            List.of(new SplitRange(100, 500, harvestStats("start", 20251120L, 20251120L)))
+        );
+        FileSplitProvider splitter = splitterFor(mockReader);
+        List<Attribute> overlaid = List.of(new ReferenceAttribute(SRC, "@timestamp", DataType.DATETIME));
+        ExternalSchema schema = new ExternalSchema(overlaid);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 2000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(schema, null, null, Map.of("start", DataType.LONG))
+        );
+        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("@timestamp", "start"), Map.of("@timestamp", "yyyyMMdd"), Set.of("@timestamp"));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            schema,
+            schema,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            spec
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(1, splits.size());
+        assertUnknownColumnStats(((FileSplit) splits.get(0)).statistics(), "@timestamp", 2L);
+    }
+
+    /**
+     * Mixed files, same logical column: one in-range (rescaled) + one out-of-range (poisoned). Merge
+     * is marker-wins, so the dataset has no served aggregate min/max.
+     */
+    public void testRangeAwareSplitsMixedEpochFilesMarkerWins() {
+        long rawMin = 1_763_596_800L;
+        long rawMax = 1_763_597_100L;
+        long outOfRange = Long.MAX_VALUE / 1_000L + 1;
+        StoragePath goodPath = StoragePath.of("s3://b/good.parquet");
+        StoragePath badPath = StoragePath.of("s3://b/bad.parquet");
+        RangeAwareFormatReader mockReader = new RangeAwareFormatReader() {
+            @Override
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
+            }
+
+            @Override
+            public List<SplitRange> cachedSplitRanges(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                boolean good = object.path().equals(goodPath);
+                Map<String, Object> raw = good ? harvestStats("start", rawMin, rawMax) : harvestStats("start", outOfRange, outOfRange);
+                return List.of(new SplitRange(100, 500, raw));
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
+                throw new UnsupportedOperationException("not called during split discovery");
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                return null;
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet", ".parq");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public void close() {}
+        };
+        FileSplitProvider splitter = splitterFor(mockReader);
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(goodPath, 2000, Instant.EPOCH), new StorageEntry(badPath, 2000, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+        List<Attribute> overlaid = List.of(new ReferenceAttribute(SRC, "@timestamp", DataType.DATETIME));
+        ExternalSchema schema = new ExternalSchema(overlaid);
+        SchemaReconciliation.FileSchemaInfo info = new SchemaReconciliation.FileSchemaInfo(
+            schema,
+            null,
+            null,
+            Map.of("start", DataType.LONG)
+        );
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(goodPath, info, badPath, info);
+        DeclaredReadSpec spec = DeclaredReadSpec.of(
+            Map.of("@timestamp", "start"),
+            Map.of("@timestamp", "epoch_second"),
+            Set.of("@timestamp")
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            schema,
+            schema,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            spec
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(2, splits.size());
+        Map<StoragePath, Map<String, Object>> byPath = new HashMap<>();
+        for (ExternalSplit split : splits) {
+            FileSplit fileSplit = (FileSplit) split;
+            byPath.put(fileSplit.path(), fileSplit.statistics());
+        }
+        Map<String, Object> good = byPath.get(goodPath);
+        assertEquals(rawMin * 1_000L, good.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertEquals(rawMax * 1_000L, good.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertNull(good.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+        Map<String, Object> bad = byPath.get(badPath);
+        assertNull(bad.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertEquals(Boolean.TRUE, bad.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+        assertEquals(Boolean.TRUE, bad.get(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp")));
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(List.of(good, bad));
+        assertNull("marker-wins: no served aggregate min", merged.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertNull(merged.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertEquals(Boolean.TRUE, merged.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+        assertEquals(Boolean.TRUE, merged.get(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp")));
+    }
+
     public void testRangeAwareSplitsConvertLongExtremaWhenReadSchemaIsPinnedToDouble() {
         // 9007199254740993 is not an exact double; converting LONG->DOUBLE yields 9007199254740992.0.
         // Using the pinned DOUBLE readSchema as the file type skips that convert and leaves the raw Long.
@@ -8569,6 +8908,227 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * Guard: if {@code gatherSkippingCachedFooters} passed a null reader, that reader would
+     * fail-open (no wave cap) and parquet would open every footer. Expected to pass with or
+     * without the text-wave skip. Does not reproduce the text regression.
+     */
+    public void testFilteredLimitPlansOnlyAFirstWaveOfFootersAsync() throws Exception {
+        int files = 8;
+        int taskConcurrency = 2;
+        AtomicInteger opened = new AtomicInteger();
+        FileSplitProvider provider = rangeAwareProvider(countingRowCountReader(opened, 10), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        provider.discoverSplitsAsync(contextWithFilteredLimit(files, taskConcurrency), EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        SplitDiscoveryResult result = future.actionGet(30, TimeUnit.SECONDS);
+
+        assertEquals("only the first wave opens a footer", taskConcurrency, opened.get());
+        assertEquals("the rest still produce a whole-file split so a selective filter can continue", files, result.splits().size());
+    }
+
+    /**
+     * Text has no footer, so the filtered-LIMIT plan wave must not collapse files past
+     * {@code taskConcurrency} into whole-file splits. Each CSV file large enough to range-split
+     * still produces record-aligned macro splits: sequential {@code executor == null},
+     * {@link FileSplitProvider#discoverSplits} with a non-null executor, and
+     * {@link FileSplitProvider#discoverSplitsAsync}.
+     */
+    public void testFilteredLimitDoesNotApplyPlanWaveToText() throws Exception {
+        int files = 8;
+        int taskConcurrency = 2;
+        byte[] payload = delimitedPayload("a,b,c\n");
+        Map<String, byte[]> payloads = new LinkedHashMap<>();
+        for (int i = 0; i < files; i++) {
+            payloads.put("f" + i + ".csv", payload);
+        }
+
+        List<StorageEntry> entries = new ArrayList<>();
+        for (Map.Entry<String, byte[]> file : payloads.entrySet()) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/" + file.getKey()), file.getValue().length, Instant.EPOCH));
+        }
+        SplitDiscoveryContext ctx = contextWithFilteredLimit(
+            new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(entries, "s3://b/*.csv"),
+                Map.of(),
+                Map.of("mode", "plain"),
+                PartitionMetadata.EMPTY,
+                List.of(),
+                ExternalSchema.EMPTY,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                DeclaredReadSpec.NONE
+            ),
+            taskConcurrency
+        );
+
+        assertTextDidNotApplyPlanWave(plainCsvProvider(payloads, null).discoverSplits(ctx), files);
+
+        FileSplitProvider parallel = plainCsvProvider(payloads, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        assertTextDidNotApplyPlanWave(parallel.discoverSplits(ctx), files);
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        parallel.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        assertTextDidNotApplyPlanWave(future.actionGet(30, TimeUnit.SECONDS), files);
+    }
+
+    private static FileSplitProvider plainCsvProvider(Map<String, byte[]> payloads, @Nullable Executor executor) {
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy(
+            "csv",
+            (s, bf) -> new CsvFormatReader(bf, CsvFormatOptions.DEFAULT, "csv", List.of(".csv")),
+            Settings.EMPTY,
+            null
+        );
+        formatRegistry.registerExtension(".csv", "csv");
+        formatRegistry.byName("csv");
+        return new FileSplitProvider(
+            CSV_MIN_SEGMENT_BYTES,
+            new DecompressionCodecRegistry(),
+            createMultiFileStorageRegistry(payloads, null),
+            formatRegistry,
+            Settings.EMPTY,
+            executor
+        );
+    }
+
+    private static void assertTextDidNotApplyPlanWave(SplitDiscoveryResult result, int files) {
+        Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
+        for (ExternalSplit split : result.splits()) {
+            FileSplit fileSplit = (FileSplit) split;
+            byFile.computeIfAbsent(fileSplit.path().objectName(), k -> new ArrayList<>()).add(fileSplit);
+        }
+        assertEquals("every listed file still produces splits", files, byFile.size());
+        for (int i = 0; i < files; i++) {
+            String name = "f" + i + ".csv";
+            List<FileSplit> fileSplits = byFile.get(name);
+            assertThat(
+                "file " + name + " must range-split, not collapse to a whole-file split past the first wave",
+                fileSplits.size(),
+                greaterThan(1)
+            );
+            for (FileSplit fs : fileSplits) {
+                assertEquals("true", fs.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+            }
+        }
+    }
+
+    /**
+     * The wave helper itself: a {@link RangeAwareFormatReader} is capped at {@code taskConcurrency};
+     * CSV is not. Splittable compressed text still waves because planning scans for block
+     * boundaries; gzip does not. A null reader fail-opens. Resolving through
+     * {@link FormatReaderRegistry#byName} then {@link FormatReader#withConfig} (the production
+     * {@code resolveConfiguredReader} shape) still waves: {@code ParquetFormatReader#withSchemaMaxFields}
+     * returns another {@code ParquetFormatReader}, and ORC's {@code NoConfigFormatReader} returns
+     * {@code this}. Neither supports whole-file compression, so the registry cannot wrap them in
+     * {@code CompressionDelegatingFormatReader}.
+     */
+    public void testFilteredLimitPlanWaveAppliesOnlyToRangeAwareReaders() {
+        SplitDiscoveryContext ctx = contextWithFilteredLimit(8, 2);
+        RangeAwareFormatReader parquet = countingRowCountReader(new AtomicInteger(), 10);
+        CsvFormatReader csv = new CsvFormatReader(
+            BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build()
+        );
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, parquet));
+        assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, csv));
+        assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, null));
+
+        FormatReader splittable = new CompressionDelegatingFormatReader(csv, new FakeSplittableCodec(new long[] { 0L }));
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, splittable));
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, splittable.withConfig(Map.of())));
+        FormatReader gzip = new CompressionDelegatingFormatReader(csv, new GzipDecompressionCodec());
+        assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, gzip));
+
+        FormatReaderRegistry registry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        registry.registerLazy("parquet", (s, bf) -> parquet, Settings.EMPTY, null);
+        registry.byName("parquet");
+        FormatReader resolved = registry.byName("parquet").withConfig(Map.of());
+        assertThat(resolved, instanceOf(RangeAwareFormatReader.class));
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, resolved));
+    }
+
+    /**
+     * Splittable compressed text still pays {@code findBlockBoundaries} per planned file, so the
+     * filtered-LIMIT wave keeps that scan to {@code taskConcurrency}. Files past the wave become
+     * whole-file splits with no object-store I/O. Sequential, parallel, and async all cap the scan.
+     */
+    public void testFilteredLimitPlansOnlyAFirstWaveOfBlockBoundaryScans() throws Exception {
+        assumeTrue("bzip2 wrap is snapshot-only", Build.current().isSnapshot());
+        int files = 8;
+        int taskConcurrency = 2;
+        long fileLength = 1_000_000_000L;
+        long[] boundaries = new long[200];
+        for (int i = 0; i < boundaries.length; i++) {
+            boundaries[i] = (long) i * 5_000_000L;
+        }
+        FakeSplittableCodec codec = new FakeSplittableCodec(boundaries);
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < files; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/f" + i + ".ndjson.bz2"), fileLength, Instant.EPOCH));
+        }
+        SplitDiscoveryContext ctx = contextWithFilteredLimit(
+            new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(entries, "s3://b/*.ndjson.bz2"),
+                Map.of(),
+                PartitionMetadata.EMPTY,
+                List.of()
+            ),
+            taskConcurrency
+        );
+
+        codec.resetScans();
+        assertBlockBoundaryWave(splittableBz2Provider(codec, null).discoverSplits(ctx), files, taskConcurrency);
+        assertEquals("sequential plans only the first wave", taskConcurrency, codec.scans());
+
+        FileSplitProvider parallel = splittableBz2Provider(codec, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        codec.resetScans();
+        assertBlockBoundaryWave(parallel.discoverSplits(ctx), files, taskConcurrency);
+        assertEquals("parallel plans only the first wave", taskConcurrency, codec.scans());
+
+        codec.resetScans();
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        parallel.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        assertBlockBoundaryWave(future.actionGet(30, TimeUnit.SECONDS), files, taskConcurrency);
+        assertEquals("async plans only the first wave", taskConcurrency, codec.scans());
+    }
+
+    private static FileSplitProvider splittableBz2Provider(FakeSplittableCodec codec, @Nullable Executor executor) {
+        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        codecRegistry.register(codec);
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecRegistry);
+        formatRegistry.registerLazy("ndjson", (s, bf) -> new NdJsonFormatReader(s, bf, null), Settings.EMPTY, null);
+        formatRegistry.registerExtension(".ndjson", "ndjson");
+        formatRegistry.byName("ndjson");
+        return new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            createMockStorageRegistry(),
+            formatRegistry,
+            Settings.EMPTY,
+            executor
+        );
+    }
+
+    private static void assertBlockBoundaryWave(SplitDiscoveryResult result, int files, int taskConcurrency) {
+        Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
+        for (ExternalSplit split : result.splits()) {
+            FileSplit fileSplit = (FileSplit) split;
+            byFile.computeIfAbsent(fileSplit.path().objectName(), k -> new ArrayList<>()).add(fileSplit);
+        }
+        assertEquals("every listed file still produces splits", files, byFile.size());
+        for (int i = 0; i < files; i++) {
+            String name = "f" + i + ".ndjson.bz2";
+            List<FileSplit> fileSplits = byFile.get(name);
+            if (i < taskConcurrency) {
+                assertThat("wave file " + name + " must keep block-aligned splits", fileSplits.size(), greaterThan(1));
+            } else {
+                assertEquals("file " + name + " past the wave collapses to a whole-file split", 1, fileSplits.size());
+            }
+        }
+    }
+
+    /**
      * A unit that cannot say how many records it holds makes the running total a floor rather than a count, so the
      * budget gives up and every file is planned. The reader here reports ranges without statistics, which is what
      * every format that is not row-group or stripe based does.
@@ -8714,7 +9274,10 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     private static SplitDiscoveryContext contextWithFilteredLimit(int fileCount, int taskConcurrency) {
-        SplitDiscoveryContext base = rangeAwareContext(fileCount);
+        return contextWithFilteredLimit(rangeAwareContext(fileCount), taskConcurrency);
+    }
+
+    private static SplitDiscoveryContext contextWithFilteredLimit(SplitDiscoveryContext base, int taskConcurrency) {
         return new SplitDiscoveryContext(
             base.metadata(),
             base.fileList(),
@@ -10547,9 +11110,18 @@ public class FileSplitProviderTests extends ESTestCase {
     /** Fake SplittableDecompressionCodec returning canned block boundaries, for unit-testing split logic. */
     private static final class FakeSplittableCodec implements SplittableDecompressionCodec {
         private final long[] boundaries;
+        private final AtomicInteger scans = new AtomicInteger();
 
         FakeSplittableCodec(long[] boundaries) {
             this.boundaries = boundaries;
+        }
+
+        int scans() {
+            return scans.get();
+        }
+
+        void resetScans() {
+            scans.set(0);
         }
 
         @Override
@@ -10569,6 +11141,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         @Override
         public long[] findBlockBoundaries(StorageObject object, long start, long end, LongConsumer ignored) {
+            scans.incrementAndGet();
             return boundaries.clone();
         }
 
@@ -11022,6 +11595,19 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static FieldAttribute fieldAttr(String name) {
         return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static Expression timestampRange(long startMillis, long endMillis) {
+        FieldAttribute ts = new FieldAttribute(
+            SRC,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        return new And(
+            SRC,
+            new GreaterThanOrEqual(SRC, ts, new Literal(SRC, startMillis, DataType.DATETIME)),
+            new LessThan(SRC, ts, new Literal(SRC, endMillis, DataType.DATETIME))
+        );
     }
 
     private static FieldAttribute keywordField(String name) {

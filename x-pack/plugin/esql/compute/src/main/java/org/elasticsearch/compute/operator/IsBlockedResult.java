@@ -22,6 +22,13 @@ import java.util.Map;
  *     {@link SubscribableListener#addListener} to the {@link #listener} to be
  *     notified when the {@linkplain Operator} is unblocked.
  * </p>
+ * <p>
+ *     The {@link #listener} only signals when the driver can resume. A pending
+ *     listener tells the driver to yield, and it must complete successfully to
+ *     wake the driver. An {@linkplain Operator} must never fail it. It records
+ *     any failure itself and throws it from the next call the driver makes,
+ *     such as {@link Operator#getOutput} or {@link Operator#addInput}.
+ * </p>
  * @param listener a listener to check for blocked-ness
  * @param reason the reason that the {@linkplain Operator} is blocked.
  *               This is used as a {@link Map} key so this shouldn't

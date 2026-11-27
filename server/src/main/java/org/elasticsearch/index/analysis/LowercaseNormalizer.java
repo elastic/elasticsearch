@@ -15,12 +15,28 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 
+import java.util.function.Supplier;
+
 /** Normalizer used to lowercase values */
 public final class LowercaseNormalizer extends Analyzer {
 
+    private final Supplier<Tokenizer> tokenizerSupplier;
+
+    public LowercaseNormalizer() {
+        this(KeywordTokenizer::new);
+    }
+
+    /**
+     * @param tokenizerSupplier tokenizer to lowercase the output of; a whitespace tokenizer backs
+     *                          {@code split_queries_on_whitespace}
+     */
+    public LowercaseNormalizer(Supplier<Tokenizer> tokenizerSupplier) {
+        this.tokenizerSupplier = tokenizerSupplier;
+    }
+
     @Override
     protected TokenStreamComponents createComponents(String s) {
-        final Tokenizer tokenizer = new KeywordTokenizer();
+        final Tokenizer tokenizer = tokenizerSupplier.get();
         TokenStream stream = new LowerCaseFilter(tokenizer);
         return new TokenStreamComponents(tokenizer, stream);
     }

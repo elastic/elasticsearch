@@ -194,8 +194,10 @@ public class MergeBlobInjector implements IndexEventListener {
         random.nextBytes(segmentId);
         final String blobName = MergeBlob.blobName(segmentId);
         final var injectedBlob = new InjectedBlob(shardId, primaryTerm, blobName, random.nextLong());
+        if (INJECTED.add(injectedBlob) == false) {
+            return;
+        }
         final byte[] bytes = injectedBlob.bytes();
-        INJECTED.add(injectedBlob);
         try {
             shardBlobContainer.apply(shardId, primaryTerm).writeBlob(OperationPurpose.INDICES, blobName, new BytesArray(bytes), false);
             logger.debug("injected merge blob {} ({}, {} bytes)", injectedBlob, moment, bytes.length);

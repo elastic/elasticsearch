@@ -12,6 +12,7 @@ package org.elasticsearch.index.store;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
@@ -123,10 +124,23 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(data.size());
+        // a metric the receiver does not know is left out
+        int size = 0;
         for (PluggableMetrics<?> metric : data.values()) {
-            out.writeNamedWriteable(metric);
+            if (supports(metric, out)) {
+                size++;
+            }
         }
+        out.writeVInt(size);
+        for (PluggableMetrics<?> metric : data.values()) {
+            if (supports(metric, out)) {
+                out.writeNamedWriteable(metric);
+            }
+        }
+    }
+
+    private static boolean supports(PluggableMetrics<?> metric, StreamOutput out) {
+        return metric instanceof VersionedNamedWriteable versioned ? versioned.supportsVersion(out.getTransportVersion()) : true;
     }
 
     public boolean isEmpty() {

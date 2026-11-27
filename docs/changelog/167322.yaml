@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 167322
+summary: Reject unreachable dotted fields in columnar
+type: bug

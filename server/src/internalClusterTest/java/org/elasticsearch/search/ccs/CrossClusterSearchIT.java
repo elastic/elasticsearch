@@ -10,12 +10,16 @@
 package org.elasticsearch.search.ccs;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Cluster;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -28,6 +32,9 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.AllocatingQueryPlugin;
+import org.elasticsearch.search.AllocatingQueryPlugin.AllocatingQueryBuilder;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.SlowRunningQueryBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
@@ -54,7 +61,10 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), TestQueryBuilderPlugin.class);
+        return CollectionUtils.appendToCopy(
+            CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), TestQueryBuilderPlugin.class),
+            AllocatingQueryPlugin.class
+        );
     }
 
     public static class TestQueryBuilderPlugin extends Plugin implements SearchPlugin {
@@ -106,6 +116,92 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
             response.decRef();
         }
         assertBusy(() -> assertThat(breaker.getUsed(), equalTo(0L)));
+    }
+
+    /**
+     * A remote-only minimize-roundtrips search has no local shard reduce. The hits it holds are the query's, so the query stays
+     * tracked after its task is gone and is forgotten once the response is released.
+     */
+    public void testMinimizeRoundtripsChargesTheQuery() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        String coordinator = coordinatorWithRequestBreaker();
+        SearchService searchService = cluster(LOCAL_CLUSTER).getInstance(SearchService.class, coordinator);
+
+        SearchRequest searchRequest = new SearchRequest(REMOTE_CLUSTER + ":" + remoteIndex);
+        searchRequest.setCcsMinimizeRoundtrips(true);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
+        SearchResponse response = cluster(LOCAL_CLUSTER).client(coordinator).search(searchRequest).actionGet();
+        try {
+            assertThat(response.getHits().getHits().length, greaterThan(0));
+            assertBusy(() -> {
+                assertThat(searchTasks(coordinator), equalTo(0));
+                assertThat(searchService.queryScheduler().queries(), equalTo(1));
+            });
+        } finally {
+            response.decRef();
+        }
+        assertBusy(() -> assertThat(searchService.queryScheduler().queries(), equalTo(0)));
+    }
+
+    /**
+     * A multi-search buffers a finished child until the whole request returns. That child's response stays on the node's breaker, so its
+     * query is not kept tracked while a later child is still running.
+     */
+    public void testMultiSearchMinimizeRoundtripsReleasesTheChildQuery() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        String coordinator = coordinatorWithRequestBreaker();
+        SearchService searchService = cluster(LOCAL_CLUSTER).getInstance(SearchService.class, coordinator);
+
+        SearchRequest buffered = new SearchRequest(REMOTE_CLUSTER + ":" + remoteIndex);
+        buffered.setCcsMinimizeRoundtrips(true);
+        buffered.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
+        SearchRequest held = new SearchRequest(localIndex);
+        held.source(new SearchSourceBuilder().query(new AllocatingQueryBuilder(64)).size(0));
+        MultiSearchRequest multiSearch = new MultiSearchRequest().maxConcurrentSearchRequests(1);
+        multiSearch.add(buffered);
+        multiSearch.add(held);
+
+        PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
+        try (var pause = AllocatingQueryPlugin.pause()) {
+            cluster(LOCAL_CLUSTER).client(coordinator).execute(TransportMultiSearchAction.TYPE, multiSearch, ActionListener.wrap(r -> {
+                r.incRef();
+                future.onResponse(r);
+            }, future::onFailure));
+            pause.awaitReached();
+            assertBusy(() -> assertThat(searchService.queryScheduler().queries(), equalTo(1)));
+        }
+        MultiSearchResponse response = future.actionGet();
+        try {
+            for (MultiSearchResponse.Item item : response) {
+                assertNull(item.getFailure());
+            }
+        } finally {
+            response.decRef();
+        }
+        assertBusy(() -> assertThat(searchService.queryScheduler().queries(), equalTo(0)));
+    }
+
+    private String coordinatorWithRequestBreaker() {
+        List<String> coordinators = Arrays.stream(cluster(LOCAL_CLUSTER).getNodeNames())
+            .filter(node -> requestBreaker(node) instanceof NoopCircuitBreaker == false)
+            .toList();
+        assumeFalse("every local node has a no-op request breaker", coordinators.isEmpty());
+        return randomFrom(coordinators);
+    }
+
+    private int searchTasks(String coordinator) {
+        return cluster(LOCAL_CLUSTER).client(coordinator)
+            .admin()
+            .cluster()
+            .prepareListTasks()
+            .setNodesIds(coordinator)
+            .setActions(TransportSearchAction.NAME)
+            .get()
+            .getTasks()
+            .size();
     }
 
     private CircuitBreaker requestBreaker(String localNode) {

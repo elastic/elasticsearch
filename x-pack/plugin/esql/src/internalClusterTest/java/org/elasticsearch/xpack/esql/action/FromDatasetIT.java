@@ -5466,14 +5466,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
-        // Off (the default): the wildcard reaches neither dataset. Unlike the bare-wildcard case, the
-        // exclusion carries no wildcard of its own, so a concrete index counts as requested and a pattern
-        // matching nothing is fatal rather than empty.
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT).close()
-        );
-        assertThat(e.getMessage(), containsString("Unknown index [employees*,-employees_alt]"));
+        // Off (the default): the wildcard reaches neither dataset. An exclusion only removes names, so it is
+        // never a concrete request of its own, and the query is an empty success as in the bare-wildcard case.
+        try (var response = run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+        }
 
         // On: employees* matches both, exclusion of employees_alt leaves only employees (3 rows)
         try (

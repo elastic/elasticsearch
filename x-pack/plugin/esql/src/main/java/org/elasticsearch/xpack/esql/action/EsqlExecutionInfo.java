@@ -145,6 +145,13 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * metering independently of the scan counters, so an external-source query that ends up scanning nothing is still metered.
      */
     private transient volatile boolean externalSource;
+    /**
+     * The index expression each source pattern contributed to a cluster, one entry per pattern. {@link Cluster#getIndexExpression()}
+     * joins them with commas for display, which loses where one pattern ends and the next starts. Exclusions only apply within
+     * their own pattern, so checking whether a cluster was asked for a concrete index needs them apart. Coordinator-only, not
+     * serialized.
+     */
+    private final transient Map<String, List<String>> indexExpressionsByCluster = new ConcurrentHashMap<>();
 
     private final EsqlQueryProfile queryProfile;
 
@@ -305,6 +312,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             || (isPartial && clusterInfo.values().stream().anyMatch(c -> c.getFailures().isEmpty() == false));
     }
 
+    /**
+     * Forgets every cluster and the index expressions registered for them, so the clusters can be registered again from scratch.
+     */
+    public void clearClusters() {
+        clusterInfo.clear();
+        indexExpressionsByCluster.clear();
+    }
+
     public Cluster getCluster(String clusterAlias) {
         return clusterInfo.get(clusterAlias);
     }
@@ -317,6 +332,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * This creates an initial Cluster object with indexExpression and skipUnavailable.
      */
     public void initCluster(String clusterAlias, String localCusterName, String indexExpression) {
+        if (Strings.isNullOrBlank(indexExpression) == false) {
+            indexExpressionsByCluster.computeIfAbsent(clusterAlias, k -> new CopyOnWriteArrayList<>()).add(indexExpression);
+        }
         swapCluster(clusterAlias, (ca, previous) -> {
             var expr = indexExpression;
             if (previous != null) {
@@ -327,6 +345,19 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             var displayClusterAlias = Objects.equals(clusterAlias, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? localCusterName : null;
             return new Cluster(clusterAlias, displayClusterAlias, expr, shouldSkipOnFailure(clusterAlias));
         });
+    }
+
+    /**
+     * The index expressions registered for the cluster through {@link #initCluster}, one per source pattern, or the cluster's
+     * joined {@link Cluster#getIndexExpression()} when none were registered on this instance (for example after deserialization).
+     */
+    public List<String> getIndexExpressions(String clusterAlias) {
+        List<String> expressions = indexExpressionsByCluster.get(clusterAlias);
+        if (expressions != null) {
+            return List.copyOf(expressions);
+        }
+        Cluster cluster = clusterInfo.get(clusterAlias);
+        return cluster == null || Strings.isNullOrBlank(cluster.getIndexExpression()) ? List.of() : List.of(cluster.getIndexExpression());
     }
 
     /**

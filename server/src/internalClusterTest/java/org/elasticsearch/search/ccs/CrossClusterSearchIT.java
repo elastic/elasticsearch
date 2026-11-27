@@ -29,11 +29,13 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.AllocatingQueryPlugin;
 import org.elasticsearch.search.AllocatingQueryPlugin.AllocatingQueryBuilder;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.SlowRunningQueryBuilder;
@@ -48,6 +50,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anyOf;
@@ -145,6 +149,41 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
     }
 
     /**
+     * A local and remote minimize-roundtrips search merges on this node. Only the remote index matches, so the hits the merged response
+     * keeps come from the remote cluster and are charged by the merger. They keep the query tracked after its task is gone, until the
+     * response is released.
+     */
+    public void testMinimizeRoundtripsMergerChargesTheQuery() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        client(REMOTE_CLUSTER).prepareIndex(remoteIndex).setSource("f", "remoteonly", "@timestamp", LATEST_TIMESTAMP).get();
+        client(REMOTE_CLUSTER).admin().indices().prepareRefresh(remoteIndex).get();
+        String coordinator = coordinatorWithRequestBreaker();
+        SearchService searchService = cluster(LOCAL_CLUSTER).getInstance(SearchService.class, coordinator);
+
+        SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        searchRequest.setCcsMinimizeRoundtrips(true);
+        searchRequest.source(new SearchSourceBuilder().query(new TermQueryBuilder("f", "remoteonly")).size(10));
+        SearchResponse response = cluster(LOCAL_CLUSTER).client(coordinator).search(searchRequest).actionGet();
+        try {
+            assertThat(response.getClusters().getClusterStateCount(Cluster.Status.SUCCESSFUL), equalTo(2));
+            SearchHit[] hits = response.getHits().getHits();
+            assertThat(hits.length, greaterThan(0));
+            for (SearchHit hit : hits) {
+                assertThat(hit.getClusterAlias(), equalTo(REMOTE_CLUSTER));
+            }
+            assertBusy(() -> {
+                assertThat(searchTasks(coordinator), equalTo(0));
+                assertThat(searchService.queryScheduler().queries(), equalTo(1));
+            });
+        } finally {
+            response.decRef();
+        }
+        assertBusy(() -> assertThat(searchService.queryScheduler().queries(), equalTo(0)));
+    }
+
+    /**
      * A multi-search buffers a finished child until the whole request returns. That child's response stays on the node's breaker, so its
      * query is not kept tracked while a later child is still running.
      */
@@ -164,23 +203,31 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         multiSearch.add(buffered);
         multiSearch.add(held);
 
-        PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
+        // Read the child response here. The transport releases it when this listener returns, including when the test fails while the
+        // later child is still paused.
+        AtomicInteger bufferedHits = new AtomicInteger();
+        AtomicReference<Exception> itemFailure = new AtomicReference<>();
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
         try (var pause = AllocatingQueryPlugin.pause()) {
             cluster(LOCAL_CLUSTER).client(coordinator).execute(TransportMultiSearchAction.TYPE, multiSearch, ActionListener.wrap(r -> {
-                r.incRef();
-                future.onResponse(r);
-            }, future::onFailure));
+                MultiSearchResponse.Item bufferedItem = r.getResponses()[0];
+                if (bufferedItem.isFailure()) {
+                    itemFailure.compareAndSet(null, bufferedItem.getFailure());
+                } else {
+                    bufferedHits.set(bufferedItem.getResponse().getHits().getHits().length);
+                }
+                MultiSearchResponse.Item heldItem = r.getResponses()[1];
+                if (heldItem.isFailure()) {
+                    itemFailure.compareAndSet(null, heldItem.getFailure());
+                }
+                done.onResponse(null);
+            }, done::onFailure));
             pause.awaitReached();
             assertBusy(() -> assertThat(searchService.queryScheduler().queries(), equalTo(1)));
         }
-        MultiSearchResponse response = future.actionGet();
-        try {
-            for (MultiSearchResponse.Item item : response) {
-                assertNull(item.getFailure());
-            }
-        } finally {
-            response.decRef();
-        }
+        done.actionGet();
+        assertNull(itemFailure.get());
+        assertThat(bufferedHits.get(), greaterThan(0));
         assertBusy(() -> assertThat(searchService.queryScheduler().queries(), equalTo(0)));
     }
 

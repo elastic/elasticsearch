@@ -177,17 +177,21 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
                 }
             );
 
-        final ActionFuture<EsqlQueryResponse> query;
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(randomBoolean());
+        scriptPermits.drainPermits();
+        scriptPermits.release(numberOfDocs());
+        final ActionFuture<EsqlQueryResponse> query = client(coordinator).execute(EsqlQueryAction.INSTANCE, request);
+        boolean shardMovedOn = false;
         try {
-            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(randomBoolean());
-            scriptPermits.drainPermits();
-            scriptPermits.release(numberOfDocs());
-            query = client(coordinator).execute(EsqlQueryAction.INSTANCE, request);
             safeAwait(openSent);
             moveTestIndexTo(replacement, coordinator);
+            shardMovedOn = true;
         } finally {
             // also when a step above failed, so that the open is not left held
             shardMoved.countDown();
+            if (shardMovedOn == false) {
+                closeResponseOf(query);
+            }
         }
 
         try (EsqlQueryResponse response = safeGet(query)) {
@@ -272,23 +276,27 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
                 });
         }
 
-        final ActionFuture<EsqlQueryResponse> query;
+        scriptPermits.drainPermits();
+        scriptPermits.release(numberOfDocs());
+        final ActionFuture<EsqlQueryResponse> query = client(queryCoordinator).execute(
+            EsqlQueryAction.INSTANCE,
+            EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(allowPartialResults)
+        );
+        boolean cutOffDone = false;
         try {
-            scriptPermits.drainPermits();
-            scriptPermits.release(numberOfDocs());
-            query = client(queryCoordinator).execute(
-                EsqlQueryAction.INSTANCE,
-                EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(allowPartialResults)
-            );
             safeAwait(dataRequestSent);
             moveTestIndexTo(replacement, queryCoordinator);
             if (inFlight) {
                 coordinatorTransport.disconnectFromNode(dataNodeTransport.getLocalNode());
                 awaitDataRequestCancelledOn(dataNodeTransport);
             }
+            cutOffDone = true;
         } finally {
             // also when a step above failed, so that the data node request is not left held
             cutOff.onResponse(null);
+            if (cutOffDone == false) {
+                closeResponseOf(query);
+            }
         }
 
         if (allowPartialResults) {
@@ -351,14 +359,14 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
             )
         );
 
-        final ActionFuture<EsqlQueryResponse> query;
+        scriptPermits.drainPermits();
+        scriptPermits.release(numberOfDocs());
+        final ActionFuture<EsqlQueryResponse> query = client(queryCoordinator).execute(
+            EsqlQueryAction.INSTANCE,
+            EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(true)
+        );
+        boolean cutOffDone = false;
         try {
-            scriptPermits.drainPermits();
-            scriptPermits.release(numberOfDocs());
-            query = client(queryCoordinator).execute(
-                EsqlQueryAction.INSTANCE,
-                EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(true)
-            );
             safeAwait(dataRequestArrived);
             // The rejection fails the compute of the data node on the coordinator, which then cancels the data node request. Once
             // the cancellation shows on the data node, the coordinator has taken note of the rejection, and only then is the
@@ -368,9 +376,13 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
             // In this order: the held request is released once its connection is gone, so that whatever the data node answers for
             // its cancelled task cannot reach the coordinator, and the request fails there on the lost connection.
             coordinatorTransport.disconnectFromNode(dataNodeTransport.getLocalNode());
+            cutOffDone = true;
         } finally {
             // also when a step above failed, so that the data node request is not left held
             cutOff.onResponse(null);
+            if (cutOffDone == false) {
+                closeResponseOf(query);
+            }
         }
 
         try (EsqlQueryResponse response = safeGet(query)) {
@@ -527,6 +539,19 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
             }
         }, "prepare-for-shutdown-" + nodeName).start();
         return future;
+    }
+
+    /**
+     * For a test that failed in its setup, after it started a query: once the held request is released the query may still complete
+     * normally, and its response must be closed, or the blocks it holds are reported as leaked on top of the failure of the test.
+     * Never throws, so that it does not mask that failure.
+     */
+    private static void closeResponseOf(ActionFuture<EsqlQueryResponse> query) {
+        try {
+            query.actionGet(30, TimeUnit.SECONDS).close();
+        } catch (Exception e) {
+            // the query failed, so there is no response to close
+        }
     }
 
     private void assertQueryResult(ActionFuture<EsqlQueryResponse> query) {

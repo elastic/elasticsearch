@@ -160,35 +160,29 @@ public class TransportListTasksActionTests extends ESTestCase {
 
     // -- preferNewer --
 
-    public void testMergedResponseCarriesDataOfTheFirstPassOnlyWhenItKeepsSome() {
+    public void testTasksOfTheFirstPassKeptByTheMerge() {
         final TaskId taskId = randomTaskId();
         final TaskInfo olderCopy = randomTaskInfoWithTaskIdAndRunningTimeNanos(taskId, 2_000);
         final TaskInfo newerCopy = randomTaskInfoWithTaskIdAndRunningTimeNanos(taskId, 1_000);
-        final ListTasksResponse firstPass = new ListTasksResponse(List.of(olderCopy), List.of(), List.of());
+        final TaskInfo missed = randomTaskInfo();
+        final ListTasksResponse firstPass = new ListTasksResponse(List.of(olderCopy, missed), List.of(), List.of());
         final ListTasksResponse secondPass = new ListTasksResponse(List.of(newerCopy), List.of(), List.of());
 
-        assertFalse(TransportListTasksAction.carriesDataOf(firstPass, TransportListTasksAction.deduplicateAndMerge(firstPass, secondPass)));
-
-        final ListTasksResponse firstPassWithMissedTask = new ListTasksResponse(List.of(olderCopy, randomTaskInfo()), List.of(), List.of());
-        final ListTasksResponse merged = new ListTasksResponse(
-            List.of(newerCopy, firstPassWithMissedTask.getTasks().get(1)),
-            List.of(),
-            List.of()
+        assertEquals(0, TransportListTasksAction.tasksKeptFrom(firstPass, secondPass));
+        assertEquals(
+            1,
+            TransportListTasksAction.tasksKeptFrom(firstPass, new ListTasksResponse(List.of(newerCopy, missed), List.of(), List.of()))
         );
-        assertTrue(TransportListTasksAction.carriesDataOf(firstPassWithMissedTask, merged));
     }
 
-    public void testMergedResponseCarriesTheNodeFailuresOfTheFirstPass() {
+    public void testNodeFailuresOfTheFirstPassAreNotTasksKeptByTheMerge() {
         final FailedNodeException failure = new FailedNodeException("node", "failed", new ElasticsearchException("boom"));
         final ListTasksResponse firstPass = new ListTasksResponse(List.of(), List.of(), List.of(failure));
         final ListTasksResponse secondPass = new ListTasksResponse(List.of(), List.of(), List.of());
 
-        assertTrue(TransportListTasksAction.carriesDataOf(firstPass, TransportListTasksAction.deduplicateAndMerge(firstPass, secondPass)));
-        assertFalse(
-            TransportListTasksAction.carriesDataOf(
-                new ListTasksResponse(List.of(), List.of(), List.of()),
-                TransportListTasksAction.deduplicateAndMerge(secondPass, secondPass)
-            )
+        assertEquals(
+            0,
+            TransportListTasksAction.tasksKeptFrom(firstPass, TransportListTasksAction.deduplicateAndMerge(firstPass, secondPass))
         );
     }
 

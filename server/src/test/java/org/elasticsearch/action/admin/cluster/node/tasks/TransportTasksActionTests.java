@@ -1052,15 +1052,34 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     }
 
     private Task registerTaskWithDescription(TestNode node, int descriptionLength, Runnable onTaskInfo) {
+        return registerTask(node, "internal:test/described", descriptionLength, onTaskInfo, () -> {});
+    }
+
+    private Task registerTask(TestNode node, String taskAction, int descriptionLength, Runnable onTaskInfo, Runnable onMatch) {
         final String description = "x".repeat(descriptionLength);
-        return node.transportService.getTaskManager().register("test", "internal:test/described", new TaskAwareRequest() {
+        return node.transportService.getTaskManager().register("test", taskAction, new TaskAwareRequest() {
             @Override
             public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
                 return new Task(id, type, action, description, parentTaskId, headers) {
+                    private final ThreadLocal<Boolean> inMatchHook = ThreadLocal.withInitial(() -> false);
+
                     @Override
                     public String getDescription() {
                         onTaskInfo.run();
                         return super.getDescription();
+                    }
+
+                    @Override
+                    public String getAction() {
+                        if (inMatchHook.get() == false) {
+                            inMatchHook.set(true);
+                            try {
+                                onMatch.run();
+                            } finally {
+                                inMatchHook.set(false);
+                            }
+                        }
+                        return super.getAction();
                     }
                 };
             }
@@ -1178,10 +1197,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         final int descriptionLength = 5_000;
         final AtomicLong firstPassTaskIdOnNode2 = new AtomicLong(-1);
         final Task heldTask = registerTaskWithDescription(testNodes[1], descriptionLength);
-        final Task answeringTask = registerTaskWithDescription(
+        final AtomicLong latestMatchingNodeTaskIdOnNode2 = new AtomicLong(-1);
+        final Task answeringTask = registerTask(
             testNodes[2],
+            "internal:test/described",
             descriptionLength,
-            () -> firstPassTaskIdOnNode2.compareAndSet(-1, highestNodeListingTaskId(testNodes[2]))
+            () -> firstPassTaskIdOnNode2.compareAndSet(-1, highestNodeListingTaskId(testNodes[2])),
+            () -> latestMatchingNodeTaskIdOnNode2.accumulateAndGet(highestNodeListingTaskId(testNodes[2]), Math::max)
         );
         final AtomicBoolean answeringTaskUnregistered = new AtomicBoolean();
         final AtomicBoolean heldTaskUnregistered = new AtomicBoolean();
@@ -1200,7 +1222,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 );
             assertBusy(() -> {
                 assertThat(firstPassTaskIdOnNode2.get(), greaterThanOrEqualTo(0L));
-                assertThat(highestNodeListingTaskId(testNodes[2]), greaterThan(firstPassTaskIdOnNode2.get()));
+                assertThat(latestMatchingNodeTaskIdOnNode2.get(), greaterThan(firstPassTaskIdOnNode2.get()));
             });
 
             answeringTaskUnregistered.set(true);
@@ -1225,6 +1247,48 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             if (answeringTaskUnregistered.get() == false) {
                 testNodes[2].transportService.getTaskManager().unregister(answeringTask);
             }
+        }
+    }
+
+    public void testTaskMissedByTheSecondPassKeepsItsShareOfTheFirstPassChargedAtDelivery() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final int descriptionLength = 5_000;
+        final String relocatable = TransportListTasksAction.RELOCATABLE_ACTIONS.iterator().next();
+        final AtomicReference<Task> vanishing = new AtomicReference<>();
+        final AtomicBoolean vanished = new AtomicBoolean();
+        vanishing.set(registerTask(testNodes[1], relocatable, descriptionLength, () -> {
+            if (vanished.compareAndSet(false, true)) {
+                testNodes[1].transportService.getTaskManager().unregister(vanishing.get());
+            }
+        }, () -> {}));
+        final Task stable = registerTaskWithDescription(testNodes[2], descriptionLength);
+        try {
+            final PlainActionFuture<Long> usedWhileDelivering = new PlainActionFuture<>();
+            final AtomicReference<ListTasksResponse> delivered = new AtomicReference<>();
+            testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    doubleListRequest(),
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    ActionListener.wrap(r -> {
+                        delivered.set(r);
+                        usedWhileDelivering.onResponse(breaker.getUsed());
+                    }, usedWhileDelivering::onFailure)
+                );
+
+            final long usedAtDelivery = safeGet(usedWhileDelivering);
+            assertTrue(delivered.get().getTasks().stream().anyMatch(t -> t.action().equals(relocatable)));
+            assertThat(usedAtDelivery, greaterThanOrEqualTo(usedBefore + 2L * descriptionLength));
+            assertThat(usedAtDelivery, lessThan(usedBefore + 3L * descriptionLength));
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            if (vanished.compareAndSet(false, true)) {
+                testNodes[1].transportService.getTaskManager().unregister(vanishing.get());
+            }
+            testNodes[2].transportService.getTaskManager().unregister(stable);
         }
     }
 

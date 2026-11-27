@@ -138,8 +138,8 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         // example: Tasks are captured from the destination node before the relocation and from the source node after, so we miss both.
         // therefore, we double-list and de-dupe, which will ensure we see a task *at least* once.
         // elsewhere, we also prevent quick back-to-back relocations during shutdown, to make hitting the race twice vanishingly unlikely.
-        // the first pass stays charged while the second one runs, and is released at the merge, which keeps the data of the second pass,
-        // so only the charge of the second pass goes on with the response.
+        // the first pass stays charged while the second one runs. At the merge the share of its charge that matches the tasks of the first
+        // pass that the response keeps moves to the charge of the second pass, which goes on with the response, and the rest is released.
         final NodeReplyCharge firstPassCharge = newNodeReplyCharge(task);
         final ActionListener<ListTasksResponse> merged = ActionListener.runBefore(handOver(charge, listener), firstPassCharge::close);
         if (request.getWaitForCompletion()) {
@@ -217,31 +217,26 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         }));
     }
 
-    /// Moves the charge of the first pass to the one of the second pass when the merged response keeps any of the data of the first pass,
-    /// so that data stays accounted for as long as the response is held.
+    /// Moves to the charge of the second pass the share of the charge of the first pass that matches the tasks of the first pass that the
+    /// merged response keeps, so that data stays accounted for as long as the response is held. Task and node failures are not charged.
     private static ListTasksResponse carryOver(
         final ListTasksResponse firstPass,
         final ListTasksResponse merged,
         final NodeReplyCharge firstPassCharge,
         final NodeReplyCharge secondPassCharge
     ) {
-        if (carriesDataOf(firstPass, merged)) {
-            firstPassCharge.transferTo(secondPassCharge);
+        final int kept = tasksKeptFrom(firstPass, merged);
+        if (kept > 0) {
+            firstPassCharge.transferTo(secondPassCharge, (double) kept / firstPass.getTasks().size());
         }
         return merged;
     }
 
     // visible for testing
-    static boolean carriesDataOf(final ListTasksResponse firstPass, final ListTasksResponse merged) {
-        return containsAnyOf(merged.getTasks(), firstPass.getTasks())
-            || containsAnyOf(merged.getTaskFailures(), firstPass.getTaskFailures())
-            || containsAnyOf(merged.getNodeFailures(), firstPass.getNodeFailures());
-    }
-
-    private static boolean containsAnyOf(final List<?> merged, final List<?> firstPass) {
-        final Set<Object> firstPassItems = Collections.newSetFromMap(new IdentityHashMap<>());
-        firstPassItems.addAll(firstPass);
-        return merged.stream().anyMatch(firstPassItems::contains);
+    static int tasksKeptFrom(final ListTasksResponse firstPass, final ListTasksResponse merged) {
+        final Set<TaskInfo> firstPassTasks = Collections.newSetFromMap(new IdentityHashMap<>());
+        firstPassTasks.addAll(firstPass.getTasks());
+        return Math.toIntExact(merged.getTasks().stream().filter(firstPassTasks::contains).count());
     }
 
     /// Finds reindex tasks that appeared in the first pass but are missing from the second pass, perhaps because the operation relocated

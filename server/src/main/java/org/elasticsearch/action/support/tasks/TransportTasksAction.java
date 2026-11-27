@@ -254,13 +254,18 @@ public abstract class TransportTasksAction<
         }
 
         /**
-         * Moves what this charge holds to {@code other}, which releases it from then on, for instance because the data it accounts for is
-         * kept by the response that {@code other} goes with.
+         * Moves the given fraction of what this charge holds to {@code other}, which releases it from then on, for instance because that
+         * share of the data it accounts for is kept by the response that {@code other} goes with. The rest is released.
          */
-        public void transferTo(NodeReplyCharge other) {
+        public void transferTo(NodeReplyCharge other, double fraction) {
+            assert fraction >= 0.0 && fraction <= 1.0 : fraction;
             final long bytes = retained.getAndSet(RELEASED);
             if (bytes != RELEASED) {
-                other.adopt(bytes);
+                final long moved = Math.round(bytes * fraction);
+                if (bytes > moved) {
+                    breaker.addWithoutBreaking(moved - bytes);
+                }
+                other.adopt(moved);
             }
         }
 

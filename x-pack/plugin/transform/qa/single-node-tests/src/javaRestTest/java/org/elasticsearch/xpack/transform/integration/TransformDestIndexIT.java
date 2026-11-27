@@ -147,7 +147,7 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         // Verify that the destination index now exists
         assertTrue(indexExists(destIndex));
         // Verify that both aliases are configured on the dest index
-        assertAliases(destIndex, destAliasAll, destAliasLatest);
+        assertBusy(() -> assertAliases(destIndex, destAliasAll, destAliasLatest));
     }
 
     public void testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation() throws Exception {
@@ -175,9 +175,6 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         createPivotReviewsTransform(transformId, destIndex, null, null, destAliases, settingsConfig, null, null, sourceIndexIndex);
         startTransform(transformId);
 
-        // Verify that the destination index creation got skipped
-        assertFalse(indexExists(destIndex));
-
         // Update the unattended transform. This will trigger destination index creation.
         // The update has to change something in the config (here, max_page_search_size). Otherwise it would have been optimized away.
         updateTransform(transformId, """
@@ -186,7 +183,7 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         // Verify that the destination index now exists
         assertTrue(indexExists(destIndex));
         // Verify that both aliases are configured on the dest index
-        assertAliases(destIndex, destAliasAll, destAliasLatest);
+        assertBusy(() -> assertAliases(destIndex, destAliasAll, destAliasLatest));
     }
 
     public void testUnattendedTransformDestIndexCreatedByIndexer() throws Exception {

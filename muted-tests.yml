@@ -691,3 +691,8 @@ tests:
   - :server:internalClusterTest
   method: testKnnSearchWithScroll
   issue: https://github.com/elastic/elasticsearch/issues/167828
+- class: org.elasticsearch.search.KnnSearchIT
+  tasks:
+  - :server:internalClusterTest
+  method: testQueryVectorBase64Parity
+  issue: https://github.com/elastic/elasticsearch/issues/167830

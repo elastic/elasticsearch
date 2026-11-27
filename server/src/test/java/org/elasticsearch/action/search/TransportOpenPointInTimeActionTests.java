@@ -9,23 +9,41 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 
+import java.net.InetAddress;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TransportOpenPointInTimeActionTests extends ESTestCase {
 
     public void testAnUnreachableProjectFailsAStrictOpen() {
-        IllegalStateException down = new IllegalStateException("link down");
-        Exception failure = TransportOpenPointInTimeAction.failureForUnreachableProjects(false, Map.of("P1", down));
-        assertThat(failure, instanceOf(RemoteTransportException.class));
-        assertSame(down, failure.getCause());
-        assertThat(failure.getMessage(), containsString("[P1]"));
+        IllegalArgumentException down = new IllegalArgumentException("link down");
+        RemoteTransportException wrapped = new RemoteTransportException(
+            "node",
+            new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+            "indices:admin/resolve/index",
+            down
+        );
+        Exception failure = TransportOpenPointInTimeAction.failureForUnreachableProjects(false, Map.of("P1", wrapped));
+        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertNull(failure.getCause());
+        ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(failure);
+        assertThat(rootCauses[0].getMessage(), containsString("[P1]"));
+        assertThat(rootCauses[0].getMessage(), containsString("link down"));
+        assertEquals(0, failure.getSuppressed().length);
         assertEquals(0, down.getSuppressed().length);
     }
 
@@ -40,18 +58,26 @@ public class TransportOpenPointInTimeActionTests extends ESTestCase {
     }
 
     public void testLaterProjectsAreSuppressedOnTheFirstFailure() {
-        IllegalStateException first = new IllegalStateException("a");
-        IllegalStateException second = new IllegalStateException("b");
-        Exception failure = TransportOpenPointInTimeAction.failureForUnreachableProjects(
-            false,
-            Map.of("a-cluster", first, "b-cluster", second)
-        );
-        assertThat(failure, instanceOf(RemoteTransportException.class));
-        assertSame(first, failure.getCause());
+        EsRejectedExecutionException first = new EsRejectedExecutionException("first-link-down");
+        IllegalArgumentException second = new IllegalArgumentException("second-link-down");
+        Map<String, Exception> remoteFailures = new LinkedHashMap<>();
+        remoteFailures.put("b-cluster", second);
+        remoteFailures.put("a-cluster", first);
+        Exception failure = TransportOpenPointInTimeAction.failureForUnreachableProjects(false, remoteFailures);
+        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertNull(failure.getCause());
         assertThat(failure.getMessage(), containsString("[a-cluster]"));
-        assertThat(failure.getSuppressed(), arrayContaining(instanceOf(RemoteTransportException.class)));
-        assertSame(second, failure.getSuppressed()[0].getCause());
-        assertThat(failure.getSuppressed()[0].getMessage(), containsString("[b-cluster]"));
+        assertThat(failure.getMessage(), containsString("first-link-down"));
+        assertThat(failure.getSuppressed(), arrayContaining(instanceOf(ElasticsearchStatusException.class)));
+        ElasticsearchStatusException suppressed = (ElasticsearchStatusException) failure.getSuppressed()[0];
+        assertThat(suppressed.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(suppressed.getMessage(), containsString("[b-cluster]"));
+        assertThat(suppressed.getMessage(), containsString("second-link-down"));
+        assertNull(suppressed.getCause());
+        ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(failure);
+        assertThat(rootCauses[0].getMessage(), containsString("[a-cluster]"));
+        assertThat(rootCauses[0].getMessage(), containsString("first-link-down"));
         assertEquals(0, first.getSuppressed().length);
         assertEquals(0, second.getSuppressed().length);
     }

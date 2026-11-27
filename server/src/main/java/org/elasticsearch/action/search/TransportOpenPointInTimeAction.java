@@ -11,6 +11,8 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -53,7 +55,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
@@ -290,16 +291,22 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         }
         List<String> aliases = new ArrayList<>(remoteExceptions.keySet());
         Collections.sort(aliases);
-        Exception failure = null;
+        ElasticsearchStatusException failure = null;
         for (String alias : aliases) {
-            Exception remoteFailure = new RemoteTransportException(
-                "error while communicating with remote cluster [" + alias + "]",
-                remoteExceptions.get(alias)
+            Exception remoteFailure = remoteExceptions.get(alias);
+            // Keep the alias in this message and the remote status on this exception. A wrapper or a cause is
+            // unwrapped before REST reads the message, which drops the alias and the other projects.
+            Throwable reported = ExceptionsHelper.unwrapCause(remoteFailure);
+            String raw = reported.getMessage();
+            String detail = raw == null ? reported.toString() : raw;
+            ElasticsearchStatusException one = new ElasticsearchStatusException(
+                "failed to resolve indices on project [" + alias + "]: " + detail,
+                ExceptionsHelper.status(remoteFailure)
             );
             if (failure == null) {
-                failure = remoteFailure;
+                failure = one;
             } else {
-                failure.addSuppressed(remoteFailure);
+                failure.addSuppressed(one);
             }
         }
         return failure;

@@ -16,6 +16,7 @@ import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -68,6 +69,33 @@ public class CrossProjectQueryClientTests extends ESTestCase {
         }
     }
 
+    public void testAnEmptyOriginalPatternOpensThePitOnAllIndices() {
+        try (var threadPool = createThreadPool()) {
+            CapturingClient client = new CapturingClient(threadPool);
+            PITAwareQueryClient queryClient = new PITAwareQueryClient(session(client, new String[0]));
+            queryClient.query(() -> SearchSourceBuilder.searchSource().query(matchAllQuery()), ActionListener.noop());
+            assertThat(client.pit.get().indices(), arrayContaining(Metadata.ALL));
+        }
+    }
+
+    public void testAnEmptyOriginalPatternSearchesAllIndices() {
+        try (var threadPool = createThreadPool()) {
+            CapturingClient client = new CapturingClient(threadPool);
+            BasicQueryClient queryClient = new BasicQueryClient(session(client, new String[0]));
+            queryClient.query(() -> SearchSourceBuilder.searchSource().query(matchAllQuery()), ActionListener.noop());
+            assertThat(client.eventSearch.get().indices(), arrayContaining(Metadata.ALL));
+        }
+    }
+
+    public void testAMissingOriginalPatternKeepsTheRewrittenIndices() {
+        try (var threadPool = createThreadPool()) {
+            CapturingClient client = new CapturingClient(threadPool);
+            BasicQueryClient queryClient = new BasicQueryClient(session(client, null));
+            queryClient.query(() -> SearchSourceBuilder.searchSource().query(matchAllQuery()), ActionListener.noop());
+            assertThat(client.eventSearch.get().indices(), arrayContaining("logs-0001"));
+        }
+    }
+
     private static void assertPattern(SearchRequest request) {
         assertThat(request.indices(), arrayContaining("logs-*", "-logs-test"));
         assertThat(request.getProjectRouting(), equalTo("_alias:_origin"));
@@ -82,8 +110,11 @@ public class CrossProjectQueryClientTests extends ESTestCase {
     }
 
     private static EqlSession session(CapturingClient client) {
+        return session(client, new String[] { "logs-*", "-logs-test" });
+    }
+
+    private static EqlSession session(CapturingClient client, String[] original) {
         String[] rewritten = new String[] { "logs-0001" };
-        String[] original = new String[] { "logs-*", "-logs-test" };
         ResolvedIndexExpressions resolved = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(

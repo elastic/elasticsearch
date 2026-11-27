@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
@@ -228,6 +229,10 @@ public class BasicQueryClient implements QueryClient {
         String[] original = cfg.originalIndices();
         if (original == null) {
             return indices;
+        }
+        // An empty index list is "all indices" for a search, and open-PIT rejects it as unspecified.
+        if (original.length == 0) {
+            return new String[] { Metadata.ALL };
         }
         return original.clone();
     }

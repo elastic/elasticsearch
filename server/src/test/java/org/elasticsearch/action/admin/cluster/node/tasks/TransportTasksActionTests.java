@@ -44,6 +44,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -1107,6 +1108,36 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 );
 
             assertThat(safeGet(usedWhileDelivering), greaterThanOrEqualTo(usedBefore + 4L * descriptionLength));
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            testNodes[1].transportService.getTaskManager().unregister(task1);
+            testNodes[2].transportService.getTaskManager().unregister(task2);
+        }
+    }
+
+    public void testListResponseKeepsTheChargeWhileTheRestLayerRetainsIt() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final int descriptionLength = 5_000;
+        final Task task1 = registerTaskWithDescription(testNodes[1], descriptionLength);
+        final Task task2 = registerTaskWithDescription(testNodes[2], descriptionLength);
+        try {
+            final PlainActionFuture<Releasable> retained = new PlainActionFuture<>();
+            testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    doubleListRequest(),
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    ActionListener.wrap(r -> retained.onResponse(r.retainNodeReplies()), retained::onFailure)
+                );
+            final Releasable retention = safeGet(retained);
+            try {
+                assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 4L * descriptionLength));
+            } finally {
+                retention.close();
+            }
             assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
         } finally {
             testNodes[1].transportService.getTaskManager().unregister(task1);

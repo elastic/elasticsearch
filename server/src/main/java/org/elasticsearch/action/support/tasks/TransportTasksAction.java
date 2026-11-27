@@ -30,7 +30,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -48,6 +50,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The base class for transport actions that are interacting with currently running tasks.
@@ -110,7 +113,7 @@ public abstract class TransportTasksAction<
     protected final NodeReplyCharge newNodeReplyCharge(Task task) {
         final NodeReplyCharge charge = new NodeReplyCharge(nodeReplyBreaker());
         if (task instanceof CancellableTask cancellableTask) {
-            cancellableTask.addListener(charge::close);
+            cancellableTask.addListener(charge::release);
         }
         return charge;
     }
@@ -230,25 +233,46 @@ public abstract class TransportTasksAction<
 
     protected static final class NodeReplyCharge implements Releasable {
         private final CircuitBreaker breaker;
+        private final AbstractRefCounted refs = AbstractRefCounted.of(this::release);
+        private final AtomicBoolean ownerReleased = new AtomicBoolean();
         private long retained;
-        private boolean closed;
+        private boolean released;
 
         private NodeReplyCharge(CircuitBreaker breaker) {
             this.breaker = breaker;
         }
 
         synchronized void charge(long bytes) {
-            if (closed || bytes == 0) {
+            if (released || bytes == 0) {
                 return;
             }
             breaker.addEstimateBytesAndMaybeBreak(bytes, NODE_RESPONSE_BREAKER_LABEL);
             retained += bytes;
         }
 
+        /**
+         * Keeps the charge until the returned {@link Releasable} is closed, even after the owner has closed this charge.
+         */
+        public Releasable retain() {
+            if (refs.tryIncRef() == false) {
+                return () -> {};
+            }
+            return Releasables.releaseOnce(refs::decRef);
+        }
+
+        /**
+         * Releases the reference of the owner, which releases the charge unless somebody retained it.
+         */
         @Override
-        public synchronized void close() {
-            if (closed == false) {
-                closed = true;
+        public void close() {
+            if (ownerReleased.compareAndSet(false, true)) {
+                refs.decRef();
+            }
+        }
+
+        synchronized void release() {
+            if (released == false) {
+                released = true;
                 breaker.addWithoutBreaking(-retained);
             }
         }

@@ -121,9 +121,11 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     @Override
     protected void doExecute(final Task task, final ListTasksRequest request, final ActionListener<ListTasksResponse> listener) {
         assert task instanceof CancellableTask;
+        final NodeReplyCharge charge = newNodeReplyCharge(task);
+        final ActionListener<ListTasksResponse> handingOver = handOver(charge, listener);
         // Double-list is only needed for relocatable tasks (problem description further down in function comment).
         if (RELOCATABLE_ACTIONS.stream().noneMatch(request::canMatchAction)) {
-            super.doExecute(task, request, listener);
+            executeCharged(task, request, charge, handingOver);
             return;
         }
         // relocatable tasks might've relocated during listing, and depending on list fan-out response timing in realtime, might be missed.
@@ -131,29 +133,44 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         // therefore, we double-list and de-dupe, which will ensure we see a task *at least* once.
         // elsewhere, we also prevent quick back-to-back relocations during shutdown, to make hitting the race twice vanishingly unlikely.
         if (request.getWaitForCompletion()) {
-            executeDoubleListWithWaitForCompletion(task, request, listener);
+            executeDoubleListWithWaitForCompletion(task, request, charge, handingOver);
         } else {
-            executeDoubleListWithoutWaitForCompletion(task, request, listener);
+            executeDoubleListWithoutWaitForCompletion(task, request, charge, handingOver);
         }
+    }
+
+    private static ActionListener<ListTasksResponse> handOver(NodeReplyCharge charge, ActionListener<ListTasksResponse> listener) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(ListTasksResponse response) {
+                response.setNodeRepliesRetainer(charge::retain);
+                try {
+                    listener.onResponse(response);
+                } finally {
+                    charge.close();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                charge.close();
+                listener.onFailure(e);
+            }
+        };
     }
 
     /// `WFC=false` path: two quick lists, the second response takes precedence in de-duplication.
     private void executeDoubleListWithoutWaitForCompletion(
         final Task task,
         final ListTasksRequest request,
+        final NodeReplyCharge charge,
         final ActionListener<ListTasksResponse> listener
     ) {
-        final NodeReplyCharge charge = newNodeReplyCharge(task);
-        executeCharged(
-            task,
-            request,
-            charge,
-            ActionListener.runAfter(listener, charge::close).delegateFailureAndWrap((l1, firstResponse) -> {
-                executeCharged(task, request, charge, l1.delegateFailureAndWrap((l2, secondResponse) -> {
-                    l2.onResponse(deduplicateAndMerge(firstResponse, secondResponse));
-                }));
-            })
-        );
+        executeCharged(task, request, charge, listener.delegateFailureAndWrap((l1, firstResponse) -> {
+            executeCharged(task, request, charge, l1.delegateFailureAndWrap((l2, secondResponse) -> {
+                l2.onResponse(deduplicateAndMerge(firstResponse, secondResponse));
+            }));
+        }));
     }
 
     /// `WFC=true` path: first pass snapshots (`WFC=false`), then second pass does `WFC=true`, then reconcile parents missed due to
@@ -161,20 +178,15 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     private void executeDoubleListWithWaitForCompletion(
         final Task task,
         final ListTasksRequest request,
+        final NodeReplyCharge charge,
         final ActionListener<ListTasksResponse> listener
     ) {
         final ListTasksRequest firstPassRequest = copyWithoutWaitForCompletion(request);
-        final NodeReplyCharge charge = newNodeReplyCharge(task);
-        executeCharged(
-            task,
-            firstPassRequest,
-            charge,
-            ActionListener.runAfter(listener, charge::close).delegateFailureAndWrap((l1, firstPass) -> {
-                executeCharged(task, request, charge, l1.delegateFailureAndWrap((l2, secondPass) -> {
-                    reconcileMissedRelocations(task, firstPass, secondPass, l2);
-                }));
-            })
-        );
+        executeCharged(task, firstPassRequest, charge, listener.delegateFailureAndWrap((l1, firstPass) -> {
+            executeCharged(task, request, charge, l1.delegateFailureAndWrap((l2, secondPass) -> {
+                reconcileMissedRelocations(task, firstPass, secondPass, l2);
+            }));
+        }));
     }
 
     /// Finds reindex tasks that appeared in the first pass but are missing from the second pass, perhaps because the operation relocated

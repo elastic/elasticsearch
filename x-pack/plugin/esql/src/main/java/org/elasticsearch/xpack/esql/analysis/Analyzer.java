@@ -34,7 +34,10 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.BindNestedAny;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
+import org.elasticsearch.xpack.esql.analysis.rules.DistributeNestedOverBranches;
+import org.elasticsearch.xpack.esql.analysis.rules.NestedReference;
 import org.elasticsearch.xpack.esql.analysis.rules.NestedRowChecks;
+import org.elasticsearch.xpack.esql.analysis.rules.RemoveNestedReferences;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightFieldMappings;
@@ -334,6 +337,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveExternalRelations(),
                 new ResolveEqlRelation(),
                 new PruneEmptyUnionAllBranch(),
+                new DistributeNestedOverBranches(),
                 new ResolveEnrich(),
                 new ResolveIpLocation(),
                 new ResolveLookupTables(),
@@ -376,6 +380,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Limiter.ONCE,
                 new BindNestedAny(),
                 new HideNestedScopeFields(),
+                new RemoveNestedReferences(),
                 new ResolveDescribe(),
                 new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
@@ -972,7 +977,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class HideNestedScopeFields extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            if (plan.anyMatch(NestedExpand.class::isInstance) == false && plan.anyMatch(NestedPredicate::usedBy) == false) {
+            if (plan.anyMatch(NestedExpand.class::isInstance) == false
+                && plan.anyMatch(NestedPredicate::usedBy) == false
+                && NestedReference.references(plan).isEmpty()) {
                 return plan;
             }
             return plan.transformUp(EsRelation.class, relation -> {
@@ -1902,7 +1909,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 throw nestedExpandError(target, "NESTED_EXPAND requires all nodes to support nested expansion");
             }
             String name = target.name();
-            String rootName = NestedScopeField.PREFIX + name;
+            String referenced = NestedReference.referencedPath(expand.child(), name);
+            String rootName = NestedScopeField.PREFIX + (referenced != null ? referenced : name);
             FieldAttribute root = null;
             Set<String> collections = new HashSet<>();
             for (Attribute attribute : childrenOutput) {
@@ -1932,7 +1940,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     "NESTED_EXPAND cannot read [" + name + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
                 );
             }
-            if (childrenOutput.stream().anyMatch(a -> a.synthetic() == false && a.name().equals(path))) {
+            if (childrenOutput.stream().anyMatch(a -> a.synthetic() == false && a.name().equals(path))
+                && NestedReference.referencedPath(expand.child(), path) == null) {
                 throw nestedExpandError(target, "NESTED_EXPAND cannot use [" + path + "]: a column of that name replaces it here");
             }
             if (collections.stream().anyMatch(parent -> path.startsWith(parent + "."))) {
@@ -1959,7 +1968,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> paths = new ArrayList<>();
             for (FieldAttribute child : children) {
                 String relative = child.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1);
-                String childName = path + "." + relative;
+                String childName = (referenced != null ? name : path) + "." + relative;
                 String parentName = childName.substring(0, childName.lastIndexOf('.'));
                 expanded.add(fieldAttribute(expand.source(), parentName, childName, ((NestedScopeField) child.field()).leaf(), false));
                 paths.add(relative);
@@ -3323,8 +3332,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
-            var resolved = resolveFields(eval.fields(), childOutput);
-            return resolved != null ? new Eval(eval.source(), eval.child(), resolved) : eval;
+            List<Alias> fields = NestedReference.bindCollections(eval.fields(), childOutput);
+            var resolved = resolveFields(fields, childOutput);
+            if (resolved != null) {
+                return new Eval(eval.source(), eval.child(), resolved);
+            }
+            return fields == eval.fields() ? eval : new Eval(eval.source(), eval.child(), fields);
         }
 
         /**
@@ -3645,7 +3658,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     childrenOutput.removeIf(x -> x.name().equals(alias.name()));
 
                     var resolved = maybeResolveAttribute(ua, childrenOutput, logger);
-                    if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
+                    Alias collectionAlias = resolved.resolved() ? null : NestedReference.bindCollection(alias, childrenOutput);
+                    if (collectionAlias != null) {
+                        // The collection's private schema stays in the rows, so the alias is added beside it.
+                        projections.removeIf(x -> x.name().equals(alias.name()));
+                        projections.add(collectionAlias);
+                    } else if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
                         var realiased = (NamedExpression) alias.replaceChildren(List.of(resolved));
                         projections.replaceAll(x -> x.equals(resolved) ? realiased : x);
                         childrenOutput.removeIf(x -> x.equals(resolved));

@@ -1518,3 +1518,27 @@ setup:
           query: 'FROM ne_code_leaf, ne_code_object | NESTED_EXPAND items | WHERE items.code == "x" | KEEP items.code, items.code.label | LIMIT 10'
   - length: { values: 1 }
   - match: { values.0: ["x", null] }
+
+---
+"A nested collection is a column that EVAL can name and NESTED_EXPAND can read":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_expand | EVAL o = items | NESTED_EXPAND o | KEEP id, o.sku, o.qty | SORT id, o.sku'
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "o.sku" }
+  - match: { columns.2.name: "o.qty" }
+  - length: { values: 3 }
+  - match: { values.0: ["1", "a", 1] }
+  - match: { values.1: ["1", "b", 2] }
+  - match: { values.2: ["2", null, null] }
+
+---
+"A column that names a nested collection is not a value":
+  - do:
+      catch: /is a nested collection \[items\]/
+      esql.query:
+        body:
+          query: 'FROM nested_expand | EVAL o = items | NESTED_EXPAND o | WHERE o IS NOT NULL'

@@ -109,6 +109,28 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertThat(nestedScope(query), is(true));
     }
 
+    public void testNestedExpandOfAnAliasAsksForTheAliasedCollection() {
+        String query = "from test | eval o = items | nested_expand o | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items", "items.*", "o", "o.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testNestedPredicateOverAnAliasAsksForTheAliasedCollection() {
+        String query = "from test | eval o = items | where nested_any(o, o.price > 1) | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items", "items.*", "o", "o.*", "o.price", "o.price.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testNestedExpandOfARenamedCollectionAsksForTheCollection() {
+        String query = "from test | rename items as i | nested_expand i | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items", "items.*", "i", "i.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testAliasWithoutANestedCommandDoesNotAskForTheNestedScope() {
+        assertThat(nestedScope("from test | eval o = items | keep id"), is(false));
+    }
+
     public void testAQueryWithoutNestedPredicatesIsNotNestedScoped() {
         assertThat(nestedScope("from test | where id > 1 | keep id"), is(false));
     }

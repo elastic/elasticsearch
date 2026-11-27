@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.Releasables;
 
+import java.util.function.Consumer;
 import java.util.function.IntFunction;
 
 /**
@@ -106,5 +107,10 @@ public final class DetachingExchangeSink implements ExchangeSink {
     @Override
     public IsBlockedResult waitForWriting() {
         return delegate.waitForWriting();
+    }
+
+    @Override
+    public void setOnPageDiscarded(Consumer<Page> onPageDiscarded) {
+        delegate.setOnPageDiscarded(onPageDiscarded);
     }
 }

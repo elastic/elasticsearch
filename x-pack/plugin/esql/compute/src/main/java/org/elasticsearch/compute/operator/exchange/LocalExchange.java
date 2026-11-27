@@ -11,7 +11,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * An exchange whose sinks and sources run on the same node and share a single buffer.
@@ -20,9 +24,18 @@ public final class LocalExchange {
     private final ExchangeBuffer buffer;
     private final AtomicInteger pendingSinks = new AtomicInteger(0);
     private final AtomicInteger pendingSources = new AtomicInteger(0);
+    private final Map<Page, Consumer<Page>> discardListeners = Collections.synchronizedMap(new IdentityHashMap<>());
+    private volatile boolean tracksDiscards = false;
 
     public LocalExchange(int bufferSize) {
-        this.buffer = new ExchangeBuffer(bufferSize);
+        this.buffer = new ExchangeBuffer(bufferSize, page -> {
+            if (tracksDiscards) {
+                Consumer<Page> listener = discardListeners.remove(page);
+                if (listener != null) {
+                    listener.accept(page);
+                }
+            }
+        });
     }
 
     public ExchangeSource exchangeSource() {
@@ -38,7 +51,11 @@ public final class LocalExchange {
 
         @Override
         public Page pollPage() {
-            return buffer.pollPage();
+            Page page = buffer.pollPage();
+            if (page != null && tracksDiscards) {
+                discardListeners.remove(page);
+            }
+            return page;
         }
 
         @Override
@@ -74,6 +91,7 @@ public final class LocalExchange {
     final class LocalExchangeSink implements ExchangeSink {
         private final Runnable onPageAdded;
         private boolean finished = false;
+        private Consumer<Page> onPageDiscarded;
 
         LocalExchangeSink(Runnable onPageAdded) {
             this.onPageAdded = onPageAdded;
@@ -83,7 +101,16 @@ public final class LocalExchange {
         @Override
         public void addPage(Page page) {
             onPageAdded.run();
+            if (onPageDiscarded != null) {
+                discardListeners.put(page, onPageDiscarded);
+            }
             buffer.addPage(page);
+        }
+
+        @Override
+        public void setOnPageDiscarded(Consumer<Page> onPageDiscarded) {
+            this.onPageDiscarded = onPageDiscarded;
+            tracksDiscards = true;
         }
 
         @Override

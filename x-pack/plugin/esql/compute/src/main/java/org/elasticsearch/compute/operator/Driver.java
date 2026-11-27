@@ -467,7 +467,7 @@ public class Driver implements Releasable, Describable {
                         driverContext.checkForEarlyTermination();
                     } catch (DriverEarlyTerminationException | TaskCancelledException e) {
                         if (op instanceof SourceOperator source) {
-                            source.pageDiscardedBeforeHandoff();
+                            source.outputDiscarded(page);
                         }
                         page.releaseBlocks();
                         throw e;
@@ -636,6 +636,9 @@ public class Driver implements Releasable, Describable {
         if (driver.activeOperators.isEmpty() == false) {
             if (driver.activeOperators.getLast() instanceof ExchangeSinkOperator sinkOperator) {
                 sinkOperator.addCompletionListener(ActionListener.running(driver::finishEarly));
+                if (driver.activeOperators.getFirst() instanceof SourceOperator source) {
+                    sinkOperator.setOnPageDiscarded(source::outputDiscarded);
+                }
             } else if (driver.activeOperators.getLast() instanceof StreamingPageOperator streamingOperator) {
                 streamingOperator.addCompletionListener(ActionListener.running(driver::finishEarly));
             }

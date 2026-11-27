@@ -997,7 +997,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             client.capturedListener.onResponse(response);
             executionInfo.markAsStopped();
             pulled = operator.getOutput();
-            operator.pageDiscardedBeforeHandoff();
+            operator.outputDiscarded(pulled);
             pulled.releaseBlocks();
             operator.close();
             assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
@@ -1005,6 +1005,78 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         } finally {
             if (pulled != null) {
                 pulled.releaseBlocks();
+            }
+            operator.close();
+            response.decRef();
+        }
+    }
+
+    public void testStopThatDropsADeliveredPageAfterCloseMarksTheClusterPartial() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContext();
+        Hits hits = new Hits(List.of(fieldEvent("a")), null, new TotalHits(1, TotalHits.Relation.EQUAL_TO));
+        EqlSearchResponse response = new EqlSearchResponse(hits, 3L, false, List.of(), List.of(new EqlClusterShards(LOCAL, 1, 1, 0, 0)));
+        SourceOperator operator = operator(
+            client,
+            driverContext,
+            eqlRequestOn("logs"),
+            EqlRelation.Mode.EVENT,
+            List.of(fieldAttribute("process.name", KEYWORD)),
+            executionInfo
+        );
+        Page delivered = null;
+        try {
+            assertBlocked(operator);
+            client.capturedListener.onResponse(response);
+            delivered = operator.getOutput();
+            operator.close();
+            assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            executionInfo.markAsStopped();
+            operator.outputDiscarded(delivered);
+            assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+            assertTrue(executionInfo.isPartial());
+        } finally {
+            if (delivered != null) {
+                delivered.releaseBlocks();
+            }
+            operator.close();
+            response.decRef();
+        }
+    }
+
+    public void testStopThatDropsAnEmptyDeliveredPageLeavesTheClusterSuccessful() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContext();
+        Hits hits = new Hits(List.of(fieldEvent("a")), null, new TotalHits(1, TotalHits.Relation.EQUAL_TO));
+        EqlSearchResponse response = new EqlSearchResponse(hits, 3L, false, List.of(), List.of(new EqlClusterShards(LOCAL, 1, 1, 0, 0)));
+        SourceOperator operator = operator(
+            client,
+            driverContext,
+            eqlRequestOn("logs"),
+            EqlRelation.Mode.EVENT,
+            List.of(fieldAttribute("process.name", KEYWORD)),
+            executionInfo
+        );
+        Page delivered = null;
+        Page filtered = null;
+        try {
+            assertBlocked(operator);
+            client.capturedListener.onResponse(response);
+            delivered = operator.getOutput();
+            filtered = delivered.filter(false);
+            executionInfo.markAsStopped();
+            operator.outputDiscarded(filtered);
+            operator.close();
+            assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertFalse(executionInfo.isPartial());
+        } finally {
+            if (filtered != null) {
+                filtered.releaseBlocks();
+            }
+            if (delivered != null) {
+                delivered.releaseBlocks();
             }
             operator.close();
             response.decRef();

@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -58,6 +59,10 @@ public class ExchangeSinkOperator extends SinkOperator {
 
     public void addCompletionListener(ActionListener<Void> listener) {
         sink.addCompletionListener(listener);
+    }
+
+    public void setOnPageDiscarded(Consumer<Page> onPageDiscarded) {
+        sink.setOnPageDiscarded(onPageDiscarded);
     }
 
     @Override

@@ -165,6 +165,6 @@ public abstract class SourceOperator implements Operator {
         return true;
     }
 
-    // The driver calls this when it drops the page from getOutput before the next operator accepts it.
-    public void pageDiscardedBeforeHandoff() {}
+    // The driver calls this, possibly from another thread and after close, for each page of its own dropped before its consumer.
+    public void outputDiscarded(Page page) {}
 }

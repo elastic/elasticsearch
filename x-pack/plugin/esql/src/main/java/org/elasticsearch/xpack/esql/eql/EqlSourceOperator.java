@@ -105,7 +105,7 @@ public class EqlSourceOperator extends SourceOperator {
     // Guards the close()-vs-response-callback race: Driver.drainAndCloseOperators runs before waitForAsyncActions,
     // so close() can fire while the EQL search is still in flight. Mutations of page/closed are synchronized(this).
     private boolean closed;
-    // The driver discarded a non-empty page after getOutput and before the next operator accepted it.
+    // Rows of this operator were dropped before reaching the consumer of the driver.
     private volatile boolean rowsDiscarded;
     private final Set<String> recordedClusters = ConcurrentHashMap.newKeySet();
 
@@ -434,8 +434,13 @@ public class EqlSourceOperator extends SourceOperator {
     }
 
     @Override
-    public void pageDiscardedBeforeHandoff() {
-        rowsDiscarded = true;
+    public void outputDiscarded(Page droppedPage) {
+        if (droppedPage.getPositionCount() > 0) {
+            rowsDiscarded = true;
+            if (executionInfo.isStopped()) {
+                markUndeliveredStopPartial();
+            }
+        }
     }
 
     @Override

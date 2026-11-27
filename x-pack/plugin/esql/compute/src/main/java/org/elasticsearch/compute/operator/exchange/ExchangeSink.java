@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 
+import java.util.function.Consumer;
+
 /**
  * Sink for exchanging data
  * @see ExchangeSinkOperator
@@ -40,4 +42,10 @@ public interface ExchangeSink {
      * Whether the sink is blocked on adding more pages
      */
     IsBlockedResult waitForWriting();
+
+    /**
+     * Calls {@code onPageDiscarded} with each page of this sink that the exchange drops, before releasing it. Set it before
+     * adding a page. Sinks whose exchange can't tell which sink added a page ignore it.
+     */
+    default void setOnPageDiscarded(Consumer<Page> onPageDiscarded) {}
 }

@@ -574,6 +574,38 @@ public class ExchangeServiceTests extends ESTestCase {
         assertTrue(sinkHandler.isFinished());
     }
 
+    public void testLocalExchangeTellsEachSinkOfItsDroppedPages() {
+        LocalExchange exchange = new LocalExchange(100);
+        ExchangeSource source = exchange.exchangeSource();
+        List<Integer> discarded = Collections.synchronizedList(new ArrayList<>());
+        ExchangeSink tracked = exchange.exchangeSink(() -> {});
+        tracked.setOnPageDiscarded(page -> discarded.add(page.<IntBlock>getBlock(0).getInt(0)));
+        ExchangeSink untracked = exchange.exchangeSink(() -> {});
+        BlockFactory blockFactory = blockFactory();
+        int sent = between(0, 5);
+        int buffered = between(1, 5);
+        int late = between(0, 5);
+        for (int n = 0; n < sent + buffered; n++) {
+            tracked.addPage(new Page(blockFactory.newConstantIntBlockWith(n, 1)));
+            untracked.addPage(new Page(blockFactory.newConstantIntBlockWith(-1, 1)));
+        }
+        for (int n = 0; n < sent * 2; n++) {
+            source.pollPage().releaseBlocks();
+        }
+        assertThat(discarded, empty());
+
+        source.finish();
+        for (int n = sent + buffered; n < sent + buffered + late; n++) {
+            tracked.addPage(new Page(blockFactory.newConstantIntBlockWith(n, 1)));
+            untracked.addPage(new Page(blockFactory.newConstantIntBlockWith(-1, 1)));
+        }
+
+        assertThat(discarded, equalTo(IntStream.range(sent, sent + buffered + late).boxed().toList()));
+        tracked.finish();
+        untracked.finish();
+        assertTrue(exchange.isFinished());
+    }
+
     public void testFinishEarly() {
         ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(20, threadPool.generic());
         Semaphore permits = new Semaphore(between(1, 5));

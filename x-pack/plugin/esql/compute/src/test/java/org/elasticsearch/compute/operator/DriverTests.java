@@ -36,6 +36,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.exchange.LocalExchange;
@@ -81,6 +82,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1134,6 +1136,104 @@ public class DriverTests extends ESTestCase {
             assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         } finally {
             terminate(threadPool);
+        }
+    }
+
+    public void testSourceIsToldOfAPageDroppedBeforeTheNextOperatorTakesIt() {
+        DriverContext driverContext = driverContext();
+        Block block = driverContext.blockFactory().newConstantIntBlockWith(1, 1);
+        Page page = new Page(block);
+        LocalExchange exchange = new LocalExchange(10);
+        ExchangeSource exchangeSource = exchange.exchangeSource();
+        DiscardTrackingSource source = new DiscardTrackingSource(List.of(page), () -> exchange.finish(false));
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            source,
+            List.of(),
+            new ExchangeSinkOperator(exchange.exchangeSink(() -> {}))
+        );
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            future.actionGet(30, TimeUnit.SECONDS);
+            assertThat(source.discarded, contains(sameInstance(page)));
+            assertTrue(block.isReleased());
+            assertNull(exchangeSource.pollPage());
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testSourceIsToldOfThePagesItsExchangeDrops() {
+        DriverContext driverContext = driverContext();
+        Block firstBlock = driverContext.blockFactory().newConstantIntBlockWith(1, 1);
+        Block secondBlock = driverContext.blockFactory().newConstantIntBlockWith(2, 1);
+        Page first = new Page(firstBlock);
+        Page second = new Page(secondBlock);
+        LocalExchange exchange = new LocalExchange(10);
+        ExchangeSource exchangeSource = exchange.exchangeSource();
+        DiscardTrackingSource source = new DiscardTrackingSource(List.of(first, second), () -> exchange.finish(true));
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            source,
+            List.of(),
+            new ExchangeSinkOperator(exchange.exchangeSink(() -> {}))
+        );
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            future.actionGet(30, TimeUnit.SECONDS);
+            assertThat(source.discarded, contains(sameInstance(first), sameInstance(second)));
+            assertTrue(firstBlock.isReleased());
+            assertTrue(secondBlock.isReleased());
+            assertNull(exchangeSource.pollPage());
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    private static class DiscardTrackingSource extends SourceOperator {
+        private final List<Page> pages;
+        private final Runnable beforeLastPage;
+        final List<Page> discarded = Collections.synchronizedList(new ArrayList<>());
+        private int emitted;
+
+        DiscardTrackingSource(List<Page> pages, Runnable beforeLastPage) {
+            this.pages = pages;
+            this.beforeLastPage = beforeLastPage;
+        }
+
+        @Override
+        public void finish() {
+            emitted = pages.size();
+        }
+
+        @Override
+        public boolean isFinished() {
+            return emitted >= pages.size();
+        }
+
+        @Override
+        public Page getOutput() {
+            if (emitted == pages.size() - 1) {
+                beforeLastPage.run();
+            }
+            return pages.get(emitted++);
+        }
+
+        @Override
+        public void outputDiscarded(Page page) {
+            assertFalse(page.getBlock(0).isReleased());
+            discarded.add(page);
+        }
+
+        @Override
+        public void close() {
+            for (int p = emitted; p < pages.size(); p++) {
+                pages.get(p).releaseBlocks();
+            }
         }
     }
 

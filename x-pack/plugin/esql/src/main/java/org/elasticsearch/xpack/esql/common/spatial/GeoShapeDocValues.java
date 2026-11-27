@@ -111,16 +111,30 @@ public class GeoShapeDocValues {
         }
     }
 
-    /** A V2 value made only of points is just a vertex table of the points after the zero tree length. */
+    /**
+     * A V2 value made only of points is just a vertex table of the points after the zero tree length. Blocks of points
+     * whose bounding box the visitor rejects are skipped, just as the visitor would skip a subtree of the legacy tree.
+     */
     private void visitPoints(TriangleTreeVisitor visitor) throws IOException {
         if (vertices == null) {
             input.setPosition(treeOffset);
             vertices = VertexLookupTable.readPointsFrom(input, bytes, extent);
         }
-        for (int i = 0; i < vertices.size(); i++) {
-            long xy = vertices.getXY(i);
-            visitor.visitPoint((int) (xy >>> 32), (int) xy);
-            if (visitor.push() == false) {
+        final int numVertices = vertices.size();
+        final int numBlocks = vertices.numBlocks();
+        for (int block = 0; block < numBlocks; block++) {
+            if (visitor.pushX(vertices.blockMinX(block))
+                && visitor.pushY(vertices.blockMinY(block))
+                && visitor.push(vertices.blockMaxX(block, extent.maxX()), vertices.blockMaxY(block, extent.maxY()))) {
+                int end = Math.min(numVertices, (block + 1) * VertexLookupTable.BLOCK_SIZE);
+                for (int ordinal = block * VertexLookupTable.BLOCK_SIZE; ordinal < end; ordinal++) {
+                    long xy = vertices.getXY(ordinal);
+                    visitor.visitPoint((int) (xy >>> 32), (int) xy);
+                    if (visitor.push() == false) {
+                        return;
+                    }
+                }
+            } else if (visitor.push() == false) {
                 return;
             }
         }

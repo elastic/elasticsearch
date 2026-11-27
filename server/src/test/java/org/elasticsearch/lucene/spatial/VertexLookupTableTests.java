@@ -16,7 +16,10 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class VertexLookupTableTests extends ESTestCase {
 
@@ -131,6 +134,20 @@ public class VertexLookupTableTests extends ESTestCase {
         for (int i = 0; i < xs.length; i++) {
             assertThat("x of vertex " + i, table.getX(i), equalTo(xs[i]));
             assertThat("y of vertex " + i, table.getY(i), equalTo(ys[i]));
+        }
+        assertThat(table.numBlocks(), equalTo((xs.length + VertexLookupTable.BLOCK_SIZE - 1) / VertexLookupTable.BLOCK_SIZE));
+        for (int i = 0; i < xs.length; i++) {
+            int block = i / VertexLookupTable.BLOCK_SIZE;
+            assertThat(
+                "x of vertex " + i,
+                xs[i],
+                allOf(greaterThanOrEqualTo(table.blockMinX(block)), lessThanOrEqualTo(table.blockMaxX(block, extent.maxX())))
+            );
+            assertThat(
+                "y of vertex " + i,
+                ys[i],
+                allOf(greaterThanOrEqualTo(table.blockMinY(block)), lessThanOrEqualTo(table.blockMaxY(block, extent.maxY())))
+            );
         }
         // geometry reconstruction decodes consecutive ranges, which may start and end inside blocks
         if (xs.length > 0) {

@@ -14,15 +14,19 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
+import org.elasticsearch.lucene.spatial.VertexLookupTable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -49,6 +53,22 @@ public class GeoShapeDocValuesTests extends ESTestCase {
     /** Points and multipoints are written in V2 as just a vertex table, with no triangle tree. */
     public void testLegacyAndV2PointsFormatsAgree() throws IOException {
         Geometry geometry = randomBoolean() ? GeometryTestUtils.randomPoint(false) : GeometryTestUtils.randomMultiPoint(false);
+        List<IndexableField> fields = INDEXER.indexShape(geometry);
+        CentroidCalculator centroid = new CentroidCalculator();
+        centroid.add(geometry);
+        BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fields, CoordinateEncoder.GEO, centroid);
+        BytesRef v2Bytes = GeometryDocValueWriter.write(fields, CoordinateEncoder.GEO, centroid, List.of(geometry));
+        assertFormatsAgree(legacyBytes, v2Bytes);
+    }
+
+    /** Enough points to fill several blocks of the vertex table, so that skipping a block is exercised. */
+    public void testLegacyAndV2ManyPointsFormatsAgree() throws IOException {
+        int numPoints = between(VertexLookupTable.BLOCK_SIZE + 1, 10 * VertexLookupTable.BLOCK_SIZE);
+        List<Point> points = new ArrayList<>(numPoints);
+        for (int i = 0; i < numPoints; i++) {
+            points.add(GeometryTestUtils.randomPoint(false));
+        }
+        Geometry geometry = new MultiPoint(points);
         List<IndexableField> fields = INDEXER.indexShape(geometry);
         CentroidCalculator centroid = new CentroidCalculator();
         centroid.add(geometry);

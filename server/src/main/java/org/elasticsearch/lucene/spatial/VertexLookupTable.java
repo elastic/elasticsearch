@@ -50,7 +50,8 @@ import java.util.Arrays;
  *
  * <h2>Layout</h2>
  *
- * <p>Everything after {@code numVertices} is written only if {@code numVertices > 0}. All multi-byte fields are
+ * <p>Everything after {@code numVertices} is written only if {@code numVertices > 0}. {@code numVertices} is a
+ * variable-length VInt, least significant seven bits first, and all the fixed-width multi-byte fields after it are
  * big-endian.
  * <pre>
  * numVertices    VInt
@@ -87,7 +88,8 @@ import java.util.Arrays;
 public class VertexLookupTable {
 
     static final int BLOCK_SHIFT = 5;
-    static final int BLOCK_SIZE = 1 << BLOCK_SHIFT;
+    /** The number of consecutive ordinals in each block, except the last block, which may hold fewer. */
+    public static final int BLOCK_SIZE = 1 << BLOCK_SHIFT;
     private static final int BLOCK_MASK = BLOCK_SIZE - 1;
 
     private static final int WIDTH_MASK = 0x7;
@@ -314,6 +316,41 @@ public class VertexLookupTable {
 
     private static int numBlocks(int numVertices) {
         return (numVertices + BLOCK_MASK) >>> BLOCK_SHIFT;
+    }
+
+    /**
+     * Returns the number of blocks of {@link #BLOCK_SIZE} ordinals. Visitors outside this package, which cannot call
+     * {@link #visitPoints}, use this and the block bounds below to skip blocks of points in the same way.
+     */
+    public int numBlocks() {
+        return numBlocks(numVertices);
+    }
+
+    /** Returns the smallest encoded x-coordinate of the vertices in {@code block}. */
+    public int blockMinX(int block) {
+        loadBlock(block);
+        return blockMinX;
+    }
+
+    /** Returns the smallest encoded y-coordinate of the vertices in {@code block}. */
+    public int blockMinY(int block) {
+        loadBlock(block);
+        return blockMinY;
+    }
+
+    /**
+     * Returns an upper bound of the encoded x-coordinates of the vertices in {@code block}: the block minimum plus the
+     * largest offset its bit width can hold, capped at {@code extentMaxX}, the maximum x of the value's extent.
+     */
+    public int blockMaxX(int block, int extentMaxX) {
+        loadBlock(block);
+        return (int) Math.min(extentMaxX, (long) blockMinX + ((1L << blockBitsX) - 1));
+    }
+
+    /** Returns an upper bound of the encoded y-coordinates of the vertices in {@code block}, as {@link #blockMaxX}. */
+    public int blockMaxY(int block, int extentMaxY) {
+        loadBlock(block);
+        return (int) Math.min(extentMaxY, (long) blockMinY + ((1L << blockBitsY) - 1));
     }
 
     /**

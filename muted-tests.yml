@@ -910,3 +910,8 @@ tests:
   - :x-pack:plugin:esql-datasource-parquet:test
   method: testHeaderOnlySuffixAfterCompleteMemberIsEos
   issue: https://github.com/elastic/elasticsearch/issues/167805
+- class: org.elasticsearch.xpack.esql.datasources.FileSplitProviderTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testANoneAtTheFirstOffsetDoesNotCollapseALimitedFile
+  issue: https://github.com/elastic/elasticsearch/issues/167807

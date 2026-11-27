@@ -21,6 +21,7 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.runner.Description;
+import org.junit.runner.Runner;
 import org.junit.runner.manipulation.Filter;
 import org.junit.runner.manipulation.NoTestsRemainException;
 import org.junit.runner.notification.Failure;
@@ -521,6 +522,49 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
         // 3 methods and 3 iterations make 9 tests
         assertThat(notifier.started.size(), equalTo(2));
         assertThat(EXECUTED_TESTS.get(), equalTo(2));
+    }
+
+    /** Registered with {@code @Listeners}, and rejects every test it is told about. */
+    public static final class RejectingListener extends RunListener {
+        @Override
+        public void testStarted(Description description) {
+            throw new IllegalStateException("rejects " + description.getMethodName());
+        }
+    }
+
+    @Listeners({ RejectingListener.class })
+    @TestMethodProviders({ JUnit3MethodProvider.class })
+    public static class RejectedFixture {
+        public void testOne() {}
+    }
+
+    /**
+     * {@link RandomizedRunner} gives an exception thrown by one of the listeners to the wrapped notifier.
+     * It has to reach the actual notifier from the wrapper, too, so that Vintage reports it as a test mechanism failure.
+     */
+    public void testExceptionOfAListenerOfTheTestClassIsReportedToTheActualNotifier() throws Exception {
+        List<Failure> plainFailures = runAndCollectFailures(plainRunnerWithoutIterations(RejectedFixture.class));
+        List<Failure> failures = runAndCollectFailures(runnerWithoutIterations(RejectedFixture.class, VINTAGE_LIKE_FILTER_PREFIX));
+
+        assertThat(plainFailures.size(), equalTo(1));
+        assertThat(failures.size(), equalTo(1));
+        assertThat(failures.get(0).getDescription(), equalTo(Description.TEST_MECHANISM));
+        assertThat(failures.get(0).getException().getMessage(), equalTo(plainFailures.get(0).getException().getMessage()));
+    }
+
+    private static List<Failure> runAndCollectFailures(Runner runner) {
+        RecordedEvents events = new RecordedEvents();
+        List<Failure> failures = new ArrayList<>();
+        RunNotifier notifier = new RunNotifier();
+        notifier.addListener(events);
+        notifier.addListener(new RunListener() {
+            @Override
+            public void testFailure(Failure failure) {
+                failures.add(failure);
+            }
+        });
+        runner.run(notifier);
+        return failures;
     }
 
     /** Method names the listeners saw while a {@link ListenedFixture} ran. */

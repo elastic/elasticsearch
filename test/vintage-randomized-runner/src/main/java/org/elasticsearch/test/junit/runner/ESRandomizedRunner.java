@@ -17,12 +17,15 @@ import org.junit.runner.manipulation.Filter;
 import org.junit.runner.manipulation.Filterable;
 import org.junit.runner.manipulation.NoTestsRemainException;
 import org.junit.runner.notification.Failure;
+import org.junit.runner.notification.RunListener;
 import org.junit.runner.notification.RunNotifier;
 import org.junit.runner.notification.StoppedByUserException;
 import org.junit.runners.model.InitializationError;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A {@link RandomizedRunner} wrapper that makes filters applied by the JUnit Vintage engine exact for parameterized tests.
@@ -104,10 +107,103 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
      * events of tests (started, finished, failed, assumption failed and ignored).
      */
     private static final class ExposingNotifier extends RunNotifier {
+
+        @FunctionalInterface
+        private interface ListenerCall {
+            void run() throws Exception;
+        }
+
         private final RunNotifier actual;
+
+        /** Key: actual listener, value: wrapped listener */
+        private final Map<RunListener, FailureReportingListener> wrappedListeners = new ConcurrentHashMap<>();
 
         ExposingNotifier(RunNotifier actual) {
             this.actual = actual;
+        }
+
+        /**
+         * A {@link RunNotifier} turns an exception thrown by a listener into a failure of {@link Description#TEST_MECHANISM}, which it
+         * tells the other listeners of the same notifier about. The listeners of the wrapper would never notify the listeners of the actual
+         * (wrapped) notifier, whose listeners report the failure to the Vintage test engine; the {@link FailureReportingListener} forwards
+         * the errors to the actual notifier.
+         */
+        @Override
+        public void addListener(RunListener listener) {
+            super.addListener(wrappedListeners.computeIfAbsent(listener, FailureReportingListener::new));
+        }
+
+        @Override
+        public void addFirstListener(RunListener listener) {
+            super.addFirstListener(wrappedListeners.computeIfAbsent(listener, FailureReportingListener::new));
+        }
+
+        @Override
+        public void removeListener(RunListener listener) {
+            FailureReportingListener wrapped = wrappedListeners.remove(listener);
+            super.removeListener(wrapped == null ? listener : wrapped);
+        }
+
+        /** Passes on the events to a listener, and gives what it throws to the actual notifier as a failure of the test mechanism. */
+        private final class FailureReportingListener extends RunListener {
+            private final RunListener listener;
+
+            FailureReportingListener(RunListener listener) {
+                this.listener = listener;
+            }
+
+            private void notifyListener(ListenerCall call) {
+                try {
+                    call.run();
+                } catch (Exception e) {
+                    actual.fireTestFailure(new Failure(Description.TEST_MECHANISM, e));
+                }
+            }
+
+            @Override
+            public void testRunStarted(Description description) {
+                notifyListener(() -> listener.testRunStarted(description));
+            }
+
+            @Override
+            public void testRunFinished(Result result) {
+                notifyListener(() -> listener.testRunFinished(result));
+            }
+
+            @Override
+            public void testSuiteStarted(Description description) {
+                notifyListener(() -> listener.testSuiteStarted(description));
+            }
+
+            @Override
+            public void testSuiteFinished(Description description) {
+                notifyListener(() -> listener.testSuiteFinished(description));
+            }
+
+            @Override
+            public void testStarted(Description description) {
+                notifyListener(() -> listener.testStarted(description));
+            }
+
+            @Override
+            public void testFinished(Description description) {
+                notifyListener(() -> listener.testFinished(description));
+            }
+
+            @Override
+            public void testFailure(Failure failure) {
+                notifyListener(() -> listener.testFailure(failure));
+            }
+
+            @Override
+            public void testAssumptionFailure(Failure failure) {
+                notifyListener(() -> listener.testAssumptionFailure(failure));
+            }
+
+            @Override
+            public void testIgnored(Description description) {
+                notifyListener(() -> listener.testIgnored(description));
+            }
         }
 
         @Override

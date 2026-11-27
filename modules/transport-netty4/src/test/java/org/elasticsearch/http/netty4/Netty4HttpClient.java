@@ -159,21 +159,24 @@ class Netty4HttpClient implements Closeable {
             }
 
             if (latch.await(30L, TimeUnit.SECONDS) == false) {
+                int incompleteWrites = 0;
                 StringBuilder writeFailures = new StringBuilder();
                 for (var future : writeFutures) {
                     if (future.isDone() && future.isSuccess() == false) {
                         writeFailures.append(future.cause()).append('\n');
+                    } else if (future.isDone() == false) {
+                        incompleteWrites++;
                     }
                 }
 
                 var responseStatus = new ArrayList<>(content).stream().map(HttpResponse::status).toList();
                 fail(String.format(Locale.ROOT, """
-                        Failed to get all expected responses for [%d] sent requests.
+                        Failed to get all expected responses for [%d] sent requests, [%d] writes are not completed.
                         Write failures:
                         [%s]
                         Received response status codes:
                         [%s]
-                    """, requests.size(), writeFailures.isEmpty() ? "none" : writeFailures, responseStatus));
+                    """, requests.size(), incompleteWrites, writeFailures.isEmpty() ? "none" : writeFailures, responseStatus));
             }
         } finally {
             if (channelFuture != null) {

@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.hamcrest.Matcher;
@@ -55,6 +56,11 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
     private Directory directory = newDirectory();
     private IndexReader reader;
+    /**
+     * Whether the sort starts with the descending score. Then the collectors skip documents by score and share a
+     * {@link SharedScoreBound}. Every document scores the same, so the rows still come out in the order of {@code s}.
+     */
+    private final boolean scoreFirst = randomBoolean();
 
     @After
     public void closeScoringIndex() throws IOException {
@@ -92,6 +98,9 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
             @Override
             public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) {
                 SortField field = new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN);
+                if (scoreFirst) {
+                    return Optional.of(new SortAndFormats(new Sort(SortField.FIELD_SCORE, field), new DocValueFormat[] { null, null }));
+                }
                 return Optional.of(new SortAndFormats(new Sort(field), new DocValueFormat[] { null }));
             }
         };
@@ -100,7 +109,9 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
         );
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
-        List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
+        List<SortBuilder<?>> sorts = scoreFirst
+            ? List.of(new ScoreSortBuilder(), new FieldSortBuilder("s"))
+            : List.of(new FieldSortBuilder("s"));
         long estimatedPerRowSortSize = 16;
         return new LuceneTopNSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(ctx),

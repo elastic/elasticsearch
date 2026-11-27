@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167218
+summary: "Field caps: report runtime fields under nested"
+type: feature

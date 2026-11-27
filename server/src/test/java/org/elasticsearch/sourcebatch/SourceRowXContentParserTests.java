@@ -442,6 +442,31 @@ public class SourceRowXContentParserTests extends ESTestCase {
         }
     }
 
+    /**
+     * A scalar double that is the midpoint between two floats reads as the float the JSON parser parses from the client's text,
+     * not the even float a cast gives (https://github.com/elastic/elasticsearch/issues/165790).
+     */
+    public void testFloatValueOfMidpointDouble() throws IOException {
+        String[] texts = { "1.0000001788139343261718749", "1.0000001788139343261718751", "1.0000001788139343" };
+        StringBuilder json = new StringBuilder("{");
+        for (int i = 0; i < texts.length; i++) {
+            json.append(i > 0 ? "," : "").append("\"f").append(i).append("\":").append(texts[i]);
+        }
+        BytesReference source = new BytesArray(json.append('}').toString());
+        try (EscfBatch batch = EscfEncoder.encode(List.of(source), XContentType.JSON)) {
+            SourceRowXContentParser.SchemaNode tree = SourceRowXContentParser.buildSchemaTree(batch.schema());
+            try (SourceRowXContentParser parser = new SourceRowXContentParser(tree, batch.row(0))) {
+                assertToken(parser, Token.START_OBJECT);
+                for (int i = 0; i < texts.length; i++) {
+                    assertFieldName(parser, "f" + i);
+                    assertToken(parser, Token.VALUE_NUMBER);
+                    assertEquals(texts[i], Float.parseFloat(texts[i]), parser.floatValue(), 0f);
+                }
+                assertToken(parser, Token.END_OBJECT);
+            }
+        }
+    }
+
     public void testNestedObject() throws IOException {
         BytesReference source = new BytesArray("""
             {"user": {"name": "alice", "age": 30}, "status": "ok"}""");

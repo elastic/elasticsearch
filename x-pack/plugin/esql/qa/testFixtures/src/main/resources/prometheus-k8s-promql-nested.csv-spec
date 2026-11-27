@@ -9,10 +9,11 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(sum(avg_over_time(network.cost[1h])));
+required_capability: fix_promql_round_to_nearest
+PROMQL index=prometheus-k8s step=1h result=(round(sum(avg_over_time(network.cost[1h])), 0.000001));
 
-result:double     | step:datetime
-56.32254035241995 | 2024-05-10T01:00:00.000Z
+result:double | step:datetime
+56.32254      | 2024-05-10T01:00:00.000Z
 ;
 
 nested_within_series_avg_avg_over_time
@@ -20,10 +21,11 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(avg(avg_over_time(network.cost[1h])));
+required_capability: fix_promql_round_to_nearest
+PROMQL index=prometheus-k8s step=1h result=(round(avg(avg_over_time(network.cost[1h])), 0.000001));
 
-result:double      | step:datetime
-6.2580600391577725 | 2024-05-10T01:00:00.000Z
+result:double | step:datetime
+6.25806       | 2024-05-10T01:00:00.000Z
 ;
 
 nested_within_series_max_sum_over_time
@@ -53,13 +55,14 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(sum by (cluster) (avg_over_time(network.cost[1h])))
+required_capability: fix_promql_round_to_nearest
+PROMQL index=prometheus-k8s step=1h result=(round(sum by (cluster) (avg_over_time(network.cost[1h])), 0.000001))
 | SORT cluster;
 
-result:double      | step:datetime            | cluster:keyword
-18.032269021739133 | 2024-05-10T01:00:00.000Z | prod
-20.76903735632184  | 2024-05-10T01:00:00.000Z | qa
-17.521233974358974 | 2024-05-10T01:00:00.000Z | staging
+result:double | step:datetime            | cluster:keyword
+18.032269     | 2024-05-10T01:00:00.000Z | prod
+20.769037     | 2024-05-10T01:00:00.000Z | qa
+17.521234     | 2024-05-10T01:00:00.000Z | staging
 ;
 
 nested_same_grouping_sum_avg_by_cluster
@@ -165,10 +168,11 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(avg(sum by (cluster) (avg_over_time(network.cost[1h]))));
+required_capability: fix_promql_round_to_nearest
+PROMQL index=prometheus-k8s step=1h result=(round(avg(sum by (cluster) (avg_over_time(network.cost[1h]))), 0.000001));
 
-result:double      | step:datetime
-18.774180117473318 | 2024-05-10T01:00:00.000Z
+result:double | step:datetime
+18.77418      | 2024-05-10T01:00:00.000Z
 ;
 
 nested_different_grouping_max_avg_by_cluster
@@ -239,10 +243,11 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: fix_ts_block_loader_passthrough_aliasing
-PROMQL index=prometheus-k8s step=1h result=(max(avg by (cluster) (sum by (cluster, pod) (avg_over_time(network.cost[1h])))));
+required_capability: fix_promql_round_to_nearest
+PROMQL index=prometheus-k8s step=1h result=(round(max(avg by (cluster) (sum by (cluster, pod) (avg_over_time(network.cost[1h])))), 0.000001));
 
-result:double    | step:datetime
-6.92301245210728 | 2024-05-10T01:00:00.000Z
+result:double | step:datetime
+6.923012      | 2024-05-10T01:00:00.000Z
 ;
 
 nested_three_levels_sum_max_min
@@ -262,11 +267,12 @@ required_capability: promql_nested_aggregates
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_round_to_nearest
 PROMQL index=prometheus-k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z"
-  result=(time() - avg(sum by (cluster) (avg_over_time(network.cost[1h]))));
+  result=(round(time() - avg(sum by (cluster) (avg_over_time(network.cost[1h]))), 0.000001));
 
-result:double        | step:datetime
-1.7153027812258198E9 | 2024-05-10T01:00:00.000Z
+result:double      | step:datetime
+1.71530278122582E9 | 2024-05-10T01:00:00.000Z
 ;
 
 nested_aggregate_with_transformation_between

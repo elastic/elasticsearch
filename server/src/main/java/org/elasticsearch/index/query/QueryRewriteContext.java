@@ -110,6 +110,7 @@ public class QueryRewriteContext {
     private final boolean allowPartialSearchResults;
     @Nullable
     private TaskId parentTaskId;
+    private Runnable cancellationCheck = () -> {};
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -546,6 +547,18 @@ public class QueryRewriteContext {
      */
     public void setParentTask(TaskId parentTaskId) {
         this.parentTaskId = parentTaskId;
+    }
+
+    /**
+     * Sets the check that work done as part of this rewrite, for example combining the results of a compound retriever, calls
+     * periodically so that it stops early once the owning task is cancelled. The check throws if the task was cancelled.
+     */
+    public void setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = Objects.requireNonNull(cancellationCheck);
+    }
+
+    public Runnable getCancellationCheck() {
+        return cancellationCheck;
     }
 
     /**

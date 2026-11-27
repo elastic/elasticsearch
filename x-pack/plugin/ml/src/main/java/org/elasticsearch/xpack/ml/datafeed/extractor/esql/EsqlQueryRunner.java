@@ -114,8 +114,7 @@ interface EsqlQueryRunner {
         ExecutionMetadata executionMetadata,
         ActionListener<EsqlQueryResponse> listener
     ) {
-        var request = EsqlQueryExecutor.newRequest(client, query, filter, params, projectRouting);
-        request.executionMetadata(executionMetadata);
+        var request = EsqlQueryExecutor.newRequest(client, query, filter, params, projectRouting, executionMetadata);
         EsqlQueryExecutor.executeAsync(client, request, headers, listener);
     }
 }

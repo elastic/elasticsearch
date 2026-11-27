@@ -42,12 +42,18 @@ import static org.elasticsearch.test.ESTestCase.randomLongBetween;
  * vetted candidate columns (so it never pulls in an incompatible-type or unsupported column). The {@link #ALL_FIELDS} /
  * {@link #FILLED_FIELDS} context entries let {@code GenerativeRestTest#updateIndexMapped} clear the filled columns'
  * {@code indexMapped} flag; for a pattern, {@link #FILLED_FIELDS} carries the concrete matched column names.
+ * <p>
+ * Because a targeted fill value is type-matched to its columns, every null in those columns is fillable, so
+ * {@link #validateOutput} asserts the filled columns hold no null afterwards (keyed on {@link #HAS_FILL_VALUE}). This is
+ * a property of the result alone, which keeps it reliable despite the generative framework's non-deterministic row order
+ * and truncation; {@code DEFAULT} and {@code ON *} fills can legitimately leave nulls, so they are not checked this way.
  */
 public class FillNullGenerator implements CommandGenerator {
 
     public static final String FILL_NULL = "fillnull";
     public static final String ALL_FIELDS = "all_fields";
     public static final String FILLED_FIELDS = "filled_fields";
+    public static final String HAS_FILL_VALUE = "has_fill_value";
 
     public static final CommandGenerator INSTANCE = new FillNullGenerator();
 
@@ -137,7 +143,7 @@ public class FillNullGenerator implements CommandGenerator {
                 rawNames.add(name);
             }
         }
-        return new CommandDescription(FILL_NULL, this, cmd.toString(), Map.of(FILLED_FIELDS, rawNames));
+        return new CommandDescription(FILL_NULL, this, cmd.toString(), Map.of(FILLED_FIELDS, rawNames, HAS_FILL_VALUE, fillValue != null));
     }
 
     /** A wildcard target: the emitted pattern text (e.g. {@code latency_*}) and the concrete column names it matches. */
@@ -182,7 +188,40 @@ public class FillNullGenerator implements CommandGenerator {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
         }
-        return CommandGenerator.expectSameColumns(previousCommands, previousColumns, columns);
+        ValidationResult sameColumns = CommandGenerator.expectSameColumns(previousCommands, previousColumns, columns);
+        if (sameColumns.success() == false) {
+            return sameColumns;
+        }
+
+        // Targeted FILLNULL with a concrete value: generate() restricts the targets to types the value fits (and a pattern
+        // is accepted only when every column it matches is such a target), so every null in those columns must have been
+        // filled. Assert that the filled columns hold no null afterwards. This is a property of the result alone, so unlike
+        // a before/after comparison it is immune to the generative framework's non-deterministic row order and truncation
+        // (see CommandGenerator#expectSameRowCount). DEFAULT and ON * are deliberately not checked here: some types have no
+        // default and some are incompatible with the value, so those shapes legitimately keep nulls (and warn).
+        if (Boolean.TRUE.equals(commandDescription.context().get(HAS_FILL_VALUE))
+            && commandDescription.context().get(FILLED_FIELDS) instanceof List<?> filledFields) {
+            List<String> names = columns.stream().map(Column::name).toList();
+            for (Object field : filledFields) {
+                int index = names.indexOf((String) field);
+                if (index < 0) {
+                    // The column is no longer in scope (the schema shifted under unmapped_fields); nothing to assert.
+                    continue;
+                }
+                for (List<Object> row : output) {
+                    if (row.get(index) == null) {
+                        return new ValidationResult(
+                            false,
+                            "FILLNULL with a type-matched value left a null in filled column ["
+                                + field
+                                + "]: "
+                                + commandDescription.commandString()
+                        );
+                    }
+                }
+            }
+        }
+        return VALIDATION_OK;
     }
 
     private static String randomFillValue() {

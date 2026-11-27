@@ -53,14 +53,14 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         IndexMode.VECTORDB_COLUMNAR
     );
 
+    private static final String DOTTED_KEY_ERROR = "it is mapped as part of a nested or flattened object";
+
     /** What the sequential path does with the sources of a fallback pin. */
     private enum RowPath {
         /** It indexes them, so the sources are valid. */
         ACCEPTS,
         /** It fails with a document error, which only the sequential path can report. */
-        REJECTS,
-        /** It trips an assertion, see {@link #testProbeDottedKeysIntoNestedTripAnAssertion}. */
-        ASSERTS
+        REJECTS
     }
 
     /** The number of children for each nested path. */
@@ -455,8 +455,6 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
                                 assertThat(e.getMessage(), containsString(rowPathError));
                             }
                         }
-                        case ASSERTS -> {
-                        }
                     }
                 }
                 for (SourceEncoder encoder : SourceEncoder.available()) {
@@ -567,9 +565,15 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         );
     }
 
-    /** A dotted key that crosses the nested boundary; see {@link #testProbeDottedKeysIntoNestedTripAnAssertion} for the sequential path. */
+    /** A dotted key that crosses the nested boundary; see {@link #testProbeDottedKeysIntoNested} for the sequential path. */
     public void testDottedKeyAcrossBoundaryFallsBack() throws IOException {
-        assertRefusedInAllModes(hostAndN(), Map.of(), RowPath.ASSERTS, mode -> new String[] { src(mode, "\"n.k\":\"a\"") });
+        assertRefusedInAllModes(
+            hostAndN(),
+            Map.of(),
+            RowPath.REJECTS,
+            DOTTED_KEY_ERROR,
+            mode -> new String[] { src(mode, "\"n.k\":\"a\"") }
+        );
     }
 
     /** A dotted key across the boundary of a nested field under a plain object: {@code comments.text} in {@code meta}. */
@@ -580,7 +584,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
             b.startObject("text").field("type", "keyword").endObject();
             b.endObject().endObject();
             b.endObject().endObject();
-        }, Map.of(), RowPath.ASSERTS, mode -> new String[] { src(mode, "\"meta\":{\"comments.text\":\"a\"}") });
+        }, Map.of(), RowPath.REJECTS, DOTTED_KEY_ERROR, mode -> new String[] { src(mode, "\"meta\":{\"comments.text\":\"a\"}") });
     }
 
     /**
@@ -647,18 +651,15 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
     // ---------------------------------------------------------------------------------------------------------------------------
 
     /**
-     * A dotted key across the nested boundary, like {@code {"n.k":"a"}} or {@code {"meta":{"comments.text":"a"}}}, trips an assertion
-     * in {@code DocumentParser#getLeafMapper}: the root finds no mapper for the dotted name, finds the child's field type and takes it
-     * for a runtime field. Without assertions the no-op mapper for runtime fields drops the value, and in these modes it is then also
-     * missing from {@code _source}, because the source is rebuilt from the mapped fields. We read this in the code and did not run it
-     * without assertions.
+     * A dotted key across the nested boundary, like {@code {"n.k":"a"}} or {@code {"meta":{"comments.text":"a"}}}, is rejected by
+     * {@code DocumentParser#getLeafMapper} in the strict columnar modes. Otherwise the value would be dropped silently.
      * <p>
      * Phase 1 must refuse these shapes. This probe fails when the sequential path starts to handle them.
      */
-    public void testProbeDottedKeysIntoNestedTripAnAssertion() throws IOException {
+    public void testProbeDottedKeysIntoNested() throws IOException {
         for (IndexMode mode : STRICT_COLUMNAR_MODES) {
             final MapperService rootNested = createMapperService(settings(mode), mappingFor(mode, hostAndN()));
-            expectThrows(AssertionError.class, () -> childCounts(rootNested, doc("d1", 1L, src(mode, "\"n.k\":\"a\""))));
+            expectThrows(DocumentParsingException.class, () -> childCounts(rootNested, doc("d1", 1L, src(mode, "\"n.k\":\"a\""))));
             final MapperService underObject = createMapperService(settings(mode), mappingFor(mode, b -> {
                 b.startObject("meta").startObject("properties");
                 b.startObject("comments").field("type", "nested").startObject("properties");
@@ -667,7 +668,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
                 b.endObject().endObject();
             }));
             final String dottedChild = src(mode, "\"meta\":{\"comments.text\":\"a\"}");
-            expectThrows(AssertionError.class, () -> childCounts(underObject, doc("d2", 2L, dottedChild)));
+            expectThrows(DocumentParsingException.class, () -> childCounts(underObject, doc("d2", 2L, dottedChild)));
         }
     }
 

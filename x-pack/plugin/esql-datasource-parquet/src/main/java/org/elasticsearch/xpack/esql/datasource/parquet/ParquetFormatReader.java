@@ -1982,6 +1982,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 if (stats.hasNonNullValue()) {
                     PrimitiveType pt = col.getPrimitiveType();
+                    if (hasUsableBounds(stats, pt) == false) {
+                        // A corrupt bound (a FIXED_LEN_BYTE_ARRAY DECIMAL/FLOAT16/UUID of the wrong width) says nothing about
+                        // this row group's values, exactly like a missing one: the file-level min/max are unservable, the
+                        // null count is not.
+                        poisonedBounds.add(colName);
+                        continue;
+                    }
                     Object minVal = normalizeStatValue(stats.genericGetMin(), pt);
                     Object maxVal = normalizeStatValue(stats.genericGetMax(), pt);
                     if (minVal == null || maxVal == null) {
@@ -2370,7 +2377,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (colStats.isEmpty()) {
                 continue;
             }
-            if (colStats.hasNonNullValue()) {
+            // A corrupt bound (a FIXED_LEN_BYTE_ARRAY DECIMAL/FLOAT16/UUID of the wrong width) is withheld with its pair, so
+            // split pruning and MIN/MAX never see it; the null count above is unaffected.
+            if (colStats.hasNonNullValue() && hasUsableBounds(colStats, col.getPrimitiveType())) {
                 PrimitiveType pt = col.getPrimitiveType();
                 Object minVal = normalizeStatValue(colStats.genericGetMin(), pt);
                 Object maxVal = normalizeStatValue(colStats.genericGetMax(), pt);
@@ -2497,6 +2506,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
+     * Whether a row group's min and max may be published at all (see {@link ParquetColumnDecoding#isUsableStatBound}).
+     * Checked before {@link #normalizeStatValue}, whose {@code null} means something stronger (the null count is
+     * unusable too) and whose fallback would otherwise turn a rejected {@link Binary} into a String.
+     */
+    private static boolean hasUsableBounds(Statistics<?> stats, PrimitiveType primitiveType) {
+        return ParquetColumnDecoding.isUsableStatBound(stats.genericGetMin(), primitiveType)
+            && ParquetColumnDecoding.isUsableStatBound(stats.genericGetMax(), primitiveType);
+    }
+
+    /**
      * Normalizes Parquet-specific stat values to types that Elasticsearch can serialize, in the same unit
      * the scan path emits: date32 and {@code timestamp[ms]} to epoch-millis (DATETIME), {@code timestamp[us|ns]}
      * to epoch-nanos (DATE_NANOS), and TIME to its scan unit. Parquet {@link Binary} (BYTE_ARRAY / string) is
@@ -2527,6 +2546,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * produces (see {@link ParquetColumnDecoding#decodeBinaryNumericStat}) — otherwise the stat
      * would fall through to the generic {@link Binary}-to-String conversion below, and the
      * DOUBLE-typed aggregate would fail trying to read it as a {@code Double}.
+     * <p>
+     * A {@code UUID} column renders KEYWORD as hex text, so its stat is formatted the same way rather than decoded
+     * from its raw bytes as UTF-8, which no scanned value matches. The order survives: parquet-java orders UUID
+     * bounds as unsigned bytes, and lowercase hex with the dashes at fixed positions sorts the same as UTF-8.
      */
     private static Object normalizeStatValue(Object value, PrimitiveType primitiveType) {
         if (ParquetColumnDecoding.hasTemporalStatEncoding(primitiveType)) {
@@ -2541,6 +2564,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         Double binaryNumeric = ParquetColumnDecoding.decodeBinaryNumericStat(value, primitiveType);
         if (binaryNumeric != null) {
             return binaryNumeric;
+        }
+        if (value instanceof Binary binary
+            && primitiveType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation) {
+            // hasUsableBounds has withheld any other width, so this is the hex text the scan renders.
+            return ParquetColumnDecoding.formatUuid(binary.getBytes());
         }
         if (value instanceof Binary binary) {
             return binary.toStringUsingUTF8();
@@ -4911,7 +4939,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     BigInteger unscaled = switch (info.parquetType()) {
                         case INT32 -> BigInteger.valueOf(cr.getInteger());
                         case INT64 -> BigInteger.valueOf(cr.getLong());
-                        case BINARY, FIXED_LEN_BYTE_ARRAY -> new BigInteger(cr.getBinary().getBytes());
+                        case BINARY, FIXED_LEN_BYTE_ARRAY -> ParquetColumnDecoding.unscaledToBigInteger(cr.getBinary().getBytes());
                         default -> throw new IllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
                     };
                     values[i] = new java.math.BigDecimal(unscaled, scale).doubleValue();
@@ -4931,8 +4959,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     noNulls = false;
                 } else {
                     byte[] bytes = cr.getBinary().getBytes();
-                    short float16Bits = (short) ((bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF));
-                    values[i] = Float.float16ToFloat(float16Bits);
+                    values[i] = ParquetColumnDecoding.float16ToDouble(bytes, 0, bytes.length);
                 }
                 cr.consume();
             }
@@ -4950,7 +4977,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
                         builder.appendNull();
                     } else if (isUuid) {
-                        builder.appendBytesRef(new BytesRef(ParquetColumnDecoding.formatUuid(cr.getBinary().getBytes())));
+                        byte[] bytes = cr.getBinary().getBytes();
+                        builder.appendBytesRef(new BytesRef(ParquetColumnDecoding.uuidText(bytes, 0, bytes.length)));
                     } else {
                         builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(cr.getBinary().getBytes())));
                     }

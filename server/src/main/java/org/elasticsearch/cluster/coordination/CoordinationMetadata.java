@@ -330,7 +330,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
                     votedNodesCount++;
                 }
             }
-            return votedNodesCount * 2 > nodeIds.size();
+            return votedNodesCount > nodeIds.size() >> 1; // overflow-safe majority
         }
 
         public Set<String> getNodeIds() {

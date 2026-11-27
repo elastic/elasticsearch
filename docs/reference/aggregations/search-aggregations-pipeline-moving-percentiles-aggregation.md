@@ -2,6 +2,9 @@
 navigation_title: "Moving percentiles"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-pipeline-moving-percentiles-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Moving percentiles aggregation [search-aggregations-pipeline-moving-percentiles-aggregation]

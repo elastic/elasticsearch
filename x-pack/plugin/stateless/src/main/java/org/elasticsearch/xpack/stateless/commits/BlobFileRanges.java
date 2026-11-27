@@ -96,6 +96,7 @@ public class BlobFileRanges implements Writeable {
         return blobLocation.blobName();
     }
 
+    @Deprecated(forRemoval = true)
     public PrimaryTermAndGeneration getBatchedCompoundCommitTermAndGeneration() {
         return blobLocation.getBatchedCompoundCommitTermAndGeneration();
     }

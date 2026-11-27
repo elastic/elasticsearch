@@ -3197,6 +3197,12 @@ public class EsqlCapabilities {
         EQL_COMMAND_SIZE_INDEPENDENT_OF_LIMIT(Build.current().isSnapshot()),
 
         /**
+         * EQL source command errors give positions in both queries, a view named as its target is rejected pointing to {@code FROM},
+         * and its synthetic columns shadow mapped fields of the same name, with a warning. Part of #165570.
+         */
+        EQL_COMMAND_ERRORS_AND_SHADOWED_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,
@@ -4962,9 +4968,11 @@ public class EsqlCapabilities {
         COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
 
         /**
-         * {@code column_metadata} reports the field a column reads as {@code _meta.field} and its unit as {@code _meta.unit}.
+         * {@code column_metadata} reports what {@code DESCRIBE} reports about a column, other than its name and type, as
+         * {@code _meta} entries of the same names: {@code role}, {@code field}, {@code origin}, {@code metric_type}, {@code unit},
+         * {@code interval}, {@code time_zone} and {@code description}.
          */
-        COLUMN_METADATA_FIELD_SEMANTICS(Build.current().isSnapshot()),
+        COLUMN_METADATA_DESCRIBE_COLUMNS,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which
@@ -5090,6 +5098,13 @@ public class EsqlCapabilities {
          * with {@code SET}. See <a href="https://github.com/elastic/elasticsearch/issues/164668">#164668</a>.
          */
         UNMAPPED_FIELDS_IN_REQUEST_BODY,
+
+        /**
+         * A CSV or TSV row with fewer fields than the file's width is a row error, like a wider one is, rather
+         * than being read with its missing trailing fields as null; the new {@code pad_short_rows} dataset
+         * setting asks for the null-padding back, and reports each padded row.
+         */
+        EXTERNAL_CSV_SHORT_ROW_IS_A_ROW_ERROR,
 
         /**
          * The fetch phase for {@code TopN}: with the {@code fetch_phase} pragma or the {@code esql.query.fetch_phase.enabled}

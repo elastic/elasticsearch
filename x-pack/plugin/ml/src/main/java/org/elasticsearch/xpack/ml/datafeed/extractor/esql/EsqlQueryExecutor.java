@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.ExecutionMetadata;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 
 import java.util.List;
@@ -33,11 +34,13 @@ final class EsqlQueryExecutor {
         String query,
         @Nullable QueryBuilder filter,
         List<EsqlQueryParam> params,
-        @Nullable String projectRouting
+        @Nullable String projectRouting,
+        ExecutionMetadata executionMetadata
     ) {
         EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = (EsqlQueryRequestBuilder<
             EsqlQueryRequest,
             EsqlQueryResponse>) EsqlQueryRequestBuilder.newRequestBuilder(client).query(query).allowPartialResults(false);
+        builder.executionMetadata(executionMetadata);
         if (filter != null) {
             builder.filter(filter);
         }

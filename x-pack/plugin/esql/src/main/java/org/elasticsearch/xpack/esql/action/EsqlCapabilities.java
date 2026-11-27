@@ -5100,6 +5100,13 @@ public class EsqlCapabilities {
         UNMAPPED_FIELDS_IN_REQUEST_BODY,
 
         /**
+         * A CSV or TSV row with fewer fields than the file's width is a row error, like a wider one is, rather
+         * than being read with its missing trailing fields as null; the new {@code pad_short_rows} dataset
+         * setting asks for the null-padding back, and reports each padded row.
+         */
+        EXTERNAL_CSV_SHORT_ROW_IS_A_ROW_ERROR,
+
+        /**
          * The fetch phase for {@code TopN}: with the {@code fetch_phase} pragma or the {@code esql.query.fetch_phase.enabled}
          * setting, a query loads the columns it only needs after its {@code TopN} for the rows that survive it. The setting
          * is on by default in builds with the feature flag.
@@ -5112,6 +5119,16 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/166793
          */
         FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
+
+        /**
+         * The type conflict error reports the right number of indices for each type when {@code unmapped_fields="load"} is set and the
+         * field is missing from some indices, as it does without that setting.
+         * <p>
+         * Before, the index names were shortened twice, so the error listed the placeholder {@code ...} as if it were an index and the
+         * "and [N] other indices" count was too low. For example, {@code [long] in [..., l1, l2] and [1] other index} instead of
+         * {@code [long] in [l1, l2, l3] and [2] other indices}.
+         */
+        PARTIALLY_UNMAPPED_CONFLICT_INDEX_COUNT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

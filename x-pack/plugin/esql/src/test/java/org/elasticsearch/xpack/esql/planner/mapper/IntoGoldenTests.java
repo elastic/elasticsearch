@@ -34,6 +34,13 @@ public class IntoGoldenTests extends GoldenTestCase {
         ).run();
     }
 
+    public void testFromIntoWithOptions() {
+        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        builder("FROM employees | KEEP emp_no | INTO dst WITH {\"refresh\": false, \"keep_going\": true}").stages(
+            EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.PHYSICAL_OPTIMIZATION)
+        ).run();
+    }
+
     public void testFromWhereFalseInto() {
         assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
         builder("FROM employees | WHERE false | INTO dst").stages(EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.PHYSICAL_OPTIMIZATION))

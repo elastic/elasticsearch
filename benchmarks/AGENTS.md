@@ -81,9 +81,11 @@ the shape's `Expect`, so a fallback can never be measured as a fast column resul
 
 Facts about the code the catalog pins down:
 
-- Arrays mixing float-exact and non-float-exact values (`[50.5, 50.4]`) encode as UNION and fall
-  back at `mapColumnBatch`; the floating `mv1to4` shapes are therefore fallback shapes.
-- Explicit JSON nulls make a UNION column and fall back; absent values ride the validity bitset.
+- With the simdjson ESCF encoder, arrays mixing float-exact and non-float-exact values (`[50.5, 50.4]`)
+  encode as UNION and fall back at `mapColumnBatch`; the floating `mv1to4` shapes are therefore fallback
+  shapes, and only when that encoder is on (the default in snapshot builds), so they are opt-in.
+- Explicit JSON nulls make a UNION column, which `NumberFieldMapper` maps row by row, so `long.nullexplicit` is a column
+  shape; absent values ride the validity bitset.
 - `doc_values=false` is rejected by columnar mode at mapping time; `scaled_float` is the only
   resolve-level fallback shape.
 - The JSON token kind, not the mapping type, selects the transform: integers into a `long` field

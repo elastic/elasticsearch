@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -813,8 +812,6 @@ public class CredentialTransitionsTests extends ESTestCase {
     private static DatafeedConfig esqlDatafeed() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
         builder.setEsqlQuery(ESQL_QUERY);
-        builder.setSourceTimeField("@timestamp");
-        builder.setGroupingInterval(TimeValue.timeValueHours(1));
         builder.setProjectRouting("_alias:_origin");
         return builder.build();
     }
@@ -839,7 +836,7 @@ public class CredentialTransitionsTests extends ESTestCase {
                 listener.onResponse(new PutDatafeedAction.Response(req.getDatafeed()));
             }, ActionTestUtils.assertNoFailureListener(response::set));
 
-            assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + " | LIMIT 0")));
+            assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + "\n| LIMIT 0")));
             assertThat(h.probeRouting, equalTo(List.of("_alias:_origin")));
             assertThat(h.events, equalTo(List.of("probe", "mint", "persist")));
             assertThat(response.get().getResponse().getCloudInternalCredential(), equalTo(h.minted));
@@ -895,7 +892,7 @@ public class CredentialTransitionsTests extends ESTestCase {
             AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
             h.executeUpdate(ActionTestUtils.assertNoFailureListener(response::set));
 
-            assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + " | LIMIT 0")));
+            assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + "\n| LIMIT 0")));
             assertThat(h.probeRouting, equalTo(List.of("_alias:_origin")));
             assertThat(h.probeAuthenticationHeaders, equalTo(List.of("caller-authentication")));
             assertThat(h.probeClients, equalTo(List.of(h.wrappedClient)));

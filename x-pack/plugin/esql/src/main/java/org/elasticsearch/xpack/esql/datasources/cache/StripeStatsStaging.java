@@ -109,7 +109,8 @@ public final class StripeStatsStaging implements StripeStatsSink {
      * Takes one chunk's piece of stripe {@code ordinal} covering {@code [start, end)}, joins it to the pieces it
      * continues, and stages the stripe as one record once its grid cell is fully covered.
      *
-     * @param statistics the piece's statistics, already filtered to the file schema by {@link TextFormatStats}.
+     * @param statistics the piece's statistics, already filtered to the file schema and capped to the
+     *                   publishable extremum width by {@link TextFormatStats}.
      *                   No schema reaches here: the filter has done its work, and a record holding one would
      *                   count its entries from the statistics and write them from the schema
      */

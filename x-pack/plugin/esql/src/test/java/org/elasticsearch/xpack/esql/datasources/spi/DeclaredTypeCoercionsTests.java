@@ -1762,6 +1762,63 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
+     * Footer extrema use the same raw bounds as {@code castEpochIntegral}. In-range ticks scale exactly;
+     * a tick outside {@code [epochMinRaw, epochMaxRaw]} returns null so the stats caller poisons.
+     */
+    public void testScaleEpochExtremumMatchesCastBounds() {
+        long seconds = 1_763_596_800L;
+        assertEquals(Long.valueOf(seconds * 1_000L), DeclaredTypeCoercions.scaleEpochExtremum(seconds, DataType.DATETIME, 1_000L));
+        assertEquals(Long.valueOf(42L), DeclaredTypeCoercions.scaleEpochExtremum(42L, DataType.DATETIME, 1L));
+        assertEquals(
+            Long.valueOf(seconds * 1_000_000_000L),
+            DeclaredTypeCoercions.scaleEpochExtremum(seconds, DataType.DATE_NANOS, 1_000_000_000L)
+        );
+
+        assertNull("DATE_NANOS rejects pre-epoch", DeclaredTypeCoercions.scaleEpochExtremum(-1L, DataType.DATE_NANOS, 1_000_000_000L));
+        assertNull(
+            "DATE_NANOS rejects above MAX_NANOSECOND/scale",
+            DeclaredTypeCoercions.scaleEpochExtremum(DateUtils.MAX_NANOSECOND / 1_000_000_000L + 1, DataType.DATE_NANOS, 1_000_000_000L)
+        );
+        assertNull(
+            "DATETIME epoch_second above Long.MAX_VALUE/1000",
+            DeclaredTypeCoercions.scaleEpochExtremum(Long.MAX_VALUE / 1_000L + 1, DataType.DATETIME, 1_000L)
+        );
+        assertNull(
+            "DATETIME epoch_second below Long.MIN_VALUE/1000",
+            DeclaredTypeCoercions.scaleEpochExtremum(Math.ceilDiv(Long.MIN_VALUE, 1_000L) - 1, DataType.DATETIME, 1_000L)
+        );
+        assertEquals(
+            "DATETIME epoch_millis identity admits Long.MIN_VALUE",
+            Long.valueOf(Long.MIN_VALUE),
+            DeclaredTypeCoercions.scaleEpochExtremum(Long.MIN_VALUE, DataType.DATETIME, 1L)
+        );
+
+        assertEquals(
+            "DATE_NANOS inclusive min 0",
+            Long.valueOf(0L),
+            DeclaredTypeCoercions.scaleEpochExtremum(0L, DataType.DATE_NANOS, 1_000_000_000L)
+        );
+        long nanosMaxRaw = DateUtils.MAX_NANOSECOND / 1_000_000_000L;
+        assertEquals(
+            "DATE_NANOS inclusive max",
+            Long.valueOf(nanosMaxRaw * 1_000_000_000L),
+            DeclaredTypeCoercions.scaleEpochExtremum(nanosMaxRaw, DataType.DATE_NANOS, 1_000_000_000L)
+        );
+        long datetimeMaxRaw = Long.MAX_VALUE / 1_000L;
+        assertEquals(
+            "DATETIME epoch_second inclusive max",
+            Long.valueOf(datetimeMaxRaw * 1_000L),
+            DeclaredTypeCoercions.scaleEpochExtremum(datetimeMaxRaw, DataType.DATETIME, 1_000L)
+        );
+        long datetimeMinRaw = Math.ceilDiv(Long.MIN_VALUE, 1_000L);
+        assertEquals(
+            "DATETIME epoch_second inclusive min",
+            Long.valueOf(datetimeMinRaw * 1_000L),
+            DeclaredTypeCoercions.scaleEpochExtremum(datetimeMinRaw, DataType.DATETIME, 1_000L)
+        );
+    }
+
+    /**
      * Calendar and compound formats must stay on the boxed parse arm. The arithmetic path matches
      * {@code epoch_second} / {@code epoch_millis} exactly; a contains/startsWith slip would decode these as a
      * single scale.

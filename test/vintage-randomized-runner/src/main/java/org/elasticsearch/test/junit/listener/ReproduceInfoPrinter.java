@@ -10,8 +10,6 @@ package org.elasticsearch.test.junit.listener;
 
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.junit.runner.IterationSeeds;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
@@ -39,8 +37,12 @@ import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 public class ReproduceInfoPrinter extends RunListener {
 
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").startsWith("Windows");
-    private static final String FIPS_SYSPROP = "tests.fips.enabled";
-    private static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
+
+    /** The system property that tells the tests they run in FIPS mode. It is given on to the command to reproduce a failure. */
+    public static final String FIPS_SYSPROP = "tests.fips.enabled";
+
+    /** The system property of the integration tests that enables the mock modules. It is given on to the command to reproduce a failure. */
+    public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
 
     /**
      * Are we in the integ test phase?
@@ -114,7 +116,6 @@ public class ReproduceInfoPrinter extends RunListener {
 
     protected static class GradleMessageBuilder extends ReproduceErrorMessageBuilder {
 
-        @Nullable
         private String iterationSeed;
 
         public GradleMessageBuilder(StringBuilder b) {
@@ -217,7 +218,7 @@ public class ReproduceInfoPrinter extends RunListener {
         }
     }
 
-    private static boolean hasLength(@Nullable String s) {
+    private static boolean hasLength(String s) {
         return s != null && s.isEmpty() == false;
     }
 
@@ -230,4 +231,5 @@ public class ReproduceInfoPrinter extends RunListener {
         }
         throw new AssertionError("not a boolean: " + value);
     }
+
 }

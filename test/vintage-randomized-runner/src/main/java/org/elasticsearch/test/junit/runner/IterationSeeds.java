@@ -8,8 +8,6 @@
  */
 package org.elasticsearch.test.junit.runner;
 
-import org.elasticsearch.core.Nullable;
-
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,8 +30,7 @@ public final class IterationSeeds {
      * The {@code suiteSeed:iterationSeed} in the name of a test, or {@code null} if it has none, which is the case unless the test is
      * repeated with {@code tests.iters}.
      */
-    @Nullable
-    public static String seedOf(@Nullable String testName) {
+    public static String seedOf(String testName) {
         if (testName == null) {
             return null;
         }
@@ -46,8 +43,7 @@ public final class IterationSeeds {
      * is {@code testFoo}. A name that does not end with a seed is returned as it is, including parameters that are empty or that
      * contain braces, such as {@code testFoo {q=match {}}}.
      */
-    @Nullable
-    public static String withoutSeed(@Nullable String testName) {
+    public static String withoutSeed(String testName) {
         if (testName == null) {
             return null;
         }

@@ -26,6 +26,7 @@ import org.junit.runner.manipulation.NoTestsRemainException;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 import org.junit.runner.notification.RunNotifier;
+import org.junit.runner.notification.StoppedByUserException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -36,6 +37,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -45,6 +47,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Tests how {@link ESRandomizedRunner} applies filters, by looking at the descriptions that remain after filtering a runner for a
@@ -154,7 +157,7 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
      * with just the method name, which a filter that only rejects one variant accepts, and keeps the variant if either is accepted.
      */
     public void testRandomizedRunnerKeepsRejectedVariantWhileASiblingIsAccepted() throws Exception {
-        RandomizedRunner runner = new RandomizedRunner(ParameterizedFixture.class);
+        RandomizedRunner runner = plainRunnerWithoutIterations(ParameterizedFixture.class);
 
         runner.filter(new OtherFilter("testOne {p=b}"));
 
@@ -209,7 +212,7 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
     }
 
     public void testRejectedTestsWithoutParametersAreRemoved() throws Exception {
-        ESRandomizedRunner runner = new ESRandomizedRunner(PlainFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
+        ESRandomizedRunner runner = runnerWithoutIterations(PlainFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
 
         runner.filter(new VintageLikeFilter("testTwo"));
 
@@ -229,7 +232,7 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
     }
 
     public void testFiltersNotBuiltByVintageStillRemoveTestsWithoutParameters() throws Exception {
-        ESRandomizedRunner runner = new ESRandomizedRunner(PlainFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
+        ESRandomizedRunner runner = runnerWithoutIterations(PlainFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
 
         runner.filter(new OtherFilter("testTwo"));
 
@@ -298,7 +301,7 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
     public void testFlatDescriptionKeepsTheRootOfTheOriginalOne() throws Exception {
         ESRandomizedRunner runner = parameterizedFixtureRunner();
 
-        Description original = new RandomizedRunner(ParameterizedFixture.class).getDescription();
+        Description original = plainRunnerWithoutIterations(ParameterizedFixture.class).getDescription();
 
         assertThat(runner.getDescription(), equalTo(original));
     }
@@ -316,14 +319,14 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
     }
 
     public void testDescriptionOfTestsWithoutParametersIsFlat() throws Exception {
-        ESRandomizedRunner runner = new ESRandomizedRunner(PlainFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
+        ESRandomizedRunner runner = runnerWithoutIterations(PlainFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
 
         assertFlatChildren(runner.getDescription(), "testOne", "testTwo", "testThree");
     }
 
     /** Every event {@link RandomizedRunner} fires must be about the suite or a test of the flat description the engine discovered. */
     public void testRunEventsOnlyUseDescriptionsOfTheFlatTree() throws Exception {
-        ESRandomizedRunner runner = new ESRandomizedRunner(FailingFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
+        ESRandomizedRunner runner = runnerWithoutIterations(FailingFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
         Description root = runner.getDescription();
         Set<Description> known = new HashSet<>(root.getChildren());
         known.add(root);
@@ -380,6 +383,7 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
     private static class RecordedEvents extends RunListener {
         final List<Description> fired = new ArrayList<>();
         final List<Description> started = new ArrayList<>();
+        final List<Description> finished = new ArrayList<>();
         final List<Description> failed = new ArrayList<>();
 
         @Override
@@ -401,6 +405,7 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
         @Override
         public void testFinished(Description description) {
             fired.add(description);
+            finished.add(description);
         }
 
         @Override
@@ -433,9 +438,13 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
 
         // 3 methods, 2 variants each, 3 iterations
         assertThat(root.getChildren().size(), equalTo(18));
+        // Vintage pairs the events with the tests it discovered by the unique id of their descriptions
         assertThat(new HashSet<>(events.started), equalTo(new HashSet<>(root.getChildren())));
+        assertThat(new HashSet<>(events.finished), equalTo(new HashSet<>(root.getChildren())));
         assertThat(events.started.size(), equalTo(18));
+        assertThat(events.finished.size(), equalTo(18));
         assertThat(events.failed.size(), equalTo(6));
+        assertTrue(known.containsAll(events.failed));
         for (Description description : events.fired) {
             Assert.assertTrue("unknown description " + description, known.contains(description));
             if (description.getMethodName() != null) {
@@ -447,7 +456,7 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
 
     /** Without {@code tests.iters} the descriptions are the ones of {@link RandomizedRunner}, so are the events. */
     public void testRunEventsAreNotChangedWithoutIterations() throws Exception {
-        ESRandomizedRunner runner = new ESRandomizedRunner(FailingFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
+        ESRandomizedRunner runner = runnerWithoutIterations(FailingFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
         RecordedEvents events = new RecordedEvents();
         RunNotifier notifier = new RunNotifier();
         notifier.addListener(events);
@@ -456,6 +465,62 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
 
         assertThat(events.started.size(), equalTo(6));
         assertThat(new HashSet<>(events.started), equalTo(new HashSet<>(runner.getDescription().getChildren())));
+    }
+
+    private static final AtomicInteger EXECUTED_TESTS = new AtomicInteger();
+
+    @TestMethodProviders({ JUnit3MethodProvider.class })
+    public static class CountingFixture {
+        public void testOne() {
+            EXECUTED_TESTS.incrementAndGet();
+        }
+
+        public void testTwo() {
+            EXECUTED_TESTS.incrementAndGet();
+        }
+
+        public void testThree() {
+            EXECUTED_TESTS.incrementAndGet();
+        }
+    }
+
+    /** A notifier that, like the one of the Vintage engine, cancels the run by throwing from {@code fireTestStarted}. */
+    private static final class CancellingNotifier extends RunNotifier {
+        private final int allowedStarts;
+        final List<Description> started = new ArrayList<>();
+
+        CancellingNotifier(int allowedStarts) {
+            this.allowedStarts = allowedStarts;
+        }
+
+        @Override
+        public void fireTestStarted(Description description) throws StoppedByUserException {
+            if (started.size() == allowedStarts) {
+                throw new StoppedByUserException();
+            }
+            started.add(description);
+            super.fireTestStarted(description);
+        }
+    }
+
+    /**
+     * What the actual notifier throws must reach {@link RandomizedRunner}, which stops the run because of it. Were it passed to a
+     * listener, it would be turned into a failure and the tests would carry on.
+     */
+    public void testExceptionOfTheActualNotifierStopsTheRun() throws Exception {
+        EXECUTED_TESTS.set(0);
+        ESRandomizedRunner runner = withIterations(3, () -> new ESRandomizedRunner(CountingFixture.class, VINTAGE_LIKE_FILTER_PREFIX));
+        CancellingNotifier notifier = new CancellingNotifier(2);
+
+        try {
+            runner.run(notifier);
+        } catch (StoppedByUserException ignored) {
+            // may propagate out of the run, as it does out of a plain RandomizedRunner
+        }
+
+        // 3 methods and 3 iterations make 9 tests
+        assertThat(notifier.started.size(), equalTo(2));
+        assertThat(EXECUTED_TESTS.get(), equalTo(2));
     }
 
     /** Method names the listeners saw while a {@link ListenedFixture} ran. */
@@ -516,7 +581,20 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
     }
 
     private static ESRandomizedRunner parameterizedFixtureRunner() throws Exception {
-        return new ESRandomizedRunner(ParameterizedFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
+        return runnerWithoutIterations(ParameterizedFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
+    }
+
+    /**
+     * The build forwards {@code -Dtests.iters} to the JVM of these tests, and the runners read it when they are created, so a test that
+     * relies on every test running once has to say so.
+     */
+    private static ESRandomizedRunner runnerWithoutIterations(Class<?> fixture, String vintageFilterClassNamePrefix) throws Exception {
+        return withIterations(1, () -> new ESRandomizedRunner(fixture, vintageFilterClassNamePrefix));
+    }
+
+    /** The same as {@link #runnerWithoutIterations} for a runner that is not wrapped. */
+    private static RandomizedRunner plainRunnerWithoutIterations(Class<?> fixture) throws Exception {
+        return withIterations(1, () -> new RandomizedRunner(fixture));
     }
 
     /** The method names of the tests of a description, without the seed {@code tests.iters} adds, so they can be compared. */

@@ -195,6 +195,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -369,7 +370,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *
      * @see ESIntegTestCase
      */
-    public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
+    public static final String TESTS_ENABLE_MOCK_MODULES = ReproduceInfoPrinter.TESTS_ENABLE_MOCK_MODULES;
 
     private static final boolean MOCK_MODULES_ENABLED = "true".equals(System.getProperty(TESTS_ENABLE_MOCK_MODULES, "true"));
     /**

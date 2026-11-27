@@ -1,0 +1,5 @@
+area: "ES|QL, ES|QL"
+issues: []
+pr: 167866
+summary: Share the TopN minimum competitive score across collectors
+type: enhancement

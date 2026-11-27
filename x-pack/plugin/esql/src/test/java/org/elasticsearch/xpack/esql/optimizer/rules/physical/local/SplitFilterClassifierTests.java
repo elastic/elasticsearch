@@ -290,6 +290,47 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(MATCH, classify(greaterThanOf(name, of("aaron")), stats));
     }
 
+    /**
+     * A withheld text extremum leaves the column with one end, which
+     * {@code esql.external.cache.stats.max_extremum_size} makes routine. The classifier stays AMBIGUOUS on
+     * every predicate that reads the extrema, for two different reasons. In the first group the end present
+     * would decide each literal soundly, so AMBIGUOUS is a deliberate conservatism rather than a safety
+     * requirement, and what those cases pin is the behaviour the docs promise -- a withheld end costs the
+     * short-circuit -- so an optimisation that started deciding from a single end would have to change them
+     * and say why. In the last two the end present settles nothing, so AMBIGUOUS is the only sound answer
+     * and any such optimisation still has to return it.
+     */
+    public void testAOneSidedTextExtremumStaysAmbiguous() {
+        ReferenceAttribute note = referenceAttribute("note", DataType.KEYWORD);
+        SplitStats withMin = oneSidedNote("alice", null);
+        SplitStats withMax = oneSidedNote(null, "charlie");
+
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(greaterThanOrEqualOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(lessThanOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(equalsOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(in(note, of("aaron")), withMin));
+
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(note, of("delta")), withMax));
+        assertEquals(AMBIGUOUS, classify(lessThanOf(note, of("delta")), withMax));
+        assertEquals(AMBIGUOUS, classify(lessThanOrEqualOf(note, of("delta")), withMax));
+        assertEquals(AMBIGUOUS, classify(equalsOf(note, of("delta")), withMax));
+        assertEquals(AMBIGUOUS, classify(in(note, of("delta")), withMax));
+
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(note, of("zulu")), withMin));
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(note, of("aaron")), withMax));
+    }
+
+    /** A 100-row {@code note} column with no nulls, publishing only the end that is not {@code null}. */
+    private static SplitStats oneSidedNote(Object min, Object max) {
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(100);
+        int col = builder.addColumn("note", 0L, min, max, -1);
+        builder.valueCount(col, 100);
+        return builder.build();
+    }
+
     // --- Or ---
 
     public void testOrBothMatch() {

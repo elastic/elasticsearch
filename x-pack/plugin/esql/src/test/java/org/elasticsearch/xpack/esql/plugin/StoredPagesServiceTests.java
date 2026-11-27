@@ -215,6 +215,7 @@ public class StoredPagesServiceTests extends ESTestCase {
         Answers answers = read(SHARD, TIMEOUT);
         assertThat(answers.failure, instanceOf(EsRejectedExecutionException.class));
         assertThat(service.waitingReads(), equalTo(0));
+        assertFalse(service.hasWaiters(RESULT));
         assertThat(refreshed, equalTo(List.of()));
 
         schedulerShutDown = false;
@@ -278,16 +279,11 @@ public class StoredPagesServiceTests extends ESTestCase {
 
     private Answers read(ShardId shardId, TimeValue timeout) throws Exception {
         Answers answers = new Answers();
-        try {
-            service.read(shardId, RESULT, () -> {
-                reads++;
-                unreleased++;
-                return new Response(visible, ended, () -> unreleased--);
-            }, timeout, answers);
-        } catch (Exception e) {
-            // as the action does
-            answers.onFailure(e);
-        }
+        service.read(shardId, RESULT, () -> {
+            reads++;
+            unreleased++;
+            return new Response(visible, ended, () -> unreleased--);
+        }, timeout, answers);
         return answers;
     }
 

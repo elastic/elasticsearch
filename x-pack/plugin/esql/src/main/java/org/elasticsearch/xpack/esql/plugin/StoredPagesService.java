@@ -136,6 +136,13 @@ public final class StoredPagesService implements IndexingOperationListener, Inde
     }
 
     /**
+     * Whether reads wait for a document of the result. For tests.
+     */
+    boolean hasWaiters(String streamId) {
+        return waiters.containsKey(streamId);
+    }
+
+    /**
      * Makes visible what was indexed on the shard before this call, with a refresh that starts after it.
      */
     void refresh(ShardId shardId, ActionListener<Void> listener) {

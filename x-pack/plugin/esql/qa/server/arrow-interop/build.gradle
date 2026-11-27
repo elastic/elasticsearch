@@ -32,9 +32,3 @@ dependencies {
   clusterModules project(xpackModule('autoscaling'))
   clusterModules project(xpackModule('ilm')) // x-pack core registers ILM settings and actions, which must then exist
 }
-
-tasks.named('javaRestTest') {
-  // Docker availability is only checked by a JUnit rule, which skips the whole suite when Docker is missing. Gradle
-  // must not reuse such a skipped run as an up-to-date result once Docker is available.
-  outputs.upToDateWhen { false }
-}

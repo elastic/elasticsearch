@@ -14,7 +14,9 @@ import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTest
 import org.testcontainers.Testcontainers;
 import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.ExecConfig;
+import org.testcontainers.images.RemoteDockerImage;
 import org.testcontainers.images.builder.ImageFromDockerfile;
+import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -87,6 +89,12 @@ public final class ArrowInteropContainer extends DockerEnvironmentAwareTestConta
      */
     public static final String HOST_ADDRESS = "host.testcontainers.internal";
 
+    /**
+     * The image that Testcontainers uses to relay host ports to containers (see {@link #exposeHostPort}). It is part of the
+     * Testcontainers implementation, and must be updated when upgrading it to a version that uses another one.
+     */
+    private static final String PORT_RELAY_IMAGE = "testcontainers/sshd:1.3.0";
+
     /** A client that doesn't terminate in this time is killed, and its {@link #fetch} fails. */
     private static final int CLIENT_TIMEOUT_SECONDS = 120;
 
@@ -135,7 +143,7 @@ public final class ArrowInteropContainer extends DockerEnvironmentAwareTestConta
     /**
      * Builds the images of all languages, without running them, so that they are in the Docker image store of the CI
      * agent images (including their base images and the Arrow libraries installed by the Dockerfiles). The tests
-     * rebuild the images, which then only reuses the cached layers instead of needing the network. A Dockerfile or
+     * rebuild the images, which then only reuses the cached layers instead of needing the network. The image that relays host ports to the containers is pulled too. A Dockerfile or
      * dependency change invalidates the affected layers until the agent images are rebuilt.
      */
     @Override
@@ -146,6 +154,8 @@ public final class ArrowInteropContainer extends DockerEnvironmentAwareTestConta
                 LOGGER.info("Building image {}", language.imageName());
                 image(language).get();
             }
+            LOGGER.info("Pulling image {}", PORT_RELAY_IMAGE);
+            new RemoteDockerImage(DockerImageName.parse(PORT_RELAY_IMAGE)).get();
         } catch (RuntimeException e) {
             LOGGER.warn("Error while caching container images.", e);
         }

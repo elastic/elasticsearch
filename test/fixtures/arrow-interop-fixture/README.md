@@ -15,7 +15,7 @@ The tests that use it are in `x-pack/plugin/esql/qa/server/arrow-interop`.
 ```
  Java test                                  Docker container (one per language, started once per test class)
  ---------                                  ------------------------------------------------------------
- @ClassRule ArrowInteropContainer(language)  builds the image from docker/<language>/Dockerfile and
+ ArrowInteropContainer(language), a rule      builds the image from docker/<language>/Dockerfile and
                                              starts the container, which idles
 
  client.fetch(url, jsonBody)  ------------>  docker exec: fetch_arrow.py / fetch_arrow.mjs, which
@@ -27,14 +27,24 @@ The tests that use it are in `x-pack/plugin/esql/qa/server/arrow-interop`.
 ```
 
 ```java
+private static final ArrowInteropContainer pythonClient = new ArrowInteropContainer(Language.PYTHON);
+
+// The cluster starts first, then its port is exposed to the containers, which are started last
 @ClassRule
-public static ArrowInteropContainer pythonClient = new ArrowInteropContainer(Language.PYTHON);
+public static TestRule rules = RuleChain.outerRule(cluster)
+    .around(new ExternalResource() {
+        @Override
+        protected void before() {
+            ArrowInteropContainer.exposeHostPort(port);
+        }
+    })
+    .around(pythonClient);
 
 String url = "http://" + ArrowInteropContainer.HOST_ADDRESS + ":" + port + "/_query?format=arrow";
 String json = pythonClient.fetch(url, "{\"query\": \"FROM my-index | LIMIT 10\"}");
 ```
 
-* The container is a JUnit rule: it is started (and its image built) once for the test class, and stopped at
+* The container is a JUnit rule (put it after the cluster and the port exposure in a `RuleChain`): it is started (and its image built) once for the test class, and stopped at
   the end. Each `fetch` only runs the client in it.
 * `fetch` returns what the client printed on stdout. If the client fails (HTTP error, malformed stream, ...)
   it throws an `AssertionError` whose message contains the exit code and the client's stderr. A client that

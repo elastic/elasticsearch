@@ -31,7 +31,10 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +45,7 @@ import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Checks that the official Arrow libraries of other languages ({@code pyarrow} and {@code apache-arrow} for Node.js)
@@ -76,6 +80,14 @@ public class ArrowInteropIT extends ESRestTestCase {
         }
     }
 
+    private static String localhostAddress() {
+        try {
+            return InetAddress.getByName("localhost").getHostAddress();
+        } catch (UnknownHostException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.INTEG_TEST)
         .module("x-pack-esql")
@@ -94,13 +106,15 @@ public class ArrowInteropIT extends ESRestTestCase {
         .module("x-pack-ilm")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("http.host", "127.0.0.1")
+        // The relay forwards connections to "localhost", whose loopback address (IPv4 or IPv6) depends on the JVM settings
+        .setting("http.host", localhostAddress())
         .build();
 
     /**
      * The Arrow clients run in Docker containers, that reach the node through a relay set up by Testcontainers: the node
-     * only listens on loopback, and isn't exposed to the network. The relay is set up once the node is started, and
-     * before the clients start, hence the explicit order of the rules.
+     * only listens on loopback, and isn't exposed to the network. Docker availability is checked first so that nothing is
+     * started if the tests are skipped. The relay is set up once the node is started, and before the clients start, hence
+     * the explicit order of the rules.
      * <p>
      * The clients are started once for all tests, as each test then only runs a client in its container.
      * The tests are skipped if Docker is not available.
@@ -109,10 +123,14 @@ public class ArrowInteropIT extends ESRestTestCase {
     private static final ArrowInteropContainer nodeClient = new ArrowInteropContainer(Language.NODE);
 
     @ClassRule
-    public static TestRule rules = RuleChain.outerRule(cluster).around(new ExternalResource() {
+    public static TestRule rules = RuleChain.outerRule(new ExternalResource() {
         @Override
         protected void before() {
             DockerAvailability.assumeDockerIsAvailable();
+        }
+    }).around(cluster).around(new ExternalResource() {
+        @Override
+        protected void before() {
             ArrowInteropContainer.exposeHostPort(httpPort());
         }
     }).around(pythonClient).around(nodeClient);
@@ -226,12 +244,24 @@ public class ArrowInteropIT extends ESRestTestCase {
         request.setJsonEntity(resource("time_series_bulk.ndjson"));
         assertBulkSuccess(client().performRequest(request));
 
-        // The _tsid is a hash that is an implementation detail: only check that it is present
+        // The _tsid is a hash that is an implementation detail: only check that every series has a distinct, non-empty one
         assertColumns("TS arrow-interop-ts METADATA _tsid | SORT host | KEEP ci, cl, cd, _tsid", "time_series", Set.of("_tsid"));
     }
 
-    /** Every other test asks for Arrow with {@code format=arrow}, which has precedence: this one only has the {@code Accept} header. */
+    /**
+     * Every other test asks for Arrow with {@code format=arrow}, which has precedence: this one only has the {@code Accept} header,
+     * and checks the content type of the response too.
+     */
     public void testAcceptHeaderNegotiation() throws IOException {
+        // The clients only report the body they decoded, so the content type is checked separately
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity("{\"query\": \"FROM arrow-interop | SORT i | KEEP ip | LIMIT 10\"}");
+        request.setOptions(request.getOptions().toBuilder().addHeader("Accept", "application/vnd.apache.arrow.stream"));
+        assertThat(
+            client().performRequest(request).getEntity().getContentType().getValue(),
+            startsWith("application/vnd.apache.arrow.stream")
+        );
+
         List<?> expected = (List<?>) parseJson("{\"columns\":" + resource("expected/ip.json") + "}").get("columns");
         for (ArrowInteropContainer client : clients()) {
             Map<String, Object> result = fetch(client, "FROM arrow-interop | SORT i | KEEP ip", Map.of(), false);
@@ -306,26 +336,57 @@ public class ArrowInteropIT extends ESRestTestCase {
     }
 
     /**
-     * Same, where the values of the columns named in {@code presenceOnly} are not compared. Instead, the column
-     * is compared with a list of booleans that tell for each row if it has a value.
+     * Same, where the values of the columns named in {@code opaque} are not compared, as their encoding is an implementation
+     * detail. Instead, the column is compared with a list of booleans that tell for each row if it has a non-empty value, followed
+     * by {@code "not distinct"} if some values are equal.
      */
-    private void assertColumns(String query, String expectedColumns, Set<String> presenceOnly) throws IOException {
+    private void assertColumns(String query, String expectedColumns, Set<String> opaque) throws IOException {
         // Parsed the same way as the clients' output, so that numbers have the same Java types
         List<?> expected = (List<?>) parseJson("{\"columns\":" + resource("expected/" + expectedColumns + ".json") + "}").get("columns");
+        expected = expected.stream().map(ArrowInteropIT::parseJsonValues).toList();
         for (ArrowInteropContainer client : clients()) {
             List<?> actual = (List<?>) fetch(client, query).get("columns");
-            actual = actual.stream().map(c -> presenceOnly(c, presenceOnly)).toList();
+            actual = actual.stream().map(c -> parseJsonValues(opaqueValues(c, opaque))).toList();
             assertEquals("Columns decoded by " + client.language(), expected, actual);
         }
     }
 
-    private static Object presenceOnly(Object column, Set<String> names) {
+    /** Binary values are decoded as {@code {"base64": "..."}}. */
+    private static boolean isNonEmptyBinary(Object value) {
+        return value instanceof Map<?, ?> map && map.get("base64") instanceof String base64 && base64.isEmpty() == false;
+    }
+
+    /** Values of columns tagged with the {@code arrow.json} extension are JSON text, which is compared as parsed JSON. */
+    private static Object parseJsonValues(Object column) {
+        Map<?, ?> map = (Map<?, ?>) column;
+        if ((map.get("metadata") instanceof Map<?, ?> metadata && "arrow.json".equals(metadata.get("ARROW:extension:name"))) == false) {
+            return column;
+        }
+        Map<Object, Object> copy = new LinkedHashMap<>(map);
+        copy.put("values", ((List<?>) map.get("values")).stream().map(v -> v == null ? null : parseJsonUnchecked((String) v)).toList());
+        return copy;
+    }
+
+    private static Object parseJsonUnchecked(String json) {
+        try {
+            return parseJson(json);
+        } catch (IOException e) {
+            throw new AssertionError("Invalid JSON: " + json, e);
+        }
+    }
+
+    private static Object opaqueValues(Object column, Set<String> names) {
         Map<?, ?> map = (Map<?, ?>) column;
         if (names.contains(map.get("name")) == false) {
             return column;
         }
+        List<?> values = (List<?>) map.get("values");
+        List<Object> summary = new ArrayList<>(values.stream().map(ArrowInteropIT::isNonEmptyBinary).toList());
+        if (values.stream().filter(Objects::nonNull).distinct().count() != values.stream().filter(Objects::nonNull).count()) {
+            summary.add("not distinct");
+        }
         Map<Object, Object> copy = new LinkedHashMap<>(map);
-        copy.put("values", ((List<?>) map.get("values")).stream().map(Objects::nonNull).toList());
+        copy.put("values", summary);
         return copy;
     }
 

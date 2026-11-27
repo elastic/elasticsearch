@@ -12,15 +12,22 @@ package org.elasticsearch.index.mapper.extras;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfBatchBuilder;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -454,6 +461,21 @@ public class ScaledFloatFieldMapperColumnarCompatibilityTests extends AbstractCo
             BatchRefusal.MAP_COLUMN_BATCH,
             assertBatchPathRefuses(mapperService, randomFrom(SourceEncoder.available()), "{\"f\":1.5}", "{\"f\":true}")
         );
+    }
+
+    public void testRawBinaryColumnIsRefusedAtResolve() throws IOException {
+        final MapperService mapperService = createMapperService(columnarSettings(), scaledFloat(100));
+        final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatchBuilder builder = new EscfBatchBuilder(recycler)) {
+            final EscfRowBuffer row = builder.beginRow();
+            row.binaryField(FIELD, new BytesRef(new byte[] { 1, 2, 3 }));
+            row.finishRow();
+            builder.commit(0);
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                assertEquals(EscfColumnKind.BINARY, batch.column(0).kind());
+                assertNull(ShardBatchMapper.resolveMappers(batch, mapperService.mappingLookup(), mapperService.getIndexSettings()));
+            }
+        }
     }
 
     public void testNonFiniteNullValueIsNotColumnar() throws IOException {

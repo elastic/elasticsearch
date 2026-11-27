@@ -233,3 +233,41 @@ teardown:
   - do:
       indices.delete_index_template:
         name: my-template
+
+---
+"Deprecated data stream creation with a dot prefix unless x-elastic-product-origin set":
+  - requires:
+      test_runner_features: ["warnings", "headers", "allowed_warnings"]
+
+  - do:
+      headers: { X-elastic-product-origin: kibana }
+      allowed_warnings:
+        - "index template [my-template] has index patterns [.data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [.data-*]
+          data_stream: {}
+
+  - do:
+      warnings:
+        - "Index [.data-stream1] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+      indices.create_data_stream:
+        name: .data-stream1
+
+  - do:
+      headers: { X-elastic-product-origin: kibana }
+      indices.create_data_stream:
+        name: .data-stream2
+
+  - do:
+      indices.delete_data_stream:
+        name: .data-stream1
+
+  - do:
+      indices.delete_data_stream:
+        name: .data-stream2
+
+  - do:
+      indices.delete_index_template:
+        name: my-template

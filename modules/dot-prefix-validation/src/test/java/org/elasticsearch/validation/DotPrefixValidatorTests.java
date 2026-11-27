@@ -10,6 +10,7 @@
 package org.elasticsearch.validation;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -210,6 +211,19 @@ public class DotPrefixValidatorTests extends ESTestCase {
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
             () -> noHeaderValidator.validateIndices(Set.of(".regular"))
+        );
+        assertThat(error.getMessage(), containsString("name beginning with a dot (.) is not allowed"));
+    }
+
+    public void testCreateDataStreamValidatorUsesDataStreamName() {
+        var request = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, ".my-data-stream");
+        var validator = new CreateDataStreamDotValidator(new ThreadContext(Settings.EMPTY), statelessClusterService, systemIndices);
+        assertThat(validator.actionName(), equalTo(CreateDataStreamAction.NAME));
+        assertThat(validator.getIndicesFromRequest(request), equalTo(Set.of(".my-data-stream")));
+        // validateIndices is exercised with a non-internal request in testValidation; here we check the request path rejects the name
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.validateIndices(validator.getIndicesFromRequest(request))
         );
         assertThat(error.getMessage(), containsString("name beginning with a dot (.) is not allowed"));
     }

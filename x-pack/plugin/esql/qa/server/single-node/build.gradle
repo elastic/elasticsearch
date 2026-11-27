@@ -85,10 +85,9 @@ tasks.register('generateParquetFixtures') {
   dependsOn generateParquetTasks
 }
 
-sourceSets.javaRestTest.resources.srcDir file("${buildDir}/parquet-fixtures")
-tasks.named('processJavaRestTestResources').configure {
-  dependsOn generateParquetFixtures
-}
+def generatedParquetFixtures = files(layout.buildDirectory.dir("parquet-fixtures"))
+generatedParquetFixtures.builtBy(tasks.named('generateParquetFixtures'))
+sourceSets.javaRestTest.runtimeClasspath += generatedParquetFixtures
 
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'
@@ -144,6 +143,7 @@ restResources {
 }
 
 tasks.named('javaRestTest') {
+  dependsOn generateParquetFixtures
   usesDefaultDistribution("to be triaged")
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
   filter {
@@ -154,6 +154,7 @@ tasks.named('javaRestTest') {
 
 // Not wired into 'check': .buildkite/pipelines/periodic-esql-generative.yml invokes this by name.
 tasks.register('generativeTests', StandaloneRestIntegTestTask) {
+  dependsOn generateParquetFixtures
   usesDefaultDistribution("to be triaged")
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs

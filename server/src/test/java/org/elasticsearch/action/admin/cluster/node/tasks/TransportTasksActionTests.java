@@ -1171,13 +1171,20 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
     }
 
-    public void testCancellingAListingWhoseSecondPassWaitsReleasesBothPasses() throws Exception {
+    public void testCancellingAListingReleasesBothPassesWhileASecondPassReplyIsHeld() throws Exception {
         final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
         final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
         final long usedBefore = breaker.getUsed();
         final int descriptionLength = 5_000;
-        final Task task1 = registerTaskWithDescription(testNodes[1], descriptionLength);
-        final Task task2 = registerTaskWithDescription(testNodes[2], descriptionLength);
+        final AtomicLong firstPassTaskIdOnNode2 = new AtomicLong(-1);
+        final Task heldTask = registerTaskWithDescription(testNodes[1], descriptionLength);
+        final Task answeringTask = registerTaskWithDescription(
+            testNodes[2],
+            descriptionLength,
+            () -> firstPassTaskIdOnNode2.compareAndSet(-1, highestNodeListingTaskId(testNodes[2]))
+        );
+        final AtomicBoolean answeringTaskUnregistered = new AtomicBoolean();
+        final AtomicBoolean heldTaskUnregistered = new AtomicBoolean();
         try {
             final ListTasksRequest request = doubleListRequest();
             request.setWaitForCompletion(true);
@@ -1191,18 +1198,33 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                     testNodes[0].transportService.getLocalNodeConnection(),
                     future
                 );
-            assertBusy(() -> assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 2L * descriptionLength)));
+            assertBusy(() -> {
+                assertThat(firstPassTaskIdOnNode2.get(), greaterThanOrEqualTo(0L));
+                assertThat(highestNodeListingTaskId(testNodes[2]), greaterThan(firstPassTaskIdOnNode2.get()));
+            });
 
-            safeAwait(
-                (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager()
-                    .cancelTaskAndDescendants(listTask, "test", false, l)
-            );
+            answeringTaskUnregistered.set(true);
+            testNodes[2].transportService.getTaskManager().unregister(answeringTask);
+            assertBusy(() -> assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 3L * descriptionLength)));
+            assertFalse(future.isDone());
 
-            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+            testNodes[0].transportService.getTaskManager().cancel(listTask, "test", () -> {});
+
+            assertTrue(listTask.isCancelled());
+            assertThat(breaker.getUsed(), equalTo(usedBefore));
+            assertFalse(future.isDone());
+
+            heldTaskUnregistered.set(true);
+            testNodes[1].transportService.getTaskManager().unregister(heldTask);
             expectThrows(TaskCancelledException.class, future);
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
         } finally {
-            testNodes[1].transportService.getTaskManager().unregister(task1);
-            testNodes[2].transportService.getTaskManager().unregister(task2);
+            if (heldTaskUnregistered.get() == false) {
+                testNodes[1].transportService.getTaskManager().unregister(heldTask);
+            }
+            if (answeringTaskUnregistered.get() == false) {
+                testNodes[2].transportService.getTaskManager().unregister(answeringTask);
+            }
         }
     }
 

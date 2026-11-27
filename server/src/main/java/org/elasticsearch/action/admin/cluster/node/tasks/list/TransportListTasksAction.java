@@ -51,6 +51,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -187,7 +188,9 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     ) {
         executeCharged(task, request, firstPassCharge, listener.delegateFailureAndWrap((l1, firstResponse) -> {
             executeCharged(task, request, secondPassCharge, l1.delegateFailureAndWrap((l2, secondResponse) -> {
-                l2.onResponse(deduplicateAndMerge(firstResponse, secondResponse));
+                l2.onResponse(
+                    carryOver(firstResponse, deduplicateAndMerge(firstResponse, secondResponse), firstPassCharge, secondPassCharge)
+                );
             }));
         }));
     }
@@ -204,9 +207,41 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         final ListTasksRequest firstPassRequest = copyWithoutWaitForCompletion(request);
         executeCharged(task, firstPassRequest, firstPassCharge, listener.delegateFailureAndWrap((l1, firstPass) -> {
             executeCharged(task, request, secondPassCharge, l1.delegateFailureAndWrap((l2, secondPass) -> {
-                reconcileMissedRelocations(task, firstPass, secondPass, l2);
+                reconcileMissedRelocations(
+                    task,
+                    firstPass,
+                    secondPass,
+                    l2.map(merged -> carryOver(firstPass, merged, firstPassCharge, secondPassCharge))
+                );
             }));
         }));
+    }
+
+    /// Moves the charge of the first pass to the one of the second pass when the merged response keeps any of the data of the first pass,
+    /// so that data stays accounted for as long as the response is held.
+    private static ListTasksResponse carryOver(
+        final ListTasksResponse firstPass,
+        final ListTasksResponse merged,
+        final NodeReplyCharge firstPassCharge,
+        final NodeReplyCharge secondPassCharge
+    ) {
+        if (carriesDataOf(firstPass, merged)) {
+            firstPassCharge.transferTo(secondPassCharge);
+        }
+        return merged;
+    }
+
+    // visible for testing
+    static boolean carriesDataOf(final ListTasksResponse firstPass, final ListTasksResponse merged) {
+        return containsAnyOf(merged.getTasks(), firstPass.getTasks())
+            || containsAnyOf(merged.getTaskFailures(), firstPass.getTaskFailures())
+            || containsAnyOf(merged.getNodeFailures(), firstPass.getNodeFailures());
+    }
+
+    private static boolean containsAnyOf(final List<?> merged, final List<?> firstPass) {
+        final Set<Object> firstPassItems = Collections.newSetFromMap(new IdentityHashMap<>());
+        firstPassItems.addAll(firstPass);
+        return merged.stream().anyMatch(firstPassItems::contains);
     }
 
     /// Finds reindex tasks that appeared in the first pass but are missing from the second pass, perhaps because the operation relocated

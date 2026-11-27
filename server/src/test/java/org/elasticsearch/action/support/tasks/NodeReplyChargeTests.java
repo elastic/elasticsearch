@@ -36,12 +36,41 @@ public class NodeReplyChargeTests extends ESTestCase {
         final TransportTasksAction.NodeReplyCharge charge = new TransportTasksAction.NodeReplyCharge(breaker);
         final Thread charging = new Thread(() -> charge.charge(100));
         charging.start();
-        safeAwait(admitted);
-        assertThat(breaker.getUsed(), equalTo(100L));
+        try {
+            safeAwait(admitted);
+            assertThat(breaker.getUsed(), equalTo(100L));
 
-        charge.close();
-        resume.countDown();
-        charging.join();
+            charge.close();
+        } finally {
+            resume.countDown();
+            charging.join();
+        }
+
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testTransferredChargeIsReleasedWithTheTarget() {
+        final LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofKb(1));
+        final TransportTasksAction.NodeReplyCharge from = new TransportTasksAction.NodeReplyCharge(breaker);
+        final TransportTasksAction.NodeReplyCharge to = new TransportTasksAction.NodeReplyCharge(breaker);
+        from.charge(100);
+        to.charge(50);
+
+        from.transferTo(to);
+        from.close();
+        assertThat(breaker.getUsed(), equalTo(150L));
+        to.close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testChargeTransferredToAReleasedChargeIsReleased() {
+        final LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofKb(1));
+        final TransportTasksAction.NodeReplyCharge from = new TransportTasksAction.NodeReplyCharge(breaker);
+        final TransportTasksAction.NodeReplyCharge to = new TransportTasksAction.NodeReplyCharge(breaker);
+        from.charge(100);
+        to.close();
+
+        from.transferTo(to);
 
         assertThat(breaker.getUsed(), equalTo(0L));
     }

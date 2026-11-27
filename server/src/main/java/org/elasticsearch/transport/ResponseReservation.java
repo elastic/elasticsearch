@@ -18,10 +18,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 /**
- * Charges a response from another node to this node's request breaker from when it starts arriving until it is read, see
+ * Charges a response from another node to the breaker that the caller passes in, from when it starts arriving until it is read, see
  * {@link TransportResponseHandler#reserveResponseBytes}. A trip means this node has no room for the response, not that the other node
- * failed, so it is reported to the request through the {@code onTrip} callback, which should fail the request as a whole instead of
- * retrying it on another node.
+ * failed, and it is reported through the {@code onTrip} callback, which decides what fails: a search fails as a whole instead of retrying
+ * the shard on another copy, while a task listing fails only the node whose reply did not fit.
  * <p>
  * Holds the state of one response, so each request needs its own.
  */

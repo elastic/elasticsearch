@@ -160,6 +160,38 @@ public class TransportListTasksActionTests extends ESTestCase {
 
     // -- preferNewer --
 
+    public void testMergedResponseCarriesDataOfTheFirstPassOnlyWhenItKeepsSome() {
+        final TaskId taskId = randomTaskId();
+        final TaskInfo olderCopy = randomTaskInfoWithTaskIdAndRunningTimeNanos(taskId, 2_000);
+        final TaskInfo newerCopy = randomTaskInfoWithTaskIdAndRunningTimeNanos(taskId, 1_000);
+        final ListTasksResponse firstPass = new ListTasksResponse(List.of(olderCopy), List.of(), List.of());
+        final ListTasksResponse secondPass = new ListTasksResponse(List.of(newerCopy), List.of(), List.of());
+
+        assertFalse(TransportListTasksAction.carriesDataOf(firstPass, TransportListTasksAction.deduplicateAndMerge(firstPass, secondPass)));
+
+        final ListTasksResponse firstPassWithMissedTask = new ListTasksResponse(List.of(olderCopy, randomTaskInfo()), List.of(), List.of());
+        final ListTasksResponse merged = new ListTasksResponse(
+            List.of(newerCopy, firstPassWithMissedTask.getTasks().get(1)),
+            List.of(),
+            List.of()
+        );
+        assertTrue(TransportListTasksAction.carriesDataOf(firstPassWithMissedTask, merged));
+    }
+
+    public void testMergedResponseCarriesTheNodeFailuresOfTheFirstPass() {
+        final FailedNodeException failure = new FailedNodeException("node", "failed", new ElasticsearchException("boom"));
+        final ListTasksResponse firstPass = new ListTasksResponse(List.of(), List.of(), List.of(failure));
+        final ListTasksResponse secondPass = new ListTasksResponse(List.of(), List.of(), List.of());
+
+        assertTrue(TransportListTasksAction.carriesDataOf(firstPass, TransportListTasksAction.deduplicateAndMerge(firstPass, secondPass)));
+        assertFalse(
+            TransportListTasksAction.carriesDataOf(
+                new ListTasksResponse(List.of(), List.of(), List.of()),
+                TransportListTasksAction.deduplicateAndMerge(secondPass, secondPass)
+            )
+        );
+    }
+
     public void testPreferNewerReturnsTaskInfoWithLowerRuntime() {
         final long high = randomLongBetween(1, Long.MAX_VALUE);
         final long low = randomLongBetween(0, high - 1);

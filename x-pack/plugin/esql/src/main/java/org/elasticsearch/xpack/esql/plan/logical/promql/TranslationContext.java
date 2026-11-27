@@ -136,22 +136,29 @@ public record TranslationContext(
             return result;
         }
         TranslationSchema schema = intersect(result.schema(), List.of(LabelMatcher.NAME));
-        assert result.schema().isOpen() == false || schema.isOpen()
-            : "invariant: a child translated without the metric name must carry a packing without it, got " + result.schema();
+        assert result.schema().isOpen() == false || required.isOpen() == false || schema.isOpen()
+            : "invariant: a child translated without the metric name must carry a packing without it when one is required, got "
+                + result.schema();
         return reshape(result, schema);
     }
 
     /**
      * {@code table} under the narrower {@code schema}. With the label container functions a table carries one label container,
      * the finest packing of its schema: when the finest packing changes, the container is rewritten to leave the further labels
-     * out and replaces the one it came from. A raw table has no container yet; its collapse builds the right one.
+     * out and replaces the one it came from, and when no packing is left it is dropped. A raw table has no container yet; its
+     * collapse builds the right one.
      */
     private IntermediateResult reshape(IntermediateResult table, TranslationSchema schema) {
         Set<String> from = table.schema().finestSkip();
         Set<String> to = schema.finestSkip();
         Attribute container = from == null ? null : table.packed(from);
-        if (containerFunctions() == false || container == null || to == null || to.equals(from)) {
+        if (containerFunctions() == false || container == null || to != null && to.equals(from)) {
             return table.with(table.plan(), schema, table.value());
+        }
+        if (to == null) {
+            var output = new ArrayList<NamedExpression>(table.plan().output());
+            output.remove(container);
+            return table.with(new Project(cmd.source(), table.plan(), output), schema, table.value());
         }
         NamedExpression packing = packing(table, to);
         assert packing instanceof Alias : "invariant: packing " + to + " must be derived from the container " + from;

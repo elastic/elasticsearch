@@ -2489,6 +2489,20 @@ result:double | _timeseries:keyword
 9969.0        | "{""labels"":{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
 ;
 
+// A by over the transform needs no series identity: the one topk ranks by is dropped with the stored __name__.
+sum_by_over_abs_topk_drops_the_ranking_identity
+required_capability: promql_command_v0
+required_capability: fix_promql_drop_stored_metric_name
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=prometheus-k8s step=5m start="2024-05-10T00:20:00Z" end="2024-05-10T00:20:00Z" result=(sum by (cluster) (abs(topk(1, network.total_bytes_in))))
+| KEEP result, cluster;
+
+result:double | cluster:keyword
+9969.0        | prod
+;
+
 // Prometheus matches the branches of an or on their labels but __name__: abs drops the stored name from the right
 // branch, whose series still match the left ones, so only the left ones remain.
 union_matches_without_stored_metric_name

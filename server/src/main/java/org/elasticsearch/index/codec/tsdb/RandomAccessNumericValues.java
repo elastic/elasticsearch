@@ -24,6 +24,24 @@ public interface RandomAccessNumericValues {
     /** Returns the value of {@code docID}, which may be before or after the previous one read. */
     long valueAt(int docID) throws IOException;
 
+    /**
+     * Returns the first document in {@code [from, to)} whose value is at least {@code value}, or {@code to} if there is none.
+     * Values must not decrease with the document id. Implementations that store where each value starts may skip the bisection.
+     */
+    default int firstDocWithValueAtLeast(long value, int from, int to) throws IOException {
+        int lo = from;
+        int hi = to;
+        while (lo < hi) {
+            final int mid = (lo + hi) >>> 1;
+            if (valueAt(mid) < value) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
     /** Implemented by doc values readers whose layout may support random access. */
     interface Provider {
 

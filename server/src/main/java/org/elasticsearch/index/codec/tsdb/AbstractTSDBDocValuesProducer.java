@@ -2824,6 +2824,27 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    /** Random access over a dense range encoded column, where {@code startDocs} holds the first document of every value. */
+    private record RangeEncodedRandomAccess(DirectMonotonicReader startDocs, long maxOrd) implements RandomAccessNumericValues {
+
+        @Override
+        public long valueAt(int docID) {
+            long index = startDocs.binarySearch(0, maxOrd, docID);
+            return index < 0 ? -2 - index : index;
+        }
+
+        @Override
+        public int firstDocWithValueAtLeast(long value, int from, int to) {
+            if (value <= 0) {
+                return from;
+            }
+            if (value >= maxOrd) {
+                return to;
+            }
+            return (int) Math.max(from, Math.min(startDocs.get(value), to));
+        }
+    }
+
     static final class SortedOrdinalReader {
         final long maxOrd;
         final DirectMonotonicReader startDocs;
@@ -3193,6 +3214,17 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         );
         if (entry.docsWithFieldOffset == -1) {
             return new BaseDenseNumericValues(maxDoc) {
+                private RandomAccessNumericValues randomAccess;
+
+                @Override
+                public RandomAccessNumericValues tryRandomAccess() {
+                    if (randomAccess == null) {
+                        // Stateless reads over the same start docs, so the iterator's current range is unaffected.
+                        randomAccess = new RangeEncodedRandomAccess(ordinalsReader.startDocs, maxOrd);
+                    }
+                    return randomAccess;
+                }
+
                 @Override
                 long lookAheadValueAt(int targetDoc) {
                     return ordinalsReader.lookAheadValue(targetDoc);

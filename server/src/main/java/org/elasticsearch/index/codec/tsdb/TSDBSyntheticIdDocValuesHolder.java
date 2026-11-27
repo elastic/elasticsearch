@@ -210,13 +210,35 @@ class TSDBSyntheticIdDocValuesHolder {
         if (hasTsIdSkipper == false) {
             return 0;
         }
+        var skipper = tsIdSkipperAt(tsIdOrd);
+        return skipper == null ? DocIdSetIterator.NO_MORE_DOCS : skipper.minDocID(0);
+    }
+
+    /**
+     * Returns a skipper positioned on the first interval that holds a _tsid ordinal of at least {@code tsIdOrd}, or {@code null} if
+     * the ordinal is outside the segment range. The first document with such an ordinal lies in that interval.
+     */
+    @Nullable
+    private DocValuesSkipper tsIdSkipperAt(int tsIdOrd) throws IOException {
         var skipper = docValuesProducer.getSkipper(tsIdFieldInfo);
         assert skipper != null;
         if (skipper.minValue() > tsIdOrd || tsIdOrd > skipper.maxValue()) {
-            return DocIdSetIterator.NO_MORE_DOCS;
+            return null;
         }
         skipper.advance(tsIdOrd, Long.MAX_VALUE);
-        return skipper.minDocID(0);
+        return skipper;
+    }
+
+    /**
+     * Returns the first document ID whose _tsid ordinal is greater than {@code tsIdOrd}, or {@code maxDocs} if there is none. When the
+     * column does not support random access this is only a lower bound.
+     */
+    int findEndDocIDForTsIdOrd(int tsIdOrd) throws IOException {
+        final int end = bisectFirstDocWithTsIdOrdinalAtLeast(tsIdOrd + 1);
+        if (end >= 0) {
+            return end == DocIdSetIterator.NO_MORE_DOCS ? maxDocs : end;
+        }
+        return Math.min(maxDocs, findStartDocIDForTsIdOrd(tsIdOrd + 1));
     }
 
     /**
@@ -239,7 +261,7 @@ class TSDBSyntheticIdDocValuesHolder {
         assert 0 <= tsIdOrd : tsIdOrd;
         assert tsIdOrd < tsIdDocValues.getValueCount() : tsIdOrd;
 
-        final int bisected = bisectFirstDocWithTsIdOrdinalAtLeast(startDocId, tsIdOrd);
+        final int bisected = bisectFirstDocWithTsIdOrdinalAtLeast(tsIdOrd);
         if (bisected == DocIdSetIterator.NO_MORE_DOCS) {
             cachedTsIdOrd = -1;
             cachedTsId = null;
@@ -289,7 +311,7 @@ class TSDBSyntheticIdDocValuesHolder {
         assert 0 <= tsIdOrd : tsIdOrd;
         assert tsIdOrd < tsIdDocValues.getValueCount() : tsIdOrd;
 
-        final int bisected = bisectFirstDocWithTsIdOrdinalAtLeast(startDocId, tsIdOrd);
+        final int bisected = bisectFirstDocWithTsIdOrdinalAtLeast(tsIdOrd);
         if (bisected == DocIdSetIterator.NO_MORE_DOCS) {
             cachedTsIdOrd = -1;
             cachedTsId = null;
@@ -358,25 +380,26 @@ class TSDBSyntheticIdDocValuesHolder {
     }
 
     /**
-     * Returns the first document at or after {@code startDocID} whose _tsid ordinal is at least {@code tsIdOrd}, found by
-     * bisection since ordinals ascend with document id, or {@code -1} when the column only supports iteration.
+     * Returns the first document whose _tsid ordinal is at least {@code tsIdOrd}, found by bisection since ordinals ascend with
+     * document id, or {@code -1} when the column only supports iteration. The skipper narrows the search to one interval.
      */
-    private int bisectFirstDocWithTsIdOrdinalAtLeast(int startDocID, int tsIdOrd) throws IOException {
+    private int bisectFirstDocWithTsIdOrdinalAtLeast(int tsIdOrd) throws IOException {
         final var ords = randomAccessTsIdOrdinals();
         if (ords == null) {
             return -1;
         }
-        int lo = startDocID;
-        int hi = maxDocs;
-        while (lo < hi) {
-            final int mid = (lo + hi) >>> 1;
-            if (ords.valueAt(mid) < tsIdOrd) {
-                lo = mid + 1;
-            } else {
-                hi = mid;
+        int from = 0;
+        int to = maxDocs;
+        if (hasTsIdSkipper) {
+            final var skipper = tsIdSkipperAt(tsIdOrd);
+            if (skipper == null) {
+                return DocIdSetIterator.NO_MORE_DOCS;
             }
+            from = skipper.minDocID(0);
+            to = Math.min(maxDocs, skipper.maxDocID(0) + 1);
         }
-        return lo == maxDocs ? DocIdSetIterator.NO_MORE_DOCS : lo;
+        final int first = ords.firstDocWithValueAtLeast(tsIdOrd, from, to);
+        return first == maxDocs ? DocIdSetIterator.NO_MORE_DOCS : first;
     }
 
     int getTsIdValueCount() throws IOException {

@@ -347,7 +347,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             final var randomAccessTimestamps = docValues.randomAccessTimestamps();
             if (randomAccessTimestamps != null) {
                 int lo = nextDocID;
-                int hi = Math.min(maxDocs, docValues.findStartDocIDForTsIdOrd(tsIdOrd + 1));
+                int hi = docValues.findEndDocIDForTsIdOrd(tsIdOrd);
                 while (lo < hi) {
                     final int mid = (lo + hi) >>> 1;
                     if (randomAccessTimestamps.valueAt(mid) > timestamp) {

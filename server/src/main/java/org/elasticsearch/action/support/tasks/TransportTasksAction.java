@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
@@ -108,13 +109,13 @@ public abstract class TransportTasksAction<
     }
 
     /**
-     * Creates the charge for the replies of the other nodes, released when it is closed or the task is cancelled. An action that lists
-     * more than once keeps one charge for all the passes and closes it after it has handed over the final response.
+     * Creates the charge for the replies of the other nodes, released when its owner closes it, which a cancellation of the task does too,
+     * unless somebody retained it. An action that lists more than once creates one charge for each pass.
      */
     protected final NodeReplyCharge newNodeReplyCharge(Task task) {
         final NodeReplyCharge charge = new NodeReplyCharge(nodeReplyBreaker());
         if (task instanceof CancellableTask cancellableTask) {
-            cancellableTask.addListener(charge::release);
+            cancellableTask.addListener(charge::close);
         }
         return charge;
     }
@@ -261,10 +262,13 @@ public abstract class TransportTasksAction<
 
         /**
          * Keeps the charge until the returned {@link Releasable} is closed, even after the owner has closed this charge.
+         *
+         * @return the {@link Releasable}, or {@code null} if the charge has already been released, for instance by a cancellation
          */
+        @Nullable
         public Releasable retain() {
             if (refs.tryIncRef() == false) {
-                return () -> {};
+                return null;
             }
             return Releasables.releaseOnce(refs::decRef);
         }

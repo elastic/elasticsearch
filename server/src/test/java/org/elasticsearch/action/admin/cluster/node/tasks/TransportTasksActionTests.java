@@ -1130,7 +1130,42 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
     }
 
-    public void testBothListingPassesStayChargedUntilTheMergedResponseIsDelivered() throws Exception {
+    public void testCancellingAListingWhoseSecondPassWaitsReleasesBothPasses() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final int descriptionLength = 5_000;
+        final Task task1 = registerTaskWithDescription(testNodes[1], descriptionLength);
+        final Task task2 = registerTaskWithDescription(testNodes[2], descriptionLength);
+        try {
+            final ListTasksRequest request = doubleListRequest();
+            request.setWaitForCompletion(true);
+            request.setTimeout(TimeValue.timeValueSeconds(30));
+            final PlainActionFuture<ListTasksResponse> future = new PlainActionFuture<>();
+            final CancellableTask listTask = (CancellableTask) testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    request,
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    future
+                );
+            assertBusy(() -> assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 2L * descriptionLength)));
+
+            safeAwait(
+                (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager()
+                    .cancelTaskAndDescendants(listTask, "test", false, l)
+            );
+
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+            expectThrows(TaskCancelledException.class, future);
+        } finally {
+            testNodes[1].transportService.getTaskManager().unregister(task1);
+            testNodes[2].transportService.getTaskManager().unregister(task2);
+        }
+    }
+
+    public void testOnlyTheSecondListingPassStaysChargedWhenTheMergedResponseIsDelivered() throws Exception {
         final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
         final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
         final long usedBefore = breaker.getUsed();
@@ -1148,7 +1183,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                     ActionListener.wrap(r -> usedWhileDelivering.onResponse(breaker.getUsed()), usedWhileDelivering::onFailure)
                 );
 
-            assertThat(safeGet(usedWhileDelivering), greaterThanOrEqualTo(usedBefore + 4L * descriptionLength));
+            final long usedAtDelivery = safeGet(usedWhileDelivering);
+            assertThat(usedAtDelivery, greaterThanOrEqualTo(usedBefore + 2L * descriptionLength));
+            assertThat(usedAtDelivery, lessThan(usedBefore + 3L * descriptionLength));
             assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
         } finally {
             testNodes[1].transportService.getTaskManager().unregister(task1);
@@ -1175,7 +1212,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 );
             final Releasable retention = safeGet(retained);
             try {
-                assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 4L * descriptionLength));
+                assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 2L * descriptionLength));
+                assertThat(breaker.getUsed(), lessThan(usedBefore + 3L * descriptionLength));
             } finally {
                 retention.close();
             }

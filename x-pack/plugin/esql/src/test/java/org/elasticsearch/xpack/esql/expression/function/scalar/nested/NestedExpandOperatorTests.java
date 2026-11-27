@@ -7,15 +7,20 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -27,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -365,6 +371,139 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
         first.releaseBlocks();
         operator.close();
         assertThat(context.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testBufferReservationTrippingTheBreakerLeavesNothingReserved() {
+        Page page = parents(blockFactory(), 0, 4);
+        DocVector docs = page.<DocBlock>getBlock(0).asVector();
+        DriverContext context = limitedContext();
+        try (NestedChildren children = factory(2).children().get(context)) {
+            long before = context.breaker().getUsed();
+            expectThrows(CircuitBreakingException.class, () -> children.expand(docs, 1_024));
+            assertThat(context.breaker().getUsed(), equalTo(before));
+            try (NestedChildren.Expansion expansion = children.expand(docs, 2)) {
+                assertThat(expansion.hasNext(), is(true));
+            }
+        }
+        page.releaseBlocks();
+        assertThat(context.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testBufferReservationTrippingTheBreakerReleasesTheInputPage() {
+        DriverContext context = limitedContext();
+        Operator operator = factory(1_024).get(context);
+        Page page = parents(context.blockFactory(), 0, 4);
+        expectThrows(CircuitBreakingException.class, () -> operator.addInput(page));
+        operator.close();
+        assertThat(context.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testParentColumnsAreRepeatedForEveryChildAcrossPages() {
+        PlannerSettings oneChildPerReadPage = PlannerSettings.DEFAULTS.valuesLoadingJumboSize(ByteSizeValue.ofBytes(1));
+        for (PlannerSettings settings : new PlannerSettings[] { PlannerSettings.DEFAULTS, oneChildPerReadPage }) {
+            for (int size : new int[] { 1, 2, 3, 5, 64 }) {
+                var context = driverContext();
+                Page input = withParentColumns(context.blockFactory(), parents(context.blockFactory(), 0, 40));
+                List<Page> results = new TestDriverRunner().builder(context)
+                    .input(List.of(input))
+                    .run(factory(size, settings).get(context));
+                List<List<Object>> actual = new ArrayList<>();
+                for (Page page : results) {
+                    assertThat(page.getPositionCount(), lessThanOrEqualTo(size));
+                    assertThat(page.getBlockCount(), equalTo(5));
+                    LongBlock marks = page.getBlock(1);
+                    BytesRefBlock names = page.getBlock(2);
+                    LongBlock prices = page.getBlock(3);
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        actual.add(
+                            Arrays.asList(
+                                parent(page, p),
+                                longs(marks, p),
+                                names.getBytesRef(p, new BytesRef()).utf8ToString(),
+                                longs(prices, p)
+                            )
+                        );
+                    }
+                }
+                List<List<Object>> expected = new ArrayList<>();
+                for (List<Object> row : expectedRows(range(0, 40))) {
+                    int parent = (Integer) row.get(0);
+                    expected.add(Arrays.asList(parent, expectedMarks(parent), "p" + parent, row.get(1)));
+                }
+                assertThat(actual, equalTo(expected));
+                releaseAll(results);
+                assertThat(context.breaker().getUsed(), equalTo(0L));
+            }
+        }
+    }
+
+    public void testCancellationWhileReaderHoldsChildrenReleasesEverything() {
+        PlannerSettings oneChildPerReadPage = PlannerSettings.DEFAULTS.valuesLoadingJumboSize(ByteSizeValue.ofBytes(1));
+        var context = driverContext();
+        AtomicBoolean cancelled = new AtomicBoolean();
+        context.initializeEarlyTerminationChecker(() -> {
+            if (cancelled.get()) {
+                throw new TaskCancelledException("cancelled");
+            }
+        });
+        Operator operator = factory(64, oneChildPerReadPage).get(context);
+        operator.addInput(parents(context.blockFactory(), 0, 100));
+        operator.getOutput().releaseBlocks();
+        assertThat(operator.canProduceMoreDataWithoutExtraInput(), is(true));
+        cancelled.set(true);
+        expectThrows(TaskCancelledException.class, operator::getOutput);
+        operator.close();
+        assertThat(context.breaker().getUsed(), equalTo(0L));
+    }
+
+    private DriverContext limitedContext() {
+        BlockFactory limited = blockFactory(ByteSizeValue.ofKb(8));
+        return new DriverContext(limited.bigArrays(), limited, null);
+    }
+
+    /** Appends a multivalued, nullable long column and a keyword column that name each parent. */
+    private Page withParentColumns(BlockFactory blockFactory, Page parents) {
+        int count = parents.getPositionCount();
+        try (
+            LongBlock.Builder marks = blockFactory.newLongBlockBuilder(count);
+            BytesRefBlock.Builder names = blockFactory.newBytesRefBlockBuilder(count)
+        ) {
+            for (int p = 0; p < count; p++) {
+                int parent = parent(parents, p);
+                switch (parent % 3) {
+                    case 0 -> marks.appendNull();
+                    case 1 -> marks.appendLong(100L + parent);
+                    case 2 -> marks.beginPositionEntry().appendLong(parent).appendLong(-parent).endPositionEntry();
+                    default -> throw new IllegalStateException();
+                }
+                names.appendBytesRef(new BytesRef("p" + parent));
+            }
+            return parents.appendBlocks(new Block[] { marks.build(), names.build() });
+        }
+    }
+
+    private static Object expectedMarks(int parent) {
+        return switch (parent % 3) {
+            case 0 -> null;
+            case 1 -> 100L + parent;
+            case 2 -> List.of((long) parent, (long) -parent);
+            default -> throw new IllegalStateException();
+        };
+    }
+
+    private static Object longs(LongBlock block, int position) {
+        if (block.isNull(position)) {
+            return null;
+        }
+        int first = block.getFirstValueIndex(position);
+        if (block.getValueCount(position) == 1) {
+            return block.getLong(first);
+        }
+        List<Long> values = new ArrayList<>();
+        for (int i = 0; i < block.getValueCount(position); i++) {
+            values.add(block.getLong(first + i));
+        }
+        return values;
     }
 
     private static List<Integer> range(int from, int to) {

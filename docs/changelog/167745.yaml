@@ -1,6 +1,0 @@
-area: Distributed
-issues:
- - 167252
-pr: 167745
-summary: Don't hang stateless node shutdown on pending commit uploads
-type: bug

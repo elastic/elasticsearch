@@ -25,8 +25,10 @@ import java.util.List;
 
 /**
  * The one-row result of an {@code INTO} command: how many rows were sent, how many the destination created, and how many
- * it refused under {@code keep_going}, with the reasons for at most {@link #MAX_FAILURE_DETAILS} of those refusals.
- * Details beyond that limit are dropped, keeping the first ones, so the result stays small however many rows are refused.
+ * it refused under {@code keep_going}, with the reasons for a sample of those refusals, at most {@link #MAX_FAILURE_DETAILS}.
+ * The counts are exact. The details are a bounded sample, not the first refusals of the query: each writer keeps its first
+ * reasons and a merge keeps the first ones of the stats it is given first, so a writer that reports later can lose all of its
+ * details, even if its rows were refused before those of the writer that reported first.
  */
 public record IntoStats(long total, long created, long failures, List<String> failureDetails) {
     public static final int MAX_FAILURE_DETAILS = 20;
@@ -76,7 +78,7 @@ public record IntoStats(long total, long created, long failures, List<String> fa
         return values;
     }
 
-    /** Adds up the counters and keeps the first {@link #MAX_FAILURE_DETAILS} details, this one's first. */
+    /** Adds up the counters and keeps the first {@link #MAX_FAILURE_DETAILS} details of the two, this one's first. */
     IntoStats merge(IntoStats other) {
         List<String> details = CollectionUtils.concatLists(failureDetails, other.failureDetails);
         return new IntoStats(total + other.total, created + other.created, failures + other.failures, details);

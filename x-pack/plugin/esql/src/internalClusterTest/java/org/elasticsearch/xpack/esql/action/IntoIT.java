@@ -42,6 +42,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -374,7 +375,12 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
      */
     public void testKeepGoingAddsUpTheStatsOfEveryWriter() {
         int rows = 600;
-        assertAcked(indicesAdmin().prepareCreate(SOURCE).setSettings(indexSettings(5, 0)).setMapping(MAPPING));
+        // No node holds more than three of the five shards, so the source is spread over at least two nodes
+        assertAcked(
+            indicesAdmin().prepareCreate(SOURCE)
+                .setSettings(indexSettings(5, 0).put("index.routing.allocation.total_shards_per_node", 3))
+                .setMapping(MAPPING)
+        );
         indexRandom(
             true,
             IntStream.range(0, rows)
@@ -395,7 +401,8 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             for (Object detail : details) {
                 assertThat(detail.toString(), allOf(startsWith("[400] "), containsString("unmapped_col")));
             }
-            assertThat(countWriters(response), greaterThan(1L));
+            // Writers on one node share their stats, so the stats of several nodes are only merged if writers ran on several nodes
+            assertThat(writerNodes(response), hasSize(greaterThan(1)));
         }
         assertReadBack("STATS c = COUNT(*), s = SUM(l)", List.of(List.of(300L, 90_000L)));
     }
@@ -415,6 +422,16 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         );
         request.acceptedPragmaRisks(true);
         return request;
+    }
+
+    private static Set<String> writerNodes(EsqlQueryResponse response) {
+        return response.profile()
+            .drivers()
+            .stream()
+            .filter(driver -> driver.description().equals(ComputeService.DATA_DESCRIPTION))
+            .filter(driver -> driver.operators().stream().anyMatch(op -> op.operator().contains("IntoOperator")))
+            .map(driver -> driver.nodeName())
+            .collect(Collectors.toSet());
     }
 
     private static long countWriters(EsqlQueryResponse response) {

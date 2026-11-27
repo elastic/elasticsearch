@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.client.NoOpClient;
@@ -63,7 +64,9 @@ class IntoTestUtils {
         /** The caller may not write to the destination, which says nothing about the row. */
         FORBIDDEN,
         /** The item fails with a 500, which says nothing about the row. */
-        FAILED
+        FAILED,
+        /** The mapping rejects the row with a {@link MapperException}, which has no status of its own and is reported as a 500. */
+        MAPPER_REJECTED
     }
 
     static final int LONG_MESSAGE_LENGTH = 5000;
@@ -144,6 +147,16 @@ class IntoTestUtils {
                         )
                     );
                     case FAILED -> refused(i, opType, new IllegalStateException("shard failed"));
+                    case MAPPER_REJECTED -> BulkItemResponse.failure(
+                        i,
+                        opType,
+                        new BulkItemResponse.Failure(
+                            DEST,
+                            "id-" + i,
+                            new MapperException("Pass-through source [a] has a conflicting param [priority=1] with source [b]"),
+                            RestStatus.INTERNAL_SERVER_ERROR
+                        )
+                    );
                 };
             }
             listeners.removeFirst().onResponse(new BulkResponse(items, 1));

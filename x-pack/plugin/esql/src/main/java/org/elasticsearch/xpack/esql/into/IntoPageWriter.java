@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -170,11 +171,12 @@ public final class IntoPageWriter {
         }
 
         /**
-         * Only a 400 says that the destination does not accept the row itself, such as a field that its mapping rejects. Any other
-         * status is about the caller, the destination or the cluster, so it fails the query instead of being counted as a refusal.
+         * A row is refused when the destination does not accept the row itself: a 400, such as a field that its mapping rejects, or a
+         * {@link MapperException}, which has no status of its own and so is reported as a 500. Any other status is about the caller,
+         * the destination or the cluster, so it fails the query instead of being counted as a refusal.
          */
         private static boolean isRefusal(BulkItemResponse.Failure failure) {
-            return failure.getStatus() == RestStatus.BAD_REQUEST;
+            return failure.getStatus() == RestStatus.BAD_REQUEST || failure.getCause() instanceof MapperException;
         }
 
         private void recordRefusal(BulkItemResponse.Failure refusal) {

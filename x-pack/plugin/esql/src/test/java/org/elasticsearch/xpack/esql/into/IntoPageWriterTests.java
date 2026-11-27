@@ -70,6 +70,7 @@ import static org.elasticsearch.xpack.esql.into.IntoTestUtils.IN_FLIGHT;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.FAILED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.FORBIDDEN;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.MAPPER_REJECTED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WITHOUT_MESSAGE;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WITH_LONG_MESSAGE;
@@ -451,6 +452,21 @@ public class IntoPageWriterTests extends ComputeTestCase {
         ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
         assertThat(failure.status(), equalTo(RestStatus.FORBIDDEN));
         assertThat(writer.stats().failures(), equalTo(0L));
+    }
+
+    /** A row that the mapping rejects is a refusal even when its exception has no status of its own, and so is reported as a 500. */
+    public void testKeepGoingCountsAMapperExceptionAsARefusal() {
+        keepGoingSink();
+        writer.consume(page("ok", "clashes"));
+        client.answer(CREATED, MAPPER_REJECTED);
+        writer.finish();
+
+        assertNull(sink.failure());
+        IntoStats stats = writer.stats();
+        assertThat(stats.created(), equalTo(1L));
+        assertThat(stats.failures(), equalTo(1L));
+        assertThat(stats.failureDetails(), hasSize(1));
+        assertThat(stats.failureDetails().getFirst(), startsWith("[500] Pass-through source [a] has a conflicting param"));
     }
 
     public void testKeepGoingStillFailsOnServerErrorItem() {

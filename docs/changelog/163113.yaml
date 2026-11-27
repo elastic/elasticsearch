@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162645
+pr: 163113
+summary: Fix `V_COSINE` and `V_DOT_PRODUCT` on one-dimension vectors
+type: bug

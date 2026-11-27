@@ -448,6 +448,23 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         );
     }
 
+    public void testApplyUnrelatedUpdateOnEsqlDatafeedShouldKeepStoredDelayedDataCheckConfig() {
+        DatafeedConfig defaulted = createEsqlDatafeed("esql-datafeed");
+        assertThat(defaulted.getDelayedDataCheckConfig(), equalTo(DelayedDataCheckConfig.disabledDelayedDataCheckConfig()));
+        // The enabled case is not the ES|QL default, so it fails if the update falls back to the default.
+        DatafeedConfig enabledWithWindow = new DatafeedConfig.Builder(defaulted).setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(2))
+        ).build();
+
+        for (DatafeedConfig stored : List.of(defaulted, enabledWithWindow)) {
+            DatafeedUpdate update = new DatafeedUpdate.Builder(stored.getId()).setQueryDelay(TimeValue.timeValueMinutes(5)).build();
+
+            DatafeedConfig updated = update.apply(stored, Collections.emptyMap(), clusterState);
+
+            assertThat(updated.getDelayedDataCheckConfig(), equalTo(stored.getDelayedDataCheckConfig()));
+        }
+    }
+
     private static DatafeedConfig createEsqlDatafeed(String id) {
         return new DatafeedConfig.Builder(id, "esql-job").setEsqlQuery("FROM source-index")
             .setGroupingInterval(TimeValue.timeValueHours(1))

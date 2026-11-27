@@ -1168,7 +1168,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
         private ChunkingConfig chunkingConfig;
         private Map<String, String> headers = Collections.emptyMap();
-        private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
+        // Null means unset; see effectiveDelayedDataCheckConfig().
+        private DelayedDataCheckConfig delayedDataCheckConfig;
         private Integer maxEmptySearches;
         private Integer maxConsecutiveExtractionFailures;
         private IndicesOptions indicesOptions;
@@ -1292,7 +1293,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             out.writeOptionalVInt(scrollSize);
             out.writeOptionalWriteable(chunkingConfig);
             out.writeMap(headers, StreamOutput::writeString);
-            out.writeOptionalWriteable(delayedDataCheckConfig);
+            // Never write the unset state: pre-ES|QL nodes assume a non-null value.
+            out.writeOptionalWriteable(effectiveDelayedDataCheckConfig());
             out.writeOptionalVInt(maxEmptySearches);
             out.writeBoolean(indicesOptions != null);
             if (indicesOptions != null) {
@@ -1338,7 +1340,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 && Objects.equals(scrollSize, builder.scrollSize)
                 && Objects.equals(chunkingConfig, builder.chunkingConfig)
                 && Objects.equals(headers, builder.headers)
-                && Objects.equals(delayedDataCheckConfig, builder.delayedDataCheckConfig)
+                && Objects.equals(effectiveDelayedDataCheckConfig(), builder.effectiveDelayedDataCheckConfig())
                 && Objects.equals(maxEmptySearches, builder.maxEmptySearches)
                 && Objects.equals(maxConsecutiveExtractionFailures, builder.maxConsecutiveExtractionFailures)
                 && Objects.equals(indicesOptions, builder.indicesOptions)
@@ -1363,7 +1365,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 scrollSize,
                 chunkingConfig,
                 headers,
-                delayedDataCheckConfig,
+                effectiveDelayedDataCheckConfig(),
                 maxEmptySearches,
                 maxConsecutiveExtractionFailures,
                 indicesOptions,
@@ -1619,7 +1621,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 scrollSize,
                 chunkingConfig,
                 headers,
-                delayedDataCheckConfig,
+                effectiveDelayedDataCheckConfig(),
                 maxEmptySearches,
                 maxConsecutiveExtractionFailures,
                 indicesOptions,
@@ -1788,6 +1790,19 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 }
                 checkNoMoreCompositeAggregations(agg.getSubAggregations());
             }
+        }
+
+        /**
+         * The configured delayed data check, or the default when unset. ES|QL datafeeds default to disabled because the check needs
+         * a summary count column that a first-time user has not set up (g2sz.101, superseded by g2sz.102).
+         */
+        private DelayedDataCheckConfig effectiveDelayedDataCheckConfig() {
+            if (delayedDataCheckConfig != null) {
+                return delayedDataCheckConfig;
+            }
+            return esqlQuery != null
+                ? DelayedDataCheckConfig.disabledDelayedDataCheckConfig()
+                : DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         }
 
         private void setDefaultChunkingConfig() {

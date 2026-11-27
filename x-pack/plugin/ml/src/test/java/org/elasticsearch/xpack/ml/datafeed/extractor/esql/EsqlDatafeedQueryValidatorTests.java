@@ -899,7 +899,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
         assertThat(
             EsqlDatafeedQueryValidator.requiredSummaryCountField(
-                buildDatafeedWithNullDelayedDataCheckConfig("datafeed-1", "job-1"),
+                buildEsqlDatafeedWithUnsetDelayedDataCheckConfig("datafeed-1", "job-1"),
                 jobWithField
             ),
             nullValue()
@@ -926,10 +926,10 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         return builder.build();
     }
 
-    private static DatafeedConfig buildDatafeedWithNullDelayedDataCheckConfig(String datafeedId, String jobId) {
+    private static DatafeedConfig buildEsqlDatafeedWithUnsetDelayedDataCheckConfig(String datafeedId, String jobId) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
-        builder.setIndices(Collections.singletonList("logs"));
-        builder.setDelayedDataCheckConfig(null);
+        builder.setEsqlQuery("FROM logs");
+        builder.setGroupingInterval(TimeValue.timeValueSeconds(60));
         return builder.build();
     }
 

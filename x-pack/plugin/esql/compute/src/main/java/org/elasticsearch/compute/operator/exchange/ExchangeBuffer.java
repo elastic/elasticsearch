@@ -16,12 +16,14 @@ import org.elasticsearch.compute.operator.Operator;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 public final class ExchangeBuffer {
     private final Queue<Page> queue = new ConcurrentLinkedQueue<>();
     // uses a separate counter for size for CAS; and ConcurrentLinkedQueue#size is not a constant time operation.
     private final AtomicInteger queueSize = new AtomicInteger();
     private final int maxSize;
+    private final Consumer<Page> onDiscard;
 
     private final Object notEmptyLock = new Object();
     private SubscribableListener<Void> notEmptyFuture = null;
@@ -34,10 +36,19 @@ public final class ExchangeBuffer {
     private volatile boolean noMoreInputs = false;
 
     public ExchangeBuffer(int maxSize) {
+        this(maxSize, page -> {});
+    }
+
+    /**
+     * @param onDiscard gets each page that the buffer drops instead of handing it out, before the page is released. It must
+     *                  not throw, and must not keep the page.
+     */
+    public ExchangeBuffer(int maxSize, Consumer<Page> onDiscard) {
         if (maxSize < 1) {
             throw new IllegalArgumentException("max_buffer_size must be at least one; got=" + maxSize);
         }
         this.maxSize = maxSize;
+        this.onDiscard = onDiscard;
     }
 
     public void addPage(Page page) {
@@ -49,7 +60,7 @@ public final class ExchangeBuffer {
             // O(N) but acceptable because it only occurs with the stop API, and the queue size should be very small.
             if (page.batchMetadata() == null) {
                 if (queue.removeIf(p -> p == page)) {
-                    page.releaseBlocks();
+                    discard(page);
                     final int size = queueSize.decrementAndGet();
                     if (size == maxSize - 1) {
                         notifyNotFull();
@@ -129,7 +140,15 @@ public final class ExchangeBuffer {
     private void discardPages() {
         Page p;
         while ((p = pollPage()) != null) {
-            p.releaseBlocks();
+            discard(p);
+        }
+    }
+
+    private void discard(Page page) {
+        try {
+            onDiscard.accept(page);
+        } finally {
+            page.releaseBlocks();
         }
     }
 

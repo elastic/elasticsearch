@@ -117,8 +117,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
                 .build()
         );
 
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_TDIGEST)) {
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
             Map<String, Map<String, String>> dynamicTemplateParams = document.dynamicTemplateParams();
@@ -165,7 +164,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
 
             assertThat(dynamicTemplateParams, hasEntry("metrics.system.cpu.usage", Map.of("unit", "{test}")));
             assertThat(dynamicTemplateParams, hasEntry("metrics.system.network.packets", Map.of("unit", "{test}")));
-        });
+        }
     }
 
     public void testAttributeTypes() throws IOException {
@@ -181,8 +180,8 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            ObjectPath doc = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup).doc();
+        for (Document document : buildDocuments(MappingHints.DEFAULT_TDIGEST)) {
+            ObjectPath doc = document.doc();
 
             assertThat(doc.evaluate("resource.attributes.string_attr"), equalTo("string_value"));
             assertThat(doc.evaluate("resource.attributes.bool_attr"), equalTo(true));
@@ -191,7 +190,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
 
             assertThat(doc.evaluate("resource.attributes.array_attr.0"), equalTo("value1"));
             assertThat(doc.evaluate("resource.attributes.array_attr.1"), equalTo("value2"));
-        });
+        }
     }
 
     public void testEmptyFields() throws IOException {
@@ -204,8 +203,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         ExportMetricsServiceRequest metricsRequest = ExportMetricsServiceRequest.newBuilder().addResourceMetrics(resourceMetrics).build();
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_TDIGEST)) {
             ObjectPath doc = document.doc();
 
             // Verify that empty fields are not included
@@ -216,7 +214,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
             assertThat(doc.evaluate("scope.dropped_attributes_count"), is(nullValue()));
             assertThat(doc.evaluate("scope.version"), is(nullValue()));
             assertThat(doc.evaluate("unit"), is(nullValue()));
-        });
+        }
     }
 
     public void testExponentialHistogramAsTDigest() throws Exception {
@@ -233,15 +231,14 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_TDIGEST)) {
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
 
             assertThat(doc.evaluate("metrics.exponential_histogram.values"), equalTo(List.of(-3.0, -1.5, 0.0, 1.5, 3.0)));
             assertThat(doc.evaluate("metrics.exponential_histogram.counts"), equalTo(List.of(1, 1, 1, 1, 1)));
             assertThat(dynamicTemplates, hasEntry("metrics.exponential_histogram", "histogram"));
-        });
+        }
     }
 
     public void testExponentialHistogramAsAggregateMetricDouble() throws Exception {
@@ -258,15 +255,14 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_TDIGEST)) {
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
 
             assertThat(doc.evaluate("metrics.histogram.sum"), equalTo(42.0));
             assertThat(doc.evaluate("metrics.histogram.value_count"), equalTo(1));
             assertThat(dynamicTemplates, hasEntry("metrics.histogram", "summary"));
-        });
+        }
     }
 
     public void testExponentialHistogramAsExponentialHistogram() throws Exception {
@@ -289,8 +285,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM)) {
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
 
@@ -305,7 +300,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
             assertThat(doc.evaluate("metrics.exponential_histogram.min"), equalTo(-7.0));
             assertThat(doc.evaluate("metrics.exponential_histogram.max"), equalTo(8.0));
             assertThat(dynamicTemplates, hasEntry("metrics.exponential_histogram", "exponential_histogram"));
-        });
+        }
     }
 
     public void testExponentialHistogramRaw() throws Exception {
@@ -324,15 +319,14 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM)) {
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
 
             assertThat(doc.evaluate("metrics.exponential_histogram.values"), equalTo(List.of(-2.0, -1.0, 0.0, 2.0, 4.0)));
             assertThat(doc.evaluate("metrics.exponential_histogram.counts"), equalTo(List.of(1, 1, 1, 1, 1)));
             assertThat(dynamicTemplates, hasEntry("metrics.exponential_histogram", "histogram"));
-        });
+        }
     }
 
     public void testHistogram() throws Exception {
@@ -348,15 +342,14 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_TDIGEST)) {
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
 
             assertThat(doc.evaluate("metrics.histogram.values"), equalTo(List.of(2.5)));
             assertThat(doc.evaluate("metrics.histogram.counts"), equalTo(List.of(10)));
             assertThat(dynamicTemplates, hasEntry("metrics.histogram", "histogram"));
-        });
+        }
     }
 
     /** An empty histogram still writes its (empty) arrays. */
@@ -371,14 +364,13 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_TDIGEST)) {
             ObjectPath doc = document.doc();
 
             assertThat(doc.evaluate("metrics.histogram.values"), equalTo(List.of()));
             assertThat(doc.evaluate("metrics.histogram.counts"), equalTo(List.of()));
             assertThat(document.dynamicTemplates(), hasEntry("metrics.histogram", "histogram"));
-        });
+        }
     }
 
     public void testHistogramRaw() throws Exception {
@@ -395,15 +387,14 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_TDIGEST)) {
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
 
             assertThat(doc.evaluate("metrics.histogram.values"), equalTo(List.of(10.0, 20.0, 30.0)));
             assertThat(doc.evaluate("metrics.histogram.counts"), equalTo(List.of(1, 3, 7)));
             assertThat(dynamicTemplates, hasEntry("metrics.histogram", "histogram"));
-        });
+        }
     }
 
     public void testHistogramRawWithoutExplicitBounds() throws Exception {
@@ -421,15 +412,14 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_TDIGEST)) {
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
 
             assertThat(doc.evaluate("metrics.histogram.values"), equalTo(List.of(10.0)));
             assertThat(doc.evaluate("metrics.histogram.counts"), equalTo(List.of(10)));
             assertThat(dynamicTemplates, hasEntry("metrics.histogram", "histogram"));
-        });
+        }
     }
 
     public void testHistogramAsAggregateMetricDouble() throws Exception {
@@ -446,15 +436,14 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_TDIGEST)) {
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
 
             assertThat(doc.evaluate("metrics.histogram.sum"), equalTo(42.0));
             assertThat(doc.evaluate("metrics.histogram.value_count"), equalTo(1));
             assertThat(dynamicTemplates, hasEntry("metrics.histogram", "summary"));
-        });
+        }
     }
 
     public void testHistogramAsExponentialHistogram() throws Exception {
@@ -474,8 +463,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM)) {
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
 
@@ -489,7 +477,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
             assertThat(doc.evaluate("metrics.exponential_histogram.min"), equalTo(1.0));
             assertThat(doc.evaluate("metrics.exponential_histogram.max"), equalTo(9.0));
             assertThat(dynamicTemplates, hasEntry("metrics.exponential_histogram", "exponential_histogram"));
-        });
+        }
     }
 
     public void testSummary() throws Exception {
@@ -506,8 +494,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
-            Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
+        for (Document document : buildDocuments(MappingHints.DEFAULT_TDIGEST)) {
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
 
@@ -515,7 +502,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
             assertThat(doc.evaluate("metrics.summary.value_count"), equalTo(1));
             assertThat(doc.evaluate("_doc_count"), equalTo(1));
             assertThat(dynamicTemplates, hasEntry("metrics.summary", "summary"));
-        });
+        }
     }
 
     /** A built metric document. {@code tsid} is {@code null} unless the writer {@link #producesTsid() produces one}. */
@@ -532,7 +519,16 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
      */
     protected abstract boolean producesTsid();
 
-    /** Builds the document for {@code dataPointGroup}, with {@code defaultMappingHints} applying to data points without hints. */
-    protected abstract Document buildDocument(MappingHints defaultMappingHints, DataPointGroupingContext.DataPointGroup dataPointGroup)
-        throws IOException;
+    /** Builds the documents of every group in the test's context, failing if there are none. */
+    private List<Document> buildDocuments(MappingHints defaultMappingHints) throws IOException {
+        List<Document> documents = buildDocuments(defaultMappingHints, dataPointGroupingContext);
+        assertFalse("expected at least one document", documents.isEmpty());
+        return documents;
+    }
+
+    /**
+     * Builds one document per group of {@code context}, with {@code defaultMappingHints} applying to data points without
+     * hints.
+     */
+    protected abstract List<Document> buildDocuments(MappingHints defaultMappingHints, DataPointGroupingContext context) throws IOException;
 }

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PlanSize;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.Federation;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -55,11 +57,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings.WildcardsStop;
 
@@ -96,7 +99,7 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *       plans</li>
  *   <li>{@link MergePlan}: Recursively processes each child branch. This includes {@code Fork}
  *       and user-written {@code UnionAll}; {@link BranchPlan} is handled separately below</li>
- *   <li>{@link AbstractSubqueryJoin}: Recursively processes the left and right sides</li>
+ *   <li>{@link IndependentSubqueryJoin} (IN subqueries and JOIN on a subquery): Recursively processes the left and right sides</li>
  *   <li>{@link Filter}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} into a {@code SemiJoin}/{@code AntiJoin}/
  *       {@code MarkJoin}, then recurses into the newly created subquery plans to resolve view references nested there</li>
  *   <li>{@link Eval}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} in field definitions into a {@code MarkJoin},
@@ -520,7 +523,7 @@ public class ViewResolver {
                         );
                     }
                 }
-                case AbstractSubqueryJoin subqueryJoin -> replaceViewsSubqueryJoin(
+                case BinaryPlan subqueryJoin when subqueryJoin instanceof IndependentSubqueryJoin -> replaceViewsSubqueryJoin(
                     subqueryJoin,
                     projectRouting,
                     viewsScope,
@@ -562,9 +565,40 @@ public class ViewResolver {
                         l.onResponse(result);
                     })
                 );
+                case UnresolvedEqlRelation eql -> rejectViewsInEqlTarget(eql, projectRouting, planListener);
                 default -> planListener.onResponse(p);
             }
         }, executor, listener);
+    }
+
+    private void rejectViewsInEqlTarget(UnresolvedEqlRelation eql, String projectRouting, ActionListener<LogicalPlan> listener) {
+        boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
+        String[] patterns = Arrays.stream(eql.indexPattern().indexPattern().split(","))
+            .filter(p -> isLocalWildcard(p) == false && (cpsEnabled || RemoteClusterAware.splitIndexName(p).clusterAlias() == null))
+            .toArray(String[]::new);
+        Set<String> named = exactNames(Arrays.stream(patterns).filter(p -> patternIsExclusion(p) == false).toArray(String[]::new));
+        if (named.isEmpty()) {
+            listener.onResponse(eql);
+            return;
+        }
+        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, cpsEnabled, false);
+        req.setProjectRouting(projectRouting);
+        req.indices(patterns);
+        doEsqlResolveViewsRequest(req, listener.delegateFailureAndWrap((l, response) -> {
+            String views = Arrays.stream(response.views())
+                .map(View::name)
+                .filter(named::contains)
+                .distinct()
+                .collect(Collectors.joining(", "));
+            if (views.isEmpty() == false) {
+                throw new VerificationException(
+                    List.of(
+                        Failure.fail(eql, "Views are not supported in EQL command, found view(s) [{}]; use FROM {} instead", views, views)
+                    )
+                );
+            }
+            l.onResponse(eql);
+        }));
     }
 
     private void replaceViewsMergePlan(
@@ -627,7 +661,7 @@ public class ViewResolver {
     }
 
     private void replaceViewsSubqueryJoin(
-        AbstractSubqueryJoin subqueryJoin,
+        BinaryPlan subqueryJoin,
         String projectRouting,
         ViewsScope viewsScope,
         boolean resolveDatasets,

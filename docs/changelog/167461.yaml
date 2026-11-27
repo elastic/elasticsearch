@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167461
+summary: Decline multi-valued comparison, IN, and Range literals in dataset filter pushdown
+type: bug

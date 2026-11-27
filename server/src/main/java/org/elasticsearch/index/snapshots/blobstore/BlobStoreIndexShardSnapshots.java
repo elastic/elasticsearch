@@ -10,6 +10,7 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -265,8 +266,21 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         builder.endArray();
         // Then we list all snapshots with list of all blobs that are used by the snapshot
         builder.startObject(Fields.SNAPSHOTS);
+        final Set<String> snapshotNames = Sets.newHashSetWithExpectedSize(shardSnapshots.size());
         for (SnapshotFiles snapshot : shardSnapshots) {
-            builder.startObject(snapshot.snapshot());
+            final String snapshotName = snapshot.snapshot();
+            if (snapshotNames.add(snapshotName) == false) {
+                // Almost impossible but can happen with legacy numbered shard gens, or post-corruption rebuilding, or multiple clusters
+                // taking snapshots at once; the resulting metadata won't be readable because snapshotName is an object key, so we'd best
+                // just not even write it.
+                //
+                // Failing here may leave a partially-written object but that's ok, nothing is going to read that object (e.g. in a
+                // `FsRepository` it's either a `pending-*` file or an `index-${UUID}` with a fresh UUID), so the repository remains fully
+                // readable in this state. Subsequent writes may continue to fail in the same way. Some later operation (e.g. deleting the
+                // snapshot with the duplicate name, or every snapshot containing this index) will clean up any leftovers.
+                throw new IllegalStateException("duplicate snapshot name [" + snapshotName + "]");
+            }
+            builder.startObject(snapshotName);
             builder.startArray(Fields.FILES);
             for (FileInfo fileInfo : snapshot.indexFiles()) {
                 builder.value(fileInfo.name());

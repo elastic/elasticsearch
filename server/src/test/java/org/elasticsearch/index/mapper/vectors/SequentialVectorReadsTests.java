@@ -20,6 +20,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.DataAccessHint;
@@ -70,6 +71,8 @@ public class SequentialVectorReadsTests extends MapperServiceTestCase {
 
     private final List<Open> opens = new CopyOnWriteArrayList<>();
     private final List<float[]> vectors = new ArrayList<>();
+    /** Whether each indexed document has {@code tag=a}, in doc order. */
+    private final List<Boolean> tags = new ArrayList<>();
     private MapperService mapperService;
     private DenseVectorFieldType fieldType;
 
@@ -117,8 +120,8 @@ public class SequentialVectorReadsTests extends MapperServiceTestCase {
         }
     }
 
-    /** Only a query scoring every vector of the leaf reads them in order. */
-    public void testOnlyTheBulkScorerReadsInOrder() throws IOException {
+    /** Brute-force queries read the vectors in order, on their own and in a conjunction. */
+    public void testBruteForceQueriesReadInOrder() throws IOException {
         try (Directory dir = index(rescoreOnlyType()); DirectoryReader reader = open(dir)) {
             IndexSearcher searcher = new ContextIndexSearcher(
                 reader,
@@ -135,13 +138,21 @@ public class SequentialVectorReadsTests extends MapperServiceTestCase {
             Query tagged = new TermQuery(new Term("tag", "a"));
 
             opens.clear();
+            // a leaf the filter rules out opens nothing
+            assertThat(searcher.search(query.filteredBy(new TermQuery(new Term("tag", "none"))), 10).scoreDocs.length, equalTo(0));
+            assertThat(opens.toString(), sequentialOpens(IOContext.Context.DEFAULT), hasSize(0));
+
             Query conjunction = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
                 .add(tagged, BooleanClause.Occur.FILTER)
                 .build();
             TopDocs conjunctionHits = searcher.search(conjunction, 10);
-            assertThat("a conjunction picks the vectors it scores: " + opens, sequentialOpens(IOContext.Context.DEFAULT), hasSize(0));
+            assertThat(opens.toString(), sequentialOpens(IOContext.Context.DEFAULT), hasSize(1));
+            for (ScoreDoc hit : conjunctionHits.scoreDocs) {
+                assertTrue("doc " + hit.doc + " does not match the filter", tags.get(hit.doc));
+            }
 
-            TopDocs scanHits = searcher.search(randomBoolean() ? query : query.filteredBy(tagged), 10);
+            // the scan reads through the input the conjunction opened
+            TopDocs scanHits = searcher.search(query.filteredBy(tagged), 10);
             assertThat(opens.toString(), sequentialOpens(IOContext.Context.DEFAULT), hasSize(1));
             assertThat(scanHits.scoreDocs.length, equalTo(conjunctionHits.scoreDocs.length));
             for (int i = 0; i < scanHits.scoreDocs.length; i++) {
@@ -223,8 +234,10 @@ public class SequentialVectorReadsTests extends MapperServiceTestCase {
     private void indexSegment(IndexWriter writer, int docs) throws IOException {
         for (int doc = 0; doc < docs; doc++) {
             float[] vector = randomFloatVector(DIMS);
+            String tag = randomFrom("a", "b");
             vectors.add(vector);
-            writer.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", vector).field("tag", "a"))).rootDoc());
+            tags.add(tag.equals("a"));
+            writer.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", vector).field("tag", tag))).rootDoc());
         }
         writer.commit();
     }

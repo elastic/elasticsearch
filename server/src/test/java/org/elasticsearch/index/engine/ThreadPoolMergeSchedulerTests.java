@@ -13,6 +13,9 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergePolicy.OneMerge;
 import org.apache.lucene.index.MergeScheduler.MergeSource;
 import org.apache.lucene.index.MergeTrigger;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -42,9 +45,11 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -124,6 +129,57 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     lessThanOrEqualTo(executedMergesList.get(i).getStoreMergeInfo().estimatedMergeBytes())
                 );
             }
+        }
+        assertTrue(threadPoolMergeExecutorService.allDone());
+    }
+
+    /**
+     * Temp outputs created through the directory handed out for a merge must be rate limited like regular outputs, which also means
+     * they stop with a {@link MergePolicy.MergeAbortedException} once the merge has been aborted.
+     */
+    public void testTempOutputsOfMergeDirectoryAreRateLimited() throws Exception {
+        DeterministicTaskQueue threadPoolTaskQueue = new DeterministicTaskQueue();
+        Settings settings = Settings.builder()
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
+            .build();
+        nodeEnvironment = newNodeEnvironment(settings);
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorServiceTests
+            .getThreadPoolMergeExecutorService(threadPoolTaskQueue.getThreadPool(), settings, nodeEnvironment);
+        try (
+            Directory directory = newDirectory();
+            ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+                new ShardId("index", "_na_", 1),
+                IndexSettingsModule.newIndexSettings("index", Settings.EMPTY),
+                threadPoolMergeExecutorService,
+                merge -> 0,
+                MergeMetrics.NOOP
+            )
+        ) {
+            MergeSource mergeSource = mock(MergeSource.class);
+            OneMerge oneMerge = mockSizeTrackingMerge();
+            MergePolicy.OneMergeProgress mergeProgress = new MergePolicy.OneMergeProgress();
+            when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+            when(oneMerge.getMergeProgress()).thenReturn(mergeProgress);
+            when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
+            AtomicReference<Exception> tempOutputFailure = new AtomicReference<>();
+            doAnswer(invocation -> {
+                OneMerge merge = (OneMerge) invocation.getArguments()[0];
+                Directory mergeDirectory = threadPoolMergeScheduler.wrapForMerge(merge, directory);
+                mergeProgress.abort();
+                try (IndexOutput tempOutput = mergeDirectory.createTempOutput("prefix", "suffix", IOContext.DEFAULT)) {
+                    // the rate limiter only checks if the merge is aborted once enough bytes were written
+                    int length = 2 * 1024 * 1024;
+                    tempOutput.writeBytes(new byte[length], length);
+                } catch (Exception e) {
+                    tempOutputFailure.set(e);
+                }
+                return null;
+            }).when(mergeSource).merge(any(OneMerge.class));
+            threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+
+            threadPoolTaskQueue.runAllTasks();
+            assertThat(tempOutputFailure.get(), instanceOf(MergePolicy.MergeAbortedException.class));
         }
         assertTrue(threadPoolMergeExecutorService.allDone());
     }

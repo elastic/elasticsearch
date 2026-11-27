@@ -172,13 +172,18 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     }
 
     /** The circuit break of the values held while an array is read, not that of the reservation made before. */
-    private static final MapMatcher HELD_VALUES_BREAK = matchesMap().entry("status", 429)
-        .entry(
-            "error",
-            matchesMap().extraOk()
-                .entry("type", "circuit_breaking_exception")
-                .entry("reason", containsString("[unmapped fields held values]"))
-        );
+    private static final MapMatcher HELD_VALUES_BREAK = circuitBreakOn("unmapped fields held values");
+
+    /** The circuit break of the JSON that the read builds, not that of the reservation made before or of the values it holds. */
+    private static final MapMatcher WRITTEN_JSON_BREAK = circuitBreakOn("unmapped fields written json");
+
+    private static MapMatcher circuitBreakOn(String label) {
+        return matchesMap().entry("status", 429)
+            .entry(
+                "error",
+                matchesMap().extraOk().entry("type", "circuit_breaking_exception").entry("reason", containsString("[" + label + "]"))
+            );
+    }
 
     /**
      * Index:
@@ -221,6 +226,40 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         String index = "load_all_two_spellings";
         indexDocumentWithArrays(index, scaleToHeap(3_000_000), true);
         assertCircuitBreaks(attempt -> loadAllOneRow(index), HELD_VALUES_BREAK);
+    }
+
+    /**
+     * Index:
+     * <ul>
+     *     <li>One document with a key of 10,000 characters above 100,000 short numbers, indexed as CBOR: under a megabyte of
+     *     {@code _source}</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>{@code LOAD_ALL} over every document</li>
+     * </ul>
+     * Expected: circuit break while the JSON of {@code _unmapped_fields} is built
+     * <p>
+     * That JSON spells each leaf as its full path, so it takes the number of leaves times the length of the key above them: about a
+     * gigabyte here, whatever the size of {@code _source}. It is built in a buffer that the reservation of 10 times the size of
+     * {@code _source} cannot cover, and that once killed the node. The document is indexed with {@code dynamic: false}, which keeps the
+     * limits on the number and the length of field names from rejecting it.
+     */
+    public void testLongKeyAboveManyLeavesCircuitBreaksWhileTheJsonIsBuilt() throws IOException {
+        String index = "load_all_long_key";
+        createMostlyUnmappedIndex(index);
+        int leaves = scaleToHeap(100_000);
+        try (XContentBuilder doc = XContentFactory.cborBuilder()) {
+            doc.startObject().field(MAPPED_FIELD, "0");
+            doc.startObject("p".repeat(10_000));
+            for (int leaf = 0; leaf < leaves; leaf++) {
+                doc.field("k" + leaf, 0);
+            }
+            doc.endObject().endObject();
+            indexCborDocument(index, doc);
+        }
+        initIndex(index, "");
+        assertCircuitBreaks(attempt -> loadAllOneRow(index), WRITTEN_JSON_BREAK);
     }
 
     /** One document with the array {@code a} of {@code elements} one-character strings, or two arrays that are the field {@code a.b}. */

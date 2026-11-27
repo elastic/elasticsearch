@@ -14,15 +14,32 @@ setup:
         such a shard returns when it is not read.
 
   # Indexed under dynamic:false, so "extra" stays in _source only. The mapping is tightened afterwards.
+  #
+  # Replaying the first document against the tightened mapping fails the shard, a workaround for
+  # https://github.com/elastic/elasticsearch/issues/167063 (to be removed when that is fixed). The steps below avoid that
+  # replay: the health wait lets an already-initializing copy finish, the flush lets a file-based recovery read the
+  # committed document rather than replay it (an operations-only recovery could still replay), and rebalancing is
+  # disabled. The replicas are left as they are, since Serverless needs a copy to search.
   - do:
       indices.create:
         index: unmapped-history
         body:
+          settings:
+            index.routing.rebalance.enable: none
           mappings:
             dynamic: false
             properties:
               id:
                 type: keyword
+  # Let a replica that is already initializing finish before the first document, so that it receives the document live and is not
+  # built by recovery after the mapping is tightened. An unassigned replica is not waited for, so this is not a guarantee: the
+  # flush below covers a copy built later. Not waiting for green: on a single node the replica stays unassigned.
+  - do:
+      cluster.health:
+        index: unmapped-history
+        wait_for_status: yellow
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
   - do:
       index:
         index: unmapped-history
@@ -31,6 +48,11 @@ setup:
         body:
           id: "1"
           extra: "kept"
+  # Commit the document, so that a copy built by recovery after the mapping is tightened does not replay it.
+  - do:
+      indices.flush:
+        index: unmapped-history
+        force: true
   - do:
       indices.put_mapping:
         index: unmapped-history
@@ -85,10 +107,18 @@ setup:
           f2: 2
 
   # "note" is a runtime field while the document is indexed, so no field holds its value once it is removed.
+  #
+  # Replaying the first document after "note" is removed fails the shard, a workaround for
+  # https://github.com/elastic/elasticsearch/issues/167063 (to be removed when that is fixed). As for unmapped-history, the
+  # health wait lets an already-initializing copy finish, the flush lets a file-based recovery read the committed document
+  # rather than replay it (an operations-only recovery could still replay), and rebalancing is disabled. The replicas are
+  # left as they are.
   - do:
       indices.create:
         index: unmapped-runtime
         body:
+          settings:
+            index.routing.rebalance.enable: none
           mappings:
             dynamic: strict
             properties:
@@ -98,6 +128,12 @@ setup:
               note:
                 type: keyword
   - do:
+      cluster.health:
+        index: unmapped-runtime
+        wait_for_status: yellow
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+  - do:
       index:
         index: unmapped-runtime
         id: "1"
@@ -105,6 +141,10 @@ setup:
         body:
           id: "1"
           note: "hello"
+  - do:
+      indices.flush:
+        index: unmapped-runtime
+        force: true
   - do:
       indices.put_mapping:
         index: unmapped-runtime

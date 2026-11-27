@@ -1333,6 +1333,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * A stream of {@code streamSize} random longs from min..max (inclusive), as drawn by {@link #randomLongBetween}.
+     */
+    public static LongStream randomLongsBetween(long streamSize, long min, long max) {
+        return LongStream.generate(() -> randomLongBetween(min, max)).limit(streamSize);
+    }
+
+    /**
      * Returns a random BigInteger uniformly distributed over the range 0 to (2^64 - 1) inclusive
      * Currently BigIntegers are only used for unsigned_long field type, where the max value is 2^64 - 1.
      * Modify this random generator if a wider range for BigIntegers is necessary.
@@ -1804,6 +1811,16 @@ public abstract class ESTestCase extends LuceneTestCase {
             randomValue = randomSupplier.get();
         } while (input.test(randomValue));
         return randomValue;
+    }
+
+    /**
+     * Keeps the current thread running for at least {@code nanos}, so the time charged for it is never zero.
+     */
+    public static void spin(long nanos) {
+        long start = System.nanoTime();
+        while (System.nanoTime() - start < nanos) {
+            Thread.onSpinWait();
+        }
     }
 
     /**

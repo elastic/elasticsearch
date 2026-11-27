@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 167003
+pr: 167047
+summary: Add ES|QL query duration and count metrics by time range filter age and source command
+type: enhancement

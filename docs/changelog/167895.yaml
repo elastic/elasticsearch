@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167895
+summary: "ESQL:DS: Keep a bounded listing bounded when its sample comes back empty"
+type: enhancement

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.SimulatedShardStarter;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.ShardAllocationExplainer;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -45,6 +46,9 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -82,7 +86,36 @@ public class DesiredBalanceComputer {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The most relocations that a single call to the delegate allocator may make in the simulation. The simulation starts every shard as
+     * soon as the allocator initializes it, so the allocator carries on to the next decision within the same call, and a long drain takes
+     * far fewer iterations. A limit bounds the time between the computer's checks that its result is still wanted, but every call has
+     * to look again at the shards that cannot move yet, so a low limit makes a long drain slower overall. Unlimited by default.
+     */
+    public static final Setting<Integer> MAX_MOVES_PER_ITERATION_SETTING = Setting.intSetting(
+        "cluster.routing.allocation.desired_balance.max_moves_per_iteration",
+        Integer.MAX_VALUE,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * How long a single call to the delegate allocator may keep making relocations in the simulation, checked after each relocation, so
+     * a call can overrun it by the time one relocation and the pass it is in take. {@code -1} (the default) means unlimited. Like
+     * {@link #MAX_MOVES_PER_ITERATION_SETTING}, it bounds the time between the computer's checks that its result is still wanted.
+     */
+    public static final Setting<TimeValue> MAX_TIME_PER_ITERATION_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.desired_balance.max_time_per_iteration",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private TimeValue progressLogInterval;
+    private volatile int maxMovesPerIteration;
+    private volatile long maxTimePerIterationMillis;
     private long maxBalanceComputationTimeDuringIndexCreationMillis;
     private long numComputeCallsSinceLastConverged;
     private long numIterationsSinceLastConverged;
@@ -111,6 +144,8 @@ public class DesiredBalanceComputer {
         this.lastComputeRunConverged = true;
         this.convergenceLogMsgLevel = Level.DEBUG;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
+        clusterSettings.initializeAndWatch(MAX_MOVES_PER_ITERATION_SETTING, value -> this.maxMovesPerIteration = value);
+        clusterSettings.initializeAndWatch(MAX_TIME_PER_ITERATION_SETTING, value -> this.maxTimePerIterationMillis = value.millis());
         clusterSettings.initializeAndWatch(
             MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
             value -> this.maxBalanceComputationTimeDuringIndexCreationMillis = value.millis()
@@ -147,6 +182,37 @@ public class DesiredBalanceComputer {
         final var changes = routingAllocation.changes();
         final var ignoredShards = getIgnoredShardsWithDiscardedAllocationStatus(desiredBalanceInput.ignoredShards());
         final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation);
+        // Every shard the allocator initializes is started at once, so that its simulated effect is there for the next decision.
+        final var startedInline = new AtomicInteger();
+        final var newlyCreatedShardStartedInline = new AtomicBoolean(false);
+        final var relocationsThisIteration = new AtomicInteger();
+        final var iterationStartedMillis = new AtomicLong();
+        final int movesPerIteration = maxMovesPerIteration;
+        final long timePerIterationMillis = maxTimePerIterationMillis;
+        routingAllocation.setSimulatedShardStarter(new SimulatedShardStarter() {
+            @Override
+            public boolean shouldContinue() {
+                return relocationsThisIteration.get() < movesPerIteration
+                    && (timePerIterationMillis < 0
+                        || timeProvider.relativeTimeInMillis() - iterationStartedMillis.get() < timePerIterationMillis);
+            }
+
+            @Override
+            public ShardRouting startShard(ShardRouting initializingShard) {
+                if (initializingShard.unassignedInfo() != null
+                    && initializingShard.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED) {
+                    newlyCreatedShardStartedInline.set(true);
+                }
+                if (initializingShard.relocatingNodeId() != null) {
+                    relocationsThisIteration.incrementAndGet();
+                }
+                clusterInfoSimulator.simulateShardStarted(initializingShard);
+                final var started = routingNodes.startShard(initializingShard, changes, 0L);
+                routingAllocation.setSimulatedClusterInfo(clusterInfoSimulator.getClusterInfo());
+                startedInline.incrementAndGet();
+                return started;
+            }
+        });
         DesiredBalance.ComputationFinishReason finishReason = DesiredBalance.ComputationFinishReason.CONVERGED;
 
         if (routingNodes.size() == 0) {
@@ -374,6 +440,10 @@ public class DesiredBalanceComputer {
 
             routingAllocation.setSimulatedClusterInfo(clusterInfoSimulator.getClusterInfo());
             logger.trace("running delegate allocator");
+            relocationsThisIteration.set(0);
+            if (timePerIterationMillis >= 0) {
+                iterationStartedMillis.set(timeProvider.relativeTimeInMillis());
+            }
             delegateAllocator.allocate(routingAllocation);
             assert routingNodes.unassigned().isEmpty(); // any unassigned shards should now be ignored
 
@@ -393,6 +463,14 @@ public class DesiredBalanceComputer {
                         routingNodes.startShard(shardRouting, changes, 0L);
                     }
                 }
+            }
+
+            // Shards started inline are no longer initializing, but they are changes all the same.
+            if (startedInline.getAndSet(0) > 0) {
+                hasChanges = true;
+            }
+            if (newlyCreatedShardStartedInline.getAndSet(false)) {
+                assignedNewlyCreatedPrimaryOrReplicaShards = true;
             }
 
             i += 1;

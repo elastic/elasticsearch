@@ -79,6 +79,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -112,8 +113,10 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -625,6 +628,208 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         );
 
         assertDesiredAssignments(desiredBalance, Map.of());
+    }
+
+    /**
+     * The simulation starts every shard as soon as the allocator initializes it, so the allocator makes many moves in a call. However many
+     * it makes before it is stopped, a drain must end with the drained node empty, every shard assigned, and the rest evenly balanced.
+     */
+    public void testDrainWithSeveralMovesPerIteration() {
+        final int dataNodes = between(3, 6);
+        final int shards = between(20, 100);
+        final var input = drainInput(dataNodes, shards);
+
+        final var allocateCalls = new AtomicInteger();
+        final int callsWithOneMove;
+        {
+            assertDrained(computeWithMovesPerIteration(input, 1, allocateCalls), shards, dataNodes);
+            callsWithOneMove = allocateCalls.getAndSet(0);
+        }
+        assertDrained(computeWithMovesPerIteration(input, between(2, 200), allocateCalls), shards, dataNodes);
+        // the shards on node-0 are drained in batches
+        assertThat(allocateCalls.get(), lessThan(callsWithOneMove));
+    }
+
+    /**
+     * A time limit per call makes the allocator stop and be called again, as a limit on moves does, and the drain still ends the same way.
+     */
+    public void testDrainWithTimeLimitPerIteration() {
+        final int dataNodes = between(3, 6);
+        final int shards = between(20, 100);
+        final var input = drainInput(dataNodes, shards);
+
+        final var allocateCalls = new AtomicInteger();
+        assertDrained(computeDrain(input, Settings.EMPTY, TimeProviderUtils.create(() -> 0L), allocateCalls), shards, dataNodes);
+        final int callsWithoutLimit = allocateCalls.getAndSet(0);
+
+        // every reading of the clock advances it by a millisecond
+        final var clock = new AtomicLong();
+        final var settings = Settings.builder()
+            .put(DesiredBalanceComputer.MAX_TIME_PER_ITERATION_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 10)))
+            .build();
+        assertDrained(computeDrain(input, settings, TimeProviderUtils.create(clock::incrementAndGet), allocateCalls), shards, dataNodes);
+        assertThat(allocateCalls.get(), greaterThan(callsWithoutLimit));
+    }
+
+    /**
+     * Not-preferred shards are moved one per node in a pass, each decided again after the previous move, and the drain still ends with
+     * the node empty and every shard assigned.
+     */
+    public void testNotPreferredDrainWithSeveralMovesPerIteration() {
+        final int dataNodes = between(3, 6);
+        final int shards = between(20, 100);
+        final var input = drainInput(dataNodes, shards, Decision.NOT_PREFERRED);
+
+        final var desiredBalance = computeWithMovesPerIteration(input, between(1, 50), new AtomicInteger());
+        assertThat(desiredBalance.assignments().size(), equalTo(shards));
+        for (var assignment : desiredBalance.assignments().values()) {
+            assertThat(assignment.unassigned(), equalTo(0));
+            assertThat(assignment.nodeIds().contains("node-0"), equalTo(false));
+        }
+    }
+
+    /** Everything starts on node-0 or node-1, and node-0 is then drained. */
+    private static DesiredBalanceInput drainInput(int dataNodes, int shards) {
+        return drainInput(dataNodes, shards, Decision.NO);
+    }
+
+    private static DesiredBalanceInput drainInput(int dataNodes, int shards, Decision canRemainOnDrainedNode) {
+        var clusterState = createInitialClusterState(dataNodes, shards, 0);
+
+        final var changes = new RoutingChangesObserver.DelegatingRoutingChangesObserver();
+        final var routingNodes = clusterState.mutableRoutingNodes();
+        for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
+            iterator.next();
+            routingNodes.startShard(iterator.initialize(randomFrom("node-0", "node-1"), null, 0L, changes), changes, 0L);
+        }
+        clusterState = rebuildRoutingTable(clusterState, routingNodes);
+
+        return DesiredBalanceInput.create(
+            randomInt(),
+            TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(new AllocationDecider() {
+                @Override
+                public Decision canRemain(
+                    IndexMetadata indexMetadata,
+                    ShardRouting shardRouting,
+                    RoutingNode node,
+                    RoutingAllocation allocation
+                ) {
+                    return node.nodeId().equals("node-0") ? canRemainOnDrainedNode : Decision.YES;
+                }
+
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return node.nodeId().equals("node-0") ? Decision.NO : Decision.YES;
+                }
+            }).build()
+        );
+    }
+
+    private static void assertDrained(DesiredBalance desiredBalance, int shards, int dataNodes) {
+        assertThat(desiredBalance.assignments().size(), equalTo(shards));
+        final var shardsPerNode = new HashMap<String, Integer>();
+        for (var assignment : desiredBalance.assignments().values()) {
+            assertThat(assignment.unassigned(), equalTo(0));
+            for (var nodeId : assignment.nodeIds()) {
+                shardsPerNode.merge(nodeId, 1, Integer::sum);
+            }
+        }
+        assertThat(shardsPerNode.containsKey("node-0"), equalTo(false));
+        assertThat(shardsPerNode.size(), equalTo(dataNodes - 1));
+        final var counts = shardsPerNode.values();
+        assertThat(Collections.max(counts) - Collections.min(counts), lessThanOrEqualTo(1));
+    }
+
+    /**
+     * A shard that cannot be allocated, and becomes allocatable because of a move made part-way through a batch, is allocated once the batch
+     * ends rather than between the moves. The desired balance is then not necessarily the one a single move per iteration gives, but it is
+     * complete and still has nothing left on the drained node.
+     */
+    public void testShardsMadeAllocatableDuringABatchAreAllocatedAfterIt() {
+        final int shards = between(20, 60);
+        var clusterState = createInitialClusterState(between(3, 6), shards, 1);
+
+        final var changes = new RoutingChangesObserver.DelegatingRoutingChangesObserver();
+        final var routingNodes = clusterState.mutableRoutingNodes();
+        for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
+            final var shardRouting = iterator.next();
+            if (shardRouting.primary()) {
+                routingNodes.startShard(iterator.initialize(randomFrom("node-0", "node-1"), null, 0L, changes), changes, 0L);
+            }
+        }
+        clusterState = rebuildRoutingTable(clusterState, routingNodes);
+
+        final var input = DesiredBalanceInput.create(
+            randomInt(),
+            TestRoutingAllocationFactory.forClusterState(clusterState)
+                .allocationDeciders(new SameShardAllocationDecider(createBuiltInClusterSettings()), new AllocationDecider() {
+                    @Override
+                    public Decision canRemain(
+                        IndexMetadata indexMetadata,
+                        ShardRouting shardRouting,
+                        RoutingNode node,
+                        RoutingAllocation allocation
+                    ) {
+                        return node.nodeId().equals("node-0") ? Decision.NO : Decision.YES;
+                    }
+
+                    @Override
+                    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                        if (node.nodeId().equals("node-0")) {
+                            return Decision.NO;
+                        }
+                        // replicas have to wait until node-0 is half drained
+                        return shardRouting.primary() || allocation.routingNodes().node("node-0").size() <= shards / 4
+                            ? Decision.YES
+                            : Decision.NO;
+                    }
+                })
+                .build()
+        );
+
+        for (int movesPerIteration : new int[] { 1, between(2, 200) }) {
+            final var desiredBalance = computeWithMovesPerIteration(input, movesPerIteration, new AtomicInteger());
+            assertThat(desiredBalance.assignments().size(), equalTo(shards));
+            for (var assignment : desiredBalance.assignments().values()) {
+                assertThat(assignment.nodeIds().contains("node-0"), equalTo(false));
+                assertThat(assignment.unassigned(), equalTo(0));
+                assertThat(assignment.nodeIds().size(), equalTo(2));
+            }
+        }
+    }
+
+    private static DesiredBalance computeWithMovesPerIteration(
+        DesiredBalanceInput input,
+        int movesPerIteration,
+        AtomicInteger allocateCalls
+    ) {
+        return computeDrain(
+            input,
+            Settings.builder().put(DesiredBalanceComputer.MAX_MOVES_PER_ITERATION_SETTING.getKey(), movesPerIteration).build(),
+            TimeProviderUtils.create(() -> 0L),
+            allocateCalls
+        );
+    }
+
+    private static DesiredBalance computeDrain(
+        DesiredBalanceInput input,
+        Settings settings,
+        TimeProvider timeProvider,
+        AtomicInteger allocateCalls
+    ) {
+        final var allocator = new BalancedShardsAllocator(settings);
+        return new DesiredBalanceComputer(createBuiltInClusterSettings(settings), timeProvider, new ShardsAllocator() {
+            @Override
+            public void allocate(RoutingAllocation allocation) {
+                allocateCalls.incrementAndGet();
+                allocator.allocate(allocation);
+            }
+
+            @Override
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        }, TEST_ONLY_EXPLAINER).compute(DesiredBalance.BECOME_MASTER_INITIAL, input, new LinkedList<>(), ignore -> true);
     }
 
     public void testAppliesMoveCommands() {
@@ -2073,7 +2278,10 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             new ShardAssignment(Set.of("node-0", "node-1", "node-2", "node-3"), 4, 0, 0)
         );
 
-        /* The first computation round should have returned early after assigning the primary shards only, leaving replicas unassigned. */
+        /*
+         * The first computation round should have returned early after the new shards were assigned. The primaries are started as soon as
+         * they are assigned, so their replicas are assigned in the same round.
+         */
         var desiredBalance = desiredBalanceComputer.compute(
             DesiredBalance.BECOME_MASTER_INITIAL,
             new DesiredBalanceInput(randomInt(), routingAllocation, List.of()),
@@ -2081,27 +2289,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             input -> true
         );
         assertThat(desiredBalance.finishReason(), equalTo(DesiredBalance.ComputationFinishReason.STOP_EARLY));
-        // The target nodes for primary assignments are not known, so shall only assert that the primaries were assigned.
-        assertThat(desiredBalance.assignments().get(new ShardId(index, 0)).assigned(), equalTo(1));
-        assertThat(desiredBalance.assignments().get(new ShardId(index, 0)).unassigned(), equalTo(3));
-        assertThat(desiredBalance.assignments().get(new ShardId(index, 1)).assigned(), equalTo(1));
-        assertThat(desiredBalance.assignments().get(new ShardId(index, 1)).unassigned(), equalTo(3));
-        assertThat(desiredBalance.assignments().get(new ShardId(index, 2)).assigned(), equalTo(1));
-        assertThat(desiredBalance.assignments().get(new ShardId(index, 2)).unassigned(), equalTo(3));
-        assertThat(desiredBalance.assignments().get(new ShardId(index, 3)).assigned(), equalTo(1));
-        assertThat(desiredBalance.assignments().get(new ShardId(index, 3)).unassigned(), equalTo(3));
-
-        /* The second computation round should also have returned early after assigning the replica shards. */
-        desiredBalance = desiredBalanceComputer.compute(
-            desiredBalance,
-            new DesiredBalanceInput(randomInt(), routingAllocation, List.of()),
-            queue(),
-            input -> true
-        );
-        assertThat(desiredBalance.finishReason(), equalTo(DesiredBalance.ComputationFinishReason.STOP_EARLY));
         assertDesiredAssignments(desiredBalance, finalExpectedAssignments);
 
-        /* The third computation round should do nothing, since there are no more shards, but should report finished (converged). */
+        /* The second computation round should do nothing, since there are no more shards, but should report finished (converged). */
         desiredBalance = desiredBalanceComputer.compute(
             desiredBalance,
             new DesiredBalanceInput(randomInt(), routingAllocation, List.of()),

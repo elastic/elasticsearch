@@ -41,6 +41,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.MockLog.assertThatLogger;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -124,23 +126,23 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 .allocationDeciders(allocationDecider)
                 .mutable();
             assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
-            // A shard on the nominated node should have been moved (we stop after 1 move by default)
-            assertEquals(1, allocation.routingNodes().getRelocatingShardCount());
+            // Shards on the nominated node should have been moved
             final var relocatingShardsOnNominatedNode = allocation.routingNodes()
                 .node(nodeToMoveShardOff.getId())
                 .shardsWithState(ShardRoutingState.RELOCATING)
                 .toList();
-            assertEquals(1, relocatingShardsOnNominatedNode.size());
-            final var relocatingShard = relocatingShardsOnNominatedNode.getFirst();
-            // It should be moved to a node returning a valid weight, if there are any
+            assertThat(relocatingShardsOnNominatedNode, not(empty()));
+            // They should be moved to nodes returning a valid weight, if there are any
             final boolean allOtherNodesAreReturningInvalidWeights = Sets.difference(
                 balancingWeightsFactory.nodeIdsReturningInvalidWeights(),
                 Set.of(nodeToMoveShardOff.getId())
             ).size() + 1 == numberOfNodes;
-            assertTrue(
-                balancingWeightsFactory.nodeIsReturningInvalidWeights(relocatingShard.relocatingNodeId()) == false
-                    || allOtherNodesAreReturningInvalidWeights
-            );
+            for (var relocatingShard : relocatingShardsOnNominatedNode) {
+                assertTrue(
+                    balancingWeightsFactory.nodeIsReturningInvalidWeights(relocatingShard.relocatingNodeId()) == false
+                        || allOtherNodesAreReturningInvalidWeights
+                );
+            }
         }
     }
 

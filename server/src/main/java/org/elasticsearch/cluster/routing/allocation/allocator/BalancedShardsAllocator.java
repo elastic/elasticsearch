@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.SimulatedShardStarter;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -171,12 +172,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public void allocate(RoutingAllocation allocation) {
-        assert allocation.isSimulating() == false || balancerSettings.completeEarlyOnShardAssignmentChange()
-            : "inconsistent states: isSimulating ["
-                + allocation.isSimulating()
-                + "] vs completeEarlyOnShardAssignmentChange ["
-                + balancerSettings.completeEarlyOnShardAssignmentChange()
-                + "]";
         if (allocation.metadata().hasAnyIndices()) {
             // must not use licensed features when just starting up
             writeLoadForecaster.refreshLicense();
@@ -197,7 +192,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             writeLoadForecaster,
             allocation,
             balancingWeights,
-            balancerSettings.completeEarlyOnShardAssignmentChange(),
             logInvalidWeights,
             balancedShardsAllocatorMetrics
         );
@@ -205,16 +199,24 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         boolean shardAssigned = false, shardMoved = false, shardBalanced = false;
         try {
             shardAssigned = balancer.allocateUnassigned();
-            if (shardAssigned && balancerSettings.completeEarlyOnShardAssignmentChange()) {
-                return;
+            if (balancer.startsShardsInline()) {
+                // Each pass makes the changes of the highest-priority kind that has any, and the next pass starts again from the top so
+                // that its decisions take account of them: moves of shards that cannot remain, then one move of a not-preferred shard,
+                // then one rebalancing move. The simulation has started every change, so the next pass can follow in the same call,
+                // until the simulation says to stop or nothing more can be changed.
+                while (balancer.hasStopped() == false) {
+                    if (balancer.moveShards()) {
+                        shardMoved = true;
+                    } else if (balancer.balance()) {
+                        shardBalanced = true;
+                    } else {
+                        break;
+                    }
+                }
+            } else {
+                shardMoved = balancer.moveShards();
+                shardBalanced = balancer.balance();
             }
-
-            shardMoved = balancer.moveShards();
-            if (shardMoved && balancerSettings.completeEarlyOnShardAssignmentChange()) {
-                return;
-            }
-
-            shardBalanced = balancer.balance();
         } finally {
             if (logger.isDebugEnabled()) {
                 logger.debug(
@@ -227,7 +229,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     allocation.routingNodes().getRelocatingShardCount()
                 );
             }
-            assert assertShardAssignmentChanges(allocation, shardAssigned, shardMoved, shardBalanced);
+            assert assertShardAssignmentChanges(allocation, shardAssigned, shardMoved, shardBalanced, balancer.inlineMoves() > 0);
             // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
             collectAndRecordNodeWeightStats(balancer, balancingWeights, allocation);
         }
@@ -237,16 +239,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         RoutingAllocation allocation,
         boolean shardAssigned,
         boolean shardMoved,
-        boolean shardBalanced
+        boolean shardBalanced,
+        boolean movesStartedInline
     ) {
         if (allocation.isSimulating() == false) {
             return true;
         }
-        assert shardAssigned == false || allocation.routingNodes().hasInactiveShards()
+        assert shardAssigned == false || allocation.routingNodes().hasInactiveShards() || movesStartedInline
             : "expect initializing shard, but got " + allocation.routingNodes();
 
-        assert (shardMoved == false && shardBalanced == false) || allocation.routingNodes().getRelocatingShardCount() > 0
-            : "expect relocating shard, but got " + allocation.routingNodes();
+        assert (shardMoved == false && shardBalanced == false)
+            || allocation.routingNodes().getRelocatingShardCount() > 0
+            || movesStartedInline : "expect relocating shard, but got " + allocation.routingNodes();
         return true;
     }
 
@@ -277,7 +281,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             writeLoadForecaster,
             allocation,
             balancingWeightsFactory.create(),
-            balancerSettings.completeEarlyOnShardAssignmentChange(),
             logInvalidWeights,
             balancedShardsAllocatorMetrics
         );
@@ -309,7 +312,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             writeLoadForecaster,
             allocation,
             balancingWeightsFactory.create(),
-            balancerSettings.completeEarlyOnShardAssignmentChange(),
             logInvalidWeights,
             balancedShardsAllocatorMetrics
         );
@@ -365,7 +367,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Map<String, ModelNode> nodes;
         private final BalancingWeights balancingWeights;
         private final NodeSorters nodeSorters;
-        private final boolean completeEarlyOnShardAssignmentChange;
+        private int inlineMoves = 0;
+        /**
+         * Starts every shard as soon as it is initialized, in a simulation. Otherwise a change is left in flight until the allocator
+         * returns, so no decision can follow a change in the same pass.
+         */
+        @Nullable
+        private final SimulatedShardStarter shardStarter;
+        /** Set once the simulation has said that no more relocations should be made in this call. */
+        private boolean stopped = false;
         private final FrequencyCappedAction logInvalidWeights;
         private final BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics;
 
@@ -373,7 +383,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
             BalancingWeights balancingWeights,
-            boolean completeEarlyOnShardAssignmentChange,
             FrequencyCappedAction logInvalidWeights,
             BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics
         ) {
@@ -389,7 +398,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             nodes = Collections.unmodifiableMap(buildModelFromAssigned(balancingWeights.diskUsageIgnored()));
             this.nodeSorters = balancingWeights.createNodeSorters(nodesArray(), this);
             this.balancingWeights = balancingWeights;
-            this.completeEarlyOnShardAssignmentChange = completeEarlyOnShardAssignmentChange;
+            this.shardStarter = allocation.simulatedShardStarter();
             this.logInvalidWeights = logInvalidWeights;
             this.balancedShardsAllocatorMetrics = balancedShardsAllocatorMetrics;
         }
@@ -513,7 +522,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
                 shardBalanced |= balanceByWeights(nodeSorter);
                 // TODO: We could choose to account shardBalanced separately for each partition since they do not overlap.
-                if (shardBalanced && completeEarlyOnShardAssignmentChange) {
+                if (shardBalanced && startsShardsInline()) {
                     return true;
                 }
             }
@@ -788,21 +797,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             lowIdx = 0;
                             highIdx = sorter.validSortedCount() - 1;
 
-                            assert allocation.isSimulating() == false || routingNodes.getRelocatingShardCount() == 1
-                                : "unexpected relocation shard count ["
-                                    + routingNodes.getRelocatingShardCount()
-                                    + "] when balancing index ["
-                                    + index
-                                    + "], isSimulating=["
-                                    + allocation.isSimulating()
-                                    + "], earlyReturn=["
-                                    + completeEarlyOnShardAssignmentChange
-                                    + "]";
-
-                            if (routingNodes.getRelocatingShardCount() > 0) {
+                            if (routingNodes.getRelocatingShardCount() > 0 || inlineMoves > 0) {
                                 shardBalanced = true;
                             }
-                            if (completeEarlyOnShardAssignmentChange && shardBalanced) {
+                            if (shardBalanced && startsShardsInline()) {
                                 return true;
                             }
                             continue;
@@ -887,6 +885,31 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return indices;
         }
 
+        /** The number of moves that a simulation started as soon as they were made, so are not in flight. */
+        int inlineMoves() {
+            return inlineMoves;
+        }
+
+        private boolean outOfMoves() {
+            return stopped;
+        }
+
+        /** Whether the simulation has said that no more relocations should be made in this call. */
+        boolean hasStopped() {
+            return stopped;
+        }
+
+        boolean startsShardsInline() {
+            return shardStarter != null;
+        }
+
+        /** Asks the simulation, after a relocation, whether to go on. */
+        private void afterRelocation() {
+            if (shardStarter != null && shardStarter.shouldContinue() == false) {
+                stopped = true;
+            }
+        }
+
         /**
          * Move started shards that cannot be allocated to a node anymore, or are in a non-preferred allocation
          *
@@ -898,19 +921,31 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * {@link ShardRoutingState#INITIALIZING}.
          */
         public boolean moveShards() {
-            final var shardMoved = new AtomicBoolean(false);
-            final var bestNonPreferredShardMovementsTracker = new BestShardMovementsTracker();
+            var bestNonPreferredShardMovementsTracker = new BestShardMovementsTracker();
 
-            iterateNodesAndMoveCannotRemain(shardMoved, bestNonPreferredShardMovementsTracker);
-            if (shardMoved.get() && completeEarlyOnShardAssignmentChange) {
-                return true;
+            boolean shardMovedInLastPass = iterateNodesAndMoveCannotRemain(bestNonPreferredShardMovementsTracker);
+            boolean anyShardMoved = shardMovedInLastPass;
+            if (startsShardsInline()) {
+                // The moves are already started, so go on with new passes, each deciding from the state the last one left, until a pass
+                // moves nothing or the simulation says to stop.
+                while (shardMovedInLastPass && hasStopped() == false) {
+                    bestNonPreferredShardMovementsTracker = new BestShardMovementsTracker();
+                    shardMovedInLastPass = iterateNodesAndMoveCannotRemain(bestNonPreferredShardMovementsTracker);
+                    anyShardMoved |= shardMovedInLastPass;
+                }
+                if (hasStopped()) {
+                    return anyShardMoved;
+                }
+                // Not-preferred shards are only moved once nothing has to move, so these candidates come from a pass that moved nothing.
             }
+            // The candidates are out of date once anything has moved since they were collected.
+            boolean candidatesOutOfDate = shardMovedInLastPass;
 
-            // Attempt to move one of the best not-preferred shards if any were identified.
+            // Attempt to move the best not-preferred shards if any were identified.
             for (var storedShardMovement : bestNonPreferredShardMovementsTracker.getBestShardMovements()) {
                 final var shardRouting = storedShardMovement.shardRouting();
                 final var index = projectIndex(shardRouting);
-                final var moveDecision = refreshDecisionIfRequired(index, storedShardMovement, shardMoved.get());
+                final var moveDecision = refreshDecisionIfRequired(index, storedShardMovement, candidatesOutOfDate);
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     if (notPreferredLogger.isDebugEnabled()) {
                         notPreferredLogger.debug(
@@ -922,14 +957,19 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         );
                     }
                     executeMove(shardRouting, index, moveDecision, MoveType.NOT_PREFERRED);
-                    // Return after a single move so that the change can be simulated before further moves are made.
-                    return true;
+                    if (startsShardsInline() == false || hasStopped()) {
+                        // Return after a single move so that the change can be simulated before further moves are made.
+                        return true;
+                    }
+                    // The move is already simulated, so go on to the next candidate, which is decided again now that a shard has moved.
+                    anyShardMoved = true;
+                    candidatesOutOfDate = true;
                 } else {
                     logger.trace("[{}][{}] can no longer move (not-preferred)", shardRouting.index(), shardRouting.id());
                 }
             }
 
-            return shardMoved.get();
+            return anyShardMoved;
         }
 
         /// Iterate over all the nodes and move any shards where `canRemain` returns `NO`, and accumulate the best
@@ -938,12 +978,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         /// Executes in two passes, the first pass will execute moves where `canAllocate` returns `YES`, the
         /// second pass will move any remaining shards where `canAllocate` returns `NOT_PREFERRED`.
         ///
-        /// @param shardMoved An atomic boolean that is set to true if a move was made
         /// @param bestNonPreferredShardMovementsTracker The tracker of best canRemain:not-preferred shard movements
-        private void iterateNodesAndMoveCannotRemain(
-            AtomicBoolean shardMoved,
-            BestShardMovementsTracker bestNonPreferredShardMovementsTracker
-        ) {
+        /// @return Whether a move was made
+        private boolean iterateNodesAndMoveCannotRemain(BestShardMovementsTracker bestNonPreferredShardMovementsTracker) {
+            final var shardMoved = new AtomicBoolean(false);
             // Iterate over the started shards interleaving between nodes, and check if they can remain. The goal of this iteration order is
             // to achieve a fairer movement of shards from the nodes that are offloading the shards.
 
@@ -954,8 +992,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 bestNonPreferredShardMovementsTracker,
                 CanAllocateDecisions.YES_ONLY
             );
-            if (shardMoved.get() && completeEarlyOnShardAssignmentChange) {
-                return;
+            if (shardMoved.get() && startsShardsInline()) {
+                // The deferred moves were decided before these moves were made, so a new pass has to decide them again: a shard that
+                // now has a YES target must move there, not to a NOT_PREFERRED one.
+                return true;
             }
 
             // If we deferred any canRemain: NO, canAllocate: NOT_PREFERRED movements, execute them now.
@@ -968,6 +1008,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 );
                 assert secondPassNodesWithUnmadeMoves.isEmpty() : "We shouldn't be deferring any moves on this pass";
             }
+            return shardMoved.get();
         }
 
         /// Moves will be performed if they have a `canAllocate` decision that matches the specified [CanAllocateDecisions].
@@ -1033,7 +1074,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     logger.trace("[{}][{}] can't move: [{}]", shardRouting.index(), shardRouting.id(), moveDecision);
                 }
 
-                if (shardMoved.get() && completeEarlyOnShardAssignmentChange) {
+                if (outOfMoves()) {
                     break;
                 }
             }
@@ -1139,6 +1180,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             );
             final ShardRouting shard = relocatingShards.v2();
             targetNode.addShard(projectIndex(shard), shard);
+            if (shardStarter != null) {
+                final ShardRouting started = shardStarter.startShard(shard);
+                // later lookups in the model must match the started routing, not the initializing one
+                targetNode.replaceShard(projectIndex(shard), shard, started);
+                inlineMoves++;
+            }
+            afterRelocation();
             if (logger.isTraceEnabled()) {
                 logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
             }
@@ -1457,6 +1505,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                         final long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                         shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize, allocation.changes());
+                        if (shardStarter != null) {
+                            shard = shardStarter.startShard(shard);
+                            inlineMoves++;
+                        }
                         shardAssignmentChanged = true;
                         minNode.addShard(index, shard);
                         if (shard.primary() == false) {
@@ -1706,20 +1758,28 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         maxNode.getNodeId(),
                         minNode.getNodeId()
                     );
-                    minNode.addShard(
-                        projectIndex(shard),
-                        canAllocateOrRebalance == Type.YES
-                            /* only allocate on the cluster if we are not throttled */
-                            ? routingNodes.relocateShard(
-                                shard,
-                                minNode.getNodeId(),
-                                shardSize,
-                                MoveReason.REBALANCE,
-                                allocation.changes(),
-                                RecoveryPriority.RELOCATE_REBALANCING
-                            ).v1()
-                            : shard.relocate(minNode.getNodeId(), shardSize, RecoveryPriority.RELOCATE_REBALANCING)
-                    );
+                    final ShardRouting modelShard;
+                    if (canAllocateOrRebalance == Type.YES) {
+                        /* only allocate on the cluster if we are not throttled */
+                        final var relocation = routingNodes.relocateShard(
+                            shard,
+                            minNode.getNodeId(),
+                            shardSize,
+                            MoveReason.REBALANCE,
+                            allocation.changes(),
+                            RecoveryPriority.RELOCATE_REBALANCING
+                        );
+                        if (shardStarter != null) {
+                            modelShard = shardStarter.startShard(relocation.v2());
+                            inlineMoves++;
+                        } else {
+                            modelShard = relocation.v1();
+                        }
+                    } else {
+                        modelShard = shard.relocate(minNode.getNodeId(), shardSize, RecoveryPriority.RELOCATE_REBALANCING);
+                    }
+                    minNode.addShard(projectIndex(shard), modelShard);
+                    afterRelocation();
                     return true;
                 }
             }
@@ -1844,6 +1904,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             numShards++;
         }
 
+        /** Swaps the routing of a shard that has changed state but not node, so the totals are left alone. */
+        public void replaceShard(ProjectIndex projectIndex, ShardRouting oldShard, ShardRouting newShard) {
+            projectIndex.assertMatch(newShard);
+            indices.get(projectIndex).replaceShard(oldShard, newShard);
+        }
+
         public void removeShard(ProjectIndex projectIndex, ShardRouting shard) {
             ModelIndex index = indices.get(projectIndex);
             if (index != null) {
@@ -1918,6 +1984,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             highestPrimary = -1;
             assert shards.contains(shard) == false : "Shard already allocated on current node: " + shard;
             shards.add(shard);
+        }
+
+        public void replaceShard(ShardRouting oldShard, ShardRouting newShard) {
+            removeShard(oldShard);
+            addShard(newShard);
         }
 
         public boolean containsShard(ShardRouting shard) {

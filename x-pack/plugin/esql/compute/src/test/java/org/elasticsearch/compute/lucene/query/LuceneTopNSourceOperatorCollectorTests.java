@@ -7,20 +7,26 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Pruning;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
@@ -30,12 +36,18 @@ import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -115,7 +127,6 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         var collector2 = provider.newPerShardCollector(ctx).collector;
         assertThat(collector1, instanceOf(TopFieldCollector.class));
         assertThat(collector1, not(sameInstance(collector2)));
-        assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(true));
     }
 
     public void testScoreFirstMultiKeySortSharesManager() throws IOException {
@@ -396,7 +407,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
             createCollectorsConcurrently(sharedProvider, ctx);
 
-            // Field-first sorts don't share a manager, so creating collectors leaves nothing behind
+            // Field-first sorts don't share a manager
             assertThat(sharedProvider.topFieldCollectorManagers.isEmpty(), equalTo(true));
         } finally {
             IOUtils.close(operators);
@@ -405,7 +416,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
     /**
      * Shards whose sorts are equal by value, which is what {@code SORT _score DESC, keyword_field} resolves to, share one
-     * manager.
+     * manager, which the collectors of every shard come from.
      */
     public void testShardsWithEqualSortsShareManager() throws IOException {
         setupIndex(100);
@@ -425,7 +436,104 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         for (ShardContext ctx : contexts) {
             assertThat(provider.newPerShardCollector(ctx).collector, notNullValue());
         }
-        assertThat(provider.topFieldCollectorManagers.size(), equalTo(1));
+        // getCollectors() is deprecated, but nothing else shows which manager a collector came from
+        assertThat(provider.topFieldCollectorManagers.values().iterator().next().getCollectors().size(), equalTo(numShards));
+    }
+
+    /**
+     * Runs {@code SORT _score DESC} and {@code SORT _score DESC, s} over several shards with several drivers. Their collectors
+     * share one manager, so each driver skips the documents that score below a top N another driver has already filled,
+     * possibly on another shard. The best {@code limit} rows the drivers emit must still score exactly like the best
+     * {@code limit} documents of all shards. Rows that tie on the score are interchangeable, so only scores are compared.
+     */
+    public void testDriversSharingManagerAcrossShardsEmitTopN() throws IOException {
+        int numShards = between(2, 4);
+        List<Directory> directories = new ArrayList<>();
+        List<IndexReader> readers = new ArrayList<>();
+        try {
+            List<ShardContext> contexts = new ArrayList<>();
+            for (int shard = 0; shard < numShards; shard++) {
+                Directory shardDirectory = newDirectory();
+                directories.add(shardDirectory);
+                try (RandomIndexWriter writer = new RandomIndexWriter(random(), shardDirectory)) {
+                    int numDocs = between(500, 3000);
+                    for (int d = 0; d < numDocs; d++) {
+                        List<IndexableField> doc = new ArrayList<>();
+                        doc.add(new SortedNumericDocValuesField("s", d));
+                        // The frequency of "a" and the length of the field vary, so the scores do
+                        doc.add(new TextField("t", "a ".repeat(between(1, 20)) + "b ".repeat(between(0, 20)), Field.Store.NO));
+                        writer.addDocument(doc);
+                    }
+                    readers.add(writer.getReader());
+                }
+                contexts.add(createMockShardContext(readers.get(shard), shard, LuceneTopNSourceOperatorCollectorTests::resolveSort));
+            }
+            Query query = new TermQuery(new Term("t", "a"));
+            int limit = between(1, 50);
+            boolean multiKey = randomBoolean();
+            List<SortBuilder<?>> sorts = multiKey
+                ? List.of(new ScoreSortBuilder(), new FieldSortBuilder("s"))
+                : List.of(new ScoreSortBuilder());
+            int taskConcurrency = between(1, 8);
+            var factory = new LuceneTopNSourceOperator.Factory(
+                new IndexedByShardIdFromList<>(contexts),
+                c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+                randomFrom(DataPartitioning.SHARD, DataPartitioning.SEGMENT),
+                DataPartitioning.AutoStrategy.DEFAULT,
+                taskConcurrency,
+                between(10, 100),
+                limit,
+                sorts,
+                randomLongBetween(10, 20),
+                true,
+                () -> 0L,
+                QueryWarnings.EMIT
+            );
+            var provider = factory.perShardCollectorProvider;
+            if (multiKey) {
+                assertThat(provider.topFieldCollectorManagers.size(), equalTo(1));
+            } else {
+                assertThat(provider.topScoreDocCollectorManager, notNullValue());
+            }
+
+            List<Float> expected = new ArrayList<>();
+            for (ShardContext ctx : contexts) {
+                for (ScoreDoc scoreDoc : ctx.searcher().search(query, limit).scoreDocs) {
+                    expected.add(scoreDoc.score);
+                }
+            }
+            expected.sort(Collections.reverseOrder());
+            expected = expected.subList(0, limit);
+
+            List<Page> results = new CopyOnWriteArrayList<>();
+            List<Driver> drivers = new ArrayList<>();
+            for (int i = 0; i < taskConcurrency; i++) {
+                DriverContext driverContext = createDriverContext();
+                drivers.add(
+                    TestDriverFactory.create(
+                        driverContext,
+                        factory.get(driverContext),
+                        List.of(),
+                        new TestResultPageSinkOperator(results::add)
+                    )
+                );
+            }
+            new TestDriverRunner().run(drivers);
+
+            List<Float> actual = new ArrayList<>();
+            for (Page page : results) {
+                DoubleBlock scores = page.getBlock(1);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    actual.add((float) scores.getDouble(p));
+                }
+            }
+            actual.sort(Collections.reverseOrder());
+            assertThat(actual.size(), greaterThanOrEqualTo(limit));
+            assertThat(actual.subList(0, limit), equalTo(expected));
+        } finally {
+            IOUtils.close(readers);
+            IOUtils.close(directories);
+        }
     }
 
     /**

@@ -865,6 +865,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         assertThat(simulator.getClusterInfo().getNodeHeapMetrics().get(nodeA).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(140L));
         assertThat(simulator.getClusterInfo().getNodeHeapMetrics().get(nodeB).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(0L));
 
+        simulator.simulateShardStarted(relocation.v2());
         allocation.routingNodes().startShard(relocation.v2(), allocation.changes(), 0L);
         // shard 0 stays on A (postings 5). shard 1 is on B (postings 20). Max postings is 20.
         // hosted A = 50 + 10 = 60; total A = 40 + (50 - 5) + 10 + 20 = 115
@@ -882,6 +883,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 allocation.changes(),
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
+        simulator.simulateShardStarted(secondRelocation.v2());
         allocation.routingNodes().startShard(secondRelocation.v2(), allocation.changes(), 0L);
         // Both shards are on B, so index heap is counted once there and the max postings is 25 again.
         nodeHeapUsages = simulator.getClusterInfo().getNodeHeapMetrics();
@@ -1040,6 +1042,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 allocation.changes(),
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
+        simulator.simulateShardStarted(relocation.v2());
         allocation.routingNodes().startShard(relocation.v2(), allocation.changes(), 0L);
 
         assertThat(

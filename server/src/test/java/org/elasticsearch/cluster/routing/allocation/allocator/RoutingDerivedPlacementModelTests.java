@@ -16,9 +16,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.NodeCacheSizeAndCommitments;
+import org.elasticsearch.cluster.NodeHeapEstimates;
+import org.elasticsearch.cluster.NodeHeapMetrics;
+import org.elasticsearch.cluster.NodeHeapUsageCalculator;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.PlacementAspects;
 import org.elasticsearch.cluster.RoutingDerivedPlacementModel;
+import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
+import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -126,7 +131,21 @@ public class RoutingDerivedPlacementModelTests extends ESTestCase {
             shardWriteLoads.put(shardIds[s], writeLoad[s]);
             shardCache.put(shardIds[s], cache[s]);
         }
+        // heap is recomputed from the routing table, so the polled estimates are deliberately stale
+        final long nonShardHeapUsage = 40;
+        final Map<String, NodeHeapMetrics> heapMetrics = new HashMap<>();
+        for (String node : nodes) {
+            final long nonShard = roles.get(node) == DiscoveryNodeRole.INDEX_ROLE ? nonShardHeapUsage : 0;
+            heapMetrics.put(node, new NodeHeapMetrics(node, TOTAL_DISK, new NodeHeapEstimates(1, 1, nonShard)));
+        }
+        final Map<ShardId, ShardAndIndexHeapUsage> shardHeap = new HashMap<>();
+        for (int s = 0; s < shardCount; s++) {
+            final long shardHeapUsage = between(10, 100);
+            shardHeap.put(shardIds[s], new ShardAndIndexHeapUsage(shardHeapUsage, between(1, 10), between(0, 10)));
+        }
         final ClusterInfo clusterInfo = ClusterInfo.builder()
+            .nodeHeapMetrics(heapMetrics)
+            .estimatedShardHeapUsages(shardHeap)
             .leastAvailableSpaceUsage(disk)
             .mostAvailableSpaceUsage(disk)
             .shardSizes(shardSizes)
@@ -150,8 +169,9 @@ public class RoutingDerivedPlacementModelTests extends ESTestCase {
         final var simulator = new ClusterInfoSimulator(heuristicAllocation);
         final var usedBytes = new PlacementAspects.UsedBytes(modelAllocation);
         final var cacheCommitment = new PlacementAspects.CacheCommitment(clusterInfo);
+        final var nodeHeap = new PlacementAspects.NodeHeap(modelAllocation, nonShardHeapUsage);
         final var writeLoadAspect = new PlacementAspects.WriteLoad(clusterInfo);
-        final var model = new RoutingDerivedPlacementModel(modelAllocation, usedBytes, cacheCommitment, writeLoadAspect);
+        final var model = new RoutingDerivedPlacementModel(modelAllocation, usedBytes, cacheCommitment, writeLoadAspect, nodeHeap);
 
         // moves during the computation
         for (int move = between(0, 3 * shardCount); move > 0; move--) {
@@ -171,6 +191,13 @@ public class RoutingDerivedPlacementModelTests extends ESTestCase {
         final var modelDisk = usedBytes.simulated();
         final var modelCache = cacheCommitment.simulated();
         final var modelThreadPools = writeLoadAspect.simulated();
+        final var modelHeap = nodeHeap.simulated();
+        final var recomputedHeap = NodeHeapUsageCalculator.calculateForRoutingNodes(
+            modelAllocation.routingNodes(),
+            nonShardHeapUsage,
+            new ShardHeapUsageEstimates(shardHeap, clusterInfo.getDefaultShardHeapUsageForShardsWithoutMetrics())
+        ).nodeHeapEstimates();
+        assertThat(heuristicResult.getNodeHeapMetrics(), equalTo(modelHeap));
         for (int n = 0; n < nodeCount; n++) {
             long used = 1000;
             long boosted = 1000;
@@ -191,6 +218,7 @@ public class RoutingDerivedPlacementModelTests extends ESTestCase {
 
             assertThat(modelDisk.get(node).freeBytes(), equalTo(expectedFree));
             assertThat(modelCache.get(node), equalTo(expectedCache));
+            assertThat(modelHeap.get(node).nodeHeapEstimates(), equalTo(recomputedHeap.get(node)));
             assertThat((double) writeUtilisation(modelThreadPools.get(node)), closeTo(expectedUtilisation, 1e-3));
 
             assertThat(heuristicResult.getNodeMostAvailableDiskUsages().get(node).freeBytes(), equalTo(expectedFree));

@@ -248,6 +248,75 @@ public final class PlacementAspects {
         }
     }
 
+    /**
+     * Node heap. Unlike the other aspects it is derived from the routing table alone, so the poll placement plays no part and the
+     * polled heap estimates are replaced, not adjusted. It is not a plain sum: an index's heap is counted once per node, and indexing
+     * nodes are charged the cluster-wide maximum postings heap, so it keeps {@link NodeHeapUsageCalculator}'s incremental calculation
+     * and seeds itself from the routing table instead of from {@link #shardPlaced} events.
+     */
+    public static final class NodeHeap implements PlacementAspect<Map<String, NodeHeapMetrics>> {
+
+        private final ClusterInfo polled;
+        @Nullable
+        private final NodeHeapUsageCalculator.IncrementalRoutingNodeHeapCalculation calculation;
+
+        /**
+         * @param nonShardHeapUsage the fixed overhead on every indexing node, which does not move with shard placements
+         */
+        public NodeHeap(RoutingAllocation allocation, long nonShardHeapUsage) {
+            this.polled = allocation.clusterInfo();
+            this.calculation = polled.getNodeHeapMetrics().isEmpty()
+                ? null
+                : new NodeHeapUsageCalculator.IncrementalRoutingNodeHeapCalculation(
+                    allocation.routingNodes(),
+                    nonShardHeapUsage,
+                    new ShardHeapUsageEstimates(
+                        polled.getEstimatedShardHeapUsages(),
+                        polled.getDefaultShardHeapUsageForShardsWithoutMetrics()
+                    )
+                );
+        }
+
+        @Override
+        public void shardPlaced(ShardRouting shard) {
+            // seeded from the routing table in the constructor
+        }
+
+        @Override
+        public void shardPlacedAtPoll(String nodeId, ShardId shardId, @Nullable ShardRouting currentOnNode) {
+            // heap is not derived from the polled placement
+        }
+
+        @Override
+        public void shardStarted(ShardRouting target) {
+            if (calculation == null) {
+                return;
+            }
+            if (target.relocatingNodeId() != null) {
+                calculation.shardDeactivated(target.relocatingNodeId(), target.shardId());
+            }
+            calculation.shardActivated(target.currentNodeId(), target.shardId());
+        }
+
+        @Override
+        public Map<String, NodeHeapMetrics> simulated() {
+            if (calculation == null) {
+                return polled.getNodeHeapMetrics();
+            }
+            final Map<String, NodeHeapEstimates> calculated = calculation.calculation().nodeHeapEstimates();
+            final Map<String, NodeHeapMetrics> result = Maps.newHashMapWithExpectedSize(polled.getNodeHeapMetrics().size());
+            for (var entry : polled.getNodeHeapMetrics().entrySet()) {
+                final NodeHeapEstimates recalculated = calculated.get(entry.getKey());
+                final NodeHeapMetrics initial = entry.getValue();
+                result.put(
+                    entry.getKey(),
+                    recalculated == null ? initial : new NodeHeapMetrics(initial.nodeId(), initial.totalBytes(), recalculated)
+                );
+            }
+            return Collections.unmodifiableMap(result);
+        }
+    }
+
     /** Write thread pool utilisation and queue latency: {@code f} is the shard write load. */
     public static final class WriteLoad extends ShardIdKeyedAspect<Map<String, NodeUsageStatsForThreadPools>> {
 

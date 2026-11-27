@@ -17,6 +17,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -210,6 +212,145 @@ public final class NodeHeapUsageCalculator {
     public record RoutingNodeHeapCalculation(Map<String, NodeHeapEstimates> nodeHeapEstimates, long maxPostingsHeapUsage) {
         public RoutingNodeHeapCalculation {
             assert maxPostingsHeapUsage >= 0;
+        }
+    }
+
+    /**
+     * The result of {@link #calculateForRoutingNodes(RoutingNodes, long, ShardHeapUsageEstimates)}, kept up to date as active shards are
+     * added to and removed from nodes instead of being recomputed from every shard each time it is read.
+     * <p>
+     * It is seeded from the routing table once. After that the caller reports each change to the set of active shards on a node, and
+     * reading the result costs a pass over the nodes rather than over the shards. The result is the same as recomputing from the routing
+     * table, provided every change is reported and every shard of an index has the same index heap estimate.
+     */
+    static final class IncrementalRoutingNodeHeapCalculation {
+
+        private final ShardHeapUsageEstimates shardHeapUsageEstimates;
+        private final long nonShardHeapUsage;
+        private final Map<String, NodeState> nodes = new HashMap<>();
+        private RoutingNodeHeapCalculation calculation;
+
+        IncrementalRoutingNodeHeapCalculation(
+            RoutingNodes routingNodes,
+            long nonShardHeapUsage,
+            ShardHeapUsageEstimates shardHeapUsageEstimates
+        ) {
+            assert nonShardHeapUsage >= 0;
+            this.shardHeapUsageEstimates = shardHeapUsageEstimates;
+            this.nonShardHeapUsage = nonShardHeapUsage;
+            for (RoutingNode routingNode : routingNodes) {
+                final DiscoveryNode discoveryNode = routingNode.node();
+                if (isIndexingNode(discoveryNode) == false && isSearchNode(discoveryNode) == false) {
+                    continue;
+                }
+                final NodeState nodeState = new NodeState(discoveryNode);
+                for (var shardRouting : routingNode) {
+                    if (shardRouting.active()) {
+                        nodeState.add(shardRouting.shardId(), shardHeapUsageEstimates.getOrDefault(shardRouting.shardId()));
+                    }
+                }
+                nodes.put(discoveryNode.getId(), nodeState);
+            }
+        }
+
+        /** A shard became active on the node. Nodes that are neither indexing nor search nodes are ignored. */
+        void shardActivated(String nodeId, ShardId shardId) {
+            final NodeState nodeState = nodes.get(nodeId);
+            if (nodeState != null) {
+                nodeState.add(shardId, shardHeapUsageEstimates.getOrDefault(shardId));
+                calculation = null;
+            }
+        }
+
+        /** An active shard left the node. Nodes that are neither indexing nor search nodes are ignored. */
+        void shardDeactivated(String nodeId, ShardId shardId) {
+            final NodeState nodeState = nodes.get(nodeId);
+            if (nodeState != null) {
+                nodeState.remove(shardId, shardHeapUsageEstimates.getOrDefault(shardId));
+                calculation = null;
+            }
+        }
+
+        RoutingNodeHeapCalculation calculation() {
+            if (calculation == null) {
+                long maxIndexingNodePostingsHeapUsage = 0L;
+                for (NodeState nodeState : nodes.values()) {
+                    if (isIndexingNode(nodeState.discoveryNode)) {
+                        maxIndexingNodePostingsHeapUsage = Math.max(maxIndexingNodePostingsHeapUsage, nodeState.postingsHeapUsage);
+                    }
+                }
+                final Map<String, NodeHeapEstimates> nodeHeapEstimates = Maps.newHashMapWithExpectedSize(nodes.size());
+                for (var entry : nodes.entrySet()) {
+                    final NodeState nodeState = entry.getValue();
+                    nodeHeapEstimates.put(
+                        entry.getKey(),
+                        nodeHeapEstimate(
+                            nodeState.discoveryNode,
+                            nodeState.components(),
+                            nonShardHeapUsage,
+                            maxIndexingNodePostingsHeapUsage
+                        )
+                    );
+                }
+                calculation = new RoutingNodeHeapCalculation(
+                    Collections.unmodifiableMap(nodeHeapEstimates),
+                    maxIndexingNodePostingsHeapUsage
+                );
+            }
+            return calculation;
+        }
+
+        /** The heap contributed by an index to a node, and how many of its active shards are keeping it there. */
+        private static final class IndexOnNode {
+            private final long indexHeapUsage;
+            private int activeShards;
+
+            private IndexOnNode(long indexHeapUsage) {
+                this.indexHeapUsage = indexHeapUsage;
+            }
+        }
+
+        private static final class NodeState {
+            private final DiscoveryNode discoveryNode;
+            private final Map<Index, IndexOnNode> indices = new HashMap<>();
+            private long shardHeapUsageExcludingPostings;
+            private long indexHeapUsage;
+            private long postingsHeapUsage;
+
+            private NodeState(DiscoveryNode discoveryNode) {
+                this.discoveryNode = discoveryNode;
+            }
+
+            private void add(ShardId shardId, ShardAndIndexHeapUsage usage) {
+                shardHeapUsageExcludingPostings = Math.addExact(
+                    shardHeapUsageExcludingPostings,
+                    usage.shardHeapUsageBytesExcludingPostings()
+                );
+                postingsHeapUsage = Math.addExact(postingsHeapUsage, usage.postingsHeapUsageBytes());
+                final IndexOnNode indexOnNode = indices.computeIfAbsent(shardId.getIndex(), ignored -> {
+                    indexHeapUsage = Math.addExact(indexHeapUsage, usage.indexHeapUsageBytes());
+                    return new IndexOnNode(usage.indexHeapUsageBytes());
+                });
+                indexOnNode.activeShards++;
+            }
+
+            private void remove(ShardId shardId, ShardAndIndexHeapUsage usage) {
+                shardHeapUsageExcludingPostings = Math.subtractExact(
+                    shardHeapUsageExcludingPostings,
+                    usage.shardHeapUsageBytesExcludingPostings()
+                );
+                postingsHeapUsage = Math.subtractExact(postingsHeapUsage, usage.postingsHeapUsageBytes());
+                final IndexOnNode indexOnNode = indices.get(shardId.getIndex());
+                assert indexOnNode != null : "no active shard of " + shardId.getIndex() + " on node " + discoveryNode.getId();
+                if (--indexOnNode.activeShards == 0) {
+                    indices.remove(shardId.getIndex());
+                    indexHeapUsage = Math.subtractExact(indexHeapUsage, indexOnNode.indexHeapUsage);
+                }
+            }
+
+            private NodeHeapUsageComponents components() {
+                return new NodeHeapUsageComponents(Math.addExact(shardHeapUsageExcludingPostings, indexHeapUsage), postingsHeapUsage);
+            }
         }
     }
 }

@@ -15,10 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.index.shard.ShardId;
 
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
@@ -37,8 +34,7 @@ public class ClusterInfoSimulator {
     private final PlacementAspects.UsedBytes usedBytes;
     private final PlacementAspects.CacheCommitment cacheCommitment;
     private final PlacementAspects.WriteLoad writeLoad;
-    private final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
-    private final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
+    private final PlacementAspects.NodeHeap nodeHeap;
     private final RoutingDerivedPlacementModel placementModel;
 
     public ClusterInfoSimulator(RoutingAllocation allocation) {
@@ -52,17 +48,15 @@ public class ClusterInfoSimulator {
         );
         this.cacheCommitment = new PlacementAspects.CacheCommitment(polled);
         this.writeLoad = new PlacementAspects.WriteLoad(polled);
-        this.estimatedShardHeapUsages = polled.getEstimatedShardHeapUsages();
-        this.defaultShardHeapUsageForShardsWithoutMetrics = polled.getDefaultShardHeapUsageForShardsWithoutMetrics();
-        this.placementModel = new RoutingDerivedPlacementModel(allocation, usedBytes, cacheCommitment, writeLoad);
+        this.nodeHeap = new PlacementAspects.NodeHeap(allocation, nonShardHeapUsage());
+        this.placementModel = new RoutingDerivedPlacementModel(allocation, usedBytes, cacheCommitment, writeLoad, nodeHeap);
     }
 
     /**
      * Records that the computation starts an initializing shard: a relocation target (its relocating node is the source) or a new copy.
-     * The simulated disk usage, write load and cache commitments are all derived from the shards the routing table places on each node
-     * (see {@link RoutingDerivedPlacementModel}), so every shard start must be reported before it is started in the routing table, but
-     * shards that moved before the computation began need no special handling. Node heap is recomputed from the routing table when the
-     * simulated cluster info is read.
+     * The simulated disk usage, write load, cache commitments and node heap are all derived from the shards the routing table places on
+     * each node (see {@link RoutingDerivedPlacementModel}), so every shard start must be reported before it is started in the routing
+     * table, but shards that moved before the computation began need no special handling.
      */
     public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing() : "expected an initializing shard, but got: " + shard;
@@ -84,31 +78,6 @@ public class ClusterInfoSimulator {
                 shardSizes.put(shardIdentifierFromRouting(shard), project.getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size);
             }
         }
-    }
-
-    /**
-     * Node heap for the shards the current routing table places on each node
-     */
-    private Map<String, NodeHeapMetrics> computeNodeHeapMetrics() {
-        if (initialNodeHeapMetrics.isEmpty()) {
-            return initialNodeHeapMetrics;
-        }
-        final Map<String, NodeHeapEstimates> calculated = NodeHeapUsageCalculator.calculateForRoutingNodes(
-            allocation.routingNodes(),
-            nonShardHeapUsage(),
-            new ShardHeapUsageEstimates(estimatedShardHeapUsages, defaultShardHeapUsageForShardsWithoutMetrics)
-        ).nodeHeapEstimates();
-        final Map<String, NodeHeapMetrics> updatedMetrics = Maps.newHashMapWithExpectedSize(initialNodeHeapMetrics.size());
-        for (var entry : initialNodeHeapMetrics.entrySet()) {
-            final NodeHeapEstimates recalculated = calculated.get(entry.getKey());
-            if (recalculated == null) {
-                updatedMetrics.put(entry.getKey(), entry.getValue());
-            } else {
-                final NodeHeapMetrics initial = entry.getValue();
-                updatedMetrics.put(entry.getKey(), new NodeHeapMetrics(initial.nodeId(), initial.totalBytes(), recalculated));
-            }
-        }
-        return Collections.unmodifiableMap(updatedMetrics);
     }
 
     /**
@@ -187,7 +156,7 @@ public class ClusterInfoSimulator {
                 usedBytes.simulated(),
                 shardSizes.toImmutableMap(),
                 Map.of(),
-                computeNodeHeapMetrics(),
+                nodeHeap.simulated(),
                 polled.getEstimatedShardHeapUsages(),
                 writeLoad.simulated(),
                 polled.getShardCacheRequirements(),

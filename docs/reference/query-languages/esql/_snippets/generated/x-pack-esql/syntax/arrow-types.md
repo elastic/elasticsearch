@@ -4,39 +4,39 @@
 
 | ES\|QL type | Arrow type for a single value | May be <br> multivalued |
 | --- | --- | --- |
-| `_source` | `utf8` | yes |
-| `_tsid` | `binary` | yes |
-| `aggregate_metric_double` | `struct {` <br> &nbsp;&nbsp; `min?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `max?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `sum?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `value_count?: int(bitWidth: 32, isSigned: true)` <br>  `}` | no |
-| `boolean` | `bool` | yes |
-| `cartesian_point` | `binary` | yes |
-| `cartesian_shape` | `binary` | yes |
-| `counter_double` | `floatingpoint(precision: DOUBLE)` | yes |
-| `counter_integer` | `int(bitWidth: 32, isSigned: true)` | yes |
-| `counter_long` | `int(bitWidth: 64, isSigned: true)` | yes |
-| `date` | `timestamp(unit: MILLISECOND, timezone: null)` | yes |
-| `date_nanos` | `timestamp(unit: NANOSECOND, timezone: null)` | yes |
-| `date_range` | `struct {` <br> &nbsp;&nbsp; `from?: timestamp(unit: MILLISECOND, timezone: null)` <br> &nbsp;&nbsp; `to?: timestamp(unit: MILLISECOND, timezone: null)` <br>  `}` | yes |
-| `dense_vector` | `floatingpoint(precision: SINGLE)` | always |
-| `double` | `floatingpoint(precision: DOUBLE)` | yes |
-| `double_range` | `struct {` <br> &nbsp;&nbsp; `from?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `to?: floatingpoint(precision: DOUBLE)` <br>  `}` | yes |
-| `exponential_histogram` | `struct {` <br> &nbsp;&nbsp; `scale: int(bitWidth: 32, isSigned: true)` <br> &nbsp;&nbsp; `sum?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `min?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `max?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `zero: struct {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `count: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp;&nbsp;&nbsp; `threshold: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `}` <br> &nbsp;&nbsp; `positive: struct {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `indices: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `$data$: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp;&nbsp;&nbsp; `}` <br> &nbsp;&nbsp;&nbsp;&nbsp; `counts: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `$data$: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp;&nbsp;&nbsp; `}` <br> &nbsp;&nbsp; `}` <br> &nbsp;&nbsp; `negative: struct {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `indices: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `$data$: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp;&nbsp;&nbsp; `}` <br> &nbsp;&nbsp;&nbsp;&nbsp; `counts: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `$data$: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp;&nbsp;&nbsp; `}` <br> &nbsp;&nbsp; `}` <br>  `}` | yes |
-| `flattened` | `utf8` | yes |
-| `geo_point` | `binary` | yes |
-| `geo_shape` | `binary` | yes |
-| `geohash` | `int(bitWidth: 64, isSigned: false)` | yes |
-| `geohex` | `int(bitWidth: 64, isSigned: true)` | yes |
-| `geotile` | `struct {` <br> &nbsp;&nbsp; `zoom: int(bitWidth: 8, isSigned: false)` <br> &nbsp;&nbsp; `x: int(bitWidth: 32, isSigned: false)` <br> &nbsp;&nbsp; `y: int(bitWidth: 32, isSigned: false)` <br>  `}` | yes |
-| `histogram` | `struct {` <br> &nbsp;&nbsp; `values: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `$data$: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `}` <br> &nbsp;&nbsp; `counts: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `$data$: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp; `}` <br>  `}` | yes |
-| `integer` | `int(bitWidth: 32, isSigned: true)` | yes |
-| `ip` | `binary` | yes |
-| `keyword` | `utf8` | yes |
-| `long` | `int(bitWidth: 64, isSigned: true)` | yes |
-| `null` | `null` | yes |
-| `tdigest` | `struct {` <br> &nbsp;&nbsp; `min?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `max?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `sum?: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `centroids: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `$data$: floatingpoint(precision: DOUBLE)` <br> &nbsp;&nbsp; `}` <br> &nbsp;&nbsp; `counts: list {` <br> &nbsp;&nbsp;&nbsp;&nbsp; `$data$: int(bitWidth: 64, isSigned: true)` <br> &nbsp;&nbsp; `}` <br>  `}` | no |
-| `text` | `utf8` | yes |
-| `unsigned_long` | `int(bitWidth: 64, isSigned: false)` | yes |
-| `unsupported` | `null` | yes |
-| `version` | `utf8` | yes |
+| `_source` | `VarChar` | yes |
+| `_tsid` | `VarBinary` | yes |
+| `aggregate_metric_double` | `Struct{ ` <br>&nbsp;&nbsp;`min: Float64?` <br>&nbsp;&nbsp;`max: Float64?` <br>&nbsp;&nbsp;`sum: Float64?` <br>&nbsp;&nbsp;`value_count: Int32?` <br>  `}` | no |
+| `boolean` | `Boolean` | yes |
+| `cartesian_point` | `VarBinary` | yes |
+| `cartesian_shape` | `VarBinary` | yes |
+| `counter_double` | `Float64` | yes |
+| `counter_integer` | `Int32` | yes |
+| `counter_long` | `Int64` | yes |
+| `date` | `TimeStampMilli` | yes |
+| `date_nanos` | `TimeStampNano` | yes |
+| `date_range` | `Struct{ ` <br>&nbsp;&nbsp;`from: TimeStampMilli?` <br>&nbsp;&nbsp;`to: TimeStampMilli?` <br>  `}` | yes |
+| `dense_vector` | `Float32` | always |
+| `double` | `Float64` | yes |
+| `double_range` | `Struct{ ` <br>&nbsp;&nbsp;`from: Float64?` <br>&nbsp;&nbsp;`to: Float64?` <br>  `}` | yes |
+| `exponential_histogram` | `Struct{ ` <br>&nbsp;&nbsp;`scale: Int32` <br>&nbsp;&nbsp;`sum: Float64?` <br>&nbsp;&nbsp;`min: Float64?` <br>&nbsp;&nbsp;`max: Float64?` <br>&nbsp;&nbsp;`zero: Struct{ ` <br>&nbsp;&nbsp;&nbsp;&nbsp;`count: Int64` <br>&nbsp;&nbsp;&nbsp;&nbsp;`threshold: Float64` <br> &nbsp;&nbsp; `}` <br>&nbsp;&nbsp;`positive: Struct{ ` <br>&nbsp;&nbsp;&nbsp;&nbsp;`indices: List(Int64)` <br>&nbsp;&nbsp;&nbsp;&nbsp;`counts: List(Int64)` <br> &nbsp;&nbsp; `}` <br>&nbsp;&nbsp;`negative: Struct{ ` <br>&nbsp;&nbsp;&nbsp;&nbsp;`indices: List(Int64)` <br>&nbsp;&nbsp;&nbsp;&nbsp;`counts: List(Int64)` <br> &nbsp;&nbsp; `}` <br>  `}` | yes |
+| `flattened` | `VarChar` | yes |
+| `geo_point` | `VarBinary` | yes |
+| `geo_shape` | `VarBinary` | yes |
+| `geohash` | `UInt64` | yes |
+| `geohex` | `Int64` | yes |
+| `geotile` | `Struct{ ` <br>&nbsp;&nbsp;`zoom: UInt8` <br>&nbsp;&nbsp;`x: UInt32` <br>&nbsp;&nbsp;`y: UInt32` <br>  `}` | yes |
+| `histogram` | `Struct{ ` <br>&nbsp;&nbsp;`values: List(Float64)` <br>&nbsp;&nbsp;`counts: List(Int64)` <br>  `}` | yes |
+| `integer` | `Int32` | yes |
+| `ip` | `VarBinary` | yes |
+| `keyword` | `VarChar` | yes |
+| `long` | `Int64` | yes |
+| `null` | `Null` | yes |
+| `tdigest` | `Struct{ ` <br>&nbsp;&nbsp;`min: Float64?` <br>&nbsp;&nbsp;`max: Float64?` <br>&nbsp;&nbsp;`sum: Float64?` <br>&nbsp;&nbsp;`centroids: List(Float64)` <br>&nbsp;&nbsp;`counts: List(Int64)` <br>  `}` | no |
+| `text` | `VarChar` | yes |
+| `unsigned_long` | `UInt64` | yes |
+| `unsupported` | `Null` | yes |
+| `version` | `VarChar` | yes |
 
 ### Detailed type mappings
 
@@ -48,7 +48,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `utf8` nullable
+* Type: `VarChar` nullable
 
   Metadata: `ARROW:extension:metadata = ""`
 
@@ -64,11 +64,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "_source"`
 
-  * `$data$`: `utf8` non-null
+  * `$data$`: `VarChar` non-null
 
     Metadata: `ARROW:extension:metadata = ""`
 
@@ -92,7 +92,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `binary` nullable
+* Type: `VarBinary` nullable
 
   Metadata: `elastic:type = "_tsid"`
 
@@ -104,11 +104,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "_tsid"`
 
-  * `$data$`: `binary` non-null
+  * `$data$`: `VarBinary` non-null
 
     Metadata: `elastic:type = "_tsid"`
 
@@ -128,17 +128,17 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `struct` nullable
+* Type: `Struct` nullable
 
   Metadata: `elastic:type = "aggregate_metric_double"`
 
-  * `min`: `floatingpoint(precision: DOUBLE)` nullable
+  * `min`: `Float64` nullable
 
-  * `max`: `floatingpoint(precision: DOUBLE)` nullable
+  * `max`: `Float64` nullable
 
-  * `sum`: `floatingpoint(precision: DOUBLE)` nullable
+  * `sum`: `Float64` nullable
 
-  * `value_count`: `int(bitWidth: 32, isSigned: true)` nullable
+  * `value_count`: `Int32` nullable
 
 :::
 
@@ -156,7 +156,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `bool` nullable
+* Type: `Boolean` nullable
 
   Metadata: `elastic:type = "boolean"`
 
@@ -168,11 +168,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "boolean"`
 
-  * `$data$`: `bool` non-null
+  * `$data$`: `Boolean` non-null
 
     Metadata: `elastic:type = "boolean"`
 
@@ -192,7 +192,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `binary` nullable
+* Type: `VarBinary` nullable
 
   Metadata: `ARROW:extension:name = "geoarrow.wkb"`
 
@@ -206,11 +206,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "cartesian_point"`
 
-  * `$data$`: `binary` non-null
+  * `$data$`: `VarBinary` non-null
 
     Metadata: `ARROW:extension:name = "geoarrow.wkb"`
 
@@ -232,7 +232,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `binary` nullable
+* Type: `VarBinary` nullable
 
   Metadata: `ARROW:extension:name = "geoarrow.wkb"`
 
@@ -246,11 +246,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "cartesian_shape"`
 
-  * `$data$`: `binary` non-null
+  * `$data$`: `VarBinary` non-null
 
     Metadata: `ARROW:extension:name = "geoarrow.wkb"`
 
@@ -272,7 +272,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `floatingpoint(precision: DOUBLE)` nullable
+* Type: `Float64` nullable
 
   Metadata: `elastic:type = "counter_double"`
 
@@ -284,11 +284,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "counter_double"`
 
-  * `$data$`: `floatingpoint(precision: DOUBLE)` non-null
+  * `$data$`: `Float64` non-null
 
     Metadata: `elastic:type = "counter_double"`
 
@@ -308,7 +308,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `int(bitWidth: 32, isSigned: true)` nullable
+* Type: `Int32` nullable
 
   Metadata: `elastic:type = "counter_integer"`
 
@@ -320,11 +320,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "counter_integer"`
 
-  * `$data$`: `int(bitWidth: 32, isSigned: true)` non-null
+  * `$data$`: `Int32` non-null
 
     Metadata: `elastic:type = "counter_integer"`
 
@@ -344,7 +344,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `int(bitWidth: 64, isSigned: true)` nullable
+* Type: `Int64` nullable
 
   Metadata: `elastic:type = "counter_long"`
 
@@ -356,11 +356,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "counter_long"`
 
-  * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+  * `$data$`: `Int64` non-null
 
     Metadata: `elastic:type = "counter_long"`
 
@@ -380,7 +380,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `timestamp(unit: MILLISECOND, timezone: null)` nullable
+* Type: `TimeStampMilli` nullable
 
   Metadata: `elastic:type = "date"`
 
@@ -392,11 +392,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "date"`
 
-  * `$data$`: `timestamp(unit: MILLISECOND, timezone: null)` non-null
+  * `$data$`: `TimeStampMilli` non-null
 
     Metadata: `elastic:type = "date"`
 
@@ -416,7 +416,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `timestamp(unit: NANOSECOND, timezone: null)` nullable
+* Type: `TimeStampNano` nullable
 
   Metadata: `elastic:type = "date_nanos"`
 
@@ -428,11 +428,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "date_nanos"`
 
-  * `$data$`: `timestamp(unit: NANOSECOND, timezone: null)` non-null
+  * `$data$`: `TimeStampNano` non-null
 
     Metadata: `elastic:type = "date_nanos"`
 
@@ -452,13 +452,13 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `struct` nullable
+* Type: `Struct` nullable
 
   Metadata: `elastic:type = "date_range"`
 
-  * `from`: `timestamp(unit: MILLISECOND, timezone: null)` nullable
+  * `from`: `TimeStampMilli` nullable
 
-  * `to`: `timestamp(unit: MILLISECOND, timezone: null)` nullable
+  * `to`: `TimeStampMilli` nullable
 
 :::
 
@@ -468,17 +468,17 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "date_range"`
 
-  * `$data$`: `struct` non-null
+  * `$data$`: `Struct` non-null
 
     Metadata: `elastic:type = "date_range"`
 
-    * `from`: `timestamp(unit: MILLISECOND, timezone: null)` nullable
+    * `from`: `TimeStampMilli` nullable
 
-    * `to`: `timestamp(unit: MILLISECOND, timezone: null)` nullable
+    * `to`: `TimeStampMilli` nullable
 
 :::
 
@@ -496,11 +496,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "dense_vector"`
 
-  * `$data$`: `floatingpoint(precision: SINGLE)` non-null
+  * `$data$`: `Float32` non-null
 
     Metadata: `elastic:type = "dense_vector"`
 
@@ -520,7 +520,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `floatingpoint(precision: DOUBLE)` nullable
+* Type: `Float64` nullable
 
   Metadata: `elastic:type = "double"`
 
@@ -532,11 +532,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "double"`
 
-  * `$data$`: `floatingpoint(precision: DOUBLE)` non-null
+  * `$data$`: `Float64` non-null
 
     Metadata: `elastic:type = "double"`
 
@@ -556,13 +556,13 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `struct` nullable
+* Type: `Struct` nullable
 
   Metadata: `elastic:type = "double_range"`
 
-  * `from`: `floatingpoint(precision: DOUBLE)` nullable
+  * `from`: `Float64` nullable
 
-  * `to`: `floatingpoint(precision: DOUBLE)` nullable
+  * `to`: `Float64` nullable
 
 :::
 
@@ -572,17 +572,17 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "double_range"`
 
-  * `$data$`: `struct` non-null
+  * `$data$`: `Struct` non-null
 
     Metadata: `elastic:type = "double_range"`
 
-    * `from`: `floatingpoint(precision: DOUBLE)` nullable
+    * `from`: `Float64` nullable
 
-    * `to`: `floatingpoint(precision: DOUBLE)` nullable
+    * `to`: `Float64` nullable
 
 :::
 
@@ -600,43 +600,43 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `struct` nullable
+* Type: `Struct` nullable
 
   Metadata: `elastic:type = "exponential_histogram"`
 
-  * `scale`: `int(bitWidth: 32, isSigned: true)` non-null
+  * `scale`: `Int32` non-null
 
-  * `sum`: `floatingpoint(precision: DOUBLE)` nullable
+  * `sum`: `Float64` nullable
 
-  * `min`: `floatingpoint(precision: DOUBLE)` nullable
+  * `min`: `Float64` nullable
 
-  * `max`: `floatingpoint(precision: DOUBLE)` nullable
+  * `max`: `Float64` nullable
 
-  * `zero`: `struct` non-null
+  * `zero`: `Struct` non-null
 
-    * `count`: `int(bitWidth: 64, isSigned: true)` non-null
+    * `count`: `Int64` non-null
 
-    * `threshold`: `floatingpoint(precision: DOUBLE)` non-null
+    * `threshold`: `Float64` non-null
 
-  * `positive`: `struct` non-null
+  * `positive`: `Struct` non-null
 
-    * `indices`: `list` non-null
+    * `indices`: `List` non-null
 
-      * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+      * `$data$`: `Int64` non-null
 
-    * `counts`: `list` non-null
+    * `counts`: `List` non-null
 
-      * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+      * `$data$`: `Int64` non-null
 
-  * `negative`: `struct` non-null
+  * `negative`: `Struct` non-null
 
-    * `indices`: `list` non-null
+    * `indices`: `List` non-null
 
-      * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+      * `$data$`: `Int64` non-null
 
-    * `counts`: `list` non-null
+    * `counts`: `List` non-null
 
-      * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+      * `$data$`: `Int64` non-null
 
 :::
 
@@ -646,47 +646,47 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "exponential_histogram"`
 
-  * `$data$`: `struct` non-null
+  * `$data$`: `Struct` non-null
 
     Metadata: `elastic:type = "exponential_histogram"`
 
-    * `scale`: `int(bitWidth: 32, isSigned: true)` non-null
+    * `scale`: `Int32` non-null
 
-    * `sum`: `floatingpoint(precision: DOUBLE)` nullable
+    * `sum`: `Float64` nullable
 
-    * `min`: `floatingpoint(precision: DOUBLE)` nullable
+    * `min`: `Float64` nullable
 
-    * `max`: `floatingpoint(precision: DOUBLE)` nullable
+    * `max`: `Float64` nullable
 
-    * `zero`: `struct` non-null
+    * `zero`: `Struct` non-null
 
-      * `count`: `int(bitWidth: 64, isSigned: true)` non-null
+      * `count`: `Int64` non-null
 
-      * `threshold`: `floatingpoint(precision: DOUBLE)` non-null
+      * `threshold`: `Float64` non-null
 
-    * `positive`: `struct` non-null
+    * `positive`: `Struct` non-null
 
-      * `indices`: `list` non-null
+      * `indices`: `List` non-null
 
-        * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+        * `$data$`: `Int64` non-null
 
-      * `counts`: `list` non-null
+      * `counts`: `List` non-null
 
-        * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+        * `$data$`: `Int64` non-null
 
-    * `negative`: `struct` non-null
+    * `negative`: `Struct` non-null
 
-      * `indices`: `list` non-null
+      * `indices`: `List` non-null
 
-        * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+        * `$data$`: `Int64` non-null
 
-      * `counts`: `list` non-null
+      * `counts`: `List` non-null
 
-        * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+        * `$data$`: `Int64` non-null
 
 :::
 
@@ -704,7 +704,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `utf8` nullable
+* Type: `VarChar` nullable
 
   Metadata: `ARROW:extension:metadata = ""`
 
@@ -720,11 +720,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "flattened"`
 
-  * `$data$`: `utf8` non-null
+  * `$data$`: `VarChar` non-null
 
     Metadata: `ARROW:extension:metadata = ""`
 
@@ -748,7 +748,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `binary` nullable
+* Type: `VarBinary` nullable
 
   Metadata: `ARROW:extension:metadata = "{"crs":"OGC:CRS84","crs_type":"authority_code"}"`
 
@@ -764,11 +764,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "geo_point"`
 
-  * `$data$`: `binary` non-null
+  * `$data$`: `VarBinary` non-null
 
     Metadata: `ARROW:extension:metadata = "{"crs":"OGC:CRS84","crs_type":"authority_code"}"`
 
@@ -792,7 +792,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `binary` nullable
+* Type: `VarBinary` nullable
 
   Metadata: `ARROW:extension:metadata = "{"crs":"OGC:CRS84","crs_type":"authority_code"}"`
 
@@ -808,11 +808,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "geo_shape"`
 
-  * `$data$`: `binary` non-null
+  * `$data$`: `VarBinary` non-null
 
     Metadata: `ARROW:extension:metadata = "{"crs":"OGC:CRS84","crs_type":"authority_code"}"`
 
@@ -836,7 +836,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `int(bitWidth: 64, isSigned: false)` nullable
+* Type: `UInt64` nullable
 
   Metadata: `elastic:type = "geohash"`
 
@@ -848,11 +848,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "geohash"`
 
-  * `$data$`: `int(bitWidth: 64, isSigned: false)` non-null
+  * `$data$`: `UInt64` non-null
 
     Metadata: `elastic:type = "geohash"`
 
@@ -872,7 +872,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `int(bitWidth: 64, isSigned: true)` nullable
+* Type: `Int64` nullable
 
   Metadata: `elastic:type = "geohex"`
 
@@ -884,11 +884,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "geohex"`
 
-  * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+  * `$data$`: `Int64` non-null
 
     Metadata: `elastic:type = "geohex"`
 
@@ -908,15 +908,15 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `struct` nullable
+* Type: `Struct` nullable
 
   Metadata: `elastic:type = "geotile"`
 
-  * `zoom`: `int(bitWidth: 8, isSigned: false)` non-null
+  * `zoom`: `UInt8` non-null
 
-  * `x`: `int(bitWidth: 32, isSigned: false)` non-null
+  * `x`: `UInt32` non-null
 
-  * `y`: `int(bitWidth: 32, isSigned: false)` non-null
+  * `y`: `UInt32` non-null
 
 :::
 
@@ -926,19 +926,19 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "geotile"`
 
-  * `$data$`: `struct` non-null
+  * `$data$`: `Struct` non-null
 
     Metadata: `elastic:type = "geotile"`
 
-    * `zoom`: `int(bitWidth: 8, isSigned: false)` non-null
+    * `zoom`: `UInt8` non-null
 
-    * `x`: `int(bitWidth: 32, isSigned: false)` non-null
+    * `x`: `UInt32` non-null
 
-    * `y`: `int(bitWidth: 32, isSigned: false)` non-null
+    * `y`: `UInt32` non-null
 
 :::
 
@@ -956,17 +956,17 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `struct` nullable
+* Type: `Struct` nullable
 
   Metadata: `elastic:type = "histogram"`
 
-  * `values`: `list` non-null
+  * `values`: `List` non-null
 
-    * `$data$`: `floatingpoint(precision: DOUBLE)` non-null
+    * `$data$`: `Float64` non-null
 
-  * `counts`: `list` non-null
+  * `counts`: `List` non-null
 
-    * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+    * `$data$`: `Int64` non-null
 
 :::
 
@@ -976,21 +976,21 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "histogram"`
 
-  * `$data$`: `struct` non-null
+  * `$data$`: `Struct` non-null
 
     Metadata: `elastic:type = "histogram"`
 
-    * `values`: `list` non-null
+    * `values`: `List` non-null
 
-      * `$data$`: `floatingpoint(precision: DOUBLE)` non-null
+      * `$data$`: `Float64` non-null
 
-    * `counts`: `list` non-null
+    * `counts`: `List` non-null
 
-      * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+      * `$data$`: `Int64` non-null
 
 :::
 
@@ -1008,7 +1008,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `int(bitWidth: 32, isSigned: true)` nullable
+* Type: `Int32` nullable
 
   Metadata: `elastic:type = "integer"`
 
@@ -1020,11 +1020,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "integer"`
 
-  * `$data$`: `int(bitWidth: 32, isSigned: true)` non-null
+  * `$data$`: `Int32` non-null
 
     Metadata: `elastic:type = "integer"`
 
@@ -1044,7 +1044,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `binary` nullable
+* Type: `VarBinary` nullable
 
   Metadata: `elastic:type = "ip"`
 
@@ -1056,11 +1056,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "ip"`
 
-  * `$data$`: `binary` non-null
+  * `$data$`: `VarBinary` non-null
 
     Metadata: `elastic:type = "ip"`
 
@@ -1080,7 +1080,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `utf8` nullable
+* Type: `VarChar` nullable
 
   Metadata: `elastic:type = "keyword"`
 
@@ -1092,11 +1092,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "keyword"`
 
-  * `$data$`: `utf8` non-null
+  * `$data$`: `VarChar` non-null
 
     Metadata: `elastic:type = "keyword"`
 
@@ -1116,7 +1116,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `int(bitWidth: 64, isSigned: true)` nullable
+* Type: `Int64` nullable
 
   Metadata: `elastic:type = "long"`
 
@@ -1128,11 +1128,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "long"`
 
-  * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+  * `$data$`: `Int64` non-null
 
     Metadata: `elastic:type = "long"`
 
@@ -1148,7 +1148,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `null` nullable
+* Type: `Null` nullable
 
   Metadata: `elastic:type = "null"`
 
@@ -1164,23 +1164,23 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `struct` nullable
+* Type: `Struct` nullable
 
   Metadata: `elastic:type = "tdigest"`
 
-  * `min`: `floatingpoint(precision: DOUBLE)` nullable
+  * `min`: `Float64` nullable
 
-  * `max`: `floatingpoint(precision: DOUBLE)` nullable
+  * `max`: `Float64` nullable
 
-  * `sum`: `floatingpoint(precision: DOUBLE)` nullable
+  * `sum`: `Float64` nullable
 
-  * `centroids`: `list` non-null
+  * `centroids`: `List` non-null
 
-    * `$data$`: `floatingpoint(precision: DOUBLE)` non-null
+    * `$data$`: `Float64` non-null
 
-  * `counts`: `list` non-null
+  * `counts`: `List` non-null
 
-    * `$data$`: `int(bitWidth: 64, isSigned: true)` non-null
+    * `$data$`: `Int64` non-null
 
 :::
 
@@ -1198,7 +1198,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `utf8` nullable
+* Type: `VarChar` nullable
 
   Metadata: `elastic:type = "text"`
 
@@ -1210,11 +1210,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "text"`
 
-  * `$data$`: `utf8` non-null
+  * `$data$`: `VarChar` non-null
 
     Metadata: `elastic:type = "text"`
 
@@ -1234,7 +1234,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `int(bitWidth: 64, isSigned: false)` nullable
+* Type: `UInt64` nullable
 
   Metadata: `elastic:type = "unsigned_long"`
 
@@ -1246,11 +1246,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "unsigned_long"`
 
-  * `$data$`: `int(bitWidth: 64, isSigned: false)` non-null
+  * `$data$`: `UInt64` non-null
 
     Metadata: `elastic:type = "unsigned_long"`
 
@@ -1266,7 +1266,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `null` nullable
+* Type: `Null` nullable
 
   Metadata: `elastic:type = "unsupported"`
 
@@ -1282,7 +1282,7 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `utf8` nullable
+* Type: `VarChar` nullable
 
   Metadata: `elastic:type = "version"`
 
@@ -1294,11 +1294,11 @@
 
 :::{schema-tree} Arrow schema
 
-* Type: `list` nullable
+* Type: `List` nullable
 
   Metadata: `elastic:type = "version"`
 
-  * `$data$`: `utf8` non-null
+  * `$data$`: `VarChar` non-null
 
     Metadata: `elastic:type = "version"`
 

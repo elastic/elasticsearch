@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.formatter.arrow;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.elasticsearch.core.PathUtils;
@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Map;
 
@@ -111,62 +110,98 @@ final class ArrowDocsSupport {
     }
 
     private static void renderField(StringBuilder str, Field field, int depth, boolean renderChildren) {
-        renderType(str, field.getType());
+        var type = field.getType();
+        renderType(str, type);
+        if (field.isNullable() && depth > 0) {
+            str.append("?");
+        }
         var children = field.getChildren();
         if (renderChildren && children.isEmpty() == false) {
-            str.append(" {` <br> ");
-
+            if (Types.getMinorTypeForArrowType(type) == Types.MinorType.LIST) {
+                var child = children.get(0);
+                str.append("(");
+                renderField(str, child, depth + 1, false);
+                str.append(")");
+                return;
+            }
+            str.append("{ ");
             for (var child : children) {
-                // Leading spaces in code spans are trimmed, so indent with non-breaking spaces outside of code spans.
+                str.append("` <br>");
                 str.append("&nbsp;&nbsp;".repeat(depth + 1));
-                str.append(" `");
+                str.append("`");
                 str.append(child.getName());
-                if (child.isNullable()) {
-                    str.append("?");
-                }
                 str.append(": ");
                 renderField(str, child, depth + 1, true);
-                str.append("` <br> ");
             }
+            str.append("` <br> ");
             str.append("&nbsp;&nbsp;".repeat(depth));
             str.append(" `}");
         }
     }
 
-    /**
-     * Renders an Arrow type for the reference, e.g. {@code Int(bitWidth: 32, isSigned: true)}.
-     * <p>
-     * {@link ArrowType#toString()} emits a bare positional list ({@code Int(32, true)}) that reads like a Java
-     * constructor call, so the parameters are unnamed. Arrow's type classes carry Jackson annotations, so we
-     * serialize the type to get named parameters. The serialized {@code name} property is dropped because it
-     * duplicates the type id, which is used as the rendered prefix.
-     */
     private static void renderType(StringBuilder str, ArrowType type) {
-        JsonNode json;
-        try {
-            json = JACKSON.valueToTree(type);
-        } catch (IllegalArgumentException e) {
-            // Annotated types serialize structurally; keep the raw form for anything Jackson can't handle.
-            str.append(type);
-            return;
-        }
-        var parameters = new ArrayList<String>();
-        String name = null;
-        for (var it = json.propertyStream().iterator(); it.hasNext();) {
-            Map.Entry<String, JsonNode> entry = it.next();
-            if ("name".equals(entry.getKey())) {
-                name = entry.getValue().asText();
-            } else {
-                parameters.add(entry.getKey() + ": " + renderValue(entry.getValue()));
-            }
-        }
-        str.append(name);
-        if (parameters.isEmpty() == false) {
-            str.append("(").append(String.join(", ", parameters)).append(")");
-        }
+        str.append(friendlyName(type));
     }
 
-    private static String renderValue(JsonNode value) {
-        return value.isTextual() ? value.textValue() : value.toString();
+    /**
+     * A readable name for a minor type, e.g. {@code VARCHAR} becomes {@code VarChar}. {@link Types.MinorType} constants have no
+     * word boundaries ({@code TIMESTAMPMILLITZ}), so the names are spelled out following Arrow's vector class names
+     * ({@code TimeStampMilliTZVector}), which readers of the Arrow docs and libraries already know.
+     */
+    static String friendlyName(ArrowType arrowType) {
+        var minorType = Types.getMinorTypeForArrowType(arrowType);
+        return switch (minorType) {
+            case NULL -> "Null";
+            case STRUCT -> "Struct";
+            case TINYINT -> "Int8";
+            case SMALLINT -> "Int16";
+            case INT -> "Int32";
+            case BIGINT -> "Int64";
+            case DATEDAY -> "DateDay";
+            case DATEMILLI -> "DateMilli";
+            case TIMESEC -> "TimeSec";
+            case TIMEMILLI -> "TimeMilli";
+            case TIMEMICRO -> "TimeMicro";
+            case TIMENANO -> "TimeNano";
+            case TIMESTAMPSEC -> "TimeStampSec";
+            case TIMESTAMPMILLI -> "TimeStampMilli";
+            case TIMESTAMPMICRO -> "TimeStampMicro";
+            case TIMESTAMPNANO -> "TimeStampNano";
+            case TIMESTAMPSECTZ -> "TimeStampSecTZ";
+            case TIMESTAMPMILLITZ -> "TimeStampMilliTZ";
+            case TIMESTAMPMICROTZ -> "TimeStampMicroTZ";
+            case TIMESTAMPNANOTZ -> "TimeStampNanoTZ";
+            case INTERVALDAY -> "IntervalDay";
+            case INTERVALMONTHDAYNANO -> "IntervalMonthDayNano";
+            case INTERVALYEAR -> "IntervalYear";
+            case DURATION -> "Duration";
+            case FLOAT2 -> "Float16";
+            case FLOAT4 -> "Float32";
+            case FLOAT8 -> "Float64";
+            case BIT -> "Boolean";
+            case VARCHAR -> "VarChar";
+            case VIEWVARCHAR -> "ViewVarChar";
+            case LARGEVARCHAR -> "LargeVarChar";
+            case VARBINARY -> "VarBinary";
+            case VIEWVARBINARY -> "ViewVarBinary";
+            case LARGEVARBINARY -> "LargeVarBinary";
+            case FIXEDSIZEBINARY -> "FixedSizeBinary";
+            case DECIMAL -> "Decimal";
+            case DECIMAL256 -> "Decimal256";
+            case UINT1 -> "UInt8";
+            case UINT2 -> "UInt16";
+            case UINT4 -> "UInt32";
+            case UINT8 -> "UInt64";
+            case LIST -> "List";
+            case LISTVIEW -> "ListView";
+            case LARGELIST -> "LargeList";
+            case LARGELISTVIEW -> "LargeListView";
+            case FIXED_SIZE_LIST -> "FixedSizeList";
+            case UNION -> "Union";
+            case DENSEUNION -> "DenseUnion";
+            case MAP -> "Map";
+            case EXTENSIONTYPE -> "ExtensionType";
+            case RUNENDENCODED -> "RunEndEncoded";
+        };
     }
 }

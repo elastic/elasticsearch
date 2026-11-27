@@ -788,3 +788,8 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testSourcesFinishedUnregistersSink
   issue: https://github.com/elastic/elasticsearch/issues/165591
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testDeleteIndexAfterRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/167803

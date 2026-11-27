@@ -19,6 +19,7 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
@@ -34,6 +36,8 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.CacheMissWaitMetrics;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -56,8 +60,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
@@ -68,6 +74,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -138,6 +145,10 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     private final LongAdder phaseResultBytesRead = new LongAdder();
     private final LongAdder phaseRequestBytesWritten = new LongAdder();
 
+    // Tells whether a local index exists in the current cluster state, as opposed to the snapshot this search runs against.
+    @Nullable
+    private Predicate<Index> localIndexExists;
+
     AbstractSearchAsyncAction(
         String name,
         Logger logger,
@@ -201,6 +212,10 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         this.searchResponseMetrics = searchResponseMetrics;
         this.searchRequestAttributes = searchRequestAttributes;
         this.isPitRelocationEnabled = pitRelocationEnabled;
+    }
+
+    void setLocalIndexExists(Predicate<Index> localIndexExists) {
+        this.localIndexExists = localIndexExists;
     }
 
     protected final boolean hasShardResponse() {
@@ -357,6 +372,79 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     }
 
     /**
+     * If all shards of the search belong to local indices that were deleted mid-search, return an {@link IndexNotFoundException} (404).
+     * This is skipped when the request's {@link IndicesOptions} would make a search started after the delete succeed without hits.
+     *
+     * @param failures the reported shard failures. The shards without a reported failure, which were canceled because another shard
+     *                 failed, also have to belong to deleted indices.
+     * @return the exception to return to the caller, or {@code null} if the failures must be reported as usual
+     */
+    @Nullable
+    private IndexNotFoundException indexDeletedDuringSearch(List<ShardSearchFailure> failures) {
+        final Predicate<Index> indexExists = localIndexExists;
+        if (indexExists == null
+            || failures.isEmpty()
+            || request.pointInTimeBuilder() != null
+            || indicesOptionsTolerateMissingIndices(request.indicesOptions(), request.indices())) {
+            return null;
+        }
+        Index deleted = null;
+        try {
+            final Set<ShardId> reported = new HashSet<>();
+            // shards that actually failed
+            for (ShardSearchFailure failure : failures) {
+                final SearchShardTarget target = failure.shard();
+                if (target == null || target.getClusterAlias() != null || indexExists.test(target.getShardId().getIndex())) {
+                    return null;
+                }
+                reported.add(target.getShardId());
+                deleted = target.getShardId().getIndex();
+            }
+            // unreported shards (i.e. canceled / not attempted)
+            for (SearchShardIterator shardIt : shardIterators) {
+                if (reported.contains(shardIt.shardId()) == false) {
+                    if (shardIt.getClusterAlias() != null || indexExists.test(shardIt.shardId().getIndex())) {
+                        return null;
+                    }
+                    deleted = shardIt.shardId().getIndex();
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("failed to check whether the failed indices still exist", e);
+            return null;
+        }
+        final var exception = new IndexNotFoundException(deleted);
+        // one entry per distinct failure, as for the "all shards failed" response, not one per shard
+        for (ShardOperationFailedException failure : ExceptionsHelper.groupBy(failures)) {
+            if (failure.getCause() != null) {
+                exception.addSuppressed(failure.getCause());
+            }
+        }
+        return exception;
+    }
+
+    /**
+     * A search started after the delete returns no hits instead of failing if it ignores unavailable indices, or if it only has wildcard
+     * (or all indices) expressions and allows them to match nothing. A concrete expression has to exist unless unavailable indices are
+     * ignored, so it keeps the search failing whatever else is in the request. Reporting a missing index would otherwise be stricter than
+     * what the caller asked for.
+     */
+    private static boolean indicesOptionsTolerateMissingIndices(IndicesOptions options, String[] indices) {
+        if (options.ignoreUnavailable()) {
+            return true;
+        }
+        return options.allowNoIndices()
+            && Arrays.stream(indices).allMatch(index -> Regex.isSimpleMatchPattern(index) || "_all".equals(index) || index.startsWith("-"));
+    }
+
+    private void failBecauseIndexWasDeleted(String currentPhase, IndexNotFoundException deletedIndex) {
+        // the phase is otherwise lost, as the response no longer carries the SearchPhaseExecutionException metadata
+        deletedIndex.addMetadata("es.phase", currentPhase);
+        logger.debug(() -> "All shards failed for phase: [" + currentPhase + "] because the index was deleted", deletedIndex);
+        raisePhaseFailure(deletedIndex);
+    }
+
+    /**
      * Sends the request to the actual shard.
      * @param shardIt the shards iterator
      * @param connection to node that the shard is located on
@@ -378,12 +466,17 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
          * failed or if there was a failure and partial results are not allowed, then we immediately
          * fail. Otherwise we continue to the next phase.
          */
-        List<? extends ShardOperationFailedException> shardSearchFailures = buildShardFailures();
+        final List<ShardSearchFailure> shardSearchFailures = buildShardFailures();
         if (shardSearchFailures.size() == getNumShards()) {
-            shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
-            Throwable cause = shardSearchFailures.isEmpty()
+            final IndexNotFoundException deletedIndex = indexDeletedDuringSearch(shardSearchFailures);
+            if (deletedIndex != null) {
+                failBecauseIndexWasDeleted(currentPhase, deletedIndex);
+                return;
+            }
+            final List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(shardSearchFailures);
+            Throwable cause = groupedFailures.isEmpty()
                 ? null
-                : ElasticsearchException.guessRootCauses(shardSearchFailures.getFirst().getCause())[0];
+                : ElasticsearchException.guessRootCauses(groupedFailures.getFirst().getCause())[0];
             logger.debug(() -> "All shards failed for phase: [" + currentPhase + "]", cause);
             onPhaseFailure(currentPhase, "all shards failed", cause);
         } else {
@@ -393,10 +486,19 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
                 // check if there are actual failures in the atomic array since
                 // successful retries can reset the failures to null
                 if (shardSearchFailures.isEmpty() == false) {
+                    // every attempted shard (i.e. not skipped) either has a reported failure or was canceled (the canceled ones are the
+                    // unreported shards)
+                    if (skippedCount == 0 && results.getSuccessfulResults().findAny().isEmpty()) {
+                        final IndexNotFoundException deletedIndex = indexDeletedDuringSearch(shardSearchFailures);
+                        if (deletedIndex != null) {
+                            failBecauseIndexWasDeleted(currentPhase, deletedIndex);
+                            return;
+                        }
+                    }
                     if (logger.isDebugEnabled()) {
                         int numShardFailures = shardSearchFailures.size();
-                        shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
-                        Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures.getFirst().getCause())[0];
+                        final List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(shardSearchFailures);
+                        Throwable cause = ElasticsearchException.guessRootCauses(groupedFailures.getFirst().getCause())[0];
                         logger.debug(() -> format("%s shards failed for phase: [%s]", numShardFailures, currentPhase), cause);
                     }
                     onPhaseFailure(currentPhase, "Partial shards failure", null);
@@ -938,7 +1040,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
      *
      * @param exception the exception explaining or causing the phase failure
      */
-    private void raisePhaseFailure(SearchPhaseExecutionException exception) {
+    private void raisePhaseFailure(Exception exception) {
         results.getSuccessfulResults().forEach(entry -> releaseSearchContext(entry, exception));
         task.getProgressListener().notifyPhaseFailure(exception);
         listener.onFailure(exception);

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -17,7 +18,10 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -27,6 +31,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,6 +43,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.ShardId;
@@ -52,6 +59,7 @@ import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -73,6 +81,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -88,6 +97,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL;
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.INTERNAL_PARTIAL_RESULTS_CANCEL_REASON;
@@ -1059,6 +1070,307 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertThat(searchPhaseExecutionException.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertEquals(nodeLookups, resolvedNodes);
         assertEquals(requestIds, releasedContexts);
+    }
+
+    /**
+     * When every copy of the only shard fails and the index no longer exists in the current cluster state, the caller gets the same
+     * {@link IndexNotFoundException} that a search started after the delete would have got, instead of a 500 "all shards failed".
+     */
+    public void testAllShardsFailedBecauseIndexWasDeleted() {
+        final var failure = runAllShardsFailed(null, index -> false);
+        assertThat(failure, instanceOf(IndexNotFoundException.class));
+        assertThat(((IndexNotFoundException) failure).status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(failure.getSuppressed().length, equalTo(1));
+        assertThat(failure.getSuppressed()[0].getCause(), instanceOf(NoSuchFileException.class));
+        // the phase is kept as metadata, since the response no longer carries it in a SearchPhaseExecutionException
+        final var phase = ((IndexNotFoundException) failure).getMetadata("es.phase");
+        assertThat(phase.size(), equalTo(1));
+        assertFalse(phase.getFirst().isEmpty());
+    }
+
+    /** A missing blob on an index that still exists is real data loss and must stay a server error. */
+    public void testAllShardsFailedOnExistingIndexIsNotReportedAsMissingIndex() {
+        final var failure = runAllShardsFailed(null, index -> true);
+        assertThat(failure, instanceOf(SearchPhaseExecutionException.class));
+        assertThat(((SearchPhaseExecutionException) failure).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    /**
+     * If the cluster state cannot be consulted (for example the project is gone), the failures are reported as usual and, above all, the
+     * listener is still completed: runAllShardsFailed asserts that it was.
+     */
+    public void testAllShardsFailedWhenIndexExistenceCheckThrows() {
+        final var failure = runAllShardsFailed(null, index -> { throw new IllegalStateException("project not found"); });
+        assertThat(failure, instanceOf(SearchPhaseExecutionException.class));
+        assertThat(((SearchPhaseExecutionException) failure).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    /** The check matches on index UUID, so an index recreated under the same name does not hide the failure of the deleted one. */
+    public void testAllShardsFailedChecksIndexUuid() {
+        // The cluster state holds an index with the name of the failed shards' index, but with a different UUID: it was recreated.
+        final var recreated = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .put(IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), "recreated-index-uuid", 1, 0)))
+            .build();
+        final var failure = runAllShardsFailed(null, recreated::hasIndex);
+        assertThat(failure, instanceOf(IndexNotFoundException.class));
+    }
+
+    /** The local cluster state says nothing about the indices of a remote cluster, so those failures are reported as usual. */
+    public void testAllShardsFailedOnRemoteClusterIsNotReportedAsMissingIndex() {
+        final var failure = runAllShardsFailed(randomAlphaOfLengthBetween(5, 10), index -> false);
+        assertThat(failure, instanceOf(SearchPhaseExecutionException.class));
+    }
+
+    /** A search on a point in time keeps its missing search context failures, whether or not the index still exists. */
+    public void testAllShardsFailedOnPointInTimeIsNotReportedAsMissingIndex() {
+        final var request = new SearchRequest("index").source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray(randomAlphaOfLength(10))))
+        ).allowPartialSearchResults(randomBoolean());
+        final var failure = runAllShardsFailed(request, null, index -> false);
+        assertThat(failure, instanceOf(SearchPhaseExecutionException.class));
+    }
+
+    /** The first request of a scroll search is an ordinary search, so a delete under it is reported as a missing index. */
+    public void testAllShardsFailedOnScrollSearchBecauseIndexWasDeleted() {
+        final var request = new SearchRequest("index").scroll(TimeValue.timeValueMinutes(1)).allowPartialSearchResults(randomBoolean());
+        final var failure = runAllShardsFailed(request, null, index -> false);
+        assertThat(failure, instanceOf(IndexNotFoundException.class));
+    }
+
+    /** Every index the search targets is gone, so the caller gets a missing index and every shard failure is kept as suppressed. */
+    public void testAllShardsFailedOnSeveralDeletedIndices() {
+        final var shardIds = List.of(new ShardId("deleted-1", "uuid-1", 0), new ShardId("deleted-2", "uuid-2", 0));
+        final var failure = runAllShardsFailed(
+            new SearchRequest("deleted-1", "deleted-2").allowPartialSearchResults(randomBoolean()),
+            null,
+            shardIds,
+            index -> false
+        );
+        assertThat(failure, instanceOf(IndexNotFoundException.class));
+        assertThat(failure.getSuppressed().length, equalTo(2));
+    }
+
+    /** One deleted index must not hide the failure of another index that still exists: that one is real data loss. */
+    public void testAllShardsFailedOnDeletedAndExistingIndexIsNotReportedAsMissingIndex() {
+        final var shardIds = List.of(new ShardId("deleted", "uuid-1", 0), new ShardId("existing", "uuid-2", 0));
+        final var failure = runAllShardsFailed(
+            new SearchRequest("deleted", "existing").allowPartialSearchResults(randomBoolean()),
+            null,
+            shardIds,
+            index -> index.getName().equals("existing")
+        );
+        assertThat(failure, instanceOf(SearchPhaseExecutionException.class));
+        assertThat(((SearchPhaseExecutionException) failure).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    /** The same failure on many shards of one index is reported once, as in the "all shards failed" response, not once per shard. */
+    public void testAllShardsFailedOnManyShardsKeepsOneSuppressedFailurePerDistinctFailure() {
+        final var shardIds = IntStream.range(0, between(2, 20)).mapToObj(i -> new ShardId("index", "index-uuid", i)).toList();
+        final var failure = runAllShardsFailed(
+            new SearchRequest("index").allowPartialSearchResults(randomBoolean()),
+            null,
+            shardIds,
+            i -> false
+        );
+        assertThat(failure, instanceOf(IndexNotFoundException.class));
+        assertThat(failure.getSuppressed().length, equalTo(1));
+    }
+
+    /** A search that ignores unavailable indices returns no hits once the index is gone, so it must not start to fail with a 404. */
+    public void testAllShardsFailedWithIgnoreUnavailableIsNotReportedAsMissingIndex() {
+        final var request = new SearchRequest("index").indicesOptions(IndicesOptions.lenientExpandOpen())
+            .allowPartialSearchResults(randomBoolean());
+        final var failure = runAllShardsFailed(request, null, index -> false);
+        assertThat(failure, instanceOf(SearchPhaseExecutionException.class));
+    }
+
+    /** A wildcard that is allowed to match nothing returns no hits once the index is gone, so it must not start to fail with a 404. */
+    public void testAllShardsFailedOnWildcardThatMayMatchNothingIsNotReportedAsMissingIndex() {
+        final var request = new SearchRequest("ind*").indicesOptions(IndicesOptions.fromOptions(false, true, true, false))
+            .allowPartialSearchResults(randomBoolean());
+        final var failure = runAllShardsFailed(request, null, index -> false);
+        assertThat(failure, instanceOf(SearchPhaseExecutionException.class));
+    }
+
+    /** A concrete expression has to exist, so next to a wildcard it still makes a later search fail with a missing index. */
+    public void testAllShardsFailedOnConcreteIndexNextToWildcardIsReportedAsMissingIndex() {
+        final var request = new SearchRequest("orders", "orders-*").indicesOptions(IndicesOptions.fromOptions(false, true, true, false))
+            .allowPartialSearchResults(randomBoolean());
+        final var failure = runAllShardsFailed(request, null, List.of(new ShardId("orders", "orders-uuid", 0)), index -> false);
+        assertThat(failure, instanceOf(IndexNotFoundException.class));
+    }
+
+    /** A wildcard that must match something fails after the delete, so the missing index is what a later search would report too. */
+    public void testAllShardsFailedOnWildcardThatMustMatchSomethingIsReportedAsMissingIndex() {
+        final var request = new SearchRequest("ind*").indicesOptions(IndicesOptions.fromOptions(false, false, true, false))
+            .allowPartialSearchResults(randomBoolean());
+        final var failure = runAllShardsFailed(request, null, index -> false);
+        assertThat(failure, instanceOf(IndexNotFoundException.class));
+    }
+
+    /**
+     * Without partial results, the first failure cancels the other shards and those cancellations are not reported as failures. When no
+     * shard succeeded and every index is gone, the caller still gets the missing index.
+     */
+    public void testFirstFailureCancelsOtherShardsBecauseIndexWasDeleted() {
+        final var failure = runFirstShardFailsAndOthersAreCancelled(index -> false);
+        assertThat(failure, instanceOf(IndexNotFoundException.class));
+    }
+
+    /** The cancelled shards' indices count too: one that still exists means the failure may be real, so it is reported as usual. */
+    public void testFirstFailureCancelsOtherShardsOfIndexThatStillExists() {
+        final var failure = runFirstShardFailsAndOthersAreCancelled(index -> index.getName().equals("existing"));
+        assertThat(failure, instanceOf(SearchPhaseExecutionException.class));
+        assertThat(((SearchPhaseExecutionException) failure).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    /**
+     * A shard whose first copy failed and whose retry was cancelled is both a reported failure and a cancellation. That must not stop
+     * the deleted index from being recognised when no shard succeeded.
+     */
+    public void testShardBothFailedAndCancelledBecauseIndexWasDeleted() {
+        final var shardIds = List.of(
+            new ShardId("deleted", "uuid-1", 0),
+            new ShardId("deleted", "uuid-1", 1),
+            new ShardId("deleted", "uuid-1", 2)
+        );
+        final var shardIterators = shardIds.stream()
+            .map(shardId -> new SearchShardIterator(null, shardId, Collections.emptyList(), null, SplitShardCountSummary.UNSET))
+            .toList();
+        final var task = new SearchTask(
+            randomLong(),
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(6),
+            () -> randomAlphaOfLength(6),
+            TaskId.EMPTY_TASK_ID,
+            Map.of()
+        );
+        final var failure = new AtomicReference<Exception>();
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(shardIds.size())) {
+            final var action = createAction(
+                new SearchRequest("deleted").allowPartialSearchResults(false),
+                phaseResults,
+                ActionListener.wrap(response -> fail("onResponse should not be called"), failure::set),
+                false,
+                new AtomicLong(),
+                null,
+                null,
+                shardIterators,
+                task
+            );
+            action.setLocalIndexExists(index -> false);
+            TaskCancelHelper.cancel(task, INTERNAL_PARTIAL_RESULTS_CANCEL_REASON);
+            // the first copy of the first shard failed, which is recorded, and then its retry was cancelled
+            action.onShardFailure(
+                0,
+                new SearchShardTarget("node1", shardIds.get(0), null),
+                new ElasticsearchException("blob missing", new NoSuchFileException("stateless_commit_29"))
+            );
+            for (int i = 0; i < shardIds.size(); i++) {
+                action.onShardFailure(
+                    i,
+                    new SearchShardTarget("node1", shardIds.get(i), null),
+                    shardIterators.get(i),
+                    new TaskCancelledException(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON)
+                );
+            }
+        }
+        assertThat(failure.get(), instanceOf(IndexNotFoundException.class));
+    }
+
+    private Exception runFirstShardFailsAndOthersAreCancelled(Predicate<Index> localIndexExists) {
+        final var shardIds = List.of(
+            new ShardId("deleted", "uuid-1", 0),
+            new ShardId("deleted", "uuid-1", 1),
+            new ShardId("existing", "uuid-2", 0)
+        );
+        final var shardIterators = shardIds.stream()
+            .map(shardId -> new SearchShardIterator(null, shardId, Collections.emptyList(), null, SplitShardCountSummary.UNSET))
+            .toList();
+        final var task = new SearchTask(
+            randomLong(),
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(6),
+            () -> randomAlphaOfLength(6),
+            TaskId.EMPTY_TASK_ID,
+            Map.of()
+        );
+        final var failure = new AtomicReference<Exception>();
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(shardIds.size())) {
+            final var action = createAction(
+                new SearchRequest("deleted", "existing").allowPartialSearchResults(false),
+                phaseResults,
+                ActionListener.wrap(response -> fail("onResponse should not be called"), failure::set),
+                false,
+                new AtomicLong(),
+                null,
+                null,
+                shardIterators,
+                task
+            );
+            action.setLocalIndexExists(localIndexExists);
+            // the cancellation reason is set when the first shard fails, so that the other shards report an internal cancellation
+            TaskCancelHelper.cancel(task, INTERNAL_PARTIAL_RESULTS_CANCEL_REASON);
+            action.onShardFailure(
+                0,
+                new SearchShardTarget("node1", shardIds.get(0), null),
+                shardIterators.get(0),
+                new ElasticsearchException("blob missing", new NoSuchFileException("stateless_commit_29"))
+            );
+            for (int i = 1; i < shardIds.size(); i++) {
+                action.onShardFailure(
+                    i,
+                    new SearchShardTarget("node1", shardIds.get(i), null),
+                    shardIterators.get(i),
+                    new TaskCancelledException(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON)
+                );
+            }
+        }
+        assertNotNull(failure.get());
+        return failure.get();
+    }
+
+    private Exception runAllShardsFailed(String clusterAlias, Predicate<Index> localIndexExists) {
+        return runAllShardsFailed(new SearchRequest("index").allowPartialSearchResults(randomBoolean()), clusterAlias, localIndexExists);
+    }
+
+    private Exception runAllShardsFailed(SearchRequest searchRequest, String clusterAlias, Predicate<Index> localIndexExists) {
+        return runAllShardsFailed(searchRequest, clusterAlias, List.of(new ShardId("index", "index-uuid", 0)), localIndexExists);
+    }
+
+    private Exception runAllShardsFailed(
+        SearchRequest searchRequest,
+        String clusterAlias,
+        List<ShardId> shardIds,
+        Predicate<Index> localIndexExists
+    ) {
+        final var shardIterators = shardIds.stream()
+            .map(shardId -> new SearchShardIterator(clusterAlias, shardId, Collections.emptyList(), null, SplitShardCountSummary.UNSET))
+            .toList();
+        final var failure = new AtomicReference<Exception>();
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(shardIds.size())) {
+            final var action = createAction(
+                searchRequest,
+                phaseResults,
+                ActionListener.wrap(response -> fail("onResponse should not be called"), failure::set),
+                false,
+                new AtomicLong(),
+                null,
+                null,
+                shardIterators
+            );
+            action.setLocalIndexExists(localIndexExists);
+            for (int i = 0; i < shardIds.size(); i++) {
+                action.onShardFailure(
+                    i,
+                    new SearchShardTarget("node1", shardIds.get(i), clusterAlias),
+                    shardIterators.get(i),
+                    new ElasticsearchException("blob missing", new NoSuchFileException("stateless_commit_29"))
+                );
+            }
+        }
+        assertNotNull(failure.get());
+        return failure.get();
     }
 
     public void testAccumulateDirectoryMetricsMergesAcrossShards() {

@@ -2438,6 +2438,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchRequestAttributes
                     );
                 }
+                // used if need to re-check index existence during a search
+                searchPhase.setLocalIndexExists(index -> projectResolver.getProjectMetadata(clusterService.state()).hasIndex(index));
                 success = true;
                 searchPhase.start();
             } finally {

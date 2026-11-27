@@ -537,7 +537,7 @@ public final class ExceptionsHelper {
      * @return deduplicated array; if failures is null or empty, it will be returned without modification
      */
     public static List<ShardOperationFailedException> groupBy(List<? extends ShardOperationFailedException> failures) {
-        if (failures.isEmpty()) {
+        if (failures == null || failures.isEmpty()) {
             return Collections.emptyList();
         }
         List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();

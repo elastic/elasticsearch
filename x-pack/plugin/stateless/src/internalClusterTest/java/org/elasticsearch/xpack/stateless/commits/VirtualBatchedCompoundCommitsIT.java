@@ -753,8 +753,13 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 assertNotNull(shard);
                 assertThat(shard.indexSettings().getIndexMetadata().getState(), equalTo(IndexMetadata.State.CLOSE));
             });
-            // wait until index is deleted
-            case INDEX_DELETED -> () -> assertBusy(() -> assertThat(listBccBlobsWithAbsolutePath(shardCommitsContainer), empty()));
+            // wait until index is deleted, on the index node (its blobs are gone) and on the node coordinating the search (its cluster
+            // state no longer has the index): the coordinator reports a missing index only when it has applied the delete
+            case INDEX_DELETED -> () -> {
+                assertBusy(() -> assertThat(listBccBlobsWithAbsolutePath(shardCommitsContainer), empty()));
+                final var coordinatorClusterService = internalCluster().getInstance(ClusterService.class, searchNode);
+                assertBusy(() -> assertFalse(coordinatorClusterService.state().metadata().getProject().hasIndex(indexName)));
+            };
         };
         CountDownLatch getChunkActionAppeared = new CountDownLatch(1);
         MockTransportService.getInstance(indexNode)
@@ -793,21 +798,24 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         // Empty cache on search node, to ensure an action is sent to the indexing node
         evictSearchShardCache(indexName);
 
-        final Set<RestStatus> expectedStatuses = switch (failureType) {
-            case INDEX_CLOSED -> Set.of(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.BAD_REQUEST);
-            case INDEX_DELETED -> Set.of(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE);
-        };
-        final String expectedException = switch (failureType) {
-            case INDEX_CLOSED -> IndexClosedException.class.getName();
-            case INDEX_DELETED -> NoSuchFileException.class.getName();
-        };
-        var thread = new Thread(
-            () -> assertFailures(
-                prepareSearch(indexName, randomFrom(TestSearchType.values())),
-                expectedStatuses,
-                containsString(expectedException)
-            )
-        );
+        var thread = new Thread(() -> {
+            switch (failureType) {
+                case INDEX_CLOSED -> assertFailures(
+                    prepareSearch(indexName, randomFrom(TestSearchType.values())),
+                    Set.of(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.BAD_REQUEST),
+                    containsString(IndexClosedException.class.getName())
+                );
+                case INDEX_DELETED -> {
+                    // the search node coordinates the search, which is the node whose cluster state is waited for above
+                    final var searchRequest = prepareSearch(indexName, randomFrom(TestSearchType.values())).request();
+                    final var exception = expectThrows(
+                        IndexNotFoundException.class,
+                        () -> client(searchNode).search(searchRequest).actionGet()
+                    );
+                    assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
+                }
+            }
+        });
         thread.start();
 
         safeAwait(getChunkActionAppeared);

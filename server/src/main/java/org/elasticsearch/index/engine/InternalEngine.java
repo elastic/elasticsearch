@@ -2551,9 +2551,11 @@ public class InternalEngine extends Engine {
         // document still represents the original index operation for recovery, which keeps _seq_no and _version at the base).
         final boolean seqNoAware = engineConfig.getIndexSettings().seqNoAwareDocValuesUpdates();
         DocValuesUpdateResult result;
+        int reservedDocs = 0;
         try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(docValuesUpdate.uid())) {
             lastWriteNanos = docValuesUpdate.startTime();
             final DocValuesUpdateStrategy strategy = docValuesUpdateStrategyForOperation(docValuesUpdate);
+            reservedDocs = strategy.reservedDocs();
             final DocValuesUpdate op = strategy.op();
             if (strategy.earlyResult() != null) {
                 // A primary conflict or a CCR follower skip: nothing to apply. The result carries UNASSIGNED_SEQ_NO, so nothing is
@@ -2597,6 +2599,8 @@ public class InternalEngine extends Engine {
                 e.addSuppressed(inner);
             }
             throw e;
+        } finally {
+            releaseInFlightDocs(reservedDocs);
         }
         return result;
     }
@@ -2608,7 +2612,8 @@ public class InternalEngine extends Engine {
     public record DocValuesUpdateStrategy(
         DocValuesUpdate op,
         @Nullable DocValuesUpdatePlan plan,
-        @Nullable DocValuesUpdateResult earlyResult
+        @Nullable DocValuesUpdateResult earlyResult,
+        int reservedDocs
     ) {}
 
     /**
@@ -2621,7 +2626,21 @@ public class InternalEngine extends Engine {
             // Conflict if a racing delete or reindex changed the document since the update was prepared, as index and delete do.
             final DocValuesUpdateResult conflict = checkDocValuesUpdateConflict(op);
             if (conflict != null) {
-                return new DocValuesUpdateStrategy(op, null, conflict);
+                return new DocValuesUpdateStrategy(op, null, conflict, 0);
+            }
+            // The history document counts toward the shard's hard document limit, so reserve its slot before assigning a sequence number,
+            // as index and delete do. On a full shard this rejects the update as a document-level failure instead of failing after the
+            // sequence number is issued (which, lacking a reservation, would fail the whole engine).
+            final Exception reserveError = tryAcquireInFlightDocs(op, 1);
+            if (reserveError != null) {
+                final DocValuesUpdateResult tooManyDocs = new DocValuesUpdateResult(
+                    reserveError,
+                    op.version(),
+                    op.primaryTerm(),
+                    SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    op.id()
+                );
+                return new DocValuesUpdateStrategy(op, null, tooManyDocs, 0);
             }
             final DocValuesUpdate seqNoOp = new DocValuesUpdate(
                 op.id(),
@@ -2638,10 +2657,10 @@ public class InternalEngine extends Engine {
             );
             advanceMaxSeqNoOfUpdatesOnPrimary(seqNoOp.seqNo());
             // The primary computed this against the current live document, so it is always the document's newest operation.
-            return new DocValuesUpdateStrategy(seqNoOp, DocValuesUpdatePlan.APPLY_IN_PLACE, null);
+            return new DocValuesUpdateStrategy(seqNoOp, DocValuesUpdatePlan.APPLY_IN_PLACE, null, 1);
         }
         advanceMaxSeqNo(op.seqNo());
-        return new DocValuesUpdateStrategy(op, planDocValuesUpdateAsNonPrimary(op), null);
+        return new DocValuesUpdateStrategy(op, planDocValuesUpdateAsNonPrimary(op), null, 0);
     }
 
     /**
@@ -2753,10 +2772,29 @@ public class InternalEngine extends Engine {
 
     private DocValuesUpdateResult updateDocValuesInLucene(DocValuesUpdate op, DocValuesUpdatePlan plan) throws IOException {
         try {
+            if (plan.addHistory()) {
+                // Write the born-soft-deleted history document before patching the live columns. The patch alone is not self-representing:
+                // it only rewrites the base document's companion columns, leaving _seq_no at the base, so the update's identity at its own
+                // sequence number lives solely in this history document (and the translog). Writing it first means that a flush committing
+                // between the two Lucene operations followed by a crash leaves a recoverable history-without-patch state - recovery and CCR
+                // replay the operation and re-apply the patch - rather than a durable patch with no replayable operation at that sequence
+                // number, which would diverge an ops-based follower. The history document carries no _id, so the later updateDocValues by
+                // the _id term does not rewrite it.
+                final ParsedDocument history = ParsedDocument.docValuesUpdateHistory(
+                    engineConfig.getIndexSettings().seqNoIndexOptions(),
+                    op.id(),
+                    Translog.DocValuesUpdate.serializeUpdates(op.uid(), op.getIfSeqNo(), op.getIfPrimaryTerm(), op.updates()).toBytesRef()
+                );
+                history.updateSeqID(op.seqNo(), op.primaryTerm());
+                history.version().setLongValue(op.version());
+                final LuceneDocument doc = history.docs().getFirst();
+                doc.add(softDeletesField);
+                indexWriter.addDocument(doc);
+            }
+
             if (plan.applyInPlace()) {
                 assert assertMaxSeqNoOfUpdatesIsAdvanced(op.uid(), op.seqNo(), false, false);
                 final Term uidTerm = new Term(IdFieldMapper.NAME, op.uid());
-                // Patch the live document's columns before adding the history document, so it touches only the pre-existing document.
                 final boolean seqNoAware = engineConfig.getIndexSettings().seqNoAwareDocValuesUpdates();
                 final List<Field> fields = new ArrayList<>(op.updates().size() + 2);
                 for (Translog.DocValuesUpdate.FieldUpdate update : op.updates()) {
@@ -2779,21 +2817,6 @@ public class InternalEngine extends Engine {
                     capturePreImage(op, fields);
                 }
                 indexWriter.updateDocValues(uidTerm, fields.toArray(Field[]::new));
-            }
-
-            if (plan.addHistory()) {
-                // The in-place update leaves no trace in Lucene history, so write a born-soft-deleted history document for peer recovery
-                // and CCR to reconstruct the operation.
-                final ParsedDocument history = ParsedDocument.docValuesUpdateHistory(
-                    engineConfig.getIndexSettings().seqNoIndexOptions(),
-                    op.id(),
-                    Translog.DocValuesUpdate.serializeUpdates(op.uid(), op.getIfSeqNo(), op.getIfPrimaryTerm(), op.updates()).toBytesRef()
-                );
-                history.updateSeqID(op.seqNo(), op.primaryTerm());
-                history.version().setLongValue(op.version());
-                final LuceneDocument doc = history.docs().getFirst();
-                doc.add(softDeletesField);
-                indexWriter.addDocument(doc);
             }
             return new DocValuesUpdateResult(op.version(), op.primaryTerm(), op.seqNo(), op.id(), plan.applyInPlace());
         } catch (final Exception ex) {

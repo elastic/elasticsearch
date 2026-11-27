@@ -592,6 +592,18 @@ public final class KeywordFieldMapper extends FieldMapper {
                     "[doc_values.updatable] is not supported for low cardinality keyword field [" + fullName + "]"
                 );
             }
+            if (docValuesParameters().updatable() && hasNormalizer() && isNormalizerSkipStoreOriginalValue() == false) {
+                // The doc-values column holds the normalized value, so the original is kept in fallback synthetic source (or, with
+                // columnar_stored, rebuilt from the column). An in-place update rewrites only the column, leaving _source/GET stale
+                // relative to search and aggregations. The lowercase normalizer that skips storing the original is exempt: its _source is
+                // rebuilt from the same column the update rewrites, so they stay consistent.
+                throw new IllegalArgumentException(
+                    "[doc_values.updatable] is not supported for keyword field ["
+                        + fullName
+                        + "] with a [normalizer]: the original value is kept outside the field's column, which an in-place update rewrites "
+                        + "only in part"
+                );
+            }
             return new KeywordFieldMapper(
                 leafName(),
                 fieldtype,

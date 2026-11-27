@@ -517,6 +517,11 @@ public class UpdateHelper {
             // Not an in-place candidate (no updatable scalar fields), so this is not a fallback - leave both counters untouched.
             return null;
         }
+        if (indexShard.indexSettings().isSliceEnabled()) {
+            // A slice-enabled index keys documents by the compound id#slice term, but the in-place apply path looks the document up by
+            // its plain _id, so it would not find the live document. Decline the fast path and reindex until slice support is added.
+            return null;
+        }
         if (inPlaceUpdateSafeToReplicate(indexShard, getResult) == false) {
             docValuesUpdateMetrics.onReindexFallback();
             return null;

@@ -21,6 +21,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class DocValuesUpdateCcrIT extends CcrSingleNodeTestCase {
 
@@ -62,6 +63,11 @@ public class DocValuesUpdateCcrIT extends CcrSingleNodeTestCase {
         }
         assertFalse(client().bulk(bulk).actionGet().hasFailures());
 
+        // These must apply in place on the leader, otherwise a silent reindex fallback would replicate the values as ordinary ops and the
+        // test would pass without exercising doc-values delta replay at all.
+        long leaderInPlaceAfterBulk = inPlaceUpdateCount("leader");
+        assertThat("pre-follow updates should apply in place on the leader", leaderInPlaceAfterBulk, greaterThan(0L));
+
         PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
         client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
@@ -75,9 +81,27 @@ public class DocValuesUpdateCcrIT extends CcrSingleNodeTestCase {
         BulkRequest second = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         second.add(new UpdateRequest("leader", "0").doc(Map.of("status", "archived")));
         assertFalse(client().bulk(second).actionGet().hasFailures());
+        assertThat(
+            "the live update should apply in place on the leader",
+            inPlaceUpdateCount("leader"),
+            greaterThan(leaderInPlaceAfterBulk)
+        );
         assertBusy(
             () -> assertHitCount(client().prepareSearch("follower").setQuery(QueryBuilders.termQuery("status", "archived")).setSize(0), 1)
         );
         ensureEmptyWriteBuffers();
+    }
+
+    // The in-place doc-values update discriminator: an in-place apply increments this stat, while a reindex fallback is counted as an
+    // ordinary index operation and leaves it unchanged.
+    private long inPlaceUpdateCount(String index) {
+        return indicesAdmin().prepareStats(index)
+            .clear()
+            .setIndexing(true)
+            .get()
+            .getTotal()
+            .getIndexing()
+            .getTotal()
+            .getInPlaceDocValuesUpdateCount();
     }
 }

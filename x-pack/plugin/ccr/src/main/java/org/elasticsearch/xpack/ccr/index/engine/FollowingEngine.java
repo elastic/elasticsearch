@@ -125,12 +125,12 @@ public class FollowingEngine extends InternalEngine {
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 docValuesUpdate.id()
             );
-            return new DocValuesUpdateStrategy(docValuesUpdate, null, skip);
+            return new DocValuesUpdateStrategy(docValuesUpdate, null, skip, 0);
         }
         // A leader-assigned operation has PRIMARY origin but is a replayed operation: reuse its leader sequence number (the leader
         // already ran the optimistic-concurrency check) and resolve it against the live document, as a replica operation does.
         advanceMaxSeqNo(docValuesUpdate.seqNo());
-        return new DocValuesUpdateStrategy(docValuesUpdate, planDocValuesUpdateAsNonPrimary(docValuesUpdate), null);
+        return new DocValuesUpdateStrategy(docValuesUpdate, planDocValuesUpdateAsNonPrimary(docValuesUpdate), null, 0);
     }
 
     @Override

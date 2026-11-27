@@ -188,15 +188,19 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
             var primaryTerm = combinedDocValues.docPrimaryTerm(segmentDocID);
             assert primaryTerm > 0 : "nested child document must be excluded";
             boolean isDocValuesUpdate = combinedDocValues.isDocValuesUpdate(segmentDocID);
+            var docValuesUpdatePayload = isDocValuesUpdate ? combinedDocValues.docValuesUpdatePayload(segmentDocID) : null;
             documentRecords[index] = new SearchRecord(
                 (FieldDoc) scoreDoc,
                 combinedDocValues.isTombstone(segmentDocID),
                 isDocValuesUpdate,
-                isDocValuesUpdate ? combinedDocValues.docValuesUpdatePayload(segmentDocID) : null,
+                docValuesUpdatePayload,
                 combinedDocValues.docSeqNo(segmentDocID),
                 primaryTerm,
                 combinedDocValues.docVersion(segmentDocID),
-                combinedDocValues.recoverySourceSize(segmentDocID)
+                // A doc-values-update history document has no recovery source (size -1), but it does retain a serialized delta payload.
+                // Charge that payload to the batch's memory budget so a long run of updates cannot accumulate unbounded in a single batch
+                // during recovery or CCR; -1 would leave the budget loop unbounded.
+                isDocValuesUpdate ? docValuesUpdatePayload.length : combinedDocValues.recoverySourceSize(segmentDocID)
             );
         }
         return documentRecords;

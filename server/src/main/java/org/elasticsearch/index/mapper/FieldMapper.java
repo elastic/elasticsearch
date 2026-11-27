@@ -274,7 +274,9 @@ public abstract class FieldMapper extends Mapper {
             );
         }
         var sortConfig = indexSettings.getIndexSortConfig();
-        if (sortConfig != null && sortConfig.hasSortOnField(field)) {
+        // fields() covers both a direct sort key and a field read by a computed sort key (an expression over the field); the latter
+        // hasSortOnField deliberately misses, yet an in-place update to such a field still leaves the segment out of index-sort order.
+        if (sortConfig != null && sortConfig.fields().contains(field)) {
             throw new IllegalArgumentException(
                 "[doc_values.updatable] cannot be set on field ["
                     + field

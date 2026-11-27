@@ -17,8 +17,11 @@ import java.io.IOException;
 
 /**
  * Thrown on a non-primary copy when an in-place doc-values update cannot be applied because the base version it was computed against has
- * not been applied on this copy yet (recovery and CCR deliver operations concurrently, so a delta can race ahead of its base). Failing
- * the operation causes it to be retried once the base arrives in order. Transient and retryable, not a client error.
+ * not been applied on this copy yet (recovery and CCR deliver operations concurrently, so a delta can race ahead of its base). How the
+ * failure is handled depends on the path: a CCR follower retries the operation (the fetch re-delivers the base, in order, first, via
+ * {@code ShardFollowNodeTask#shouldRetry}), while on normal peer replication it is not individually retried - the recovering copy is
+ * failed and re-recovers, bringing the base with it. Either way the base is present on the next attempt. Not a client error. The real fix,
+ * a replica-side wait-for-base, is tracked as a follow-up (see issue #166843).
  */
 public class DocValuesUpdateBaseNotPresentException extends EngineException {
 

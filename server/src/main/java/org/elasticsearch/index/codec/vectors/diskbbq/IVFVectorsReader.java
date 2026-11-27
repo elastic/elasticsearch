@@ -481,6 +481,9 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (plan == null) {
             return; // no vectors in this segment / slice
         }
+        if (scan.isPreparing()) {
+            return; // the prepare step only plans the segment
+        }
         // own live docs per part (Lucene's test readers check that the acquiring thread reads them); a filter's are shared
         Bits visitorBits = acceptDocs instanceof ESAcceptDocs.BitsAcceptDocs ? acceptDocs.bits() : plan.acceptBits();
         PostingVisitor visitor = postingVisitor(fieldInfo, entry, queryTarget, values, visitorBits, esAcceptDocs);

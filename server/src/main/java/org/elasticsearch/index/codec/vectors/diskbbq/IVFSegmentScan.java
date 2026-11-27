@@ -115,14 +115,16 @@ public final class IVFSegmentScan {
         }
     }
 
+    /** Whether the scan is being prepared: a search then only plans the segment. */
+    boolean isPreparing() {
+        return preparing;
+    }
+
     /**
      * Searches the planned segment as one part: takes posting lists within the budget, and may be the part that goes on past it.
      * @param postingLists the part's own view of the posting lists, to prefetch through: not the one its visitor reads
      */
     void search(PostingVisitor visitor, IndexInput postingLists, KnnCollector collector) throws IOException {
-        if (preparing) {
-            return;
-        }
         Plan plan = this.plan.get();
         collectors.add(collector);
         while (takeNext(plan, visitor, postingLists)) {
@@ -151,13 +153,14 @@ public final class IVFSegmentScan {
         PostingMetadata[] order = plan.order();
         while (true) {
             Taken before = taken.get();
-            if (before.lists() == order.length || before.entries() >= plan.budget()) {
+            int next = before.lists(); // lists are taken in order, so the next one is at this place
+            if (next == order.length || before.entries() >= plan.budget()) {
                 return false;
             }
-            long entries = visitor.resetPostingsScorer(order[before.lists()]);
-            if (taken.compareAndSet(before, new Taken(before.lists() + 1, before.entries() + entries))) {
+            long entries = visitor.resetPostingsScorer(order[next]);
+            if (taken.compareAndSet(before, new Taken(next + 1, before.entries() + entries))) {
                 // one list per part ahead, so that a list is asked for shortly before it is scored
-                int ahead = before.lists() + parts;
+                int ahead = next + parts;
                 if (ahead < order.length) {
                     postingLists.prefetch(order[ahead].offset(), order[ahead].length());
                 }

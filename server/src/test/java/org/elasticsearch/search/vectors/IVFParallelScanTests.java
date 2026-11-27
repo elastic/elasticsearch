@@ -103,50 +103,52 @@ public class IVFParallelScanTests extends ESTestCase {
         }
     }
 
-    /** Cases are (work per leaf, tasks) -> parts per leaf. Work is in multiples of the least work a part may have. */
+    /** Cases are (vectors to score per leaf, tasks) -> parts per leaf. The vectors are in multiples of the fewest a part may score. */
     public void testPartsPerLeaf() {
         assertParts(new long[] { 72 }, 8, 8); // a part per task
-        assertParts(new long[] { 72 }, 16, 10); // no part under 10% of the work
+        assertParts(new long[] { 72 }, 16, 10); // no part under 10% of the shard's scoring
         assertParts(new long[] { 72 }, 1, 1);
         assertParts(new long[] { 71, 1 }, 8, 8, 1); // 7.9 tasks' worth is rounded up
         assertParts(new long[] { 25, 25, 25, 5 }, 8, 3, 3, 2, 1); // 2.5 tasks' worth each: never more parts than tasks
         assertParts(new long[] { 15, 85 }, 16, 1, 8); // 8.5 tasks' worth: nine parts would each hold under 10%
         assertParts(new long[] { 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10 }, 8, ones(12)); // under a task's worth: whole
         assertParts(new long[] { 40, 20, 10, 5, 2, 1 }, 4, 2, 1, 1, 1, 1, 1);
-        assertParts(new long[] { 1 }, 8, 1); // no part under the least work
+        assertParts(new long[] { 1 }, 8, 1); // no part under the fewest vectors a part may score
         assertParts(new long[] { 5 }, 8, 5);
         assertParts(new long[] { 5, 1 }, 8, 5, 1);
-        long min = IVFParallelScan.MIN_PART_WORK;
+        long min = IVFParallelScan.MIN_VECTORS_TO_SCORE_PER_PART;
         boolean[] splittable = { true };
         assertArrayEquals(new int[] { 1 }, IVFParallelScan.partsPerLeaf(new long[] { 2 * min - 1 }, splittable, 8));
         assertArrayEquals(new int[] { 2 }, IVFParallelScan.partsPerLeaf(new long[] { 2 * min }, splittable, 8));
         assertArrayEquals(new int[] { 2 }, IVFParallelScan.partsPerLeaf(new long[] { 3 * min - 1 }, splittable, 8));
+        // a leaf on its own holds all of the shard's scoring: ten parts of 10% each, whatever the number of vectors
+        assertArrayEquals(new int[] { 10 }, IVFParallelScan.partsPerLeaf(new long[] { 138_579 }, splittable, 16));
     }
 
     public void testRandomLeavesKeepTheRules() {
         for (int iter = 0; iter < 200; iter++) {
             int leaves = randomIntBetween(1, 50);
-            long[] work = new long[leaves];
+            long[] estimatedVectorsToScore = new long[leaves];
             boolean[] splittable = new boolean[leaves];
             for (int i = 0; i < leaves; i++) {
-                work[i] = randomBoolean() ? randomLongBetween(0, 1_000) : randomLongBetween(0, 1_000_000);
+                estimatedVectorsToScore[i] = randomBoolean() ? randomLongBetween(0, 1_000) : randomLongBetween(0, 1_000_000);
                 splittable[i] = randomBoolean();
             }
-            int parallelism = randomIntBetween(1, 32);
-            int[] parts = IVFParallelScan.partsPerLeaf(work, splittable, parallelism);
-            long total = Arrays.stream(work).sum();
+            int maxParallelTasks = randomIntBetween(1, 32);
+            int[] parts = IVFParallelScan.partsPerLeaf(estimatedVectorsToScore, splittable, maxParallelTasks);
+            long estimatedTotalVectors = Arrays.stream(estimatedVectorsToScore).sum();
             int partsOfSplitLeaves = 0;
             for (int i = 0; i < leaves; i++) {
                 assertTrue("leaf " + i + " not searched", parts[i] >= 1);
                 assertTrue("leaf " + i + " cannot be split", splittable[i] || parts[i] == 1);
                 if (parts[i] > 1) {
                     partsOfSplitLeaves += parts[i];
-                    double workPerPart = (double) work[i] / parts[i];
-                    assertTrue(workPerPart + " of " + total, workPerPart >= 0.1 * total * (1 - 1e-9));
-                    assertTrue(workPerPart + " per part", workPerPart >= IVFParallelScan.MIN_PART_WORK);
+                    double vectorsPerPart = (double) estimatedVectorsToScore[i] / parts[i];
+                    assertTrue(vectorsPerPart + " of " + estimatedTotalVectors, vectorsPerPart >= 0.1 * estimatedTotalVectors * (1 - 1e-9));
+                    assertTrue(vectorsPerPart + " per part", vectorsPerPart >= IVFParallelScan.MIN_VECTORS_TO_SCORE_PER_PART);
                 }
             }
-            assertTrue(partsOfSplitLeaves + " parts for " + parallelism, partsOfSplitLeaves <= Math.min(parallelism, 10));
+            assertTrue(partsOfSplitLeaves + " parts for " + maxParallelTasks, partsOfSplitLeaves <= Math.min(maxParallelTasks, 10));
         }
     }
 
@@ -267,7 +269,7 @@ public class IVFParallelScanTests extends ESTestCase {
         }
     }
 
-    /** Only the leaf holding most of the work is split: the others are searched whole, by one collector that shares no scan. */
+    /** Only the leaf with most of the vectors to score is split: the others are searched whole, by one collector that shares no scan. */
     public void testOnlySplitLeavesShareAScan() throws IOException {
         int dims = randomIntBetween(8, 32);
         try (Directory dir = newDirectory()) {
@@ -438,7 +440,7 @@ public class IVFParallelScanTests extends ESTestCase {
         }
     }
 
-    /** A leaf's work for a one-slice query is the slice's, read off the skipper: within one skipper interval of the truth. */
+    /** For a one-slice query a leaf is sized by the slice's vectors, read off the skipper: within one skipper interval of the truth. */
     public void testALeafIsSizedByTheSliceTheQuerySearches() throws IOException {
         int dims = randomIntBetween(8, 32);
         int[] vectorsPerSlice = { vectorsToSplit(0.5f) + SKIPPER_INTERVAL, 2_000, 300, 5_000 };
@@ -453,7 +455,7 @@ public class IVFParallelScanTests extends ESTestCase {
                     var query = new IVFKnnFloatSlicedVectorQuery("v", randomVector(dims), 10, 10, null, 0.5f, resolver(), SLICE, id);
                     int searched = query.searchedVectors(leaf, leafVectors);
                     assertTrue(searched + " for slice " + slice, Math.abs(searched - vectorsPerSlice[slice]) <= SKIPPER_INTERVAL);
-                    boolean split = slice == 0; // only slice 0 has two parts' worth of work
+                    boolean split = slice == 0; // only slice 0 has two parts' worth of vectors to score
                     assertEquals("slice " + slice, split, splitsALeaf(reader, query));
                 }
             }
@@ -534,7 +536,7 @@ public class IVFParallelScanTests extends ESTestCase {
 
     /** The fewest vectors with which a leaf is split in two at this visit ratio. */
     private static int vectorsToSplit(float visitRatio) {
-        return (int) Math.ceil(IVFParallelScan.MIN_PART_WORK / visitRatio);
+        return (int) Math.ceil(IVFParallelScan.MIN_VECTORS_TO_SCORE_PER_PART / visitRatio);
     }
 
     private static void indexLeaves(Directory dir, int dims, int... docsPerLeaf) throws IOException {
@@ -730,12 +732,14 @@ public class IVFParallelScanTests extends ESTestCase {
         }
     }
 
-    /** Every leaf can be split. */
-    private static void assertParts(long[] workInParts, int parallelism, int... expected) {
-        long[] work = Arrays.stream(workInParts).map(parts -> parts * IVFParallelScan.MIN_PART_WORK).toArray();
-        boolean[] splittable = new boolean[work.length];
+    /** Every leaf can be split. The vectors to score are given in multiples of the fewest a part may score. */
+    private static void assertParts(long[] vectorsToScoreInParts, int maxParallelTasks, int... expected) {
+        long[] estimatedVectorsToScore = Arrays.stream(vectorsToScoreInParts)
+            .map(parts -> parts * IVFParallelScan.MIN_VECTORS_TO_SCORE_PER_PART)
+            .toArray();
+        boolean[] splittable = new boolean[estimatedVectorsToScore.length];
         Arrays.fill(splittable, true);
-        assertArrayEquals(expected, IVFParallelScan.partsPerLeaf(work, splittable, parallelism));
+        assertArrayEquals(expected, IVFParallelScan.partsPerLeaf(estimatedVectorsToScore, splittable, maxParallelTasks));
     }
 
     private static int[] ones(int n) {

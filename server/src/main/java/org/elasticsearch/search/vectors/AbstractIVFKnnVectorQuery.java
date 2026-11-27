@@ -377,7 +377,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         throw new UnsupportedOperationException();
     }
 
-    /** How many of a leaf's vectors the query considers: all, unless it searches a data slice. Sizes the leaf's work. */
+    /** How many of a leaf's vectors the query considers: all, unless it searches a data slice. Sizes the leaf's scoring estimate. */
     int searchedVectors(LeafReaderContext ctx, int numVectors) throws IOException {
         return numVectors;
     }

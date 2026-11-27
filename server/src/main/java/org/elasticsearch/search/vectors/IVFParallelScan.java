@@ -36,13 +36,20 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
- * Searches a shard's leaves for one IVF query, one task per leaf, except that a leaf holding a large share of the work is
- * split into parts: several tasks that share the leaf's {@link IVFSegmentScan}, and together visit what one task would.
+ * Searches a shard's leaves for one IVF query, one task per leaf, except that a leaf with a large share of the vectors the
+ * query is expected to score is split into parts: several tasks that share the leaf's {@link IVFSegmentScan}, and together
+ * visit what one task would.
  */
 final class IVFParallelScan {
 
-    /** The least work a part may have, in posting list entries: in benchmarks, parts with less made a query no faster. */
-    static final long MIN_PART_WORK = 10_000;
+    /** The fewest vectors a part may be expected to score: in benchmarks, parts with fewer made a query no faster. */
+    static final long MIN_VECTORS_TO_SCORE_PER_PART = 10_000;
+
+    /**
+     * The least share of the shard's scoring a part may have, in percent: the share Elasticsearch asks of a slice
+     * ({@link ContextIndexSearcher#MINIMUM_DOCS_PERCENT_PER_SLICE}).
+     */
+    static final int MIN_SCORING_PCT_PER_PART = (int) Math.round(100 * ContextIndexSearcher.MINIMUM_DOCS_PERCENT_PER_SLICE);
 
     /** A leaf with fewer vectors is never split: its scan is too short for a split to pay. Not final, so tests can lower it. */
     static int minVectorsToSplit = 100_000;
@@ -62,18 +69,18 @@ final class IVFParallelScan {
         this.query = query;
         this.filterWeight = filterWeight;
         this.visitRatio = visitRatio;
-        long[] work = new long[leafInputs.size()];
-        boolean[] splittable = new boolean[work.length];
-        for (int i = 0; i < work.length; i++) {
+        long[] estimatedVectorsToScore = new long[leafInputs.size()];
+        boolean[] splittable = new boolean[leafInputs.size()];
+        for (int i = 0; i < leafInputs.size(); i++) {
             LeafReaderContext ctx = leafInputs.get(i).ctx();
             int vectors = searchedVectors(ctx);
-            work[i] = visitBudget(vectors); // what the parts of a leaf can share
+            estimatedVectorsToScore[i] = estimateVectorsToScore(vectors); // what the parts of a leaf can share
             splittable[i] = vectors >= minVectorsToSplit && scansPostingLists(ctx.reader());
         }
-        int[] parts = partsPerLeaf(work, splittable, maxParallelTasks);
-        this.leaves = new Leaf[work.length];
-        for (int i = 0; i < work.length; i++) {
-            leaves[i] = new Leaf(leafInputs.get(i), work[i], parts[i]);
+        int[] partsPerLeaf = partsPerLeaf(estimatedVectorsToScore, splittable, maxParallelTasks);
+        this.leaves = new Leaf[leafInputs.size()];
+        for (int i = 0; i < leaves.length; i++) {
+            leaves[i] = new Leaf(leafInputs.get(i), estimatedVectorsToScore[i], partsPerLeaf[i]);
         }
     }
 
@@ -121,7 +128,7 @@ final class IVFParallelScan {
     /** One task per part of a split leaf and one per other leaf, the biggest leaves first. */
     private List<Callable<Void>> tasks() {
         Leaf[] biggestFirst = leaves.clone();
-        Arrays.sort(biggestFirst, Comparator.comparingLong((Leaf leaf) -> leaf.work).reversed());
+        Arrays.sort(biggestFirst, Comparator.comparingLong((Leaf leaf) -> leaf.estimatedVectorsToScore).reversed());
         List<Callable<Void>> tasks = new ArrayList<>();
         for (Leaf leaf : biggestFirst) {
             if (leaf.input.collectorManager() == null) {
@@ -145,31 +152,32 @@ final class IVFParallelScan {
     }
 
     /**
-     * Parts per leaf; 1 means searched whole. A leaf with at least one task's worth of the work gets its share of the tasks,
-     * rounded. No part has less than {@link #MIN_PART_WORK}, or than the share of the shard's work Elasticsearch asks of a
-     * slice ({@link ContextIndexSearcher#MINIMUM_DOCS_PERCENT_PER_SLICE}).
+     * Parts per leaf; 1 means searched whole. A leaf expected to score at least one task's worth of vectors gets its share
+     * of the tasks, rounded. No part is expected to score fewer than {@link #MIN_VECTORS_TO_SCORE_PER_PART} vectors, or
+     * less than {@link #MIN_SCORING_PCT_PER_PART} percent of the shard's.
      */
-    static int[] partsPerLeaf(long[] work, boolean[] splittable, int parallelism) {
-        double minShare = ContextIndexSearcher.MINIMUM_DOCS_PERCENT_PER_SLICE;
-        int maxParts = (int) Math.min(parallelism, Math.round(1 / minShare));
-        long total = Arrays.stream(work).sum();
-        int[] parts = new int[work.length];
+    static int[] partsPerLeaf(long[] estimatedVectorsToScore, boolean[] splittable, int maxParallelTasks) {
+        int maxParts = Math.min(maxParallelTasks, 100 / MIN_SCORING_PCT_PER_PART);
+        long estimatedTotalVectors = Arrays.stream(estimatedVectorsToScore).sum();
+        int[] parts = new int[estimatedVectorsToScore.length];
         Arrays.fill(parts, 1);
-        if (total == 0 || maxParts == 1) {
+        if (estimatedTotalVectors == 0 || maxParts == 1) {
             return parts;
         }
-        double taskWork = (double) total / maxParts;
-        Integer[] biggestFirst = new Integer[work.length];
+        double vectorsPerTask = (double) estimatedTotalVectors / maxParts;
+        Integer[] biggestFirst = new Integer[parts.length];
         Arrays.setAll(biggestFirst, i -> i);
-        Arrays.sort(biggestFirst, Comparator.comparingLong((Integer i) -> work[i]).reversed());
+        Arrays.sort(biggestFirst, Comparator.comparingLong((Integer i) -> estimatedVectorsToScore[i]).reversed());
         int partsLeft = maxParts;
         for (int leaf : biggestFirst) {
-            if (work[leaf] < taskWork) {
+            long vectorsToScore = estimatedVectorsToScore[leaf];
+            if (vectorsToScore < vectorsPerTask) {
                 break;
             }
             if (splittable[leaf]) {
-                long shareOfTasks = Math.round(work[leaf] / taskWork);
-                long mostParts = Math.min((long) (work[leaf] / (minShare * total)), work[leaf] / MIN_PART_WORK);
+                long scoringPct = 100 * vectorsToScore / estimatedTotalVectors;
+                long shareOfTasks = Math.round(vectorsToScore / vectorsPerTask);
+                long mostParts = Math.min(scoringPct / MIN_SCORING_PCT_PER_PART, vectorsToScore / MIN_VECTORS_TO_SCORE_PER_PART);
                 parts[leaf] = (int) Math.max(1, Math.min(Math.min(shareOfTasks, mostParts), partsLeft));
             }
             partsLeft = Math.max(0, partsLeft - parts[leaf]);
@@ -192,7 +200,8 @@ final class IVFParallelScan {
         return numVectors < minVectorsToSplit ? numVectors : query.searchedVectors(ctx, numVectors);
     }
 
-    private long visitBudget(int numVectors) {
+    /** How many vectors a search of that many is expected to score: its visit budget, in posting list entries. */
+    private long estimateVectorsToScore(int numVectors) {
         if (numVectors == 0) {
             return 0;
         }
@@ -231,15 +240,15 @@ final class IVFParallelScan {
 
     private static final class Leaf {
         private final LeafInput input;
-        private final long work;
+        private final long estimatedVectorsToScore;
         private final int parts;
         private final IVFSegmentScan scan; // shared by the leaf's parts; null unless the leaf is split
         private volatile AbstractIVFKnnVectorQuery.PartSearch partSearch; // how to search a part; set before the parts start
         private volatile TopDocs wholeLeafHits;
 
-        Leaf(LeafInput input, long work, int parts) {
+        Leaf(LeafInput input, long estimatedVectorsToScore, int parts) {
             this.input = input;
-            this.work = work;
+            this.estimatedVectorsToScore = estimatedVectorsToScore;
             this.parts = parts;
             this.scan = parts > 1 ? new IVFSegmentScan(parts) : null;
         }

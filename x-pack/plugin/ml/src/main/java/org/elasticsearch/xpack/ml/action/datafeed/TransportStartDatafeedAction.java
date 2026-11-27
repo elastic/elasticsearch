@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedProjectRoutingDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
@@ -443,6 +444,15 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
     }
 
+    /**
+     * An ES|QL datafeed that is not in cross-project mode already ran its {@code | DESCRIBE} in {@link #resolveRemoteSources}. Creating
+     * the factory here too would run a second one on every start. In cross-project mode that probe is skipped, so the factory
+     * creation is the only start-time validation and a failure reaches the caller instead of removing the task later.
+     */
+    static boolean skipsFactoryValidation(DatafeedConfig effectiveDatafeed, CrossProjectModeDecider crossProjectModeDecider) {
+        return effectiveDatafeed.getEsqlQuery() != null && skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider) == false;
+    }
+
     /** Creates {@link DataExtractorFactory} solely for the purpose of validation i.e. verifying that it can be created. */
     private void createDataExtractor(
         Task task,
@@ -458,6 +468,17 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             datafeed.getCloudInternalCredential() != null
         );
 
+        if (skipsFactoryValidation(effectiveDatafeed, crossProjectModeDecider)) {
+            persistentTasksService.sendStartRequest(
+                MlTasks.datafeedTaskId(params.getDatafeedId()),
+                MlTasks.DATAFEED_TASK_NAME,
+                params,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                listener
+            );
+            return;
+        }
+
         DataExtractorFactory.create(
             new ParentTaskAssigningClient(client, clusterService.localNode(), task),
             CloudCredentialsExtension.getInstance().credentialManager(),
@@ -467,6 +488,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index
             new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy, listener1) -> {}),
+            DatafeedSearchTelemetry.NOOP,
             ActionListener.wrap(
                 unused -> persistentTasksService.sendStartRequest(
                     MlTasks.datafeedTaskId(params.getDatafeedId()),

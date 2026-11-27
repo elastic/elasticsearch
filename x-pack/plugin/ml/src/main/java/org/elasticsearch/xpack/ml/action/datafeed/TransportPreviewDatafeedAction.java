@@ -55,10 +55,10 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.MachineLearningExtensionHolder;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
@@ -225,6 +225,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
+                DatafeedSearchTelemetry.NOOP,
                 responseHeaderPreservingListener.delegateFailure(
                     (l, dataExtractorFactory) -> isDateNanos(
                         previewClient,
@@ -247,7 +248,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         ActionListener<PreviewDatafeedAction.Response> listener
     ) {
         final long start = request.getStartTime().orElse(0);
-        final long end = resolvePreviewEndTime(request, isDateNanos, datafeed);
+        final long end = resolvePreviewEndTime(request, isDateNanos, datafeed, dataExtractorFactory.timeBucketMillis());
         if (isEmptyEsqlPreviewWindow(datafeed, start, end)) {
             listener.onResponse(new PreviewDatafeedAction.Response(new BytesArray("[]")));
             return;
@@ -265,15 +266,21 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     }
 
     /**
-     * Visible for testing
+     * {@code describedBucketMs} is the bucket interval DESCRIBE reported for the ES|QL time column, 0 when the rows keep source
+     * timestamps. Visible for testing.
      */
-    static long resolvePreviewEndTime(PreviewDatafeedAction.Request request, boolean isDateNanos, DatafeedConfig datafeed) {
+    static long resolvePreviewEndTime(
+        PreviewDatafeedAction.Request request,
+        boolean isDateNanos,
+        DatafeedConfig datafeed,
+        long describedBucketMs
+    ) {
         long cap = isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE;
         if (request.getEndTime().isPresent() == false) {
             return cap;
         }
         long end = request.getEndTime().getAsLong();
-        if (EsqlDataExtractor.emitsBucketTimes(datafeed.getEsqlQuery()) == false) {
+        if (describedBucketMs <= 0) {
             // Raw ES|QL still needs the date_nanos cap; DSL keeps the requested end.
             return datafeed.getEsqlQuery() != null ? Math.min(end, cap) : end;
         }

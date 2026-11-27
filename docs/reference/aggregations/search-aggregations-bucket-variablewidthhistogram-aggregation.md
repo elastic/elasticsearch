@@ -2,6 +2,9 @@
 navigation_title: "Variable width histogram"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-variablewidthhistogram-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Variable width histogram aggregation [search-aggregations-bucket-variablewidthhistogram-aggregation]

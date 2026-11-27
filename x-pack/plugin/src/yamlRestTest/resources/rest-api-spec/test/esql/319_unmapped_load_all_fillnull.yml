@@ -78,7 +78,14 @@ teardown:
   - match: { values: [ [ "mine", 1 ], [ "x", 2 ] ] }
 
 ---
-'FILLNULL ON * fills a mapped field named _unmapped_fields':
+'FILLNULL ON * leaves a mapped field named _unmapped_fields alone':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ fillnull_all_columns_skips_underscore_columns ]
+      reason: "FILLNULL ON * skipping columns that start with an underscore is only available with this capability"
   - do:
       warnings:
         - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
@@ -87,7 +94,7 @@ teardown:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_mapped | FILLNULL DEFAULT ON * | SORT id | LIMIT 10'
   - length: { columns: 2 }
   - match: { columns.0.name: _unmapped_fields }
-  - match: { values: [ [ "mine", 1 ], [ "", 2 ] ] }
+  - match: { values: [ [ "mine", 1 ], [ null, 2 ] ] }
 
 ---
 'FILLNULL on a source field named _unmapped_fields fills it as an ordinary unmapped field':

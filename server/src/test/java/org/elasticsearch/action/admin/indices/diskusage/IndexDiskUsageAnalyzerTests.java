@@ -474,14 +474,8 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             greaterThanOrEqualTo((numDocs / SMALL_SKIP_INTERVAL) * minRecordBytes)
         );
         // identical values must give the same doc values size whether or not the skipper exists
-        assertFieldStats(
-            "ndv",
-            "doc values",
-            withSkipper.analyzed().getDocValuesBytes(),
-            withoutSkipper.analyzed().getDocValuesBytes(),
-            0.01,
-            2560
-        );
+        assertThat(withSkipper.analyzed().getDocValuesBytes(), greaterThan(0L));
+        assertThat(withSkipper.analyzed().getDocValuesBytes(), equalTo(withoutSkipper.analyzed().getDocValuesBytes()));
         // the only difference between the two files on disk is the skipper, so that is the independent expected size
         final long expectedSkipperBytes = withSkipper.onDisk().getDocValuesBytes() - withoutSkipper.onDisk().getDocValuesBytes();
         assertFieldStats("ndv", "skipper", withSkipper.analyzed().getDocValuesSkipperBytes(), expectedSkipperBytes, 0.01, 256);

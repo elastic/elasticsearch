@@ -48,10 +48,10 @@ String json = pythonClient.fetch(url, "{\"query\": \"FROM my-index | LIMIT 10\"}
 
 * **Docker** must be available. If not, the test class is skipped through a JUnit assumption when the rule starts,
   except on CI where Docker is expected and its absence is a failure (see `DockerAvailability`).
-* The node under test runs on the Docker host, and the container reaches it as `host.docker.internal`
-  (`ArrowInteropContainer.HOST_ADDRESS`, mapped to the host with `host-gateway` so that it also works on
-  Linux). The node must therefore listen on a non-loopback interface, e.g. `http.host: 0.0.0.0`, which
-  test clusters don't do by default.
+* The node under test runs on the Docker host, and the container reaches it as `host.testcontainers.internal`
+  (`ArrowInteropContainer.HOST_ADDRESS`). The test must call `ArrowInteropContainer.exposeHostPort(port)` once the node
+  is started and *before* the containers start (e.g. with a `RuleChain`): Testcontainers then relays the port, so
+  the node can keep listening on the loopback interface only. This needs the `testcontainers/sshd` image.
 * Network access to Docker Hub, PyPI and the npm registry is needed to build the images, unless they are
   already in the Docker image store (see below).
 

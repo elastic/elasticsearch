@@ -6,8 +6,8 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [into_command]
-      reason: "INTO is only available in snapshot builds"
+          capabilities: [into_command, into_authorizes_destination]
+      reason: "INTO is only available in snapshot builds, and older nodes create a missing destination instead of failing"
   # Test clusters randomly turn this kill switch off, and INTO only writes through batch indexing. It is dynamic, so the test sets it
   # instead of every suite that runs this file having to configure its cluster.
   - do:
@@ -16,13 +16,13 @@ setup:
           persistent:
             indices.batch_indexing: true
   # INTO never creates its destination, so it must exist. The mapping is explicit so that the rows are searchable right away.
+  # The replicas are left at their default: a stateless index with no replicas has no search shard, so it cannot be queried at all.
   - do:
       indices.create:
         index: into-dest
         body:
           settings:
             number_of_shards: 2
-            number_of_replicas: 0
             index.batch_indexing: true
           mappings:
             properties:

@@ -188,7 +188,7 @@ public class AnalyzerNestedCollectionColumnTests extends AnalyzerTestCase {
             "FROM ne | EVAL o = items | WHERE o IS NOT NULL",
             "FROM ne | EVAL o = items | STATS c = COUNT(*) BY o",
             "FROM ne | EVAL o = items | SORT o",
-            "FROM ne | EVAL o = items | EVAL x = o",
+            "FROM ne | EVAL o = items | EVAL x = o | WHERE x IS NOT NULL",
             "FROM ne | EVAL o = items | KEEP id, o | EVAL x = TO_STRING(o)",
             "FROM ne | EVAL o = items | RENAME o AS p | WHERE p IS NULL",
             "FROM ne | EVAL items = items | WHERE items IS NOT NULL"
@@ -248,6 +248,11 @@ public class AnalyzerNestedCollectionColumnTests extends AnalyzerTestCase {
             "FROM ne | EVAL o = items.parts | NESTED_EXPAND o",
             containsString("NESTED_EXPAND supports one nesting level")
         );
+    }
+
+    public void testAliasOfAnAlias() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne | EVAL o = items | EVAL p = o | NESTED_EXPAND p | KEEP id, p.sku");
+        assertThat(onlyExpand(plan).path(), equalTo("items"));
     }
 
     public void testAliasIsNotAColumnOfAFork() {

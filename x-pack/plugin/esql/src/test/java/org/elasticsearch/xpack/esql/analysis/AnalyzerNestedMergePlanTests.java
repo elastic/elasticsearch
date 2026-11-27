@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -21,6 +22,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.field;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.index;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.resolution;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -108,6 +112,54 @@ public class AnalyzerNestedMergePlanTests extends AnalyzerTestCase {
         LogicalPlan plan = nestedAnalyzer().query("FROM ne | NESTED_EXPAND items | KEEP id, items.sku");
         assertThat(expands(plan), hasSize(1));
         assertThat(plan.anyMatch(MergePlan.class::isInstance), is(false));
+    }
+
+    public void testFilterKeepsTheConjunctsThatAreNotNestedAfterTheMerge() {
+        LogicalPlan plan = withColumnOnlyInOneBranch().query(
+            "FROM (FROM ne_x), (FROM ne) | WHERE x > 1 AND NESTED_ANY(items.qty > 1) | KEEP id"
+        );
+        assertThat(predicates(plan), hasSize(2));
+        assertThat(plan.anyMatch(MergePlan.class::isInstance), is(true));
+    }
+
+    public void testEvalKeepsTheFieldsThatAreNotNestedAfterTheMerge() {
+        LogicalPlan plan = withColumnOnlyInOneBranch().query(
+            "FROM (FROM ne_x), (FROM ne) | EVAL hit = NESTED_ANY(items.qty > 1), y = x + 1 | KEEP id, hit, y"
+        );
+        assertThat(predicates(plan), hasSize(2));
+        assertThat(names(plan.output()), contains("id", "hit", "y"));
+    }
+
+    public void testEvalReadingTheNestedFieldMovesWholeIntoEveryBranch() {
+        LogicalPlan plan = withColumnOnlyInOneBranch().query(
+            "FROM (FROM ne_x), (FROM ne_x) | EVAL hit = NESTED_ANY(items.qty > 1), y = hit | KEEP id, hit, y"
+        );
+        assertThat(predicates(plan), hasSize(2));
+        assertThat(names(plan.output()), contains("id", "hit", "y"));
+    }
+
+    public void testFilterWithOnlyNestedConjunctsMovesCompletely() {
+        LogicalPlan plan = withColumnOnlyInOneBranch().query(
+            "FROM (FROM ne_x), (FROM ne) | WHERE NESTED_ANY(items.qty > 1) AND NESTED_ANY(items.qty < 9) | KEEP id"
+        );
+        assertThat(predicates(plan), hasSize(4));
+    }
+
+    private TestAnalyzer withColumnOnlyInOneBranch() {
+        return nestedAnalyzer().addIndex(
+            "ne_x",
+            resolution(
+                "ne_x",
+                index(
+                    "ne_x",
+                    IndexMode.STANDARD,
+                    field("id", "keyword"),
+                    field("x", "long"),
+                    field("items", "nested"),
+                    field("items.qty", "long")
+                )
+            )
+        );
     }
 
     private TestAnalyzer nestedAnalyzer() {

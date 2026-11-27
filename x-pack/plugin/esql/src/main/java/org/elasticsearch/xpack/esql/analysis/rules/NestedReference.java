@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -44,7 +43,7 @@ public final class NestedReference {
             String path = path(alias.child());
             if (path != null) {
                 references.put(alias.id(), path);
-            } else if (p instanceof Project && alias.child() instanceof Attribute source && references.containsKey(source.id())) {
+            } else if (alias.child() instanceof Attribute source && references.containsKey(source.id())) {
                 references.put(alias.id(), references.get(source.id()));
             }
         }));

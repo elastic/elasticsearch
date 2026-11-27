@@ -81,6 +81,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.atomic.LongAdder;
@@ -1036,8 +1037,34 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     }
 
     private Task registerTaskWithDescription(TestNode node, int descriptionLength) {
+        return registerTaskWithDescription(node, descriptionLength, () -> {});
+    }
+
+    private static long highestNodeListingTaskId(TestNode node) {
+        return node.transportService.getTaskManager()
+            .getTasks()
+            .values()
+            .stream()
+            .filter(t -> t.getAction().equals(TransportListTasksAction.TYPE.name() + "[n]"))
+            .mapToLong(Task::getId)
+            .max()
+            .orElse(-1);
+    }
+
+    private Task registerTaskWithDescription(TestNode node, int descriptionLength, Runnable onTaskInfo) {
         final String description = "x".repeat(descriptionLength);
         return node.transportService.getTaskManager().register("test", "internal:test/described", new TaskAwareRequest() {
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return new Task(id, type, action, description, parentTaskId, headers) {
+                    @Override
+                    public String getDescription() {
+                        onTaskInfo.run();
+                        return super.getDescription();
+                    }
+                };
+            }
+
             private TaskId parentTask = TaskId.EMPTY_TASK_ID;
 
             @Override
@@ -1095,8 +1122,18 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
         final long usedBefore = breaker.getUsed();
         final int descriptionLength = 5_000;
-        final Task task1 = registerTaskWithDescription(testNodes[1], descriptionLength);
-        final Task task2 = registerTaskWithDescription(testNodes[2], descriptionLength);
+        final AtomicLong firstPassTaskIdOnNode1 = new AtomicLong(-1);
+        final AtomicLong firstPassTaskIdOnNode2 = new AtomicLong(-1);
+        final Task task1 = registerTaskWithDescription(
+            testNodes[1],
+            descriptionLength,
+            () -> firstPassTaskIdOnNode1.compareAndSet(-1, highestNodeListingTaskId(testNodes[1]))
+        );
+        final Task task2 = registerTaskWithDescription(
+            testNodes[2],
+            descriptionLength,
+            () -> firstPassTaskIdOnNode2.compareAndSet(-1, highestNodeListingTaskId(testNodes[2]))
+        );
         final AtomicBoolean unregistered = new AtomicBoolean();
         try {
             final ListTasksRequest request = doubleListRequest();
@@ -1112,8 +1149,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                     future
                 );
 
-            assertBusy(() -> assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 2L * descriptionLength)));
-            safeSleep(200);
+            assertBusy(() -> {
+                assertThat(firstPassTaskIdOnNode1.get(), greaterThanOrEqualTo(0L));
+                assertThat(firstPassTaskIdOnNode2.get(), greaterThanOrEqualTo(0L));
+                assertThat(highestNodeListingTaskId(testNodes[1]), greaterThan(firstPassTaskIdOnNode1.get()));
+                assertThat(highestNodeListingTaskId(testNodes[2]), greaterThan(firstPassTaskIdOnNode2.get()));
+            });
             assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 2L * descriptionLength));
             assertFalse(future.isDone());
 

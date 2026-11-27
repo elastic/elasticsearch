@@ -241,7 +241,7 @@ public abstract class TransportTasksAction<
         private final AtomicBoolean ownerReleased = new AtomicBoolean();
         private final AtomicLong retained = new AtomicLong();
 
-        private NodeReplyCharge(CircuitBreaker breaker) {
+        NodeReplyCharge(CircuitBreaker breaker) {
             this.breaker = breaker;
         }
 

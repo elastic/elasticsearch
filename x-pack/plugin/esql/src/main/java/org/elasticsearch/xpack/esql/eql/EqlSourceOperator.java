@@ -105,7 +105,7 @@ public class EqlSourceOperator extends SourceOperator {
     // Guards the close()-vs-response-callback race: Driver.drainAndCloseOperators runs before waitForAsyncActions,
     // so close() can fire while the EQL search is still in flight. Mutations of page/closed are synchronized(this).
     private boolean closed;
-    // A non-empty page was released without being handed to the next operator.
+    // The driver discarded a non-empty page after getOutput and before the next operator accepted it.
     private volatile boolean rowsDiscarded;
     private final Set<String> recordedClusters = ConcurrentHashMap.newKeySet();
 
@@ -207,9 +207,6 @@ public class EqlSourceOperator extends SourceOperator {
             Page result = page;
             page = null;
             emitted = true;
-            if (result.getPositionCount() > 0 && result.getBlockCount() > 0) {
-                result.getBlock(0).attachReleasable(() -> rowsDiscarded = true);
-            }
             return result;
         }
         return null;
@@ -434,6 +431,11 @@ public class EqlSourceOperator extends SourceOperator {
             }
         }
         return clusters.size() == 1 ? clusters.iterator().next() : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+    }
+
+    @Override
+    public void pageDiscardedBeforeHandoff() {
+        rowsDiscarded = true;
     }
 
     @Override

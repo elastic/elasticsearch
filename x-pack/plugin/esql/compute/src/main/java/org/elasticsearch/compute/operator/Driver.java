@@ -466,6 +466,9 @@ public class Driver implements Releasable, Describable {
                     try {
                         driverContext.checkForEarlyTermination();
                     } catch (DriverEarlyTerminationException | TaskCancelledException e) {
+                        if (op instanceof SourceOperator source) {
+                            source.pageDiscardedBeforeHandoff();
+                        }
                         page.releaseBlocks();
                         throw e;
                     }

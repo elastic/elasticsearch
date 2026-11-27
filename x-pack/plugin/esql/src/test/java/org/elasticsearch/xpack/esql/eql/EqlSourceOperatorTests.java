@@ -961,6 +961,40 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         }
     }
 
+    public void testStopBeforeAZeroHitResponseLeavesTheClusterSuccessful() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        executionInfo.markAsStopped();
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContext();
+        Hits hits = new Hits(List.of(), null, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
+        EqlSearchResponse response = new EqlSearchResponse(
+            hits,
+            3L,
+            false,
+            List.of(),
+            List.of(new EqlClusterShards(LOCAL, 1, 1, 0, 0))
+        );
+        SourceOperator operator = operator(
+            client,
+            driverContext,
+            eqlRequestOn("logs"),
+            EqlRelation.Mode.EVENT,
+            List.of(fieldAttribute("process.name", KEYWORD)),
+            executionInfo
+        );
+        try {
+            assertBlocked(operator);
+            operator.close();
+            client.capturedListener.onResponse(response);
+            assertThat(executionInfo.getCluster(LOCAL).getSuccessfulShards(), equalTo(1));
+            assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertFalse(executionInfo.isPartial());
+        } finally {
+            operator.close();
+            response.decRef();
+        }
+    }
+
     public void testStopThatDropsAPulledPageMarksTheClusterPartial() {
         EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
         CapturingEqlClient client = new CapturingEqlClient(threadPool);
@@ -987,6 +1021,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             client.capturedListener.onResponse(response);
             executionInfo.markAsStopped();
             pulled = operator.getOutput();
+            operator.pageDiscardedBeforeHandoff();
             pulled.releaseBlocks();
             operator.close();
             assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
@@ -1025,6 +1060,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             assertBlocked(operator);
             client.capturedListener.onResponse(response);
             handed = operator.getOutput();
+            handed.releaseBlocks();
             executionInfo.markAsStopped();
             operator.close();
             assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));

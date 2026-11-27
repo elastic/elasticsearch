@@ -239,6 +239,11 @@ tests:
   - :x-pack:plugin:ml:test
   method: test_noEarlyScaleDownToZero_afterReelectedAsMaster
   issue: https://github.com/elastic/elasticsearch/issues/167577
+- class: org.elasticsearch.nativeaccess.PreallocateTests
+  tasks:
+  - :libs:native:test
+  method: testPreallocate
+  issue: https://github.com/elastic/elasticsearch/issues/167816
 
 # Examples:
 #

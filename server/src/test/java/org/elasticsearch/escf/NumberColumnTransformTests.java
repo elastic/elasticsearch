@@ -1349,11 +1349,10 @@ public class NumberColumnTransformTests extends ESTestCase {
     }
 
     public void testUnion_unsupportedRowTypes_throw() throws IOException {
-        for (String other : new String[] { "true", "false", "{\"a\": 1}", "[1, 2]", "[1, \"x\"]" }) {
+        // An empty object is the only object that stays in "f"; a non-empty one is flattened into separate "f.a" columns.
+        for (String other : new String[] { "true", "false", "{}", "[1, 2]", "[1, \"x\"]" }) {
             try (EscfBatch batch = encode("{\"f\": 1}", "{\"f\": " + other + "}")) {
-                if (column(batch, "f").kind() != EscfColumnKind.UNION) {
-                    continue; // a column that is not a UNION is covered by the other tests
-                }
+                // fromUnion asserts that the column is a UNION, so that no case is skipped silently.
                 expectThrows(UnsupportedOperationException.class, () -> fromUnion(batch, NumberType.LONG, true, null));
             }
         }

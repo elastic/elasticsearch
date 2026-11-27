@@ -163,7 +163,7 @@ public class ShardIndexingBenchmarkTests extends ESTestCase {
             return state;
         }, List.of(bench::columnThenRow));
         ColumnState column = new ColumnState();
-        column.shape = "long.nullexplicit";
+        column.shape = "scaled_float.dense";
         column.docsPerRequest = ShardIndexingBenchmark.DOCS_PER_INVOCATION;
         assertSetupRejects(column);
         FallbackState fallback = new FallbackState();

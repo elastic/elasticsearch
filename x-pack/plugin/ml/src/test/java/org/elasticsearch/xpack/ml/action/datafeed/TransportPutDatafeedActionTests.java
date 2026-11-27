@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -136,9 +135,7 @@ public class TransportPutDatafeedActionTests extends ESTestCase {
     }
 
     private static DatafeedConfig esqlDatafeed() {
-        return new DatafeedConfig.Builder("datafeed-1", "job-1").setEsqlQuery("FROM logs")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
-            .build();
+        return new DatafeedConfig.Builder("datafeed-1", "job-1").setEsqlQuery("FROM logs").build();
     }
 
     private static TransportPutDatafeedAction createAction(

@@ -86,7 +86,7 @@ public class EsqlDatafeedSummaryCountValidationIT extends BaseMlIntegTestCase {
         // The delayed data check is enabled by default, so the probe requires both "@timestamp" and "doc_count".
         DatafeedConfig datafeed = new DatafeedConfig.Builder(jobId + "-datafeed", jobId).setEsqlQuery(
             "FROM " + indexName + " | STATS doc_count = COUNT(*) BY @timestamp = BUCKET(@timestamp, 1 hour)"
-        ).setGroupingInterval(TimeValue.timeValueHours(1)).build();
+        ).build();
 
         PutDatafeedAction.Response response = client().execute(PutDatafeedAction.INSTANCE, new PutDatafeedAction.Request(datafeed))
             .actionGet();

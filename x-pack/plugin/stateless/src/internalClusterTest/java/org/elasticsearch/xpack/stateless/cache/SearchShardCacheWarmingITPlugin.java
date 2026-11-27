@@ -66,7 +66,7 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
     }
 
     /**
-     * Defers {@link SharedBlobCacheWarmingService#warmCache} body until {@link IndexShardState#STARTED} for the internal
+     * Defers {@link SharedBlobCacheWarmingService#warmSearchCacheAndTimeIt} body until {@link IndexShardState#STARTED} for the internal
      * replicated-files search path ({@code endOffsetsToWarm} non-null). The search recovery warming timeout can still fire and resume
      * recovery on the {@code race} listener while this method waits, so the test can assert recovery completes without relying on filling
      * the prewarm pool.
@@ -75,7 +75,8 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
 
         /**
          * Snapshot for gating: only {@link SearchShardCacheWarmingIT#searchNodeCacheSettingsWithFastNonRelocationWarmingTimeout()} uses a
-         * sub-100ms non-relocation timeout; other ITs leave minutes-long defaults so we must not defer {@link #warmCache} there.
+         * sub-100ms non-relocation timeout; other ITs leave minutes-long defaults so we must not defer {@link #warmSearchCacheAndTimeIt}
+         * there.
          */
         private final ClusterSettings clusterSettings;
 
@@ -91,17 +92,16 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
         }
 
         @Override
-        protected void warmCacheAndTimeIt(
-            Type type,
+        protected void warmSearchCacheAndTimeIt(
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             WarmingRatioProvider warmingRatioProvider,
             @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
-            boolean preWarmForIdLookup,
-            ActionListener<Void> listener
+            Runnable onRecoveryWarmingComplete,
+            ActionListener<Void> allWarmingListener
         ) {
-            if (type == Type.SEARCH && endTargetsToWarm != null && listener != ActionListener.<Void>noop()) {
+            if (endTargetsToWarm != null && allWarmingListener != ActionListener.<Void>noop()) {
                 TimeValue nonRelocation = clusterSettings.get(
                     SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING
                 );
@@ -113,15 +113,14 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
                     }
                 }
             }
-            super.warmCacheAndTimeIt(
-                type,
+            super.warmSearchCacheAndTimeIt(
                 indexShard,
                 commit,
                 directory,
                 warmingRatioProvider,
                 endTargetsToWarm,
-                preWarmForIdLookup,
-                listener
+                onRecoveryWarmingComplete,
+                allWarmingListener
             );
         }
     }

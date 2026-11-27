@@ -397,14 +397,24 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
 
         @Override
-        protected void warmCache(
+        protected void warmForRecovery(
             Type type,
+            IndexShard indexShard,
+            StatelessCompoundCommit commit,
+            BlobStoreCacheDirectory blobStoreCacheDirectory,
+            boolean preWarmForIdLookup,
+            ActionListener<Void> listener
+        ) {
+            listener.onResponse(null);
+        }
+
+        @Override
+        protected void warmSearchOffline(
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory blobStoreCacheDirectory,
             WarmingRatioProvider warmingRatioProvider,
             @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
-            boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
             listener.onResponse(null);

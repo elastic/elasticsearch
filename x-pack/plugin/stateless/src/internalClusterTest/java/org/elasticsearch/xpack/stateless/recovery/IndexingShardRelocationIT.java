@@ -1320,13 +1320,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
-                protected void warmCache(
+                protected void warmForRecovery(
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    WarmingRatioProvider warmingRatioProvider,
-                    @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
@@ -1334,16 +1332,22 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     // the number of written regions in cache after the shard is started we are sure no other regions are likely to be
                     // warmed afterward.
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCache(
-                        type,
-                        indexShard,
-                        commit,
-                        directory,
-                        warmingRatioProvider,
-                        endTargetsToWarm,
-                        false,
-                        subscribableListener
-                    );
+                    super.warmForRecovery(type, indexShard, commit, directory, false, subscribableListener);
+                    safeAwait(subscribableListener);
+                    subscribableListener.addListener(listener);
+                }
+
+                @Override
+                protected void warmSearchOffline(
+                    IndexShard indexShard,
+                    StatelessCompoundCommit commit,
+                    BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
+                    @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
+                    ActionListener<Void> listener
+                ) {
+                    var subscribableListener = new SubscribableListener<Void>();
+                    super.warmSearchOffline(indexShard, commit, directory, warmingRatioProvider, endTargetsToWarm, subscribableListener);
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }

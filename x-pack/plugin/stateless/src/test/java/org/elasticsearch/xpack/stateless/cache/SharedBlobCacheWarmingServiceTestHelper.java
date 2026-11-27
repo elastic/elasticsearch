@@ -72,19 +72,17 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
     }
 
     /**
-     * Calls the protected {@link SharedBlobCacheWarmingService#warmCache} with a listener.
+     * Calls the protected {@link SharedBlobCacheWarmingService#warmSearchOffline} with a listener.
      */
-    public static void warmCache(
+    public static void warmSearchOffline(
         SharedBlobCacheWarmingService warmingService,
-        WarmingRatioProvider warmingRatioProvider,
-        SharedBlobCacheWarmingService.Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
+        WarmingRatioProvider warmingRatioProvider,
         @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
-        boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
-        warmingService.warmCache(type, indexShard, commit, directory, warmingRatioProvider, endTargetsToWarm, preWarmForIdLookup, listener);
+        warmingService.warmSearchOffline(indexShard, commit, directory, warmingRatioProvider, endTargetsToWarm, listener);
     }
 }

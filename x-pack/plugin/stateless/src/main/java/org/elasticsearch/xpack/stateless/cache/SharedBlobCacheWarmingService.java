@@ -463,7 +463,8 @@ public class SharedBlobCacheWarmingService {
     /// Shards whose search recovery is currently blocked waiting for warming (see [#searchRecoveryWarmingListener]). The warming only
     /// honours a direct recovery cancellation for these shards: once the recovery has resumed (warming completed, timed out
     /// or failed) it may no longer notice a cancellation, so a late one must not leave the shard that goes on to start with a colder cache.
-    /// Held in the service rather than passed down so as not to change the signatures of the many `warmCache` overrides.
+    /// Held in the service rather than passed down so as not to change the signatures of the many `warmForRecovery`/`warmSearchOffline`
+    /// overrides.
     // package-private for tests
     final Set<IndexShard> shardsAwaitingRecoveryWarming = ConcurrentCollections.newConcurrentSet();
 
@@ -797,7 +798,7 @@ public class SharedBlobCacheWarmingService {
         BlobStoreCacheDirectory directory,
         ActionListener<Void> listener
     ) {
-        warmCache(type, indexShard, commit, directory, null, null, false, listener);
+        warmCacheForShardRecoveryOrUnhollowing(type, indexShard, commit, directory, false, listener);
     }
 
     public void warmCacheForShardRecoveryOrUnhollowing(
@@ -808,17 +809,21 @@ public class SharedBlobCacheWarmingService {
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
-        warmCache(type, indexShard, commit, directory, null, null, preWarmForIdLookup, listener);
+        warmForRecovery(type, indexShard, commit, directory, preWarmForIdLookup, listener);
     }
 
     /**
-     * Search shard recovery path: warms the blob cache for the recovered commit and completes {@code resumeRecoveryListener} when recovery
-     * may proceed. When {@code endTargetsToWarm} is non-null (internal replicated-files path),
-     * {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} decides whether to wait for warming up to a timeout;
-     * otherwise recovery resumes as soon as warming has been scheduled (fire-and-forget via {@link ActionListener#noop()}).
-     * {@code sourceShardWarmingInfo} is the shutting-down relocation source's answer for the warm-amount heuristic, if any.
+     * Search shard recovery path: warms the blob cache for the recovered commit, completing {@code recoveryWarmingListener} once
+     * recovery warming finishes (or the timeout fires) and {@code allWarmingListener} once full warming finishes (or the timeout
+     * fires). {@code recoveryWarmingListener} always completes before {@code allWarmingListener} is invoked. Warming failures from either
+     * phase are routed to {@code allWarmingListener}; {@code recoveryWarmingListener} still receives {@code onResponse(null)} (except on
+     * thread-pool rejection). When {@code endTargetsToWarm} is non-null (internal replicated-files path),
+     * {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} decides whether to wait for warming up to a timeout, invoking
+     * both listeners on {@link ThreadPool.Names#GENERIC}; otherwise both listeners complete immediately on the caller thread and warming
+     * runs fire-and-forget via {@link ActionListener#noop()}. {@code sourceShardWarmingInfo} is the shutting-down relocation source's
+     * answer for the warm-amount heuristic, if any.
      *
-     * Notice that this may synchronously invoke the listener.
+     * Notice that this may synchronously invoke the listeners.
      */
     public void warmCacheForSearchShardRecovery(
         Supplier<ClusterState> clusterStateSupplier,
@@ -828,7 +833,8 @@ public class SharedBlobCacheWarmingService {
         WarmingRatioProvider warmingRatioProvider,
         @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
         SourceShardWarmingInfo sourceShardWarmingInfo,
-        ActionListener<Void> resumeRecoveryListener
+        ActionListener<Void> recoveryWarmingListener,
+        ActionListener<Void> allWarmingListener
     ) {
         final long totalBytesToWarm = totalBytesToWarm(endTargetsToWarm);
         final SearchRecoveryTimeout plan = endTargetsToWarm != null
@@ -842,61 +848,75 @@ public class SharedBlobCacheWarmingService {
             : SearchRecoveryTimeout.skip();
         if (plan.awaitWarming()) {
             assert endTargetsToWarm != null;
-            warmCacheAndTimeIt(
-                Type.SEARCH,
+            final var recoveryWarmingDone = new SubscribableListener<Void>();
+            final var allWarmingDone = new SubscribableListener<Void>();
+            // Timeout or all-warming finishing also unblocks recoveryWarmingDone.
+            allWarmingDone.addListener(ActionListener.running(() -> recoveryWarmingDone.onResponse(null)));
+            // Run recoveryWarmingListener on generic first, then subscribe allWarmingListener to allWarmingDone so the two listeners
+            // never overlap. When allWarmingDone completes first (e.g. on timeout), this incurs one extra dispatch onto generic.
+            recoveryWarmingDone.addListener(
+                ActionListener.runAfter(recoveryWarmingListener, () -> allWarmingDone.addListener(allWarmingListener)),
+                threadPool.generic(),
+                null
+            );
+            warmSearchCacheAndTimeIt(
                 indexShard,
                 commit,
                 directory,
                 warmingRatioProvider,
                 endTargetsToWarm,
-                false,
-                searchRecoveryWarmingListener(plan, clusterStateSupplier, indexShard, directory, totalBytesToWarm, resumeRecoveryListener)
+                () -> recoveryWarmingDone.onResponse(null),
+                searchRecoveryWarmingListener(plan, clusterStateSupplier, indexShard, directory, totalBytesToWarm, allWarmingDone)
             );
         } else {
-            warmCacheAndTimeIt(
-                Type.SEARCH,
+            warmSearchCacheAndTimeIt(
                 indexShard,
                 commit,
                 directory,
                 warmingRatioProvider,
                 endTargetsToWarm,
-                false,
+                () -> {},
                 ActionListener.noop()
             );
             searchRecoveryWaitDurationMetric.record(
                 0.0,
                 Map.of(SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY, SearchRecoveryWaitOutcome.NO_WAIT.name())
             );
-            resumeRecoveryListener.onResponse(null);
+            recoveryWarmingListener.onResponse(null);
+            allWarmingListener.onResponse(null);
         }
     }
 
-    // this indirection is for test purposes (some tests check the listener type that's passed in to warmCache)
-    protected void warmCacheAndTimeIt(
-        Type type,
+    // this indirection is for test purposes (some tests check the listener type or wrap search recovery warming)
+    protected void warmSearchCacheAndTimeIt(
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
         WarmingRatioProvider warmingRatioProvider,
         @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
-        boolean preWarmForIdLookup,
-        ActionListener<Void> listener
+        Runnable onRecoveryWarmingComplete,
+        ActionListener<Void> allWarmingListener
     ) {
-        warmCache(
-            type,
-            indexShard,
-            commit,
-            directory,
-            warmingRatioProvider,
-            endTargetsToWarm,
-            preWarmForIdLookup,
-            timeSearchRecoveryWarming(threadPool.relativeTimeInMillis(), listener)
-        );
+        final var timedAllWarmingListener = timeSearchRecoveryWarming(threadPool.relativeTimeInMillis(), allWarmingListener);
+        try (var refs = new RefCountingListener(timedAllWarmingListener)) {
+            // Enqueue recovery warming before offline warming so initial header/footer tasks get earlier FIFO positions in
+            // warmingTaskRunner. Tasks are not strictly serialized in this order: .cfs tasks scheduled asynchronously after .cfe reads
+            // (and concurrent shard recoveries) share Type.SEARCH (Priority.NORMAL) with offline tasks and can still queue behind them.
+            warmForRecovery(
+                Type.SEARCH,
+                indexShard,
+                commit,
+                directory,
+                false,
+                ActionListener.runAfter(refs.acquire(), onRecoveryWarmingComplete)
+            );
+            warmSearchOffline(indexShard, commit, directory, warmingRatioProvider, endTargetsToWarm, refs.acquire());
+        }
     }
 
     /**
-     * Wraps {@code listener} (the one passed to {@link #warmCache}) so that {@link #searchRecoveryWarmDurationMetric} records how long
-     * warming took, irrespective of whether recovery itself resumed earlier due to a timeout.
+     * Wraps {@code listener} (the one passed to {@link #warmSearchCacheAndTimeIt}) so that {@link #searchRecoveryWarmDurationMetric}
+     * records how long warming took, irrespective of whether recovery itself resumed earlier due to a timeout.
      */
     private ActionListener<Void> timeSearchRecoveryWarming(long startedMillis, ActionListener<Void> listener) {
         return ActionListener.runBefore(
@@ -905,17 +925,14 @@ public class SharedBlobCacheWarmingService {
         );
     }
 
-    protected void warmCache(
+    protected void warmForRecovery(
         Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
-        @Nullable WarmingRatioProvider warmingRatioProvider,
-        @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
-        assert type != Type.SEARCH || warmingRatioProvider != null : "warmingRatioProvider must not be null in search shard recovery path";
         ShardId shardId = indexShard.shardId();
         Store store = indexShard.store();
         if (store.isClosing() || store.tryIncRef() == false) {
@@ -927,66 +944,8 @@ public class SharedBlobCacheWarmingService {
             // Releasing the ref immediately after enqueueing lets the shard close without waiting for queued tasks to drain.
             assert directory instanceof SearchDirectory || directory instanceof IndexBlobStoreCacheDirectory
                 : "wrong directory " + directory + ", need directory that cannot fail when store is closed";
-            try (var listeners = new RefCountingListener(listener)) {
+            try {
                 final boolean awaitPendingFills = type == Type.SEARCH;
-                // special search shard prewarming based on timestamp range of CCs (more recent data is warmed more)
-                final boolean isOfflineWarmingEnabled = searchOfflineWarmingEnabled;
-                if (type == Type.SEARCH && (prefetchCommitsForSearchShardRecovery || isOfflineWarmingEnabled)) {
-                    SubscribableListener.<Map<BccBlob, WarmTarget>>newForked(l1 -> {
-                        if (endTargetsToWarm == null) {
-                            Map<BccBlob, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
-                            ObjectStoreService.readReferencedCompoundCommitsUsingCache(
-                                commit.commitFiles(),
-                                // do not pass in any previously read BCC, because we actually want to ensure that the
-                                // referenced CCs (headers) in this BCC are also populated in the cache
-                                null,
-                                directory,
-                                BlobCacheIndexInput.WARMING,
-                                // cannot run on the {@link PREWARM_THREAD_POOL} because this triggers AND waits for cache population,
-                                // which itself runs on the {@link PREWARM_THREAD_POOL}, potentially triggering a deadlock
-                                readCommitsForSearchWarmingExecutor,
-                                referencedCompoundCommit -> {
-                                    if (isOfflineWarmingEnabled) {
-                                        long resolvedTs = directory.resolveRegionTimestampMillis(
-                                            referencedCompoundCommit.statelessCompoundCommitReference()
-                                                .compoundCommit()
-                                                .getTimestampFieldValueRange()
-                                        );
-                                        var offset = byteRangeToWarmForCC(warmingRatioProvider, referencedCompoundCommit, resolvedTs).end();
-                                        // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in;
-                                        // We use unknown timestamps here: timestamps are only relevant when the cache boost preference
-                                        // feature is enabled, which requires internal files replicated content for search shards.
-                                        // This branch is only taken when replicated content is disabled.
-                                        targetsToWarm.merge(
-                                            referencedCompoundCommit.statelessCompoundCommitReference().bccBlob(),
-                                            WarmTarget.withUnknownTimestamp(offset, 0L),
-                                            WarmTarget::merge
-                                        );
-                                    }
-                                },
-                                (blobFile, bccSize) -> {
-                                    if (isOfflineWarmingEnabled) {
-                                        assert targetsToWarm.containsKey(blobFile);
-                                        targetsToWarm.merge(blobFile, WarmTarget.withUnknownTimestamp(0L, bccSize), WarmTarget::merge);
-                                    }
-                                },
-                                l1.map(aVoid -> {
-                                    assert targetsToWarm.values().stream().allMatch(t -> t.blobSize() > 0);
-                                    return targetsToWarm;
-                                })
-                            );
-                        } else {
-                            l1.onResponse(endTargetsToWarm);
-                        }
-                    }).<Void>andThen((l2, targetsToWarmFinal) -> {
-                        if (isOfflineWarmingEnabled) {
-                            warmBlobOffsets(indexShard, directory, targetsToWarmFinal, l2);
-                        } else {
-                            l2.onResponse(null);
-                        }
-                    }).addListener(listeners.acquire());
-                }
-
                 // regular shard recovery prewarming, which prefetches lucene files (headers & footers) required for shard recovery
                 final var warmingRun = new WarmingRun(
                     type,
@@ -1020,11 +979,95 @@ public class SharedBlobCacheWarmingService {
                         directory,
                         preWarmForIdLookupRequested && prewarmIndexShardForIdLookupsEnabled,
                         awaitPendingFills,
-                        listeners.acquire()
+                        listener
                     )
                 ) {
                     warmer.run();
                 }
+            } finally {
+                store.decRef();
+            }
+        }
+    }
+
+    protected void warmSearchOffline(
+        IndexShard indexShard,
+        StatelessCompoundCommit commit,
+        BlobStoreCacheDirectory directory,
+        WarmingRatioProvider warmingRatioProvider,
+        @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
+        ActionListener<Void> listener
+    ) {
+        assert warmingRatioProvider != null : "warmingRatioProvider must not be null in search shard recovery path";
+        ShardId shardId = indexShard.shardId();
+        Store store = indexShard.store();
+        if (store.isClosing() || store.tryIncRef() == false) {
+            listener.onFailure(
+                new AlreadyClosedException("Failed to warm cache [" + Type.SEARCH + "] for " + shardId + ", store is closing")
+            );
+        } else {
+            assert directory instanceof SearchDirectory || directory instanceof IndexBlobStoreCacheDirectory
+                : "wrong directory " + directory + ", need directory that cannot fail when store is closed";
+            try {
+                // special search shard prewarming based on timestamp range of CCs (more recent data is warmed more)
+                final boolean isOfflineWarmingEnabled = searchOfflineWarmingEnabled;
+                if (prefetchCommitsForSearchShardRecovery == false && isOfflineWarmingEnabled == false) {
+                    listener.onResponse(null);
+                    return;
+                }
+                SubscribableListener.<Map<BccBlob, WarmTarget>>newForked(l1 -> {
+                    if (endTargetsToWarm == null) {
+                        Map<BccBlob, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
+                        ObjectStoreService.readReferencedCompoundCommitsUsingCache(
+                            commit.commitFiles(),
+                            // do not pass in any previously read BCC, because we actually want to ensure that the
+                            // referenced CCs (headers) in this BCC are also populated in the cache
+                            null,
+                            directory,
+                            BlobCacheIndexInput.WARMING,
+                            // cannot run on the {@link PREWARM_THREAD_POOL} because this triggers AND waits for cache population,
+                            // which itself runs on the {@link PREWARM_THREAD_POOL}, potentially triggering a deadlock
+                            readCommitsForSearchWarmingExecutor,
+                            referencedCompoundCommit -> {
+                                if (isOfflineWarmingEnabled) {
+                                    long resolvedTs = directory.resolveRegionTimestampMillis(
+                                        referencedCompoundCommit.statelessCompoundCommitReference()
+                                            .compoundCommit()
+                                            .getTimestampFieldValueRange()
+                                    );
+                                    var offset = byteRangeToWarmForCC(warmingRatioProvider, referencedCompoundCommit, resolvedTs).end();
+                                    // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in;
+                                    // We use unknown timestamps here: timestamps are only relevant when the cache boost preference
+                                    // feature is enabled, which requires internal files replicated content for search shards.
+                                    // This branch is only taken when replicated content is disabled.
+                                    targetsToWarm.merge(
+                                        referencedCompoundCommit.statelessCompoundCommitReference().bccBlob(),
+                                        WarmTarget.withUnknownTimestamp(offset, 0L),
+                                        WarmTarget::merge
+                                    );
+                                }
+                            },
+                            (blobFile, bccSize) -> {
+                                if (isOfflineWarmingEnabled) {
+                                    assert targetsToWarm.containsKey(blobFile);
+                                    targetsToWarm.merge(blobFile, WarmTarget.withUnknownTimestamp(0L, bccSize), WarmTarget::merge);
+                                }
+                            },
+                            l1.map(aVoid -> {
+                                assert targetsToWarm.values().stream().allMatch(t -> t.blobSize() > 0);
+                                return targetsToWarm;
+                            })
+                        );
+                    } else {
+                        l1.onResponse(endTargetsToWarm);
+                    }
+                }).<Void>andThen((l2, targetsToWarmFinal) -> {
+                    if (isOfflineWarmingEnabled) {
+                        warmBlobOffsets(indexShard, directory, targetsToWarmFinal, l2);
+                    } else {
+                        l2.onResponse(null);
+                    }
+                }).addListener(listener);
             } finally {
                 store.decRef();
             }
@@ -1086,7 +1129,7 @@ public class SharedBlobCacheWarmingService {
         final long bytesWarmedAtStart = directory.totalBytesWarmedFromObjectStore();
         // The first of the two events to complete `recoveryWait` decides the recorded outcome. The second event is discarded. Events:
         // - timeout: the scheduled task (possibly re-evaluated) completes it with TIMEOUT
-        // - warming completing (the listener returned to warmCache): completes it with WARMING_COMPLETE
+        // - warming completing (the listener passed to warmSearchCacheAndTimeIt): completes it with WARMING_COMPLETE
         final SubscribableListener<SearchRecoveryWaitOutcome> recoveryWait = new SubscribableListener<>();
 
         // Registered before the caller enqueues any warming, and deregistered however the wait ends.

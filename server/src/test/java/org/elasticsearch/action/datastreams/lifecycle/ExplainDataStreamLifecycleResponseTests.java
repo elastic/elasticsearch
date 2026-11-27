@@ -352,23 +352,51 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
             case 2 -> new Response(
                 instance.getIndices(),
                 instance.getRolloverConfiguration(),
-                randomValueOtherThan(
-                    instance.getDataGlobalRetention(),
-                    () -> DataStreamGlobalRetention.create(TimeValue.timeValueDays(randomIntBetween(1, 10)), null)
-                ),
+                copyWithDifferentDefault(instance.getDataGlobalRetention(), sharedMaxRetention(instance)),
                 instance.getFailuresGlobalRetention()
             );
             case 3 -> new Response(
                 instance.getIndices(),
                 instance.getRolloverConfiguration(),
                 instance.getDataGlobalRetention(),
-                randomValueOtherThan(
-                    instance.getFailuresGlobalRetention(),
-                    () -> DataStreamGlobalRetention.create(TimeValue.timeValueDays(randomIntBetween(1, 10)), null)
-                )
+                copyWithDifferentDefault(instance.getFailuresGlobalRetention(), sharedMaxRetention(instance))
             );
             default -> throw new AssertionError("illegal mutate branch");
         };
+    }
+
+    /**
+     * The wire format writes one maximum, taken from the data store, and a separate default for each store.
+     * Failures are rebuilt with that same maximum, which is also how {@link #randomResponse()} constructs them.
+     */
+    private static TimeValue sharedMaxRetention(Response instance) {
+        DataStreamGlobalRetention data = instance.getDataGlobalRetention();
+        return data == null ? null : data.maxRetention();
+    }
+
+    /** Copy {@code current}, keep {@code sharedMax}, and change only the default retention. */
+    private static DataStreamGlobalRetention copyWithDifferentDefault(
+        @Nullable DataStreamGlobalRetention current,
+        @Nullable TimeValue sharedMax
+    ) {
+        TimeValue currentDefault = current == null ? null : current.defaultRetention();
+        return DataStreamGlobalRetention.create(differentDefaultRetention(currentDefault, sharedMax), sharedMax);
+    }
+
+    /**
+     * A default that is not {@code current} and is never greater than {@code sharedMax}.
+     * One day is used when it fits; otherwise the shared maximum itself (already a legal retention).
+     * If that candidate is already the current default, the default is cleared instead.
+     */
+    private static TimeValue differentDefaultRetention(@Nullable TimeValue current, @Nullable TimeValue sharedMax) {
+        TimeValue candidate = TimeValue.timeValueDays(1);
+        if (sharedMax != null && candidate.getMillis() > sharedMax.getMillis()) {
+            candidate = sharedMax;
+        }
+        if (current == null || current.equals(candidate) == false) {
+            return candidate;
+        }
+        return null;
     }
 
     private Response randomResponse() {

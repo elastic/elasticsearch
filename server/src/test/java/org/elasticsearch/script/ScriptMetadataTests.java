@@ -208,21 +208,12 @@ public class ScriptMetadataTests extends AbstractChunkedSerializingTestCase<Scri
                     yield builder.build();
                 }
                 String id = randomFrom(instance.getStoredScripts().keySet().toArray(String[]::new));
-                XContentType contentType = randomFrom(XContentType.values());
-                XContentBuilder sourceBuilder = XContentBuilder.builder(contentType.xContent());
-                sourceBuilder.startObject()
-                    .field("script")
-                    .startObject()
-                    .field("lang", randomAlphaOfLength(4))
-                    .field("source", randomAlphaOfLength(10))
-                    .endObject()
-                    .endObject();
+                StoredScriptSource existing = instance.getStoredScript(id);
+                // Append a character so the replacement cannot equal the stored script. Building it once
+                // outside randomValueOtherThan retries the same bytes forever when they happen to match.
                 builder.storeScript(
                     id,
-                    randomValueOtherThan(
-                        instance.getStoredScript(id),
-                        () -> StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType())
-                    )
+                    new StoredScriptSource(existing.getLang(), existing.getSource() + "x", existing.getOptions())
                 );
                 yield builder.build();
             }

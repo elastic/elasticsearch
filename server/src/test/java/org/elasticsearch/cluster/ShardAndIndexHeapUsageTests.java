@@ -35,11 +35,16 @@ public class ShardAndIndexHeapUsageTests extends AbstractWireSerializingTestCase
         long postingsHeapUsageBytes = instance.postingsHeapUsageBytes();
         return switch (between(0, 2)) {
             case 0 -> {
+                if (postingsHeapUsageBytes == Long.MAX_VALUE) {
+                    // postings <= shard forces the shard size to Long.MAX_VALUE as well, so this branch has no
+                    // other legal shard size. Change the index size instead of asking a supplier for a new one.
+                    final long newIndex = indexHeapUsageBytes == Long.MAX_VALUE ? 0L : indexHeapUsageBytes + 1L;
+                    yield new ShardAndIndexHeapUsage(shardHeapUsageBytes, newIndex, postingsHeapUsageBytes);
+                }
                 // Keep postings fixed; pick a different shard size that still satisfies postings <= shard.
-                final long minShard = postingsHeapUsageBytes;
                 final long newShard = randomValueOtherThan(
                     shardHeapUsageBytes,
-                    () -> minShard == Long.MAX_VALUE ? Long.MAX_VALUE : randomLongBetween(minShard, Long.MAX_VALUE)
+                    () -> randomLongBetween(postingsHeapUsageBytes, Long.MAX_VALUE)
                 );
                 yield new ShardAndIndexHeapUsage(newShard, indexHeapUsageBytes, postingsHeapUsageBytes);
             }

@@ -61,7 +61,7 @@ public class MoveDecisionWireTests extends AbstractWireSerializingTestCase<MoveD
     @Override
     protected MoveDecision mutateInstance(MoveDecision instance) {
         if (instance.getClusterRebalanceDecision() != null) {
-            return switch (between(0, 4)) {
+            return switch (between(0, 5)) {
                 case 0 -> MoveDecision.rebalance(
                     instance.getCanRemainDecision(),
                     instance.getClusterRebalanceDecision(),
@@ -98,6 +98,14 @@ public class MoveDecisionWireTests extends AbstractWireSerializingTestCase<MoveD
                     instance.getAllocationDecision(),
                     instance.getTargetNode(),
                     randomValueOtherThan(instance.getCurrentNodeRanking(), () -> randomIntBetween(0, 10)),
+                    instance.getNodeDecisions()
+                );
+                case 4 -> MoveDecision.rebalance(
+                    instance.getCanRemainDecision(),
+                    instance.getClusterRebalanceDecision(),
+                    instance.getAllocationDecision(),
+                    instance.getTargetNode() == null ? randomNode() : null,
+                    instance.getCurrentNodeRanking(),
                     instance.getNodeDecisions()
                 );
                 default -> MoveDecision.rebalance(

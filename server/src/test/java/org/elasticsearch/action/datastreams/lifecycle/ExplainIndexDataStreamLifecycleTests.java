@@ -13,6 +13,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -459,12 +461,15 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 default -> throw new AssertionError("illegal mutate branch");
             };
         }
-        // generationDateMillis is not part of equals/hashCode; pass null so copies stay stable.
-        final TimeValue generationDate = null;
+        // Neither value is part of equals/hashCode, but the managed fixture sets both. Copy them so each
+        // branch changes one equals/hashCode field. The internal flag still affects rendered retention.
+        final CopiedNonEqualityFields copied = copyNonEqualityFields(instance);
+        final boolean internalDataStream = copied.internalDataStream();
+        final TimeValue generationDate = copied.generationDate();
         return switch (between(0, 7)) {
             case 0 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(10, 30)),
-                false,
+                internalDataStream,
                 instance.getIndexCreationDate(),
                 instance.getRolloverDate(),
                 generationDate,
@@ -476,7 +481,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             );
             case 1 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 instance.getIndex(),
-                false,
+                internalDataStream,
                 instance.getIndexCreationDate(),
                 instance.getRolloverDate(),
                 generationDate,
@@ -488,7 +493,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             );
             case 2 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 instance.getIndex(),
-                false,
+                internalDataStream,
                 randomValueOtherThan(instance.getIndexCreationDate(), () -> randomNonNegativeLong()),
                 instance.getRolloverDate(),
                 generationDate,
@@ -500,7 +505,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             );
             case 3 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 instance.getIndex(),
-                false,
+                internalDataStream,
                 instance.getIndexCreationDate(),
                 randomValueOtherThan(instance.getRolloverDate(), () -> randomNonNegativeLong()),
                 generationDate,
@@ -512,7 +517,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             );
             case 4 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 instance.getIndex(),
-                false,
+                internalDataStream,
                 instance.getIndexCreationDate(),
                 instance.getRolloverDate(),
                 generationDate,
@@ -526,7 +531,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             );
             case 5 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 instance.getIndex(),
-                false,
+                internalDataStream,
                 instance.getIndexCreationDate(),
                 instance.getRolloverDate(),
                 generationDate,
@@ -541,7 +546,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             );
             case 6 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 instance.getIndex(),
-                false,
+                internalDataStream,
                 instance.getIndexCreationDate(),
                 instance.getRolloverDate(),
                 generationDate,
@@ -561,7 +566,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             );
             case 7 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 instance.getIndex(),
-                false,
+                internalDataStream,
                 instance.getIndexCreationDate(),
                 instance.getRolloverDate(),
                 generationDate,
@@ -574,6 +579,34 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             default -> throw new AssertionError("illegal mutate branch");
         };
     }
+
+    /**
+     * {@code isInternalDataStream} and {@code generationDateMillis} have no getters. Read the prefix of
+     * {@link ExplainIndexDataStreamLifecycle#writeTo}: index, managed flag, internal flag, then for a managed
+     * index the creation date, rollover date, and generation date. Later fields are version-gated and unused here.
+     */
+    private static CopiedNonEqualityFields copyNonEqualityFields(ExplainIndexDataStreamLifecycle instance) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            instance.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.readString();
+                boolean managed = in.readBoolean();
+                boolean internalDataStream = in.readBoolean();
+                TimeValue generationDate = null;
+                if (managed) {
+                    in.readOptionalLong();
+                    in.readOptionalLong();
+                    Long generationDateMillis = in.readOptionalLong();
+                    if (generationDateMillis != null) {
+                        generationDate = TimeValue.timeValueMillis(generationDateMillis);
+                    }
+                }
+                return new CopiedNonEqualityFields(internalDataStream, generationDate);
+            }
+        }
+    }
+
+    private record CopiedNonEqualityFields(boolean internalDataStream, @Nullable TimeValue generationDate) {}
 
     private static ExplainIndexDataStreamLifecycle randomManagedIndexDataStreamLifecycleExplanation() {
         DataStreamLifecycle lifecycle = randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null;

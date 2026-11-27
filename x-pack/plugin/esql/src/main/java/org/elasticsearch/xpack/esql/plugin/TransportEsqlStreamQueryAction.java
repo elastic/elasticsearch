@@ -32,9 +32,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -83,6 +85,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOrCreateSessionID;
@@ -214,7 +217,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
 
     private void prepareAndExecuteWithLogging(Task task, EsqlStreamQueryRequest request, ActionListener<ActionResponse.Empty> listener) {
         if (request.allowPartialResults() == null) {
-            request.allowPartialResults(defaultAllowPartialResults);
+            request.defaultAllowPartialResults(defaultAllowPartialResults);
         }
         EsqlExecutionInfo executionInfo = transportEsqlQueryAction.createEsqlExecutionInfo(request);
         PageStreamPublisher publisher = new PageStreamPublisher();
@@ -234,11 +237,28 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         AtomicReference<Result> resultRef,
         ActionListener<ActionResponse.Empty> streamListener
     ) {
-        ActionListener<ActionResponse.Empty> listener = computeService.coordinate(task, streamListener);
+        // The coordination part lives until the query completes, so planning charges the query's breaker too.
+        QueryScheduler.QueryPart coordination = computeService.coordinate(task);
+        ActionListener<ActionResponse.Empty> listener = ActionListener.releaseAfter(streamListener, coordination);
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
         AtomicBoolean streamStarted = new AtomicBoolean(false);
         AtomicBoolean outputRunSeen = new AtomicBoolean(false);
+        // Set just before this action hands the publisher its end (the footer or a failure), so the close listener below can
+        // tell a response that ended early (a limit, or a client that went away) from one that simply finished.
+        AtomicBoolean computeDone = new AtomicBoolean(false);
+        publisher.addCloseListener(ActionListener.running(() -> {
+            if (computeDone.get() == false) {
+                // The response was released while the query was still producing rows, for example because it ended at max_rows
+                // or max_bytes. The connection is still open, so nothing else would stop the query.
+                taskManager.cancelTaskAndDescendants(
+                    (CancellableTask) task,
+                    "the streaming response ended before the query finished",
+                    false,
+                    ActionListener.noop()
+                );
+            }
+        }));
         AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();
         DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
         // The metrics of the query are reported once, with the first outcome that is decided for it.
@@ -298,7 +318,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             streamStarted,
                             columns,
                             nullColumns,
-                            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
+                            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()),
+                            new TaskId(clusterService.localNode().getId(), task.getId()),
+                            executionInfo::isPartial
                         );
                         if (startFailure != null) {
                             resultListener.onFailure(startFailure);
@@ -377,6 +399,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             externalBlobStoreExecutor(),
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
+            coordination.breaker(),
             ActionListener.wrap(versionedResult -> {
                 Result result = versionedResult.inner();
                 try {
@@ -403,7 +426,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         streamStarted,
                         columns,
                         request.dropNullColumns() ? new boolean[columns.size()] : null,
-                        QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings())
+                        QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
+                        new TaskId(clusterService.localNode().getId(), task.getId()),
+                        executionInfo::isPartial
                     );
                     if (startFailure != null) {
                         // The compute completed and nobody reads the result: its work is still reported.
@@ -431,6 +456,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         executionInfo
                     )
                     : null;
+                computeDone.set(true);
                 publisher.completeWithFooter(
                     new PageStreamPublisher.StreamFooter(
                         200,
@@ -452,6 +478,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 );
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }, ex -> {
+                computeDone.set(true);
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, ex);
                 transportEsqlQueryAction.collectMetricsOnce(
                     metricsCollected,
@@ -498,9 +525,12 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         AtomicBoolean streamStarted,
         List<ColumnInfoImpl> columns,
         boolean[] nullColumns,
-        ZoneId zoneId
+        ZoneId zoneId,
+        TaskId taskId,
+        BooleanSupplier isPartial
     ) {
-        request.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
+        request.resultStreamListener()
+            .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, taskId, isPartial));
         Exception startFailure = publisher.failure();
         if (startFailure != null) {
             return startFailure;
@@ -618,10 +648,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     }
 
     static long tookMillis(EsqlExecutionInfo executionInfo) {
-        if (executionInfo.overallTook() != null) {
-            return executionInfo.overallTook().millis();
-        }
-        return executionInfo.queryProfile().total().timeSinceStarted().millis();
+        return executionInfo.tookOrElapsed().millis();
     }
 
     static PageStreamPublisher.StreamFooter failureFooter(

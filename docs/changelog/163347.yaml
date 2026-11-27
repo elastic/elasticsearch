@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 163299
-pr: 163347
-summary: Truncate invalid input in ES|QL TO_IP warnings
-type: bug

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -30,6 +31,8 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -40,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
@@ -62,6 +66,7 @@ import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -682,6 +687,136 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * A pre-signed URL carries its signature in its query string, so the location this warning names must not be
+     * the full one. An early close -- the LIMIT or cancel shape -- is what closes the storage object here.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator:WARN",
+        reason = "the close give-up is a warning, and this asserts its location carries no signature"
+    )
+    public void testAFailedCloseDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        byte[] contentBytes = repeatedLines(500);
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+        StorageObject obj = new FailingCloseStorageObject(contentBytes, path);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+
+        // Guard: a single-segment file takes the fallback that hands back the reader's own iterator, and the
+        // coordinator close that this warning sits in never runs.
+        assertThat(
+            "test needs a genuinely multi-segment file or the close under test never runs",
+            ParallelParsingCoordinator.computeSegments(reader, obj, contentBytes.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try (MockLog mockLog = MockLog.capture(ParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the close warning, naming the location without its query string",
+                    ParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*Failed to close storage object for [https://bucket.s3.example.com/data/employees.csv]*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the warning never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any warning",
+                    ParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + signature + "*"
+                )
+            );
+            // Abandon without draining: the LIMIT / cancel shape, which is what closes the storage object. The
+            // close runs on the way out of the block, so a failed assertion inside it still releases the pages.
+            try (CloseableIterator<Page> it = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 8, 4, exec)) {
+                assertTrue("workers should produce at least one page", it.hasNext());
+            }
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * The sibling of the close warning above, on the other give-up an early close reaches. Ordinary worker
+     * completion closes the same streams, so only the leader's fails here: the leader is parked mid-segment
+     * when the abort runs, which is the one close no finished worker performs.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator:WARN",
+        reason = "the abort give-up is a warning, and this asserts its location carries no signature"
+    )
+    public void testAFailedStreamAbortDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        byte[] contentBytes = repeatedLines(800);
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+        CountDownLatch leaderRelease = new CountDownLatch(1);
+        CountDownLatch leaderOpened = new CountDownLatch(1);
+        FailingAbortStorageObject obj = new FailingAbortStorageObject(contentBytes, path, leaderRelease, leaderOpened);
+        FirstSegmentStallingReader reader = new FirstSegmentStallingReader(blockFactory(), leaderRelease);
+
+        // Guard: a single-segment file takes the fallback that hands back the reader's own iterator, and the
+        // abort this warning sits in never runs.
+        assertThat(
+            "test needs a genuinely multi-segment file or the abort under test never runs",
+            ParallelParsingCoordinator.computeSegments(new LineFormatReader(blockFactory()), obj, contentBytes.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try (MockLog mockLog = MockLog.capture(ParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the abort warning, naming the location without its query string",
+                    ParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*Failed to abort stream for [https://bucket.s3.example.com/data/employees.csv]*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the warning never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any warning",
+                    ParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + signature + "*"
+                )
+            );
+            // Abandon with the leader still parked: its stream is live, so the close aborts it rather than
+            // waiting for it. The wide dispatch window keeps a later segment open alongside the parked
+            // leader, so the page this pulls can only have come from one of those.
+            try (
+                CloseableIterator<Page> it = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    4,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    4
+                )
+            ) {
+                assertTrue("a later segment should produce a page while the leader is parked", it.hasNext());
+                // A page from a later segment says nothing about where the leader got to, and the abort only
+                // has something to fail on once the leader's stream is open. Waiting for that open is what
+                // makes the warning this asserts reachable on every schedule rather than the lucky one.
+                assertTrue("the leading segment never opened its stream", leaderOpened.await(30, TimeUnit.SECONDS));
+            }
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
      * Contract: when a consumer wraps {@link ParallelParsingCoordinator#parallelRead}'s outer
      * iterator with a {@link StatsCapturingIterator}-bound sink, every per-segment chunk's
      * {@link ExternalStatsCapture#record} contribution must reach that sink — regardless of which
@@ -767,6 +902,106 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             partialCount,
             Matchers.greaterThanOrEqualTo(2L)
         );
+    }
+
+    /**
+     * The guard on the {@code stripeStaging.flush()} that {@code close()} runs. A read whose byte range both
+     * begins and ends inside one stripe's grid cell — a mid-file macro-split, which is the shape a file-global
+     * stripe grid exists to tile — covers neither of that stripe's grid lines, so the staging area can never
+     * decide the stripe is whole and nothing it holds reaches the capture sink on its own. Only the flush
+     * publishes it, and without the flush the bytes this read genuinely covered never reach the coordinator's
+     * interval cover: the stripe stays uncommitted however many sibling reads tile the rest of it.
+     * <p>
+     * The control is the assertion inside the drain. Every chunk has handed its piece over by then and the sink
+     * is still empty, so the record below can only have come from the close path.
+     */
+    public void testClosingTheReadStagesTheStripeNoChunkCouldAnchor() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        int lineCount = 200;
+        for (int i = 0; i < lineCount; i++) {
+            sb.append("line-").append(i).append("\n");
+        }
+        byte[] contentBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(contentBytes);
+        String path = obj.path().toString();
+        StripePieceLineReader reader = new StripePieceLineReader(blockFactory(), path);
+
+        // Sanity: the single-segment fallback reads the whole storage object with no stripe sink at all, so a
+        // fixture that degenerated to it would say nothing about the staging area or the flush.
+        assertThat(
+            "test must drive the multi-segment worker path",
+            ParallelParsingCoordinator.computeSegments(reader, obj, contentBytes.length, 4, reader.minimumSegmentSize()).size(),
+            Matchers.greaterThanOrEqualTo(2)
+        );
+
+        // A grid cell wider than the whole read, entered one byte past its left grid line: no chunk covers
+        // either grid line, so no piece the staging area holds ever completes its cell.
+        long stripeSize = 1L << 30;
+        long baseFileOffset = 1L;
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> outer = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                4,
+                exec,
+                null,
+                true,  // a macro-split's bytes begin on a record boundary
+                false, // and carry no file leader
+                null,
+                baseFileOffset,
+                ParallelParsingCoordinator.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+                sink,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                stripeSize,
+                StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
+                false // not the file's final split, so the trailing chunk anchors no right grid line
+            );
+            try (outer) {
+                while (outer.hasNext()) {
+                    outer.next().releaseBlocks();
+                }
+                assertEquals(
+                    "a stripe no chunk could anchor must be held, not published, while the read is still open",
+                    0,
+                    sink.getOrDefault(path, List.of()).size()
+                );
+            }
+        } finally {
+            exec.shutdown();
+        }
+
+        List<Map<String, Object>> staged = stagedFor(sink, path);
+        assertEquals("closing the read must stage the stripe it left without a cover: " + staged, 1, staged.size());
+        Map<String, Object> record = staged.get(0);
+        assertEquals("over every row the read did cover", (Long) (long) lineCount, SourceStatisticsSerializer.extractRowCount(record));
+        assertEquals(0L, record.get(ExternalStats.STRIPE_ORDINAL_KEY));
+        assertNotEquals(
+            "the read began inside the cell, so it anchors no left grid line",
+            Boolean.TRUE,
+            record.get(ExternalStats.STRIPE_AT_START_KEY)
+        );
+        assertNotEquals(
+            "and it is not the file's final split, so it anchors no right grid line",
+            Boolean.TRUE,
+            record.get(ExternalStats.STRIPE_AT_END_KEY)
+        );
+    }
+
+    /** A snapshot of the contributions staged for {@code path}, copied under the sink list's own monitor. */
+    private static List<Map<String, Object>> stagedFor(ConcurrentMap<String, List<Map<String, Object>>> sink, String path) {
+        List<Map<String, Object>> staged = sink.get(path);
+        if (staged == null) {
+            return List.of();
+        }
+        synchronized (staged) {
+            return List.copyOf(staged);
+        }
     }
 
     public void testParallelReadEmptyFile() throws Exception {
@@ -1206,6 +1441,50 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Hung {@code newStream} (no stream returned yet) is cancelled only by {@link StorageObject#close()}.
+     * Closing a registered stream cannot unblock this path.
+     */
+    public void testCloseCancelsHungSegmentNewStream() throws Exception {
+        byte[] content = repeatedLines(400);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+        assertThat(
+            "test needs a genuinely multi-segment file or it hits the single-stream fallback",
+            ParallelParsingCoordinator.computeSegments(reader, new InMemoryStorageObject(content), content.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+        HangingSegmentStorageObject obj = new HangingSegmentStorageObject(content, false, true);
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            try (
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    4,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    4,
+                    null
+                )
+            ) {
+                assertTrue("segment newStream must park", obj.awaitParked(5, TimeUnit.SECONDS));
+                long startNanos = System.nanoTime();
+                iter.close();
+                long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000L;
+                assertThat("close must cancel hung newStream promptly", elapsedMs, Matchers.lessThan(5_000L));
+                assertEquals("hung open must not leave a stream registered", 0, obj.currentOpen());
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue(exec.awaitTermination(15, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
      * Wiring test for {@code reader.pool.rejected}: when the parser executor refuses a segment submission
      * ({@link RejectedExecutionException} — a saturated or shutting-down pool), the coordinator records one
      * {@code reader.pool.rejected} event per rejected segment on the attached {@link ExternalSourceMetrics}.
@@ -1253,6 +1532,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             false,
             metrics
         );
@@ -1861,7 +2141,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         // pulled a page. Because the blocked leader has enqueued nothing, that first page can only have come
         // from a later segment — proving as-ready emission deterministically, with no enqueue race. A
         // regressed in-order implementation would gate every page behind the blocked leader and time out.
-        java.util.concurrent.CountDownLatch leaderRelease = new java.util.concurrent.CountDownLatch(1);
+        CountDownLatch leaderRelease = new CountDownLatch(1);
         FirstSegmentStallingReader reader = new FirstSegmentStallingReader(blockFactory(), leaderRelease);
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
@@ -2295,9 +2575,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * full speed. Proves the coordinator emits pages as they become ready rather than in segment order.
      */
     private static class FirstSegmentStallingReader extends LineFormatReader {
-        private final java.util.concurrent.CountDownLatch leaderRelease;
+        private final CountDownLatch leaderRelease;
 
-        FirstSegmentStallingReader(BlockFactory blockFactory, java.util.concurrent.CountDownLatch leaderRelease) {
+        FirstSegmentStallingReader(BlockFactory blockFactory, CountDownLatch leaderRelease) {
             super(blockFactory);
             this.leaderRelease = leaderRelease;
         }
@@ -2432,6 +2712,64 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         assertEquals(200, rows);
     }
 
+    /**
+     * Two arms for the two context builds: per segment, and the single-segment fallback.
+     */
+    public void testTheConfiguredExtremumWidthReachesEverySegmentContext() throws Exception {
+        int narrow = 64;
+
+        ContextCapturingLineReader segmented = new ContextCapturingLineReader(blockFactory());
+        readCapturingContexts(segmented, new InMemoryStorageObject(lines(200)), 4, narrow);
+        assertThat("fixture must drive the multi-segment path", segmented.contexts.size(), Matchers.greaterThanOrEqualTo(2));
+        for (FormatReadContext ctx : segmented.contexts) {
+            assertEquals("every segment reads at the configured width", narrow, ctx.statsMaxExtremumBytes());
+        }
+
+        ContextCapturingLineReader single = new ContextCapturingLineReader(blockFactory());
+        readCapturingContexts(single, new InMemoryStorageObject(lines(200)), 1, narrow);
+        assertEquals("the single-segment fallback reads once", 1, single.contexts.size());
+        assertEquals(narrow, single.contexts.get(0).statsMaxExtremumBytes());
+    }
+
+    private static void readCapturingContexts(ContextCapturingLineReader reader, StorageObject obj, int parallelism, int maxExtremumBytes)
+        throws Exception {
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try (
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                parallelism,
+                exec,
+                null,
+                true,
+                true,
+                SCHEMA,
+                0L,
+                ParallelParsingCoordinator.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                maxExtremumBytes,
+                true,
+                ExternalSourceMetrics.NOOP,
+                null,
+                ExternalReadCounters.NOOP,
+                null,
+                null,
+                null
+            )
+        ) {
+            while (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+        } finally {
+            exec.shutdown();
+        }
+    }
+
     private static byte[] lines(int count) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < count; i++) {
@@ -2465,6 +2803,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 true,
                 ExternalSourceMetrics.NOOP,
                 null,
@@ -2724,6 +3063,98 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Wraps {@link LineFormatReader} so each segment harvests its piece of every stripe its byte range
+     * overlapped through the production {@link StripeStatsHarvester}, handing it to the stripe sink the read
+     * context carries — the same close-hook shape as the production {@code CsvFormatReader} /
+     * {@code NdJsonPageIterator}, without their per-format column extraction. The geometry is the segment's
+     * own: its file-global stats base and the byte length of its range, so sibling segments' pieces tile
+     * contiguously exactly as production's do.
+     */
+    private static class StripePieceLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        private static final long MTIME = 1_700_000_000_000L;
+
+        private final LineFormatReader delegate;
+        private final String path;
+
+        StripePieceLineReader(BlockFactory blockFactory, String path) {
+            this.delegate = new LineFormatReader(blockFactory);
+            this.path = path;
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return delegate.metadata(object);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            long chunkBytes = object.length();
+            CloseableIterator<Page> inner = delegate.read(object, context);
+            return new CloseableIterator<>() {
+                private long rows = 0;
+
+                @Override
+                public boolean hasNext() {
+                    return inner.hasNext();
+                }
+
+                @Override
+                public Page next() {
+                    Page page = inner.next();
+                    rows += page.getPositionCount();
+                    return page;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    try {
+                        inner.close();
+                    } finally {
+                        StripeStatsHarvester harvester = new StripeStatsHarvester(
+                            context.statsStripeSize(),
+                            context.statsFileFinal(),
+                            context.statsStripeSink(),
+                            context.statsMaxExtremumBytes()
+                        );
+                        harvester.getOrCreate(harvester.ordinalOf(context.statsBaseOffset())).rows = rows;
+                        harvester.emit(path, context.statsBaseOffset(), chunkBytes, MTIME, "cfg", "read", true, SCHEMA);
+                    }
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-stripe-piece-line";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
     }
 
     /**
@@ -3067,6 +3498,72 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /** Path + a {@code close()} that fails, so the close warning fires on an otherwise ordinary read. */
+    private static final class FailingCloseStorageObject extends InMemoryStorageObject {
+        private final StoragePath path;
+
+        FailingCloseStorageObject(byte[] data, String path) {
+            super(data);
+            this.path = StoragePath.of(path);
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public void close() throws IOException {
+            // No location in the message: the warning attaches this throwable in full, so a path added here
+            // would carry past the redaction.
+            throw new IOException("this store cannot close");
+        }
+    }
+
+    /**
+     * Path, plus a leading-segment stream that cannot be released. Only that one fails: a finished worker
+     * closes its own stream, and the leader never finishes, so the throw can only come from the abort. The
+     * close counts the latch down before throwing, so the abort releases the parked leader itself instead
+     * of the surrounding close waiting out the stall.
+     */
+    private static final class FailingAbortStorageObject extends InMemoryStorageObject {
+        private final StoragePath path;
+        private final CountDownLatch leaderRelease;
+        private final CountDownLatch leaderOpened;
+
+        FailingAbortStorageObject(byte[] data, String path, CountDownLatch leaderRelease, CountDownLatch leaderOpened) {
+            super(data);
+            this.path = StoragePath.of(path);
+            this.leaderRelease = leaderRelease;
+            this.leaderOpened = leaderOpened;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            InputStream in = super.newStream(position, length);
+            if (position != 0) {
+                return in;
+            }
+            // The leading segment is registered as a live stream from here on, which is what the abort
+            // reaches. A worker that has not got this far returns before opening anything.
+            leaderOpened.countDown();
+            return new FilterInputStream(in) {
+                @Override
+                public void close() throws IOException {
+                    leaderRelease.countDown();
+                    // No location in the message: the warning attaches this throwable in full, so a path
+                    // added here would carry past the redaction.
+                    throw new IOException("this stream cannot be aborted");
+                }
+            };
+        }
+    }
+
     /**
      * Counts no-arg {@code newStream()} opens. {@link CsvFormatReader#metadata} uses that overload;
      * {@link StreamCountingStorageObject} ignores it, so it cannot prove a metadata GET was skipped.
@@ -3170,8 +3667,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Segment GETs on parser threads park until {@link #abortStream}. Probe opens on the
+     * Segment GETs on parser threads park until {@link #close}. Probe opens on the
      * constructing (test) thread read normally so {@code computeSegments} can finish.
+     * {@code parkOpen} parks inside {@code newStream} before a stream exists.
      */
     private static final class HangingSegmentStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
@@ -3184,10 +3682,17 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         private final AtomicBoolean aborted = new AtomicBoolean();
         private final AtomicInteger abortCalls = new AtomicInteger();
         private final AtomicInteger open = new AtomicInteger();
+        private final boolean parkOpen;
+        private final CountDownLatch openRelease = new CountDownLatch(1);
 
         HangingSegmentStorageObject(byte[] data, boolean failLeader) {
+            this(data, failLeader, false);
+        }
+
+        HangingSegmentStorageObject(byte[] data, boolean failLeader, boolean parkOpen) {
             this.data = data;
             this.failLeader = failLeader;
+            this.parkOpen = parkOpen;
         }
 
         boolean awaitParked(long timeout, TimeUnit unit) throws InterruptedException {
@@ -3213,6 +3718,18 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public InputStream newStream(long position, long length) {
+            if (parkOpen && Thread.currentThread() != testThread) {
+                parked.countDown();
+                try {
+                    if (openRelease.await(15, TimeUnit.SECONDS) == false) {
+                        throw new UncheckedIOException(new IOException("open was not unblocked by close"));
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new UncheckedIOException(new IOException(e));
+                }
+                throw new UncheckedIOException(new IOException("aborted"));
+            }
             open.incrementAndGet();
             int from = Math.toIntExact(position);
             int len = Math.toIntExact(Math.min(length, data.length - from));
@@ -3274,6 +3791,15 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 public void close() throws IOException {
                     if (closed.compareAndSet(false, true)) {
                         open.decrementAndGet();
+                        if (probeStreams.contains(this) == false) {
+                            aborted.set(true);
+                            abortCalls.incrementAndGet();
+                            failLeaderNow.countDown();
+                        }
+                        CountDownLatch mine = parks.remove(this);
+                        if (mine != null) {
+                            mine.countDown();
+                        }
                     }
                     super.close();
                 }
@@ -3286,18 +3812,18 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void abortStream(InputStream stream) throws IOException {
-            if (probeStreams.contains(stream)) {
-                stream.close();
-                return;
-            }
+            stream.close();
+        }
+
+        @Override
+        public void close() {
             aborted.set(true);
-            abortCalls.incrementAndGet();
             failLeaderNow.countDown();
-            CountDownLatch mine = parks.remove(stream);
-            if (mine != null) {
+            openRelease.countDown();
+            for (CountDownLatch mine : parks.values()) {
                 mine.countDown();
             }
-            stream.close();
+            parks.clear();
         }
 
         @Override

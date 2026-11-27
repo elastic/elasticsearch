@@ -36,11 +36,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -48,17 +46,14 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.InstrumentType;
-import org.elasticsearch.telemetry.Measurement;
-import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.search.scheduling.QueryScheduler;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
-import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -67,7 +62,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
-import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
@@ -112,19 +106,14 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLogTests.mockLogFieldProvider;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 public class PlanExecutorMetricsTests extends ESTestCase {
@@ -145,28 +134,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         CrossProjectModeDecider cpsDecider,
         BlockFactoryProvider blockFactoryProvider
     ) {
-        return createTransportActionServices(usageService, cpsDecider, blockFactoryProvider, null);
-    }
-
-    private static TransportActionServices createTransportActionServices(ThreadContext threadContext) {
-        return createTransportActionServices(
-            new UsageService(),
-            CrossProjectModeDecider.NOOP,
-            new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
-            threadContext
-        );
-    }
-
-    private static TransportActionServices createTransportActionServices(
-        UsageService usageService,
-        CrossProjectModeDecider cpsDecider,
-        BlockFactoryProvider blockFactoryProvider,
-        @Nullable ThreadContext threadContext
-    ) {
         ClusterService clusterService = createMockClusterService();
         return new TransportActionServices(
             mock(Client.class),
-            createMockTransportService(threadContext),
+            createMockTransportService(),
             mock(SearchService.class),
             null,
             clusterService,
@@ -178,7 +149,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             IpLocationService.NOOP,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            cpsDecider
+            cpsDecider,
+            null
         );
     }
 
@@ -199,16 +171,15 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         return service;
     }
 
-    private static TransportService createMockTransportService(@Nullable ThreadContext threadContext) {
+    private static TransportService createMockTransportService() {
         var service = mock(TransportService.class);
-        doReturn(createMockThreadPool(threadContext)).when(service).getThreadPool();
+        doReturn(createMockThreadPool()).when(service).getThreadPool();
         return service;
     }
 
-    private static ThreadPool createMockThreadPool(@Nullable ThreadContext threadContext) {
+    private static ThreadPool createMockThreadPool() {
         var threadPool = mock(ThreadPool.class);
         doReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE).when(threadPool).executor(anyString());
-        doReturn(threadContext).when(threadPool).getThreadContext();
         return threadPool;
     }
 
@@ -280,6 +251,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     1,
                     () -> false,
+                    NoopCircuitBreaker.INSTANCE,
                     new ActionListener<>() {
                         @Override
                         public void onResponse(Versioned<Result> result) {
@@ -321,6 +293,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     1,
                     () -> false,
+                    NoopCircuitBreaker.INSTANCE,
                     new ActionListener<>() {
                         @Override
                         public void onResponse(Versioned<Result> result) {}
@@ -346,16 +319,21 @@ public class PlanExecutorMetricsTests extends ESTestCase {
      * transport action has to. The plan runner stands in for resolution and compute by charging the query-scoped
      * reservation and a {@link ExternalPlanningReservation.Run} it leaves open, so a missing release of either shows up
      * on a real request breaker.
+     * <p>
+     * The reservation charges the breaker of the query's coordination part, as the transport actions pass it, so the
+     * planning memory is the query's on the node and not only the node's: the block factory's breaker sees none of it.
      */
     public void testExternalPlanningReservationReleasedOnSuccessAndFailure() throws Exception {
-        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(1));
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        CircuitBreaker requestBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(1));
+        CircuitBreaker blockFactoryBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(1));
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(blockFactoryBreaker).build();
         TransportActionServices services = createTransportActionServices(
             new UsageService(),
             CrossProjectModeDecider.NOOP,
             new BlockFactoryProvider(blockFactory)
         );
-        long baseline = breaker.getUsed();
+        QueryScheduler scheduler = new QueryScheduler(System::nanoTime, requestBreaker);
+        long baseline = requestBreaker.getUsed();
         long queryCharge = randomLongBetween(1, 64 * 1024);
         long runCharge = randomLongBetween(1, 64 * 1024);
 
@@ -366,6 +344,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.allowPartialResults(false);
 
             for (Outcome outcome : Outcome.values()) {
+                TaskId queryId = new TaskId("coordinator", randomNonNegativeLong());
                 var executionInfo = createEsqlExecutionInfo(randomBoolean());
                 AtomicReference<ExternalPlanningReservation.Run> openRun = new AtomicReference<>();
                 EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> {
@@ -375,18 +354,27 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     ExternalPlanningReservation.Run run = reservation.openRun();
                     run.charge(runCharge);
                     openRun.set(run);
-                    assertEquals(baseline + queryCharge + runCharge, breaker.getUsed());
+                    assertEquals(queryCharge + runCharge, scheduler.memoryBytes(queryId));
+                    assertEquals(baseline + queryCharge + runCharge, requestBreaker.getUsed());
+                    assertEquals(0L, blockFactoryBreaker.getUsed());
                     switch (outcome) {
                         case SUCCESS -> r.onResponse(createPlanRunnerResult(configuration, executionInfo));
                         case FAILURE -> r.onFailure(new IllegalStateException("simulated compute failure"));
                         case THROW -> throw new IllegalStateException("simulated synchronous failure");
                     }
                 };
-                PlainActionFuture<Versioned<Result>> future = new PlainActionFuture<>();
-                executeEsql(planExecutor, services, request, executionInfo, runPhase, future);
-                switch (outcome) {
-                    case SUCCESS -> future.actionGet();
-                    case FAILURE, THROW -> expectThrows(IllegalStateException.class, future::actionGet);
+                try (
+                    QueryScheduler.QueryPart coordination = scheduler.part(queryId, randomNonNegativeLong());
+                    InMemoryViewService viewService = InMemoryViewService.makeViewService()
+                ) {
+                    PlainActionFuture<Versioned<Result>> future = new PlainActionFuture<>();
+                    executeEsql(planExecutor, services, viewService, request, executionInfo, runPhase, coordination.breaker(), future);
+                    switch (outcome) {
+                        case SUCCESS -> future.actionGet();
+                        case FAILURE, THROW -> expectThrows(IllegalStateException.class, future::actionGet);
+                    }
+                    // Released before the caller is notified, so while the coordination part is still open.
+                    assertEquals(0L, scheduler.memoryBytes(queryId));
                 }
 
                 ExternalPlanningReservation reservation = executionInfo.externalPlanning();
@@ -394,12 +382,13 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 assertNotNull("plan runner did not run for " + outcome, openRun.get());
                 assertEquals(0L, reservation.queryHeld());
                 assertEquals(0L, openRun.get().held());
-                assertEquals(baseline, breaker.getUsed());
+                assertEquals(baseline, requestBreaker.getUsed());
                 expectThrows(IllegalStateException.class, reservation::openRun);
 
                 // A second close, e.g. from a caller that still releases it itself, must not refund again.
                 reservation.close();
-                assertEquals(baseline, breaker.getUsed());
+                assertEquals(baseline, requestBreaker.getUsed());
+                assertEquals("the query is forgotten once its part closes and its memory is released", 0, scheduler.queries());
             }
         }
     }
@@ -526,6 +515,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     request,
                     executionInfo,
                     (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> fail("this shouldn't happen"),
+                    NoopCircuitBreaker.INSTANCE,
                     listener
                 )
             );
@@ -675,183 +665,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }
     }
 
-    public void testClientFromProductOrigin() throws Exception {
-        assertClientCounted(null, QueryMetric.REST);
-        assertClientCounted("kibana", QueryMetric.KIBANA);
-        assertClientCounted("fleet", QueryMetric.FLEET);
-        assertClientCounted("logstash-output-elasticsearch", QueryMetric.LOGSTASH);
-        assertClientCounted("my-app", QueryMetric.OTHER);
-    }
-
-    private void assertClientCounted(@Nullable String origin, QueryMetric expectedClient) throws Exception {
-        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
-            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
-            ThreadContext threadContext = threadContextWithOrigin(origin);
-            var executionInfo = createEsqlExecutionInfo(true);
-            executeEsql(
-                planExecutor,
-                createTransportActionServices(threadContext),
-                queryRequest("FROM test | KEEP foo"),
-                executionInfo,
-                planRunnerFor(executionInfo),
-                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
-            );
-            Counters stats = planExecutor.metrics().stats();
-            for (QueryMetric client : QueryMetric.values()) {
-                assertThat(stats.get("queries." + client + ".total"), equalTo(client == expectedClient ? 1L : 0L));
-                assertThat(stats.get("queries." + client + ".failed"), equalTo(0L));
-            }
-            assertThat(stats.get("queries._all.total"), equalTo(1L));
-        }
-    }
-
-    public void testFailureCountsClient() throws Exception {
-        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
-            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
-            executeEsql(
-                planExecutor,
-                createTransportActionServices(threadContextWithOrigin("kibana")),
-                queryRequest("FROM test | STATS m = MAX(xyz)"),
-                createEsqlExecutionInfo(true),
-                (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> fail("this shouldn't happen"),
-                ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(VerificationException.class)))
-            );
-            Counters stats = planExecutor.metrics().stats();
-            assertThat(stats.get("queries.kibana.total"), equalTo(1L));
-            assertThat(stats.get("queries.kibana.failed"), equalTo(1L));
-            assertThat(stats.get("queries.rest.total"), equalTo(0L));
-            assertThat(stats.get("queries.rest.failed"), equalTo(0L));
-        }
-    }
-
-    public void testBothFeedsCarryTheSameLabels() throws Exception {
-        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
-            PlanExecutor planExecutor = buildPlanExecutor(
-                mockIndexResolver(),
-                dataSourceModule,
-                CrossProjectModeDecider.NOOP,
-                meterRegistry
-            );
-            var successInfo = createEsqlExecutionInfo(true);
-            executeEsql(
-                planExecutor,
-                createTransportActionServices(threadContextWithOrigin("kibana")),
-                queryRequest("FROM test | KEEP foo"),
-                successInfo,
-                planRunnerFor(successInfo),
-                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
-            );
-            executeEsql(
-                planExecutor,
-                createTransportActionServices(threadContextWithOrigin(null)),
-                queryRequest("FROM test | WHERE"),
-                createEsqlExecutionInfo(true),
-                (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> fail("this shouldn't happen"),
-                ActionListener.wrap(r -> fail("this shouldn't happen"), e -> {})
-            );
-
-            List<Measurement> measurements = meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
-            assertThat(
-                measurements.stream().map(Measurement::attributes).toList(),
-                containsInAnyOrder(
-                    Map.of(PlanTelemetryManager.CLIENT, "kibana", PlanTelemetryManager.QUERY_SUCCESS, true),
-                    Map.of(PlanTelemetryManager.CLIENT, "rest", PlanTelemetryManager.QUERY_SUCCESS, false)
-                )
-            );
-            Counters stats = planExecutor.metrics().stats();
-            assertThat(stats.get("queries.kibana.total"), equalTo(1L));
-            assertThat(stats.get("queries.kibana.failed"), equalTo(0L));
-            assertThat(stats.get("queries.rest.total"), equalTo(1L));
-            assertThat(stats.get("queries.rest.failed"), equalTo(1L));
-        }
-    }
-
-    /**
-     * {@link ActionListener#wrap} hands an exception thrown while handling the success to the failure handler, so a query whose
-     * success bookkeeping throws reaches both handlers. The {@link UsageService} is a mock only because it is the simplest step of
-     * that bookkeeping to make throw.
-     */
-    public void testQueryReachingBothHandlersIsCountedOnce() throws Exception {
-        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        UsageService usageService = mock(UsageService.class);
-        doThrow(new IllegalStateException("usage recording failed")).when(usageService).getProjectRoutingUsageHolder();
-        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
-            PlanExecutor planExecutor = buildPlanExecutor(
-                mockIndexResolver(),
-                dataSourceModule,
-                CrossProjectModeDecider.NOOP,
-                meterRegistry
-            );
-            var executionInfo = createEsqlExecutionInfo(true);
-            AtomicReference<Exception> failure = new AtomicReference<>();
-            executeEsql(
-                planExecutor,
-                createTransportActionServices(usageService, CrossProjectModeDecider.NOOP),
-                queryRequest("FROM test | KEEP foo"),
-                executionInfo,
-                planRunnerFor(executionInfo),
-                ActionListener.wrap(r -> fail("this shouldn't happen"), failure::set)
-            );
-            assertThat(failure.get(), instanceOf(IllegalStateException.class));
-            Counters stats = planExecutor.metrics().stats();
-            assertThat(stats.get("queries.rest.total"), equalTo(1L));
-            assertThat(stats.get("queries.rest.failed"), equalTo(1L));
-            List<Measurement> measurements = meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
-            assertThat(measurements, hasSize(1));
-            assertThat(
-                measurements.get(0).attributes(),
-                equalTo(Map.of(PlanTelemetryManager.CLIENT, "rest", PlanTelemetryManager.QUERY_SUCCESS, false))
-            );
-        }
-    }
-
-    public void testAnalyzeOnlyIsNotCounted() throws Exception {
-        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
-            PlanExecutor planExecutor = buildPlanExecutor(
-                mockIndexResolver(),
-                dataSourceModule,
-                CrossProjectModeDecider.NOOP,
-                meterRegistry
-            );
-            var request = PreparedEsqlQueryRequest.analyzeOnly(TEST_PARSER.createStatement("FROM test | KEEP foo"), "analyze only");
-            request.allowPartialResults(false);
-            var executionInfo = createEsqlExecutionInfo(true);
-            executeEsql(
-                planExecutor,
-                createTransportActionServices(threadContextWithOrigin("kibana")),
-                request,
-                executionInfo,
-                planRunnerFor(executionInfo),
-                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
-            );
-            Counters stats = planExecutor.metrics().stats();
-            assertThat(stats.get("queries._all.total"), equalTo(0L));
-            assertThat(
-                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS),
-                is(empty())
-            );
-        }
-    }
-
-    private static EsqlQueryRequest queryRequest(String query) {
-        var request = new EsqlQueryRequest();
-        request.query(query);
-        request.allowPartialResults(false);
-        return request;
-    }
-
-    private static ThreadContext threadContextWithOrigin(@Nullable String origin) {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        if (origin != null) {
-            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, origin);
-        }
-        return threadContext;
-    }
-
     private IndexResolver mockIndexResolver() {
         return new IndexResolver(mockClient(), () -> true);
     }
@@ -974,7 +787,16 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         ActionListener<Versioned<Result>> listener
     ) {
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
-            executeEsql(planExecutor, services, viewService, request, executionInfo, runPhase, listener);
+            executeEsql(
+                planExecutor,
+                services,
+                viewService,
+                request,
+                executionInfo,
+                runPhase,
+                services.blockFactoryProvider().blockFactory().breaker(),
+                listener
+            );
         }
     }
 
@@ -985,6 +807,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         EsqlSession.PlanRunner runPhase,
+        CircuitBreaker planningBreaker,
         ActionListener<Versioned<Result>> listener
     ) {
         IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions, returnLocalAll) -> Map.of(
@@ -1006,6 +829,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             1,
             () -> false,
+            planningBreaker,
             listener
         );
     }
@@ -1034,7 +858,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     0,
                     0,
                     0,
-                    0
+                    0,
+                    null
                 )
             );
         }
@@ -1077,18 +902,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         DataSourceModule dataSourceModule,
         CrossProjectModeDecider cpsDecider
     ) {
-        return buildPlanExecutor(indexResolver, dataSourceModule, cpsDecider, MeterRegistry.NOOP);
-    }
-
-    private PlanExecutor buildPlanExecutor(
-        IndexResolver indexResolver,
-        DataSourceModule dataSourceModule,
-        CrossProjectModeDecider cpsDecider,
-        MeterRegistry meterRegistry
-    ) {
         return new PlanExecutor(
             indexResolver,
-            meterRegistry,
+            MeterRegistry.NOOP,
             new XPackLicenseState(() -> 0L),
             mockQueryLog(),
             List.of(),

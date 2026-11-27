@@ -108,6 +108,11 @@ public class MvLike extends MvRegexMatch {
         new WildcardPattern(pattern).createAutomaton(false);
     }
 
+    @Override
+    protected WildcardPattern compilePattern(String pattern) {
+        return new WildcardPattern(pattern);
+    }
+
     /** The empty pattern matches only the empty string; it cannot be pushed (see {@link #buildEvaluator}), so it is not pushable. */
     @Override
     protected boolean patternPushable(String pattern) {
@@ -154,6 +159,9 @@ public class MvLike extends MvRegexMatch {
                 MvLikeAffixMatch.Shape.CONTAINS,
                 new BytesRef(literal)
             );
+            // Affix (prefix*suffix / prefix*middle*suffix) stays on the automaton until
+            // MvLikeAffixMatch grows a three-segment path. LIKE itself takes the Affix evaluator.
+            case WildcardPattern.Shape.Affix ignored -> MvAutomataMatch.toEvaluator(source(), field, pattern.createAutomaton(false));
             case WildcardPattern.Shape.General ignored -> MvAutomataMatch.toEvaluator(source(), field, pattern.createAutomaton(false));
         };
     }

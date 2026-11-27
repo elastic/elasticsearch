@@ -18,8 +18,11 @@
   the layers that do not change between builds can be reused. List them from the least to the most
   frequently changing. Wildcards are allowed: the distribution only contains the machine learning
   libraries of the architecture being built.
+
+  The Docker Hub image does not split any layers: it is built by the Docker Official Images build system,
+  which does not normalize timestamps and so does not reuse these layers between builds.
 */
-def separateLayers = ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
+def separateLayers = docker_context == 'docker-hub-build-context' ? [] : ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
 
 
 ################################################################################
@@ -29,7 +32,7 @@ def separateLayers = ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
 
 FROM ${base_image} AS builder
 
-RUN microdnf install -y findutils tar gzip
+RUN microdnf install -y findutils tar gzip util-linux-core
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -75,15 +78,9 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # config directory.
     chown 1000:1000 bin config config/jvm.options.d data logs plugins && \\
 # Many modules and plugins bundle identical copies of the same jars. Replace the duplicates with hard links so
-# that each one is stored only once in the image layer. This has to happen before the layers are split off, and
-# the jdk is not touched since it is copied in a layer of its own. `ln -f` keys on content only, so the linked
-# paths take the mode and owner of the first file. That is only safe because the permissions of all files were
-# reset above, which leaves every jar with the same mode (and owner).
-    prev= && \\
-    set -o pipefail && \\
-    find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do \\
-        if [ "\$sum" = "\$prev" ]; then ln -f "\$first" "\$path" || exit 1; else prev="\$sum"; first="\$path"; fi; \\
-    done && \\
+# that each one is stored only once in the image layer. `hardlink` only links files that also have the same mode
+# and owner, so no jar's permissions change.
+    hardlink --ignore-time --include '\\.jar\$' lib modules plugins<% if (separateLayers) { %> && \\
 # Move the paths that are copied in layers of their own out of the way, keeping their paths, into a directory per layer
     mkdir /layers && \\
     n=0 && \\
@@ -94,7 +91,7 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
             mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\
         done; \\
         n=\$((n + 1)); \\
-    done
+    done<% } %>
 
 # The distribution includes a `config` directory, no need to create it
 COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
@@ -109,10 +106,10 @@ COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
 
 FROM ${base_image}
 
-# Upgrade the base image's packages first, so that the image gets fixes such as an updated set of trusted CA
-# certificates as soon as Red Hat publishes them, rather than only when the base image is next rebuilt.
-RUN microdnf upgrade --setopt=tsflags=nodocs -y && \\
-    microdnf install --setopt=tsflags=nodocs -y \\
+# Packages are not upgraded on top of the base image: fixes such as an updated set of trusted CA certificates come
+# from Red Hat rebuilding the base image. An upgrade step would make the image build differently from one day to
+# the next, which the Docker Official Images do not accept.
+RUN microdnf install --setopt=tsflags=nodocs -y \\
     nc shadow-utils tar zip unzip findutils procps-ng && \\
     microdnf clean all
 

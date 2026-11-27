@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166959
+summary: Fix a lost wake-up in `AsyncOperator`
+type: bug

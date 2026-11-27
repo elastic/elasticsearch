@@ -2,6 +2,9 @@
 navigation_title: "Bucket script"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-pipeline-bucket-script-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Bucket script aggregation [search-aggregations-pipeline-bucket-script-aggregation]

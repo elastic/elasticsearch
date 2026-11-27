@@ -49,6 +49,14 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), true, TimeSeriesFieldType.UNKNOWN);
     }
 
+    /**
+     * This field, also unmapped in some indices. It keeps the counts of the indices of each type, which rebuilding it from
+     * {@link #getTypesToIndices()} would lose: those are already truncated, with a {@code "..."} in place of the dropped indices.
+     */
+    public CompactInvalidMappedField asPotentiallyUnmapped() {
+        return new CompactInvalidMappedField(getName(), typesToIndices, true, TimeSeriesFieldType.UNKNOWN);
+    }
+
     private static Set<String> truncate(Set<String> indices) {
         Set<String> truncated = new LinkedHashSet<>(MAX_INDICES_PER_TYPE);
         indices.stream().sorted().limit(MAX_INDICES_PER_TYPE).forEach(truncated::add);
@@ -85,22 +93,25 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         return samples;
     }
 
-    private Map<String, Set<String>> lazyTypesToIndices;
+    private volatile Map<String, Set<String>> lazyTypesToIndices;
 
     @Override
     public Map<String, Set<String>> getTypesToIndices() {
-        if (lazyTypesToIndices == null) {
-            lazyTypesToIndices = new TreeMap<>();
+        Map<String, Set<String>> result = lazyTypesToIndices;
+        if (result == null) {
+            // Fill a local and publish it once: this field is shared by every thread that holds the plan.
+            result = new TreeMap<>();
             for (Map.Entry<DataType, TruncatedIndices> entry : typesToIndices.entrySet()) {
                 TruncatedIndices indices = entry.getValue();
-                Set<String> result = indices.dropped == 0 ? indices.kept : new LinkedHashSet<>(indices.kept);
-                if (result != indices.kept) {
-                    result.add("...");
+                Set<String> names = indices.dropped == 0 ? indices.kept : new LinkedHashSet<>(indices.kept);
+                if (names != indices.kept) {
+                    names.add("...");
                 }
-                lazyTypesToIndices.put(entry.getKey().typeName(), result);
+                result.put(entry.getKey().typeName(), names);
             }
+            lazyTypesToIndices = result;
         }
-        return lazyTypesToIndices;
+        return result;
     }
 
     @Override

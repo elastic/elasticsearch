@@ -7,13 +7,19 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -28,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.CountingMtimeStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -39,6 +46,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -47,6 +55,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Exact-stat validation for the orthogonal per-stripe stats path of the NDJSON reader. These are the
@@ -187,6 +198,63 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
             "byte-array cap-drop must publish no stats (external_max_record_size is not fingerprinted)",
             sink.get(o.path().toString())
         );
+    }
+
+    /**
+     * The same two-byte extremum is harvested at the default and withheld at one.
+     */
+    public void testTheWidthSettingReachesTheStripeHarvest() throws Exception {
+        byte[] bytes = ndjsonKeyword(6);
+
+        Map<String, Object> atDefault = stripeMetadata(bytes, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES);
+        assertEquals(
+            "a two-byte extremum is harvested under the default",
+            new BytesRef("k0"),
+            SourceStatisticsSerializer.extractColumnMin(atDefault, "k")
+        );
+
+        Map<String, Object> narrowed = stripeMetadata(bytes, 1);
+        assertNull("one byte withholds it", SourceStatisticsSerializer.extractColumnMin(narrowed, "k"));
+        assertNull("one byte withholds it", SourceStatisticsSerializer.extractColumnMax(narrowed, "k"));
+        assertEquals("and the row count survives", 6L, ((Number) narrowed.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    /** {"a":N,"k":"kN"} — a LONG beside a two-byte KEYWORD. */
+    private static byte[] ndjsonKeyword(int count) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            sb.append("{\"a\":").append(i).append(",\"k\":\"k").append(i).append("\"}\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private Map<String, Object> stripeMetadata(byte[] bytes, int maxExtremumBytes) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("a", "k"))
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .stats(0, 4096, true)
+            .statsMaxExtremumBytes(maxExtremumBytes)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        assertNotNull("the read must publish a contribution", raw);
+        return reconcileToMetadata(raw, List.of(longCol("a"), keywordCol("k")));
+    }
+
+    private static Attribute keywordCol(String name) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD, Nullability.TRUE, null, false);
     }
 
     /**
@@ -684,9 +752,110 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         };
     }
 
+    /**
+     * The NDJSON half of the probe check — the CSV reader has the same gate and its own test. A read that
+     * harvests nothing must not probe the object's mtime: the probe exists only to key statistics, and on a
+     * store with no last-modified hint it costs a round trip per file. Counting it is the only assertion that
+     * discriminates, because the capture sink is empty under NONE either way.
+     */
+    public void testNoneDoesNotProbeTheObjectMtime() throws Exception {
+        byte[] full = ndjson(0, 10);
+
+        AtomicInteger noneProbes = new AtomicInteger();
+        readCounting(countingObject(full, noneProbes), StripeColumnScope.NONE);
+        assertEquals("a read that harvests nothing must not probe lastModified()", 0, noneProbes.get());
+
+        AtomicInteger projectedProbes = new AtomicInteger();
+        readCounting(countingObject(full, projectedProbes), StripeColumnScope.PROJECTED);
+        assertThat("a harvesting read pins the mtime, so it must probe", projectedProbes.get(), greaterThan(0));
+    }
+
+    /**
+     * The give-up line names the object, and an {@code https} dataset's resource is the user's own URL: a
+     * pre-signed one carries its signature in the query string, so the location the log names IS the credential.
+     * The CSV reader has the same pair of call sites and its own copy of this. {@code ExternalFailuresTests}
+     * pins the redaction itself; this pins that both of this reader's call sites apply it. A store's own
+     * exception can quote the signed URL back, so each expectation also requires that no throwable rode along
+     * -- which is why the double throws with its own path in the message, as a storage SDK does.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader:DEBUG",
+        reason = "the give-up is a debug line, and this asserts neither its location nor a throwable carries the signature"
+    )
+    public void testAFailedMtimeProbeDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        byte[] full = ndjson(0, 10);
+        try (MockLog mockLog = MockLog.capture(NdJsonFormatReader.class)) {
+            mockLog.addExpectation(giveUpWithoutAThrowable("the schema-resolution site", "resolve.ndjson"));
+            mockLog.addExpectation(giveUpWithoutAThrowable("the scan site", "scan.ndjson"));
+            // Paired with those two, so neither of them can pass by the line never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any line",
+                    NdJsonFormatReader.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*" + signature + "*"
+                )
+            );
+            new NdJsonFormatReader(null, blockFactory).metadata(failingMtimeObject(full, SIGNED_BASE + "resolve.ndjson?" + signature));
+            readCounting(failingMtimeObject(full, SIGNED_BASE + "scan.ndjson?" + signature), StripeColumnScope.PROJECTED);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    private static final String SIGNED_BASE = "https://bucket.s3.example.com/data/";
+
+    /** Matches the give-up line for one object, and only on an event that carries no throwable. */
+    private static MockLog.LoggingExpectation giveUpWithoutAThrowable(String site, String objectName) {
+        return new MockLog.SeenEventExpectation(
+            site + ", naming the location without its query string",
+            NdJsonFormatReader.class.getCanonicalName(),
+            Level.DEBUG,
+            "*no last-modified for [" + SIGNED_BASE + objectName + "];*"
+        ) {
+            @Override
+            public boolean innerMatch(LogEvent event) {
+                return event.getThrown() == null; // the store's own message is not ours to redact
+            }
+        };
+    }
+
+    /** Serves the bytes but fails the mtime probe, as a store that carries no last-modified header does. */
+    private StorageObject failingMtimeObject(byte[] bytes, String path) {
+        return memoryObject(bytes, path, () -> { throw new IOException("this store serves no last-modified: " + path); });
+    }
+
+    private void readCounting(StorageObject o, StripeColumnScope scope) throws Exception {
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .stats(0L, 64L, true)
+            .statsColumnScope(scope)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+    }
+
+    /** Delegates to the in-memory object, counting every mtime probe. */
+    private StorageObject countingObject(byte[] bytes, AtomicInteger probes) {
+        return new CountingMtimeStorageObject(memoryObject(bytes), probes);
+    }
+
     private StorageObject memoryObject(byte[] bytes) {
-        String uniquePath = "memory://" + UUID.randomUUID() + ".ndjson";
-        Instant fixedMtime = Instant.ofEpochMilli(1000L);
+        return memoryObject(bytes, "memory://" + UUID.randomUUID() + ".ndjson", () -> Instant.ofEpochMilli(1000L));
+    }
+
+    /** The mtime arrives through a supplier, so a case can make the probe fail as a store serving none does. */
+    private StorageObject memoryObject(byte[] bytes, String path, CheckedSupplier<Instant, IOException> mtime) {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
@@ -712,8 +881,8 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
             }
 
             @Override
-            public Instant lastModified() {
-                return fixedMtime;
+            public Instant lastModified() throws IOException {
+                return mtime.get();
             }
 
             @Override
@@ -723,7 +892,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
 
             @Override
             public StoragePath path() {
-                return StoragePath.of(uniquePath);
+                return StoragePath.of(path);
             }
         };
     }

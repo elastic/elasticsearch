@@ -205,10 +205,11 @@ public class ExternalSourceResolver {
      * Per-file schema-map allowance, reserved before reconciliation, first-file-wins, or the strict schema loop.
      * Not a measured deep size. A shared schema keeps one {@code ExternalSchema} and one {@code ColumnMapping};
      * each file adds a map node, a {@code FileSchemaInfo}, and a path key. 320 bytes covers that shape and
-     * leaves a few megabytes of slack at the default discovered-files cap. A file with its own attribute list
-     * can exceed it.
+     * leaves a few megabytes of slack at the discovered-files floor. A file with its own attribute list
+     * can exceed it. Package-visible so {@link ExternalSourceSettings} can size the discovered-files
+     * default from the same billed bytes.
      */
-    private static final long SCHEMA_MAP_BYTES_PER_FILE = 320L;
+    static final long SCHEMA_MAP_BYTES_PER_FILE = 320L;
 
     private final Executor executor;
     /**
@@ -497,6 +498,11 @@ public class ExternalSourceResolver {
         return listingService.maxListedObjects();
     }
 
+    /** Live {@link ExternalSourceSettings#MAX_DIRECTORY_LISTINGS} cap. Visible for wiring tests. */
+    public int maxDirectoryListings() {
+        return listingService.maxDirectoryListings();
+    }
+
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule) {
         this(executor, dataSourceModule, Settings.EMPTY, null);
     }
@@ -622,6 +628,34 @@ public class ExternalSourceResolver {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        this(
+            executor,
+            dataSourceModule,
+            settings,
+            cacheService,
+            isCancelled,
+            metadataReadConcurrency,
+            threadContext,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            null
+        );
+    }
+
+    public ExternalSourceResolver(
+        Executor executor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService,
+        @Nullable BooleanSupplier isCancelled,
+        int metadataReadConcurrency,
+        @Nullable ThreadContext threadContext,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         if (metadataReadConcurrency < 1) {
             throw new IllegalArgumentException("metadataReadConcurrency must be >= 1, got: " + metadataReadConcurrency);
         }
@@ -632,7 +666,14 @@ public class ExternalSourceResolver {
         this.dataSourceModule = dataSourceModule;
         this.settings = settings;
         this.cacheService = cacheService;
-        this.listingService = new DatasetListingService(settings, cacheService, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects);
+        this.listingService = new DatasetListingService(
+            settings,
+            cacheService,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            maxDirectoryListings
+        );
         this.isCancelled = isCancelled;
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
         this.metadataReadConcurrency = metadataReadConcurrency;
@@ -3153,7 +3194,7 @@ public class ExternalSourceResolver {
      * would re-key - and re-read - every file each time it does. Rounded, the keys move only when the count crosses a
      * power of two, and stop moving once the per-file floor is reached.
      * <p>
-     * Deliberately not clamped: listings are capped at 1,000,000 files by
+     * Deliberately not clamped: listings are capped at 10,000,000 files by
      * {@link ExternalSourceSettings#MAX_DISCOVERED_FILES}, far below the first {@code int} overflow at {@code 2^30}.
      */
     static int schemaSampleShare(int fileCount) {
@@ -3841,6 +3882,8 @@ public class ExternalSourceResolver {
                 }
                 encodeColumns.add(entry.getKey());
             } else if (unsignedExtremaUnderNonUnsignedPlanner(plannerType, fileType)) {
+                // Out of scope for declared-epoch rescale: unsigned extrema under a signed planner are a
+                // representation mismatch, not a linear epoch map. Do not apply the INTEGER/LONG epoch rule here.
                 if (poisonColumns == null) {
                     poisonColumns = new ArrayList<>();
                 }
@@ -5256,30 +5299,7 @@ public class ExternalSourceResolver {
             ),
             listener::onFailure
         );
-        if (path.indexOf(',') >= 0) {
-            // Comma-separated paths expand synchronously — GlobExpander.expand handles the union
-            // without any fan-out, so no pool-thread blocking occurs.
-            FileList listing;
-            try {
-                listing = GlobExpander.expand(
-                    path,
-                    provider,
-                    hints,
-                    config,
-                    listingService.maxDiscoveredFiles(),
-                    listingService.maxGlobExpansion(),
-                    listingService.maxListedObjects(),
-                    extents,
-                    planningMemory(),
-                    listingCancellation(),
-                    folderRange
-                );
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-            listingListener.onResponse(listing);
-        } else if (isCacheable(provider)) {
+        if (isCacheable(provider)) {
             cachedListingAsync(
                 path,
                 storagePath,
@@ -5737,6 +5757,44 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Footer epoch scales that are safe to unpoison: parquet/orc raw ticks whose inferred type is
+     * INTEGER/LONG on every file that has a snapshot. Text harvests, a first_file_wins sibling without
+     * native types, and non-integral physical types stay out (those columns remain poisoned). Per column:
+     * a string {@code epoch_second} sibling does not block a LONG one.
+     */
+    static Map<String, SourceStatisticsSerializer.EpochScale> rescaleableEpochScales(
+        boolean fileTyped,
+        boolean firstFileWinsMultiFile,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        DeclaredReadSpec declaredReadSpec,
+        Map<String, SourceStatisticsSerializer.EpochScale> epochScales
+    ) {
+        if (fileTyped == false || epochScales == null || epochScales.isEmpty() || schemaMap == null || schemaMap.isEmpty()) {
+            return Map.of();
+        }
+        for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
+            if (info.inferredTypes() == null && firstFileWinsMultiFile) {
+                return Map.of();
+            }
+        }
+        Map<String, SourceStatisticsSerializer.EpochScale> eligible = new HashMap<>(epochScales);
+        for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
+            Map<String, DataType> fileTypes = info.inferredTypes();
+            if (fileTypes == null) {
+                continue;
+            }
+            for (String logical : epochScales.keySet()) {
+                String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
+                DataType inferred = fileTypes.get(physical);
+                if (inferred != null && inferred != DataType.LONG && inferred != DataType.INTEGER) {
+                    eligible.remove(logical);
+                }
+            }
+        }
+        return eligible.isEmpty() ? Map.of() : Map.copyOf(eligible);
+    }
+
+    /**
      * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
      * columns in the user-facing schema and in each per-file schema (lenient — a column may be absent from one
      * file under union-by-name), preserving the inferred stats/sourceMetadata and the per-file column mappings.
@@ -5802,7 +5860,9 @@ public class ExternalSourceResolver {
         // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so
         // the rekeyed stats stay exactly correct — warm serving survives the rename) and poison extrema + drop counts for
         // retyped / declared-date-format columns (the read-time coercion nulls failing cells and re-represents values, so
-        // no pre-coercion stat matches a scan). row_count/file_count/size_bytes stay: COUNT(*) stays warm.
+        // no pre-coercion stat matches a scan). Exact epoch_second/epoch_millis on INTEGER/LONG are the exception: extrema
+        // are rescaled into the declared unit before overlay and those names are removed from poison. row_count/file_count/
+        // size_bytes stay: COUNT(*) stays warm.
         Map<String, DataType> inferredTypes = attributesToTypeMap(inferred.schema());   // physical names, inferred types
         Map<String, DataType> overlaidTypes = attributesToTypeMap(unified.output());    // logical names, declared types
         Map<String, String> physicalToLogical = new HashMap<>();
@@ -5962,8 +6022,33 @@ public class ExternalSourceResolver {
         // physical column a partition shadows, which every reader does parse — and took the per-column statistics of
         // every mapped partitioned dataset permanently cold.
         Map<String, Object> servableStats = SourceStatisticsSerializer.restrictToReadConfig(inferred.sourceMetadata(), expectedReadConfig);
+        Map<String, SourceStatisticsSerializer.EpochScale> epochScales = SourceStatisticsSerializer.epochScales(
+            declaredReadSpec.dateFormats(),
+            overlaidTypes
+        );
+        Map<String, Object> statsForOverlay = servableStats;
+        // Footer ticks only: text-reader harvests already hold declared-unit values (and stamp a matching
+        // read-config), so rescale would multiply twice. Skip also when a first_file_wins sibling has no
+        // native-type snapshot. Non-integral physical types are dropped per column, not for the dataset.
+        Map<String, SourceStatisticsSerializer.EpochScale> rescaleable = rescaleableEpochScales(
+            fileTyped,
+            anchorPinnedFirstFileWins && overlaidSchemaMap.size() > 1,
+            overlaidSchemaMap,
+            declaredReadSpec,
+            epochScales
+        );
+        if (rescaleable.isEmpty() == false) {
+            SourceStatisticsSerializer.EpochRescale rescale = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                servableStats,
+                physicalToLogical,
+                rescaleable,
+                inferredTypes
+            );
+            poisonColumns.removeAll(rescale.unpoisoned());
+            statsForOverlay = rescale.stats();
+        }
         Map<String, Object> overlaidSourceMetadata = Map.copyOf(
-            SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(servableStats, physicalToLogical, poisonColumns)
+            SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(statsForOverlay, physicalToLogical, poisonColumns)
         );
         ExternalSourceMetadata overlaidMetadata = new ExternalSourceMetadata() {
             @Override

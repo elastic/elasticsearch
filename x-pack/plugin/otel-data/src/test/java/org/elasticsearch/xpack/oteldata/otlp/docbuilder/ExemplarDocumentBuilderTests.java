@@ -144,7 +144,7 @@ public class ExemplarDocumentBuilderTests extends ESTestCase {
             .build();
         context.groupDataPoints(request);
         AtomicReference<DataPointGroupingContext.DataPointGroup> group = new AtomicReference<>();
-        context.consume(dataPointGroup -> assertTrue(group.compareAndSet(null, dataPointGroup)));
+        context.forEachGroup(dataPointGroup -> assertTrue(group.compareAndSet(null, dataPointGroup)));
         return group.get();
     }
 }

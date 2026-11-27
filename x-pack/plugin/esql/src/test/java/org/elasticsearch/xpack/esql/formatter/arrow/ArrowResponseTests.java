@@ -58,6 +58,8 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder.DoubleRange;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -65,8 +67,14 @@ import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder.LongRange;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.BucketIterator;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.StandardValidator;
@@ -74,6 +82,7 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -219,7 +228,11 @@ public class ArrowResponseTests extends ESTestCase {
         factory -> factory.newBytesRefBlockBuilder(0),
         block -> block.appendBytesRef(new BytesRef("{\"foo\": " + randomIntBetween(-42, 42) + "}")),
         (b, i, s) -> b.getBytesRef(i, s).utf8ToString(),
-        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8)
+        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8),
+        metadata -> {
+            assertEquals("arrow.json", metadata.get("ARROW:extension:name"));
+            assertEquals("", metadata.get("ARROW:extension:metadata"));
+        }
     );
 
     static final ValueType FLATTENED_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarCharVector>(
@@ -227,7 +240,11 @@ public class ArrowResponseTests extends ESTestCase {
         factory -> factory.newBytesRefBlockBuilder(0),
         block -> block.appendBytesRef(new BytesRef("{\"foo\": " + randomIntBetween(-42, 42) + "}")),
         (b, i, s) -> b.getBytesRef(i, s).utf8ToString(),
-        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8)
+        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8),
+        metadata -> {
+            assertEquals("arrow.json", metadata.get("ARROW:extension:name"));
+            assertEquals("", metadata.get("ARROW:extension:metadata"));
+        }
     );
 
     static final ValueType IP_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarBinaryVector>(
@@ -416,6 +433,209 @@ public class ArrowResponseTests extends ESTestCase {
         }
     };
 
+    /**
+     * TDIGEST: struct with nullable min/max/sum float64 children, and centroids/counts list children.
+     * Values are compared as {@link TDigestHolder}s. A fifth of the digests are empty ones, which must be valid structs.
+     */
+    static final ValueType TDIGEST_VALUES = new ValueType() {
+        @Override
+        public Block.Builder createBlockBuilder(BlockFactory factory) {
+            return factory.newTDigestBlockBuilder(0);
+        }
+
+        @Override
+        public void addValue(Block.Builder builder, Density density) {
+            if (density.nextIsNull()) {
+                builder.appendNull();
+            } else if (randomInt(4) == 0) {
+                TDigestHolder empty = new TDigestHolder();
+                empty.reset(EncodedTDigest.encodeCentroids(List.of(), List.of()), Double.NaN, Double.NaN, Double.NaN, 0L);
+                ((TDigestBlock.Builder) builder).appendTDigest(empty);
+            } else {
+                ((TDigestBlock.Builder) builder).appendTDigest(EsqlTestUtils.randomTDigest());
+            }
+        }
+
+        @Override
+        public Object valueAt(Block block, int position, BytesRef scratch) {
+            TDigestHolder holder = ((TDigestBlock) block).getTDigestHolder(block.getFirstValueIndex(position), new TDigestHolder());
+            // Copy the encoded digest, as it refers to the block's memory
+            TDigestHolder copy = new TDigestHolder();
+            copy.reset(BytesRef.deepCopyOf(holder.getEncodedDigest()), holder.getMin(), holder.getMax(), holder.getSum(), holder.size());
+            return copy;
+        }
+
+        @Override
+        public Object valueAt(ValueVector arrowVec, int position) {
+            StructVector vector = (StructVector) arrowVec;
+            Float8Vector min = (Float8Vector) vector.getChild("min");
+            Float8Vector max = (Float8Vector) vector.getChild("max");
+            Float8Vector sum = (Float8Vector) vector.getChild("sum");
+            ListVector centroidsVector = (ListVector) vector.getChild("centroids");
+            ListVector countsVector = (ListVector) vector.getChild("counts");
+            assertFalse(centroidsVector.isNull(position));
+            assertFalse(countsVector.isNull(position));
+            @SuppressWarnings("unchecked")
+            List<Double> centroids = (List<Double>) (List<?>) centroidsVector.getObject(position);
+            @SuppressWarnings("unchecked")
+            List<Long> counts = (List<Long>) (List<?>) countsVector.getObject(position);
+            assertEquals(centroids.size(), counts.size());
+            TDigestHolder holder = new TDigestHolder();
+            holder.reset(
+                EncodedTDigest.encodeCentroids(centroids, counts),
+                min.isNull(position) ? Double.NaN : min.get(position),
+                max.isNull(position) ? Double.NaN : max.get(position),
+                sum.isNull(position) ? Double.NaN : sum.get(position),
+                counts.stream().mapToLong(Long::longValue).sum()
+            );
+            return holder;
+        }
+    };
+
+    private record HistogramValue(List<Double> values, List<Long> counts) {}
+
+    private record BucketValues(List<Long> indices, List<Long> counts) {}
+
+    private record ExponentialHistogramValue(
+        int scale,
+        Double sum,
+        Double min,
+        Double max,
+        long zeroCount,
+        double zeroThreshold,
+        BucketValues positive,
+        BucketValues negative
+    ) {}
+
+    static final ValueType HISTOGRAM_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, StructVector>(
+        "histogram",
+        factory -> factory.newBytesRefBlockBuilder(0),
+        builder -> {
+            int size = randomIntBetween(0, 4);
+            List<Double> values = new ArrayList<>(size);
+            List<Long> counts = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                values.add(randomDouble());
+                counts.add(randomLongBetween(1, 1000));
+            }
+            builder.appendBytesRef(EncodedTDigest.encodeCentroids(values, counts));
+        },
+        (block, index, scratch) -> {
+            EncodedTDigest digest = new EncodedTDigest(block.getBytesRef(index, scratch));
+            List<Double> values = new ArrayList<>();
+            List<Long> counts = new ArrayList<>();
+            var centroids = digest.centroidIterator();
+            while (centroids.next()) {
+                values.add(centroids.currentMean());
+                counts.add(centroids.currentCount());
+            }
+            return new HistogramValue(values, counts);
+        },
+        (vector, position) -> new HistogramValue(
+            doubleList((ListVector) vector.getChild("values"), position),
+            longList((ListVector) vector.getChild("counts"), position)
+        )
+    );
+
+    static final ValueType EXPONENTIAL_HISTOGRAM_VALUES = new ValueTypeImpl<
+        ExponentialHistogramBlock.Builder,
+        ExponentialHistogramBlock,
+        StructVector>("exponential_histogram", factory -> factory.newExponentialHistogramBlockBuilder(0), builder -> {
+            if (randomInt(4) == 0) {
+                builder.append(ExponentialHistogram.empty());
+            } else {
+                var histogramBuilder = ExponentialHistogram.builder(randomIntBetween(-2, 4), ExponentialHistogramCircuitBreaker.noop());
+                int negativeBuckets = randomIntBetween(0, 5);
+                long bucketIndex = randomLongBetween(-10, 10);
+                for (int i = 0; i < negativeBuckets; i++) {
+                    histogramBuilder.setNegativeBucket(bucketIndex, randomLongBetween(1, 1000));
+                    bucketIndex += randomIntBetween(1, 5);
+                }
+                int positiveBuckets = randomIntBetween(0, 5);
+                bucketIndex = randomLongBetween(-10, 10);
+                for (int i = 0; i < positiveBuckets; i++) {
+                    histogramBuilder.setPositiveBucket(bucketIndex, randomLongBetween(1, 1000));
+                    bucketIndex += randomIntBetween(1, 5);
+                }
+                double zeroThreshold = randomBoolean() ? 0.0 : randomDouble() * 10;
+                long zeroCount = randomBoolean() ? 0 : randomLongBetween(1, 100);
+                histogramBuilder.zeroBucket(ZeroBucket.create(zeroThreshold, zeroCount));
+                try (var histogram = histogramBuilder.build()) {
+                    builder.append(histogram);
+                }
+            }
+        },
+            (block, index, scratch) -> exponentialValue(block.getExponentialHistogram(index, new ExponentialHistogramScratch())),
+            (vector, position) -> {
+                IntVector scale = (IntVector) vector.getChild("scale");
+                Float8Vector sum = (Float8Vector) vector.getChild("sum");
+                Float8Vector min = (Float8Vector) vector.getChild("min");
+                Float8Vector max = (Float8Vector) vector.getChild("max");
+                StructVector zero = (StructVector) vector.getChild("zero");
+                StructVector positive = (StructVector) vector.getChild("positive");
+                StructVector negative = (StructVector) vector.getChild("negative");
+                return new ExponentialHistogramValue(
+                    scale.get(position),
+                    sum.isNull(position) ? null : sum.get(position),
+                    min.isNull(position) ? null : min.get(position),
+                    max.isNull(position) ? null : max.get(position),
+                    ((BigIntVector) zero.getChild("count")).get(position),
+                    ((Float8Vector) zero.getChild("threshold")).get(position),
+                    bucketValues(positive, position),
+                    bucketValues(negative, position)
+                );
+            }
+        );
+
+    private static ExponentialHistogramValue exponentialValue(ExponentialHistogram histogram) {
+        return new ExponentialHistogramValue(
+            histogram.scale(),
+            histogram.isEmpty() || Double.isNaN(histogram.sum()) ? null : histogram.sum(),
+            Double.isNaN(histogram.min()) ? null : histogram.min(),
+            Double.isNaN(histogram.max()) ? null : histogram.max(),
+            histogram.zeroBucket().count(),
+            histogram.zeroBucket().zeroThreshold(),
+            bucketValues(histogram.positiveBuckets().iterator()),
+            bucketValues(histogram.negativeBuckets().iterator())
+        );
+    }
+
+    private static BucketValues bucketValues(BucketIterator buckets) {
+        List<Long> indices = new ArrayList<>();
+        List<Long> counts = new ArrayList<>();
+        while (buckets.hasNext()) {
+            indices.add(buckets.peekIndex());
+            counts.add(buckets.peekCount());
+            buckets.advance();
+        }
+        return new BucketValues(indices, counts);
+    }
+
+    private static BucketValues bucketValues(StructVector buckets, int position) {
+        return new BucketValues(
+            longList((ListVector) buckets.getChild("indices"), position),
+            longList((ListVector) buckets.getChild("counts"), position)
+        );
+    }
+
+    private static List<Double> doubleList(ListVector vector, int position) {
+        Float8Vector values = (Float8Vector) vector.getDataVector();
+        List<Double> result = new ArrayList<>();
+        for (int i = vector.getElementStartIndex(position); i < vector.getElementEndIndex(position); i++) {
+            result.add(values.get(i));
+        }
+        return result;
+    }
+
+    private static List<Long> longList(ListVector vector, int position) {
+        BigIntVector values = (BigIntVector) vector.getDataVector();
+        List<Long> result = new ArrayList<>();
+        for (int i = vector.getElementStartIndex(position); i < vector.getElementEndIndex(position); i++) {
+            result.add(values.get(i));
+        }
+        return result;
+    }
+
     static final Map<DataType, ValueType> VALUE_TYPES = Map.ofEntries(
         Map.entry(DataType.INTEGER, INTEGER_VALUES),
         Map.entry(DataType.COUNTER_INTEGER, INTEGER_VALUES),
@@ -454,21 +674,24 @@ public class ArrowResponseTests extends ESTestCase {
 
         Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES),
         Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES),
-        Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, AGGREGATE_METRIC_DOUBLE_VALUES)
+        Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, AGGREGATE_METRIC_DOUBLE_VALUES),
+        Map.entry(DataType.HISTOGRAM, HISTOGRAM_VALUES),
+        Map.entry(DataType.EXPONENTIAL_HISTOGRAM, EXPONENTIAL_HISTOGRAM_VALUES),
+        Map.entry(DataType.TDIGEST, TDIGEST_VALUES)
     );
 
     /**
      * Types whose blocks are always single-valued, so tests can't build multivalued columns of them. Kept independent of
      * the formatters so that a formatter that wrongly rejects multivalued columns fails the tests instead of skipping them.
      */
-    static final Set<DataType> SINGLE_VALUED_TYPES = EnumSet.of(DataType.AGGREGATE_METRIC_DOUBLE);
+    static final Set<DataType> SINGLE_VALUED_TYPES = EnumSet.of(DataType.AGGREGATE_METRIC_DOUBLE, DataType.TDIGEST);
 
     // ---------------------------------------------------------------------------------------------
     // Tests
 
     /**
-     * Every response type must have an Arrow formatter or an explicit pending implementation. Compare the enum values
-     * rather than their output names, which can be shared by different types, and include types under construction.
+     * Every response type must have an Arrow formatter. Compare the enum values rather than their output names, which can
+     * be shared by different types.
      */
     public void testTypeSupportConsistency() {
         var responseTypes = EnumSet.noneOf(DataType.class);
@@ -478,12 +701,7 @@ public class ArrowResponseTests extends ESTestCase {
             }
         }
 
-        var arrowTypes = EnumSet.noneOf(DataType.class);
-        arrowTypes.addAll(ArrowResponse.ESQL_FORMATTERS.keySet());
-        for (DataType type : ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS) {
-            assertTrue("Formatter is both implemented and pending for [" + type + "]", arrowTypes.add(type));
-        }
-        assertEquals("Arrow formatters must cover exactly the response types", responseTypes, arrowTypes);
+        assertEquals("Arrow formatters must cover exactly the response types", responseTypes, ArrowResponse.ESQL_FORMATTERS.keySet());
     }
 
     public void testOutputTypesHaveTextSupport() {
@@ -527,26 +745,6 @@ public class ArrowResponseTests extends ESTestCase {
                     exception.getMessage()
                 );
             }
-        }
-    }
-
-    public void testPendingResponseTypesRejected() {
-        for (DataType type : ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS) {
-            assertTrue("Pending formatter must be for a response type [" + type + "]", DataType.isRepresentableInOutput(type));
-            assertFalse(
-                "Pending formatter must not be registered as implemented [" + type + "]",
-                ArrowResponse.ESQL_FORMATTERS.containsKey(type)
-            );
-            IllegalArgumentException exception = expectThrows(
-                IllegalArgumentException.class,
-                "Expected Arrow output to reject pending type [" + type + "]",
-                () -> new ArrowResponse(List.of(new ArrowResponse.Column(type, "pending")), List.of())
-            );
-            assertEquals(
-                "Unexpected rejection for pending type [" + type + "]",
-                "ES|QL type [" + type.outputType() + "] is not supported by the Arrow format",
-                exception.getMessage()
-            );
         }
     }
 
@@ -600,6 +798,151 @@ public class ArrowResponseTests extends ESTestCase {
             TestCase testCase = new TestCase(List.of(testColumn), pages);
 
             compareEsqlAndArrow(testCase);
+        }
+    }
+
+    public void testHistogramMultivalued() throws IOException {
+        TestColumn column = TestColumn.create("histogram", DataType.HISTOGRAM, true);
+        Block block;
+        try (Block.Builder builder = column.valueType.createBlockBuilder(blockFactory)) {
+            builder.beginPositionEntry();
+            column.valueType.addValue(builder, Density.Dense);
+            column.valueType.addValue(builder, Density.Dense);
+            builder.endPositionEntry();
+            builder.appendNull();
+            column.valueType.addValue(builder, Density.Dense);
+            block = builder.build();
+        }
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            assertListLayout((ListVector) root.getVector("histogram"), 0, 2, 2, 3);
+        }
+    }
+
+    public void testEmptyHistogramIsNotNull() throws IOException {
+        BytesRefBlock classic;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(2)) {
+            builder.appendNull();
+            builder.appendBytesRef(EncodedTDigest.encodeCentroids(List.of(), List.of()));
+            classic = builder.build();
+        }
+        TestColumn classicColumn = TestColumn.create("classic", DataType.HISTOGRAM, false);
+        try (
+            TestCase testCase = new TestCase(
+                List.of(classicColumn),
+                List.of(new TestPage(List.of(TestBlock.create(classicColumn, classic))))
+            );
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            StructVector classicVector = (StructVector) root.getVector("classic");
+            assertEquals(List.of("values", "counts"), classicVector.getField().getChildren().stream().map(Field::getName).toList());
+            assertTrue(classicVector.isNull(0));
+            assertFalse(classicVector.isNull(1));
+            assertEquals(List.of(), ((ListVector) classicVector.getChild("values")).getObject(1));
+            assertEquals(List.of(), ((ListVector) classicVector.getChild("counts")).getObject(1));
+        }
+    }
+
+    public void testExponentialHistogramMultivalued() throws IOException {
+        TestColumn column = TestColumn.create("exponential", DataType.EXPONENTIAL_HISTOGRAM, true);
+        Block block;
+        try (Block.Builder builder = column.valueType.createBlockBuilder(blockFactory)) {
+            builder.beginPositionEntry();
+            column.valueType.addValue(builder, Density.Dense);
+            column.valueType.addValue(builder, Density.Dense);
+            builder.endPositionEntry();
+            builder.appendNull();
+            column.valueType.addValue(builder, Density.Dense);
+            block = builder.build();
+        }
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            assertListLayout((ListVector) root.getVector("exponential"), 0, 2, 2, 3);
+        }
+    }
+
+    public void testEmptyExponentialHistogramIsNotNull() throws IOException {
+        ExponentialHistogramBlock exponential;
+        try (ExponentialHistogramBlock.Builder builder = blockFactory.newExponentialHistogramBlockBuilder(2)) {
+            builder.appendNull();
+            builder.append(ExponentialHistogram.empty());
+            exponential = builder.build();
+        }
+        TestColumn exponentialColumn = TestColumn.create("exponential", DataType.EXPONENTIAL_HISTOGRAM, false);
+        try (
+            TestCase testCase = new TestCase(
+                List.of(exponentialColumn),
+                List.of(new TestPage(List.of(TestBlock.create(exponentialColumn, exponential))))
+            );
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            StructVector exponentialVector = (StructVector) root.getVector("exponential");
+            assertEquals(
+                List.of("scale", "sum", "min", "max", "zero", "positive", "negative"),
+                exponentialVector.getField().getChildren().stream().map(Field::getName).toList()
+            );
+            assertTrue(exponentialVector.isNull(0));
+            assertFalse(exponentialVector.isNull(1));
+            assertTrue(((Float8Vector) exponentialVector.getChild("sum")).isNull(1));
+            assertTrue(((Float8Vector) exponentialVector.getChild("min")).isNull(1));
+            assertTrue(((Float8Vector) exponentialVector.getChild("max")).isNull(1));
+            assertEquals(
+                List.of(),
+                ((ListVector) ((StructVector) exponentialVector.getChild("positive")).getChild("indices")).getObject(1)
+            );
+        }
+    }
+
+    public void testExponentialHistogramBucketOffsets() throws IOException {
+        ExponentialHistogramBlock block;
+        try (ExponentialHistogramBlock.Builder builder = blockFactory.newExponentialHistogramBlockBuilder(3)) {
+            builder.appendNull();
+            try (
+                var histogram = ExponentialHistogram.builder(0, ExponentialHistogramCircuitBreaker.noop())
+                    .zeroBucket(ZeroBucket.create(0.5, 3))
+                    .setNegativeBucket(1, 2)
+                    .setPositiveBucket(1, 5)
+                    .setPositiveBucket(3, 7)
+                    .build()
+            ) {
+                builder.append(histogram);
+            }
+            try (
+                var histogram = ExponentialHistogram.builder(1, ExponentialHistogramCircuitBreaker.noop())
+                    .zeroBucket(ZeroBucket.create(1.25, 1))
+                    .setNegativeBucket(1, 4)
+                    .setNegativeBucket(2, 6)
+                    .setNegativeBucket(4, 8)
+                    .build()
+            ) {
+                builder.append(histogram);
+            }
+            block = builder.build();
+        }
+        TestColumn column = TestColumn.create("exponential", DataType.EXPONENTIAL_HISTOGRAM, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            StructVector vector = (StructVector) root.getVector("exponential");
+            StructVector positive = (StructVector) vector.getChild("positive");
+            StructVector negative = (StructVector) vector.getChild("negative");
+            assertListLayout((ListVector) positive.getChild("indices"), 0, 0, 2, 2);
+            assertListLayout((ListVector) positive.getChild("counts"), 0, 0, 2, 2);
+            assertListLayout((ListVector) negative.getChild("indices"), 0, 0, 1, 4);
+            assertListLayout((ListVector) negative.getChild("counts"), 0, 0, 1, 4);
+            StructVector zero = (StructVector) vector.getChild("zero");
+            assertEquals(0.5, ((Float8Vector) zero.getChild("threshold")).get(1), 0.0);
+            assertEquals(1.25, ((Float8Vector) zero.getChild("threshold")).get(2), 0.0);
         }
     }
 

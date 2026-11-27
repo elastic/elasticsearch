@@ -57,6 +57,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -97,6 +98,23 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         byte[] bytes = new byte[10];
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ParquetColumnDecoding.formatUuid(bytes));
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("10"));
+    }
+
+    /** A file value of the wrong width reads as its type's empty value; see the ParquetColumnDecoding class Javadoc. */
+    public void testWrongWidthValuesReadAsEmpty() {
+        byte[] bytes = randomByteArrayOfLength(between(20, 40));
+        int offset = between(0, 3);
+        int notUuid = randomValueOtherThan(ParquetColumnDecoding.UUID_BYTES, () -> between(0, 17));
+        assertEquals("", ParquetColumnDecoding.uuidText(bytes, offset, notUuid));
+        assertEquals(
+            ParquetColumnDecoding.formatUuid(Arrays.copyOfRange(bytes, offset, offset + 16)),
+            ParquetColumnDecoding.uuidText(bytes, offset, 16)
+        );
+        int notFloat16 = randomValueOtherThan(ParquetColumnDecoding.FLOAT16_BYTES, () -> between(0, 8));
+        assertEquals(0.0, ParquetColumnDecoding.float16ToDouble(bytes, offset, notFloat16), 0.0);
+        byte[] half = { 0, 0x3E, 0, 0x3C }; // 1.5 and 1.0, little-endian
+        assertEquals(1.5, ParquetColumnDecoding.float16ToDouble(half, 0, 2), 0.0);
+        assertEquals(1.0, ParquetColumnDecoding.float16ToDouble(half, 2, 2), 0.0);
     }
 
     public void testDoesNotSupportWholeFileCompression() {

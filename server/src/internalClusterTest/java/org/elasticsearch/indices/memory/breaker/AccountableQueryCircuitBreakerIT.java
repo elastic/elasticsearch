@@ -25,7 +25,6 @@ import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -144,6 +143,19 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
         assertQueryTripsBreaker(regexpQuery);
     }
 
+    /**
+     * A regexp whose predicted build size is above the request breaker is refused before it is built, while the same
+     * shape at a size that fits, and a long bounded repeat, still run under that limit. The breaker must be empty after
+     * each search. Mirrors {@code search/640_regexp_circuit_breaker}, which cannot wait for the breaker to drain.
+     */
+    public void testRegexpBuildIsChargedAndReleased() throws Exception {
+        createAndPopulateIndex();
+        assertQueryTripsBreaker(new RegexpQueryBuilder(KEYWORD_FIELD, "x?{1300}"), "100mb");
+        assertBusy(() -> assertEquals("Request breaker should be empty after a tripped search", 0L, getRequestBreakerUsed()));
+        assertQueryMemoryReleased(new RegexpQueryBuilder(KEYWORD_FIELD, "x?{300}"));
+        assertQueryMemoryReleased(new RegexpQueryBuilder(KEYWORD_FIELD, ".{0,10000}"));
+    }
+
     public void testSingleHugeCaseInsensitiveWildcardTripsCircuitBreaker() {
         createAndPopulateIndex();
         WildcardQueryBuilder wildcardQuery = new WildcardQueryBuilder(TEXT_FIELD, "*a*b*c*d*e*f*g*h*i*j*k*l*m*n*");
@@ -193,30 +205,6 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
         return false;
     }
 
-    private long getRequestBreakerTrippedCount() {
-        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
-        long tripped = 0;
-        for (NodeStats stat : stats.getNodes()) {
-            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.REQUEST);
-            if (breakerStats != null) {
-                tripped += breakerStats.getTrippedCount();
-            }
-        }
-        return tripped;
-    }
-
-    private long getRequestBreakerEstimated() {
-        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
-        long estimated = 0;
-        for (NodeStats stat : stats.getNodes()) {
-            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.REQUEST);
-            if (breakerStats != null) {
-                estimated += breakerStats.getEstimated();
-            }
-        }
-        return estimated;
-    }
-
     private void createAndPopulateIndex() {
         assertAcked(
             prepareCreate(INDEX_NAME, 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))).setMapping(
@@ -253,10 +241,8 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
     }
 
     private void assertQueryMemoryReleased(QueryBuilder query) throws Exception {
-        assertBusy(() -> assertEquals("Request breaker should be empty before search", 0L, getRequestBreakerEstimated()));
+        assertBusy(() -> assertEquals("Request breaker should be empty before search", 0L, getRequestBreakerUsed()));
         client().prepareSearch(INDEX_NAME).setQuery(query).get().decRef();
-        assertBusy(
-            () -> assertEquals("Request breaker memory should be released after search completes", 0L, getRequestBreakerEstimated())
-        );
+        assertBusy(() -> assertEquals("Request breaker memory should be released after search completes", 0L, getRequestBreakerUsed()));
     }
 }

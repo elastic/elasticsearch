@@ -169,7 +169,7 @@ public class ReplaceSampledStatsByExactStatsTests extends ESTestCase {
         Alias count = countAlias(field);
         SampledAggregateExec sampledAgg = sampledAggregate(bucketIdEval(esQueryExec()), List.of(count), List.of());
 
-        PhysicalPlan result = applyRule(sampledAgg, EsqlTestUtils.TEST_SEARCH_STATS);
+        PhysicalPlan result = applyRule(sampledAgg, new EsqlTestUtils.TestSearchStats(true, true));
 
         assertThat(result, instanceOf(SampledAggregateExec.class));
     }

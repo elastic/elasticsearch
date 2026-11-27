@@ -12,6 +12,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -43,6 +46,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -161,7 +165,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         CrossProjectModeDecider crossProjectModeDecider,
         QueryMetricsListener metricsCollector,
         FederationLicense federationLicense,
-        ExternalWorkerReadiness externalWorkerReadiness
+        ExternalWorkerReadiness externalWorkerReadiness,
+        EscfBulkService escfBulkService,
+        SearchTransportService searchTransportService
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -242,7 +248,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ipLocationService,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            new BatchIndexingEnabled(clusterService.getClusterSettings())
         );
 
         var dataSourceModule = planExecutor.dataSourceModule();
@@ -268,7 +275,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             operatorFactoryRegistry,
             dataSourceModule.formatReaderRegistry(),
             client,
-            externalWorkerReadiness
+            externalWorkerReadiness,
+            escfBulkService,
+            searchTransportService
         );
 
         var queryLogger = new QueryLogger<>(
@@ -405,9 +414,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> queryListener) {
-        ActionListener<EsqlQueryResponse> listener = computeService.coordinate(task, queryListener);
+        // The coordination part lives until the query completes, so planning charges the query's breaker too.
+        QueryScheduler.QueryPart coordination = computeService.coordinate(task);
+        ActionListener<EsqlQueryResponse> listener = ActionListener.releaseAfter(queryListener, coordination);
         if (request.allowPartialResults() == null) {
-            request.allowPartialResults(defaultAllowPartialResults);
+            request.defaultAllowPartialResults(defaultAllowPartialResults);
         }
         TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
         EsqlFlags flags = computeService.createFlags();
@@ -450,6 +461,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalBlobStoreExecutor(),
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
+            coordination.breaker(),
             ActionListener.wrap(result -> {
                 try {
                     failIfCancelled(task, result.inner());
@@ -732,6 +744,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.completionInfo().readCpuNanos(),
                 result.completionInfo().cpuNanos(),
                 result.completionInfo().driverNanos(),
+                result.completionInfo().searchLoad(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
@@ -755,6 +768,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             result.completionInfo().readCpuNanos(),
             result.completionInfo().cpuNanos(),
             result.completionInfo().driverNanos(),
+            result.completionInfo().searchLoad(),
             profile,
             request.columnar(),
             null,

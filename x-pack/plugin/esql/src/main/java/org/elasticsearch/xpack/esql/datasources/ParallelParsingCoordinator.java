@@ -16,6 +16,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsStaging;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -245,6 +246,7 @@ public final class ParallelParsingCoordinator {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             // No stripe addressing on this convenience path (stripeSize == -1), so file-final is moot;
             // conservatively false preserves the prior never-file-final-for-macro-splits behavior.
             false
@@ -333,6 +335,7 @@ public final class ParallelParsingCoordinator {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             // No stripe addressing on this convenience path (stripeSize == -1), so file-final is moot.
             false
         );
@@ -360,6 +363,7 @@ public final class ParallelParsingCoordinator {
         int maxRecordBytes,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         boolean splitIsFileFinal
     ) throws IOException {
         return parallelRead(
@@ -379,6 +383,7 @@ public final class ParallelParsingCoordinator {
             maxRecordBytes,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             splitIsFileFinal,
             ExternalSourceMetrics.NOOP
         );
@@ -406,6 +411,7 @@ public final class ParallelParsingCoordinator {
         int maxRecordBytes,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         boolean splitIsFileFinal,
         ExternalSourceMetrics metrics
     ) throws IOException {
@@ -426,6 +432,7 @@ public final class ParallelParsingCoordinator {
             maxRecordBytes,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             splitIsFileFinal,
             metrics,
             null,
@@ -464,6 +471,7 @@ public final class ParallelParsingCoordinator {
         int maxRecordBytes,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         boolean splitIsFileFinal,
         ExternalSourceMetrics metrics,
         @Nullable Consumer<String> warningSink,
@@ -488,6 +496,7 @@ public final class ParallelParsingCoordinator {
             maxRecordBytes,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             splitIsFileFinal,
             metrics,
             warningSink,
@@ -520,6 +529,7 @@ public final class ParallelParsingCoordinator {
         int maxRecordBytes,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         boolean splitIsFileFinal,
         ExternalSourceMetrics metrics,
         @Nullable Consumer<String> warningSink,
@@ -574,6 +584,7 @@ public final class ParallelParsingCoordinator {
                 // macro-split is never file-final — a later split supplies the terminal stripe.
                 .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
                 .statsColumnScope(statsColumnScope)
+                .statsMaxExtremumBytes(statsMaxExtremumBytes)
                 .informationalWarningSink(warningSink)
                 .readCounters(formatCounters)
                 .build();
@@ -642,6 +653,7 @@ public final class ParallelParsingCoordinator {
                 maxRecordBytes,
                 statsStripeSize,
                 statsColumnScope,
+                statsMaxExtremumBytes,
                 splitIsFileFinal,
                 metrics,
                 warningSink,
@@ -692,6 +704,7 @@ public final class ParallelParsingCoordinator {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             false,
             ExternalSourceMetrics.NOOP,
             null,
@@ -853,6 +866,15 @@ public final class ParallelParsingCoordinator {
         private final long statsStripeSize;
         /** How much per-stripe statistics each segment harvests (row count only / + projected / + all / nothing). */
         private final StripeColumnScope statsColumnScope;
+        private final int statsMaxExtremumBytes;
+        /**
+         * Where the segments of this read hand their pieces of a stripe, so a stripe several segments observed
+         * is staged once rather than once per segment. {@code null} when there is no sink to stage into or no
+         * stripe grid to address pieces on, and each segment then publishes its own pieces. Shared across
+         * segment worker threads.
+         */
+        @Nullable
+        private final StripeStatsStaging stripeStaging;
         /**
          * Whether this storage object is the file's final split. Only then may the trailing segment mark its
          * last stripe file-final ({@code eof}); a mid-file macro-split's trailing segment ends at the range
@@ -894,7 +916,7 @@ public final class ParallelParsingCoordinator {
          * Live file-level GETs. Key is the inner {@code newStream()} instance (not the unregister
          * filter the reader holds) so provider abort (S3 {@code Abortable}) still matches. Value is
          * always the iterator's file-level {@code storageObject}, never the range view — storing
-         * {@code this} would re-enter {@link RegisteringRangeStorageObject#abortStream}.
+         * {@code this} would re-enter the range wrapper's close.
          */
         private final ConcurrentMap<InputStream, StorageObject> liveStreams = new ConcurrentHashMap<>();
         /** Counts segments still running. Reaches 0 when every worker has finished (success or failure). */
@@ -939,6 +961,7 @@ public final class ParallelParsingCoordinator {
             int maxRecordBytes,
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
+            int statsMaxExtremumBytes,
             boolean splitIsFileFinal,
             ExternalSourceMetrics metrics,
             @Nullable Consumer<String> warningSink,
@@ -960,7 +983,9 @@ public final class ParallelParsingCoordinator {
             this.captureSink = captureSink;
             this.maxRecordBytes = maxRecordBytes;
             this.statsStripeSize = statsStripeSize;
+            this.stripeStaging = captureSink != null && statsStripeSize > 0 ? new StripeStatsStaging(captureSink) : null;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+            this.statsMaxExtremumBytes = statsMaxExtremumBytes;
             this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
             this.warningSink = warningSink;
             this.readCounters = readCounters;
@@ -1108,6 +1133,8 @@ public final class ParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
                 .statsColumnScope(statsColumnScope)
+                .statsMaxExtremumBytes(statsMaxExtremumBytes)
+                .statsStripeSink(stripeStaging)
                 .informationalWarningSink(warningSink)
                 .readCounters(formatCounters)
                 .build();
@@ -1335,6 +1362,15 @@ public final class ParallelParsingCoordinator {
             // Abort leftover GETs before waiting for workers. Skip on a clean drain — those streams
             // already unregistered from close(). Otherwise LIMIT/cancel sits on allDone.await(60s).
             if (cleanCompletion == false) {
+                try {
+                    storageObject.close();
+                } catch (IOException e) {
+                    logger.warn(
+                        "Failed to close storage object for [{}]",
+                        ExternalFailures.redactHttpUrl(storageObject.path().toString()),
+                        e
+                    );
+                }
                 abortLiveStreams();
             }
             // Release the page parked by a hasNext() with no following next(); drainQueue() only sees the shared
@@ -1352,6 +1388,14 @@ public final class ParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainQueue();
+            // Stage whatever stripes this read left partly covered, for the coordinator's interval cover —
+            // the only place that can tell whether another read completes them. The wait above USUALLY means
+            // every segment has finished, but it can time out and leave one running, so a piece may arrive after
+            // this and never be staged. That costs coverage, not correctness, and only on a path that has
+            // already failed cleanCompletion and poisons the file anyway.
+            if (stripeStaging != null) {
+                stripeStaging.flush();
+            }
             // Coverage tiling at the reconciler establishes completeness for a clean scan; an early/error
             // close can leave a segment with a partial count under a full range, so discard the file's
             // contributions when the scan did not drain cleanly.
@@ -1395,14 +1439,13 @@ public final class ParallelParsingCoordinator {
             try {
                 abortRegistered(in);
             } catch (Exception e) {
-                logger.warn("Failed to abort stream for [{}]", storageObject.path(), e);
+                logger.warn("Failed to abort stream for [{}]", ExternalFailures.redactHttpUrl(storageObject.path().toString()), e);
             }
         }
 
         private void abortRegistered(InputStream inner) throws IOException {
-            StorageObject owner = liveStreams.remove(inner);
-            if (owner != null) {
-                owner.abortStream(inner);
+            if (liveStreams.remove(inner) != null) {
+                inner.close();
             }
         }
 
@@ -1423,15 +1466,6 @@ public final class ParallelParsingCoordinator {
             @Override
             public InputStream newStream(long position, long rangeLength) throws IOException {
                 return registerLiveStream(super.newStream(position, rangeLength));
-            }
-
-            @Override
-            public void abortStream(InputStream stream) throws IOException {
-                if (stream instanceof LiveStream live) {
-                    abortRegistered(live.inner());
-                    return;
-                }
-                super.abortStream(stream);
             }
 
             @Override

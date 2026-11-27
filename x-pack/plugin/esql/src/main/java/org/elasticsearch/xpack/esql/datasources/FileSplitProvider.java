@@ -272,10 +272,19 @@ public class FileSplitProvider implements SplitProvider {
     /**
      * How many survivors get a footer/probe plan under a filtered LIMIT. The rest become whole-file
      * splits with no object-store I/O. Wave size is {@code taskConcurrency}: that is how many
-     * drivers the planner will start, so extra footers would not add parallelism.
+     * drivers the planner will start, so extra footers would not add parallelism. Text has no
+     * footer to skip, so a wave would only collapse range splits and cut drivers; text keeps the
+     * full survivor count. Splittable compressed text (bzip2) still waves: planning scans each
+     * object end to end for block boundaries. A null reader (unresolved format) also skips the
+     * wave, which is the conservative direction: everything gets planned, as before #165532.
      */
-    static int filteredLimitPlanWave(SplitDiscoveryContext context, int survivorCount) {
+    static int filteredLimitPlanWave(SplitDiscoveryContext context, int survivorCount, FormatReader reader) {
         if (context.filteredLimit() == false || survivorCount <= 0) {
+            return survivorCount;
+        }
+        boolean wave = reader instanceof RangeAwareFormatReader
+            || reader instanceof CompressionDelegatingFormatReader wrapping && wrapping.codec() instanceof SplittableDecompressionCodec;
+        if (wave == false) {
             return survivorCount;
         }
         return Math.min(survivorCount, Math.max(1, context.taskConcurrency()));
@@ -825,7 +834,7 @@ public class FileSplitProvider implements SplitProvider {
                 PartitionSpec.fromConfig(config)
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
-            // Resolution (bounded sample) cannot hit the 25k cap; skip the predicate there.
+            // Resolution (bounded sample) cannot hit the discovered-files cap; skip the predicate there.
             FolderRangePredicate folderRange = extents.boundsFileSet()
                 ? null
                 : folderRangePredicateForQuery(context.filterHints(), PartitionSpec.fromConfig(config));
@@ -900,7 +909,7 @@ public class FileSplitProvider implements SplitProvider {
             partitionKeys
         );
         if (spec == null || spec.isEmpty()) {
-            return hints;
+            return PartitionSpec.EMPTY.projectListingHints(hints);
         }
         List<PartitionFilterHintExtractor.PartitionFilterHint> merged = new ArrayList<>(hints);
         merged.addAll(
@@ -1058,8 +1067,9 @@ public class FileSplitProvider implements SplitProvider {
             int survivorCount = batch.size();
             // A file is planned only while the rows already covered fall short of what the query asked for; see
             // RowBudget for the three ways that arithmetic fails closed.
-            RowBudget budget = RowBudget.of(context, resolveConfiguredReader(fileList.path(0), config));
-            int planWave = filteredLimitPlanWave(context, survivorCount);
+            FormatReader reader = resolveConfiguredReader(fileList.path(0), config);
+            RowBudget budget = RowBudget.of(context, reader);
+            int planWave = filteredLimitPlanWave(context, survivorCount, reader);
             try {
                 if (executor != null && survivorCount > 1) {
                     planResults = BoundedParallelGather.gather(slotList(survivorCount), slot -> {
@@ -2038,7 +2048,8 @@ public class FileSplitProvider implements SplitProvider {
             int[] missCount = new int[1];
             FileList fileList = batch.context().fileList();
             Map<String, Object> config = batch.context().config();
-            int planWave = filteredLimitPlanWave(batch.context(), n);
+            FormatReader reader = fileList.fileCount() > 0 ? resolveConfiguredReader(fileList.path(0), config) : null;
+            int planWave = filteredLimitPlanWave(batch.context(), n, reader);
             runRecordingDiscoveryCpu(() -> {
                 for (int i = 0; i < n; i++) {
                     if (isCancelled.getAsBoolean()) {
@@ -2060,10 +2071,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
             });
             // Cached ranges cost nothing to plan, so they count towards the demand before any file is opened.
-            RowBudget budget = RowBudget.of(
-                batch.context(),
-                fileList.fileCount() > 0 ? resolveConfiguredReader(fileList.path(0), config) : null
-            );
+            RowBudget budget = RowBudget.of(batch.context(), reader);
             for (int i = 0; i < n; i++) {
                 if (slots[i] != null) {
                     budget.account(slots[i]);
@@ -2538,7 +2546,7 @@ public class FileSplitProvider implements SplitProvider {
      * a single-driver LIMIT issues zero cuts. Gated on {@code rowLimit !=} {@link FormatReader#NO_LIMIT}.
      */
     int probeWaveSize(int rowLimit, long strideBytes, int positionCount) {
-        return probeWaveSize(rowLimit, strideBytes, positionCount, ExternalLimitSplits.DEFAULT_TASK_CONCURRENCY, 1);
+        return probeWaveSize(rowLimit, strideBytes, positionCount, ExternalLimitSplits.defaultTaskConcurrency(Settings.EMPTY), 1);
     }
 
     int probeWaveSize(int rowLimit, long strideBytes, int positionCount, int taskConcurrency, int fileCount) {
@@ -2565,7 +2573,7 @@ public class FileSplitProvider implements SplitProvider {
      * The walk's {@code maxBoundaries} includes 0, so the cap is cuts+1.
      */
     int provenBoundaryCap(int rowLimit, long strideBytes) {
-        return provenBoundaryCap(rowLimit, strideBytes, ExternalLimitSplits.DEFAULT_TASK_CONCURRENCY, 1);
+        return provenBoundaryCap(rowLimit, strideBytes, ExternalLimitSplits.defaultTaskConcurrency(Settings.EMPTY), 1);
     }
 
     int provenBoundaryCap(int rowLimit, long strideBytes, int taskConcurrency, int fileCount) {
@@ -3929,9 +3937,11 @@ public class FileSplitProvider implements SplitProvider {
         } else {
             // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
             // stats stay exact) and poison declared-retyped / date-format columns (the scan's per-value
-            // coercion makes pre-coercion stats untrustworthy), BEFORE unit-normalizing.
+            // coercion makes pre-coercion stats untrustworthy), BEFORE unit-normalizing. Exact epoch_second /
+            // epoch_millis on INTEGER/LONG are rescaled into the declared unit and unpoisoned.
             Map<String, String> physicalToLogical = PhysicalNames.inverse(declaredReadSpec.renames());
             Set<String> poison = new HashSet<>(declaredReadSpec.dateFormats().keySet());
+            Set<String> unpoisoned = Set.of();
             if (inferredFileTypes != null) {
                 Map<String, DataType> overlaidTypes = attributesToTypeMap(readSchema); // logical, declared types
                 for (String logical : declaredReadSpec.declaredTypeColumns()) {
@@ -3943,19 +3953,47 @@ public class FileSplitProvider implements SplitProvider {
                         poison.add(logical);
                     }
                 }
+                SourceStatisticsSerializer.EpochRescale rescale = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                    stats,
+                    physicalToLogical,
+                    SourceStatisticsSerializer.epochScales(declaredReadSpec.dateFormats(), overlaidTypes),
+                    inferredFileTypes
+                );
+                stats = rescale.stats();
+                unpoisoned = rescale.unpoisoned();
+                poison.removeAll(unpoisoned);
                 stats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, physicalToLogical, poison);
                 // Inferred file types, rekeyed to logical so they align with the rekeyed stats + reconciledTypes.
                 statsFileTypes = new HashMap<>(inferredFileTypes.size());
                 for (Map.Entry<String, DataType> e : inferredFileTypes.entrySet()) {
                     statsFileTypes.put(physicalToLogical.getOrDefault(e.getKey(), e.getKey()), e.getValue());
                 }
+                // Pin unpoisoned names to the declared type so DATETIME+DATE_NANOS union conversion sees
+                // DATETIME (millis→nanos ×1e6), not LONG (identity fallthrough, millis served as nanos).
+                for (String logical : unpoisoned) {
+                    DataType declaredType = overlaidTypes.get(logical);
+                    if (declaredType != null) {
+                        statsFileTypes.put(logical, declaredType);
+                    }
+                }
             } else {
-                // Declared read but no captured inference (strict paths skip inference): the declared-vs-inferred
-                // comparison is impossible, so conservatively poison EVERY declared column. row_count survives.
+                // No captured inference: cannot prove INTEGER/LONG, so every declared column stays poisoned.
                 poison.addAll(declaredReadSpec.declaredTypeColumns());
                 stats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, physicalToLogical, poison);
                 statsFileTypes = attributesToTypeMap(readSchema);
             }
+            stats = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, statsFileTypes, reconciledTypes);
+            stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(
+                stats,
+                statsFileTypes,
+                attributesToTypeMap(readSchema),
+                implicitNulls,
+                declaredReadSpec.declaredTypeColumns()
+            );
+            Map<String, Object> beforeFold = stats;
+            stats = SourceStatisticsSerializer.alignHarvestWithFold(stats, foldedSourceMetadata);
+            // Dataset-level poison must not wipe per-split epoch bounds this file independently verified.
+            return SourceStatisticsSerializer.restoreVerifiedExtrema(stats, beforeFold, unpoisoned);
         }
         // Footer stats are in each file's LOCAL unit/representation (footer or inferred types, not a
         // pinned or unified type); normalize to the reconciled query type so the split-filter classifier

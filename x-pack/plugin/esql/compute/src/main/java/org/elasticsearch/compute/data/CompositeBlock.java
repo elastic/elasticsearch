@@ -144,6 +144,11 @@ public final class CompositeBlock extends AbstractBlockRefCounted implements Blo
     }
 
     @Override
+    public int nullValuesCount() {
+        return BlockUtils.nullValuesCount(this);
+    }
+
+    @Override
     public boolean mayHaveMultivaluedFields() {
         return Arrays.stream(blocks).anyMatch(Block::mayHaveMultivaluedFields);
     }

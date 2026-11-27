@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.TimeValue;
@@ -163,24 +164,45 @@ public class PrometheusQueryExemplarsRestAction extends BaseRestHandler {
             throw new IllegalArgumentException("end timestamp must not be before start timestamp");
         }
 
-        // A range query needs a positive step, so without a range it's an instant query instead.
+        var esqlRequest = new PromqlQueryRequest(
+            index,
+            () -> buildStatement(query, index, start, end),
+            query,
+            START_PARAM,
+            startParam,
+            END_PARAM,
+            endParam
+        );
+        return channel -> {
+            var exemplarsListener = new PrometheusQueryExemplarsResponseListener(
+                channel,
+                circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
+                start,
+                end
+            );
+            PromqlQueryExecutor.execute(client, request.getHttpChannel(), esqlRequest, timeout, ActionListener.wrap(response -> {
+                if (esqlRequest.result().stringValue() == null) {
+                    exemplarsListener.onResponse(response);
+                } else {
+                    // a string literal, which selects no series
+                    channel.sendResponse(new RestResponse(RestStatus.OK, PrometheusQueryExemplarsResponseListener.emptyResponse()));
+                }
+            }, exemplarsListener::onFailure));
+        };
+    }
+
+    /**
+     * The query's statement with the settings of an exemplars query. A range query needs a positive step, so without a range it's
+     * an instant query instead.
+     */
+    private static PromqlStatementResult buildStatement(String query, String index, Instant start, Instant end) {
         PromqlStatementResult result = start.equals(end)
             ? PromqlQueryPlanBuilder.buildStatement(query, index, start, QueryMode.INSTANT)
             : PromqlQueryPlanBuilder.buildStatement(query, index, start, end, step(query, start, end), QueryMode.RANGE);
-        if (result.esqlStatement() == null) {
-            // a string literal, which selects no series
-            return channel -> channel.sendResponse(
-                new RestResponse(RestStatus.OK, PrometheusQueryExemplarsResponseListener.emptyResponse())
-            );
-        }
-        EsqlStatement statement = new EsqlStatement(result.esqlStatement().plan(), QUERY_SETTINGS);
-        var esqlRequest = new PromqlQueryRequest(index, statement, query, START_PARAM, startParam, END_PARAM, endParam);
-        return channel -> PromqlQueryExecutor.execute(
-            client,
-            request.getHttpChannel(),
-            esqlRequest,
-            timeout,
-            new PrometheusQueryExemplarsResponseListener(channel, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST), start, end)
+        return new PromqlStatementResult(
+            new EsqlStatement(result.esqlStatement().plan(), QUERY_SETTINGS),
+            result.resultType(),
+            result.stringValue()
         );
     }
 
@@ -196,7 +218,7 @@ public class PrometheusQueryExemplarsRestAction extends BaseRestHandler {
             query,
             Literal.dateTime(Source.EMPTY, start),
             Literal.dateTime(Source.EMPTY, end),
-            0,
+            1,
             0
         );
         for (RangeSelector selector : plan.collect(RangeSelector.class)) {

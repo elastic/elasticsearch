@@ -27,20 +27,27 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.ExecutionMetadata;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
@@ -49,24 +56,15 @@ public class EsqlDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlDataExtractor.class);
 
-    /** Injected row cap when the user query has no outer LIMIT; see {@link EsqlDataExtractorQueryUtils#INJECTED_ROW_LIMIT}. */
+    /** Row cap appended to every extraction query; see {@link EsqlDataExtractorQueryUtils#INJECTED_ROW_LIMIT}. */
     public static final long INJECTED_ROW_LIMIT = EsqlDataExtractorQueryUtils.INJECTED_ROW_LIMIT;
-
-    /** Delegates to {@link EsqlDataExtractorQueryUtils#injectsRowLimit(String)}. */
-    public static boolean injectsRowLimit(String esqlQuery) {
-        return EsqlDataExtractorQueryUtils.injectsRowLimit(esqlQuery);
-    }
-
-    /** Whether the user's pipeline contains a depth-zero {@code STATS} command (aggregating query). */
-    public static boolean hasAggregation(String esqlQuery) {
-        return EsqlQueryClauseScanner.hasAggregation(esqlQuery);
-    }
 
     private final Client client;
     private final EsqlDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private final EsqlSyncQueryRunner syncQueryRunner;
     private boolean hasNext = true;
+    private volatile List<LinkedClusterState> lastLinkedClusterStates = List.of();
     private volatile boolean isCancelled = false;
     private final AtomicReference<Task> inFlightQueryTask = new AtomicReference<>();
 
@@ -117,103 +115,61 @@ public class EsqlDataExtractor implements DataExtractor {
         return context;
     }
 
-    /** Chunking summary from a leading FROM/TS probe; aggregating queries use {@link #estimateAggregatingOutputRows}. */
+    /**
+     * One probe over the output of the user query: earliest and latest emitted time and the number of output rows, used to size
+     * lookback chunks. The source time filter applies as for extraction; {@code ??timeField} is the time column.
+     */
     @Override
     public DataSummary getSummary() {
-        QueryBuilder timeFilter = buildTimeFilter();
-        SourceRangeSummary sourceSummary = fetchSourceRangeSummary(timeFilter);
-        if (sourceSummary.hasData() == false || EsqlQueryClauseScanner.hasAggregation(context.esqlQuery()) == false) {
-            return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), sourceSummary.totalHits());
-        }
-        if (sourceSummary.earliestTime() == null) {
-            // COUNT(*) can be positive while MIN/MAX(??timeField) are null when every doc lacks the source time field.
-            return new DataSummary(null, null, sourceSummary.totalHits());
-        }
-        long estimatedOutputRows = estimateAggregatingOutputRows(sourceSummary);
-        return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), estimatedOutputRows);
-    }
-
-    /** Source-level MIN/MAX/COUNT probe on {@link EsqlQueryClauseScanner#extractLeadingCommand}, not the user pipeline. */
-    private SourceRangeSummary fetchSourceRangeSummary(QueryBuilder timeFilter) {
-        String sourceQuery = EsqlDataExtractorQueryUtils.sourceRangeSummaryQuery(context.esqlQuery());
+        String summaryQuery = EsqlDataExtractorQueryUtils.summaryQuery(context.esqlQuery());
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runQueryWithSingleRetry(sourceQuery, timeFilter, sourceTimeFieldParam())) {
+        try (EsqlQueryResponse response = runQueryWithSingleRetry(summaryQuery, buildTimeFilter(), timeFieldParam())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
+            recordAndCheckClusters(response.response());
             DataSummary summary = parseSummaryResponse(response.response());
-            return new SourceRangeSummary(summary.earliestTime(), summary.latestTime(), summary.totalHits());
-        }
-    }
-
-    /** Bounded pipeline probe after {@code earliestTime}; extrapolates row density unless the probe spans the range. */
-    private long estimateAggregatingOutputRows(SourceRangeSummary sourceSummary) {
-        long earliest = sourceSummary.earliestTime();
-        long latest = sourceSummary.latestTime();
-        long timeSpread = latest - earliest;
-        assert timeSpread >= 0 : "latest_time must not precede earliest_time";
-        if (timeSpread == 0) {
-            // All matching data falls at a single instant; the probe below already covers everything.
-            return Math.max(1L, runBoundedAggregationProbe(earliest, latest + 1));
-        }
-        assert context.groupingIntervalMillis() > 0 : "grouping_interval must be positive";
-        long probeSpan = Math.min(timeSpread, context.groupingIntervalMillis());
-        long probeEnd = Math.min(earliest + probeSpan, latest + 1);
-        long probeOutputRows = runBoundedAggregationProbe(earliest, probeEnd);
-        long actualProbeSpan = probeEnd - earliest;
-        if (probeOutputRows == 0 || actualProbeSpan >= timeSpread) {
-            // Do not extrapolate zero density (sparse data) or when the probe already covers the range.
-            return Math.max(1L, probeOutputRows);
-        }
-        double density = (double) probeOutputRows / actualProbeSpan;
-        return Math.max(1L, Math.round(density * timeSpread));
-    }
-
-    /**
-     * Runs the user's actual pipeline, bounded to [probeStart, probeEnd), appending a trailing row-count
-     * STATS. Used only to measure output-row density over a small window, not over the full extraction range.
-     */
-    private long runBoundedAggregationProbe(long probeStart, long probeEnd) {
-        QueryBuilder probeFilter = EsqlDataExtractorQueryUtils.timeRangeFilter(context.sourceTimeField(), probeStart, probeEnd);
-        String probeQuery = EsqlDataExtractorQueryUtils.boundedProbeQuery(context.esqlQuery());
-        long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runQueryWithSingleRetry(probeQuery, probeFilter, List.of())) {
-            long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
-            timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
-            for (Iterable<Object> row : response.response().rows()) {
-                for (Object value : row) {
-                    return value instanceof Number n ? n.longValue() : 0L;
-                }
+            if (summary.totalHits() > 0 && summary.earliestTime() == null) {
+                // Every output row has a null time. Fail as the data query does instead of reporting an empty window.
+                EsqlDatafeedQueryValidator.validateEmittedTimeValueInSourceWindow(
+                    context.jobId(),
+                    context.timeField(),
+                    null,
+                    context.start(),
+                    context.end()
+                );
             }
-            return 0L;
+            return summary;
         }
     }
 
-    private record SourceRangeSummary(Long earliestTime, Long latestTime, long totalHits) {
-        boolean hasData() {
-            return totalHits > 0;
-        }
+    /** Remembers the remote cluster states for {@link #getLinkedClusterStates}, then fails when a remote cluster was skipped. */
+    private void recordAndCheckClusters(EsqlResponse response) {
+        lastLinkedClusterStates = DataExtractorUtils.extractLinkedClusterStates(response);
+        DataExtractorUtils.checkForSkippedClusters(response);
+    }
+
+    @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        return lastLinkedClusterStates;
     }
 
     private QueryBuilder buildTimeFilter() {
-        return EsqlDataExtractorQueryUtils.timeRangeFilter(context.sourceTimeField(), context.start(), context.end());
+        return EsqlDataExtractorQueryUtils.timeRangeFilter(context.timeField(), context.start(), context.end());
     }
 
     private static DataSummary parseSummaryResponse(EsqlResponse response) {
-        List<? extends ColumnInfo> columns = response.columns();
-        boolean earliestIsDate = columns.isEmpty() == false && EsqlDatafeedColumnValues.isDateColumnType(columns.get(0).outputType());
-        boolean latestIsDate = columns.size() > 1 && EsqlDatafeedColumnValues.isDateColumnType(columns.get(1).outputType());
         var rowIterator = response.rows().iterator();
         if (rowIterator.hasNext() == false) {
             return new DataSummary(null, null, 0L);
         }
         Iterable<Object> row = rowIterator.next();
-        assert rowIterator.hasNext() == false : "source range summary probe must return exactly one row";
+        assert rowIterator.hasNext() == false : "summary probe must return exactly one row";
         List<Object> values = new ArrayList<>();
         for (Object v : row) {
             values.add(v);
         }
-        Long earliestTime = EsqlDatafeedColumnValues.toEpochMillisOrNull(values.get(0), earliestIsDate);
-        Long latestTime = EsqlDatafeedColumnValues.toEpochMillisOrNull(values.get(1), latestIsDate);
+        Long earliestTime = EsqlDatafeedColumnValues.toEpochMillisOrNull(values.get(0));
+        Long latestTime = EsqlDatafeedColumnValues.toEpochMillisOrNull(values.get(1));
         long totalHits = values.get(2) instanceof Number n ? n.longValue() : 0L;
         return new DataSummary(earliestTime, latestTime, totalHits);
     }
@@ -240,36 +196,30 @@ public class EsqlDataExtractor implements DataExtractor {
             Optional<InputStream> data = Optional.empty();
             long rowCount = 0L;
             EsqlResponse esqlResponse = response.response();
+            recordAndCheckClusters(esqlResponse);
             List<? extends ColumnInfo> columns = esqlResponse.columns();
             // Runtime extraction has no datafeed id for column-check messages.
-            EsqlDatafeedQueryValidator.checkRequiredColumns(columns, context.emittedTimeField(), context.requiredSummaryCountField(), null);
-            List<List<Object>> materializedRows = new ArrayList<>();
-            for (Iterable<Object> row : esqlResponse.rows()) {
-                List<Object> values = new ArrayList<>();
-                for (Object value : row) {
-                    values.add(value);
-                }
-                materializedRows.add(values);
-            }
-            EsqlDatafeedQueryValidator.validateEmittedTimesInSourceWindow(
-                columns,
-                materializedRows,
+            Map<String, String> columnTypes = columns.stream()
+                .collect(Collectors.toMap(ColumnInfo::name, ColumnInfo::outputType, (first, second) -> second, LinkedHashMap::new));
+            EsqlDatafeedQueryValidator.checkRequiredColumns(columnTypes, context.timeField(), context.requiredSummaryCountField(), null);
+            BytesStreamOutput out = new BytesStreamOutput();
+            EsqlToJsonProcessor.TimeWindow timeWindow = new EsqlToJsonProcessor.TimeWindow(
                 context.jobId(),
-                context.emittedTimeField(),
+                context.timeField(),
                 context.start(),
                 context.end()
             );
-            BytesStreamOutput out = new BytesStreamOutput();
-            try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, out)) {
-                for (List<Object> row : materializedRows) {
-                    processor.process(row);
+            try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, timeWindow, out)) {
+                Iterator<Object> times = esqlResponse.column(processor.timeColumnIndex()).iterator();
+                for (Iterable<Object> row : esqlResponse.rows()) {
+                    processor.process(row, times.hasNext() ? times.next() : null);
                 }
                 rowCount = processor.getWrittenDocumentCount();
             }
             if (rowCount > 0) {
                 data = Optional.of(out.bytes().streamInput());
             }
-            return new Result(searchInterval, data, List.of(), rowCount);
+            return new Result(searchInterval, data, lastLinkedClusterStates, rowCount);
         }
     }
 
@@ -278,16 +228,13 @@ public class EsqlDataExtractor implements DataExtractor {
     }
 
     private EsqlQueryResponse executeDefaultSyncQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
-        return execute(EsqlQueryExecutor.newRequest(client, orderedQuery, timeFilter, params, context.projectRouting()));
+        return execute(
+            EsqlQueryExecutor.newRequest(client, orderedQuery, timeFilter, params, context.projectRouting(), ExecutionMetadata.CCS_ONLY)
+        );
     }
 
     private List<EsqlQueryParam> timeFieldParam() {
-        return List.of(new EsqlQueryParam("timeField", context.emittedTimeField(), IDENTIFIER));
-    }
-
-    /** Binds {@code ??timeField} to {@link EsqlDataExtractorContext#sourceTimeField()} for pre-pipeline probes. */
-    private List<EsqlQueryParam> sourceTimeFieldParam() {
-        return List.of(new EsqlQueryParam("timeField", context.sourceTimeField(), IDENTIFIER));
+        return List.of(new EsqlQueryParam("timeField", context.timeField(), IDENTIFIER));
     }
 
     EsqlQueryResponse execute(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {

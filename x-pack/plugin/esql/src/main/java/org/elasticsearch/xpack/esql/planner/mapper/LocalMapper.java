@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -154,6 +155,10 @@ public class LocalMapper {
             return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.INITIAL, tsInfo.limit());
         }
 
+        if (unary instanceof Into into) {
+            return MapperUtils.mapIntoWrite(into, mappedChild);
+        }
+
         //
         // Pipeline operators
         //
@@ -179,7 +184,8 @@ public class LocalMapper {
                         localData,
                         config.leftFields(),
                         config.rightFields(),
-                        join.rightOutputFields()
+                        join.rightOutputFields(),
+                        false
                     );
                 } else {
                     throw new EsqlIllegalArgumentException("Unsupported right plan for join [" + binary.right().nodeName() + "]");

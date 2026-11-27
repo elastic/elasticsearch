@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -533,10 +534,7 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
                     testCase.toString(),
                     () -> mapColumnarLeaf(mapperService, FIELD, testCase.encoder(), testCase.sources().toArray(String[]::new))
                 );
-                assertTrue(
-                    testCase + ": expected a UNION refusal but got: " + ex.getMessage(),
-                    ex.getMessage().contains("ESCF column kind [UNION]")
-                );
+                assertTrue(testCase + ": expected a UNION refusal but got: " + ex.getMessage(), ex.getMessage().contains("UNION"));
             }
         }
     }
@@ -749,17 +747,46 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
-    /**
-     * A null among scalar values makes the column a UNION rather than a plain LONG, which the kind
-     * switch in {@link NumberFieldMapper#mapColumnBatch} rejects.
-     */
-    @AwaitsFix(bugUrl = "columnar mapColumnBatch does not implement null numeric values; UNION columns fall back to the row path")
+    /** A null among scalar values makes the column a UNION, which the mapper reads row by row. */
     public void testLongField_nullValue() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "long").field("null_value", 9).endObject()),
             columnarSettings(),
             batch("long null value", 1L, doc("d1", 1L, "{\"f\":1}"), doc("d2", 2L, "{\"f\":null}"), doc("d3", 3L, "{\"f\":3}"))
         );
+    }
+
+    public void testLongField_nullWithoutNullValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            columnarSettings(),
+            batch("long null", 1L, doc("d1", 1L, "{\"f\":1}"), doc("d2", 2L, "{\"f\":null}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    /**
+     * Integer and floating-point literals for one field make the column a UNION, as in metric data that reports {@code 0} in
+     * some documents and {@code 0.5} in others.
+     */
+    public void testMixedIntegerAndFloatingPointScalars() throws IOException {
+        for (NumberType type : NumberType.values()) {
+            final boolean integral = switch (type) {
+                case BYTE, SHORT, INTEGER, LONG -> true;
+                case HALF_FLOAT, FLOAT, DOUBLE -> false;
+            };
+            assertColumnarMatchesXContent(
+                mapping(b -> b.startObject(FIELD).field("type", type.typeName()).endObject()),
+                columnarSettings(),
+                batch(
+                    type.typeName() + " mixed scalars",
+                    1L,
+                    doc("d1", 1L, "{\"f\":0}"),
+                    doc("d2", 2L, integral ? "{\"f\":3.0}" : "{\"f\":2.5}"),
+                    doc("d3", 3L, "{}"),
+                    doc("d4", 4L, "{\"f\":7}")
+                )
+            );
+        }
     }
 
     /**
@@ -1132,7 +1159,7 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             b.startObject(FIELD).field("type", "long").field("synthetic_source_keep", "all").endObject();
         }));
         final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
-        assertFalse(mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+        assertFalse(mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of()));
     }
 
     private void assertTsdbKeepModeArrayBailsOut(Settings settings, CheckedConsumer<XContentBuilder, IOException> mapping)

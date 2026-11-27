@@ -7,59 +7,106 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.action.search.TimeRangeBucket;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.RequestedTimeRange;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
+import static org.elasticsearch.xpack.core.esql.QueryMetricsListener.Outcome.CANCELLED;
+import static org.elasticsearch.xpack.core.esql.QueryMetricsListener.Outcome.FAILED;
+import static org.elasticsearch.xpack.core.esql.QueryMetricsListener.Outcome.SUCCESS;
+import static org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager.OUTCOME;
+import static org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager.QUERY_DURATION_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager.QUERY_TOTAL;
+import static org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager.SOURCE_COMMAND;
+import static org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager.TIME_RANGE_FILTER_FROM;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class PlanTelemetryManagerTests extends ESTestCase {
 
-    public void testPublishQueryRecordsOneQueryWithClosedSetAttributes() {
+    private static final Instant START = Instant.parse("2026-01-02T12:00:00Z");
+
+    public void testRecordQuery() {
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         PlanTelemetryManager manager = new PlanTelemetryManager(registry);
-        QueryMetric client = randomFrom(QueryMetric.values());
-        boolean success = randomBoolean();
 
-        manager.publishQuery(new QueryCaller(client), success);
+        manager.recordQuery(telemetry(QuerySourceCommand.TS), lastHours(1), SUCCESS, millis(42));
+        manager.recordQuery(telemetry(QuerySourceCommand.OTHER), null, SUCCESS, millis(3));
+        manager.recordQuery(telemetry(QuerySourceCommand.FROM), lastHours(48), CANCELLED, millis(7));
+        manager.recordQuery(telemetry(QuerySourceCommand.UNKNOWN), null, FAILED, millis(1));
 
-        List<Measurement> measurements = queryMeasurements(registry);
-        assertThat(measurements, hasSize(1));
-        assertThat(measurements.getFirst().getLong(), equalTo(1L));
-        assertThat(
-            measurements.getFirst().attributes(),
-            equalTo(Map.of(PlanTelemetryManager.CLIENT, client.toString(), PlanTelemetryManager.QUERY_SUCCESS, success))
-        );
-    }
+        // Only successful queries have their duration recorded...
+        List<Measurement> durations = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, QUERY_DURATION_HISTOGRAM);
+        assertThat(durations, hasSize(2));
+        assertMeasurement(durations.get(0), 42, Map.of(SOURCE_COMMAND, "TS", TIME_RANGE_FILTER_FROM, "1_hour"));
+        assertMeasurement(durations.get(1), 3, Map.of(SOURCE_COMMAND, "OTHER"));
 
-    public void testPublishQueryCountsEachQuery() {
-        RecordingMeterRegistry registry = new RecordingMeterRegistry();
-        PlanTelemetryManager manager = new PlanTelemetryManager(registry);
-        int queries = between(2, 10);
-        for (int i = 0; i < queries; i++) {
-            manager.publishQuery(new QueryCaller(QueryMetric.KIBANA), true);
-        }
-        assertThat(Measurement.combine(queryMeasurements(registry)).getFirst().getLong(), equalTo((long) queries));
+        // ...but every query is counted, with its outcome.
+        List<Measurement> counts = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, QUERY_TOTAL);
+        assertThat(counts, hasSize(4));
+        assertMeasurement(counts.get(0), 1, Map.of(SOURCE_COMMAND, "TS", TIME_RANGE_FILTER_FROM, "1_hour", OUTCOME, "success"));
+        assertMeasurement(counts.get(1), 1, Map.of(SOURCE_COMMAND, "OTHER", OUTCOME, "success"));
+        assertMeasurement(counts.get(2), 1, Map.of(SOURCE_COMMAND, "FROM", TIME_RANGE_FILTER_FROM, "3_days", OUTCOME, "cancelled"));
+        assertMeasurement(counts.get(3), 1, Map.of(SOURCE_COMMAND, "UNKNOWN", OUTCOME, "failed"));
     }
 
     /**
-     * The APM registry rejects, with an assertion that stops the node, attribute names outside the {@code es_*} naming rule
-     * ({@code MetricValidator}). The recording registry used in tests does not check names, so this pins the rule here.
+     * The attribute is the age of the range's lower bound at the query's now, like Query DSL's, not the length of the range.
      */
-    public void testQueryAttributeNamesFollowTheApmNamingRule() {
-        Pattern apmAttributeName = Pattern.compile("es(_[a-z][a-z0-9]{0,29}){2,8}");
-        for (String attribute : List.of(PlanTelemetryManager.CLIENT, PlanTelemetryManager.QUERY_SUCCESS)) {
-            assertTrue(attribute, apmAttributeName.matcher(attribute).matches());
-        }
+    public void testTimeRangeFilterFrom() {
+        // A short range a week ago reads old data.
+        Instant weekAgo = START.minus(Duration.ofDays(7));
+        assertTimeRangeFilterFrom(weekAgo, weekAgo.plusSeconds(60), "7_days");
+        // Ages at a threshold, or up to the tolerance past it, land in the bucket named after it.
+        Instant fifteenMinutesAgo = START.minus(Duration.ofMinutes(15));
+        Instant atTolerance = fifteenMinutesAgo.minusMillis(TimeRangeBucket.TELEMETRY_THRESHOLD_TOLERANCE.millis());
+        assertTimeRangeFilterFrom(fifteenMinutesAgo, START, "15_minutes");
+        assertTimeRangeFilterFrom(atTolerance, START, "15_minutes");
+        assertTimeRangeFilterFrom(atTolerance.minusMillis(1), START, "1_hour");
+        // Only the lower bound counts, a range without one has no age.
+        assertTimeRangeFilterFrom(fifteenMinutesAgo, null, "15_minutes");
+        assertTimeRangeFilterFrom(null, START, null);
+        // A range in the future, and one far outside the epoch millisecond range, land in the first and last bucket.
+        assertTimeRangeFilterFrom(START.plus(Duration.ofDays(1)), START.plus(Duration.ofDays(2)), "15_minutes");
+        assertTimeRangeFilterFrom(Instant.MIN, START, "older_than_14_days");
     }
 
-    private static List<Measurement> queryMeasurements(RecordingMeterRegistry registry) {
-        return registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
+    private static void assertTimeRangeFilterFrom(@Nullable Instant from, @Nullable Instant to, @Nullable String expected) {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        RequestedTimeRange range = new RequestedTimeRange(from, to, START);
+        new PlanTelemetryManager(registry).recordQuery(telemetry(QuerySourceCommand.FROM), range, SUCCESS, millis(1));
+        Measurement count = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, QUERY_TOTAL).getFirst();
+        assertThat(range.toString(), count.attributes().get(TIME_RANGE_FILTER_FROM), equalTo(expected));
+    }
+
+    private static void assertMeasurement(Measurement measurement, long value, Map<String, Object> attributes) {
+        assertThat(measurement.getLong(), equalTo(value));
+        assertThat(measurement.attributes(), equalTo(attributes));
+    }
+
+    private static RequestedTimeRange lastHours(int hours) {
+        return new RequestedTimeRange(START.minus(Duration.ofHours(hours)), START, START);
+    }
+
+    private static TimeValue millis(long millis) {
+        return TimeValue.timeValueMillis(millis);
+    }
+
+    private static PlanTelemetry telemetry(QuerySourceCommand sourceCommand) {
+        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry(), QuerySettings.applicableIn(true, false));
+        telemetry.sourceCommand(sourceCommand);
+        return telemetry;
     }
 }

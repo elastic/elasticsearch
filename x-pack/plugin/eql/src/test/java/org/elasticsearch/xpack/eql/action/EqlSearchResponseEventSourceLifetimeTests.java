@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.eql.action;
 
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.search.SearchHit;
@@ -19,6 +18,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * {@link EqlSearchResponse.Event#Event(SearchHit)} retains {@link SearchHit#getSourceRef()} so the event outlives
@@ -44,7 +44,7 @@ public class EqlSearchResponseEventSourceLifetimeTests extends ESTestCase {
             new EqlSearchResponse.Hits(Collections.singletonList(event), null, null),
             0,
             false,
-            ShardSearchFailure.EMPTY_ARRAY
+            List.of()
         );
         assertTrue(response.hasReferences());
         assertTrue(response.decRef());

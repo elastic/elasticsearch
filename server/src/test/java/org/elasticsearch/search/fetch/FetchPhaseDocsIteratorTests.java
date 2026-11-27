@@ -136,6 +136,70 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         directory.close();
     }
 
+    /** Documents are grouped by segment for {@code announce} only when the iterator asks for it. */
+    public void testAnnouncesOnlyWhenAsked() throws IOException {
+        int docCount = random().nextInt(300) + 100;
+        Directory directory = newDirectory();
+        RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
+        for (int i = 0; i < docCount; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("field", "foo", Field.Store.NO));
+            writer.addDocument(doc);
+            if (i % 50 == 0) {
+                writer.commit();
+            }
+        }
+        writer.commit();
+        IndexReader reader = writer.getReader();
+        writer.close();
+
+        int[] docs = randomDocIds(docCount - 1);
+        boolean announces = randomBoolean();
+        List<int[]> announced = new ArrayList<>();
+        List<int[]> read = new ArrayList<>();
+        int[] announcements = new int[1];
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(DirectoryMetrics.Capture.NOOP) {
+
+            @Override
+            protected boolean announces() {
+                return announces;
+            }
+
+            @Override
+            protected void announce(List<LeafReaderContext> leaves, List<int[]> docsInLeaves) {
+                announcements[0]++;
+                announced.addAll(docsInLeaves);
+            }
+
+            @Override
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {
+                read.add(docsInLeaf);
+            }
+
+            @Override
+            protected SearchHit nextDoc(int doc) {
+                return new SearchHit(doc);
+            }
+        };
+
+        for (SearchHit hit : it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult()).hits) {
+            hit.decRef();
+        }
+
+        if (announces) {
+            assertThat(announcements[0], equalTo(1));
+            assertThat(announced.size(), equalTo(read.size()));
+            for (int i = 0; i < read.size(); i++) {
+                assertArrayEquals("segment " + i, read.get(i), announced.get(i));
+            }
+        } else {
+            assertThat(announcements[0], equalTo(0));
+        }
+
+        reader.close();
+        directory.close();
+    }
+
     public void testMeasureAccumulatesNonStorePluggableMetricAcrossThreads() throws Exception {
         int docCount = randomIntBetween(20, 100);
         Directory directory = newDirectory();

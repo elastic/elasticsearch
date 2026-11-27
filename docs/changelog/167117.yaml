@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 163057
+pr: 167117
+summary: Fix `EMBEDDING` server error when passing non-constant arguments
+type: bug

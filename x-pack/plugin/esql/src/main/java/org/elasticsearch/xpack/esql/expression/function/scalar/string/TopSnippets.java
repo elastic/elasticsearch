@@ -365,10 +365,12 @@ public class TopSnippets extends EsqlScalarFunction
     }
 
     private TopSnippetsOptions topSnippetsOptions() {
-        if (topSnippetsOptions == null) {
-            topSnippetsOptions = parseTopSnippetsOptions();
+        TopSnippetsOptions parsed = topSnippetsOptions;
+        if (parsed == null) {
+            parsed = parseTopSnippetsOptions();
+            topSnippetsOptions = parsed;
         }
-        return topSnippetsOptions;
+        return parsed;
     }
 
     private TopSnippetsOptions parseTopSnippetsOptions() {

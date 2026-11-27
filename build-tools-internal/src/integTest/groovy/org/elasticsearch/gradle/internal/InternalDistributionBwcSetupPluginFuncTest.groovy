@@ -201,6 +201,68 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         ).exists()
     }
 
+    def "downloads stable API jars from prebuilt snapshots for versions on or after 8.7.0"() {
+        given:
+        def bwcVersion = "8.7.0"
+        def bwcBranch = "main"
+        def shortHash = "abc12345"
+        def buildId = "${bwcVersion}-${shortHash}"
+
+        settingsFile << "\ninclude ':distribution:bwc:main'\n"
+        file("cloned/distribution/bwc/main/build.gradle") << "\n"
+
+        stubManifestOk(wireMock, draManifestPath(buildId, bwcVersion))
+        ["logging", "plugin-api", "plugin-analysis-api"].each { stableApiProjectName ->
+            def mavenGroup = stableApiProjectName.startsWith("plugin-") ? "org.elasticsearch.plugin" : "org.elasticsearch"
+            def mavenModule = "elasticsearch-${stableApiProjectName}"
+            stubJarArtifact(wireMock, mavenSnapshotArtifactPath(bwcVersion, mavenGroup, mavenModule), "fake-${stableApiProjectName}".bytes)
+        }
+        redirectBwcRepositories(wireMock.baseUrl())
+
+        when:
+        def result = gradleRunner(
+            ":distribution:bwc:main:buildBwcLogging",
+            ":distribution:bwc:main:buildBwcPluginApi",
+            ":distribution:bwc:main:buildBwcPluginAnalysisApi",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dtests.bwc.main.version=${bwcVersion}",
+            "-Dtests.bwc.mode=prebuilt",
+            "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
+            "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
+        ).build()
+
+        then: "all stable API BWC tasks resolve prebuilt jars"
+        result.task(":distribution:bwc:main:buildBwcLogging").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:main:buildBwcPluginApi").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:main:buildBwcPluginAnalysisApi").outcome == TaskOutcome.SUCCESS
+
+        and: "the jars are written under libs/<name> inside the BWC checkout"
+        file(
+            "cloned/distribution/bwc/main/build/bwc/checkout-${bwcBranch}/"
+                + "libs/logging/build/distributions/elasticsearch-logging-${bwcVersion}-SNAPSHOT.jar"
+        ).exists()
+        file(
+            "cloned/distribution/bwc/main/build/bwc/checkout-${bwcBranch}/"
+                + "libs/plugin-api/build/distributions/elasticsearch-plugin-api-${bwcVersion}-SNAPSHOT.jar"
+        ).exists()
+        file(
+            "cloned/distribution/bwc/main/build/bwc/checkout-${bwcBranch}/"
+                + "libs/plugin-analysis-api/build/distributions/elasticsearch-plugin-analysis-api-${bwcVersion}-SNAPSHOT.jar"
+        ).exists()
+    }
+
+    def "does not register stable API BWC tasks for versions before 8.7.0"() {
+        when:
+        def result = gradleRunner(
+            ":distribution:bwc:major1:buildBwcLogging",
+            "-Dbwc.dist.version=8.6.9-SNAPSHOT"
+        ).buildAndFail()
+
+        then:
+        result.output.contains("as task 'buildBwcLogging' not found in project ':distribution:bwc:major1'")
+    }
+
     def "falls back to local gradle build when DRA manifest returns 404"() {
         given:
         def bwcVersion = "8.4.0"
@@ -360,6 +422,48 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
 
         and: "a warning explains that DRA was unavailable"
         result.output.contains("tests.bwc.mode=prebuilt but no pre-built snapshot artifacts were available")
+    }
+
+    def "nested bwc builds of the same checkout do not run concurrently"() {
+        given: "the start and end of each bwc build task is recorded"
+        // Configured in the bwc project's own build script rather than from the root project,
+        // to stay compatible with isolated projects.
+        file("cloned/distribution/bwc/major1/build.gradle") << """
+        tasks.named { it in ['buildBwcDarwinTar', 'buildBwcLinuxAarch64Tar'] }.configureEach {
+            doFirst { t -> println("bwcBuildStart " + t.name + " " + System.nanoTime()) }
+            doLast { t -> println("bwcBuildEnd " + t.name + " " + System.nanoTime()) }
+        }
+        """
+
+        when:
+        // Tasks of the same project only run in parallel with the configuration cache enabled.
+        def result = gradleRunner(
+            ":distribution:bwc:major1:buildBwcDarwinTar",
+            ":distribution:bwc:major1:buildBwcLinuxAarch64Tar",
+            "--parallel",
+            "--configuration-cache",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dbwc.dist.version=8.4.0-SNAPSHOT"
+        ).build()
+
+        then:
+        result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:major1:buildBwcLinuxAarch64Tar").outcome == TaskOutcome.SUCCESS
+
+        and: "one nested build finished before the other one started"
+        def darwin = bwcBuildInterval(result.output, "buildBwcDarwinTar")
+        def linux = bwcBuildInterval(result.output, "buildBwcLinuxAarch64Tar")
+        darwin.end <= linux.start || linux.end <= darwin.start
+    }
+
+    private static Map<String, Long> bwcBuildInterval(String output, String taskName) {
+        def timestamp = { String marker ->
+            def matcher = output =~ /${marker} ${taskName} (\d+)/
+            assert matcher.find(): "Missing '${marker}' marker for task ${taskName}"
+            return matcher.group(1) as long
+        }
+        return [start: timestamp("bwcBuildStart"), end: timestamp("bwcBuildEnd")]
     }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {

@@ -69,7 +69,7 @@ plugins.withType(InternalJavaRestTestPlugin) {
       testClassesDirs = sourceSets.javaRestTest.output.classesDirs
       classpath = sourceSets.javaRestTest.runtimeClasspath
     }
-    // Blanket application is safe only where every standalone REST task in the project belongs to
+    // Blanket application is safe only where every REST integ test task in the project belongs to
     // this plugin. A project that also owns current-version tasks which already call
     // usesDefaultDistribution themselves would register the default_distro inputs twice and fail
     // the build, so such a convention opts out here and applies it to its own tasks instead.

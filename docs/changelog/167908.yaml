@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 167908
+summary: Read docvalues disk usage directly from metadata where possible
+type: enhancement

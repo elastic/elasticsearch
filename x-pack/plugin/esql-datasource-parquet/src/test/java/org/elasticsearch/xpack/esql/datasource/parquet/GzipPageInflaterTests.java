@@ -127,7 +127,9 @@ public class GzipPageInflaterTests extends ESTestCase {
         byte[] data = compressibleBytes(between(1, 256));
         byte[] headerOnly = new byte[] { 0x1f, (byte) 0x8b, 8, 0, 0, 0, 0, 0, 0, (byte) 0xff };
         byte[] gz = concat(gzip(data), headerOnly);
-        assertFastMatchesInputStream(gz, data.length);
+        // GZIPInputStream is not a valid oracle here: JDK 21 treats a header-only suffix as end of stream, while JDK 25
+        // always starts the next member and fails with EOFException. The fast path defines it as end of stream.
+        assertArrayEquals(data, inflateViaFastPath(gz, data.length));
     }
 
     public void testTrailingJunkIgnoredWhenDestLenMatches() throws IOException {

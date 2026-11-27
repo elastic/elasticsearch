@@ -28,14 +28,9 @@ public class PointTests extends BaseGeometryTestCase<Point> {
 
     public void testBasicSerialization() throws IOException, ParseException {
         GeometryValidator validator = GeographyValidator.instance(true);
-        assertEquals("POINT (20.0 10.0)", WellKnownText.toWKT(new Point(20, 10)));
-        assertEquals(new Point(20, 10), WellKnownText.fromWKT(validator, true, "point (20.0 10.0)"));
-
-        assertEquals("POINT (20.0 10.0 100.0)", WellKnownText.toWKT(new Point(20, 10, 100)));
-        assertEquals(new Point(20, 10, 100), WellKnownText.fromWKT(validator, true, "POINT (20.0 10.0 100.0)"));
-
-        assertEquals("POINT EMPTY", WellKnownText.toWKT(Point.EMPTY));
-        assertEquals(Point.EMPTY, WellKnownText.fromWKT(validator, true, "POINT EMPTY)"));
+        assertSerialization(validator, true, "POINT (20.0 10.0)", new Point(20, 10));
+        assertSerialization(validator, true, "POINT (20.0 10.0 100.0)", new Point(20, 10, 100));
+        assertSerialization(validator, true, "POINT EMPTY", Point.EMPTY);
     }
 
     public void testInitValidation() {

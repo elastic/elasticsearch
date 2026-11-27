@@ -845,3 +845,8 @@ tests:
   - :x-pack:plugin:esql-datasource-grpc:test
   method: testMultiEndpointProducesMultipleSplits
   issue: https://github.com/elastic/elasticsearch/issues/167930
+- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testBalancedOperatorTreeFailsMaxLeftParentheses
+  issue: https://github.com/elastic/elasticsearch/issues/167941

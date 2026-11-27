@@ -89,9 +89,10 @@ public final class Clusters {
             .feature(FeatureFlag.TIME_SERIES_MODE);
 
         // There is a chance we have more master changes than "normal", so to avoid this test from failing we increase the
-        // threshold (as the purpose of this test isn't to test that specific indicator). The setting was introduced in 8.4.0.
+        // thresholds (as the purpose of this test isn't to test that specific indicator). The settings were introduced in 8.4.0.
         if (oldVersion.onOrAfter(Version.fromString("8.4.0"))) {
             builder.setting("health.master_history.no_master_transitions_threshold", "10");
+            builder.setting("health.master_history.identity_changes_threshold", "10");
         }
 
         // Assertions on these mapper classes trip when a current-version node talks to a pre-8.18 node, so disable them.

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInfere
 import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDecisionRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDenseEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDocumentExtractionRequest;
@@ -113,7 +114,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
         ELASTIC_INFERENCE_SERVICE_IDENTIFIER
     );
 
-    private static final ResponseHandler DOCUMENT_EXTRACTION_HANDLER = new ElasticInferenceServiceResponseHandler(
+    private static final ResponseHandler DOCUMENT_EXTRACTION_HANDLER = new ElasticInferenceServiceDocumentExtractionResponseHandler(
         DOCUMENT_EXTRACTION_REQUEST_DESCRIPTION,
         (request, response) -> ElasticInferenceServiceDocumentExtractionResponseEntity.fromResponse(response)
     );

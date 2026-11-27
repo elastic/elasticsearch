@@ -2,6 +2,9 @@
 navigation_title: "Cumulative cardinality"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-pipeline-cumulative-cardinality-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Cumulative cardinality aggregation [search-aggregations-pipeline-cumulative-cardinality-aggregation]

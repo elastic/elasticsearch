@@ -482,10 +482,22 @@ public final class TemplatePartitionDetector implements PartitionDetector {
 
         /**
          * Template placeholder bindings of a directory path, using this layout's right-align offset
-         * so a partial path does not bind the wrong slots.
+         * so a partial path does not bind the wrong slots. Filename is kept — a directory path's last
+         * folder is a value. For a file path use {@link #fileBindings}.
          */
         public Map<String, String> bindings(String directoryPath) {
-            List<String> dirs = nonEmptySegments(directoryPath);
+            return bindingsFrom(nonEmptySegments(directoryPath));
+        }
+
+        /**
+         * Same as {@link #bindings(String)} with the leaf name dropped, so a file
+         * {@code year=2024/2025/a.parquet} binds {@code {year}} to {@code 2025} not {@code a.parquet}.
+         */
+        public Map<String, String> fileBindings(String filePath) {
+            return bindingsFrom(directorySegments(filePath));
+        }
+
+        private Map<String, String> bindingsFrom(List<String> dirs) {
             LinkedHashMap<String, String> into = new LinkedHashMap<>(prefixBindings);
             for (int t = 0; t < segments.size(); t++) {
                 int fullIdx = dirOffset + t;

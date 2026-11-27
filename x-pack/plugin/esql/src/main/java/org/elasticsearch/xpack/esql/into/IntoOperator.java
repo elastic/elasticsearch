@@ -19,7 +19,7 @@ import java.util.function.Function;
 /**
  * Operator for the {@code WRITE} phase of an {@code INTO} command.
  * Aligns incoming pages to the destination's column order, delegates them to an
- * {@link IntoPageWriter}, and emits one {@code [total, created]} row once all
+ * {@link IntoPageWriter}, and emits one {@link IntoStats} row once all
  * writes have settled.
  */
 public final class IntoOperator implements Operator {

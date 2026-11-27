@@ -1123,6 +1123,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return defaultFrequency;
     }
 
+    /** The configured frequency, or {@link #defaultFrequency} derived from the job's bucket span when none is configured. */
+    public TimeValue getFrequencyOrDefault(TimeValue bucketSpan, NamedXContentRegistry xContentRegistry) {
+        return frequency != null ? frequency : defaultFrequency(bucketSpan, xContentRegistry);
+    }
+
     private static TimeValue snapDefaultFrequencyToInterval(TimeValue defaultFrequency, long intervalMillis) {
         long targetFrequencyMillis = defaultFrequency.millis();
         long snappedMillis = intervalMillis > targetFrequencyMillis

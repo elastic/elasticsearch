@@ -569,10 +569,17 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      * rejected before that happens, so the committed row keeps its spelling.
      */
     public void testMalformedStringDoesNotPromoteTheColumn() throws IOException {
-        assumeTrue("strings are staged unread only on the simdjson path", EscfEncoder.isSimdEnabled());
-        String malformed = randomFrom("""
-            {"d":"bad\\qescape"}""", """
+        assertMalformedDoesNotPromote("""
+            {"d":"bad\\qescape"}""");
+    }
+
+    public void testMalformedStringArrayDoesNotPromoteTheColumn() throws IOException {
+        assertMalformedDoesNotPromote("""
             {"d":["ok","bad\\qescape"]}""");
+    }
+
+    private void assertMalformedDoesNotPromote(String malformed) throws IOException {
+        assumeTrue("strings are staged unread only on the simdjson path", EscfEncoder.isSimdEnabled());
         try (EscfEncoder encoder = new EscfEncoder(newRecycler(), true)) {
             encoder.addDocument(new BytesArray("{\"d\":1.50}"), XContentType.JSON, 0);
             encoder.parseToScratch(new BytesArray(malformed), XContentType.JSON, LeafSink.NO_OP);

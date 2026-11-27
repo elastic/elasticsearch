@@ -105,8 +105,8 @@ public class EqlSourceOperator extends SourceOperator {
     // Guards the close()-vs-response-callback race: Driver.drainAndCloseOperators runs before waitForAsyncActions,
     // so close() can fire while the EQL search is still in flight. Mutations of page/closed are synchronized(this).
     private boolean closed;
-    // Set when close() runs before the page is pulled, including while the search is still in flight.
-    private volatile boolean undelivered;
+    // A non-empty page was released without being handed to the next operator.
+    private volatile boolean rowsDiscarded;
     private final Set<String> recordedClusters = ConcurrentHashMap.newKeySet();
 
     private EqlSourceOperator(
@@ -153,14 +153,20 @@ public class EqlSourceOperator extends SourceOperator {
                 // isPartial() only flags a still-running async response; a completed one reports lost shards in shardFailures().
                 recordPartialResults(response, searchedCluster);
                 Page built = EqlPageConverter.toPage(response, mode, schema, driverContext.blockFactory().parent());
+                boolean lostRows;
                 synchronized (this) {
                     if (closed) {
                         // The operator was closed (cancellation / sibling-operator failure) before the response
                         // arrived; release the freshly-built page here or its breaker-accounted blocks leak.
+                        lostRows = built.getPositionCount() > 0 && executionInfo.isStopped();
                         built.releaseBlocks();
                     } else {
                         page = built;
+                        lostRows = false;
                     }
+                }
+                if (lostRows) {
+                    markUndeliveredStopPartial();
                 }
             } catch (Exception e) {
                 failure = e;
@@ -201,6 +207,9 @@ public class EqlSourceOperator extends SourceOperator {
             Page result = page;
             page = null;
             emitted = true;
+            if (result.getPositionCount() > 0 && result.getBlockCount() > 0) {
+                result.getBlock(0).attachReleasable(() -> rowsDiscarded = true);
+            }
             return result;
         }
         return null;
@@ -360,8 +369,7 @@ public class EqlSourceOperator extends SourceOperator {
                         true
                     );
                     if (reportsStatus) {
-                        boolean failed = (undelivered && executionInfo.isStopped())
-                            || counts.failed() > 0
+                        boolean failed = counts.failed() > 0
                             || (current.getFailedShards() != null && current.getFailedShards() > 0)
                             || current.getFailures().isEmpty() == false;
                         ComputeService.applyClusterStatusAfterBranch(builder, current, failed, true);
@@ -443,19 +451,19 @@ public class EqlSourceOperator extends SourceOperator {
 
     @Override
     public void close() {
-        boolean stoppedBeforeDelivery;
+        boolean lostRows;
         synchronized (this) {
             closed = true;
-            if (emitted == false) {
-                undelivered = true;
+            if (page != null && page.getPositionCount() > 0) {
+                rowsDiscarded = true;
             }
-            stoppedBeforeDelivery = undelivered && executionInfo.isStopped();
             if (page != null) {
                 page.releaseBlocks();
                 page = null;
             }
+            lostRows = rowsDiscarded && executionInfo.isStopped();
         }
-        if (stoppedBeforeDelivery) {
+        if (lostRows) {
             markUndeliveredStopPartial();
         }
     }

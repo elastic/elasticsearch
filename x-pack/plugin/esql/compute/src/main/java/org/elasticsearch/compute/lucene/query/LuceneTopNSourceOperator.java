@@ -722,7 +722,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
      *     {@code IndexFieldData.XFieldComparatorSource} compares by identity, so each shard gets its own manager; numeric,
      *     date and geo distance sorts build those. A {@code SortedSetSortField} or {@code BinarySortField} compares by
      *     value, so shards share one; keyword sorts build those, so {@code SORT _score DESC, keyword_field} shares one
-     *     manager across shards, like a bare {@code SORT _score DESC}.
+     *     manager across shards, like a bare {@code SORT _score DESC}. The exception is a keyword field whose binary doc
+     *     values use the legacy separate-count format: its sort field is backed by a comparator source, so each shard gets
+     *     its own manager.
      * </p>
      */
     static class PerShardCollectorProvider {

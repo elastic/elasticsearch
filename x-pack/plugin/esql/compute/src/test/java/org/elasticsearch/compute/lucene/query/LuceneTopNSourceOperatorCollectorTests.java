@@ -310,7 +310,8 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
         List<TopDocsCollector<?>> collectors = createCollectorsConcurrently(provider, ctx);
         assertThat(provider.topFieldCollectorManagers.size(), equalTo(1));
-        // An unsynchronized newCollector() loses appends to the manager's list
+        // An unsynchronized newCollector() loses appends to the manager's list. getCollectors() is deprecated, but nothing
+        // else exposes that list.
         assertThat(provider.topFieldCollectorManagers.values().iterator().next().getCollectors().size(), equalTo(collectors.size()));
         for (TopDocsCollector<?> collector : collectors) {
             assertThat(collector, instanceOf(TopFieldCollector.class));
@@ -599,8 +600,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
      * becomes {@link SortField#FIELD_SCORE} (so a lone one is {@link Sort#RELEVANCE}), an ascending one a reversed score field.
      * Field sorts become {@link #FIELD_SORT}, a value-equal {@link SortedNumericSortField}. That is what a keyword sort looks
      * like on a real shard (a value-equal {@code SortedSetSortField} or {@code BinarySortField}). Numeric, date and geo
-     * distance sorts build a {@link SortField} with an {@code IndexFieldData.XFieldComparatorSource} instead, which compares
-     * by identity, and {@link #testIdentityEqualSortsGetOneManagerPerShard} covers those.
+     * distance sorts, and keyword sorts on binary doc values in the legacy separate-count format, build a {@link SortField}
+     * with an {@code IndexFieldData.XFieldComparatorSource} instead, which compares by identity, and
+     * {@link #testIdentityEqualSortsGetOneManagerPerShard} covers those.
      */
     private static Sort resolveSort(List<SortBuilder<?>> sorts) {
         SortField[] fields = new SortField[sorts.size()];

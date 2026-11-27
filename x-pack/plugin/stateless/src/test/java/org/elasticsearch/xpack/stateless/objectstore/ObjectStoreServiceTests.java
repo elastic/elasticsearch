@@ -1726,6 +1726,77 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
     }
 
+    public void testTranslogUploadsRunInTheOrderTheyAreRequested() throws Exception {
+        final var firstUploadStarted = new CountDownLatch(1);
+        final var releaseFirstUpload = new CountDownLatch(1);
+        final List<String> written = Collections.synchronizedList(new ArrayList<>());
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                // a single translog-upload slot
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
+                    .build();
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                        throws IOException {
+                        if (purpose == OperationPurpose.TRANSLOG) {
+                            if (blobName.equals("translog-0")) {
+                                firstUploadStarted.countDown();
+                                safeAwait(releaseFirstUpload);
+                            }
+                            written.add(blobName);
+                        }
+                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                    }
+                };
+            }
+        }) {
+            final var objectStoreService = testHarness.objectStoreService;
+            final int uploads = between(4, 10);
+            final var futures = new ArrayList<PlainActionFuture<Void>>();
+            final var requested = new ArrayList<String>();
+            for (int i = 0; i < uploads; i++) {
+                final var future = new PlainActionFuture<Void>();
+                futures.add(future);
+                requested.add("translog-" + i);
+                objectStoreService.uploadTranslogFile(
+                    "translog-" + i,
+                    new BytesArray(new byte[] { (byte) i }),
+                    () -> false,
+                    () -> {},
+                    future
+                );
+                if (i == 0) {
+                    // the first upload holds the single slot, so the next ones wait in the task runner's queue
+                    safeAwait(firstUploadStarted);
+                }
+            }
+            for (var future : futures) {
+                assertFalse(future.isDone());
+            }
+            assertThat(written, equalTo(List.of()));
+
+            releaseFirstUpload.countDown();
+            for (var future : futures) {
+                safeGet(future);
+            }
+            assertThat(written, equalTo(requested));
+        }
+    }
+
     public void testBccMultipartUploadRecordsBccMultipartUploadPartStartLatency() throws Exception {
         final var time = new AtomicLong(0);
         final var meterRegistry = new RecordingMeterRegistry();

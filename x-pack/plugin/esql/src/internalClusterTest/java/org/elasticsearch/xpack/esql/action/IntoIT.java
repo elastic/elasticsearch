@@ -625,7 +625,12 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
         assertThat(
             e.getMessage(),
-            equalTo("INTO [" + DESTINATION + "] failed: [a]: version conflict, document already exists (current version [1])")
+            equalTo(
+                "INTO ["
+                    + DESTINATION
+                    + "] failed: [a]: version conflict, document already exists (current version [1]); "
+                    + "to handle documents that already exist, use \"collisions\": \"keep\" or \"collisions\": \"replace\""
+            )
         );
         assertReadBackWithIds("WHERE _id == \"a\" | KEEP k, l", List.of(List.of("old", 1L)));
     }

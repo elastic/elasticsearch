@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.into.IntoOptions.Collisions;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
@@ -91,6 +92,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
@@ -608,6 +610,9 @@ public class IntoPageWriterTests extends ComputeTestCase {
             client.answer(CONFLICT);
             ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
             assertThat(collisions.toString(), failure.status(), equalTo(RestStatus.CONFLICT));
+            // Only abort has the option to point to: under replace a conflict is not a collision
+            Matcher<String> hint = containsString("use \"collisions\": \"keep\" or \"collisions\": \"replace\"");
+            assertThat(collisions.toString(), failure.getMessage(), collisions == Collisions.ABORT ? hint : not(hint));
         }
     }
 

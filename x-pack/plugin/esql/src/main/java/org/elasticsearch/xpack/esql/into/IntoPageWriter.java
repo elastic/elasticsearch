@@ -70,6 +70,16 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class IntoPageWriter {
 
     private static final int MAX_FAILURE_DETAIL_LENGTH = 1024;
+    /** Tells the user who hits a collision that the option exists, as they would not otherwise find out. */
+    private static final String COLLISIONS_HINT = "; to handle documents that already exist, use \""
+        + IntoOptions.Option.COLLISIONS.optionName()
+        + "\": \""
+        + IntoOptions.Collisions.KEEP.optionValue()
+        + "\" or \""
+        + IntoOptions.Option.COLLISIONS.optionName()
+        + "\": \""
+        + IntoOptions.Collisions.REPLACE.optionValue()
+        + "\"";
     private static final String EMPTY_ID_REASON = "if _id is specified it must not be empty";
     private static final String MULTI_VALUED_ID_MESSAGE = "INTO [{}] failed: [{}] must be single-valued, found [{}]";
 
@@ -184,12 +194,14 @@ public final class IntoPageWriter {
                         continue;
                     }
                     Exception cause = refused.getCause();
+                    boolean collidedUnderAbort = refused.getStatus() == RestStatus.CONFLICT && collisions == IntoOptions.Collisions.ABORT;
                     ElasticsearchStatusException failed = new ElasticsearchStatusException(
-                        "INTO [{}] failed: {}",
+                        "INTO [{}] failed: {}{}",
                         refused.getStatus(),
                         cause,
                         destination,
-                        cause.getMessage()
+                        cause.getMessage(),
+                        collidedUnderAbort ? COLLISIONS_HINT : ""
                     );
                     failure.compareAndSet(null, failed);
                     return failed;

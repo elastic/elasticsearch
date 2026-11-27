@@ -1,0 +1,6 @@
+area: Suggesters
+issues:
+ - 28669
+pr: 155034
+summary: Support stored-only geo points in completion context paths
+type: bug

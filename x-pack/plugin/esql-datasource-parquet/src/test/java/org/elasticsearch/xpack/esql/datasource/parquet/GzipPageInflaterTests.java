@@ -29,7 +29,8 @@ import static org.hamcrest.Matchers.equalTo;
  * empty, header flags, corrupt FHCRC, multi-member, bad CRC, bad ISIZE, truncation, trailing junk, destLen
  * too small or too large. Extra uncompressed bytes keep today's page-header error; trailing
  * junk after a complete member is ignored like {@link java.util.zip.GZIPInputStream}, not rejected like the
- * text-codec decoder.
+ * text-codec decoder. The one exception is a header-only suffix after a complete member: JDK 21 and JDK 25
+ * disagree there, so the fast path is pinned to end of stream without an oracle.
  */
 public class GzipPageInflaterTests extends ESTestCase {
 

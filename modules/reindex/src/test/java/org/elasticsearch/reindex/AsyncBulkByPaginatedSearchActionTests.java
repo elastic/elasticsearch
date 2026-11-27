@@ -51,6 +51,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -778,6 +779,54 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
         assertThat(ExceptionsHelper.unwrap(e, CircuitBreakingException.class), notNullValue());
         assertThat("buildBulk must pass the action-specific label to the circuit breaker", capturedLabel.get(), equalTo(actionLabel));
+    }
+
+    /**
+     * Source bytes that a bulk shares with an already reserved page are not reserved again. A copy, as a script or a content type
+     * conversion makes, is, and so is everything when the page is not reserved.
+     */
+    public void testBulkDoesNotReserveSourceSharedWithReservedPage() throws Exception {
+        boolean usePit = configurePitOrScroll();
+        boolean pageReserved = randomBoolean();
+        boolean copySource = randomBoolean();
+        AtomicLong bulkReserved = new AtomicLong();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                bulkReserved.addAndGet(bytes);
+            }
+        };
+        DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction(
+            testTask,
+            TimeValue.ZERO,
+            breaker,
+            "test_bulk_batch"
+        ) {
+            @Override
+            protected RequestWrapper<?> buildRequest(Hit doc) {
+                BytesReference source = copySource ? new BytesArray(BytesReference.toBytes(doc.getSource())) : doc.getSource();
+                return wrap(new IndexRequest("test").id(doc.getId()).source(source, doc.getXContentType()));
+            }
+        };
+
+        List<PaginatedHitSource.BasicHit> hits = List.of(
+            new PaginatedHitSource.BasicHit("idx", "1", -1).setSource(new BytesArray(new byte[100]), XContentType.JSON),
+            new PaginatedHitSource.BasicHit("idx", "2", -1).setSource(new BytesArray(new byte[200]), XContentType.JSON)
+        );
+        long sharedBytes = pageReserved && copySource == false ? 300 : 0;
+        // Finishes after this page instead of asking for the next one
+        testRequest.setMaxDocs(hits.size());
+
+        PaginatedHitSource.Response response = createPaginatedResponse(usePit, false, emptyList(), hits.size(), hits, null, null);
+        // The hit sources attach a page's reservation (PaginatedHitSource#reserveHeldPage locally, RemoteReindexingUtils for remote),
+        // but this test hands the page straight to the action, so a reserved page gets a no-op one
+        if (pageReserved) {
+            response.setBodyReleasable(() -> {});
+        }
+        simulatePaginatedResponse(action, System.nanoTime(), 0, response, usePit);
+
+        assertBusy(() -> assertEquals(1, client.bulksAttempts.get()));
+        assertEquals(client.lastBulk.get().estimatedSizeInBytes() - sharedBytes, bulkReserved.get());
     }
 
     /**
@@ -2573,6 +2622,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     private class MyMockClient extends FilterClient {
         private final List<String> scrollsCleared = new ArrayList<>();
         private final AtomicInteger bulksAttempts = new AtomicInteger();
+        private final AtomicReference<BulkRequest> lastBulk = new AtomicReference<>();
         private final AtomicInteger searchAttempts = new AtomicInteger();
         private final AtomicInteger scrollAttempts = new AtomicInteger();
         private final AtomicReference<RefreshRequest> lastRefreshRequest = new AtomicReference<>();
@@ -2645,6 +2695,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
                 return;
             }
             if (request instanceof BulkRequest bulk) {
+                lastBulk.set(bulk);
                 int toReject;
                 if (bulksAttempts.incrementAndGet() > bulksToReject) {
                     toReject = -1;

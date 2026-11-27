@@ -169,14 +169,14 @@ public abstract class PaginatedHitSource {
         if (bytes == 0 || bytes < thresholdBytes) {
             return;
         }
-        Releasable charge = coordinatorCharge.get();
-        if (charge == null) {
-            charge = chargeBreaker(breaker, label, bytes, response);
+        Releasable reservation = coordinatorCharge.get();
+        if (reservation == null) {
+            reservation = reserveOnBreaker(breaker, label, bytes, response);
         }
-        response.setBodyReleasable(charge);
+        response.setBodyReleasable(reservation);
     }
 
-    private static Releasable chargeBreaker(CircuitBreaker breaker, String label, long bytes, PaginatedHitSource.Response response) {
+    private static Releasable reserveOnBreaker(CircuitBreaker breaker, String label, long bytes, PaginatedHitSource.Response response) {
         try {
             breaker.addEstimateBytesAndMaybeBreak(bytes, label);
         } catch (CircuitBreakingException e) {
@@ -302,6 +302,13 @@ public abstract class PaginatedHitSource {
          */
         @Nullable
         private Releasable bodyReleasable;
+
+        /**
+         * Whether the bytes backing this batch's hits are reserved, see {@link #setBodyReleasable}.
+         */
+        public boolean hasReservation() {
+            return bodyReleasable != null;
+        }
 
         /**
          * Attaches a circuit-breaker {@link Releasable} for the bytes backing this batch's hits.

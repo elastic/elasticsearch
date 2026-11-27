@@ -613,6 +613,10 @@ class DatafeedJob {
                 if (extractedData.isPresent()) {
                     // A chunk after a long empty stretch makes autodetect write the stretch's empty buckets, so skip before posting.
                     skipLongEmptyGapBefore(searchInterval.startMs());
+                    // The skip flushes block, so the datafeed may have been isolated meanwhile.
+                    if (isIsolated) {
+                        return;
+                    }
                     DataCounts counts;
                     try (InputStream in = extractedData.get()) {
                         counts = postData(in, XContentType.JSON);

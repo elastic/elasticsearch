@@ -75,6 +75,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -1866,12 +1867,52 @@ public class DatafeedJobTests extends ESTestCase {
                 List.of()
             )
         );
-        when(flushJobFuture.actionGet()).thenReturn(flushAck(11 * MINUTE_MS), flushAck(SPARSE_NOW), flushAck(14 * MINUTE_MS));
+        when(dataExtractor.getEndTime()).thenReturn(SPARSE_NOW + 2 * MINUTE_MS);
+        List<String> events = new ArrayList<>();
+        FlushJobAction.Response[] acks = { flushAck(11 * MINUTE_MS), flushAck(SPARSE_NOW), flushAck(SPARSE_NOW + 2 * MINUTE_MS) };
+        int[] next = { 0 };
+        when(flushJobFuture.actionGet()).thenAnswer(invocation -> {
+            events.add("flush");
+            return acks[next[0]++];
+        });
+        when(postDataFuture.actionGet()).thenAnswer(invocation -> {
+            events.add("post");
+            return new PostDataAction.Response(countsWithLatestRecord(SPARSE_NOW + 500));
+        });
 
-        currentTime = 14 * MINUTE_MS;
+        currentTime = SPARSE_NOW + 2 * MINUTE_MS;
         datafeedJob.runRealtime();
 
-        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86400000000", "advance 840000")));
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86400000000", "advance 86400120000")));
+        // Real-time sends the preservation advance, then the skip, then the post, then the final advance.
+        assertThat(events, equalTo(List.of("flush", "flush", "post", "flush")));
+    }
+
+    public void testDatafeedIsolatedDuringSkipShouldNotPostChunk() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(12 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        when(dataExtractor.hasNext()).thenReturn(true, false);
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(
+                new SearchInterval(SPARSE_NOW, SPARSE_NOW + 1000L),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            )
+        );
+        when(dataExtractor.getEndTime()).thenReturn(SPARSE_NOW + 2 * MINUTE_MS);
+        int[] flushCount = { 0 };
+        when(flushJobFuture.actionGet()).thenAnswer(invocation -> {
+            // The second real-time flush is the skip: isolate while it is in flight.
+            if (++flushCount[0] == 2) {
+                datafeedJob.isolate();
+            }
+            return flushAck(flushCount[0] == 1 ? 11 * MINUTE_MS : SPARSE_NOW);
+        });
+
+        currentTime = SPARSE_NOW + 2 * MINUTE_MS;
+        datafeedJob.runRealtime();
+
+        // Only the lookback posted.
+        verify(postDataFuture, times(1)).actionGet();
     }
 
     private DatafeedJob jobAfterLookback(

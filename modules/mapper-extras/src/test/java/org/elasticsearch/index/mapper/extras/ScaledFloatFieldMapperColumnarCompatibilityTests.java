@@ -244,7 +244,8 @@ public class ScaledFloatFieldMapperColumnarCompatibilityTests extends AbstractCo
         assertColumnarMatchesXContent(
             scaledFloat(10, b -> b.field("index", false)),
             columnarSettings(),
-            batch("not indexed", 1L, doc("d1", 1L, "{\"f\":1.5}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":79.99}"))
+            batch("not indexed", 1L, doc("d1", 1L, "{\"f\":1.5}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":79.99}")),
+            batch("not indexed arrays", 1L, doc("d1", 1L, "{\"f\":[2.5,0.5,2.5]}"), doc("d2", 2L, "{}"))
         );
     }
 
@@ -267,7 +268,52 @@ public class ScaledFloatFieldMapperColumnarCompatibilityTests extends AbstractCo
         assertColumnarMatchesXContent(
             scaledFloat(100, b -> b.field("null_value", 2.5)),
             columnarSettings(),
-            batch("scalar", 1L, doc("d1", 1L, "{\"f\":\"1.5\"}"), doc("d2", 2L, "{\"f\":\"\"}"), doc("d3", 3L, "{}"))
+            batch("scalar", 1L, doc("d1", 1L, "{\"f\":\"1.5\"}"), doc("d2", 2L, "{\"f\":\"\"}"), doc("d3", 3L, "{}")),
+            batch(
+                "array",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"\",\"5\",\"\"]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[\"9.75\",\"\",\"1\"]}"),
+                doc("d4", 4L, "{\"f\":[\"\"]}")
+            )
+        );
+    }
+
+    // Each array holds elements of one width class, because the encoder packs mixed classes as a UNION.
+    public void testArraysRecordOffsets() throws IOException {
+        assertColumnarMatchesXContent(
+            scaledFloat(10),
+            columnarSettings(),
+            randomFrom(SourceEncoder.available()),
+            batch(
+                "double arrays",
+                1L,
+                doc("d1", 1L, "{\"f\":[2.5,1.5,2.5]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[0.5,0.5,0.5,0.5]}"),
+                doc("d4", 4L, "{\"f\":[-1.25,7.5]}"),
+                doc("d5", 5L, "{\"f\":[]}")
+            ),
+            batch("long arrays", 1L, doc("d1", 1L, "{\"f\":[2,1,2]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[-1,7]}")),
+            batch(
+                "string arrays",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"3.14\",\"-2.25\",\"3.14\"]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[\"0.5\"]}")
+            ),
+            // Values that differ before scaling and are equal after it share one ordinal.
+            batch("equal after scaling", 1L, doc("d1", 1L, "{\"f\":[\"1.01\",\"0.5\",\"1.04\"]}"), doc("d2", 2L, "{\"f\":[\"2\",\"1\"]}")),
+            batch("single elements", 1L, doc("d1", 1L, "{\"f\":[1.5]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[2.5]}"))
+        );
+    }
+
+    public void testSingleElementArraysWithSingleValueField() throws IOException {
+        assertColumnarMatchesXContent(
+            scaledFloat(100),
+            singleValueColumnarSettings(),
+            batch("single elements", 1L, doc("d1", 1L, "{\"f\":[1.5]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[2.5]}"))
         );
     }
 
@@ -276,7 +322,8 @@ public class ScaledFloatFieldMapperColumnarCompatibilityTests extends AbstractCo
             scaledFloat(100, b -> b.field("nullability", false)),
             Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
             batch("missing", 1L, doc("d1", 1L, "{\"f\":1.5}"), doc("d2", 2L, "{}")),
-            batch("empty string", 1L, doc("d1", 1L, "{\"f\":\"1.5\"}"), doc("d2", 2L, "{\"f\":\"\"}"))
+            batch("empty string", 1L, doc("d1", 1L, "{\"f\":\"1.5\"}"), doc("d2", 2L, "{\"f\":\"\"}")),
+            batch("empty array", 1L, doc("d1", 1L, "{\"f\":[1.5,2.5]}"), doc("d2", 2L, "{\"f\":[]}"))
         );
     }
 
@@ -340,20 +387,28 @@ public class ScaledFloatFieldMapperColumnarCompatibilityTests extends AbstractCo
         );
         final UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
-            () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":1.5}", "{\"f\":null}")
+            () -> mapColumnarLeaf(mapperService, FIELD, randomFrom(SourceEncoder.available()), "{\"f\":1.5}", "{\"f\":null}")
         );
         assertThat(e.getMessage(), containsString("ESCF value type [NULL] is not yet supported for field [f]"));
     }
 
-    public void testArrayFallsBack() throws IOException {
+    public void testEmptyStringArrayElementWithOffsetsFallsBack() throws IOException {
         final MapperService mapperService = createMapperService(columnarSettings(), scaledFloat(100));
-        final String array = randomFrom("[1.5,2.5]", "[1,2]", "[\"1.5\",\"2\"]", "[1.5]");
+        final UnsupportedOperationException e = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"\",\"1.5\"]}")
+        );
+        assertThat(e.getMessage(), containsString("an empty string in an array of field [f] records a null offsets slot"));
+    }
+
+    public void testArrayWithMixedElementsFallsBack() throws IOException {
+        final MapperService mapperService = createMapperService(columnarSettings(), scaledFloat(100));
+        final String array = randomFrom("[1.5,null]", "[1,\"2.5\"]", "[1.5,true]", "[[1.5,2.5],[3.5]]");
         final UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":" + array + "}", "{}")
         );
-        assertThat(e.getMessage(), containsString("ESCF column kind [ARRAY] is not yet supported for field [f]"));
-        assertEquals(BatchRefusal.MAP_COLUMN_BATCH, assertBatchPathRefuses(mapperService, SourceEncoder.JACKSON, "{\"f\":[1.5,2.5]}"));
+        assertThat(e.getMessage(), containsString("is not yet supported for field [f]"));
     }
 
     public void testUnionWithOtherValueTypesFallsBack() throws IOException {

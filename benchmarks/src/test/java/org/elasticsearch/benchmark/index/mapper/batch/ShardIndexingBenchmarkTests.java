@@ -167,7 +167,7 @@ public class ShardIndexingBenchmarkTests extends ESTestCase {
         runLifecycle(fallbackFactory, "double.mv1to4", ALTERNATE_SOURCE_MODE, ShardIndexingBenchmark.DOCS_PER_INVOCATION, List.of());
         runLifecycle(fallbackFactory, "double.mv1to4", SOURCE_MODE, ALTERNATE_DOCS_PER_REQUEST, List.of());
         ColumnState column = new ColumnState();
-        column.shape = "scaled_float.mv1to4";
+        column.shape = "scaled_float.nullexplicit";
         column.docsPerRequest = ShardIndexingBenchmark.DOCS_PER_INVOCATION;
         assertSetupRejects(column);
         FallbackState fallback = new FallbackState();

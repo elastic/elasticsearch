@@ -29,10 +29,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.escf.ColumnarOffsetsBuilder;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.escf.PresentDocIterator;
 import org.elasticsearch.index.IndexMode;
@@ -837,12 +839,25 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     @Override
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
-        // Only scalar columns are mapped. An ARRAY column is refused, and the chunk falls back to the row path.
+        final boolean recordsOffsets = offsetsFieldName != null && indexSettings.getMode().isStrictColumnar();
         final EscfColumnData outData = switch (source.kind()) {
             case EscfColumnKind.LONG -> scaledFromLongs(source, ctx.recycler());
             case EscfColumnKind.DOUBLE -> scaledFromDoubles(source, ctx.recycler());
-            case EscfColumnKind.STRING -> scaledFromStrings(source, ctx.recycler());
+            case EscfColumnKind.STRING -> scaledFromStrings(source, ctx.recycler(), false);
             case EscfColumnKind.UNION -> scaledFromUnion(source, ctx.recycler());
+            // The cursors of an ARRAY column return one value per element, so an array uses the loop of its element kind.
+            case EscfColumnKind.ARRAY -> switch (source.leafValueKind()) {
+                case EscfColumnKind.LONG -> scaledFromLongs(source, ctx.recycler());
+                case EscfColumnKind.DOUBLE -> scaledFromDoubles(source, ctx.recycler());
+                case EscfColumnKind.STRING -> scaledFromStrings(source, ctx.recycler(), recordsOffsets);
+                default -> throw new UnsupportedOperationException(
+                    Strings.format(
+                        "mapColumnBatch: ESCF array element kind [%s] is not yet supported for field [%s]",
+                        EscfColumnKind.name(source.leafValueKind()),
+                        fullPath()
+                    )
+                );
+            };
             default -> throw new UnsupportedOperationException(
                 Strings.format(
                     "mapColumnBatch: ESCF column kind [%s] is not yet supported for field [%s]",
@@ -860,6 +875,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         );
         if (stored) {
             ctx.addColumn(LuceneLongColumn.of(outData, name, LONG_STORED_ONLY_FIELD_TYPE, LongColumn.NumericKind.LONG));
+        }
+        if (recordsOffsets && outData.kind() == EscfColumnKind.ARRAY) {
+            final LuceneBinaryColumn offsets = ColumnarOffsetsBuilder.build(
+                EscfColumn.from(outData),
+                offsetsFieldName,
+                ctx.recycler(),
+                ctx::addResource
+            );
+            if (offsets != null) {
+                ctx.addColumn(offsets);
+            }
         }
     }
 
@@ -884,12 +910,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
     }
 
-    private EscfColumnData scaledFromStrings(EscfColumn source, Recycler<BytesRef> recycler) {
+    private EscfColumnData scaledFromStrings(EscfColumn source, Recycler<BytesRef> recycler, boolean rejectDroppedValues) {
         try (EscfColumnBuilder builder = newLongColumn(recycler)) {
             // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
             final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                setFromString(builder, doc, cursor.value());
+                setFromString(builder, doc, cursor.value(), rejectDroppedValues);
             }
             return builder.finish(source.docCount());
         }
@@ -904,7 +930,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 switch (type) {
                     case SourceValueType.LONG -> builder.setLong(doc, encodeFinite((double) source.getLongValue(doc)));
                     case SourceValueType.DOUBLE -> builder.setLong(doc, encodeFinite(source.getDoubleValue(doc)));
-                    case SourceValueType.STRING -> setFromString(builder, doc, source.getBinaryValue(doc));
+                    case SourceValueType.STRING -> setFromString(builder, doc, source.getBinaryValue(doc), false);
                     // Nulls, booleans and arrays in a UNION column stay on the row path.
                     default -> throw new UnsupportedOperationException(
                         Strings.format(
@@ -919,12 +945,18 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
     }
 
-    private void setFromString(EscfColumnBuilder builder, int doc, BytesRef value) {
+    // rejectDroppedValues: an array element without an output value is a null slot in the row path's offsets, which
+    // ColumnarOffsetsBuilder does not emit.
+    private void setFromString(EscfColumnBuilder builder, int doc, BytesRef value, boolean rejectDroppedValues) {
         AbstractXContentParser.checkCoerceString(coerce.value(), Double.class);
         if (value.length == 0) {
             // An empty string is a null on the row path.
             if (nullValue != null) {
                 builder.setLong(doc, encode(nullValue, scalingFactor));
+            } else if (rejectDroppedValues) {
+                throw new UnsupportedOperationException(
+                    Strings.format("mapColumnBatch: an empty string in an array of field [%s] records a null offsets slot", fullPath())
+                );
             }
             // else leave absent — no slot written, validity bit stays clear
             return;

@@ -109,6 +109,14 @@ public final class Shapes {
                 .expect(Expect.FALLBACK_MAP)
                 .build("scaled_float.mv1to4")
         );
+        add(
+            shapes,
+            numeric("scaled_float").param("scaling_factor", 100)
+                .fields(4)
+                .nullEvery(10)
+                .expect(Expect.FALLBACK_MAP)
+                .build("scaled_float.nullexplicit")
+        );
         add(shapes, metrics4());
         add(shapes, dateStrings());
         return Collections.unmodifiableMap(shapes);

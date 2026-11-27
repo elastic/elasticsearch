@@ -264,6 +264,7 @@ public class ShardIndexingBenchmark {
                 "long.nullexplicit",
                 "scaled_float.dense",
                 "scaled_float.mv1to4",
+                "scaled_float.nullexplicit",
                 "date.str" }
         )
         public String shape;
@@ -305,8 +306,8 @@ public class ShardIndexingBenchmark {
     @State(Scope.Benchmark)
     public static class FallbackState extends ShardFixtureState {
 
-        @Param({ "scaled_float.mv1to4" })
-        @ExtraParam({ "double.mv1to4", "float.mv1to4", "half_float.mv1to4" })
+        @Param({ "scaled_float.nullexplicit" })
+        @ExtraParam({ "double.mv1to4", "float.mv1to4", "half_float.mv1to4", "scaled_float.mv1to4" })
         public String shape;
 
         @Param({ "5000" })

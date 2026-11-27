@@ -108,16 +108,13 @@ public class DatafeedJobBuilder {
 
     /**
      * Maps the latest posted record time to the last time the datafeed has fully read. Rows of a bucketed ES|QL query carry the bucket
-     * start, so the whole bucket has been posted. The bucket length is the larger of the DESCRIBE interval and the grouping interval,
-     * because the chunked extractor still floors the window start on the grouping interval. That term goes away when the aligner uses
-     * the DESCRIBE interval.
+     * start, so the whole bucket of the DESCRIBE interval has been posted.
      */
-    private static LongUnaryOperator lastEndTimeForRecord(DatafeedConfig datafeedConfig, DataExtractorFactory dataExtractorFactory) {
-        long describedBucketMs = dataExtractorFactory.timeBucketMillis();
-        if (describedBucketMs <= 0) {
+    private static LongUnaryOperator lastEndTimeForRecord(DataExtractorFactory dataExtractorFactory) {
+        long bucketMs = dataExtractorFactory.timeBucketMillis();
+        if (bucketMs <= 0) {
             return LongUnaryOperator.identity();
         }
-        long bucketMs = Math.max(describedBucketMs, datafeedConfig.getGroupingInterval().millis());
         return recordMs -> recordMs + bucketMs - 1;
     }
 
@@ -287,7 +284,7 @@ public class DatafeedJobBuilder {
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
             crossClusterSearchStats,
-            lastEndTimeForRecord(datafeedConfig, dataExtractorFactory)
+            lastEndTimeForRecord(dataExtractorFactory)
         );
         listener.onResponse(datafeedJob);
     }

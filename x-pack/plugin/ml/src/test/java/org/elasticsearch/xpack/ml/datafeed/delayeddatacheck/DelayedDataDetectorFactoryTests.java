@@ -166,21 +166,6 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
         assertThat(detector.getWindow(), equalTo(TimeValue.timeValueMinutes(10).millis()));
     }
 
-    public void testBuilderGivenEsqlDatafeedWithMismatchedGroupingIntervalShouldFailAssertion() {
-        Job job = createJob(TimeValue.timeValueSeconds(2), "event_count");
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("id", "jobId");
-        builder.setEsqlQuery("FROM index1");
-        builder.setSourceTimeField("source_time");
-        builder.setGroupingInterval(TimeValue.timeValueSeconds(4));
-        builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10)));
-        DatafeedConfig datafeedConfig = builder.build();
-
-        expectThrows(
-            AssertionError.class,
-            () -> DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, mock(Client.class), xContentRegistry())
-        );
-    }
-
     public void testBuilderGivenEsqlDatafeedAndDefaultDelayedDataCheckShouldReturnEsqlDetector() {
         Job job = createJob(TimeValue.timeValueSeconds(2), "event_count");
         DatafeedConfig datafeedConfig = createEsqlDatafeed(null);
@@ -227,7 +212,6 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("id", "jobId");
         builder.setEsqlQuery("FROM index1");
         builder.setSourceTimeField("source_time");
-        builder.setGroupingInterval(TimeValue.timeValueSeconds(2));
         if (delayedDataCheckConfig != null) {
             builder.setDelayedDataCheckConfig(delayedDataCheckConfig);
         }

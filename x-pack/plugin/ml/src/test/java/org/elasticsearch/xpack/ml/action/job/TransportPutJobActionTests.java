@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
@@ -474,9 +473,7 @@ public class TransportPutJobActionTests extends ESTestCase {
     }
 
     private static DatafeedConfig.Builder esqlDatafeedBuilder() {
-        return new DatafeedConfig.Builder().setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1));
+        return new DatafeedConfig.Builder().setEsqlQuery("FROM logs").setSourceTimeField("@timestamp");
     }
 
     private static ClusterState clusterStateWithMinTransportVersion(TransportVersion transportVersion) {

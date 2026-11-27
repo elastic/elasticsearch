@@ -83,7 +83,6 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CON
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INVALID_ID;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.getMessage;
@@ -136,6 +135,19 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     static final TransportVersion DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_READDED = TransportVersion.fromName(
         "datafeed_max_consecutive_extraction_failures_readded"
     );
+
+    /**
+     * Reads the slot of the removed ES|QL {@code grouping_interval} setting. Nodes since {@link #ML_DATAFEED_ESQL_QUERY} still carry it
+     * after {@code source_time_field}; it is always empty because the setting never left the feature flag.
+     */
+    static void skipRemovedGroupingInterval(StreamInput in) throws IOException {
+        in.readOptionalTimeValue();
+    }
+
+    /** Writes the empty slot of the removed ES|QL {@code grouping_interval} setting, see {@link #skipRemovedGroupingInterval}. */
+    static void writeRemovedGroupingInterval(StreamOutput out) throws IOException {
+        out.writeOptionalTimeValue(null);
+    }
 
     /**
      * Whether {@code max_consecutive_extraction_failures} is carried on the wire at the given transport version.
@@ -200,7 +212,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField ESQL_QUERY = new ParseField("esql_query");
     public static final ParseField SOURCE_TIME_FIELD = new ParseField("source_time_field");
-    public static final ParseField GROUPING_INTERVAL = new ParseField("grouping_interval");
     public static final ParseField SCROLL_SIZE = new ParseField("scroll_size");
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
     public static final ParseField AGGS = new ParseField("aggs");
@@ -264,7 +275,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         );
         parser.declareString(Builder::setEsqlQuery, ESQL_QUERY);
         parser.declareString(Builder::setSourceTimeField, SOURCE_TIME_FIELD);
-        parser.declareString((builder, val) -> builder.setGroupingInterval(Builder.parseFixedGroupingInterval(val)), GROUPING_INTERVAL);
         parser.declareObject(Builder::setAggregationsSafe, (p, c) -> AggProvider.fromXContent(p, ignoreUnknownFields), AGGREGATIONS);
         parser.declareObject(Builder::setAggregationsSafe, (p, c) -> AggProvider.fromXContent(p, ignoreUnknownFields), AGGS);
         parser.declareObject(Builder::setScriptFields, (p, c) -> {
@@ -329,8 +339,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     private final String esqlQuery;
     @Nullable
     private final String sourceTimeField;
-    @Nullable
-    private final TimeValue groupingInterval;
     private final AggProvider aggProvider;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
@@ -355,7 +363,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         QueryProvider queryProvider,
         String esqlQuery,
         String sourceTimeField,
-        TimeValue groupingInterval,
         AggProvider aggProvider,
         List<SearchSourceBuilder.ScriptField> scriptFields,
         Integer scrollSize,
@@ -377,7 +384,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.queryProvider = queryProvider == null ? null : new QueryProvider(queryProvider);
         this.esqlQuery = esqlQuery;
         this.sourceTimeField = sourceTimeField;
-        this.groupingInterval = groupingInterval;
         this.aggProvider = aggProvider == null ? null : new AggProvider(aggProvider);
         this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
         this.scrollSize = scrollSize;
@@ -407,12 +413,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
             this.esqlQuery = in.readOptionalString();
             this.sourceTimeField = in.readOptionalString();
-            this.groupingInterval = in.readOptionalTimeValue();
+            skipRemovedGroupingInterval(in);
         } else {
             this.queryProvider = QueryProvider.fromStream(in);
             this.esqlQuery = null;
             this.sourceTimeField = null;
-            this.groupingInterval = null;
         }
         // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
         this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
@@ -675,11 +680,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return sourceTimeField;
     }
 
-    @Nullable
-    public TimeValue getGroupingInterval() {
-        return groupingInterval;
-    }
-
     /**
      * Fully parses the semi-parsed {@code Map<String, Object>} aggregations
      *
@@ -850,7 +850,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             out.writeOptionalWriteable(queryProvider);
             out.writeOptionalString(esqlQuery);
             out.writeOptionalString(sourceTimeField);
-            out.writeOptionalTimeValue(groupingInterval);
+            writeRemovedGroupingInterval(out);
         } else {
             failIfEsqlDatafeedCannotBeSerialized();
             // Pre-ESQL nodes assume a non-null query.
@@ -953,7 +953,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (esqlQuery != null) {
             builder.field(ESQL_QUERY.getPreferredName(), esqlQuery);
             builder.field(SOURCE_TIME_FIELD.getPreferredName(), sourceTimeField);
-            builder.field(GROUPING_INTERVAL.getPreferredName(), groupingInterval.getStringRep());
         }
 
         if (frequency != null) {
@@ -1048,7 +1047,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             && Objects.equals(this.queryProvider, that.queryProvider)
             && Objects.equals(this.esqlQuery, that.esqlQuery)
             && Objects.equals(this.sourceTimeField, that.sourceTimeField)
-            && Objects.equals(this.groupingInterval, that.groupingInterval)
             && Objects.equals(this.scrollSize, that.scrollSize)
             && Objects.equals(this.aggProvider, that.aggProvider)
             && Objects.equals(this.scriptFields, that.scriptFields)
@@ -1074,7 +1072,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             queryProvider,
             esqlQuery,
             sourceTimeField,
-            groupingInterval,
             scrollSize,
             aggProvider,
             scriptFields,
@@ -1108,7 +1105,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      *
      * If the datafeed has aggregations, the default frequency is the
      * closest multiple of the histogram interval based on the rules above.
-     * ES|QL datafeeds snap the default to a multiple of {@code grouping_interval} the same way.
+     * ES|QL datafeeds snap the default to a multiple of the bucket span the same way. The bucket span is a multiple of the time
+     * column's {@code DESCRIBE} interval.
      *
      * @param bucketSpan the bucket span
      * @return the default frequency
@@ -1118,7 +1116,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (hasAggregations()) {
             defaultFrequency = snapDefaultFrequencyToInterval(defaultFrequency, getHistogramIntervalMillis(xContentRegistry));
         } else if (getEsqlQuery() != null) {
-            defaultFrequency = snapDefaultFrequencyToInterval(defaultFrequency, getGroupingInterval().millis());
+            defaultFrequency = snapDefaultFrequencyToInterval(defaultFrequency, bucketSpan.millis());
         }
         return defaultFrequency;
     }
@@ -1164,7 +1162,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         private QueryProvider queryProvider;
         private String esqlQuery;
         private String sourceTimeField;
-        private TimeValue groupingInterval;
         private AggProvider aggProvider;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
@@ -1195,7 +1192,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.queryProvider = config.queryProvider == null ? null : new QueryProvider(config.queryProvider);
             this.esqlQuery = config.esqlQuery;
             this.sourceTimeField = config.sourceTimeField;
-            this.groupingInterval = config.groupingInterval;
             this.aggProvider = config.aggProvider == null ? null : new AggProvider(config.aggProvider);
             this.scriptFields = config.scriptFields == null ? null : new ArrayList<>(config.scriptFields);
             this.scrollSize = config.scrollSize;
@@ -1225,12 +1221,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
                 this.esqlQuery = in.readOptionalString();
                 this.sourceTimeField = in.readOptionalString();
-                this.groupingInterval = in.readOptionalTimeValue();
+                skipRemovedGroupingInterval(in);
             } else {
                 this.queryProvider = QueryProvider.fromStream(in);
                 this.esqlQuery = null;
                 this.sourceTimeField = null;
-                this.groupingInterval = null;
             }
             // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
             this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
@@ -1278,7 +1273,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 out.writeOptionalWriteable(queryProvider);
                 out.writeOptionalString(esqlQuery);
                 out.writeOptionalString(sourceTimeField);
-                out.writeOptionalTimeValue(groupingInterval);
+                writeRemovedGroupingInterval(out);
             } else {
                 failIfEsqlDatafeedCannotBeSerialized();
                 // Pre-ESQL nodes assume a non-null query.
@@ -1337,7 +1332,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 && Objects.equals(queryProvider, builder.queryProvider)
                 && Objects.equals(esqlQuery, builder.esqlQuery)
                 && Objects.equals(sourceTimeField, builder.sourceTimeField)
-                && Objects.equals(groupingInterval, builder.groupingInterval)
                 && Objects.equals(aggProvider, builder.aggProvider)
                 && Objects.equals(scriptFields, builder.scriptFields)
                 && Objects.equals(scrollSize, builder.scrollSize)
@@ -1363,7 +1357,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 queryProvider,
                 esqlQuery,
                 sourceTimeField,
-                groupingInterval,
                 aggProvider,
                 scriptFields,
                 scrollSize,
@@ -1431,11 +1424,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         public Builder setSourceTimeField(String sourceTimeField) {
             this.sourceTimeField = sourceTimeField;
-            return this;
-        }
-
-        public Builder setGroupingInterval(TimeValue groupingInterval) {
-            this.groupingInterval = groupingInterval;
             return this;
         }
 
@@ -1625,7 +1613,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 queryProvider,
                 esqlQuery,
                 sourceTimeField,
-                groupingInterval,
                 aggProvider,
                 scriptFields,
                 scrollSize,
@@ -1657,18 +1644,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                         getMessage(DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY, SOURCE_TIME_FIELD.getPreferredName())
                     );
                 }
-                if (groupingInterval != null) {
-                    throw ExceptionsHelper.badRequestException(
-                        getMessage(DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY, GROUPING_INTERVAL.getPreferredName())
-                    );
-                }
                 return;
             }
             if (Strings.isNullOrEmpty(sourceTimeField)) {
                 throw ExceptionsHelper.badRequestException(DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD);
-            }
-            if (groupingInterval == null) {
-                throw ExceptionsHelper.badRequestException(DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL);
             }
             if (queryProvider != null) {
                 throw ExceptionsHelper.badRequestException(
@@ -1825,10 +1804,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         private static ElasticsearchException invalidOptionValue(String fieldName, Object value) {
             String msg = getMessage(DATAFEED_CONFIG_INVALID_OPTION_VALUE, fieldName, value);
             throw ExceptionsHelper.badRequestException(msg);
-        }
-
-        static TimeValue parseFixedGroupingInterval(String rawValue) {
-            return TimeValue.parseTimeValue(rawValue, GROUPING_INTERVAL.getPreferredName());
         }
     }
 }

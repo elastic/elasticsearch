@@ -60,7 +60,14 @@ public record EsqlDataExtractorFactory(
             timeField,
             summaryCountField,
             factoryHandler.delegateFailureAndWrap((handler, response) -> {
-                long timeBucketMillis = EsqlDatafeedQueryValidator.checkResponse(response, timeField, summaryCountField, datafeed.getId());
+                long timeBucketMillis = EsqlDatafeedQueryValidator.checkResponse(
+                    response,
+                    timeField,
+                    summaryCountField,
+                    job.getAnalysisConfig().getBucketSpan(),
+                    datafeed.getFrequency(),
+                    datafeed.getId()
+                );
                 handler.onResponse(new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, timeBucketMillis));
             })
         );

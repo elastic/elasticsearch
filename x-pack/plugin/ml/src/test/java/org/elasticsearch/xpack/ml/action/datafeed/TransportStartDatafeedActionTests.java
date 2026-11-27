@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -92,7 +91,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs")
             .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
         // Does not throw: the feature flag is on and the cluster is fully upgraded.
         TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState());
@@ -101,7 +99,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
     public void testStoredEsqlDatafeedOnMixedVersionClusterShouldRejectStart() {
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs")
             .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
         ClusterState state = ClusterState.builder(new ClusterName("test"))
             .putCompatibilityVersions(
@@ -224,9 +221,9 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         DatafeedConfig datafeed = newEsqlDatafeed().setHeaders(Map.of("h", "v")).setProjectRouting("_alias:prod-*").build();
         List<String> remote = List.of("east:logs-*");
         doAnswer(invocation -> {
-            invocation.<ActionListener<List<String>>>getArgument(6).onResponse(remote);
+            invocation.<ActionListener<List<String>>>getArgument(8).onResponse(remote);
             return null;
-        }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
+        }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L);
         PlainActionFuture<List<String>> future = new PlainActionFuture<>();
@@ -250,6 +247,8 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             isNull(),
             eq("time"),
             isNull(),
+            eq(newJob().getAnalysisConfig().getBucketSpan()),
+            isNull(),
             any(),
             eq("esql-datafeed")
         );
@@ -259,9 +258,9 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
         DatafeedConfig datafeed = newEsqlDatafeed().build();
         doAnswer(invocation -> {
-            invocation.<ActionListener<List<String>>>getArgument(6).onFailure(new IllegalStateException("boom"));
+            invocation.<ActionListener<List<String>>>getArgument(8).onFailure(new IllegalStateException("boom"));
             return null;
-        }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
+        }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L);
         PlainActionFuture<List<String>> future = new PlainActionFuture<>();
@@ -329,9 +328,9 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             RestStatus.BAD_REQUEST
         );
         doAnswer(invocation -> {
-            invocation.<ActionListener<List<String>>>getArgument(6).onFailure(probeFailure);
+            invocation.<ActionListener<List<String>>>getArgument(8).onFailure(probeFailure);
             return null;
-        }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
+        }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         doAnswer(invocation -> {
             invocation.<ActionListener<DatafeedConfig.Builder>>getArgument(2)
@@ -401,9 +400,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
     }
 
     private static DatafeedConfig.Builder newEsqlDatafeed() {
-        return new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM east:logs-*")
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1));
+        return new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM east:logs-*").setSourceTimeField("@timestamp");
     }
 
     private static Job newJob() {
@@ -420,7 +417,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
 
         DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
             .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
 
         CrossProjectModeDecider decider = new CrossProjectModeDecider(
@@ -446,7 +442,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         // The start action must not build an ES|QL extractor factory (it would run a second | DESCRIBE); the task node does.
         DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
             .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
         DatafeedConfig classicDatafeed = new DatafeedConfig.Builder("classic-datafeed", "job_id").setIndices(List.of("logs")).build();
 
@@ -461,7 +456,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         assumeTrue("cross-project ML is off in this build", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
             .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
         CrossProjectModeDecider crossProject = new CrossProjectModeDecider(
             Settings.builder().put("serverless.cross_project.enabled", true).build()

@@ -219,7 +219,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {
         return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery(
             "FROM logs | STATS c = COUNT(*) BY bucket = BUCKET(@timestamp, 1 hour)"
-        ).setSourceTimeField("@timestamp").setGroupingInterval(TimeValue.timeValueHours(1));
+        ).setSourceTimeField("@timestamp");
     }
 
     private static ClusterState currentCompatibleClusterState() {

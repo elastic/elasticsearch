@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -123,10 +122,7 @@ public class DatafeedEsqlGatesTests extends ESTestCase {
     }
 
     private static DatafeedConfig esqlDatafeed() {
-        return new DatafeedConfig.Builder("datafeed-1", "job-1").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
-            .build();
+        return new DatafeedConfig.Builder("datafeed-1", "job-1").setEsqlQuery("FROM logs").setSourceTimeField("@timestamp").build();
     }
 
     private static ClusterState clusterStateWithMinTransportVersion(TransportVersion transportVersion) {

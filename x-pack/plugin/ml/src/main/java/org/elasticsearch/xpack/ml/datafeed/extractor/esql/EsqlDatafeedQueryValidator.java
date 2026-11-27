@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
@@ -111,7 +112,7 @@ public class EsqlDatafeedQueryValidator {
 
     /**
      * Runs {@code esqlQuery | DESCRIBE} filtered to the required columns and checks that the time column is a date and the summary
-     * count column. Tolerates deferred source existence.
+     * count column, and that a bucketed time column fits {@code bucketSpan} and {@code frequency}. Tolerates deferred source existence.
      */
     public void validateQuery(
         Client client,
@@ -120,6 +121,8 @@ public class EsqlDatafeedQueryValidator {
         @Nullable String projectRouting,
         String timeField,
         @Nullable String summaryCountField,
+        TimeValue bucketSpan,
+        @Nullable TimeValue frequency,
         ActionListener<Boolean> listener,
         @Nullable String datafeedId
     ) {
@@ -130,6 +133,8 @@ public class EsqlDatafeedQueryValidator {
             projectRouting,
             timeField,
             summaryCountField,
+            bucketSpan,
+            frequency,
             Phase.PUT,
             listener.map(remoteSources -> Boolean.TRUE),
             datafeedId
@@ -149,10 +154,24 @@ public class EsqlDatafeedQueryValidator {
         @Nullable String projectRouting,
         String timeField,
         @Nullable String summaryCountField,
+        TimeValue bucketSpan,
+        @Nullable TimeValue frequency,
         ActionListener<List<String>> listener,
         @Nullable String datafeedId
     ) {
-        describe(client, headers, esqlQuery, projectRouting, timeField, summaryCountField, Phase.START, listener, datafeedId);
+        describe(
+            client,
+            headers,
+            esqlQuery,
+            projectRouting,
+            timeField,
+            summaryCountField,
+            bucketSpan,
+            frequency,
+            Phase.START,
+            listener,
+            datafeedId
+        );
     }
 
     /** PUT defers a source that does not exist, an unreachable remote and skipped clusters, as for a DSL datafeed. Start fails. */
@@ -169,6 +188,8 @@ public class EsqlDatafeedQueryValidator {
         @Nullable String projectRouting,
         String timeField,
         @Nullable String summaryCountField,
+        TimeValue bucketSpan,
+        @Nullable TimeValue frequency,
         Phase phase,
         ActionListener<List<String>> listener,
         @Nullable String datafeedId
@@ -186,7 +207,7 @@ public class EsqlDatafeedQueryValidator {
                         return;
                     }
                 }
-                checkResponse(response, timeField, summaryCountField, datafeedId);
+                checkResponse(response, timeField, summaryCountField, bucketSpan, frequency, datafeedId);
                 for (EsqlClusterInfo cluster : response.response().clusters()) {
                     String alias = cluster.clusterAlias();
                     if (alias.equals(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS) || alias.equals(ProjectRoutingResolver.ORIGIN)) {
@@ -283,14 +304,16 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * The checks a {@code DESCRIBE} response must pass whenever a datafeed runs: no unavailable remote cluster, a date time column
-     * and the summary count column. Shared by the datafeed start on the master and the task node. Returns the time column's bucket
-     * length in milliseconds, or 0 when the column is not bucketed.
+     * The checks a {@code DESCRIBE} response must pass whenever a datafeed runs: no unavailable remote cluster, a date time column,
+     * the summary count column, and a time bucket that divides {@code bucketSpan} and {@code frequency}. Shared by the datafeed start
+     * on the master and the task node. Returns the time column's bucket length in milliseconds, or 0 when the column is not bucketed.
      */
     static long checkResponse(
         EsqlQueryResponse response,
         String timeField,
         @Nullable String summaryCountField,
+        TimeValue bucketSpan,
+        @Nullable TimeValue frequency,
         @Nullable String datafeedId
     ) {
         List<String> unavailable = unavailableClustersWithoutDescription(response);
@@ -304,7 +327,50 @@ public class EsqlDatafeedQueryValidator {
                 )
             );
         }
-        return checkDescription(EsqlQueryDescription.from(response.response()), timeField, summaryCountField, datafeedId);
+        long timeBucketMillis = checkDescription(EsqlQueryDescription.from(response.response()), timeField, summaryCountField, datafeedId);
+        checkTimeBucketFitsJob(timeBucketMillis, timeField, bucketSpan, frequency, datafeedId);
+        return timeBucketMillis;
+    }
+
+    /**
+     * The datafeed windows are aligned to the time bucket and each row is posted at its bucket start, so a bucket must not cross a
+     * job bucket and a realtime cycle must end on a bucket boundary. The same rules apply to the histogram interval of a datafeed
+     * with aggregations.
+     */
+    static void checkTimeBucketFitsJob(
+        long timeBucketMillis,
+        String timeField,
+        TimeValue bucketSpan,
+        @Nullable TimeValue frequency,
+        @Nullable String datafeedId
+    ) {
+        if (timeBucketMillis <= 0) {
+            return;
+        }
+        String subject = esqlDatafeedSubject(datafeedId);
+        String interval = TimeValue.timeValueMillis(timeBucketMillis).toString();
+        if (bucketSpan.millis() % timeBucketMillis != 0) {
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_TIME_BUCKET_NOT_DIVISOR_OF_BUCKET_SPAN,
+                    subject,
+                    timeField,
+                    interval,
+                    bucketSpan.getStringRep()
+                )
+            );
+        }
+        if (frequency != null && frequency.millis() % timeBucketMillis != 0) {
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_FREQUENCY_NOT_MULTIPLE_OF_TIME_BUCKET,
+                    subject,
+                    frequency.getStringRep(),
+                    interval,
+                    timeField
+                )
+            );
+        }
     }
 
     static long checkDescription(
@@ -398,8 +464,8 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * An ES|QL datafeed update needs the probe when its project routing or credential changed, or when it newly requires a summary
-     * count column. Other updates cannot change the probe outcome. A PUT always probes and does not use this method.
+     * An ES|QL datafeed update needs the probe when its project routing, credential or frequency changed, or when it newly requires a
+     * summary count column. Other updates cannot change the probe outcome. A PUT always probes and does not use this method.
      */
     public static boolean updateNeedsProbe(DatafeedConfig current, DatafeedConfig updated, Job job) {
         if (updated.getEsqlQuery() == null) {
@@ -407,7 +473,9 @@ public class EsqlDatafeedQueryValidator {
         }
         boolean searchScopeChanged = Objects.equals(current.getProjectRouting(), updated.getProjectRouting()) == false
             || Objects.equals(credentialId(current), credentialId(updated)) == false;
-        if (searchScopeChanged) {
+        // The frequency must stay a multiple of the time column's interval.
+        boolean frequencyChanged = Objects.equals(current.getFrequency(), updated.getFrequency()) == false;
+        if (searchScopeChanged || frequencyChanged) {
             return true;
         }
         String requiredBefore = requiredSummaryCountField(current, job);

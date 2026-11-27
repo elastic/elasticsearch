@@ -15,7 +15,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -767,7 +766,6 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setEsqlQuery("FROM myIndex");
         builder.setSourceTimeField("time");
-        builder.setGroupingInterval(TimeValue.timeValueHours(1));
         return builder;
     }
 

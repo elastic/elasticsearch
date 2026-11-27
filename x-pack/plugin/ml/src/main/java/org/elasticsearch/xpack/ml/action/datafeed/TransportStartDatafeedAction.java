@@ -430,6 +430,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             effectiveDatafeed.getProjectRouting(),
             job.getDataDescription().getTimeField(),
             EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveDatafeed, job),
+            job.getAnalysisConfig().getBucketSpan(),
+            datafeed.getFrequency(),
             ActionListener.wrap(remoteSources -> {
                 params.setDatafeedIndices(remoteSources);
                 listener.onResponse(trueRemoteIndices(remoteSources));

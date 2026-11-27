@@ -364,6 +364,9 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
     }
 
+    /** A bucket span that every fixed interval the harness responses report divides. */
+    private static final TimeValue HARNESS_BUCKET_SPAN = TimeValue.timeValueDays(1);
+
     private List<String> validateAtStart(ValidatorHarness harness) {
         AtomicReference<List<String>> remote = new AtomicReference<>();
         harness.validator.validateAtStart(
@@ -372,6 +375,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             ESQL_QUERY,
             null,
             TIME_FIELD,
+            null,
+            HARNESS_BUCKET_SPAN,
             null,
             ActionListener.wrap(remote::set, e -> fail("unexpected failure " + e)),
             null
@@ -388,6 +393,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             ESQL_QUERY,
             null,
             TIME_FIELD,
+            null,
+            HARNESS_BUCKET_SPAN,
             null,
             ActionListener.wrap(remote -> fail("expected failure"), failure::set),
             null
@@ -1026,6 +1033,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 projectRouting,
                 timeField,
                 summaryCountField,
+                HARNESS_BUCKET_SPAN,
+                null,
                 listener,
                 null
             );
@@ -1151,7 +1160,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     private static DatafeedConfig.Builder updateDatafeed() {
         return new DatafeedConfig.Builder("df", "job").setEsqlQuery(UPDATE_ESQL_QUERY)
             .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1)));
     }
 
@@ -1221,6 +1229,80 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         DatafeedConfig current = updateDatafeed().setHeaders(Map.of("es-security-runas-user", "a")).build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setHeaders(Map.of("es-security-runas-user", "b")).build();
         assertFalse(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField("c")));
+    }
+
+    public void testFrequencyChangedShouldRunProbe() {
+        DatafeedConfig current = updateDatafeed().build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setFrequency(TimeValue.timeValueMinutes(10)).build();
+        assertTrue(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField("c")));
+    }
+
+    public void testRawTimeColumnShouldFitAnyBucketSpanAndFrequency() {
+        EsqlDatafeedQueryValidator.checkTimeBucketFitsJob(0, TIME_FIELD, TimeValue.timeValueHours(1), TimeValue.timeValueSeconds(7), "df");
+    }
+
+    public void testTimeBucketDividingBucketSpanAndFrequencyShouldFit() {
+        long quarterHour = TimeValue.timeValueMinutes(15).millis();
+        EsqlDatafeedQueryValidator.checkTimeBucketFitsJob(quarterHour, TIME_FIELD, TimeValue.timeValueHours(1), null, "df");
+        EsqlDatafeedQueryValidator.checkTimeBucketFitsJob(
+            quarterHour,
+            TIME_FIELD,
+            TimeValue.timeValueHours(1),
+            TimeValue.timeValueMinutes(30),
+            "df"
+        );
+    }
+
+    public void testTimeBucketNotDividingBucketSpanShouldBeRejected() {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> EsqlDatafeedQueryValidator.checkTimeBucketFitsJob(
+                TimeValue.timeValueMinutes(40).millis(),
+                TIME_FIELD,
+                TimeValue.timeValueHours(1),
+                null,
+                "df"
+            )
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_TIME_BUCKET_NOT_DIVISOR_OF_BUCKET_SPAN,
+                    Messages.getMessage(Messages.DATAFEED_ESQL_SUBJECT_WITH_ID, "df"),
+                    TIME_FIELD,
+                    "40m",
+                    "1h"
+                )
+            )
+        );
+    }
+
+    public void testFrequencyNotMultipleOfTimeBucketShouldBeRejected() {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> EsqlDatafeedQueryValidator.checkTimeBucketFitsJob(
+                TimeValue.timeValueMinutes(15).millis(),
+                TIME_FIELD,
+                TimeValue.timeValueHours(1),
+                TimeValue.timeValueMinutes(10),
+                "df"
+            )
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_FREQUENCY_NOT_MULTIPLE_OF_TIME_BUCKET,
+                    Messages.getMessage(Messages.DATAFEED_ESQL_SUBJECT_WITH_ID, "df"),
+                    "10m",
+                    "15m",
+                    TIME_FIELD
+                )
+            )
+        );
     }
 
     public void testOnlyQueryDelayChangedShouldRunNoProbe() {

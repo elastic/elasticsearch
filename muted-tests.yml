@@ -681,3 +681,8 @@ tests:
   tasks:
   - :server:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/167818
+- class: org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testInfer_StreamRequest_ErrorResponse
+  issue: https://github.com/elastic/elasticsearch/issues/167825

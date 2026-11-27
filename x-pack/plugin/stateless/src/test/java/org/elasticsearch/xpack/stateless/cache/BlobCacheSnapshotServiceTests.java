@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -297,26 +298,32 @@ public class BlobCacheSnapshotServiceTests extends ESTestCase {
                 node.threadPool
             );
 
-            uploadCommits(node, 2);
-            final long latestUploaded = node.commitService.getLatestUploadedBcc(node.shardId).primaryTermAndGeneration().generation();
-
-            // the cache of an indexing shard is warmed from the batched compound commit before it is uploaded: a blob that is newer than
-            // the latest upload cannot be restored, and one that is not newer can
-            final var uploaded = new FileCacheKey(node.shardId, PRIMARY_TERM, BccBlob.blobNameFromGeneration(latestUploaded));
-            final var notUploaded = new FileCacheKey(node.shardId, PRIMARY_TERM, BccBlob.blobNameFromGeneration(latestUploaded + 1));
+            // the first two commits are batched into one BCC, which is named after the first of them
+            final var firstBatch = createCommits(node, 2);
+            uploadUpTo(node, firstBatch.getLast());
+            final long uploadedBcc = firstBatch.getFirst();
+            assertThat(node.commitService.getLatestUploadedBcc(node.shardId).primaryTermAndGeneration().generation(), equalTo(uploadedBcc));
+            final var uploaded = new FileCacheKey(node.shardId, PRIMARY_TERM, BccBlob.blobNameFromGeneration(uploadedBcc));
             fillWithoutData(node, uploaded, 0, ByteRange.of(0, PAGE));
-            fillWithoutData(node, notUploaded, 0, ByteRange.of(0, PAGE));
+            assertThat(service.snapshot("bench").regions(), greaterThanOrEqualTo(1));
+
+            // The next commits start a new BCC that is only pending, as uploads are delayed until there are more commits or a flush. The
+            // cache of an indexing shard is warmed from a BCC before it is uploaded, so the cache can hold a blob that a restore cannot
+            // download. The BCC is named after the first commit that it holds.
+            final var pendingBatch = createCommits(node, 2);
+            final long pendingBcc = pendingBatch.getFirst();
+            assertThat(pendingBcc, greaterThan(uploadedBcc));
+            final var pending = new FileCacheKey(node.shardId, PRIMARY_TERM, BccBlob.blobNameFromGeneration(pendingBcc));
+            // the whole region is filled, as the warming that comes with the upload would otherwise fill the rest of a partly filled region
+            fillWithoutData(node, pending, 0, ByteRange.of(0, REGION_SIZE));
 
             final var e = expectThrows(IllegalStateException.class, () -> service.snapshot("bench"));
             assertThat(e.getMessage(), containsString("[1] blobs are not uploaded"));
-            assertThat(e.getMessage(), containsString(notUploaded.fileName()));
+            assertThat(e.getMessage(), containsString(pending.fileName()));
 
-            // when the upload catches up with the blob, the snapshot works. It also holds the regions that the uploads themselves warmed.
-            uploadCommits(node, 2);
-            assertThat(
-                node.commitService.getLatestUploadedBcc(node.shardId).primaryTermAndGeneration().generation(),
-                greaterThan(latestUploaded)
-            );
+            // once the BCC is uploaded the same blob is accepted
+            uploadUpTo(node, pendingBatch.getLast());
+            assertThat(node.commitService.getLatestUploadedBcc(node.shardId).primaryTermAndGeneration().generation(), equalTo(pendingBcc));
             assertThat(service.snapshot("bench").regions(), greaterThanOrEqualTo(2));
 
             // the shard that the cached blob belongs to is the one that is asked, and a shard that the commit service does not know has
@@ -329,17 +336,27 @@ public class BlobCacheSnapshotServiceTests extends ESTestCase {
     }
 
     /**
-     * Creates commits on the indexing shard of the node and waits until they are uploaded to the object store.
+     * Creates commits on the indexing shard of the node. Uploads are delayed, so they are batched into a BCC that is pending until it
+     * is uploaded.
+     *
+     * @return the generations of the commits, in order
      */
-    private static void uploadCommits(FakeStatelessNode node, int commits) throws IOException {
-        long lastGeneration = -1L;
+    private static List<Long> createCommits(FakeStatelessNode node, int commits) throws IOException {
+        final List<Long> generations = new ArrayList<>();
         for (var commit : node.generateIndexCommits(commits, false)) {
             node.commitService.onCommitCreation(commit);
-            lastGeneration = commit.getGeneration();
+            generations.add(commit.getGeneration());
         }
-        node.commitService.ensureMaxGenerationToUploadForFlush(node.shardId, lastGeneration);
+        return generations;
+    }
+
+    /**
+     * Uploads the pending commits of the indexing shard up to the generation, and waits until they are in the object store.
+     */
+    private static void uploadUpTo(FakeStatelessNode node, long generation) {
+        node.commitService.ensureMaxGenerationToUploadForFlush(node.shardId, generation);
         final var uploaded = new CountDownLatch(1);
-        node.commitService.addListenerForUploadedGeneration(node.shardId, lastGeneration, ActionListener.releasing(uploaded::countDown));
+        node.commitService.addListenerForUploadedGeneration(node.shardId, generation, ActionListener.releasing(uploaded::countDown));
         safeAwait(uploaded);
     }
 

@@ -538,7 +538,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             documentGroups(scenario),
             DOCUMENT_SHAPES,
             (configuration, mapperService, indexWriter, docs) -> {
-                assertSources(scenario, mapperService, indexWriter, docs, false);
+                assertSources(scenario, mapperService, indexWriter, docs, AbstractColumnarNullContractTestCase::assertSourceDropsNulls);
             }
         );
     }
@@ -609,7 +609,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             documentGroups(scenario).subList(0, 2),
             List.of(SCALARS, ARRAYS),
             (configuration, mapperService, indexWriter, docs) -> {
-                assertSources(scenario, mapperService, indexWriter, docs, false);
+                assertSources(scenario, mapperService, indexWriter, docs, AbstractColumnarNullContractTestCase::assertSourceDropsNulls);
             }
         );
     }
@@ -622,7 +622,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             orderedDocumentGroups(scenario.values()),
             List.of(NULL_ELEMENTS),
             (configuration, mapperService, indexWriter, docs) -> {
-                assertSources(scenario, mapperService, indexWriter, docs, true);
+                assertSources(scenario, mapperService, indexWriter, docs, AbstractColumnarNullContractTestCase::assertSourceKeepsSequence);
             }
         );
     }
@@ -653,7 +653,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         MapperService mapperService,
         IndexWriter indexWriter,
         List<TestDocument> documents,
-        boolean ordered
+        SourceComparison comparison
     ) throws IOException {
         final List<String> failures = new ArrayList<>();
         for (final boolean merged : new boolean[] { false, true }) {
@@ -664,7 +664,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             assertEquals("documents", documents.size(), sources.size());
             for (int i = 0; i < documents.size(); i++) {
                 try {
-                    assertSourceHoldsOnly(scenario, scenario.expected(documents.get(i)), sources.get(i), ordered);
+                    comparison.accept(scenario, scenario.expected(documents.get(i)), sources.get(i));
                 } catch (AssertionError e) {
                     failures.add("merged=" + merged + " document=" + documents.get(i) + " source=" + sources.get(i) + " " + e.getMessage());
                 }
@@ -675,35 +675,48 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         }
     }
 
-    // NOTE: with ordered set, a null the source still holds is left out of the comparison. Whether nulls are dropped is the null
-    // contract and is checked by the unordered comparison, and the two must fail for their own reasons.
-    // The unordered comparison is a check of the distinct values. It does not count repeated values, which #166868 owns.
-    private static void assertSourceHoldsOnly(Scenario scenario, List<Object> expected, String source, boolean ordered) throws IOException {
+    private interface SourceComparison {
+        void accept(Scenario scenario, List<Object> expected, String source) throws IOException;
+    }
+
+    // NOTE: compares distinct values on purpose, because the multiplicity of repeated values belongs to #166868.
+    protected static void assertSourceDropsNulls(Scenario scenario, List<Object> expected, String source) throws IOException {
         final Map<String, Object> parsed = XContentHelper.convertToMap(JsonXContent.jsonXContent, source, false);
         if (expected.isEmpty()) {
             assertFalse("a field without a value is absent", parsed.containsKey(FIELD));
             return;
         }
+        assertTrue("a field with a value is present", parsed.containsKey(FIELD));
         final Object actual = parsed.get(FIELD);
         final List<?> actualValues = actual instanceof List<?> list ? list : Collections.singletonList(actual);
-        final List<String> actualCanonical = new ArrayList<>();
-        for (final Object value : actualValues) {
-            if (ordered && value == null) {
-                continue;
-            }
-            actualCanonical.add(value == null ? "null" : scenario.canonical().apply(value));
-        }
-        final List<String> expectedCanonical = expected.stream().map(value -> scenario.canonical().apply(value)).toList();
-        if (ordered) {
-            assertEquals(expectedCanonical, actualCanonical);
-            return;
-        }
-        final SortedSet<String> expectedDistinct = new TreeSet<>(expectedCanonical);
+        assertFalse("the source holds no null", actualValues.contains(null));
+        final SortedSet<String> expectedDistinct = new TreeSet<>(canonicalValues(scenario, expected));
         if (expectedDistinct.size() == 1 && expected.size() == 1) {
             assertFalse("a single remaining value is a scalar", actual instanceof List);
         } else if (expectedDistinct.size() > 1) {
             assertTrue("several remaining values are an array", actual instanceof List);
         }
-        assertEquals(expectedDistinct, new TreeSet<>(actualCanonical));
+        assertEquals(expectedDistinct, new TreeSet<>(canonicalValues(scenario, actualValues)));
+    }
+
+    // NOTE: a null that the source still holds is left out. Whether nulls are dropped is the null contract and is checked by
+    // assertSourceDropsNulls, so that each of the two fails for its own reason.
+    protected static void assertSourceKeepsSequence(Scenario scenario, List<Object> expected, String source) throws IOException {
+        final Map<String, Object> parsed = XContentHelper.convertToMap(JsonXContent.jsonXContent, source, false);
+        if (expected.isEmpty()) {
+            assertFalse("a field without a value is absent", parsed.containsKey(FIELD));
+            return;
+        }
+        assertTrue("a field with a value is present", parsed.containsKey(FIELD));
+        final Object actual = parsed.get(FIELD);
+        final List<?> actualValues = actual instanceof List<?> list ? list : Collections.singletonList(actual);
+        assertEquals(
+            canonicalValues(scenario, expected),
+            canonicalValues(scenario, actualValues.stream().filter(value -> value != null).toList())
+        );
+    }
+
+    private static List<String> canonicalValues(Scenario scenario, List<?> values) {
+        return values.stream().map(value -> scenario.canonical().apply(value)).toList();
     }
 }

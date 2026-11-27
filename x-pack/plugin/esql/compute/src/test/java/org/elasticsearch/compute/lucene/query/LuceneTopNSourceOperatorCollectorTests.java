@@ -415,28 +415,108 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * A collector whose first documents are its best never sets a minimum competitive score, here because all documents tie
-     * on both sort keys. The operator offers the lowest score of its full top N when it emits it.
+     * The operator offers the lowest score of a full top N when it emits it, because the collector has not always set one.
+     * A collector that sorts by more keys only sets it when it collects a competitive document after its top N is full,
+     * which never happens here because all documents tie on both keys. A collector that sorts by the score alone only sets
+     * it once it has collected more documents than fit, and here it collects exactly {@code limit}.
      */
     public void testFullTopNIsOfferedWhenEmitted() throws IOException {
+        TestSort sort = randomFrom(SHARING);
         int limit = between(1, 20);
+        float score = randomFloat() * 10 + 0.1f;
+        assertThat(
+            sort.toString(),
+            boundAfterTopNOfTiedDocuments(sort, limit, sort == SCORE ? limit : between(limit + 1, 200), score),
+            equalTo(score)
+        );
+    }
+
+    /**
+     * A top N that isn't full says nothing about the documents of other shards, so it offers nothing.
+     */
+    public void testPartialTopNOffersNothing() throws IOException {
+        TestSort sort = randomFrom(SHARING);
+        int limit = between(2, 20);
+        assertThat(
+            sort.toString(),
+            boundAfterTopNOfTiedDocuments(sort, limit, between(1, limit - 1), randomFloat() * 10 + 0.1f),
+            equalTo(0f)
+        );
+    }
+
+    /**
+     * Runs one driver over one shard of {@code docs} documents that all score {@code score} and tie on {@code s}, and returns
+     * the shared bound afterwards.
+     */
+    private float boundAfterTopNOfTiedDocuments(TestSort sort, int limit, int docs, float score) throws IOException {
         Directory shardDirectory = newDirectory();
         IndexReader shardReader = null;
         try {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), shardDirectory)) {
-                for (int d = between(limit + 1, 200); d > 0; d--) {
+                for (int d = 0; d < docs; d++) {
                     writer.addDocument(List.of(new SortedNumericDocValuesField("s", 1)));
                 }
                 shardReader = writer.getReader();
             }
-            float score = randomFloat() * 10 + 0.1f;
             Query query = new BoostQuery(new ConstantScoreQuery(Queries.ALL_DOCS_INSTANCE), score);
             var factory = new LuceneTopNSourceOperator.Factory(
-                new IndexedByShardIdFromSingleton<>(createMockShardContext(shardReader, 0, SCORE_THEN_FIELD)),
+                new IndexedByShardIdFromSingleton<>(createMockShardContext(shardReader, 0, sort)),
                 c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
                 DataPartitioning.SHARD,
                 DataPartitioning.AutoStrategy.DEFAULT,
                 1,
+                between(10, 100),
+                limit,
+                sort.builders(),
+                randomLongBetween(10, 20),
+                true,
+                () -> 0L,
+                QueryWarnings.EMIT
+            );
+            List<Page> results = runDrivers(factory, 1);
+            assertThat(results.stream().mapToInt(Page::getPositionCount).sum(), equalTo(Math.min(limit, docs)));
+            return factory.perShardCollectorProvider.sharedScoreBound.get();
+        } finally {
+            IOUtils.close(shardReader, shardDirectory);
+        }
+    }
+
+    /**
+     * Every document of every shard scores the same, so the second sort key alone orders the rows. A collector that has
+     * filled its top N shares that score, and the other collectors must still collect the documents that tie with it:
+     * the rows with the lowest {@code s} are spread over all shards.
+     */
+    public void testTiesOnScoreAreOrderedBySecondKeyAcrossShards() throws IOException {
+        int numShards = between(2, 4);
+        int limit = between(1, 30);
+        List<Directory> directories = new ArrayList<>();
+        List<IndexReader> readers = new ArrayList<>();
+        try {
+            List<ShardContext> contexts = new ArrayList<>();
+            for (int shard = 0; shard < numShards; shard++) {
+                Directory shardDirectory = newDirectory();
+                directories.add(shardDirectory);
+                try (RandomIndexWriter writer = new RandomIndexWriter(random(), shardDirectory)) {
+                    // Shard i holds i, i + numShards, i + 2 * numShards, ... in a random order
+                    List<Integer> values = new ArrayList<>();
+                    for (int d = between(limit + 1, 200); d > 0; d--) {
+                        values.add(shard + (d - 1) * numShards);
+                    }
+                    Collections.shuffle(values, random());
+                    for (int value : values) {
+                        writer.addDocument(List.of(new SortedNumericDocValuesField("s", value)));
+                    }
+                    readers.add(writer.getReader());
+                }
+                contexts.add(createMockShardContext(readers.get(shard), shard, SCORE_THEN_FIELD));
+            }
+            int taskConcurrency = between(1, 4);
+            var factory = new LuceneTopNSourceOperator.Factory(
+                new IndexedByShardIdFromList<>(contexts),
+                c -> List.of(new LuceneSliceQueue.QueryAndTags(new ConstantScoreQuery(Queries.ALL_DOCS_INSTANCE), List.of())),
+                randomFrom(DataPartitioning.SHARD, DataPartitioning.SEGMENT),
+                DataPartitioning.AutoStrategy.DEFAULT,
+                taskConcurrency,
                 between(10, 100),
                 limit,
                 SCORE_THEN_FIELD.builders(),
@@ -445,14 +525,42 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
                 () -> 0L,
                 QueryWarnings.EMIT
             );
-            DriverContext driverContext = createDriverContext();
-            new TestDriverRunner().run(
-                TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), new TestResultPageSinkOperator(page -> {}))
-            );
-            assertThat(factory.perShardCollectorProvider.sharedScoreBound.get(), equalTo(score));
+            List<Long> actual = new ArrayList<>();
+            for (Page page : runDrivers(factory, taskConcurrency)) {
+                DocVector docs = page.<DocBlock>getBlock(0).asVector();
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    IndexReader shardReader = readers.get(docs.shards().getInt(p));
+                    int doc = shardReader.leaves().get(docs.segments().getInt(p)).docBase + docs.docs().getInt(p);
+                    actual.add(sortKeys(SCORE_THEN_FIELD, shardReader, doc, 1f).s);
+                }
+            }
+            Collections.sort(actual);
+            List<Long> expected = new ArrayList<>();
+            for (long s = 0; s < limit; s++) {
+                expected.add(s);
+            }
+            assertThat(actual.size(), greaterThanOrEqualTo(limit));
+            assertThat(actual.subList(0, limit), equalTo(expected));
         } finally {
-            IOUtils.close(shardReader, shardDirectory);
+            IOUtils.close(readers);
+            IOUtils.close(directories);
         }
+    }
+
+    /**
+     * Runs {@code drivers} drivers that each read from an operator of {@code factory}, and returns the pages they emit.
+     */
+    private List<Page> runDrivers(LuceneTopNSourceOperator.Factory factory, int drivers) {
+        List<Page> results = new CopyOnWriteArrayList<>();
+        List<Driver> toRun = new ArrayList<>();
+        for (int i = 0; i < drivers; i++) {
+            DriverContext driverContext = createDriverContext();
+            toRun.add(
+                TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), new TestResultPageSinkOperator(results::add))
+            );
+        }
+        new TestDriverRunner().run(toRun);
+        return results;
     }
 
     /**

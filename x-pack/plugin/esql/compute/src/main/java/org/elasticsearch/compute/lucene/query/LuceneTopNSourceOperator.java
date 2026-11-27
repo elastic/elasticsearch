@@ -657,9 +657,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
 
         /**
-         * Offers the score of the last row of a full top N. A Lucene collector only sets a minimum competitive score when
-         * it collects a competitive document after its top N is full, so one whose first documents are its best never
-         * sets one.
+         * Offers the score of the last row of a full top N. A Lucene collector with a full top N has not always set a
+         * minimum competitive score: one that sorts by more keys than the score only sets it when it collects a competitive
+         * document afterwards, and one that sorts by the score alone only once it has collected more documents than fit.
          */
         void offerLowestScore(ScoreDoc last) {
             if (sharedScoreBound != null) {

@@ -7,15 +7,25 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializationTests;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentableInExpression;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FieldAttributeTests extends AbstractNamedExpressionSerializationTests<FieldAttribute> {
     public static FieldAttribute createFieldAttribute(int maxDepth, boolean onlyRepresentable) {
@@ -71,5 +81,67 @@ public class FieldAttributeTests extends AbstractNamedExpressionSerializationTes
     @Override
     protected boolean equalityIgnoresId() {
         return false;
+    }
+
+    /**
+     * The name of an attribute under a parent is sent without the parent's path when it starts with it. Check the shapes
+     * that take that path and the ones that must not, both with a node that knows the shorter form and with one that doesn't.
+     */
+    public void testNameRelativeToParentRoundTrips() throws IOException {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(FieldAttribute.ESQL_FIELD_ATTRIBUTE_NAME_WITHOUT_PARENT);
+        List<FieldAttribute> attributes = List.of(
+            // the usual case: the leaf is the name of the field
+            keywordAttribute("a.b", "a.b.c", "c"),
+            // under the parent, but the leaf is not the name of the field, like the synthetic attributes of union types
+            keywordAttribute("a.b", "a.b.$$c$converted_to$keyword", "c"),
+            // the leaf itself contains dots
+            keywordAttribute("a.b", "a.b.c.d", "c.d"),
+            // not under the parent at all
+            keywordAttribute("a.b", "c", "c"),
+            // shares a prefix with the parent, but not as a path
+            keywordAttribute("a.b", "a.bc", "c"),
+            keywordAttribute("a.b", "a.b", "b"),
+            keywordAttribute("a.b", "a.b.", "b"),
+            // no parent
+            keywordAttribute(null, "a.b.c", "c")
+        );
+        for (FieldAttribute attribute : attributes) {
+            for (TransportVersion version : List.of(TransportVersion.current(), before)) {
+                FieldAttribute copy = copyInstance(attribute, version);
+                assertThat(copy.name(), equalTo(attribute.name()));
+                assertThat(copy.parentName(), equalTo(attribute.parentName()));
+                assertThat(copy, equalTo(attribute));
+            }
+        }
+    }
+
+    /**
+     * Sending the name without the parent's path saves the length of that path and its dot, less one byte for the flag.
+     * The leaf name is then also already cached when the field writes its own name, which saves that string and its length.
+     */
+    public void testNameRelativeToParentIsSmaller() throws IOException {
+        String parentName = "a.long.path.to.the.parent";
+        FieldAttribute attribute = keywordAttribute(parentName, parentName + ".leaf", "leaf");
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(FieldAttribute.ESQL_FIELD_ATTRIBUTE_NAME_WITHOUT_PARENT);
+        long saved = serializedSize(attribute, before) - serializedSize(attribute, FieldAttribute.ESQL_FIELD_ATTRIBUTE_NAME_WITHOUT_PARENT);
+        long parentPathAndDot = parentName.length() + 1;
+        long flag = 1;
+        long fieldNameAndLength = "leaf".length() + 1;
+        assertThat(saved, equalTo(parentPathAndDot - flag + fieldNameAndLength));
+    }
+
+    private static FieldAttribute keywordAttribute(String parentName, String name, String fieldName) {
+        EsField field = new EsField(fieldName, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        return new FieldAttribute(Source.EMPTY, parentName, null, name, field);
+    }
+
+    private long serializedSize(FieldAttribute attribute, TransportVersion version) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            try (PlanStreamOutput planOut = new PlanStreamOutput(out, configuration())) {
+                planOut.writeNamedWriteable(attribute);
+                return out.bytes().length();
+            }
+        }
     }
 }

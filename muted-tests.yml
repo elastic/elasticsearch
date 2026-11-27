@@ -677,3 +677,22 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testEstimatedHeapAllocationDecider
   issue: https://github.com/elastic/elasticsearch/issues/167386
+- class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
+  tasks:
+  - :server:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/167818
+- class: org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testInfer_StreamRequest_ErrorResponse
+  issue: https://github.com/elastic/elasticsearch/issues/167825
+- class: org.elasticsearch.search.KnnSearchIT
+  tasks:
+  - :server:internalClusterTest
+  method: testKnnSearchWithScroll
+  issue: https://github.com/elastic/elasticsearch/issues/167828
+- class: org.elasticsearch.search.KnnSearchIT
+  tasks:
+  - :server:internalClusterTest
+  method: testQueryVectorBase64Parity
+  issue: https://github.com/elastic/elasticsearch/issues/167830

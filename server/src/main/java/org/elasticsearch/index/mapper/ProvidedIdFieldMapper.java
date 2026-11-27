@@ -22,9 +22,11 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -70,11 +72,14 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR);
 
     /**
-     * Builder for {@link ProvidedIdFieldMapper} that supports the {@code mode} mapping parameter.
+     * Builder for {@link ProvidedIdFieldMapper} that supports the {@code mode} and {@code bloom_filter} mapping parameters.
      */
     public static class Builder extends MetadataFieldMapper.Builder {
 
         private final Parameter<Mode> mode;
+        // Only an explicit value is used and serialized. If not set, the codec selects the default.
+        private final Parameter<Explicit<Boolean>> bloomFilter = Parameter.explicitBoolParam("bloom_filter", false, false)
+            .setSerializerCheck((includeDefaults, isConfigured, value) -> value.explicit());
 
         Builder(boolean columnarIdByDefault) {
             super(NAME);
@@ -88,12 +93,16 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { mode };
+            return new Parameter<?>[] { mode, bloomFilter };
         }
 
         @Override
         public MetadataFieldMapper build() {
             var mode = this.mode.getValue();
+            var bloomFilter = this.bloomFilter.getValue();
+            if (bloomFilter.explicit()) {
+                return new ProvidedIdFieldMapper(mode, bloomFilter.value());
+            }
             switch (mode) {
                 case COLUMNAR:
                     return COLUMNAR_ID;
@@ -308,15 +317,27 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     private final Mode mode;
+    @Nullable
+    private final Boolean bloomFilter;
 
     public ProvidedIdFieldMapper(Mode mode) {
+        this(mode, null);
+    }
+
+    private ProvidedIdFieldMapper(Mode mode, @Nullable Boolean bloomFilter) {
         super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType() : new IdFieldType());
         this.mode = mode;
+        this.bloomFilter = bloomFilter;
     }
 
     @Override
     public boolean isColumnarMode() {
         return mode == Mode.COLUMNAR;
+    }
+
+    @Override
+    public Boolean bloomFilter() {
+        return bloomFilter;
     }
 
     @Override

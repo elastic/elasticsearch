@@ -30,6 +30,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -239,33 +240,38 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         );
     }
 
-    public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode_indexSettingEnabled() throws IOException {
-        Settings indexSettings = Settings.builder().put(IndexSettings.DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING.getKey(), true).build();
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, false, false, Settings.EMPTY, indexSettings);
+    public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode_idBloomFilterEnabled() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplierWithIdBloomFilter(true, true, false, Settings.EMPTY);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
     }
 
-    public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode_indexSettingOverridesNodeSetting() throws IOException {
-        Settings indexSettings = Settings.builder().put(IndexSettings.DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING.getKey(), false).build();
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+    public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode_idBloomFilterOverridesNodeSetting() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplierWithIdBloomFilter(
             true,
             false,
             false,
-            false,
-            dataStreamTimestampBloomFilterNodeSettings(),
-            indexSettings
+            dataStreamTimestampBloomFilterNodeSettings()
         );
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene104PostingsFormat.class));
     }
 
-    public void testUseBloomFilterWithTimestampFieldEnabled_timeSeriesMode_indexSettingIgnored() throws IOException {
-        Settings indexSettings = Settings.builder().put(IndexSettings.DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING.getKey(), false).build();
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, false, false, Settings.EMPTY, indexSettings);
-        assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
+    public void testUseBloomFilter_idBloomFilterDisabled() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplierWithIdBloomFilter(false, false, false, Settings.EMPTY);
+        assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene104PostingsFormat.class));
+    }
+
+    public void testUseBloomFilter_idBloomFilterEnabled_disableBloomFilter() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplierWithIdBloomFilter(randomBoolean(), true, true, Settings.EMPTY);
+        assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene104PostingsFormat.class));
+        assertWarnings(
+            "[index.bloom_filter_for_id_field.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
+        );
     }
 
     public void testUseBloomFilterLogsdbWithTimestampFieldEnabled_dataStreamTimestampSettingEnabled() throws IOException {
@@ -480,18 +486,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         boolean syntheticId,
         Settings nodeSettings
     ) throws IOException {
-        return createFormatSupplier(timestampField, timeSeries, disableBloomFilter, syntheticId, nodeSettings, Settings.EMPTY);
-    }
-
-    private PerFieldFormatSupplier createFormatSupplier(
-        boolean timestampField,
-        boolean timeSeries,
-        boolean disableBloomFilter,
-        boolean syntheticId,
-        Settings nodeSettings,
-        Settings extraIndexSettings
-    ) throws IOException {
-        Settings.Builder settings = Settings.builder().put(extraIndexSettings);
+        Settings.Builder settings = Settings.builder();
         if (timeSeries) {
             settings.put(IndexSettings.MODE.getKey(), "time_series");
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
@@ -522,6 +517,42 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 """;
             mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         }
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+    }
+
+    private PerFieldFormatSupplier createFormatSupplierWithIdBloomFilter(
+        boolean timestampField,
+        boolean idBloomFilter,
+        boolean disableBloomFilter,
+        Settings nodeSettings
+    ) throws IOException {
+        Settings.Builder settings = Settings.builder();
+        if (disableBloomFilter) {
+            settings.put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false);
+        }
+        MapperService mapperService = MapperTestUtils.newMapperService(
+            xContentRegistry(),
+            createTempDir(),
+            settings.build(),
+            nodeSettings,
+            "test"
+        );
+        String mapping = Strings.format("""
+            {
+                "_id": {
+                    "bloom_filter": %s
+                },
+                "_data_stream_timestamp": {
+                    "enabled": %s
+                },
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    }
+                }
+            }
+            """, idBloomFilter, timestampField);
+        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 

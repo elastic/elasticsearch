@@ -227,6 +227,59 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("Cannot update parameter [mode]"));
     }
 
+    public void testBloomFilterMappingSerialization() throws IOException {
+        for (boolean bloomFilter : new boolean[] { true, false }) {
+            MapperService mapperService = createMapperService(
+                topMapping(b -> b.startObject("_id").field("bloom_filter", bloomFilter).endObject())
+            );
+            String mapping = mapperService.documentMapper().mappingSource().string();
+            assertThat(mapping, containsString("\"_id\":{\"bloom_filter\":" + bloomFilter + "}"));
+            IdFieldMapper idMapper = mapperService.mappingLookup().getMapping().getMetadataMapperByClass(ProvidedIdFieldMapper.class);
+            assertThat(idMapper.bloomFilter(), equalTo(bloomFilter));
+            assertFalse(idMapper.isColumnarMode());
+        }
+    }
+
+    public void testBloomFilterWithColumnarMode() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(b -> b.startObject("_id").field("mode", "columnar").field("bloom_filter", true).endObject())
+        );
+        String mapping = mapperService.documentMapper().mappingSource().string();
+        assertThat(mapping, containsString("\"_id\":{\"mode\":\"columnar\",\"bloom_filter\":true}"));
+        IdFieldMapper idMapper = mapperService.mappingLookup().getMapping().getMetadataMapperByClass(ProvidedIdFieldMapper.class);
+        assertThat(idMapper.bloomFilter(), equalTo(true));
+        assertTrue(idMapper.isColumnarMode());
+    }
+
+    public void testDefaultBloomFilterNotSerialized() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject()));
+        String mapping = mapperService.documentMapper().mappingSource().string();
+        assertFalse("default bloom_filter should not be serialized", mapping.contains("bloom_filter"));
+        IdFieldMapper idMapper = mapperService.mappingLookup().getMapping().getMetadataMapperByClass(ProvidedIdFieldMapper.class);
+        assertNull(idMapper.bloomFilter());
+    }
+
+    public void testBloomFilterNotUpdateable() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, topMapping(b -> b.startObject("_id").field("bloom_filter", true).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("Cannot update parameter [bloom_filter]"));
+    }
+
+    public void testBloomFilterRejectedInTimeSeriesIndexMode() {
+        Settings settings = Settings.builder()
+            .put("index.mode", IndexMode.TIME_SERIES.getName())
+            .put("index.routing_path", "field")
+            .build();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_id").field("bloom_filter", true).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("_id is not configurable if index mode is time_series"));
+    }
+
     public void testColumnarModeIdLoaderUsesDocValues() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject()));
         IdLoader idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());

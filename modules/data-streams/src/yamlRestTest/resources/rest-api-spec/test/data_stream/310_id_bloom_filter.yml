@@ -1,0 +1,59 @@
+setup:
+  - skip:
+      features: allowed_warnings
+
+  - requires:
+      cluster_features: ["mapper.id_field.bloom_filter_mapping_attribute"]
+      reason: _id bloom_filter mapping parameter was added in this version
+
+---
+"Enable the _id bloom filter in a data stream template":
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [id-bloom-filter-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ id-bloom-filter-* ]
+          data_stream: { }
+          template:
+            mappings:
+              _id:
+                bloom_filter: true
+
+  - do:
+      indices.create_data_stream:
+        name: id-bloom-filter-1
+
+  - do:
+      index:
+        index: id-bloom-filter-1
+        id: "1"
+        op_type: create
+        refresh: true
+        body: { "@timestamp": "2026-01-01T00:00:00Z", foo: bar }
+  - match: { result: created }
+
+  - do:
+      catch: conflict
+      index:
+        index: id-bloom-filter-1
+        id: "1"
+        op_type: create
+        body: { "@timestamp": "2026-01-01T00:00:01Z", foo: baz }
+
+  - do:
+      indices.rollover:
+        alias: id-bloom-filter-1
+
+  - do:
+      indices.get_data_stream:
+        name: id-bloom-filter-1
+  - set: { data_streams.0.indices.0.index_name: oldIndexName }
+  - set: { data_streams.0.indices.1.index_name: newIndexName }
+
+  - do:
+      indices.get_mapping:
+        index: id-bloom-filter-1
+  - match: { .$oldIndexName.mappings._id.bloom_filter: true }
+  - match: { .$newIndexName.mappings._id.bloom_filter: true }

@@ -541,7 +541,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         EngineConfig.INDEX_CODEC_SETTING,
         DataTier.TIER_PREFERENCE_SETTING,
         IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
-        IndexSettings.DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING,
         MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
         DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
         DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,

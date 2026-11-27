@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.info;
 
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
@@ -46,6 +47,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     private final Boolean snapshotBuild;
 
     // not final for testing
+    private Provider<List<Version>> allVersions;
     private Provider<BwcVersions> bwcVersions;
     private Provider<String> gitOrigin;
 
@@ -63,6 +65,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         boolean isCi,
         int defaultParallel,
         final boolean isSnapshotBuild,
+        Provider<List<Version>> allVersions,
         Provider<BwcVersions> bwcVersions
     ) {
         this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(DefaultBuildParameterExtension::parseBoolean);
@@ -81,6 +84,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         this.isCi = isCi;
         this.defaultParallel = defaultParallel;
         this.snapshotBuild = isSnapshotBuild;
+        this.allVersions = cache(providers, allVersions);
         this.bwcVersions = cache(providers, bwcVersions);
         this.gitOrigin = gitOrigin;
     }
@@ -238,6 +242,11 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         }
     }
 
+    @Override
+    public Provider<List<Version>> getAllVersionsProvider() {
+        return allVersions;
+    }
+
     public Provider<BwcVersions> getBwcVersionsProvider() {
         return bwcVersions;
     }
@@ -245,6 +254,11 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     // for testing; not part of public api
     public void setBwcVersions(Provider<BwcVersions> bwcVersions) {
         this.bwcVersions = bwcVersions;
+    }
+
+    // for testing; not part of public api
+    public void setAllVersions(Provider<List<Version>> allVersions) {
+        this.allVersions = allVersions;
     }
 
     // for testing; not part of public api

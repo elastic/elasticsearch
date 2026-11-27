@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -24,14 +25,11 @@ public class CsvAssertTests extends ESTestCase {
     private static final List<String> OTHER_LIST = List.of(SINGLE, "fe80::cae2:65ff:fece:fec2");
 
     public void testIgnoreOrderIgnoresArrivalOrder() {
-        List<Object> single = List.of(SINGLE);
-        List<Object> longList = List.of(LONG_LIST);
-        List<Object> otherList = List.of(OTHER_LIST);
-        List<List<Object>> rows = List.of(single, longList, otherList);
+        List<List<Object>> rows = List.of(List.of(SINGLE), List.of(LONG_LIST), List.of(OTHER_LIST));
 
         for (int attempt = 0; attempt < 10; attempt++) {
             List<List<Object>> actual = new ArrayList<>(rows);
-            shuffle(actual);
+            Collections.shuffle(actual, random());
             List<List<Object>> expectedRows = new ArrayList<>();
             for (List<Object> row : rows) {
                 expectedRows.add(List.of(toExpected(row.get(0))));
@@ -46,9 +44,5 @@ public class CsvAssertTests extends ESTestCase {
             return list.stream().map(v -> Type.IP.convert((String) v)).toList();
         }
         return Type.IP.convert((String) value);
-    }
-
-    private static void shuffle(List<?> list) {
-        java.util.Collections.shuffle(list, random());
     }
 }

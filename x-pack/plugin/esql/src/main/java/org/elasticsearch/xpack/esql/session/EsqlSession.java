@@ -3803,9 +3803,10 @@ public class EsqlSession {
             Into.class,
             into -> into.withDestination(IndexNameExpressionResolver.resolveDateMathExpression(into.destination()))
         );
-        String target = resolved.collect(Into.class).getFirst().destination();
+        Into into = resolved.collect(Into.class).getFirst();
+        String target = into.destination();
         boolean exists = isWritableDestination(project.getIndicesLookup().get(target));
-        authorizer.authorize(target, listener.map(ignored -> {
+        authorizer.authorize(target, into.options().collisions().opType(), listener.map(ignored -> {
             // TODO: the design allows a destination that a composable template matches, which the first bulk creates. Let it through
             // here once that is supported, and have the authorizer ask for the privileges that create it.
             if (requireExisting && exists == false) {

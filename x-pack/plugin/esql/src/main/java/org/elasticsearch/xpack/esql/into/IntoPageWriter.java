@@ -154,10 +154,7 @@ public final class IntoPageWriter {
             this.options = options;
             this.idColumnPosition = columns.indexOf(IdFieldMapper.NAME);
             this.collisions = options.collisions();
-            this.opType = switch (collisions) {
-                case ABORT, KEEP -> DocWriteRequest.OpType.CREATE;
-                case REPLACE -> DocWriteRequest.OpType.INDEX;
-            };
+            this.opType = collisions.opType();
             this.writer = indexing == Indexing.INDEX
                 ? bulks.newWriter(client, breaker, destination, bulks.defaultPolicy(), this::onResponse, this::onCapacity)
                 : null;

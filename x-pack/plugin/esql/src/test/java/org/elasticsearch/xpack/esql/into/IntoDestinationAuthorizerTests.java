@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -22,6 +23,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlIntoDestinationAction;
+import org.elasticsearch.xpack.esql.action.EsqlIntoReplaceDestinationAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -49,15 +51,24 @@ public class IntoDestinationAuthorizerTests extends ESTestCase {
 
     public void testTheFilterIsAskedAboutTheDestination() {
         RecordingClient client = new RecordingClient(threadPool, null);
-        authorize(client, "dest").actionGet();
+        authorize(client, "dest", DocWriteRequest.OpType.CREATE).actionGet();
 
         assertThat(client.actions, equalTo(List.of(EsqlIntoDestinationAction.NAME)));
         assertThat(((EsqlIntoDestinationAction.Request) client.requests.getFirst()).indices(), equalTo(new String[] { "dest" }));
     }
 
+    /** A write that replaces sends index requests, which the filter authorizes as another action than a create. */
+    public void testTheFilterIsAskedToAuthorizeAnIndexRequestWhenTheWriteReplaces() {
+        RecordingClient client = new RecordingClient(threadPool, null);
+        authorize(client, "dest", DocWriteRequest.OpType.INDEX).actionGet();
+
+        assertThat(client.actions, equalTo(List.of(EsqlIntoReplaceDestinationAction.NAME)));
+        assertThat(((EsqlIntoDestinationAction.Request) client.requests.getFirst()).indices(), equalTo(new String[] { "dest" }));
+    }
+
     public void testTheDenialOfTheFilterIsTheDenialOfTheQuery() throws Exception {
         ElasticsearchSecurityException denial = new ElasticsearchSecurityException("denied", RestStatus.FORBIDDEN);
-        PlainActionFuture<Void> future = authorize(new RecordingClient(threadPool, denial), "dest");
+        PlainActionFuture<Void> future = authorize(new RecordingClient(threadPool, denial), "dest", DocWriteRequest.OpType.CREATE);
 
         ExecutionException e = expectThrows(ExecutionException.class, future::get);
         assertThat(e.getCause(), sameInstance(denial));
@@ -67,7 +78,7 @@ public class IntoDestinationAuthorizerTests extends ESTestCase {
     public void testNameTheFilterWouldReadAsAPatternIsRejectedWithoutAskingIt() {
         for (String name : List.of("/.*/", "/dest/", "dest*", "*", "-dest", "a,b", "remote:dest", "")) {
             RecordingClient client = new RecordingClient(threadPool, null);
-            PlainActionFuture<Void> future = authorize(client, name);
+            PlainActionFuture<Void> future = authorize(client, name, DocWriteRequest.OpType.CREATE);
 
             ExecutionException e = expectThrows(ExecutionException.class, future::get);
             assertThat(name, e.getCause(), instanceOf(InvalidIndexNameException.class));
@@ -76,9 +87,9 @@ public class IntoDestinationAuthorizerTests extends ESTestCase {
         }
     }
 
-    private static PlainActionFuture<Void> authorize(RecordingClient client, String destination) {
+    private static PlainActionFuture<Void> authorize(RecordingClient client, String destination, DocWriteRequest.OpType opType) {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        IntoDestinationAuthorizer.create(client, EsExecutors.DIRECT_EXECUTOR_SERVICE).authorize(destination, future);
+        IntoDestinationAuthorizer.create(client, EsExecutors.DIRECT_EXECUTOR_SERVICE).authorize(destination, opType, future);
         return future;
     }
 

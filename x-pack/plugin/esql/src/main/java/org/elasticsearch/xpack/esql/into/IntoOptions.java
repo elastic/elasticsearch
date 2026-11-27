@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.into;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -61,6 +62,14 @@ public record IntoOptions(boolean refresh, boolean keepGoing, Collisions collisi
 
         public String optionValue() {
             return name().toLowerCase(Locale.ROOT);
+        }
+
+        /** What a bulk sends for a row: only replace overwrites, and so needs an {@code index} request. */
+        public DocWriteRequest.OpType opType() {
+            return switch (this) {
+                case ABORT, KEEP -> DocWriteRequest.OpType.CREATE;
+                case REPLACE -> DocWriteRequest.OpType.INDEX;
+            };
         }
 
         /** Resolves {@code value} case-insensitively, or returns empty when it names no policy. */

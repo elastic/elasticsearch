@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
@@ -25,6 +26,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.into.IntoDestinationAuthorizer;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.junit.Before;
@@ -49,6 +51,7 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
     private static final String DATE_MATH_RESOLVED = "logs-2026.01.01";
 
     private final List<String> asked = new ArrayList<>();
+    private final List<DocWriteRequest.OpType> askedOpTypes = new ArrayList<>();
 
     @Before
     public void requiresIntoCommand() {
@@ -67,7 +70,7 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
 
     /** Whether a destination exists is only for a caller who may write to it. */
     public void testDeniedCallerIsNotToldThatADestinationDoesNotExist() {
-        IntoDestinationAuthorizer denying = (destination, listener) -> listener.onFailure(
+        IntoDestinationAuthorizer denying = (destination, opType, listener) -> listener.onFailure(
             new ElasticsearchSecurityException("denied", RestStatus.FORBIDDEN)
         );
         ElasticsearchSecurityException e = expectThrows(
@@ -122,6 +125,21 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
         assertAnExistingDestination(project, "a-data-stream");
     }
 
+    /** What the write sends decides what the caller needs, so the authorizer is asked about the kind of request, not only the name. */
+    public void testTheAuthorizerIsAskedAboutTheRequestsOfTheCollisionsPolicy() throws Exception {
+        for (IntoOptions.Collisions collisions : IntoOptions.Collisions.values()) {
+            asked.clear();
+            askedOpTypes.clear();
+            authorize(grantingAuthorizer(), "ROW x = 1 | INTO existing WITH {\"collisions\": \"" + collisions.optionValue() + "\"}");
+
+            assertThat(
+                collisions.toString(),
+                askedOpTypes,
+                contains(collisions == IntoOptions.Collisions.REPLACE ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE)
+            );
+        }
+    }
+
     public void testDestinationIsAuthorizedByItsResolvedNameAndTheResolvedNameReplacesTheTypedOne() throws Exception {
         // A fixed date, as now/d could roll over to the next day between the name and the query
         String query = "ROW x = 1 | INTO \"<logs-{2026.01.01||/d}>\" WITH {\"refresh\": false}";
@@ -144,8 +162,9 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
     }
 
     private IntoDestinationAuthorizer grantingAuthorizer() {
-        return (destination, listener) -> {
+        return (destination, opType, listener) -> {
             asked.add(destination);
+            askedOpTypes.add(opType);
             listener.onResponse(null);
         };
     }

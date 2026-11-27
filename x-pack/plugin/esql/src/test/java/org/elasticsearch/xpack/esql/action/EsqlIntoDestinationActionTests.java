@@ -29,6 +29,21 @@ public class EsqlIntoDestinationActionTests extends ESTestCase {
         }
     }
 
+    /** What the filter authorizes for each document that a bulk indexes, which overwrites, so it is not a creation. */
+    public void testTheReplacingActionIsTheIndexingOfADocumentByABulk() {
+        assertEquals("indices:data/write/index:op_type/index", EsqlIntoReplaceDestinationAction.NAME);
+    }
+
+    /** {@code create_doc} only allows creating a document, so a caller who has just that must be denied a replace. */
+    public void testThePrivilegesThatAllowOverwritingADocumentGrantTheReplacingAction() {
+        for (String privilege : List.of("create", "index", "write", "all")) {
+            assertTrue(privilege, IndexPrivilege.get(privilege).predicate().test(EsqlIntoReplaceDestinationAction.NAME));
+        }
+        for (String privilege : List.of("create_doc", "delete", "read", "maintenance", "manage", "view_index_metadata")) {
+            assertFalse(privilege, IndexPrivilege.get(privilege).predicate().test(EsqlIntoReplaceDestinationAction.NAME));
+        }
+    }
+
     public void testThePrivilegesThatDoNotAllowIndexingADocumentDoNotGrantTheAction() {
         for (String privilege : List.of("delete", "read", "maintenance", "manage", "view_index_metadata")) {
             assertFalse(privilege, IndexPrivilege.get(privilege).predicate().test(EsqlIntoDestinationAction.NAME));

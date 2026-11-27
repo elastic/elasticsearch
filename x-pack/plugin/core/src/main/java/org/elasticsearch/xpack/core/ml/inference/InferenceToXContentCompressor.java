@@ -105,7 +105,7 @@ public final class InferenceToXContentCompressor {
             "Cannot parse model definition as the content is larger than the maximum stream size "
                 + "of ["
                 + cause.getMaxBytes()
-                + "] bytes. Max stream size is 10% of the JVM heap or 1GB whichever is smallest",
+                + "] bytes. Max stream size is 25% of the JVM heap or 1GB, whichever is smaller",
             CircuitBreaker.Durability.PERMANENT
         );
     }

@@ -686,3 +686,8 @@ tests:
   - :x-pack:plugin:inference:test
   method: testInfer_StreamRequest_ErrorResponse
   issue: https://github.com/elastic/elasticsearch/issues/167825
+- class: org.elasticsearch.search.KnnSearchIT
+  tasks:
+  - :server:internalClusterTest
+  method: testKnnSearchWithScroll
+  issue: https://github.com/elastic/elasticsearch/issues/167828

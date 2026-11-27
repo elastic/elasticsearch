@@ -48,6 +48,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
 
@@ -150,8 +152,8 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
 
     /**
      * A local and remote minimize-roundtrips search merges on this node. Only the remote index matches, so the hits the merged response
-     * keeps come from the remote cluster and are charged by the merger. They keep the query tracked after its task is gone, until the
-     * response is released.
+     * keeps come from the remote cluster and are charged by the merger. The merger releases the rest of its reservation after the client
+     * listener returns. Once that reservation is gone, the hits keep the query tracked until the response is released.
      */
     public void testMinimizeRoundtripsMergerChargesTheQuery() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
@@ -161,11 +163,35 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         client(REMOTE_CLUSTER).admin().indices().prepareRefresh(remoteIndex).get();
         String coordinator = coordinatorWithRequestBreaker();
         SearchService searchService = cluster(LOCAL_CLUSTER).getInstance(SearchService.class, coordinator);
+        CircuitBreaker breaker = requestBreaker(coordinator);
 
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.setCcsMinimizeRoundtrips(true);
         searchRequest.source(new SearchSourceBuilder().query(new TermQueryBuilder("f", "remoteonly")).size(10));
-        SearchResponse response = cluster(LOCAL_CLUSTER).client(coordinator).search(searchRequest).actionGet();
+        // The task is unregistered before this listener runs, and the merger releases its temporary reservation only after the listener
+        // returns. Hold the listener so that reservation is still charged, then let the listener return.
+        CountDownLatch responseHeld = new CountDownLatch(1);
+        CountDownLatch releaseListener = new CountDownLatch(1);
+        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+        AtomicReference<Exception> searchFailure = new AtomicReference<>();
+        cluster(LOCAL_CLUSTER).client(coordinator).execute(TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(response -> {
+            response.incRef();
+            responseRef.set(response);
+            responseHeld.countDown();
+            try {
+                releaseListener.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, e -> {
+            searchFailure.set(e);
+            responseHeld.countDown();
+        }));
+        safeAwait(responseHeld);
+        if (searchFailure.get() != null) {
+            throw searchFailure.get();
+        }
+        SearchResponse response = responseRef.get();
         try {
             assertThat(response.getClusters().getClusterStateCount(Cluster.Status.SUCCESSFUL), equalTo(2));
             SearchHit[] hits = response.getHits().getHits();
@@ -173,14 +199,25 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
             for (SearchHit hit : hits) {
                 assertThat(hit.getClusterAlias(), equalTo(REMOTE_CLUSTER));
             }
+            assertThat(searchTasks(coordinator), equalTo(0));
+            assertThat(searchService.queryScheduler().queries(), equalTo(1));
+            long reserved = breaker.getUsed();
+            assertThat(reserved, greaterThan(0L));
+            releaseListener.countDown();
             assertBusy(() -> {
-                assertThat(searchTasks(coordinator), equalTo(0));
+                // The reservation has been released. The hits the response keeps are still charged, so the query stays tracked.
+                assertThat(breaker.getUsed(), lessThan(reserved));
+                assertThat(breaker.getUsed(), greaterThan(0L));
                 assertThat(searchService.queryScheduler().queries(), equalTo(1));
             });
         } finally {
+            releaseListener.countDown();
             response.decRef();
         }
-        assertBusy(() -> assertThat(searchService.queryScheduler().queries(), equalTo(0)));
+        assertBusy(() -> {
+            assertThat(breaker.getUsed(), equalTo(0L));
+            assertThat(searchService.queryScheduler().queries(), equalTo(0));
+        });
     }
 
     /**

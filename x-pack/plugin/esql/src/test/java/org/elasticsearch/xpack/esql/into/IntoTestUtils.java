@@ -215,6 +215,6 @@ class IntoTestUtils {
 
     /** Stats of a run in which the destination refused nothing. */
     static IntoStats noFailures(long total, long created) {
-        return new IntoStats(total, created, 0, 0, 0, List.of());
+        return IntoStats.builder().total(total).created(created).build();
     }
 }

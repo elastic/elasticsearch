@@ -47,19 +47,9 @@ public class IntoSerializationTests extends AbstractLogicalPlanSerializationTest
 
     public static IntoOptions mutateIntoOptions(IntoOptions options) {
         return switch (between(0, 2)) {
-            case 0 -> IntoOptions.builder()
-                .refresh(options.refresh() == false)
-                .keepGoing(options.keepGoing())
-                .collisions(options.collisions())
-                .build();
-            case 1 -> IntoOptions.builder()
-                .refresh(options.refresh())
-                .keepGoing(options.keepGoing() == false)
-                .collisions(options.collisions())
-                .build();
-            case 2 -> IntoOptions.builder()
-                .refresh(options.refresh())
-                .keepGoing(options.keepGoing())
+            case 0 -> options.toBuilder().refresh(options.refresh() == false).build();
+            case 1 -> options.toBuilder().keepGoing(options.keepGoing() == false).build();
+            case 2 -> options.toBuilder()
                 .collisions(randomValueOtherThan(options.collisions(), () -> randomFrom(IntoOptions.Collisions.values())))
                 .build();
             default -> throw new AssertionError("Unexpected case");

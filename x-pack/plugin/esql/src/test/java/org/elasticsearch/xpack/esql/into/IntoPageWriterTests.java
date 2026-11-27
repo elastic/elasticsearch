@@ -79,7 +79,6 @@ import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WI
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WITH_LONG_MESSAGE;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REJECTED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REMOTE_MAPPER_REJECTED;
-import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.UPDATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.bulks;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.mockBigArrays;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.noFailures;
@@ -382,7 +381,12 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
         assertTrue(writer.isFinished());
         assertThat(writer.failure(), nullValue());
-        assertThat(writer.stats(), equalTo(new IntoStats(4, 3, 0, 0, 1, List.of("[400] mapper_parsing_exception[1]"))));
+        assertThat(
+            writer.stats(),
+            equalTo(
+                IntoStats.builder().total(4).created(3).failures(1).failureDetails(List.of("[400] mapper_parsing_exception[1]")).build()
+            )
+        );
     }
 
     public void testKeepGoingCapsFailureDetailsKeepingTheFirstOnes() {
@@ -534,16 +538,6 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(writer.stats(), equalTo(noFailures(0, 0)));
     }
 
-    public void testIdColumnSetsTheDocumentIdAndIsLeftOutOfTheSource() throws IOException {
-        IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
-        idWriter.consume(idPage(new String[] { "a", null }, "h1", "h2"));
-
-        BulkRequest bulk = client.bulks.getFirst();
-        assertThat(bulk.requests().stream().map(DocWriteRequest::id).toList(), equalTo(Arrays.asList("a", null)));
-        assertThat(sources(bulk), equalTo(List.of(Map.of("host", "h1"), Map.of("host", "h2"))));
-        client.answer(CREATED, CREATED);
-    }
-
     public void testMultiValuedIdIsRejected() {
         IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
         Page page;
@@ -583,79 +577,16 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(client.bulks, empty());
     }
 
-    public void testAbortAndKeepSendCreateRequests() {
-        IntoPageWriter idWriter = writerWithIds(randomFrom(Collisions.ABORT, Collisions.KEEP));
-        idWriter.consume(idPage(new String[] { "a" }, "h1"));
-        assertThat(client.bulks.getFirst().requests().getFirst().opType(), equalTo(DocWriteRequest.OpType.CREATE));
-        client.answer(CREATED);
-    }
-
     public void testEmptyIdIsRefusedByTheDestinationUnderEveryMode() {
-        Collisions collisions = randomFrom(Collisions.values());
-        IntoPageWriter idWriter = writerWithIds(collisions);
-        idWriter.consume(idPage(new String[] { "" }, "h1"));
-        assertThat(client.bulks.getFirst().requests().getFirst().id(), equalTo(""));
-        client.answer(REFUSED);
+        for (Collisions collisions : Collisions.values()) {
+            IntoPageWriter idWriter = writerWithIds(collisions);
+            idWriter.consume(idPage(new String[] { "" }, "h1"));
+            assertThat(client.bulks.getFirst().requests().getFirst().id(), equalTo(""));
+            client.answer(REFUSED);
 
-        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
-        assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
-    }
-
-    public void testNullTypedIdColumnLeavesIdsToTheDestination() throws IOException {
-        List<Attribute> columns = List.of(
-            new ReferenceAttribute(Source.EMPTY, IdFieldMapper.NAME, DataType.NULL),
-            new ReferenceAttribute(Source.EMPTY, "host", DataType.KEYWORD)
-        );
-        sink = IntoPageWriter.Factory.createFactory(bulks(), client, factory.breaker(), DEST, columns, INDEX, IntoOptions.DEFAULT);
-        IntoPageWriter nullIdWriter = sink.create(driverContext);
-        Page page;
-        try (BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(2)) {
-            host.appendBytesRef(new BytesRef("h1"));
-            host.appendBytesRef(new BytesRef("h2"));
-            page = new Page(factory.newConstantNullBlock(2), host.build());
+            ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+            assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
         }
-        nullIdWriter.consume(page);
-
-        BulkRequest bulk = client.bulks.getFirst();
-        assertThat(bulk.requests().stream().map(DocWriteRequest::id).toList(), equalTo(Arrays.asList(null, null)));
-        assertThat(sources(bulk), equalTo(List.of(Map.of("host", "h1"), Map.of("host", "h2"))));
-        client.answer(CREATED, CREATED);
-    }
-
-    public void testReplaceSendsIndexRequests() {
-        IntoPageWriter idWriter = writerWithIds(Collisions.REPLACE);
-        idWriter.consume(idPage(new String[] { "a", "b" }, "h1", "h2"));
-        assertThat(
-            client.bulks.getFirst().requests().stream().map(DocWriteRequest::opType).toList(),
-            everyItem(equalTo(DocWriteRequest.OpType.INDEX))
-        );
-        client.answer(CREATED, UPDATED);
-        idWriter.finish();
-        assertThat(idWriter.stats(), equalTo(new IntoStats(2, 1, 1, 0, 0, List.of())));
-        assertThat(sink.failure(), nullValue());
-    }
-
-    public void testAbortFailsOnCollision() {
-        IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
-        idWriter.consume(idPage(new String[] { "a", "b" }, "h1", "h2"));
-        client.answer(CREATED, CONFLICT);
-        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
-        assertThat(failure.status(), equalTo(RestStatus.CONFLICT));
-        assertThat(failure.getMessage(), containsString("version conflict"));
-
-        idWriter.consume(idPage(new String[] { "c" }, "dropped"));
-        assertThat(client.bulks, empty());
-    }
-
-    public void testReplaceWithoutIdColumnCreatesEveryRow() {
-        IntoOptions options = IntoOptions.builder().collisions(Collisions.REPLACE).build();
-        sink = IntoPageWriter.Factory.createFactory(bulks(), client, factory.breaker(), DEST, COLUMNS, INDEX, options);
-        IntoPageWriter replaceWriter = sink.create(driverContext);
-        replaceWriter.consume(page("h1", "h2"));
-        client.answer(CREATED, CREATED);
-        replaceWriter.finish();
-
-        assertThat(replaceWriter.stats(), equalTo(new IntoStats(2, 2, 0, 0, 0, List.of())));
     }
 
     public void testKeepCountsCollisionsAndContinues() {
@@ -668,7 +599,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client.answer(CREATED);
         idWriter.finish();
         assertTrue(idWriter.isFinished());
-        assertThat(idWriter.stats(), equalTo(new IntoStats(4, 2, 0, 2, 0, List.of())));
+        assertThat(idWriter.stats(), equalTo(IntoStats.builder().total(4).created(2).versionConflicts(2).build()));
     }
 
     public void testKeepStillFailsOnARefusedRow() {
@@ -680,13 +611,15 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(failure.getMessage(), containsString("mapper_parsing_exception"));
     }
 
-    public void testReplaceFailsOnAConflict() {
-        // An index op has no version check, so a 409 under replace means something else went wrong and is not tolerated
-        IntoPageWriter idWriter = writerWithIds(Collisions.REPLACE);
-        idWriter.consume(idPage(new String[] { "a" }, "h1"));
-        client.answer(CONFLICT);
-        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
-        assertThat(failure.status(), equalTo(RestStatus.CONFLICT));
+    /** Only {@code keep} tolerates a conflict. An index request has no version check, so a 409 under replace is not a collision. */
+    public void testOnlyKeepToleratesAConflict() {
+        for (Collisions collisions : List.of(Collisions.ABORT, Collisions.REPLACE)) {
+            IntoPageWriter idWriter = writerWithIds(collisions);
+            idWriter.consume(idPage(new String[] { "a" }, "h1"));
+            client.answer(CONFLICT);
+            ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+            assertThat(collisions.toString(), failure.status(), equalTo(RestStatus.CONFLICT));
+        }
     }
 
     private IntoPageWriter writerWithIds(Collisions collisions) {

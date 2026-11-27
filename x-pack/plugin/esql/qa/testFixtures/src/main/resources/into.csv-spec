@@ -9,31 +9,3 @@ ROW into_long = [1, 2, 3]
 total:long | created:long | updated:long | version_conflicts:long | failures:long | failure_details:keyword
 3          | 3            | 0            | 0                      | 0             | null
 ;
-
-// The cluster is shared across runs, so these leave _id to the destination to stay repeatable. Each case writes its own
-// destination so its counts stay independent of the other cases sharing the cluster.
-// Without an _id the keep/replace cases cannot be told apart from an abort: they are parse and plumbing smoke
-// tests only, and IntoIT covers the behavior of each mode.
-rowIntoIndexWithCollisionsKeep
-required_capability: into_command
-
-ROW into_long = [1, 2]
-| MV_EXPAND into_long
-| INTO into_destination_keep WITH {"collisions": "keep"}
-;
-
-total:long | created:long | updated:long | version_conflicts:long | failures:long | failure_details:keyword
-2          | 2            | 0            | 0                      | 0             | null
-;
-
-rowIntoIndexWithCollisionsReplace
-required_capability: into_command
-
-ROW into_long = [1, 2]
-| MV_EXPAND into_long
-| INTO into_destination_replace WITH {"collisions": "replace"}
-;
-
-total:long | created:long | updated:long | version_conflicts:long | failures:long | failure_details:keyword
-2          | 2            | 0            | 0                      | 0             | null
-;

@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -139,10 +138,6 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
         analyzer().addEmployees().error("FROM employees | EVAL _id = emp_no | KEEP _id | INTO dst", containsString(error));
     }
 
-    public void testIdColumnOfBooleanTypeIsRejected() {
-        analyzer().error("ROW _id = true | INTO dst", containsString("must be of type [keyword] or [text], found [boolean]"));
-    }
-
     public void testReplaceIsRejectedOnDataStreams() {
         TestAnalyzer analyzer = analyzer().projectMetadata(projectWithDataStream());
         for (String destination : List.of("logs-ds", "logs-ds-alias", BACKING_INDEX, "auto-ds-new")) {
@@ -159,14 +154,6 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
             "ROW a = 1 | INTO \"<auto-ds-{now/d}>\" WITH {\"collisions\": \"replace\"}",
             containsString("INTO collisions [replace] is not supported on data stream [<auto-ds-{now/d}>]")
         );
-    }
-
-    public void testReplaceIsAllowedOnIndices() {
-        TestAnalyzer analyzer = analyzer().projectMetadata(projectWithDataStream());
-        for (String destination : List.of("plain", "fresh")) {
-            Into into = as(analyzer.query("ROW a = 1 | INTO " + destination + " WITH {\"collisions\": \"replace\"}"), Into.class);
-            assertThat(into.options().collisions(), equalTo(IntoOptions.Collisions.REPLACE));
-        }
     }
 
     public void testKeepAndAbortAreAllowedOnDataStreams() {

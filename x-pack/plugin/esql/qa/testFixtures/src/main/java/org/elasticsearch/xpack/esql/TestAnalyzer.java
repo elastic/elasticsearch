@@ -122,6 +122,7 @@ public class TestAnalyzer {
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
     private boolean wildcardsMatchDatasets = QuerySettings.WILDCARDS_MATCH_DATASETS.defaultValue();
     private TimestampBounds timestampBounds;
+    /** {@code null} (the default) analyzes without project metadata, which skips the checks that need it, like the one for data streams. */
     @Nullable
     private ProjectMetadata projectMetadata;
     private Supplier<TransportVersion> minimumTransportVersion = TransportVersionUtils::randomCompatibleVersion;

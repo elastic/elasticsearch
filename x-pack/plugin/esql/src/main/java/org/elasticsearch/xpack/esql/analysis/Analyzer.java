@@ -569,11 +569,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return plan;
     }
 
-    /**
-     * Rejects {@code INTO ... WITH {"collisions": "replace"}} on a data stream: data streams are append-only and accept only
-     * {@code create}, so the bulk would refuse every row. Checked against the coordinator's metadata, including a missing
-     * destination that a data stream template would create on first write.
-     */
+    /** Rejects {@code collisions: replace} on a data stream, which is append-only and so would refuse every row. */
     private static class RejectReplaceIntoDataStream extends ParameterizedAnalyzerRule<Into, AnalyzerContext> {
 
         public static final String MSG = "INTO collisions [{}] is not supported on data stream [{}]";

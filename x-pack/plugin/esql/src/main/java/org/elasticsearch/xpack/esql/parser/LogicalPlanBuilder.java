@@ -179,6 +179,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private static final Set<String> FROM_MODE_KEYWORDS = Set.of("metadata", "with");
 
     private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
+    private static final String INTO_INVALID_COLLISIONS_MESSAGE = "Invalid value [{}] for option [{}] in INTO, expected one of {}";
     private static final String DENSE_VECTOR_SUFFIX_KEYWORD = "suffix";
 
     public LogicalPlanBuilder(ParsingContext context) {
@@ -674,10 +675,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         String option = Option.COLLISIONS.optionName();
         if (value instanceof Literal lit && DataType.isString(lit.dataType()) && lit.value() != null) {
             String text = BytesRefs.toString(lit.value());
-            return Collisions.parse(text).orElseThrow(() -> {
-                String message = "Invalid value [{}] for option [{}] in INTO, expected one of {}";
-                return new ParsingException(value.source(), message, text, option, Collisions.NAMES);
-            });
+            return Collisions.parse(text)
+                .orElseThrow(() -> new ParsingException(value.source(), INTO_INVALID_COLLISIONS_MESSAGE, text, option, Collisions.NAMES));
         }
         throw new ParsingException(value.source(), "Option [{}] must be a string literal, one of {}", option, Collisions.NAMES);
     }

@@ -66,7 +66,7 @@ public record IntoOptions(boolean refresh, boolean keepGoing, Collisions collisi
         }
     }
 
-    public static final IntoOptions DEFAULT = new IntoOptions(true, false, Collisions.ABORT);
+    public static final IntoOptions DEFAULT = builder().build();
 
     public IntoOptions {
         Objects.requireNonNull(collisions);
@@ -100,15 +100,21 @@ public record IntoOptions(boolean refresh, boolean keepGoing, Collisions collisi
         }
     }
 
-    /** Starts from {@link #DEFAULT}, so a caller names only the options it changes instead of passing positional booleans. */
+    /** Starts from the default options, so a caller names only the options it changes instead of passing positional booleans. */
     public static Builder builder() {
         return new Builder();
     }
 
+    /** Starts from these options, so a caller names only the options it changes. */
+    public Builder toBuilder() {
+        return builder().refresh(refresh).keepGoing(keepGoing).collisions(collisions);
+    }
+
+    /** The initial values here are the defaults: {@link #DEFAULT} is built from them. */
     public static final class Builder {
-        private boolean refresh = DEFAULT.refresh;
-        private boolean keepGoing = DEFAULT.keepGoing;
-        private Collisions collisions = DEFAULT.collisions;
+        private boolean refresh = true;
+        private boolean keepGoing = false;
+        private Collisions collisions = Collisions.ABORT;
 
         private Builder() {}
 

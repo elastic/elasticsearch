@@ -62,12 +62,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * A row the destination refuses fails the run, unless {@link IntoOptions#keepGoing()} is set: then it is counted and the
  * run continues. A bulk request that fails as a whole always fails the run, as does a row whose failure is transient
  * (too many requests or service unavailable), because that row was not refused by the destination and dropping it would
- * silently lose data. A row whose {@code _id} already exists is a collision, handled by {@link IntoOptions#collisions()}
- * and not a refusal.
+ * silently lose data. A row whose {@code _id} already exists is handled by the {@linkplain IntoOptions#collisions() collisions
+ * policy} and is never a refusal: {@code keep} counts it as a version conflict, and any other policy fails the run, even
+ * when {@code keep_going} is set.
  */
 public final class IntoPageWriter {
 
     private static final int MAX_FAILURE_DETAIL_LENGTH = 1024;
+    private static final String MULTI_VALUED_ID_MESSAGE = "INTO [{}] failed: [{}] must be single-valued, found [{}]";
 
     /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
     public static final class Factory {
@@ -270,7 +272,14 @@ public final class IntoPageWriter {
 
         IntoStats stats() {
             synchronized (failureDetails) {
-                return new IntoStats(total.get(), created.get(), updated.get(), versionConflicts.get(), failures.get(), failureDetails);
+                return IntoStats.builder()
+                    .total(total.get())
+                    .created(created.get())
+                    .updated(updated.get())
+                    .versionConflicts(versionConflicts.get())
+                    .failures(failures.get())
+                    .failureDetails(failureDetails)
+                    .build();
             }
         }
 
@@ -392,8 +401,13 @@ public final class IntoPageWriter {
                 for (int i = 0; i < count; i++) {
                     values.add(ids.getBytesRef(start + i, scratch).utf8ToString());
                 }
-                String msg = "INTO [{}] failed: [{}] must be single-valued, found [{}]";
-                var failed = new ElasticsearchStatusException(msg, RestStatus.BAD_REQUEST, sink.destination, IdFieldMapper.NAME, values);
+                var failed = new ElasticsearchStatusException(
+                    MULTI_VALUED_ID_MESSAGE,
+                    RestStatus.BAD_REQUEST,
+                    sink.destination,
+                    IdFieldMapper.NAME,
+                    values
+                );
                 sink.failure.compareAndSet(null, failed);
                 throw failed;
             }

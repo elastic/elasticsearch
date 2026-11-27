@@ -37,12 +37,16 @@ public record IntoStats(long total, long created, long updated, long versionConf
     // the slots, and the merge no longer depends on which writer reports first.
     public static final int MAX_FAILURE_DETAILS = 20;
 
-    public static final IntoStats EMPTY = new IntoStats(0, 0, 0, 0, 0, List.of());
+    public static final IntoStats EMPTY = builder().build();
 
     public IntoStats {
         failureDetails = List.copyOf(
             failureDetails.size() > MAX_FAILURE_DETAILS ? failureDetails.subList(0, MAX_FAILURE_DETAILS) : failureDetails
         );
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     public static List<Attribute> createAttributes(Source source) {
@@ -58,14 +62,13 @@ public record IntoStats(long total, long created, long updated, long versionConf
 
     /** Reads the stats at {@code position} of a page laid out as {@link #createAttributes}. */
     static IntoStats fromPage(Page page, int position) {
-        return new IntoStats(
-            longAt(page.getBlock(0), position),
-            longAt(page.getBlock(1), position),
-            longAt(page.getBlock(2), position),
-            longAt(page.getBlock(3), position),
-            longAt(page.getBlock(4), position),
-            stringsAt(page.getBlock(5), position)
-        );
+        return builder().total(longAt(page.getBlock(0), position))
+            .created(longAt(page.getBlock(1), position))
+            .updated(longAt(page.getBlock(2), position))
+            .versionConflicts(longAt(page.getBlock(3), position))
+            .failures(longAt(page.getBlock(4), position))
+            .failureDetails(stringsAt(page.getBlock(5), position))
+            .build();
     }
 
     private static long longAt(LongBlock block, int position) {
@@ -88,15 +91,13 @@ public record IntoStats(long total, long created, long updated, long versionConf
 
     /** Adds up the counters and keeps the first {@link #MAX_FAILURE_DETAILS} details of the two, this one's first. */
     IntoStats merge(IntoStats other) {
-        List<String> details = CollectionUtils.concatLists(failureDetails, other.failureDetails);
-        return new IntoStats(
-            total + other.total,
-            created + other.created,
-            updated + other.updated,
-            versionConflicts + other.versionConflicts,
-            failures + other.failures,
-            details
-        );
+        return builder().total(total + other.total)
+            .created(created + other.created)
+            .updated(updated + other.updated)
+            .versionConflicts(versionConflicts + other.versionConflicts)
+            .failures(failures + other.failures)
+            .failureDetails(CollectionUtils.concatLists(failureDetails, other.failureDetails))
+            .build();
     }
 
     Page toPage(BlockFactory blockFactory) {
@@ -129,6 +130,52 @@ public record IntoStats(long total, long created, long updated, long versionConf
             }
             builder.endPositionEntry();
             return builder.build();
+        }
+    }
+
+    /** Every counter starts at zero and the details start empty, so a caller names only what is not. */
+    public static final class Builder {
+        private long total;
+        private long created;
+        private long updated;
+        private long versionConflicts;
+        private long failures;
+        private List<String> failureDetails = List.of();
+
+        private Builder() {}
+
+        public Builder total(long total) {
+            this.total = total;
+            return this;
+        }
+
+        public Builder created(long created) {
+            this.created = created;
+            return this;
+        }
+
+        public Builder updated(long updated) {
+            this.updated = updated;
+            return this;
+        }
+
+        public Builder versionConflicts(long versionConflicts) {
+            this.versionConflicts = versionConflicts;
+            return this;
+        }
+
+        public Builder failures(long failures) {
+            this.failures = failures;
+            return this;
+        }
+
+        public Builder failureDetails(List<String> failureDetails) {
+            this.failureDetails = failureDetails;
+            return this;
+        }
+
+        public IntoStats build() {
+            return new IntoStats(total, created, updated, versionConflicts, failures, failureDetails);
         }
     }
 }

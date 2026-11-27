@@ -484,17 +484,17 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * Validates and converts an emitted ES|QL timestamp that has already been materialized outside
-     * the typed ES|QL response. Values are date/date_nanos string representations.
+     * Validates and converts the value of the time column {@code timeField} in one ES|QL row. Values are date/date_nanos string
+     * representations.
      */
     public static long validateEmittedTimeValueInSourceWindow(
         String jobId,
-        String emittedTimeField,
+        String timeField,
         Object rawValue,
         long sourceWindowStart,
         long sourceWindowEnd
     ) {
-        var context = new EmittedTimeContext(jobId, emittedTimeField, sourceWindowStart, sourceWindowEnd);
+        var context = new EmittedTimeContext(jobId, timeField, sourceWindowStart, sourceWindowEnd);
         if (rawValue == null) {
             throw context.failure(Messages.DATAFEED_ESQL_EMITTED_TIME_NULL, null, null);
         }
@@ -516,10 +516,10 @@ public class EsqlDatafeedQueryValidator {
         return emittedTimeMillis;
     }
 
-    private record EmittedTimeContext(String jobId, String emittedTimeField, long sourceWindowStart, long sourceWindowEnd) {
+    private record EmittedTimeContext(String jobId, String timeField, long sourceWindowStart, long sourceWindowEnd) {
         IllegalArgumentException failure(String messagePattern, @Nullable Long offendingValue, @Nullable Throwable cause) {
             return new IllegalArgumentException(
-                Messages.getMessage(messagePattern, jobId, emittedTimeField, sourceWindowStart, sourceWindowEnd, offendingValue),
+                Messages.getMessage(messagePattern, jobId, timeField, sourceWindowStart, sourceWindowEnd, offendingValue),
                 cause
             );
         }

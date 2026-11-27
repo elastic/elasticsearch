@@ -51,7 +51,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         && configuration.mode() == IndexMode.VECTORDB_COLUMNAR;
 
     private static final List<String> NUMBERS = List.of("long", "integer", "short", "byte", "double", "float", "half_float");
-    private static final String MALFORMED_DATE = "not a date";
+    private static final String MALFORMED_DATE = "not a \"date\"";
     private static final List<String> STRINGS = List.of("keyword", "text");
     private static final List<String> PLAIN_TYPES = List.of(
         "long",

@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
@@ -39,8 +40,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.DateTimeException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -168,7 +172,7 @@ public enum IndexingStrategy {
             return false;
         }
         final String value = matcher.group(1);
-        if (sources.stream().noneMatch(source -> source.contains(value))) {
+        if (decodedStrings(sources).contains(value) == false) {
             return false;
         }
         for (final Mapper mapper : lookup.fieldMappers()) {
@@ -181,6 +185,24 @@ public enum IndexingStrategy {
             }
         }
         return false;
+    }
+
+    private static Set<String> decodedStrings(List<String> sources) {
+        final Set<String> strings = new HashSet<>();
+        for (final String source : sources) {
+            collectStrings(XContentHelper.convertToMap(XContentType.JSON.xContent(), source, false), strings);
+        }
+        return strings;
+    }
+
+    private static void collectStrings(Object node, Set<String> strings) {
+        if (node instanceof String string) {
+            strings.add(string);
+        } else if (node instanceof Map<?, ?> map) {
+            map.values().forEach(value -> collectStrings(value, strings));
+        } else if (node instanceof Collection<?> collection) {
+            collection.forEach(value -> collectStrings(value, strings));
+        }
     }
 
     private static Outcome indexRows(

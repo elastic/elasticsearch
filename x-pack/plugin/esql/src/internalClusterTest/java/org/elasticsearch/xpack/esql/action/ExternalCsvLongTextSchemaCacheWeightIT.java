@@ -42,6 +42,8 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
     private static final int VALUE_CHARS = 1_000_000;
     /** The one file whose {@code note} is narrow enough to publish. Neither the minimum nor the maximum. */
     private static final int NARROW_NOTE_FILE = 3;
+    /** An id with no tag and no note, appended to one file so the text columns' counts are not the row count. */
+    private static final String ROW_WITHOUT_TEXT = "100\n";
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -70,9 +72,18 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
         for (int i = 0; i < FILE_COUNT; i++) {
             Path file = dir.resolve("part" + i + ".csv");
             String note = i == NARROW_NOTE_FILE ? narrowNote : "a" + i + "-" + pad;
-            Files.writeString(file, "id,tag,note\n" + i + ",tag-" + i + "," + note + "\n");
+            // File 0 carries a second row that stops after the id. Under pad_short_rows the missing fields
+            // are harvested as nulls, so the text columns' value counts are one below the row count and
+            // COUNT(note) served from the row count would read 9 rather than 8. An empty field would not
+            // do: CSV reads it as the empty string, which then becomes the column minimum.
+            String extraRow = i == 0 ? ROW_WITHOUT_TEXT : "";
+            Files.writeString(file, "id,tag,note\n" + i + ",tag-" + i + "," + note + "\n" + extraRow);
         }
-        String dataset = registerLocalFileDataset("wide_text", StoragePath.fileUri(dir) + "/*.csv", Map.of("format", "csv"));
+        String dataset = registerLocalFileDataset(
+            "wide_text",
+            StoragePath.fileUri(dir) + "/*.csv",
+            Map.of("format", "csv", "pad_short_rows", true)
+        );
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(note), MAX(note)"), TimeValue.timeValueMinutes(5))) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.size(), equalTo(1));
@@ -117,8 +128,8 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
         ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.size(), equalTo(1));
-            assertThat("every row of every file", rows.get(0).get(0), equalTo((long) FILE_COUNT));
-            assertThat("and every one has a note", rows.get(0).get(1), equalTo((long) FILE_COUNT));
+            assertThat("every row of every file, including the one without text", rows.get(0).get(0), equalTo(FILE_COUNT + 1L));
+            assertThat("and the rows that have a note, which is one fewer", rows.get(0).get(1), equalTo((long) FILE_COUNT));
             assertThat(
                 "a withheld extremum leaves the counts servable, so neither count reads a file",
                 response.documentsFound(),
@@ -146,7 +157,7 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
             assertThat(
                 "the column is unservable, so the answer comes from a scan rather than the record",
                 response.documentsFound(),
-                equalTo((long) FILE_COUNT)
+                equalTo(FILE_COUNT + 1L)
             );
         }
 
@@ -168,7 +179,7 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
             assertThat(
                 "the first read that projects `tag` scans every row, which is what puts both columns in one record",
                 response.documentsFound(),
-                equalTo((long) FILE_COUNT)
+                equalTo(FILE_COUNT + 1L)
             );
         }
         // Now the narrow column alone, against the record that read wrote. The values would not tell a served
@@ -199,7 +210,7 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
             assertThat(
                 "a servable `tag` beside a withheld `note` still scans, so the withheld end is what costs the read",
                 response.documentsFound(),
-                equalTo((long) FILE_COUNT)
+                equalTo(FILE_COUNT + 1L)
             );
         }
     }

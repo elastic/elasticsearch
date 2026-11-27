@@ -64,6 +64,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -182,6 +184,40 @@ public class ParquetOpenRequestCountTests extends ESTestCase {
         assertEquals(result.status().rowGroupsTotal(), result.status().rowGroupsDictionaryFilterSkipped());
         assertEquals(0L, result.syncGets());
         assertNoDictBloomOnlyGets(result, "all-MISS must not pre-warm dictionary or bloom pages");
+    }
+
+    /**
+     * parquet-mr's dictionary and bloom visitors do not read for {@code Eq(null)} /
+     * {@code NotEq(null)}. Mixed-null groups stay AMBIGUOUS at STATISTICS, but preload must
+     * still skip those pages.
+     */
+    public void testIsNullOnMixedNullsSkipsDictBloomPreload() throws Exception {
+        byte[] file = mixedNullValueFile();
+        assertThat((long) file.length, greaterThan((long) FOOTER_TAIL));
+        OpenResult result = open(
+            file,
+            new ParquetPushedExpressions(List.of(new IsNull(Source.EMPTY, valueAttr()))),
+            List.of("start", "value"),
+            List.of(startAttr(), valueAttr()),
+            true
+        );
+        assertEquals(expectedStarts(i -> i % 3 == 0), result.ids());
+        assertEquals(0L, result.syncGets());
+        assertNoDictBloomOnlyGets(result, "IS NULL must not pre-warm dictionary or bloom pages");
+    }
+
+    public void testIsNotNullOnMixedNullsSkipsDictBloomPreload() throws Exception {
+        byte[] file = mixedNullValueFile();
+        OpenResult result = open(
+            file,
+            new ParquetPushedExpressions(List.of(new IsNotNull(Source.EMPTY, valueAttr()))),
+            List.of("start", "value"),
+            List.of(startAttr(), valueAttr()),
+            true
+        );
+        assertEquals(expectedStarts(i -> i % 3 != 0), result.ids());
+        assertEquals(0L, result.syncGets());
+        assertNoDictBloomOnlyGets(result, "IS NOT NULL must not pre-warm dictionary or bloom pages");
     }
 
     public void testSomeMissGroupsSkipDictBloomRanges() throws Exception {
@@ -671,6 +707,31 @@ public class ParquetOpenRequestCountTests extends ESTestCase {
         try (ParquetWriter<Group> writer = writer(out, schema, SMALL_RG_BYTES, true, false, "action")) {
             for (int i = 0; i < rows; i++) {
                 writer.write(groups.newGroup().append("start", i).append("action", actionFor(i)).append("pad", uniquePad(pad, i)));
+            }
+        }
+        return out.toByteArray();
+    }
+
+    private static byte[] mixedNullValueFile() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("value")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("start")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .named("pad")
+            .named("mixed_null");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory groups = new SimpleGroupFactory(schema);
+        byte[] pad = new byte[PAD_PER_ROW];
+        random().nextBytes(pad);
+        try (ParquetWriter<Group> writer = writer(out, schema, ONE_RG_BYTES, true, true, "value")) {
+            for (int i = 0; i < ROWS_1RG; i++) {
+                Group group = groups.newGroup();
+                if (i % 3 != 0) {
+                    group.append("value", valueFor(i, new int[] { 0, 1, 2 }));
+                }
+                writer.write(group.append("start", i).append("pad", uniquePad(pad, i)));
             }
         }
         return out.toByteArray();

@@ -50,7 +50,9 @@ import java.util.Set;
  *       footer stats would lose that extra pruning; those files still filter rows correctly, they
  *       just keep extra groups. This is the rule that lets the VPC shape skip the dictionary GET.
  *       Bloom is useful when the chunk records a bloom offset and length and the op is {@code Eq}
- *       / {@code In}.</li>
+ *       / {@code In}. Null-valued {@code Eq}/{@code NotEq} and {@code In}/{@code NotIn} sets that
+ *       contain null return {@code NONE}: parquet-mr's dictionary and bloom visitors answer
+ *       {@code BLOCK_MIGHT_MATCH} without reading those pages.</li>
  * </ul>
  */
 final class FilterLevelUsefulness {
@@ -180,15 +182,11 @@ final class FilterLevelUsefulness {
             }
             T value = eq.getValue();
             if (value == null) {
-                ColumnChunkMetaData chunk = column(eq.getColumn());
-                if (chunk != null && chunk.getValueCount() == numNulls(chunk)) {
-                    return Usefulness.NONE;
-                }
-            } else {
-                Statistics stats = nonNullableStats(eq.getColumn());
-                if (stats != null && stats.compareMinToValue(value) == 0 && stats.compareMaxToValue(value) == 0) {
-                    return Usefulness.NONE;
-                }
+                return Usefulness.NONE;
+            }
+            Statistics stats = nonNullableStats(eq.getColumn());
+            if (stats != null && stats.compareMinToValue(value) == 0 && stats.compareMaxToValue(value) == 0) {
+                return Usefulness.NONE;
             }
             return ambiguous(eq.getColumn(), true, false, true);
         }
@@ -201,14 +199,11 @@ final class FilterLevelUsefulness {
             }
             T value = notEq.getValue();
             if (value == null) {
-                if (nonNullableStats(notEq.getColumn()) != null) {
-                    return Usefulness.NONE;
-                }
-            } else {
-                Statistics stats = nonNullableStats(notEq.getColumn());
-                if (stats != null && (stats.compareMinToValue(value) > 0 || stats.compareMaxToValue(value) < 0)) {
-                    return Usefulness.NONE;
-                }
+                return Usefulness.NONE;
+            }
+            Statistics stats = nonNullableStats(notEq.getColumn());
+            if (stats != null && (stats.compareMinToValue(value) > 0 || stats.compareMaxToValue(value) < 0)) {
+                return Usefulness.NONE;
             }
             return ambiguous(notEq.getColumn(), false, true, false);
         }
@@ -272,13 +267,13 @@ final class FilterLevelUsefulness {
                 return Usefulness.NONE;
             }
             Set<T> values = in.getValues();
+            if (containsNull(values)) {
+                return Usefulness.NONE;
+            }
             if (values != null && values.isEmpty() == false) {
                 Statistics stats = nonNullableStats(in.getColumn());
                 if (stats != null) {
                     for (T candidate : values) {
-                        if (candidate == null) {
-                            continue;
-                        }
                         if (stats.compareMinToValue(candidate) == 0 && stats.compareMaxToValue(candidate) == 0) {
                             return Usefulness.NONE;
                         }
@@ -295,15 +290,14 @@ final class FilterLevelUsefulness {
                 return Usefulness.NONE;
             }
             Set<T> values = notIn.getValues();
+            if (containsNull(values)) {
+                return Usefulness.NONE;
+            }
             if (values != null && values.isEmpty() == false) {
                 Statistics stats = nonNullableStats(notIn.getColumn());
                 if (stats != null) {
                     boolean match = true;
                     for (T candidate : values) {
-                        if (candidate == null) {
-                            match = false;
-                            break;
-                        }
                         if (stats.compareMinToValue(candidate) <= 0 && stats.compareMaxToValue(candidate) >= 0) {
                             match = false;
                             break;
@@ -356,9 +350,16 @@ final class FilterLevelUsefulness {
             return ambiguous(ud.getUserDefined().getColumn(), true, false, false);
         }
 
-        private static long numNulls(ColumnChunkMetaData col) {
-            Statistics<?> stats = col.getStatistics();
-            return stats != null && stats.isNumNullsSet() ? stats.getNumNulls() : -1L;
+        private static boolean containsNull(Set<?> values) {
+            if (values == null) {
+                return false;
+            }
+            for (Object value : values) {
+                if (value == null) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

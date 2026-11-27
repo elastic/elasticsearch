@@ -23,6 +23,7 @@ import org.apache.parquet.schema.Types;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -75,6 +76,21 @@ public class FilterLevelUsefulnessTests extends ESTestCase {
         assertUseful(FilterApi.eq(FilterApi.intColumn(COL), 5), block, false, false);
     }
 
+    public void testEqNullOnMixedNullsIsNeitherUseful() {
+        BlockMetaData block = dictBlock(1, 10, 5L, 100L, true);
+        assertUseful(FilterApi.eq(FilterApi.intColumn(COL), (Integer) null), block, false, false);
+    }
+
+    public void testNotEqNullOnMixedNullsIsNeitherUseful() {
+        BlockMetaData block = dictBlock(1, 10, 5L, 100L, true);
+        assertUseful(FilterApi.notEq(FilterApi.intColumn(COL), (Integer) null), block, false, false);
+    }
+
+    public void testNotEqNullWithMissingStatsIsNeitherUseful() {
+        BlockMetaData block = dictBlockMissingStats(true);
+        assertUseful(FilterApi.notEq(FilterApi.intColumn(COL), (Integer) null), block, false, false);
+    }
+
     // ----- In / NotIn -----
 
     public void testInAmbiguousIsDictAndBloomUseful() {
@@ -95,6 +111,22 @@ public class FilterLevelUsefulnessTests extends ESTestCase {
     public void testNotInMatchIsNeitherUseful() {
         BlockMetaData block = dictBlock(50, 60, 0L, 100L, true);
         assertUseful(FilterApi.notIn(FilterApi.intColumn(COL), Set.of(5, 10)), block, false, false);
+    }
+
+    public void testInContainingNullIsNeitherUseful() {
+        BlockMetaData block = dictBlock(1, 10, 5L, 100L, true);
+        Set<Integer> values = new HashSet<>();
+        values.add(5);
+        values.add(null);
+        assertUseful(FilterApi.in(FilterApi.intColumn(COL), values), block, false, false);
+    }
+
+    public void testNotInContainingNullIsNeitherUseful() {
+        BlockMetaData block = dictBlock(1, 10, 5L, 100L, true);
+        Set<Integer> values = new HashSet<>();
+        values.add(5);
+        values.add(null);
+        assertUseful(FilterApi.notIn(FilterApi.intColumn(COL), values), block, false, false);
     }
 
     // ----- comparisons / NotEq: useful only when min/max missing -----

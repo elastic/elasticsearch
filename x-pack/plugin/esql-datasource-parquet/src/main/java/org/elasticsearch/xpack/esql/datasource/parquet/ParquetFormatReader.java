@@ -3494,15 +3494,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * {@code true} when parquet-mr's BLOOMFILTER row-group filter level can run on {@code block}
-     * without touching the reader's synchronous stream. Every predicate column with a known
-     * {@code bloomOffset > 0} must have a pre-warmed chunk covering that offset. Unknown bloom
-     * length is never pre-warmed, so this returns {@code false} and the level is dropped — closing
-     * the sync {@code newStream} parquet-mr would otherwise issue. Columns with no bloom do not
-     * disable the level.
+     * without touching the reader's synchronous stream. Every predicate column with a bloom
+     * offset must record a known {@code bloomLength > 0} and have a pre-warmed chunk covering
+     * the whole {@code [offset, offset + length)} range. Offset-only coverage is not enough:
+     * a coalesced dictionary/index chunk can incidentally contain the offset of an unknown-length
+     * bloom, and parquet-mr would then {@code newStream} the rest. Unknown length is never
+     * pre-warmed, so this returns {@code false} and the level is dropped. Columns with no bloom
+     * do not disable the level.
      * <p>
      * All-or-nothing per row group: one predicate column whose bloom length is unknown (or whose
-     * page was not pre-warmed) drops BLOOMFILTER for the whole group. That is the no-hidden-GET
-     * trade; other columns in the group that have a usable bloom are not consulted either.
+     * page was not fully pre-warmed) drops BLOOMFILTER for the whole group. That is the
+     * no-hidden-GET trade; other columns in the group that have a usable bloom are not consulted
+     * either.
      */
     static boolean bloomFilterLevelApplies(
         BlockMetaData block,
@@ -3517,7 +3520,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (bloomOffset <= 0) {
                 continue;
             }
-            if (chunkCovers(preWarmedChunks, bloomOffset) == false) {
+            int bloomLength = col.getBloomFilterLength();
+            if (bloomLength <= 0 || chunkCovers(preWarmedChunks, bloomOffset, bloomLength) == false) {
                 return false;
             }
         }
@@ -3525,8 +3529,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     private static boolean chunkCovers(NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks, long pos) {
+        return chunkCovers(preWarmedChunks, pos, 1);
+    }
+
+    /**
+     * {@code true} when one pre-warmed chunk contains {@code [pos, pos + length)}.
+     * Bloom pages are a single range, so spanning two chunks is not a cover.
+     */
+    private static boolean chunkCovers(NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks, long pos, int length) {
         Map.Entry<Long, ColumnChunkPrefetcher.PrefetchedChunk> entry = preWarmedChunks.floorEntry(pos);
-        return entry != null && pos < entry.getValue().offset() + entry.getValue().length();
+        return entry != null && pos + (long) length <= entry.getValue().offset() + entry.getValue().length();
     }
 
     /**

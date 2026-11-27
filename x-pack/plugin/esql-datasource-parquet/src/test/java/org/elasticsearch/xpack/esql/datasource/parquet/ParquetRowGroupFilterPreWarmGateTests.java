@@ -248,7 +248,15 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
         assertFalse(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), new TreeMap<>()));
         assertFalse(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), chunks(0L, 1_000L)));
         assertTrue(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), chunks(9_000L, 64L)));
-        assertTrue(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), chunks(8_990L, 20L)));
+        assertTrue(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), chunks(8_990L, 74L)));
+        assertFalse(
+            "offset-only cover of a 64-byte bloom must not enable BLOOMFILTER",
+            ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), chunks(8_990L, 20L))
+        );
+        assertFalse(
+            "a chunk one byte short of the bloom must not enable BLOOMFILTER",
+            ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), chunks(9_000L, 63L))
+        );
     }
 
     public void testBloomLevelDropsWhenLengthUnknown() {
@@ -256,6 +264,10 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
         block.getColumns().get(0).setBloomFilterOffset(9_000L);
         // length stays parquet-mr's default -1, so preload adds no range and the level must drop
         assertFalse(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), new TreeMap<>()));
+        assertFalse(
+            "incidental cover of an unknown-length bloom offset must not enable BLOOMFILTER",
+            ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), chunks(9_000L, 64L))
+        );
     }
 
     /** {@code DictionaryFilter} answers "might match" for chunks with non-dictionary pages without reading the dictionary. */

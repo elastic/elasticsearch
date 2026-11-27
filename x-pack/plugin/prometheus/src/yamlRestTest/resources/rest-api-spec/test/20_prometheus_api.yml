@@ -1,0 +1,185 @@
+---
+# Calls the Prometheus-compatible HTTP API through its rest-api-spec definitions.
+# Remote write is not covered: its body is a binary protobuf message, which YAML tests can't send.
+setup:
+  # The plugin installs its index templates asynchronously
+  - do:
+      cluster.health:
+        wait_for_events: languid
+  - do:
+      cluster.put_component_template:
+        name: metrics-prometheus@custom
+        body:
+          template:
+            settings:
+              index:
+                time_series:
+                  start_time: 2026-01-01T00:00:00
+  - do:
+      cluster.put_component_template:
+        name: exemplars-prometheus@custom
+        body:
+          template:
+            settings:
+              index:
+                time_series:
+                  start_time: 2026-01-01T00:00:00
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - create: { _index: metrics-generic.prometheus-default }
+          - "@timestamp": "2026-01-01T00:00:00"
+            labels:
+              __name__: "up"
+              job: "node_exporter"
+              instance: "localhost:9100"
+            metrics:
+              up: 1
+          - create: { _index: metrics-generic.prometheus-default }
+          - "@timestamp": "2026-01-01T00:00:30"
+            labels:
+              __name__: "up"
+              job: "node_exporter"
+              instance: "localhost:9100"
+            metrics:
+              up: 1
+          - create: { _index: exemplars-generic.prometheus-default }
+          - "@timestamp": "2026-01-01T00:00:15"
+            labels:
+              __name__: "up"
+              job: "node_exporter"
+              instance: "localhost:9100"
+            exemplar_labels:
+              trace_id: "0af7651916cd43dd8448eb211c80319c"
+            value: 1.0
+  # The queries run on ES|QL, so wait for the dynamically created mappings to reach every node
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Build information":
+  - do:
+      prometheus.status_buildinfo: {}
+  - match: { status: success }
+  - match: { data.application: Elasticsearch }
+  - is_true: data.version
+
+---
+"Build information with an index":
+  - do:
+      prometheus.status_buildinfo:
+        index: metrics-*
+  - match: { status: success }
+  - match: { data.application: Elasticsearch }
+
+---
+"Instant query":
+  - do:
+      prometheus.query:
+        query: up
+        time: "2026-01-01T00:00:30Z"
+  - match: { status: success }
+  - match: { data.resultType: vector }
+  - length: { data.result: 1 }
+  - match: { data.result.0.metric.job: node_exporter }
+  - length: { data.result.0.value: 2 }
+
+---
+"Instant query with an index":
+  - do:
+      prometheus.query:
+        index: metrics-generic.prometheus-default
+        query: up
+        time: "2026-01-01T00:00:30Z"
+  - match: { status: success }
+  - length: { data.result: 1 }
+
+---
+"Instant query with an invalid expression":
+  - do:
+      catch: bad_request
+      prometheus.query:
+        query: "up{"
+  - match: { status: error }
+  - match: { errorType: bad_data }
+
+---
+"Range query":
+  - do:
+      prometheus.query_range:
+        query: up
+        start: "2026-01-01T00:00:00Z"
+        end: "2026-01-01T00:00:30Z"
+        # Each step has its own sample, as Elasticsearch looks back one step in range queries
+        step: 30s
+  - match: { status: success }
+  - match: { data.resultType: matrix }
+  - length: { data.result: 1 }
+  - match: { data.result.0.metric.instance: "localhost:9100" }
+  - length: { data.result.0.values: 2 }
+
+---
+"Label names":
+  - do:
+      prometheus.labels:
+        match[]: up
+        start: "2026-01-01T00:00:00Z"
+        end: "2026-01-01T00:01:00Z"
+  - match: { status: success }
+  - match: { data: [ __name__, instance, job ] }
+
+---
+"Label values":
+  - do:
+      prometheus.label_values:
+        name: job
+        start: "2026-01-01T00:00:00Z"
+        end: "2026-01-01T00:01:00Z"
+  - match: { status: success }
+  - match: { data: [ node_exporter ] }
+
+---
+"Label values of an unknown label":
+  - do:
+      prometheus.label_values:
+        name: no_such_label
+        start: "2026-01-01T00:00:00Z"
+        end: "2026-01-01T00:01:00Z"
+  - match: { status: success }
+  - match: { data: [ ] }
+
+---
+"Series":
+  - do:
+      prometheus.series:
+        match[]: up
+        start: "2026-01-01T00:00:00Z"
+        end: "2026-01-01T00:01:00Z"
+  - match: { status: success }
+  - length: { data: 1 }
+  - match: { data.0.__name__: up }
+  - match: { data.0.job: node_exporter }
+
+---
+"Metric metadata":
+  # The endpoint looks back 24 hours from now, so the documents indexed in setup are not in its window
+  - do:
+      prometheus.metadata:
+        metric: up
+  - match: { status: success }
+  - match: { data: {} }
+
+---
+"Exemplars":
+  - do:
+      prometheus.query_exemplars:
+        query: up
+        start: "2026-01-01T00:00:00Z"
+        end: "2026-01-01T00:01:00Z"
+  - match: { status: success }
+  - length: { data: 1 }
+  - match: { data.0.seriesLabels.job: node_exporter }
+  - length: { data.0.exemplars: 1 }
+  - match: { data.0.exemplars.0.labels.trace_id: "0af7651916cd43dd8448eb211c80319c" }

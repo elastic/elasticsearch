@@ -118,6 +118,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final PartitionSizeCollector partitionSizeCollector;
     private final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector;
     private final SearchLaneRequirementsCollector searchLaneRequirementsCollector;
+    private final SearchLoadMetricsCollector searchLoadMetricsCollector;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
     private AsyncRefresh currentRefresh;
@@ -136,7 +137,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector,
         PartitionSizeCollector partitionSizeCollector,
         NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector,
-        SearchLaneRequirementsCollector searchLaneRequirementsCollector
+        SearchLaneRequirementsCollector searchLaneRequirementsCollector,
+        SearchLoadMetricsCollector searchLoadMetricsCollector
     ) {
         this.threadPool = threadPool;
         this.client = client;
@@ -145,6 +147,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.partitionSizeCollector = partitionSizeCollector;
         this.nodeUsageStatsForThreadPoolsCollector = nodeUsageStatsForThreadPoolsCollector;
         this.searchLaneRequirementsCollector = searchLaneRequirementsCollector;
+        this.searchLoadMetricsCollector = searchLoadMetricsCollector;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -233,6 +236,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = Map.of();
         private volatile Map<String, Long> hostedShardsPartitionSizeByNodeId = Map.of();
         private volatile Map<ShardId, Double> shardSearchLaneRequirements = Map.of();
+        private volatile Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands = Map.of();
+        private volatile Map<String, NodeSearchCapacity> nodeSearchCapacities = Map.of();
         private volatile IndicesStatsSummary indicesStatsSummary;
 
         private final boolean collectStoreStats = diskThresholdEnabled || snapshotRestoreAllocationEnabled;
@@ -254,6 +259,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 fetchCacheUsageAndCommitments();
                 fetchPartitionSizes();
                 fetchSearchLaneRequirements();
+                fetchSearchLoadMetrics();
             }
         }
 
@@ -360,6 +366,28 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         }
                     }, fetchRefs.acquire())
                 );
+            }
+        }
+
+        private void fetchSearchLoadMetrics() {
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                final ActionListener<SearchLoadMetrics> listener = ActionListener.releaseAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(SearchLoadMetrics searchLoadMetrics) {
+                        searchCopyDemands = searchLoadMetrics.searchCopyDemands();
+                        nodeSearchCapacities = searchLoadMetrics.nodeSearchCapacities();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to fetch search load metrics", e);
+                        searchCopyDemands = Map.of();
+                        nodeSearchCapacities = Map.of();
+                    }
+                }, fetchRefs.acquire());
+                // An Exception before the collector notifies its listener is forwarded to onFailure, which releases the refresh ref.
+                // A normal return keeps that ref until the listener runs, including when the collector completes it later.
+                ActionListener.run(listener, l -> searchLoadMetricsCollector.collectSearchLoadMetrics(clusterStateSupplier.get(), l));
             }
         }
 
@@ -597,7 +625,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 shardCacheRequirements,
                 hostedShardsPartitionSizeByNodeId,
                 shardSearchLaneRequirements,
-                indicesStatsSummary.shardSearchLoads()
+                indicesStatsSummary.shardSearchLoads(),
+                searchCopyDemands,
+                nodeSearchCapacities
             );
             currentClusterInfo = newClusterInfo;
             return newClusterInfo;

@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -107,14 +106,19 @@ public class DatafeedJobBuilder {
             : restartTimeInfo.getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
     }
 
-    /** Maps the latest posted record time to the last time the datafeed has fully read. */
-    private static LongUnaryOperator lastEndTimeForRecord(DatafeedConfig datafeedConfig) {
-        if (EsqlDataExtractor.emitsBucketTimes(datafeedConfig.getEsqlQuery()) == false) {
+    /**
+     * Maps the latest posted record time to the last time the datafeed has fully read. Rows of a bucketed ES|QL query carry the bucket
+     * start, so the whole bucket has been posted. The bucket length is the larger of the DESCRIBE interval and the grouping interval,
+     * because the chunked extractor still floors the window start on the grouping interval. That term goes away when the aligner uses
+     * the DESCRIBE interval.
+     */
+    private static LongUnaryOperator lastEndTimeForRecord(DatafeedConfig datafeedConfig, DataExtractorFactory dataExtractorFactory) {
+        long describedBucketMs = dataExtractorFactory.timeBucketMillis();
+        if (describedBucketMs <= 0) {
             return LongUnaryOperator.identity();
         }
-        // Bucket-stamped rows carry the bucket start, so the whole bucket has been posted.
-        long groupingIntervalMs = datafeedConfig.getGroupingInterval().millis();
-        return recordMs -> recordMs + groupingIntervalMs - 1;
+        long bucketMs = Math.max(describedBucketMs, datafeedConfig.getGroupingInterval().millis());
+        return recordMs -> recordMs + bucketMs - 1;
     }
 
     private void setDelayedDataCheckFreq(TimeValue value) {
@@ -126,13 +130,12 @@ public class DatafeedJobBuilder {
         final DatafeedConfig datafeedConfig = context.datafeedConfig();
         final Job job = context.job();
         final long latestFinalBucketEndMs = latestFinalBucketEndMs(job, context.restartTimeInfo());
-        final long latestRecordTimeMs = latestRecordTimeMs(context.restartTimeInfo());
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
         );
 
-        if (failListenerOnPreflightValidation(datafeedConfig, job, listener)) {
+        if (failListenerOnPreflightValidation(task, datafeedConfig, job, listener)) {
             return;
         }
 
@@ -164,7 +167,6 @@ public class DatafeedJobBuilder {
                 parentTaskAssigningClient,
                 cloudCredentialId,
                 latestFinalBucketEndMs,
-                latestRecordTimeMs,
                 timingStatsReporter,
                 dataExtractorFactory
             );
@@ -204,12 +206,11 @@ public class DatafeedJobBuilder {
         final DatafeedConfig datafeedConfig = context.datafeedConfig();
         final Job job = context.job();
         final long latestFinalBucketEndMs = latestFinalBucketEndMs(job, context.restartTimeInfo());
-        final long latestRecordTimeMs = latestRecordTimeMs(context.restartTimeInfo());
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
         );
-        if (failListenerOnPreflightValidation(datafeedConfig, job, listener)) {
+        if (failListenerOnPreflightValidation(task, datafeedConfig, job, listener)) {
             return;
         }
         var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(crossProjectModeDecider, null);
@@ -233,7 +234,6 @@ public class DatafeedJobBuilder {
             parentTaskAssigningClient,
             cloudCredentialId,
             latestFinalBucketEndMs,
-            latestRecordTimeMs,
             timingStatsReporter,
             dataExtractorFactory
         );
@@ -248,11 +248,11 @@ public class DatafeedJobBuilder {
         ParentTaskAssigningClient parentTaskAssigningClient,
         String cloudCredentialId,
         long latestFinalBucketEndMs,
-        long latestRecordTimeMs,
         DatafeedTimingStatsReporter timingStatsReporter,
         DataExtractorFactory dataExtractorFactory
     ) {
-        TimeValue frequency = getFrequencyOrDefault(datafeedConfig, job, xContentRegistry);
+        final long latestRecordTimeMs = latestRecordTimeMs(context.restartTimeInfo());
+        TimeValue frequency = datafeedConfig.getFrequencyOrDefault(job.getAnalysisConfig().getBucketSpan(), xContentRegistry);
         TimeValue queryDelay = datafeedConfig.getQueryDelay();
         DelayedDataDetector delayedDataDetector = DelayedDataDetectorFactory.buildDetector(
             job,
@@ -287,14 +287,19 @@ public class DatafeedJobBuilder {
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
             crossClusterSearchStats,
-            lastEndTimeForRecord(datafeedConfig)
+            lastEndTimeForRecord(datafeedConfig, dataExtractorFactory)
         );
         listener.onResponse(datafeedJob);
     }
 
-    private boolean failListenerOnPreflightValidation(DatafeedConfig datafeedConfig, Job job, ActionListener<DatafeedJob> listener) {
+    private boolean failListenerOnPreflightValidation(
+        TransportStartDatafeedAction.DatafeedTask task,
+        DatafeedConfig datafeedConfig,
+        Job job,
+        ActionListener<DatafeedJob> listener
+    ) {
         try {
-            checkRemoteIndicesAreAvailable(datafeedConfig);
+            checkRemoteIndicesAreAvailable(task, datafeedConfig);
             DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
@@ -304,13 +309,15 @@ public class DatafeedJobBuilder {
     }
 
     // visible for testing
-    void checkRemoteIndicesAreAvailable(DatafeedConfig datafeedConfig) {
+    void checkRemoteIndicesAreAvailable(TransportStartDatafeedAction.DatafeedTask task, DatafeedConfig datafeedConfig) {
         if (remoteClusterClient == false) {
-            // ES|QL sources are in esql_query, not indices; remote checks live in EsqlDatafeedQueryValidator (#160858).
-            if (datafeedConfig.getIndices() == null) {
+            // ES|QL sources are not in the config: the master stores the probed remote sources in the start parameters. A DSL datafeed
+            // keeps its loaded config, because an update that races the start may have changed the indices after the master read them.
+            List<String> sources = datafeedConfig.getEsqlQuery() != null ? task.getDatafeedIndices() : datafeedConfig.getIndices();
+            if (sources == null) {
                 return;
             }
-            List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(datafeedConfig.getIndices());
+            List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(sources);
             if (remoteIndices.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(
@@ -322,15 +329,6 @@ public class DatafeedJobBuilder {
                 );
             }
         }
-    }
-
-    private static TimeValue getFrequencyOrDefault(DatafeedConfig datafeed, Job job, NamedXContentRegistry xContentRegistry) {
-        TimeValue frequency = datafeed.getFrequency();
-        if (frequency == null) {
-            TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
-            return datafeed.defaultFrequency(bucketSpan, xContentRegistry);
-        }
-        return frequency;
     }
 
     private static DataDescription buildDataDescription(Job job) {

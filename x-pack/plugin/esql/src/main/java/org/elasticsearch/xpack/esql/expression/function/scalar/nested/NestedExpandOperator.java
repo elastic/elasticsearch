@@ -6,34 +6,28 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
-import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
+import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-
-import java.util.List;
 
 /**
  * Emits one row per object of a mapped nested field. Parent blocks are repeated once per object; one block per child
- * field is appended. A parent without objects keeps one row with null child values. Each input page becomes one output
- * page, so its size grows with the number of objects.
+ * field is appended. A parent without objects keeps one row with null child values. An input page is given back as pages
+ * of at most {@code pageSize} rows, so a parent with many objects does not need all of them in one page.
  */
-public final class NestedExpandOperator extends AbstractPageMappingOperator {
-    static final String BREAKER_LABEL = "nested_expand";
+public final class NestedExpandOperator extends AbstractPageMappingToIteratorOperator {
+    public record Factory(int docChannel, NestedChildren.Factory children, String path, int pageSize) implements Operator.OperatorFactory {
+        public Factory {
+            if (pageSize < 1) {
+                throw new IllegalArgumentException("pageSize must be positive but was [" + pageSize + "]");
+            }
+        }
 
-    public record Factory(int docChannel, @Nullable NestedChildren.Factory children, String path, List<DataType> types)
-        implements
-            Operator.OperatorFactory {
         @Override
         public Operator get(DriverContext context) {
             return new NestedExpandOperator(context, this);
@@ -45,124 +39,64 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private final DriverContext context;
     private final Factory factory;
-    @Nullable
     private final NestedChildren children;
 
     private NestedExpandOperator(DriverContext context, Factory factory) {
-        this.context = context;
         this.factory = factory;
-        this.children = factory.children() == null ? null : factory.children().get(context);
+        this.children = factory.children().get(context);
     }
 
     @Override
-    protected Page process(Page page) {
-        try {
-            return expand(page);
-        } finally {
-            page.releaseBlocks();
-        }
+    protected ReleasableIterator<Page> receive(Page page) {
+        DocVector docs = ((DocBlock) page.getBlock(factory.docChannel())).asVector();
+        return new Expanded(page, children.expand(docs, factory.pageSize()));
     }
 
-    /** Copies each parent's child rows from the pages the index gives, with one null row for a parent without children. */
-    private Page expand(Page page) {
-        int columns = factory.types().size();
-        Block.Builder[] built = new Block.Builder[columns];
-        Block[] blocks = new Block[columns];
-        // The positions grow with the children of the page, and no block may account for them.
-        var rows = new Object() {
-            int[] positions = new int[0];
-            long reserved;
-            int count;
-            int next;
+    /** Pages of the rows of {@code page} with its objects. Owns {@code page} until the last rows are given or it is closed. */
+    private static final class Expanded implements ReleasableIterator<Page> {
+        private final Page page;
+        private final NestedChildren.Expansion expansion;
+        private boolean released;
 
-            void add(int position) {
-                if (count == positions.length) {
-                    int size = ArrayUtil.oversize(count + 1, Integer.BYTES);
-                    long bytes = (long) (size - positions.length) * Integer.BYTES;
-                    context.breaker().addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
-                    reserved += bytes;
-                    positions = ArrayUtil.growExact(positions, size);
-                }
-                positions[count++] = position;
-            }
+        private Expanded(Page page, NestedChildren.Expansion expansion) {
+            this.page = page;
+            this.expansion = expansion;
+        }
 
-            /** One null row for each parent before {@code parent}, which have no children. */
-            void fillTo(int parent) {
-                for (; next < parent; next++) {
-                    add(next);
-                    for (Block.Builder builder : built) {
-                        builder.appendNull();
+        @Override
+        public boolean hasNext() {
+            return released == false && expansion.hasNext();
+        }
+
+        @Override
+        public Page next() {
+            NestedChildren.Rows rows = expansion.next();
+            Page parents = null;
+            Page result = null;
+            try {
+                parents = page.filter(true, rows.positions(), rows.offset(), rows.count());
+                result = parents.appendBlocks(rows.fields());
+                parents = null;
+            } finally {
+                if (result == null) {
+                    Releasables.closeExpectNoException(rows.fields());
+                    if (parents != null) {
+                        parents.releaseBlocks();
                     }
                 }
             }
-        };
-        try {
-            for (int c = 0; c < columns; c++) {
-                built[c] = PlannerUtils.toElementType(factory.types().get(c))
-                    .newBlockBuilder(page.getPositionCount(), context.blockFactory());
+            if (expansion.hasNext() == false) {
+                close();
             }
-            if (children != null) {
-                DocVector docs = ((DocBlock) page.getBlock(factory.docChannel())).asVector();
-                children.read(docs, p -> true, loaded -> {
-                    IntVector parentPositions = loaded.<IntBlock>getBlock(0).asVector();
-                    int start = 0;
-                    for (int c = 0; c < loaded.getPositionCount(); c++) {
-                        int parent = parentPositions.getInt(c);
-                        if (parent >= rows.next) {
-                            copy(loaded, built, start, c);
-                            start = c;
-                            rows.fillTo(parent);
-                            rows.next = parent + 1;
-                        }
-                        rows.add(parent);
-                    }
-                    copy(loaded, built, start, loaded.getPositionCount());
-                });
-            }
-            rows.fillTo(page.getPositionCount());
-            for (int c = 0; c < columns; c++) {
-                blocks[c] = built[c].build();
-            }
-            Block[] owned = blocks;
-            blocks = null;
-            return output(page, rows.positions, rows.count, owned);
-        } finally {
-            context.breaker().addWithoutBreaking(-rows.reserved);
-            Releasables.closeExpectNoException(built);
-            if (blocks != null) {
-                Releasables.closeExpectNoException(blocks);
-            }
-        }
-    }
-
-    private static void copy(Page loaded, Block.Builder[] built, int from, int to) {
-        if (from < to) {
-            for (int c = 0; c < built.length; c++) {
-                built[c].copyFrom(loaded.getBlock(c + 1), from, to);
-            }
-        }
-    }
-
-    /**
-     * Appends {@code blocks}, which hold one row per object of the parent at the same index of {@code positions}, to the
-     * parents. Takes ownership of {@code blocks}.
-     */
-    private Page output(Page page, int[] positions, int count, Block[] blocks) {
-        Page parents = null;
-        try {
-            parents = page.filter(true, positions, 0, count);
-            Page result = parents.appendBlocks(blocks);
-            parents = null;
-            blocks = null;
             return result;
-        } finally {
-            if (blocks != null) {
-                Releasables.closeExpectNoException(blocks);
-            }
-            if (parents != null) {
-                parents.releaseBlocks();
+        }
+
+        @Override
+        public void close() {
+            if (released == false) {
+                released = true;
+                Releasables.closeExpectNoException(page::releaseBlocks, expansion);
             }
         }
     }

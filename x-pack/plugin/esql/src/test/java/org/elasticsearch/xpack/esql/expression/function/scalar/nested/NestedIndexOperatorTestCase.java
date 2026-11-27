@@ -16,6 +16,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.NoOpReleasable;
@@ -43,6 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Runs an operator that reads nested children over a real index, so the circuit breaker and random allocation failures
  * reach the child reads through {@link NestedChildren}, including the text field that loads from the parent's source.
  * Parent {@code i} has {@code i % 4} children, child {@code j} with price {@code 10 * i + j} and note {@code "n<j>"}.
+ * Parents are in one segment of one shard, unless a subclass overrides {@link #parentsPerSegment} or {@link #shardCount}.
  */
 public abstract class NestedIndexOperatorTestCase extends OperatorTestCase {
     protected static final int PARENTS = 1_000;
@@ -67,9 +71,24 @@ public abstract class NestedIndexOperatorTestCase extends OperatorTestCase {
     private MapperService mapperService;
     private DirectoryReader reader;
     protected EsPhysicalOperationProviders.DefaultShardContext shard;
-    /** The doc id of each parent, which follows its children in the one segment. */
+    private final List<EsPhysicalOperationProviders.DefaultShardContext> shardContexts = new ArrayList<>();
+    /** The doc id of each parent in its segment, which follows its children. */
     private final int[] parentDocs = new int[PARENTS];
-    private final Map<Integer, Integer> parentOfDoc = new HashMap<>();
+    private final int[] parentSegments = new int[PARENTS];
+    private final Map<Long, Integer> parentOfDoc = new HashMap<>();
+
+    /** How many parents each segment holds. */
+    protected int parentsPerSegment() {
+        return PARENTS;
+    }
+
+    /**
+     * How many shards the parents are spread over, parent {@code i} in shard {@code i % shardCount()}. Every shard reads the
+     * same index.
+     */
+    protected int shardCount() {
+        return 1;
+    }
 
     @Before
     public void buildIndex() throws IOException {
@@ -78,6 +97,7 @@ public abstract class NestedIndexOperatorTestCase extends OperatorTestCase {
             .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
             .setRAMBufferSizeMB(256);
         int doc = 0;
+        int segment = 0;
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int i = 0; i < PARENTS; i++) {
                 int parent = i;
@@ -91,13 +111,30 @@ public abstract class NestedIndexOperatorTestCase extends OperatorTestCase {
                 writer.addDocuments(parsed.docs());
                 doc += parsed.docs().size();
                 parentDocs[i] = doc - 1;
-                parentOfDoc.put(doc - 1, i);
+                parentSegments[i] = segment;
+                parentOfDoc.put(docKey(segment, doc - 1), i);
+                if ((i + 1) % parentsPerSegment() == 0 && i + 1 < PARENTS) {
+                    writer.flush();
+                    segment++;
+                    doc = 0;
+                }
             }
         }
         reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId(mapperService.index(), 0));
-        assertThat(reader.leaves().size(), equalTo(1));
+        assertThat(reader.leaves().size(), equalTo(segment + 1));
         SearchExecutionContext context = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader, false));
-        shard = new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), context, AliasFilter.EMPTY);
+        for (int s = 0; s < shardCount(); s++) {
+            shardContexts.add(new EsPhysicalOperationProviders.DefaultShardContext(s, new NoOpReleasable(), context, AliasFilter.EMPTY));
+        }
+        shard = shardContexts.getFirst();
+    }
+
+    protected final IndexedByShardId<EsPhysicalOperationProviders.DefaultShardContext> shards() {
+        return shardContexts.size() == 1 ? new IndexedByShardIdFromSingleton<>(shard) : new IndexedByShardIdFromList<>(shardContexts);
+    }
+
+    private static long docKey(int segment, int doc) {
+        return ((long) segment << 32) | doc;
     }
 
     @After
@@ -127,20 +164,29 @@ public abstract class NestedIndexOperatorTestCase extends OperatorTestCase {
     protected final Page parents(BlockFactory blockFactory, int start, int count) {
         try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, count)) {
             for (int i = start; i < start + count; i++) {
-                builder.appendShard(0).appendSegment(0).appendDoc(parentDocs[i]);
+                appendParent(builder, i);
             }
             return new Page(builder.build());
         }
     }
 
-    /** The doc id of parent {@code i}. */
-    protected final int parentDoc(int i) {
-        return parentDocs[i];
+    /** One page of the parents at {@code indexes}, in that order, which may repeat a parent. */
+    protected final Page parentsAt(BlockFactory blockFactory, int... indexes) {
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, indexes.length)) {
+            for (int i : indexes) {
+                appendParent(builder, i);
+            }
+            return new Page(builder.build(DocVector.config().mayContainDuplicates(true)));
+        }
+    }
+
+    private void appendParent(DocBlock.Builder builder, int parent) {
+        builder.appendShard(parent % shardCount()).appendSegment(parentSegments[parent]).appendDoc(parentDocs[parent]);
     }
 
     /** The parent at each position of {@code page}, whose block 0 holds the parents' doc ids. */
     protected final int parent(Page page, int position) {
         DocVector docs = page.<DocBlock>getBlock(0).asVector();
-        return parentOfDoc.get(docs.docs().getInt(position));
+        return parentOfDoc.get(docKey(docs.segments().getInt(position), docs.docs().getInt(position)));
     }
 }

@@ -241,7 +241,7 @@ public class MapperUtils {
         }
 
         if (p instanceof NestedExpand expand) {
-            return new NestedExpandExec(expand.source(), child, expand.path(), expand.expanded(), expand.paths());
+            return new NestedExpandExec(expand.source(), child, expand.path(), expand.expanded(), expand.paths(), null);
         }
 
         if (p instanceof Fetch fetch) {

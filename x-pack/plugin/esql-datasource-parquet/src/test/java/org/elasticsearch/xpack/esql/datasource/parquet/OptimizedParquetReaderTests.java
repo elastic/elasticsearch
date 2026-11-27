@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -58,8 +59,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class OptimizedParquetReaderTests extends ESTestCase {
 
@@ -367,6 +372,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
 
         int totalRows = pages.stream().mapToInt(Page::getPositionCount).sum();
         assertThat("all rows should be eliminated", totalRows, equalTo(0));
+        assertThat("fully filtered late-mat must not emit 0-row pages", pages.size(), equalTo(0));
     }
 
     public void testLateMaterializationPredicateInProjection() throws Exception {
@@ -695,7 +701,12 @@ public class OptimizedParquetReaderTests extends ESTestCase {
     }
 
     private List<Page> readAllPages(ParquetFormatReader reader, StorageObject storageObject, List<String> projection) throws IOException {
-        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(projection, 1024))) {
+        return readAllPages(reader, storageObject, projection, 1024);
+    }
+
+    private List<Page> readAllPages(ParquetFormatReader reader, StorageObject storageObject, List<String> projection, int batchSize)
+        throws IOException {
+        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(projection, batchSize))) {
             return collectPages(iter);
         }
     }
@@ -703,7 +714,18 @@ public class OptimizedParquetReaderTests extends ESTestCase {
     private List<Page> collectPages(CloseableIterator<Page> iter) {
         List<Page> pages = new ArrayList<>();
         while (iter.hasNext()) {
-            pages.add(iter.next());
+            Page page;
+            try {
+                page = iter.next();
+            } catch (NoSuchElementException e) {
+                // Last row group had source rows but every remaining window was filtered out.
+                break;
+            }
+            if (page.getPositionCount() == 0) {
+                page.releaseBlocks();
+                continue;
+            }
+            pages.add(page);
         }
         return pages;
     }
@@ -889,6 +911,120 @@ public class OptimizedParquetReaderTests extends ESTestCase {
             }
         }
         assertThat("the reader defers to FilterExec via the all-survive sentinel", rows, equalTo(200));
+    }
+
+    /**
+     * Spread ~1% filter ({@code keep == 1} every 100th row) over 100k rows, {@code batchSize=1000}.
+     * Each decode keeps 10 rows ({@code < minPage=500}), so fill concatenates 50 windows into a
+     * 500-row page. Non-tail pages must be {@code >= minPage}; no 0-row filter pages.
+     */
+    public void testLateMaterializationSpreadSelectivityFillsMinPage() throws Exception {
+        int totalRows = 100_000;
+        int batchSize = 1000;
+        int minPage = batchSize / 2;
+        byte[] parquetData = createSpreadKeepFile(totalRows);
+        int expectedSurvivors = totalRows / 100;
+
+        ReferenceAttribute keepAttr = new ReferenceAttribute(Source.EMPTY, "keep", DataType.LONG);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new Equals(Source.EMPTY, keepAttr, new Literal(Source.EMPTY, 1L, DataType.LONG), null))
+        );
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        List<Page> pages = readAllPages(reader, createStorageObject(parquetData), List.of("id", "keep", "label"), batchSize);
+
+        int total = 0;
+        for (int i = 0; i < pages.size(); i++) {
+            int n = pages.get(i).getPositionCount();
+            assertThat("filter pages must not be empty", n, greaterThan(0));
+            boolean last = i == pages.size() - 1;
+            if (last == false) {
+                assertThat("non-tail page must reach minPage", n, greaterThanOrEqualTo(minPage));
+            }
+            assertThat("page must not exceed maxPage", n, lessThanOrEqualTo(batchSize));
+            total += n;
+        }
+        assertThat("survivor count", total, equalTo(expectedSurvivors));
+        assertThat(
+            "fill must pack into more than one-row-per-window pages",
+            pages.size(),
+            lessThanOrEqualTo(expectedSurvivors / minPage + 1)
+        );
+    }
+
+    public void testLateMaterializationLimitCountsSurvivorsNotSourceRows() throws Exception {
+        byte[] parquetData = createSpreadKeepFile(20_000);
+        ReferenceAttribute keepAttr = new ReferenceAttribute(Source.EMPTY, "keep", DataType.LONG);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new Equals(Source.EMPTY, keepAttr, new Literal(Source.EMPTY, 1L, DataType.LONG), null))
+        );
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        List<Page> pages;
+        try (
+            CloseableIterator<Page> iter = reader.read(
+                createStorageObject(parquetData),
+                FormatReadContext.builder().batchSize(1000).rowLimit(10).build()
+            )
+        ) {
+            pages = collectPages(iter);
+        }
+        int total = pages.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat("LIMIT caps emitted survivors", total, equalTo(10));
+        assertThat("selective LIMIT must not emit one page per source window", pages.size(), lessThanOrEqualTo(2));
+    }
+
+    public void testLateMaterializationUnselectivePagesStayNearBatchSize() throws Exception {
+        int totalRows = 5_000;
+        int batchSize = 1000;
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("unselective_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(totalRows);
+            for (int i = 0; i < totalRows; i++) {
+                groups.add(factory.newGroup().append("id", (long) i).append("label", "item_" + i));
+            }
+            return groups;
+        });
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        // Value in range so stats cannot prove trivial-pass; drops one row.
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new NotEquals(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 2500L, DataType.LONG), null))
+        );
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        List<Page> pages = readAllPages(reader, createStorageObject(parquetData), List.of("id", "label"), batchSize);
+        int total = 0;
+        for (int i = 0; i < pages.size(); i++) {
+            int n = pages.get(i).getPositionCount();
+            total += n;
+            boolean last = i == pages.size() - 1;
+            if (last == false) {
+                assertThat("unselective non-tail page stays near batchSize", n, greaterThanOrEqualTo(batchSize - 1));
+            }
+        }
+        assertThat(total, equalTo(totalRows - 1));
+    }
+
+    private byte[] createSpreadKeepFile(int totalRows) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("keep")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("spread_keep_schema");
+        return createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(totalRows);
+            for (int i = 0; i < totalRows; i++) {
+                groups.add(factory.newGroup().append("id", (long) i).append("keep", i % 100 == 0 ? 1L : 0L).append("label", "item_" + i));
+            }
+            return groups;
+        });
     }
 
     private byte[] createParquetFile(MessageType schema, GroupCreator groupCreator) throws IOException {

@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -54,6 +58,10 @@ final class BlockChunks {
      */
     static Block concat(List<Block> chunks, BlockFactory blockFactory) {
         assert chunks.isEmpty() == false : "concat requires at least one chunk";
+        Block ordinals = tryConcatSharedOrdinals(chunks, blockFactory);
+        if (ordinals != null) {
+            return ordinals;
+        }
 
         int total = 0;
         ElementType type = ElementType.NULL;
@@ -85,6 +93,77 @@ final class BlockChunks {
             closeChunks(chunks);
             return result;
         }
+    }
+
+    /**
+     * When every chunk is an {@link OrdinalBytesRefBlock} over the same row-group dictionary,
+     * concatenate the ordinal {@link IntBlock}s and wrap them with one dictionary so the result
+     * stays ordinal. copyFrom into a {@code BytesRef} builder would flatten to a dense block.
+     * Returns {@code null} when the chunks are not this shape so the caller falls through to the
+     * typed copyFrom path. Closes nothing on {@code null} or on throw.
+     */
+    private static Block tryConcatSharedOrdinals(List<Block> chunks, BlockFactory blockFactory) {
+        BytesRefVector dict = null;
+        int total = 0;
+        for (Block chunk : chunks) {
+            if (chunk instanceof OrdinalBytesRefBlock == false) {
+                return null;
+            }
+            OrdinalBytesRefBlock ordinal = (OrdinalBytesRefBlock) chunk;
+            BytesRefVector chunkDict = ordinal.getDictionaryVector();
+            if (dict == null) {
+                dict = chunkDict;
+            } else if (sameDictionary(dict, chunkDict) == false) {
+                return null;
+            }
+            total += ordinal.getPositionCount();
+        }
+        if (dict == null) {
+            return null;
+        }
+        IntBlock concatOrdinals = null;
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(total)) {
+            for (Block chunk : chunks) {
+                IntBlock ordinals = ((OrdinalBytesRefBlock) chunk).getOrdinalsBlock();
+                builder.copyFrom(ordinals, 0, ordinals.getPositionCount());
+            }
+            concatOrdinals = builder.build();
+        }
+        OrdinalBytesRefBlock result = null;
+        boolean dictIncRefd = false;
+        try {
+            dict.incRef();
+            dictIncRefd = true;
+            result = new OrdinalBytesRefBlock(concatOrdinals, dict);
+            concatOrdinals = null;
+            closeChunks(chunks);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(concatOrdinals);
+                if (dictIncRefd) {
+                    Releasables.closeExpectNoException(dict);
+                }
+            }
+        }
+    }
+
+    private static boolean sameDictionary(BytesRefVector a, BytesRefVector b) {
+        if (a == b) {
+            return true;
+        }
+        if (a.getPositionCount() != b.getPositionCount()) {
+            return false;
+        }
+        BytesRef scratchA = new BytesRef();
+        BytesRef scratchB = new BytesRef();
+        int n = a.getPositionCount();
+        for (int i = 0; i < n; i++) {
+            if (a.getBytesRef(i, scratchA).bytesEquals(b.getBytesRef(i, scratchB)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void closeChunks(List<Block> chunks) {

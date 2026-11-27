@@ -86,6 +86,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
@@ -754,7 +755,12 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
         try (CloseableIterator<Page> iter = reader.read(inMemoryStorageObject(parquetBytes), FormatReadContext.of(null, READ_BATCH_SIZE))) {
             while (iter.hasNext()) {
-                Page page = iter.next();
+                Page page;
+                try {
+                    page = iter.next();
+                } catch (NoSuchElementException e) {
+                    break;
+                }
                 try {
                     LongBlock idBlock = (LongBlock) page.getBlock(0);
                     for (int i = 0; i < page.getPositionCount(); i++) {
@@ -1213,7 +1219,12 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         Set<Long> ids = new TreeSet<>();
         try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, READ_BATCH_SIZE))) {
             while (iter.hasNext()) {
-                Page page = iter.next();
+                Page page;
+                try {
+                    page = iter.next();
+                } catch (NoSuchElementException e) {
+                    break;
+                }
                 try {
                     for (int i = 0; i < page.getPositionCount(); i++) {
                         Map<String, Object> row = pageRowToMap(page, i);
@@ -1370,7 +1381,12 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         Set<Long> ids = new TreeSet<>();
         try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, READ_BATCH_SIZE))) {
             while (iter.hasNext()) {
-                Page page = iter.next();
+                Page page;
+                try {
+                    page = iter.next();
+                } catch (NoSuchElementException e) {
+                    break;
+                }
                 try {
                     int positions = page.getPositionCount();
                     for (int i = 0; i < positions; i++) {

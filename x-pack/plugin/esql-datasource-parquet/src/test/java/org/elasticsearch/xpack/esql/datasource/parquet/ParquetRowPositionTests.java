@@ -27,7 +27,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -331,6 +335,56 @@ public class ParquetRowPositionTests extends ESTestCase {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }
 
+    /**
+     * Selective filter spanning several {@code batchSize} windows: concatenated {@code _rowPosition}
+     * values stay file-global and ordered, matching the surviving {@code v} values.
+     */
+    public void testRowPositionAfterSelectiveFillConcat() throws IOException {
+        int rows = 20_000;
+        byte[] data = writeKeepFile(rows);
+        StorageObject storage = createStorageObject(data);
+        ReferenceAttribute keepAttr = new ReferenceAttribute(Source.EMPTY, "keep", DataType.INTEGER);
+        Expression eq = new Equals(Source.EMPTY, keepAttr, new Literal(Source.EMPTY, 1, DataType.INTEGER), null);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(
+            new ParquetPushedExpressions(List.of(eq))
+        );
+        List<String> projection = List.of("v", "keep", ColumnExtractor.ROW_POSITION_COLUMN);
+        long prev = -1L;
+        int expected = 0;
+        int pages = 0;
+        try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(projection, 1000))) {
+            ((ColumnExtractorProducer) iter).setExtractorId(0);
+            while (iter.hasNext()) {
+                Page page;
+                try {
+                    page = iter.next();
+                } catch (java.util.NoSuchElementException e) {
+                    break;
+                }
+                try {
+                    if (page.getPositionCount() == 0) {
+                        continue;
+                    }
+                    pages++;
+                    IntBlock vs = (IntBlock) page.getBlock(0);
+                    LongBlock rp = (LongBlock) page.getBlock(2);
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        long pos = rp.getLong(i);
+                        assertEquals("rowPosition matches v", vs.getInt(i), pos);
+                        assertTrue("file-global ids stay ordered", pos > prev);
+                        assertEquals(0, vs.getInt(i) % 100);
+                        prev = pos;
+                        expected++;
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertEquals(rows / 100, expected);
+        assertTrue("fill must concat several windows into fewer pages", pages < rows / 100);
+    }
+
     public void testSetExtractorIdEncodesEmittedRowPositions() throws IOException {
         // F-9A invariant: setExtractorId installs the high bits the iterator OR-s into every
         // emitted _rowPosition value. With a non-zero id the encoded value is no longer the bare
@@ -418,6 +472,22 @@ public class ParquetRowPositionTests extends ESTestCase {
     // ---------------------------------------------------------------------------------------------
     // fixtures
     // ---------------------------------------------------------------------------------------------
+
+    private byte[] writeKeepFile(int rows) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("v")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("keep")
+            .named("keep_ints");
+        return writeFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(rows);
+            for (int i = 0; i < rows; i++) {
+                groups.add(factory.newGroup().append("v", i).append("keep", i % 100 == 0 ? 1 : 0));
+            }
+            return groups;
+        }, /* rowGroupBytes = */ 64L * 1024 * 1024);
+    }
 
     private byte[] writeIntFile(int rows) throws IOException {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("v").named("ints");

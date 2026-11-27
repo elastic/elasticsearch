@@ -22,9 +22,10 @@ import java.util.List;
  * them lazily when the consumer pulls each batch.
  *
  * <p>Storing the predicate blocks per batch keeps memory usage bounded by survivor count
- * (typically tiny for a selective filter), avoids re-decoding predicate columns once the
- * filter is known, and lets the iterator emit each batch in its original {@code rowsToRead}
- * granularity so downstream operators see the same shape they would under single-phase.
+ * (typically tiny for a selective filter) and avoids re-decoding predicate columns once the
+ * filter is known. Stored batches still use the Phase-1 {@code batchSize} decode quantum;
+ * emit coalesces consecutive non-empty batches until {@code minPage = batchSize/2}, LIMIT,
+ * or the row group ends, so one stored batch is no longer one output page.
  */
 final class TwoPhaseRowGroup {
 

@@ -1353,22 +1353,13 @@ public class PartitionPruningWalkTests extends ESTestCase {
     /**
      * A later remaining dir that fails while an earlier slot is still listing must stop issuing
      * listObjects past that failed slot. Sequential never opens the folder after the failure.
+     * Concurrency 2 so account 4 starts only after account 3 releases its permit (and has set
+     * {@code earliestFailedSlot}).
      */
     public void testParallelFinishDoesNotIssueListingsBeyondFailedSlot() throws Exception {
         FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
-        ListingWalkHarness provider = new ListingWalkHarness(finishCapTree(80));
-        CountDownLatch failed = new CountDownLatch(1);
+        ListingWalkHarness provider = new ListingWalkHarness(finishCapLinearTree());
         provider.setFailListObjectsContaining("aws-account-id=000000000003");
-        provider.setOnListObjectsExit(prefix -> {
-            if (prefix.contains("aws-account-id=000000000003")) {
-                failed.countDown();
-            }
-        });
-        provider.setDelayListObjectsContaining("aws-account-id=000000000002");
-        provider.setListObjectsDelayNanos(() -> {
-            awaitQuietly(failed);
-            return 0L;
-        });
         ExecutorService executor = Executors.newFixedThreadPool(8);
         try {
             Exception thrown = expectThrows(
@@ -1381,7 +1372,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
                         List.of(),
                         pred,
                         () -> false,
-                        4,
+                        2,
                         executor,
                         Integer.MAX_VALUE,
                         Integer.MAX_VALUE,
@@ -1555,6 +1546,26 @@ public class PartitionPruningWalkTests extends ESTestCase {
                 entries.add(ListingWalkHarness.entry(day + "/hour=01/f-" + n + ".parquet"));
                 n++;
             }
+            entries.add(ListingWalkHarness.entry(prefix + "/year=2026/month=06/day=02/hour=00/f-0.parquet"));
+            entries.add(ListingWalkHarness.entry(prefix + "/year=2026/month=07/day=01/hour=00/f-0.parquet"));
+        }
+        return entries;
+    }
+
+    /**
+     * Four accounts, one matching day, one hour each. Remaining finish dirs are accounts 2, 3, 4 in
+     * that order so concurrency 2 occupies 2 then 3; 4 starts only after 3 releases its permit.
+     */
+    private static List<StorageEntry> finishCapLinearTree() {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int a = 1; a <= FINISH_CAP_ACCOUNTS; a++) {
+            String prefix = WIDE_HIVE_PREFIX
+                + "/aws-account-id="
+                + String.format(Locale.ROOT, "%012d", a)
+                + "/aws-service=vpcflowlogs/aws-region=us-east-1";
+            String hour = prefix + "/year=2026/month=06/day=01/hour=00";
+            entries.add(ListingWalkHarness.entry(hour + "/"));
+            entries.add(ListingWalkHarness.entry(hour + "/f-0.parquet"));
             entries.add(ListingWalkHarness.entry(prefix + "/year=2026/month=06/day=02/hour=00/f-0.parquet"));
             entries.add(ListingWalkHarness.entry(prefix + "/year=2026/month=07/day=01/hour=00/f-0.parquet"));
         }

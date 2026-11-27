@@ -1046,7 +1046,7 @@ final class PartitionPruningWalk {
         int cap,
         @Nullable Collector collector
     ) throws IOException {
-        if (cap <= 0) {
+        if (cap <= 0 || skip.getAsBoolean()) {
             return List.of();
         }
         List<StorageEntry> entries = new ArrayList<>();
@@ -1194,7 +1194,13 @@ final class PartitionPruningWalk {
                         }
                         int cap;
                         synchronized (mergeLock) {
+                            if (skipRest.get() || failure.get() != null || i > earliestFailedSlot.get()) {
+                                return;
+                            }
                             cap = collector.remainingListedTripCap();
+                        }
+                        if (skipRest.get() || failure.get() != null || i > earliestFailedSlot.get()) {
+                            return;
                         }
                         List<StorageEntry> entries = listDirUntilSkip(provider, dirs.get(i), () -> {
                             if (skipRest.get() || failure.get() != null || i > earliestFailedSlot.get()) {

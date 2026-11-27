@@ -290,7 +290,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
                 toEvaluator.shardContexts().map(shard -> new ShardConfig(shard.toQuery(queryBuilder), shard.searcher()))
             );
         }
-        IndexedByShardId<Query> matchingChildren = childFilter == null ? null : luceneChildFilter(toEvaluator);
+        IndexedByShardId<ShardConfig> matchingChildren = childFilter == null ? null : luceneChildFilter(toEvaluator);
         Layout layout = new Layout.Builder().append(inputs).build();
         ExpressionEvaluator.Factory predicate = EvalMapper.toEvaluatorContext(layout, toEvaluator).apply(body);
         List<DataType> types = inputs.stream().map(Attribute::dataType).toList();
@@ -322,10 +322,10 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
      * for one mapping is not a match against another. {@link EsPhysicalOperationProviders.ShardContext#toQuery} would add
      * the non-nested filter, which drops the children this query has to match.
      */
-    private IndexedByShardId<Query> luceneChildFilter(EvaluatorMapper.ToEvaluator toEvaluator) {
+    private IndexedByShardId<ShardConfig> luceneChildFilter(EvaluatorMapper.ToEvaluator toEvaluator) {
         return toEvaluator.shardContexts().map(shard -> {
             if (shard instanceof EsPhysicalOperationProviders.DefaultShardContext context) {
-                return childQuery(context.executionContext());
+                return new ShardConfig(childQuery(context.executionContext()), shard.searcher());
             }
             throw new IllegalStateException("NESTED_ANY child filter needs a shard to build its query");
         });

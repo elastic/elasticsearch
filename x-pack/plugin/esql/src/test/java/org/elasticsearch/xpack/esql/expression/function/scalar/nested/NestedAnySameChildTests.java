@@ -11,9 +11,15 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -22,12 +28,14 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
@@ -88,10 +96,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -178,7 +190,7 @@ public class NestedAnySameChildTests extends ComputeTestCase {
                 parents.asVector(),
                 position -> true,
                 position -> matched[position] == false,
-                new IndexedByShardIdFromSingleton<>(sku),
+                new IndexedByShardIdFromSingleton<>(new ShardConfig(sku, shard.searcher())),
                 page -> {
                     IntVector parentPositions = page.<IntBlock>getBlock(0).asVector();
                     Page fields = page.projectBlocks(new int[] { 1, 2 });
@@ -407,6 +419,132 @@ public class NestedAnySameChildTests extends ComputeTestCase {
     }
 
     /** {@code items.sku == "a" AND items.qty * items.price > 100}, before the planner splits it. */
+    public void testParentsInDescendingOrderSelectChildrenWithOneScorer() throws IOException {
+        index(parentWithSplitChildren(), parentWithNullPrice(), parentWithSplitChildren());
+        SearchExecutionContext context = shard.executionContext();
+        CountingQuery sku = new CountingQuery(context.getFieldType("items.sku").termQuery("a", context));
+
+        List<Integer> descending = selectedParentPositions(new int[] { parentDocs[2], parentDocs[1], parentDocs[0] }, sku);
+
+        assertThat(descending, equalTo(List.of(0, 1, 2)));
+        assertThat(sku.scorers.get(), equalTo(1));
+    }
+
+    public void testParentsInAscendingOrderSelectChildrenWithOneScorer() throws IOException {
+        index(parentWithSplitChildren(), parentWithNullPrice(), parentWithSplitChildren());
+        SearchExecutionContext context = shard.executionContext();
+        CountingQuery sku = new CountingQuery(context.getFieldType("items.sku").termQuery("a", context));
+
+        List<Integer> ascending = selectedParentPositions(parentDocs, sku);
+
+        assertThat(ascending, equalTo(List.of(0, 1, 2)));
+        assertThat(sku.scorers.get(), equalTo(1));
+    }
+
+    public void testAParentWithManyChildrenDoesNotBuildAScorerPerChild() throws IOException {
+        index(parentWithSplitChildren(), parentWithMatchOnTheNextPage(), parentWithNullPrice());
+        SearchExecutionContext context = shard.executionContext();
+        CountingQuery sku = new CountingQuery(context.getFieldType("items.sku").termQuery("a", context));
+
+        assertThat(selectedParentPositions(parentDocs, sku), equalTo(List.of(0, 1, 2)));
+        assertThat(sku.scorers.get(), lessThanOrEqualTo(2));
+    }
+
+    public void testRepeatedParentsRepeatTheirSelectedChildren() throws IOException {
+        index(parentWithSplitChildren(), parentWithNullPrice());
+        SearchExecutionContext context = shard.executionContext();
+        Query sku = context.getFieldType("items.sku").termQuery("a", context);
+
+        List<Integer> repeated = selectedParentPositions(new int[] { parentDocs[0], parentDocs[1], parentDocs[0] }, sku);
+
+        assertThat(repeated, equalTo(List.of(0, 1, 2)));
+    }
+
+    public void testNothingIsDeliveredWhenNoChildMatches() throws IOException {
+        index(parentWithSplitChildren(), parentWithNullPrice());
+        SearchExecutionContext context = shard.executionContext();
+        Query none = context.getFieldType("items.sku").termQuery("zzz", context);
+
+        assertThat(selectedParentPositions(parentDocs, none), is(empty()));
+    }
+
+    private List<Integer> selectedParentPositions(int[] parents, Query matching) throws IOException {
+        NestedChildren.Factory factory = NestedChildren.factory(
+            new IndexedByShardIdFromSingleton<>(shard),
+            "items",
+            List.of(),
+            List.of(),
+            List.of(),
+            PlannerSettings.DEFAULTS,
+            EsqlTestUtils.TEST_CFG
+        );
+        var blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        List<Integer> selected = new ArrayList<>();
+        try (NestedChildren children = factory.get(driverContext); DocBlock block = parentsMayRepeat(parents)) {
+            children.read(
+                block.asVector(),
+                position -> true,
+                position -> true,
+                new IndexedByShardIdFromSingleton<>(new ShardConfig(matching, shard.searcher())),
+                page -> {
+                    IntVector positions = page.<IntBlock>getBlock(0).asVector();
+                    for (int c = 0; c < page.getPositionCount(); c++) {
+                        selected.add(positions.getInt(c));
+                    }
+                }
+            );
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+        selected.sort(Integer::compare);
+        return selected;
+    }
+
+    private static final class CountingQuery extends Query {
+        private final Query delegate;
+        private final AtomicInteger scorers = new AtomicInteger();
+
+        private CountingQuery(Query delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new FilterWeight(this, delegate.createWeight(searcher, scoreMode, boost)) {
+                @Override
+                public boolean isCacheable(LeafReaderContext context) {
+                    return false;
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    scorers.incrementAndGet();
+                    return in.scorerSupplier(context);
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "counting(" + delegate.toString(field) + ")";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            delegate.visit(visitor);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj;
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(this);
+        }
+    }
+
     private NestedPredicate referencePredicate() {
         FieldAttribute sku = field("sku", DataType.KEYWORD);
         FieldAttribute qty = field("qty");
@@ -537,6 +675,15 @@ public class NestedAnySameChildTests extends ComputeTestCase {
                 builder.appendShard(0).appendSegment(0).appendDoc(doc);
             }
             return builder.build();
+        }
+    }
+
+    private DocBlock parentsMayRepeat(int[] docs) {
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory(), docs.length)) {
+            for (int doc : docs) {
+                builder.appendShard(0).appendSegment(0).appendDoc(doc);
+            }
+            return builder.build(DocVector.config().mayContainDuplicates(true));
         }
     }
 

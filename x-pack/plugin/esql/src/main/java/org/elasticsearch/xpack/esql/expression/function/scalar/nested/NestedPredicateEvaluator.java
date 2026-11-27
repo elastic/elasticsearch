@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -18,6 +17,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -36,14 +36,14 @@ final class NestedPredicateEvaluator implements ExpressionEvaluator {
     private final ExpressionEvaluator predicate;
     private final int[] fieldChannels;
     @Nullable
-    private final IndexedByShardId<Query> matchingChildren;
+    private final IndexedByShardId<ShardConfig> matchingChildren;
 
     NestedPredicateEvaluator(
         DriverContext context,
         NestedChildren children,
         ExpressionEvaluator predicate,
         int[] fieldChannels,
-        @Nullable IndexedByShardId<Query> matchingChildren
+        @Nullable IndexedByShardId<ShardConfig> matchingChildren
     ) {
         this.context = context;
         this.children = children;

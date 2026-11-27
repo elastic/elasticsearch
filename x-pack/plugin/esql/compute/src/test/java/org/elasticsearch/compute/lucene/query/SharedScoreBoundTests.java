@@ -31,8 +31,18 @@ public class SharedScoreBoundTests extends ESTestCase {
         SharedScoreBound shared = new SharedScoreBound();
         float score = randomFloat() + 1;
         shared.offer(score);
-        shared.offer(randomFrom(Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, -randomFloat() - 1, 0f, -0f));
+        shared.offer(randomFrom(Float.NaN, Float.NEGATIVE_INFINITY, -randomFloat() - 1, 0f, -0f));
         assertThat(shared.get(), equalTo(score));
+    }
+
+    /**
+     * A collector whose top N is full of {@link Float#MAX_VALUE} sets the next float up, which is infinity.
+     */
+    public void testKeepsInfinity() {
+        SharedScoreBound shared = new SharedScoreBound();
+        shared.offer(Float.POSITIVE_INFINITY);
+        shared.offer(randomFloat() + 1);
+        assertThat(shared.get(), equalTo(Float.POSITIVE_INFINITY));
     }
 
     public void testConcurrentOffersKeepTheHighest() {

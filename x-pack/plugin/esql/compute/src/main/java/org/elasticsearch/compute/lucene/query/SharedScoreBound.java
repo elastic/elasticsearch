@@ -14,10 +14,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * The score a document must reach to make a top N by descending {@code _score}, shared by the drivers that run it.
  * <p>
- *     A collector offers a score once its top N is full. The rows of that top N are part of the output, so no collector
- *     needs a document that scores below it, in any shard: it scores below all of those rows or, when the score is the
- *     only sort key, ties with the last one. Collectors skip such documents by handing the bound to
- *     {@link Scorable#setMinCompetitiveScore}.
+ *     A score is only offered on behalf of a full top N. The rows of that top N are part of the output of the drivers
+ *     that share the bound, unless one of them fails, which fails them all. So no collector needs a document that scores
+ *     below the bound, in any shard: it scores below all of those rows or, when the score is the only sort key, ties with
+ *     the last one. Collectors skip such documents by handing the bound to {@link Scorable#setMinCompetitiveScore}.
  * </p>
  * <p>
  *     The bound only grows, which {@link Scorable#setMinCompetitiveScore} requires.
@@ -25,7 +25,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 final class SharedScoreBound {
     /**
-     * The bits of the score. Scores are never negative, and the bits of non-negative floats sort like the floats.
+     * The bits of the score. Scores are never negative, and the bits of non-negative floats, infinity included, sort
+     * like the floats.
      */
     private final AtomicInteger bits = new AtomicInteger(Float.floatToIntBits(0f));
 
@@ -40,7 +41,8 @@ final class SharedScoreBound {
      * Raises the bound to {@code score} if it is lower.
      */
     void offer(float score) {
-        if (score > 0 && Float.isFinite(score)) {
+        // Not NaN, and not 0, which is the bound already
+        if (score > 0) {
             bits.accumulateAndGet(Float.floatToIntBits(score), Math::max);
         }
     }

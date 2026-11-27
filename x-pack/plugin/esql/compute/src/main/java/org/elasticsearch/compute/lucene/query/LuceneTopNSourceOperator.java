@@ -461,6 +461,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
              */
             topDocs = perShardCollector.collector.topDocs().scoreDocs;
             offerBound(perShardCollector.shardContext);
+            if (topDocs.length == limit) {
+                perShardCollector.offerLowestScore(topDocs[limit - 1]);
+            }
         } else {
             topDocs = new ScoreDoc[0];
         }
@@ -653,6 +656,18 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             this.sharedScoreBound = sharedScoreBound;
         }
 
+        /**
+         * Offers the score of the last row of a full top N. A Lucene collector only sets a minimum competitive score when
+         * it collects a competitive document after its top N is full, so one whose first documents are its best never
+         * sets one.
+         */
+        void offerLowestScore(ScoreDoc last) {
+            if (sharedScoreBound != null) {
+                // The score is the first sort key of every collector that shares the bound
+                sharedScoreBound.offer(last instanceof FieldDoc fieldDoc ? (Float) fieldDoc.fields[0] : last.score);
+            }
+        }
+
         LeafCollector getLeafCollector(LeafReaderContext leafReaderContext) throws IOException {
             if (currentThread != Thread.currentThread() || leafIndex != leafReaderContext.ord) {
                 leafCollector = collector.getLeafCollector(leafReaderContext);
@@ -681,7 +696,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
             @Override
             public void setScorer(Scorable scorer) throws IOException {
-                this.scorer = new SharingScorable(scorer, shared);
+                // The operator scores a segment in several ranges and hands over the same scorer for each. Keeping the
+                // wrapper keeps the last score set on that scorer.
+                if (this.scorer == null || this.scorer.wraps(scorer) == false) {
+                    this.scorer = new SharingScorable(scorer, shared);
+                }
                 in.setScorer(this.scorer);
                 this.scorer.setSharedScore();
             }
@@ -711,6 +730,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             SharingScorable(Scorable in, SharedScoreBound shared) {
                 super(in);
                 this.shared = shared;
+            }
+
+            boolean wraps(Scorable scorer) {
+                return in == scorer;
             }
 
             @Override

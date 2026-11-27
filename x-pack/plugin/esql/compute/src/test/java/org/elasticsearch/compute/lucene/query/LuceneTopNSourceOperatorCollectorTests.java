@@ -16,6 +16,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
@@ -27,6 +32,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.search.AssertingQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -277,7 +283,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
                 }
                 contexts.add(createMockShardContext(readers.get(shard), shard, sort));
             }
-            Query query = new TermQuery(new Term("t", "a"));
+            Query query = randomScoringQuery();
             int limit = between(1, 50);
             int taskConcurrency = between(1, 8);
             var factory = new LuceneTopNSourceOperator.Factory(
@@ -336,6 +342,116 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         } finally {
             IOUtils.close(readers);
             IOUtils.close(directories);
+        }
+    }
+
+    /**
+     * A query that matches every document of the index of {@link #testDriversSharingAScoreEmitTopN}, with scorers that skip
+     * by score in different ways. Half of the time Lucene's {@link AssertingQuery} checks how its scorer is used, among other
+     * things that its minimum competitive score never goes down.
+     */
+    private Query randomScoringQuery() {
+        Query a = new TermQuery(new Term("t", "a"));
+        Query b = new TermQuery(new Term("t", "b"));
+        Query query = switch (between(0, 6)) {
+            case 0 -> a;
+            case 1 -> new BooleanQuery.Builder().add(a, BooleanClause.Occur.SHOULD).add(b, BooleanClause.Occur.SHOULD).build();
+            case 2 -> new BooleanQuery.Builder().add(a, BooleanClause.Occur.MUST).add(b, BooleanClause.Occur.SHOULD).build();
+            case 3 -> new BooleanQuery.Builder().add(a, BooleanClause.Occur.FILTER).add(b, BooleanClause.Occur.SHOULD).build();
+            case 4 -> new ConstantScoreQuery(a);
+            case 5 -> new DisjunctionMaxQuery(List.of(a, b), randomFrom(0f, 0.3f));
+            case 6 -> new BoostQuery(a, randomFloat() * 10 + 0.1f);
+            default -> throw new AssertionError("unreachable");
+        };
+        return randomBoolean() ? new AssertingQuery(random(), query) : query;
+    }
+
+    /**
+     * One driver reads two shards in which every document scores the same. Once the first shard has filled the top N, no
+     * document of the second shard can beat it, so the driver collects none of them and emits {@code limit} rows in all.
+     * This fails if the score stops reaching the scorer of the second shard, which would not change the top N.
+     */
+    public void testSecondShardCollectsNothing() throws IOException {
+        int limit = between(1, 20);
+        List<Directory> directories = new ArrayList<>();
+        List<IndexReader> readers = new ArrayList<>();
+        try {
+            List<ShardContext> contexts = new ArrayList<>();
+            for (int shard = 0; shard < 2; shard++) {
+                Directory shardDirectory = newDirectory();
+                directories.add(shardDirectory);
+                try (RandomIndexWriter writer = new RandomIndexWriter(random(), shardDirectory)) {
+                    for (int d = between(limit + 1, 200); d > 0; d--) {
+                        writer.addDocument(List.of(new SortedNumericDocValuesField("s", 1)));
+                    }
+                    readers.add(writer.getReader());
+                }
+                contexts.add(createMockShardContext(readers.get(shard), shard, SCORE));
+            }
+            var factory = new LuceneTopNSourceOperator.Factory(
+                new IndexedByShardIdFromList<>(contexts),
+                c -> List.of(new LuceneSliceQueue.QueryAndTags(new ConstantScoreQuery(Queries.ALL_DOCS_INSTANCE), List.of())),
+                DataPartitioning.SHARD,
+                DataPartitioning.AutoStrategy.DEFAULT,
+                1,
+                between(10, 100),
+                limit,
+                SCORE.builders(),
+                randomLongBetween(10, 20),
+                true,
+                () -> 0L,
+                QueryWarnings.EMIT
+            );
+            List<Page> results = new ArrayList<>();
+            DriverContext driverContext = createDriverContext();
+            new TestDriverRunner().run(
+                TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), new TestResultPageSinkOperator(results::add))
+            );
+            assertThat(results.stream().mapToInt(Page::getPositionCount).sum(), equalTo(limit));
+        } finally {
+            IOUtils.close(readers);
+            IOUtils.close(directories);
+        }
+    }
+
+    /**
+     * A collector whose first documents are its best never sets a minimum competitive score, here because all documents tie
+     * on both sort keys. The operator offers the lowest score of its full top N when it emits it.
+     */
+    public void testFullTopNIsOfferedWhenEmitted() throws IOException {
+        int limit = between(1, 20);
+        Directory shardDirectory = newDirectory();
+        IndexReader shardReader = null;
+        try {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), shardDirectory)) {
+                for (int d = between(limit + 1, 200); d > 0; d--) {
+                    writer.addDocument(List.of(new SortedNumericDocValuesField("s", 1)));
+                }
+                shardReader = writer.getReader();
+            }
+            float score = randomFloat() * 10 + 0.1f;
+            Query query = new BoostQuery(new ConstantScoreQuery(Queries.ALL_DOCS_INSTANCE), score);
+            var factory = new LuceneTopNSourceOperator.Factory(
+                new IndexedByShardIdFromSingleton<>(createMockShardContext(shardReader, 0, SCORE_THEN_FIELD)),
+                c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+                DataPartitioning.SHARD,
+                DataPartitioning.AutoStrategy.DEFAULT,
+                1,
+                between(10, 100),
+                limit,
+                SCORE_THEN_FIELD.builders(),
+                randomLongBetween(10, 20),
+                true,
+                () -> 0L,
+                QueryWarnings.EMIT
+            );
+            DriverContext driverContext = createDriverContext();
+            new TestDriverRunner().run(
+                TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), new TestResultPageSinkOperator(page -> {}))
+            );
+            assertThat(factory.perShardCollectorProvider.sharedScoreBound.get(), equalTo(score));
+        } finally {
+            IOUtils.close(shardReader, shardDirectory);
         }
     }
 

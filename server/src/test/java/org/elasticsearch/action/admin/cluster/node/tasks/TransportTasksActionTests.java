@@ -1434,10 +1434,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         final int descriptionLength = 5_000;
         final VanishingTask relocating = registerRelocatableTaskThatVanishesWhenFirstListed(testNodes[1], descriptionLength);
         final AtomicLong firstPassTaskIdOnNode2 = new AtomicLong(-1);
-        final Task answering = registerTaskWithDescription(
+        final AtomicLong latestMatchingNodeTaskIdOnNode2 = new AtomicLong(-1);
+        final Task answering = registerTask(
             testNodes[2],
+            "internal:test/described",
             descriptionLength,
-            () -> firstPassTaskIdOnNode2.compareAndSet(-1, highestNodeListingTaskId(testNodes[2]))
+            () -> firstPassTaskIdOnNode2.compareAndSet(-1, highestNodeListingTaskId(testNodes[2])),
+            () -> latestMatchingNodeTaskIdOnNode2.accumulateAndGet(highestNodeListingTaskId(testNodes[2]), Math::max)
         );
         final AtomicBoolean answeringUnregistered = new AtomicBoolean();
         final AtomicInteger lookups = new AtomicInteger();
@@ -1462,7 +1465,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
             assertBusy(() -> {
                 assertThat(firstPassTaskIdOnNode2.get(), greaterThanOrEqualTo(0L));
-                assertThat(highestNodeListingTaskId(testNodes[2]), greaterThan(firstPassTaskIdOnNode2.get()));
+                assertThat(latestMatchingNodeTaskIdOnNode2.get(), greaterThan(firstPassTaskIdOnNode2.get()));
             });
             assertFalse(future.isDone());
             answeringUnregistered.set(true);
@@ -1592,7 +1595,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                     "late reply reaches the coordinating node",
                     TransportService.class.getCanonicalName(),
                     Level.WARN,
-                    "Received response for a request that has timed out*"
+                    "Received response for a request that has timed out*node [*" + testNodes[1].getNodeId() + "*"
                 )
             );
             assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));

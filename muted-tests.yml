@@ -469,11 +469,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
   method: test {csv-spec:k8s-timeseries-increase.increase_of_expression_promql}
   issue: https://github.com/elastic/elasticsearch/issues/164423
-- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testTryAdvanceOrParkDoesNotDropRowsAcrossDeterministicPoisonGap
-  issue: https://github.com/elastic/elasticsearch/issues/164484
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -764,11 +759,6 @@ tests:
   - :modules:repository-gcs:test
   method: testResumableWrite
   issue: https://github.com/elastic/elasticsearch/issues/156513
-- class: org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExecSerializationTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testDeeplyNestedFields
-  issue: https://github.com/elastic/elasticsearch/issues/167380
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -895,3 +885,8 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testNextUploadProceedsWhileCopyToSplitTargetIsSlow
   issue: https://github.com/elastic/elasticsearch/issues/167871
+- class: org.elasticsearch.index.store.BytesReadHeaderIT
+  tasks:
+  - :server:internalClusterTest
+  method: testTerminateAfterReadsFewerBytes
+  issue: https://github.com/elastic/elasticsearch/issues/167884

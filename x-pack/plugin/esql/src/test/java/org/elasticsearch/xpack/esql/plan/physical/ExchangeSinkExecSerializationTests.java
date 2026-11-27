@@ -163,13 +163,15 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  44189316b - added passthrough flag to EsField
          *  44451460b - added single valued flag to EsField (1 byte per field)
          *  44451461b - added exchange reference to ExchangeSinkExec (1 byte for the absent reference)
+         *  8008959b - reduced childrenPerLevel from 8 to 6 (299593 -> 55987 fields) so the test fits in the test heap #167380
          */
 
+        // Keep this mapping modest: the test holds the plan, its serialized bytes and the deserialized copy on the heap at once.
         int depth = 6;
-        int childrenPerLevel = 8;
+        int childrenPerLevel = 6;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(44451461L));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(8008959L));
     }
 
     /**
@@ -195,8 +197,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  358b - added exchange reference to ExchangeSinkExec (1 byte for the absent reference)
          */
 
+        // The serialized size does not depend on the number of children, but building attributes for the whole mapping does use heap.
         int depth = 6;
-        int childrenPerLevel = 9;
+        int childrenPerLevel = 5;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
         testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(358), false);

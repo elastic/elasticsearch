@@ -237,7 +237,6 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         jobBuilder.setAnalysisConfig(analysisConfig);
         DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("foo-feed", jobBuilder.getId());
         datafeedConfigBuilder.setEsqlQuery(esqlQuery);
-        datafeedConfigBuilder.setSourceTimeField("@timestamp");
         datafeedConfigBuilder.setGroupingInterval(groupingInterval);
         // DESCRIBE reports a bucket interval only for a query that rewrites the time column
         when(dataExtractorFactory.timeBucketMillis()).thenReturn(esqlQuery.equals(AGGREGATING_ESQL_QUERY) ? groupingInterval.millis() : 0L);

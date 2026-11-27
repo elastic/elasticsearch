@@ -93,8 +93,8 @@ IS NOT NULL keeps only documents with a non-null long value when it is evaluated
 ---
 IS NOT NULL returns the same rows pushed down and evaluated on a keyword field:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
-      reason: "the pushed down IS NOT NULL returns documents that the same predicate evaluated on the loaded value does not"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "the pushed down IS NOT NULL also matches documents that hold only nulls, which the evaluated predicate does not"
 
   - do:
       esql.query:

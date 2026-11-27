@@ -202,7 +202,7 @@ public final class NumberColumnTransform {
      */
     private static long doubleToSortable(double d, NumberFieldMapper.NumberType type, boolean coerce) {
         return switch (type) {
-            case DOUBLE -> NumericUtils.doubleToSortableLong(d);
+            case DOUBLE -> NumericUtils.doubleToSortableLong(finite(d));
             case FLOAT -> floatToSortable(narrowToFloat(d));
             case HALF_FLOAT -> toValidatedHalfFloat(narrowToFloat(d));
             case BYTE -> narrowedDouble(d, Byte.MIN_VALUE, Byte.MAX_VALUE, "a byte", coerce);
@@ -219,8 +219,16 @@ public final class NumberColumnTransform {
         return (float) d;
     }
 
+    /** A union row can hold a non-finite double that JSON cannot; the row path rejects it, so reject it to fall back to it. */
+    private static double finite(double d) {
+        if (Double.isFinite(d) == false) {
+            throw new IllegalArgumentException("[double] supports only finite values, but got [" + d + "]");
+        }
+        return d;
+    }
+
     private static long narrowedDouble(double d, double min, double max, String typeName, boolean coerce) {
-        if (d < min || d > max) {
+        if (d < min || d > max || Double.isNaN(d)) {
             throw new IllegalArgumentException("Value [" + d + "] is out of range for " + typeName);
         }
         if (coerce == false && d % 1 != 0) {

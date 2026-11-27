@@ -1405,6 +1405,19 @@ public class NumberColumnTransformTests extends ESTestCase {
         );
     }
 
+    public void testUnion_nonFiniteFloatRows_throw() {
+        final BytesRefRecycler recycler = BytesRefRecycler.NON_RECYCLING_INSTANCE;
+        for (float nonFinite : new float[] { Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY }) {
+            for (NumberType type : NumberType.values()) {
+                expectThrows(
+                    IllegalArgumentException.class,
+                    nonFinite + " into " + type,
+                    () -> NumberColumnTransform.toSortableLongColumn(longAndFloatUnion(nonFinite), type, true, recycler)
+                );
+            }
+        }
+    }
+
     public void testUnion_doubleMidpoint_throws() throws IOException {
         try (EscfBatch batch = encode("{\"f\": 1}", "{\"f\": 1.0000001788139343}")) {
             expectThrows(UnsupportedOperationException.class, () -> fromUnion(batch, NumberType.FLOAT, false, null));

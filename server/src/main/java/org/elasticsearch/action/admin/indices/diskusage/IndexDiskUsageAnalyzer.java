@@ -297,18 +297,31 @@ final class IndexDiskUsageAnalyzer {
                     throw new IllegalStateException("Unknown docValues type [" + dvType + "]");
                 }
             }
+            stats.addDocValues(field.name, directory.getBytesRead());
             switch (field.docValuesSkipIndexType()) {
                 case NONE -> {
                 }
                 case RANGE -> {
+                    directory.resetBytesRead();
                     var skipper = docValuesReader.getSkipper(field);
+                    int lastUpperIntervalEnd = 0;
+                    int lastTopLevel = 0;
                     while (skipper.maxDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
-                        skipper.advance(skipper.maxDocID(skipper.numLevels() - 1) + 1);
+                        final int topLevel = skipper.numLevels() - 1;
+                        lastTopLevel = topLevel;
+                        lastUpperIntervalEnd = skipper.maxDocID(topLevel);
+                        skipper.advance(skipper.maxDocID(topLevel) + 1);
                     }
+                    if (lastTopLevel > 0) {
+                        // jumping over the last upper-level interval skips the leaf records inside it, so move a fresh skipper to its last
+                        // leaf
+                        skipper = docValuesReader.getSkipper(field);
+                        skipper.advance(lastUpperIntervalEnd);
+                    }
+                    stats.addDocValuesSkipper(field.name, directory.getBytesRead());
                 }
                 default -> throw new IllegalStateException("Unknown skipper type [" + field.docValuesSkipIndexType() + "]");
             }
-            stats.addDocValues(field.name, directory.getBytesRead());
         }
     }
 

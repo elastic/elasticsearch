@@ -387,6 +387,205 @@ load two indices with single conversion function TO_LONG:
   - match: { values.7.4: "Connected to 10.1.0.1" }
 
 ---
+load two indices and convert keyword and text with a base:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_conversion_with_base]
+      reason: "Conversions with a base of keyword and text union types were not supported"
+  - do:
+      indices.create:
+        index: base_union_keyword
+        body:
+          mappings:
+            properties:
+              hex:
+                type: keyword
+              base:
+                type: integer
+  - do:
+      indices.create:
+        index: base_union_text
+        body:
+          mappings:
+            properties:
+              hex:
+                type: text
+              base:
+                type: integer
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "base_union_keyword"}}'
+          - '{"hex": "ff", "base": 16}'
+          - '{"index": {"_index": "base_union_text"}}'
+          - '{"hex": "10", "base": 16}'
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM base_union_* METADATA _index | EVAL l = TO_LONG(hex, 16), i = TO_INTEGER(hex, 8 + 8) | KEEP _index, l, i | SORT _index'
+  - match: { columns.1.type: "long" }
+  - match: { columns.2.type: "integer" }
+  - length: { values: 2 }
+  - match: { values.0: ["base_union_keyword", 255, 255] }
+  - match: { values.1: ["base_union_text", 16, 16] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM base_union_* | STATS m = MAX(TO_LONG(hex, 16)), s = SUM(TO_INTEGER(hex, 16))'
+  - match: { values.0: [255, 271] }
+
+  # The base has to be a constant, as the conversion happens while loading the field
+  - do:
+      catch: '/can.t convert a field with multiple types if its other arguments are not constants/'
+      esql.query:
+        body:
+          query: 'FROM base_union_* | EVAL l = TO_LONG(hex, base)'
+  - do:
+      catch: '/can.t convert a field with multiple types if its other arguments are not constants/'
+      esql.query:
+        body:
+          query: 'FROM base_union_* | EVAL i = TO_INTEGER(hex, base + 1)'
+  - do:
+      catch: '/second argument of .* must be \[integer\]/'
+      esql.query:
+        body:
+          query: 'FROM base_union_* | EVAL l = TO_LONG(hex, 1.5)'
+  - do:
+      catch: '/Unknown column \[typo\]/'
+      esql.query:
+        body:
+          query: 'FROM base_union_* | EVAL l = TO_LONG(hex, typo)'
+  - do:
+      catch: '/can.t convert a field with multiple types if its other arguments are not constants/'
+      esql.query:
+        body:
+          query: 'FROM base_union_* | EVAL l = TO_LONG(hex, COUNT(*))'
+
+  # The base can be any constant expression, including the ones that are rewritten before running
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM base_union_* METADATA _index | EVAL l = TO_LONG(hex, TO_INTEGER("16")) | KEEP _index, l | SORT _index'
+  - match: { values.0: ["base_union_keyword", 255] }
+  - match: { values.1: ["base_union_text", 16] }
+---
+load two indices and convert keyword and text with a base, with unmapped fields:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_conversion_with_base, optional_fields_v5]
+      reason: "The base is kept when loading the field where it's unmapped"
+  - do:
+      indices.create:
+        index: base_unmapped_keyword
+        body:
+          mappings:
+            properties:
+              hex:
+                type: keyword
+  - do:
+      indices.create:
+        index: base_unmapped_text
+        body:
+          mappings:
+            properties:
+              hex:
+                type: text
+  # hex is in _source but not in the mapping (dynamic:false)
+  - do:
+      indices.create:
+        index: base_unmapped_none
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              other:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "base_unmapped_keyword"}}'
+          - '{"hex": "ff"}'
+          - '{"index": {"_index": "base_unmapped_text"}}'
+          - '{"hex": "10"}'
+          - '{"index": {"_index": "base_unmapped_none"}}'
+          - '{"hex": "1f", "other": "x"}'
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM base_unmapped_* METADATA _index | EVAL l = TO_LONG(hex, 16), i = TO_INTEGER(hex, 16) | KEEP _index, l, i | SORT _index'
+  - match: { columns.1.type: "long" }
+  - match: { columns.2.type: "integer" }
+  - length: { values: 3 }
+  - match: { values.0: ["base_unmapped_keyword", 255, 255] }
+  - match: { values.1: ["base_unmapped_none", 31, 31] }
+  - match: { values.2: ["base_unmapped_text", 16, 16] }
+---
+load two indices and convert event_duration with a base:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_conversion_with_base]
+      reason: "Conversions with a base of keyword and text union types were not supported"
+  # A base only converts strings, so a field that is also a long is ambiguous, like for any conversion that doesn't support a type
+  - do:
+      catch: '/Cannot use field \[event_duration\] due to ambiguities/'
+      esql.query:
+        body:
+          query: 'FROM events_ip_* | EVAL x = TO_LONG(event_duration, 16) | KEEP x'
+  - do:
+      catch: '/Cannot use field \[event_duration\] due to ambiguities/'
+      esql.query:
+        body:
+          query: 'FROM events_ip_* | EVAL x = TO_INTEGER(event_duration, 16) | KEEP x'
+
+---
+load two indices and convert event_duration to a string, then with a base:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_conversion_with_base]
+      reason: "The base of a conversion of a union type was dropped in older nodes"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # The largest value, 8268153, is 136741203 in base 16
+          query: 'FROM events_ip_* | EVAL x = TO_LONG(event_duration::keyword, 16) | STATS c = COUNT(x), m = MAX(x)'
+
+  - match: { columns.0.name: "c" }
+  - match: { columns.1.name: "m" }
+  - match: { values.0.0: 14 }
+  - match: { values.0.1: 136741203 }
+
+---
 load two indices and drop ambiguous field event_duration:
   - do:
       allowed_warnings_regex:
@@ -700,6 +899,150 @@ load two indexes, convert client_ip and group by something invalid:
       esql.query:
         body:
           query: 'FROM events_*_long | STATS count = COUNT(client_ip::ip) BY x'
+
+---
+load two indexes, convert client_ip with an unknown option:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_conversion_with_base]
+      reason: "Conversions of union types validate their options"
+  - do:
+      catch: '/line 1:\d+: Invalid option \[unknown\] in \[TO_IP\(client_ip, \{"unknown": "x"\}\)\], expected one of \[leading_zeros\]/'
+      esql.query:
+        body:
+          query: 'FROM events_*_long | EVAL x = TO_IP(client_ip, {"unknown": "x"}) | KEEP x'
+
+---
+load two indexes, convert client_ip with an invalid option value:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_conversion_with_base]
+      reason: "Conversions of union types validate their options"
+  - do:
+      catch: '/line 1:\d+: Illegal leading_zeros \[bad\]/'
+      esql.query:
+        body:
+          query: 'FROM events_*_long | EVAL x = TO_IP(client_ip, {"leading_zeros": "bad"}) | KEEP x'
+
+---
+load two indexes, convert client_ip to a keyword and then with an unknown option:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_conversion_with_base]
+      reason: "Conversions of union types validate their options"
+  - do:
+      catch: '/line 1:\d+: Invalid option \[unknown\] in \[TO_IP\(client_ip::keyword, \{"unknown": "x"\}\)\], expected one of \[leading_zeros\]/'
+      esql.query:
+        body:
+          query: 'FROM events_*_long | EVAL x = TO_IP(client_ip::keyword, {"unknown": "x"}) | KEEP x'
+
+---
+load two indexes, convert client_ip with a valid option:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [to_ip_leading_zeros]
+      reason: "TO_IP options are not supported by older nodes"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM events_*_long | EVAL x = TO_IP(client_ip, {"leading_zeros": "octal"}) | STATS c = COUNT(x)'
+
+  - match: { columns.0.name: "c" }
+  - match: { values.0.0: 14 }
+
+---
+load two indexes, convert a keyword and an ip with leading zeros:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_conversion_with_base]
+      reason: "The options of conversions of union types are kept and validated"
+  - do:
+      indices.create:
+        index: leading_zeros_ip
+        body:
+          mappings:
+            properties:
+              addr:
+                type: ip
+  - do:
+      indices.create:
+        index: leading_zeros_keyword
+        body:
+          mappings:
+            properties:
+              addr:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "leading_zeros_ip"}}'
+          - '{"addr": "10.0.0.1"}'
+          - '{"index": {"_index": "leading_zeros_keyword"}}'
+          - '{"addr": "1.1.010.1"}'
+
+  # Octal: 010 is 8
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM leading_zeros_* METADATA _index | EVAL x = TO_IP(addr, {"leading_zeros": "octal"}) | SORT _index ASC | KEEP _index, x'
+  - match: { columns.1.name: "x" }
+  - match: { columns.1.type: "ip" }
+  - match: { values.0.1: "10.0.0.1" }
+  - match: { values.1.1: "1.1.8.1" }
+
+  # Decimal: 010 is 10
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM leading_zeros_* METADATA _index | EVAL x = TO_IP(addr, {"leading_zeros": "decimal"}) | SORT _index ASC | KEEP _index, x'
+  - match: { values.0.1: "10.0.0.1" }
+  - match: { values.1.1: "1.1.10.1" }
+
+  # The same when the field is converted first
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM leading_zeros_* METADATA _index | EVAL x = TO_IP(addr::keyword, {"leading_zeros": "octal"}) | SORT _index ASC | KEEP _index, x'
+  - match: { values.0.1: "10.0.0.1" }
+  - match: { values.1.1: "1.1.8.1" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM leading_zeros_* METADATA _index | EVAL x = TO_IP(addr::keyword, {"leading_zeros": "decimal"}) | SORT _index ASC | KEEP _index, x'
+  - match: { values.0.1: "10.0.0.1" }
+  - match: { values.1.1: "1.1.10.1" }
 
 ############################################################################################################
 # Test four indices with both the client_IP (IP and KEYWORD) and event_duration (LONG and KEYWORD) mappings

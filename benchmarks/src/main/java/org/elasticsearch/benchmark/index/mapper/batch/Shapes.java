@@ -92,7 +92,7 @@ public final class Shapes {
         add(shapes, numeric("long").values(ValueDist.SMALL_INTS, JsonKind.STRING).fields(4).build("long.str"));
         add(shapes, numeric("long").values(ValueDist.SMALL_INTS, JsonKind.DOUBLE).fields(4).build("long.dbl"));
         add(shapes, numeric("integer").param("index", false).fields(4).build("integer.noindex"));
-        add(shapes, numeric("long").fields(4).nullEvery(10).expect(Expect.FALLBACK_MAP).build("long.nullexplicit"));
+        add(shapes, numeric("long").fields(4).nullEvery(10).build("long.nullexplicit"));
         add(
             shapes,
             numeric("scaled_float").param("scaling_factor", 100)

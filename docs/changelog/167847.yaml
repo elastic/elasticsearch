@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 159563
+pr: 167847
+summary: Handle unwrapped stream size error when inflating models
+type: bug

@@ -13,6 +13,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncodingTests;
@@ -95,7 +97,39 @@ public class InferenceToXContentCompressorTests extends ESTestCase {
             equalTo(
                 "Cannot parse model definition as the content is larger than the maximum stream size of ["
                     + max
-                    + "] bytes. Max stream size is 10% of the JVM heap or 1GB whichever is smallest"
+                    + "] bytes. Max stream size is 25% of the JVM heap or 1GB, whichever is smaller"
+            )
+        );
+        assertThat(e.getDurability(), equalTo(CircuitBreaker.Durability.PERMANENT));
+    }
+
+    /**
+     * The JSON parser only wraps some IO exceptions in an {@code XContentParseException}, so whether the stream size exception
+     * arrives wrapped depends on where in the content the limit is hit. Parsing a plain map hits it while reading a token, where
+     * the parser passes it through as it is.
+     */
+    public void testInflateParsingTooLargeStreamWhileReadingToken() throws IOException {
+        ToXContentObject content = (builder, params) -> {
+            builder.startObject();
+            for (int i = 0; i < 20; i++) {
+                builder.field("field_" + i, "value");
+            }
+            return builder.endObject();
+        };
+        BytesReference compressed = InferenceToXContentCompressor.deflate(content);
+        int max = 50;
+
+        CircuitBreakingException e = expectThrows(
+            CircuitBreakingException.class,
+            () -> InferenceToXContentCompressor.inflate(compressed, XContentParser::map, xContentRegistry(), max)
+        );
+
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Cannot parse model definition as the content is larger than the maximum stream size of ["
+                    + max
+                    + "] bytes. Max stream size is 25% of the JVM heap or 1GB, whichever is smaller"
             )
         );
         assertThat(e.getDurability(), equalTo(CircuitBreaker.Durability.PERMANENT));

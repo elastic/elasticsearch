@@ -45,6 +45,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -957,6 +958,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             final int node = i;
             tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
+                protected boolean nodeRepliesCanTripCircuitBreaker() {
+                    return true;
+                }
+
+                @Override
                 protected void taskOperation(
                     CancellableTask actionTask,
                     TestTasksRequest request,
@@ -997,18 +1003,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(0, future.get().failureCount());
     }
 
-    public void testNodeRepliesAreNotChargedWhenTheyCannotTripTheBreaker() throws Exception {
+    public void testNodeRepliesAreNotChargedUnlessTheActionOptsIn() throws Exception {
         final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
         final CountDownLatch checkLatch = new CountDownLatch(1);
         final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
         final TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
-                @Override
-                protected boolean nodeRepliesCanTripCircuitBreaker() {
-                    return false;
-                }
-
                 @Override
                 protected void taskOperation(
                     CancellableTask actionTask,
@@ -1086,6 +1087,46 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         } finally {
             testNodes[1].transportService.getTaskManager().unregister(task1);
             testNodes[2].transportService.getTaskManager().unregister(task2);
+        }
+    }
+
+    public void testFirstListingPassStaysChargedWhileTheSecondOneWaits() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final int descriptionLength = 5_000;
+        final Task task1 = registerTaskWithDescription(testNodes[1], descriptionLength);
+        final Task task2 = registerTaskWithDescription(testNodes[2], descriptionLength);
+        final AtomicBoolean unregistered = new AtomicBoolean();
+        try {
+            final ListTasksRequest request = doubleListRequest();
+            request.setWaitForCompletion(true);
+            request.setTimeout(TimeValue.timeValueSeconds(30));
+            final PlainActionFuture<ListTasksResponse> future = new PlainActionFuture<>();
+            testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    request,
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    future
+                );
+
+            assertBusy(() -> assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 2L * descriptionLength)));
+            safeSleep(200);
+            assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 2L * descriptionLength));
+            assertFalse(future.isDone());
+
+            unregistered.set(true);
+            testNodes[1].transportService.getTaskManager().unregister(task1);
+            testNodes[2].transportService.getTaskManager().unregister(task2);
+            safeGet(future);
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            if (unregistered.get() == false) {
+                testNodes[1].transportService.getTaskManager().unregister(task1);
+                testNodes[2].transportService.getTaskManager().unregister(task2);
+            }
         }
     }
 
@@ -1199,6 +1240,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
             tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
+                @Override
+                protected boolean nodeRepliesCanTripCircuitBreaker() {
+                    return true;
+                }
+
                 @Override
                 protected void taskOperation(
                     CancellableTask actionTask,

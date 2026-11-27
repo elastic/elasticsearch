@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasks
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Cancellable;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -108,11 +109,7 @@ public class ListTasksBreakerIT extends ESIntegTestCase {
     private void sendRestRequestsTo(String node) {
         final TransportAddress address = internalCluster().getInstance(HttpServerTransport.class, node).boundAddress().publishAddress();
         getRestClient().setNodes(
-            List.of(
-                new org.elasticsearch.client.Node(
-                    new HttpHost(NetworkAddress.format(address.address().getAddress()), address.address().getPort(), "http")
-                )
-            )
+            List.of(new Node(new HttpHost(NetworkAddress.format(address.address().getAddress()), address.address().getPort(), "http")))
         );
     }
 

@@ -104,6 +104,11 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     }
 
     @Override
+    protected boolean nodeRepliesCanTripCircuitBreaker() {
+        return true;
+    }
+
+    @Override
     protected ListTasksResponse newResponse(
         ListTasksRequest request,
         List<TaskInfo> tasks,

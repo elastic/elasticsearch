@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The base class for transport actions that are interacting with currently running tasks.
@@ -94,10 +95,10 @@ public abstract class TransportTasksAction<
 
     /**
      * Whether the replies of the other nodes are charged to the in-flight requests breaker, and so can fail a node when there is no room
-     * for them. An action that has to work under memory pressure, such as cancelling tasks, returns {@code false}.
+     * for them. Off by default. An action whose replies can be large, such as listing tasks, opts in.
      */
     protected boolean nodeRepliesCanTripCircuitBreaker() {
-        return true;
+        return false;
     }
 
     @Override
@@ -233,21 +234,29 @@ public abstract class TransportTasksAction<
 
     protected static final class NodeReplyCharge implements Releasable {
         private final CircuitBreaker breaker;
+        private static final long RELEASED = Long.MIN_VALUE;
+
         private final AbstractRefCounted refs = AbstractRefCounted.of(this::release);
         private final AtomicBoolean ownerReleased = new AtomicBoolean();
-        private long retained;
-        private boolean released;
+        private final AtomicLong retained = new AtomicLong();
 
         private NodeReplyCharge(CircuitBreaker breaker) {
             this.breaker = breaker;
         }
 
-        synchronized void charge(long bytes) {
-            if (released || bytes == 0) {
+        void charge(long bytes) {
+            if (bytes == 0 || retained.get() == RELEASED) {
                 return;
             }
             breaker.addEstimateBytesAndMaybeBreak(bytes, NODE_RESPONSE_BREAKER_LABEL);
-            retained += bytes;
+            long current;
+            do {
+                current = retained.get();
+                if (current == RELEASED) {
+                    breaker.addWithoutBreaking(-bytes);
+                    return;
+                }
+            } while (retained.compareAndSet(current, current + bytes) == false);
         }
 
         /**
@@ -270,10 +279,10 @@ public abstract class TransportTasksAction<
             }
         }
 
-        synchronized void release() {
-            if (released == false) {
-                released = true;
-                breaker.addWithoutBreaking(-retained);
+        void release() {
+            final long bytes = retained.getAndSet(RELEASED);
+            if (bytes != RELEASED) {
+                breaker.addWithoutBreaking(-bytes);
             }
         }
     }

@@ -72,7 +72,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
+import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
@@ -90,6 +93,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -453,6 +458,44 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     public void testDocValuesSkipperBytesWithFullUpperIntervals() throws Exception {
         // 512 documents fill whole upper-level skip intervals, which is where the final intervals are easiest to miss
         assertSkipperBytesReportedSeparately(512);
+    }
+
+    /**
+     * The TSDB doc values formats report field sizes from their metadata, so the analyzed sizes must add up to the
+     * doc values files on disk, apart from the headers and footers that belong to no field.
+     */
+    public void testTsdbDocValuesSizesComeFromMetadata() throws Exception {
+        final DocValuesFormat format = randomFrom(new ES819TSDBDocValuesFormat(), new ES95TSDBDocValuesFormat());
+        final Codec codec = new Elasticsearch93Lucene104Codec() {
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return format;
+            }
+        };
+        try (Directory dir = createNewDirectory()) {
+            final IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true).setUseCompoundFile(false).setCodec(codec);
+            try (IndexWriter writer = new IndexWriter(dir, config)) {
+                for (int i = between(100, 1000); i > 0; i--) {
+                    final Document doc = new Document();
+                    addRandomDocValuesField(doc, true);
+                    writer.addDocument(doc);
+                }
+            }
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            assertThat(stats.total().getDocValuesBytes(), greaterThan(0L));
+            assertThat(stats.total().getDocValuesSkipperBytes(), greaterThan(0L));
+
+            long fileBytes = 0;
+            for (String file : dir.listAll()) {
+                final String extension = IndexFileNames.getExtension(file);
+                if ("dvd".equals(extension) || "dvm".equals(extension) || "dvs".equals(extension)) {
+                    fileBytes += dir.fileLength(file);
+                }
+            }
+            final long analyzedBytes = stats.total().getDocValuesBytes() + stats.total().getDocValuesSkipperBytes();
+            assertThat(analyzedBytes, lessThanOrEqualTo(fileBytes));
+            assertThat(fileBytes - analyzedBytes, lessThan(512L));
+        }
     }
 
     private void assertSkipperBytesReportedSeparately(int numDocs) throws Exception {

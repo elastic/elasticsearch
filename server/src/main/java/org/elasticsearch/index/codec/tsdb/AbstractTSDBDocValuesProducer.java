@@ -31,6 +31,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.internal.hppc.IntLongHashMap;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.SortField;
@@ -57,6 +58,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 import org.elasticsearch.lucene.queries.BinaryDocValuesContainsTermQuery;
 import org.elasticsearch.lucene.store.DocRanks;
+import org.elasticsearch.lucene.store.DocValuesDiskUsage;
 import org.elasticsearch.lucene.store.PrefetchSteps;
 import org.elasticsearch.lucene.store.PrefetchableDocValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -72,7 +74,7 @@ import java.util.Arrays;
  * {@link OrdinalBlockCodec}; those codecs supply the per-field readers and decoders the wire-format
  * code drives during segment open and value iteration.
  */
-public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
+public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer implements DocValuesDiskUsage {
 
     final IntObjectHashMap<NumericEntry> numerics;
     final IntObjectHashMap<BinaryEntry> binaries;
@@ -80,6 +82,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     final IntObjectHashMap<SortedSetEntry> sortedSets;
     final IntObjectHashMap<SortedNumericEntry> sortedNumerics;
     private final IntObjectHashMap<DocValuesSkipperEntry> skippers;
+    private final IntLongHashMap metadataLengths;
     private final IndexInput data, skip;
     private final int maxDoc;
     final int version;
@@ -116,6 +119,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         this.sortedSets = new IntObjectHashMap<>();
         this.sortedNumerics = new IntObjectHashMap<>();
         this.skippers = new IntObjectHashMap<>();
+        this.metadataLengths = new IntLongHashMap();
         this.maxDoc = state.segmentInfo.maxDoc();
         this.primarySortFieldNumber = primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.merging = false;
@@ -224,6 +228,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         this.sortedSets = original.sortedSets;
         this.sortedNumerics = original.sortedNumerics;
         this.skippers = original.skippers;
+        this.metadataLengths = original.metadataLengths;
         this.data = original.data.clone();
         this.skip = original.skip == null ? null : original.skip.clone();
         this.maxDoc = original.maxDoc;
@@ -2155,6 +2160,87 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     @Override
+    public boolean visitDiskUsage(FieldInfo field, Visitor visitor) {
+        final boolean found = switch (field.getDocValuesType()) {
+            case NUMERIC -> visitNumeric(numerics.get(field.number), visitor);
+            case SORTED_NUMERIC -> visitSortedNumeric(sortedNumerics.get(field.number), visitor);
+            case BINARY -> visitBinary(binaries.get(field.number), visitor);
+            case SORTED -> visitSorted(sorted.get(field.number), visitor);
+            case SORTED_SET -> visitSortedSet(sortedSets.get(field.number), visitor);
+            case NONE -> false;
+        };
+        if (found == false) {
+            return false;
+        }
+        visitor.docValuesMetadata(metadataLengths.get(field.number));
+        final DocValuesSkipperEntry skipperEntry = skippers.get(field.number);
+        if (skipperEntry != null) {
+            visitor.docValuesSkipperData(skipperEntry.length);
+        }
+        return true;
+    }
+
+    private static boolean visitNumeric(NumericEntry entry, Visitor visitor) {
+        if (entry == null) {
+            return false;
+        }
+        visitor.docValuesData("docsWithField", entry.docsWithFieldLength);
+        visitor.docValuesData("index", entry.indexLength);
+        visitor.docValuesData("values", entry.valuesLength);
+        return true;
+    }
+
+    private static boolean visitSortedNumeric(SortedNumericEntry entry, Visitor visitor) {
+        if (visitNumeric(entry, visitor) == false) {
+            return false;
+        }
+        visitor.docValuesData("addresses", entry.addressesLength);
+        return true;
+    }
+
+    private static boolean visitBinary(BinaryEntry entry, Visitor visitor) {
+        if (entry == null) {
+            return false;
+        }
+        visitor.docValuesData("values", entry.dataLength);
+        visitor.docValuesData("docsWithField", entry.docsWithFieldLength);
+        visitor.docValuesData("addresses", entry.addressesLength);
+        visitor.docValuesData("docOffsets", entry.docOffsetLength);
+        return true;
+    }
+
+    private static boolean visitSorted(SortedEntry entry, Visitor visitor) {
+        if (entry == null) {
+            return false;
+        }
+        visitNumeric(entry.ordsEntry, visitor);
+        visitTermsDict(entry.termsDictEntry, visitor);
+        if (entry instanceof PrefixPartitionedEntry partitioned) {
+            visitor.docValuesData("partitions", partitioned.partitionDataLength);
+        }
+        return true;
+    }
+
+    private static boolean visitSortedSet(SortedSetEntry entry, Visitor visitor) {
+        if (entry == null) {
+            return false;
+        }
+        if (entry.singleValueEntry != null) {
+            return visitSorted(entry.singleValueEntry, visitor);
+        }
+        visitSortedNumeric(entry.ordsEntry, visitor);
+        visitTermsDict(entry.termsDictEntry, visitor);
+        return true;
+    }
+
+    private static void visitTermsDict(TermsDictEntry entry, Visitor visitor) {
+        visitor.docValuesData("termsData", entry.termsDataLength);
+        visitor.docValuesData("termsAddresses", entry.termsAddressesLength);
+        visitor.docValuesData("termsIndex", entry.termsIndexLength);
+        visitor.docValuesData("termsIndexAddresses", entry.termsIndexAddressesLength);
+    }
+
+    @Override
     public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
         final DocValuesSkipperEntry entry = skippers.get(field.number);
 
@@ -2300,6 +2386,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
     private void readFields(IndexInput meta, FieldInfos infos, int version, int numericBlockShift) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
+            final long entryStart = meta.getFilePointer() - Integer.BYTES;
             FieldInfo info = infos.fieldInfo(fieldNumber);
             if (info == null) {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
@@ -2333,6 +2420,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             } else {
                 throw new CorruptIndexException("invalid type: " + type, meta);
             }
+            metadataLengths.put(info.number, meta.getFilePointer() - entryStart);
         }
     }
 

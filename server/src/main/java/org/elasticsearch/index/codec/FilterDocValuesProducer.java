@@ -17,13 +17,14 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.lucene.store.DocValuesDiskUsage;
 
 import java.io.IOException;
 
 /**
  * Implementation that allows wrapping another {@link DocValuesProducer} and alter behaviour of the wrapped instance.
  */
-public abstract class FilterDocValuesProducer extends DocValuesProducer {
+public abstract class FilterDocValuesProducer extends DocValuesProducer implements DocValuesDiskUsage {
     private final DocValuesProducer in;
 
     protected FilterDocValuesProducer(DocValuesProducer in) {
@@ -58,6 +59,11 @@ public abstract class FilterDocValuesProducer extends DocValuesProducer {
     @Override
     public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
         return in.getSkipper(field);
+    }
+
+    @Override
+    public boolean visitDiskUsage(FieldInfo field, Visitor visitor) throws IOException {
+        return in instanceof DocValuesDiskUsage diskUsage && diskUsage.visitDiskUsage(field, visitor);
     }
 
     @Override

@@ -27,6 +27,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.lucene.store.DocValuesDiskUsage;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -232,7 +233,7 @@ public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
     }
 
     @SuppressForbidden(reason = "forked from Lucene")
-    public static class FieldsReader extends DocValuesProducer {
+    public static class FieldsReader extends DocValuesProducer implements DocValuesDiskUsage {
 
         private final IntObjectHashMap<DocValuesProducer> fields = new IntObjectHashMap<>();
         private final Map<String, DocValuesProducer> formats = new HashMap<>();
@@ -331,6 +332,11 @@ public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
         public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
             DocValuesProducer producer = fields.get(field.number);
             return producer == null ? null : producer.getSkipper(field);
+        }
+
+        @Override
+        public boolean visitDiskUsage(FieldInfo field, Visitor visitor) throws IOException {
+            return fields.get(field.number) instanceof DocValuesDiskUsage diskUsage && diskUsage.visitDiskUsage(field, visitor);
         }
 
         @Override

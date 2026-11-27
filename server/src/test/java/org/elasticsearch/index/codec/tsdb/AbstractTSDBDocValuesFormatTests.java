@@ -20,13 +20,17 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -57,6 +61,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
+import org.elasticsearch.lucene.store.DocValuesDiskUsage;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
@@ -91,6 +96,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Shared test suite for TSDB doc values formats. Tests all five doc value types (numeric,
@@ -184,6 +190,80 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             sortedDocValues = DocValues.unwrapSingleton(leafReader.getSortedSetDocValues(field));
         }
         return (BaseSortedDocValues) sortedDocValues;
+    }
+
+    /**
+     * The sizes reported from the metadata must account for every byte of the doc values files, apart from the
+     * headers, footers and end markers that do not belong to any field.
+     */
+    public void testVisitDiskUsageAccountsForAllFileBytes() throws Exception {
+        final int numDocs = randomIntBetween(200, 2000);
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig().setCodec(getCodec()).setUseCompoundFile(false);
+            try (IndexWriter writer = new IndexWriter(dir, config)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    doc.add(NumericDocValuesField.indexedField("numeric", randomLong()));
+                    doc.add(SortedNumericDocValuesField.indexedField("sorted_numeric", i));
+                    doc.add(SortedNumericDocValuesField.indexedField("sorted_numeric", randomLong()));
+                    doc.add(new BinaryDocValuesField("binary", new BytesRef(randomAlphaOfLengthBetween(0, 50))));
+                    doc.add(SortedDocValuesField.indexedField("sorted", new BytesRef(randomAlphaOfLength(3))));
+                    doc.add(SortedSetDocValuesField.indexedField("sorted_set", new BytesRef(randomAlphaOfLength(3))));
+                    doc.add(SortedSetDocValuesField.indexedField("sorted_set", new BytesRef(randomAlphaOfLength(3))));
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                final SegmentReader segmentReader = (SegmentReader) reader.leaves().get(0).reader();
+                final var producer = segmentReader.getDocValuesReader();
+                assertThat(producer, instanceOf(DocValuesDiskUsage.class));
+
+                long dataAndMetadataBytes = 0;
+                long skipperBytes = 0;
+                for (FieldInfo field : segmentReader.getFieldInfos()) {
+                    final long[] fieldBytes = new long[2];
+                    final var visitor = new DocValuesDiskUsage.Visitor() {
+                        @Override
+                        public void docValuesData(String component, long bytes) {
+                            fieldBytes[0] += bytes;
+                        }
+
+                        @Override
+                        public void docValuesMetadata(long bytes) {
+                            assertThat(bytes, greaterThan(0L));
+                            fieldBytes[0] += bytes;
+                        }
+
+                        @Override
+                        public void docValuesSkipperData(long bytes) {
+                            fieldBytes[1] += bytes;
+                        }
+                    };
+                    assertTrue(field.name, ((DocValuesDiskUsage) producer).visitDiskUsage(field, visitor));
+                    assertThat(field.name, fieldBytes[0], greaterThan(0L));
+                    assertThat(
+                        field.name,
+                        fieldBytes[1],
+                        field.docValuesSkipIndexType() == DocValuesSkipIndexType.NONE ? equalTo(0L) : greaterThan(0L)
+                    );
+                    dataAndMetadataBytes += fieldBytes[0];
+                    skipperBytes += fieldBytes[1];
+                }
+
+                long fileBytes = 0;
+                for (String file : segmentReader.getSegmentInfo().files()) {
+                    final String extension = IndexFileNames.getExtension(file);
+                    if ("dvd".equals(extension) || "dvm".equals(extension) || "dvs".equals(extension)) {
+                        fileBytes += dir.fileLength(file);
+                    }
+                }
+                final long unattributedBytes = fileBytes - dataAndMetadataBytes - skipperBytes;
+                assertThat(unattributedBytes, greaterThanOrEqualTo(0L));
+                assertThat(unattributedBytes, lessThan(512L));
+            }
+        }
     }
 
     public void testBlockWiseBinary() throws Exception {

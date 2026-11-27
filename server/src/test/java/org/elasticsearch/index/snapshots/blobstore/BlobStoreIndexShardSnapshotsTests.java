@@ -83,7 +83,9 @@ public class BlobStoreIndexShardSnapshotsTests extends ESTestCase {
         final var sharedFile = blobFile("__shared", "_1.cfs", 3);
         final var newFile = blobFile("__new", "_2.cfs", 4);
 
-        final var oldSnapshots = BlobStoreIndexShardSnapshots.EMPTY.withAddedSnapshot(new SnapshotFiles("old", List.of(oldFile, sharedFile), null));
+        final var oldSnapshots = BlobStoreIndexShardSnapshots.EMPTY.withAddedSnapshot(
+            new SnapshotFiles("old", List.of(oldFile, sharedFile), null)
+        );
         final var allSnapshots = oldSnapshots.withAddedSnapshot(new SnapshotFiles("new", List.of(updatedFile, sharedFile), null));
 
         final var metadata = new Store.MetadataSnapshot(

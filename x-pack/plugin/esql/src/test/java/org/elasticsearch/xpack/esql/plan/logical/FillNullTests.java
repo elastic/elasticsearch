@@ -220,6 +220,18 @@ public class FillNullTests extends ESTestCase {
         assertEquals(Set.of("_foo"), filledNames(named));
     }
 
+    /** A wildcard pattern that matches columns with an underscore name puts them in scope, as naming them does. */
+    public void testPatternMatchingColumnsWithAnUnderscoreNameFillsThem() {
+        Attribute foo = new ReferenceAttribute(Source.EMPTY, "_foo", DataType.KEYWORD);
+        Attribute fox = new ReferenceAttribute(Source.EMPTY, "_fox", DataType.KEYWORD);
+        Attribute k = getFieldAttribute("k", DataType.KEYWORD);
+        List<Attribute> output = List.of(foo, fox, k);
+        FillNull pattern = new FillNull(Source.EMPTY, childWith(output), keyword("x"), startingWith("_fo", output)).withConfiguration(
+            TEST_CFG
+        );
+        assertEquals(Set.of("_foo", "_fox"), filledNames(pattern));
+    }
+
     /**
      * Types that have no default and that no value converts into, not even a string that would cast: ES|QL converts a string only to
      * datetime, date_nanos, ip, version and boolean. Both forms leave the column unchanged and report it.

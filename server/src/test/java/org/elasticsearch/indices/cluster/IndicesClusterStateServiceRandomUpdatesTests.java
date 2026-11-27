@@ -10,7 +10,6 @@
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -47,6 +46,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -823,9 +823,9 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             IndexRemovalReason reason,
             String extraInfo,
             Executor shardCloseExecutor,
-            ActionListener<Void> shardsClosedListener
+            Releasable onShardsClosed
         ) {
-            super.removeIndex(index, reason, extraInfo, shardCloseExecutor, shardsClosedListener);
+            super.removeIndex(index, reason, extraInfo, shardCloseExecutor, onShardsClosed);
             removalReasons.put(index, reason);
             if (reason == IndexRemovalReason.DELETED) {
                 Set<Index> newSet = Sets.newHashSet(deletedIndices);

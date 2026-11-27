@@ -143,6 +143,19 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
         assertQueryTripsBreaker(regexpQuery);
     }
 
+    /**
+     * A regexp whose predicted build size is above the request breaker is refused before it is built, while the same
+     * shape at a size that fits, and a long bounded repeat, still run under that limit. The breaker must be empty after
+     * each search. Mirrors {@code search/640_regexp_circuit_breaker}, which cannot wait for the breaker to drain.
+     */
+    public void testRegexpBuildIsChargedAndReleased() throws Exception {
+        createAndPopulateIndex();
+        assertQueryTripsBreaker(new RegexpQueryBuilder(KEYWORD_FIELD, "x?{1300}"), "100mb");
+        assertBusy(() -> assertEquals("Request breaker should be empty after a tripped search", 0L, getRequestBreakerUsed()));
+        assertQueryMemoryReleased(new RegexpQueryBuilder(KEYWORD_FIELD, "x?{300}"));
+        assertQueryMemoryReleased(new RegexpQueryBuilder(KEYWORD_FIELD, ".{0,10000}"));
+    }
+
     public void testSingleHugeCaseInsensitiveWildcardTripsCircuitBreaker() {
         createAndPopulateIndex();
         WildcardQueryBuilder wildcardQuery = new WildcardQueryBuilder(TEXT_FIELD, "*a*b*c*d*e*f*g*h*i*j*k*l*m*n*");

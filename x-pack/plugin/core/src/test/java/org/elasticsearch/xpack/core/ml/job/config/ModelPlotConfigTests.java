@@ -37,7 +37,16 @@ public class ModelPlotConfigTests extends AbstractXContentSerializingTestCase<Mo
 
     @Override
     protected ModelPlotConfig mutateInstance(ModelPlotConfig instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        boolean enabled = instance.isEnabled();
+        String terms = instance.getTerms();
+        boolean annotationsEnabled = instance.annotationsEnabled();
+        switch (between(0, 2)) {
+            case 0 -> enabled = enabled == false;
+            case 1 -> terms = randomValueOtherThan(terms, () -> randomAlphaOfLengthBetween(1, 30));
+            case 2 -> annotationsEnabled = annotationsEnabled == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new ModelPlotConfig(enabled, terms, annotationsEnabled);
     }
 
     public static ModelPlotConfig createRandomized() {

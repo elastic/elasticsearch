@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -180,7 +181,8 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
             return;
         }
 
-        if (systemIndices.isSystemDataStream(dataStreamName)) {
+        SystemDataStreamDescriptor descriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
+        if (descriptor != null && descriptor.isAutomaticallyManaged()) {
             listener.onResponse(
                 new UpdateDataStreamSettingsAction.DataStreamSettingsResponse(
                     dataStreamName,
@@ -191,6 +193,12 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                     UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult.EMPTY
                 )
             );
+            return;
+        }
+        try {
+            systemIndices.validateDataStreamAccess(dataStreamName, threadPool.getThreadContext());
+        } catch (IllegalArgumentException e) {
+            listener.onFailure(e);
             return;
         }
         metadataDataStreamsService.updateSettings(

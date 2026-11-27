@@ -616,7 +616,7 @@ public class MetadataCreateIndexService {
             final String name = request.dataStreamName() != null ? request.dataStreamName() : request.index();
 
             // The index being created is for a system data stream, so the backing index will also be a system index
-            if (request.systemDataStreamDescriptor() != null) {
+            if (request.systemDataStreamDescriptor() != null && request.systemDataStreamDescriptor().isAutomaticallyManaged()) {
                 return applyCreateIndexRequestForSystemDataStream(
                     currentState,
                     request,

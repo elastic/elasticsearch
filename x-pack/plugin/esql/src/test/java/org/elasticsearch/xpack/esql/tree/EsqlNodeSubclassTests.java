@@ -140,6 +140,7 @@ import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomEsIndex;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexProperties;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomRemotesWithIndices;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
+import static org.elasticsearch.xpack.esql.plan.logical.IntoSerializationTests.randomIntoOptions;
 import static org.elasticsearch.xpack.esql.plan.physical.LookupJoinExecSerializationTests.randomJoinOnExpression;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomEsField;
 import static org.mockito.Mockito.mock;
@@ -528,7 +529,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             // Grok.Parser is a record / final, cannot be mocked
             return Grok.pattern(Source.EMPTY, randomGrokPattern());
         } else if (argClass == IntoOptions.class) {
-            return new IntoOptions(randomBoolean());
+            return randomIntoOptions();
         } else if (argClass == FileList.class) {
             // FileList implementations are package-private; use coordinator sentinel.
             return FileList.UNRESOLVED;

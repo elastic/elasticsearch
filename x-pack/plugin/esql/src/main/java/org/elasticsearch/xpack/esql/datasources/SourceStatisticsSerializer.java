@@ -345,6 +345,48 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
+     * Puts independently verified extrema back after {@link #alignHarvestWithFold}. Dataset-level poison
+     * must not discard per-split bounds used for prune. Counts stay as the fold left them.
+     */
+    @Nullable
+    public static Map<String, Object> restoreVerifiedExtrema(
+        @Nullable Map<String, Object> afterFold,
+        @Nullable Map<String, Object> beforeFold,
+        Set<String> columns
+    ) {
+        if (afterFold == null || beforeFold == null || columns == null || columns.isEmpty()) {
+            return afterFold;
+        }
+        Map<String, Object> out = null;
+        for (String column : columns) {
+            Object min = beforeFold.get(columnMinKey(column));
+            Object max = beforeFold.get(columnMaxKey(column));
+            if (min == null && max == null) {
+                continue;
+            }
+            boolean foldPoisoned = Boolean.TRUE.equals(afterFold.get(columnMinUnservableKey(column)))
+                || Boolean.TRUE.equals(afterFold.get(columnMaxUnservableKey(column)));
+            if (foldPoisoned == false
+                && Objects.equals(afterFold.get(columnMinKey(column)), min)
+                && Objects.equals(afterFold.get(columnMaxKey(column)), max)) {
+                continue;
+            }
+            if (out == null) {
+                out = new HashMap<>(afterFold);
+            }
+            if (min != null) {
+                out.put(columnMinKey(column), min);
+                out.remove(columnMinUnservableKey(column));
+            }
+            if (max != null) {
+                out.put(columnMaxKey(column), max);
+                out.remove(columnMaxUnservableKey(column));
+            }
+        }
+        return out == null ? afterFold : out;
+    }
+
+    /**
      * The column name a flat {@code _stats.columns.<name>.<suffix>} key belongs to, or {@code null}
      * when {@code key} is not a per-column stat key. Splits on the last dot so a dotted column name
      * ({@code _stats.columns.a.b.min} -> {@code a.b}) survives.
@@ -508,6 +550,132 @@ public final class SourceStatisticsSerializer {
             out.remove(columnNullCountKey(column));  // to -1 -> COUNT(col) safe-misses; COUNT(*) is unaffected
         }
         return out;
+    }
+
+    /**
+     * Exact linear scale of a declared epoch-format column: the declared type plus the units-per-tick from
+     * {@link DeclaredTypeCoercions#declaredEpochFormatScale}. Keyed by <b>logical</b> name, matching
+     * {@code DeclaredReadSpec#dateFormats}.
+     */
+    public record EpochScale(DataType declaredType, long scale) {}
+
+    /**
+     * Result of {@link #rescaleDeclaredEpochColumns}: a possibly-copied stats map with <b>physical</b> extrema
+     * rewritten in the declared unit, and the <b>logical</b> names whose extrema are now trustworthy (callers
+     * {@code poison.removeAll(unpoisoned)} before {@link #overlayDeclaredSchemaOnStats}, which is the only rekey).
+     */
+    public record EpochRescale(Map<String, Object> stats, Set<String> unpoisoned) {
+        public static EpochRescale none(Map<String, Object> stats) {
+            return new EpochRescale(stats, Set.of());
+        }
+    }
+
+    /**
+     * Exact-epoch declared columns whose footer extrema can be rescaled instead of poisoned. Calendar and
+     * compound formats ({@code yyyyMMdd}, {@code a||b}) admit no scale and are omitted — they stay poisoned.
+     *
+     * @param dateFormats   logical name &rarr; declared pattern ({@code DeclaredReadSpec#dateFormats})
+     * @param declaredTypes logical name &rarr; declared type (the overlaid schema)
+     */
+    public static Map<String, EpochScale> epochScales(Map<String, String> dateFormats, Map<String, DataType> declaredTypes) {
+        if (dateFormats == null || dateFormats.isEmpty() || declaredTypes == null || declaredTypes.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, EpochScale> out = new HashMap<>();
+        for (Map.Entry<String, String> entry : dateFormats.entrySet()) {
+            DataType declaredType = declaredTypes.get(entry.getKey());
+            if (declaredType == null) {
+                continue;
+            }
+            Long scale = DeclaredTypeCoercions.declaredEpochFormatScale(entry.getValue(), declaredType);
+            if (scale != null) {
+                out.put(entry.getKey(), new EpochScale(declaredType, scale));
+            }
+        }
+        return out.isEmpty() ? Map.of() : Map.copyOf(out);
+    }
+
+    /**
+     * Rescales footer min/max of declared {@code epoch_second}/{@code epoch_millis} columns from the file's
+     * physical INTEGER/LONG ticks into the declared type's storage unit, in place on <b>physical</b> keys.
+     * Overlay is the only rekey: writing logical {@code @timestamp} here would be overwritten when overlay
+     * moves {@code start}'s still-raw family onto that name.
+     * <p>
+     * A column is unpoisoned only when every predicate holds: the declared format has an exact scale, the
+     * inferred physical type is LONG or INTEGER (UNSIGNED_LONG and DOUBLE stay poisoned), both extrema are
+     * present as {@link Number} (INTEGER harvests arrive as {@link Integer}), both sit in
+     * {@code [epochMinRaw, epochMaxRaw]}, and neither already carries an unservable marker. Out-of-range
+     * extrema stay poisoned — a valid superset of the scan, but one rule is cheaper than two. Counts are
+     * kept (in-range &rarr; no cell fails). Copy-on-write: inputs are routinely {@code Map.copyOf}.
+     *
+     * @param physicalToLogical      physical &rarr; logical (the inverse of {@code DeclaredReadSpec#renames})
+     * @param epochScales            logical &rarr; scale, from {@link #epochScales}
+     * @param inferredPhysicalTypes  physical &rarr; inferred type
+     */
+    public static EpochRescale rescaleDeclaredEpochColumns(
+        Map<String, Object> statsMap,
+        Map<String, String> physicalToLogical,
+        Map<String, EpochScale> epochScales,
+        Map<String, DataType> inferredPhysicalTypes
+    ) {
+        if (statsMap == null
+            || statsMap.isEmpty()
+            || epochScales == null
+            || epochScales.isEmpty()
+            || inferredPhysicalTypes == null
+            || inferredPhysicalTypes.isEmpty()) {
+            return EpochRescale.none(statsMap);
+        }
+        Map<String, String> moves = physicalToLogical == null ? Map.of() : physicalToLogical;
+        Map<String, Object> out = null;
+        Set<String> unpoisoned = null;
+        for (Map.Entry<String, DataType> inferred : inferredPhysicalTypes.entrySet()) {
+            DataType physicalType = inferred.getValue();
+            if (physicalType != DataType.LONG && physicalType != DataType.INTEGER) {
+                continue;
+            }
+            String physical = inferred.getKey();
+            String logical = moves.getOrDefault(physical, physical);
+            EpochScale epochScale = epochScales.get(logical);
+            if (epochScale == null) {
+                continue;
+            }
+            if (Boolean.TRUE.equals(statsMap.get(columnMinUnservableKey(physical)))
+                || Boolean.TRUE.equals(statsMap.get(columnMaxUnservableKey(physical)))) {
+                continue;
+            }
+            Object min = statsMap.get(columnMinKey(physical));
+            Object max = statsMap.get(columnMaxKey(physical));
+            if (min instanceof Number == false || max instanceof Number == false) {
+                continue;
+            }
+            Long scaledMin = DeclaredTypeCoercions.scaleEpochExtremum(
+                ((Number) min).longValue(),
+                epochScale.declaredType(),
+                epochScale.scale()
+            );
+            Long scaledMax = DeclaredTypeCoercions.scaleEpochExtremum(
+                ((Number) max).longValue(),
+                epochScale.declaredType(),
+                epochScale.scale()
+            );
+            if (scaledMin == null || scaledMax == null) {
+                continue;
+            }
+            if (out == null) {
+                out = new HashMap<>(statsMap);
+            }
+            out.put(columnMinKey(physical), scaledMin);
+            out.put(columnMaxKey(physical), scaledMax);
+            if (unpoisoned == null) {
+                unpoisoned = new HashSet<>();
+            }
+            unpoisoned.add(logical);
+        }
+        if (unpoisoned == null) {
+            return EpochRescale.none(statsMap);
+        }
+        return new EpochRescale(out, Set.copyOf(unpoisoned));
     }
 
     /**

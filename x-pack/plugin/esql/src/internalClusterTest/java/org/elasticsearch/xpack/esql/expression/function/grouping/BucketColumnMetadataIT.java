@@ -56,7 +56,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
         try (var response = runAfterRefreshCompleted(enableMetadata("""
             FROM dates | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(bucketMeta(findColumn(response, "bucket")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
     }
 
@@ -70,7 +70,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM dates | STATS date=VALUES(date) BY BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
             assertThat(
-                findColumn(response, "BUCKET(date, 20, \"1985-01-01T00:00:00Z\", \"1986-01-01T00:00:00Z\")").meta(),
+                bucketMeta(findColumn(response, "BUCKET(date, 20, \"1985-01-01T00:00:00Z\", \"1986-01-01T00:00:00Z\")")),
                 equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month")))
             );
         }
@@ -87,7 +87,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | KEEP date, bucket
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(bucketMeta(findColumn(response, "bucket")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
     }
 
@@ -102,8 +102,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | EVAL bucket_renamed = bucket
             """))) {
-            assertThat(response.columns().get(1).meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
-            assertThat(findColumn(response, "bucket_renamed").meta(), nullValue());
+            assertThat(bucketMeta(response.columns().get(1)), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(bucketMeta(findColumn(response, "bucket_renamed")), nullValue());
         }
     }
 
@@ -118,7 +118,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | RENAME bucket AS bucket_renamed
             """))) {
-            assertThat(findColumn(response, "bucket_renamed").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket_renamed")), nullValue());
         }
     }
 
@@ -128,7 +128,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | STATS count=SUM(MV_COUNT(points)) BY bucket=BUCKET(points, 5)
             | MV_EXPAND bucket
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), nullValue());
         }
     }
 
@@ -144,8 +144,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
                 (FROM dates | STATS date=VALUES(date) BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")),
                 (FROM numbers | STATS number=VALUES(number) BY number_bucket=BUCKET(number, 5))
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), nullValue());
-            assertThat(findColumn(response, "number_bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "date_bucket")), nullValue());
+            assertThat(bucketMeta(findColumn(response, "number_bucket")), nullValue());
         }
         try (var response = runAfterRefreshCompleted(enableMetadata("""
             FROM
@@ -156,13 +156,13 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
                 | WHERE date > "1985-06-01"
                 | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z"))
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), nullValue());
         }
         try (var response = runAfterRefreshCompleted(enableMetadata("""
             FROM
                 (FROM dates | STATS date=VALUES(date) BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z"))
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(bucketMeta(findColumn(response, "date_bucket")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
     }
 
@@ -191,11 +191,11 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
         );
 
         try (var response = runAfterRefreshCompleted(enableMetadata("FROM date-stats, number-stats"))) {
-            assertThat(findColumn(response, "date_bucket").meta(), nullValue());
-            assertThat(findColumn(response, "number_bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "date_bucket")), nullValue());
+            assertThat(bucketMeta(findColumn(response, "number_bucket")), nullValue());
         }
         try (var response = runAfterRefreshCompleted(enableMetadata("FROM date-stats"))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(bucketMeta(findColumn(response, "date_bucket")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
 
         client().execute(
@@ -229,7 +229,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | SORT number
             | STATS count() BY date_bucket
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(bucketMeta(findColumn(response, "date_bucket")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
         // introducing bucket in subsequent aggregation
         try (var response = runAfterRefreshCompleted(enableMetadata("""
@@ -238,7 +238,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | SORT number
             | STATS count() BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(bucketMeta(findColumn(response, "date_bucket")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
     }
 
@@ -254,8 +254,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
                 date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z"),
                 number_bucket=BUCKET(number, 10)
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
-            assertThat(findColumn(response, "number_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 10.0))));
+            assertThat(bucketMeta(findColumn(response, "date_bucket")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(bucketMeta(findColumn(response, "number_bucket")), equalTo(Map.of("bucket", Map.of("interval", 10.0))));
         }
     }
 
@@ -271,8 +271,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
                 BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
              | STATS count() BY date_bucket, number_bucket=BUCKET(number, 10)
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
-            assertThat(findColumn(response, "number_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 10.0))));
+            assertThat(bucketMeta(findColumn(response, "date_bucket")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(bucketMeta(findColumn(response, "number_bucket")), equalTo(Map.of("bucket", Map.of("interval", 10.0))));
         }
         try (var response = runAfterRefreshCompleted(enableMetadata("""
             FROM test
@@ -280,7 +280,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
                 BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
              | STATS count() BY date_bucket_renamed = date_bucket
             """))) {
-            assertThat(findColumn(response, "date_bucket_renamed").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "date_bucket_renamed")), nullValue());
         }
 
     }
@@ -307,7 +307,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | STATS c=COUNT(*) BY bucket=BUCKET(value, 100.0)
             | LOOKUP JOIN bucket_descriptions ON bucket
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 100.0))));
+            assertThat(bucketMeta(findColumn(response, "bucket")), equalTo(Map.of("bucket", Map.of("interval", 100.0))));
         }
     }
 
@@ -323,7 +323,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
                    ( STATS c=COUNT(*) BY bucket=BUCKET(date, 1 year) )
             | KEEP bucket
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), nullValue());
         }
     }
 
@@ -337,7 +337,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM dates
             | INLINE STATS c=COUNT(*) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(bucketMeta(findColumn(response, "bucket")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
     }
 
@@ -352,7 +352,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | INLINE STATS c=COUNT(*) BY BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
             assertThat(
-                findColumn(response, "BUCKET(date, 20, \"1985-01-01T00:00:00Z\", \"1986-01-01T00:00:00Z\")").meta(),
+                bucketMeta(findColumn(response, "BUCKET(date, 20, \"1985-01-01T00:00:00Z\", \"1986-01-01T00:00:00Z\")")),
                 equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month")))
             );
         }
@@ -371,7 +371,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | STATS COUNT(*) BY bucket = BUCKET(date, 5, bucket_start, bucket_end)
             | SORT bucket
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "year"))));
+            assertThat(bucketMeta(findColumn(response, "bucket")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "year"))));
         }
     }
 
@@ -397,7 +397,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .get();
 
         try (var response = runAfterRefreshCompleted(enableMetadata("TS ts-index | STATS max(metric) BY tb = TBUCKET(1 hour)"))) {
-            assertThat(findColumn(response, "tb").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "hour"))));
+            assertThat(bucketMeta(findColumn(response, "tb")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "hour"))));
         }
     }
 
@@ -415,13 +415,13 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM dates
             | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 day)
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(expected));
+            assertThat(bucketMeta(findColumn(response, "bucket")), equalTo(expected));
         }
         try (var response = runAfterRefreshCompleted(enableMetadata("""
             FROM dates
             | STATS c=COUNT(*) BY bucket=BUCKET(date, 24 hours)
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(expected));
+            assertThat(bucketMeta(findColumn(response, "bucket")), equalTo(expected));
         }
     }
 
@@ -434,7 +434,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM numbers
             | STATS max=max(number) BY b = BUCKET(number, 0, 0, 0)
             """))) {
-            assertThat(findColumn(response, "b").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "b")), nullValue());
         }
     }
 
@@ -446,7 +446,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM numbers
             | STATS max=max(number) BY b = BUCKET(number, -1, 0, 0)
             """))) {
-            assertThat(findColumn(response, "b").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "b")), nullValue());
         }
     }
 
@@ -462,7 +462,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM dates
             | STATS c=COUNT(*) BY b = BUCKET(date, 0, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "b").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "b")), nullValue());
         }
     }
 
@@ -476,7 +476,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM dates
             | STATS c=COUNT(*) BY b = BUCKET(date, -1, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "b").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "b")), nullValue());
         }
     }
 
@@ -491,7 +491,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM date_nanos_idx
             | STATS c=COUNT(*) BY b = BUCKET(date, 0, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "b").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "b")), nullValue());
         }
     }
 
@@ -506,7 +506,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM date_nanos_idx
             | STATS c=COUNT(*) BY b = BUCKET(date, -1, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "b").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "b")), nullValue());
         }
     }
 
@@ -517,7 +517,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             ROW d=null::DATETIME
             | STATS c=COUNT(*) BY bucket=BUCKET(d, 1 month)
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), nullValue());
         }
     }
 
@@ -533,7 +533,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM dates
             | STATS c=COUNT(*) BY bucket=BUCKET(date, null)
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), nullValue());
         }
     }
 
@@ -543,7 +543,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             ROW d=null::DATETIME
             | STATS c=COUNT(*) BY bucket=BUCKET(d, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), nullValue());
         }
     }
 
@@ -559,7 +559,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM dates
             | STATS c=COUNT(*) BY bucket=BUCKET(date, null, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), nullValue());
         }
     }
 
@@ -574,7 +574,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM dates
             | STATS c=COUNT(*) BY bucket=BUCKET(date, 20, null, "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), nullValue());
         }
     }
 
@@ -589,7 +589,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM dates
             | STATS c=COUNT(*) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", null)
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), nullValue());
         }
     }
 
@@ -603,7 +603,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM dates
             | STATS c=COUNT(*) BY b = BUCKET(date + 1 HOUR, 1 YEAR) - 1 HOUR
             """))) {
-            assertThat(findColumn(response, "b").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "b")), nullValue());
         }
     }
 
@@ -614,7 +614,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM test
             | STATS c=COUNT(*) BY bh = ROUND(BUCKET(value, 100.0), 0)
             """))) {
-            assertThat(findColumn(response, "bh").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bh")), nullValue());
         }
     }
 
@@ -625,8 +625,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM test
             | STATS avg_b = AVG(BUCKET(value, 100.0)) BY bucket = BUCKET(value, 100.0)
             """))) {
-            assertThat(findColumn(response, "avg_b").meta(), nullValue());
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 100.0))));
+            assertThat(bucketMeta(findColumn(response, "avg_b")), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), equalTo(Map.of("bucket", Map.of("interval", 100.0))));
         }
     }
 
@@ -638,8 +638,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | STATS c=COUNT(*) BY bucket=BUCKET(value, 100.0)
             | EVAL bucket_int = bucket::INTEGER
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 100.0))));
-            assertThat(findColumn(response, "bucket_int").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), equalTo(Map.of("bucket", Map.of("interval", 100.0))));
+            assertThat(bucketMeta(findColumn(response, "bucket_int")), nullValue());
         }
     }
 
@@ -653,7 +653,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM dates
             | STATS c=COUNT(*) BY bucket = BUCKET(date + 1 HOUR, 1 YEAR)
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "year"))));
+            assertThat(bucketMeta(findColumn(response, "bucket")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "year"))));
         }
     }
 
@@ -664,7 +664,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM test
             | STATS c=COUNT(*) BY bucket = BUCKET(value, 2.0 + 3.0)
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 5.0))));
+            assertThat(bucketMeta(findColumn(response, "bucket")), equalTo(Map.of("bucket", Map.of("interval", 5.0))));
         }
     }
 
@@ -679,18 +679,27 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var response = runAfterRefreshCompleted(syncEsqlQueryRequest(query))) {
-            assertThat(findColumn(response, "bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), nullValue());
         }
         try (var response = runAfterRefreshCompleted(syncEsqlQueryRequest("SET column_metadata=false;\n" + query))) {
-            assertThat(findColumn(response, "bucket").meta(), nullValue());
+            assertThat(bucketMeta(findColumn(response, "bucket")), nullValue());
         }
         try (var response = runAfterRefreshCompleted(enableMetadata(query))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(bucketMeta(findColumn(response, "bucket")), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
         }
     }
 
     private static EsqlQueryRequest enableMetadata(String body) {
         return syncEsqlQueryRequest("SET column_metadata=true;\n" + body);
+    }
+
+    /**
+     * The {@code bucket} entry of a column's {@code _meta}, alone, or {@code null} if it has none. The other entries
+     * describe the column like {@code DESCRIBE} does and are tested with it.
+     */
+    private static Map<String, Object> bucketMeta(ColumnInfoImpl column) {
+        Object bucket = column.meta() == null ? null : column.meta().get("bucket");
+        return bucket == null ? null : Map.of("bucket", bucket);
     }
 
     private static ColumnInfoImpl findColumn(EsqlQueryResponse response, String name) {

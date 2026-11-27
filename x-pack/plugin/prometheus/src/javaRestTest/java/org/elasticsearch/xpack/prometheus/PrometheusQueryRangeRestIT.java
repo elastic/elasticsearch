@@ -109,6 +109,26 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("for range query, must be Scalar or instant Vector"));
     }
 
+    /** Like Prometheus, a range query with more than 11,000 points per series is rejected as bad data. */
+    public void testQueryRangeOverMaxPointsPerSeriesIsRejected() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "up"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:00:11.001Z"),
+            new BasicNameValuePair("step", "1ms")
+        );
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        ObjectPath errorPath = ObjectPath.createFromResponse(e.getResponse());
+        assertThat(errorPath.evaluate("status"), equalTo("error"));
+        assertThat(errorPath.evaluate("errorType"), equalTo("bad_data"));
+        assertThat(
+            errorPath.evaluate("error"),
+            equalTo("exceeded maximum resolution of 11,000 points per timeseries. Try decreasing the query resolution (?step=XX)")
+        );
+    }
+
     public void testQueryRangeWithIngestedData() throws Exception {
         ingestTestData("test_gauge_qr");
 

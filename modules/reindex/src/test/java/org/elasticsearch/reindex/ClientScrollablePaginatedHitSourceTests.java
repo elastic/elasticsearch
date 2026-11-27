@@ -26,6 +26,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -127,7 +128,10 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
                     }
                 },
                 new SearchRequest().scroll(TimeValue.timeValueMinutes(1)),
-                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+                new NoopCircuitBreaker("test"),
+                "test_search_hits",
+                () -> 0L
             );
         }
         paginatedHitSource.start();
@@ -202,7 +206,10 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             new ParentTaskAssigningClient(client, parentTask),
             // Set the base for the scroll to wait - this is added to the figure we calculate below
             new SearchRequest().scroll(timeValueSeconds(10)),
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
 
         paginatedHitSource.setScrollId("scroll_id");
@@ -223,7 +230,10 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
             new SearchRequest().scroll(timeValueSeconds(10)),
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
         AtomicBoolean closeCallbackCalled = new AtomicBoolean();
 
@@ -246,7 +256,10 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
             new SearchRequest().scroll(timeValueSeconds(10)),
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
         paginatedHitSource.setScrollId("scroll_123");
         AtomicBoolean closeCallbackCalled = new AtomicBoolean();
@@ -276,7 +289,10 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
             new SearchRequest().scroll(timeValueSeconds(10)),
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
 
         // Initially: no scroll id -> false

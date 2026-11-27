@@ -18,12 +18,8 @@ record ChunkedDataExtractorContext(
     boolean hasAggregations,
     Long histogramInterval,
     boolean hasEsqlQuery,
-    boolean injectsEsqlRowLimit
+    long singleChunkSpan
 ) {
-    ChunkedDataExtractorContext {
-        assert injectsEsqlRowLimit == false || hasEsqlQuery;
-    }
-
     interface TimeAligner {
         long alignToFloor(long value);
 

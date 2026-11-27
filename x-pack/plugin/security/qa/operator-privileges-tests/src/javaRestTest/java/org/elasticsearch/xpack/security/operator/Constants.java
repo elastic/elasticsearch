@@ -632,6 +632,7 @@ public class Constants {
         "indices:data/read/esql/stream",
         "indices:data/read/esql/stream/delete",
         "indices:data/read/esql/stream/get",
+        "indices:data/read/esql/tsid_prefix_histograms",
         "indices:data/read/explain",
         "indices:data/read/field_caps",
         "indices:data/read/get",

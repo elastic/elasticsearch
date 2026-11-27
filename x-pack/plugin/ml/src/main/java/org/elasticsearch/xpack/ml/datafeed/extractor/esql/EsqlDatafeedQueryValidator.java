@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
@@ -38,6 +37,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalLong;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE;
 
@@ -58,8 +59,10 @@ public class EsqlDatafeedQueryValidator {
         this.queryRunner = queryRunner;
     }
 
-    private static final String LIMIT_ZERO = " | LIMIT 0";
-    private static final String DESCRIBE = "\n| DESCRIBE";
+    /** How {@code DESCRIBE} names the default time zone of a bucketed column. */
+    private static final String UTC = "UTC";
+    private static final String LIMIT_ZERO = "LIMIT 0";
+    private static final String DESCRIBE = "DESCRIBE";
     /**
      * Filters and limits the {@code DESCRIBE} so the default result row cap cannot hide a required column. The param names are not
      * bound by extraction, so a user query that references them fails the probe, as it would without these params.
@@ -170,31 +173,20 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<List<String>> listener,
         @Nullable String datafeedId
     ) {
-        if (phase == Phase.PUT) {
-            warnOnOuterLimit(esqlQuery, datafeedId);
-        }
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             List<String> remote = new ArrayList<>();
             try {
-                List<String> unavailable = unavailableClustersWithoutDescription(response);
-                if (unavailable.isEmpty() == false) {
-                    if (phase == Phase.PUT) {
+                if (phase == Phase.PUT) {
+                    List<String> unavailable = unavailableClustersWithoutDescription(response);
+                    if (unavailable.isEmpty() == false) {
                         logger.debug(
                             () -> "[" + datafeedId + "] ES|QL DESCRIBE probe skipped clusters " + unavailable + ". Deferring to start."
                         );
                         listener.onResponse(List.of());
                         return;
                     }
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(
-                            Messages.DATAFEED_ESQL_START_CLUSTERS_UNAVAILABLE,
-                            esqlDatafeedSubject(datafeedId),
-                            unavailable,
-                            summaryCountField == null ? List.of(timeField) : List.of(timeField, summaryCountField)
-                        )
-                    );
                 }
-                checkDescription(EsqlQueryDescription.from(response.response()), timeField, summaryCountField, datafeedId);
+                checkResponse(response, timeField, summaryCountField, datafeedId);
                 for (EsqlClusterInfo cluster : response.response().clusters()) {
                     String alias = cluster.clusterAlias();
                     if (alias.equals(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS) || alias.equals(ProjectRoutingResolver.ORIGIN)) {
@@ -225,15 +217,32 @@ public class EsqlDatafeedQueryValidator {
                 listener.onFailure(e);
             }
         });
+        describeRequiredColumns(queryRunner, client, headers, esqlQuery, projectRouting, timeField, summaryCountField, responseListener);
+    }
+
+    /**
+     * Runs {@code esqlQuery | DESCRIBE} filtered to the time column and, when given, the summary count column. The datafeed start probe
+     * and the task node's time column interval read share it.
+     */
+    static void describeRequiredColumns(
+        EsqlQueryRunner queryRunner,
+        Client client,
+        Map<String, String> headers,
+        String esqlQuery,
+        @Nullable String projectRouting,
+        String timeField,
+        @Nullable String summaryCountField,
+        ActionListener<EsqlQueryResponse> listener
+    ) {
         queryRunner.executeAsync(
             client,
-            EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, DESCRIBE_REQUIRED_COLUMNS),
+            EsqlDataExtractorQueryUtils.appendPipe(esqlQuery, DESCRIBE_REQUIRED_COLUMNS),
             null,
             headers,
             projectRouting,
             describeParams(timeField, summaryCountField),
             ExecutionMetadata.CCS_ONLY,
-            responseListener
+            listener
         );
     }
 
@@ -274,24 +283,39 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * Extraction keeps a user's outer {@code LIMIT}, so it caps every chunk and the delayed data check. Warn at PUT until extraction
-     * always appends its own LIMIT (https://github.com/elastic/elasticsearch/pull/167093), which removes this warning.
+     * The checks a {@code DESCRIBE} response must pass whenever a datafeed runs: no unavailable remote cluster, a date time column
+     * and the summary count column. Shared by the datafeed start on the master and the task node. Returns the time column's bucket
+     * length in milliseconds, or 0 when the column is not bucketed.
      */
-    static void warnOnOuterLimit(String esqlQuery, @Nullable String datafeedId) {
-        if (EsqlQueryClauseScanner.hasOuterLimit(esqlQuery)) {
-            HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING, esqlDatafeedSubject(datafeedId)));
+    static long checkResponse(
+        EsqlQueryResponse response,
+        String timeField,
+        @Nullable String summaryCountField,
+        @Nullable String datafeedId
+    ) {
+        List<String> unavailable = unavailableClustersWithoutDescription(response);
+        if (unavailable.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_CLUSTERS_UNAVAILABLE,
+                    esqlDatafeedSubject(datafeedId),
+                    unavailable,
+                    summaryCountField == null ? List.of(timeField) : List.of(timeField, summaryCountField)
+                )
+            );
         }
+        return checkDescription(EsqlQueryDescription.from(response.response()), timeField, summaryCountField, datafeedId);
     }
 
-    private static void checkDescription(
+    static long checkDescription(
         EsqlQueryDescription description,
         String timeField,
         @Nullable String summaryCountField,
         @Nullable String datafeedId
     ) {
-        String subject = esqlDatafeedSubject(datafeedId);
         Map<String, String> columnTypes = description.columnTypes();
         checkRequiredColumns(columnTypes, timeField, summaryCountField, datafeedId);
+        String subject = esqlDatafeedSubject(datafeedId);
         String timeType = columnTypes.get(timeField);
         assert timeType != null : "checkRequiredColumns accepted a missing time column [" + timeField + "]";
         if (EsqlDatafeedColumnValues.isDateColumnType(timeType) == false) {
@@ -299,6 +323,78 @@ public class EsqlDatafeedQueryValidator {
                 Messages.getMessage(Messages.DATAFEED_ESQL_TIME_COLUMN_NOT_DATE, subject, timeField, timeType)
             );
         }
+        return timeBucketMillis(description, timeField, datafeedId);
+    }
+
+    /**
+     * The length of the interval {@code description} reports for {@code timeField}, or 0 when the column is not bucketed. Fails for a
+     * calendar interval, which has no fixed length, for an interval this parser does not know, and for a bucket that is not in UTC.
+     */
+    static long timeBucketMillis(EsqlQueryDescription description, String timeField, @Nullable String datafeedId) {
+        String interval = description.columnIntervals().get(timeField);
+        if (interval == null) {
+            return 0;
+        }
+        String timeZone = description.columnTimeZones().get(timeField);
+        if (timeZone != null && UTC.equals(timeZone) == false) {
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(Messages.DATAFEED_ESQL_TIME_BUCKET_NOT_UTC, esqlDatafeedSubject(datafeedId), timeField, timeZone)
+            );
+        }
+        return fixedIntervalMillis(interval).orElseThrow(
+            () -> ExceptionsHelper.badRequestException(
+                Messages.getMessage(
+                    isCalendarUnit(interval)
+                        ? Messages.DATAFEED_ESQL_TIME_BUCKET_CALENDAR_INTERVAL
+                        : Messages.DATAFEED_ESQL_TIME_BUCKET_UNSUPPORTED_INTERVAL,
+                    esqlDatafeedSubject(datafeedId),
+                    timeField,
+                    interval
+                )
+            )
+        );
+    }
+
+    private static boolean isCalendarUnit(String interval) {
+        ParsedInterval parsed = ParsedInterval.parse(interval);
+        return parsed != null && (parsed.unit.equals("month") || parsed.unit.equals("quarter") || parsed.unit.equals("year"));
+    }
+
+    /** The singular unit of an interval as {@code DESCRIBE} writes it, and its size, or -1 when the form is not {@code <size> <unit>}. */
+    private record ParsedInterval(long size, String unit) {
+        static ParsedInterval parse(String interval) {
+            String[] parts = interval.trim().split(" +");
+            String unit = parts[parts.length - 1];
+            unit = unit.endsWith("s") ? unit.substring(0, unit.length() - 1) : unit;
+            if (parts.length != 2) {
+                return new ParsedInterval(-1, unit);
+            }
+            try {
+                return new ParsedInterval(Long.parseLong(parts[0]), unit);
+            } catch (NumberFormatException e) {
+                return new ParsedInterval(-1, unit);
+            }
+        }
+    }
+
+    /**
+     * Parses an interval as {@code DESCRIBE} writes it, {@code <size> <unit>} with a plural unit when the size is not 1, for example
+     * {@code 1 hour} or {@code 90 minutes}. Empty for a calendar interval ({@code month}, {@code quarter}, {@code year}) or a unit
+     * this parser does not know, because its length depends on the date. A {@code day} or {@code week} is fixed because
+     * {@link #timeBucketMillis} rejects a bucket that is not in UTC.
+     */
+    static OptionalLong fixedIntervalMillis(String interval) {
+        ParsedInterval parsed = ParsedInterval.parse(interval);
+        long unitMillis = switch (parsed.unit) {
+            case "millisecond" -> 1;
+            case "second" -> TimeUnit.SECONDS.toMillis(1);
+            case "minute" -> TimeUnit.MINUTES.toMillis(1);
+            case "hour" -> TimeUnit.HOURS.toMillis(1);
+            case "day" -> TimeUnit.DAYS.toMillis(1);
+            case "week" -> TimeUnit.DAYS.toMillis(7);
+            default -> 0;
+        };
+        return unitMillis == 0 || parsed.size <= 0 ? OptionalLong.empty() : OptionalLong.of(Math.multiplyExact(parsed.size, unitMillis));
     }
 
     /**
@@ -337,7 +433,7 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<Void> listener,
         @Nullable String datafeedId
     ) {
-        String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
+        String limitZeroQuery = EsqlDataExtractorQueryUtils.appendPipe(esqlQuery, LIMIT_ZERO);
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
@@ -382,13 +478,11 @@ public class EsqlDatafeedQueryValidator {
         long sourceWindowEnd
     ) {
         int emittedTimeColumnIndex = indexOfColumn(columns, emittedTimeField);
-        boolean emittedTimeIsDate = EsqlDatafeedColumnValues.isDateColumnType(columns.get(emittedTimeColumnIndex).outputType());
         for (Iterable<Object> row : rows) {
             validateEmittedTimeValueInSourceWindow(
                 jobId,
                 emittedTimeField,
                 valueAt(row, emittedTimeColumnIndex),
-                emittedTimeIsDate,
                 sourceWindowStart,
                 sourceWindowEnd
             );
@@ -397,31 +491,12 @@ public class EsqlDatafeedQueryValidator {
 
     /**
      * Validates and converts an emitted ES|QL timestamp that has already been materialized outside
-     * the typed ES|QL response. String values are date/date_nanos representations; numeric values
-     * are epoch milliseconds.
+     * the typed ES|QL response. Values are date/date_nanos string representations.
      */
     public static long validateEmittedTimeValueInSourceWindow(
         String jobId,
         String emittedTimeField,
         Object rawValue,
-        long sourceWindowStart,
-        long sourceWindowEnd
-    ) {
-        return validateEmittedTimeValueInSourceWindow(
-            jobId,
-            emittedTimeField,
-            rawValue,
-            rawValue instanceof String,
-            sourceWindowStart,
-            sourceWindowEnd
-        );
-    }
-
-    private static long validateEmittedTimeValueInSourceWindow(
-        String jobId,
-        String emittedTimeField,
-        Object rawValue,
-        boolean emittedTimeIsDate,
         long sourceWindowStart,
         long sourceWindowEnd
     ) {
@@ -434,7 +509,7 @@ public class EsqlDatafeedQueryValidator {
         }
         final long emittedTimeMillis;
         try {
-            emittedTimeMillis = EsqlDatafeedColumnValues.toEpochMillis(rawValue, emittedTimeIsDate);
+            emittedTimeMillis = EsqlDatafeedColumnValues.toEpochMillis(rawValue);
         } catch (IllegalArgumentException | DateTimeException e) {
             throw context.failure(Messages.DATAFEED_ESQL_EMITTED_TIME_UNSUPPORTED_TYPE, null, e);
         }

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndPath;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
 import org.elasticsearch.cluster.ClusterInfo.ReservedSpace;
-import org.elasticsearch.cluster.ClusterInfoSimulator;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -68,7 +67,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -79,7 +77,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -96,7 +93,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
@@ -121,9 +117,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
@@ -1107,8 +1100,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 .addShard(newShardRouting(shardIdFrom(indexMetadata1, 0), "node-1", true, STARTED))
                 .addShard(newShardRouting(shardIdFrom(indexMetadata1, 1), "node-2", true, STARTED))
         );
-        clusterInfoBuilder.withShard(shardIdFrom(indexMetadata1, 0), true, ByteSizeValue.ofGb(8).getBytes())
-            .withShard(shardIdFrom(indexMetadata1, 1), true, ByteSizeValue.ofGb(8).getBytes());
+        clusterInfoBuilder.withShardOnNode("node-1", shardIdFrom(indexMetadata1, 0), true, ByteSizeValue.ofGb(8).getBytes())
+            .withShardOnNode("node-2", shardIdFrom(indexMetadata1, 1), true, ByteSizeValue.ofGb(8).getBytes());
 
         // index-2 is restored earlier but is not started on the desired node yet
         var indexMetadata2 = IndexMetadata.builder("index-2").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
@@ -1140,7 +1133,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     // Shard is 75% downloaded
                     clusterInfoBuilder //
                         .withNodeUsedSpace("node-1", ByteSizeValue.ofMb(768).getBytes())
-                        .withReservedSpace("node-1", ByteSizeValue.ofMb(256).getBytes(), index2ShardId);
+                        .withReservedSpace("node-1", ByteSizeValue.ofMb(256).getBytes(), index2ShardId)
+                        .withRecoveringShard("node-1", index2ShardId);
                 }
             }
             // index is initializing on undesired node
@@ -1158,7 +1152,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     // Shard is 75% downloaded
                     clusterInfoBuilder //
                         .withNodeUsedSpace("node-2", ByteSizeValue.ofMb(768).getBytes())
-                        .withReservedSpace("node-2", ByteSizeValue.ofMb(256).getBytes(), index2ShardId);
+                        .withReservedSpace("node-2", ByteSizeValue.ofMb(256).getBytes(), index2ShardId)
+                        .withRecoveringShard("node-2", index2ShardId);
                 }
             }
             // index is started on undesired node
@@ -1168,7 +1163,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         .addShard(newShardRouting(shardIdFrom(indexMetadata2, 0), "node-2", true, STARTED))
                 );
                 clusterInfoBuilder.withNodeUsedSpace("node-2", ByteSizeValue.ofGb(1).getBytes())
-                    .withShard(shardIdFrom(indexMetadata2, 0), true, ByteSizeValue.ofGb(1).getBytes());
+                    .withShardOnNode("node-2", shardIdFrom(indexMetadata2, 0), true, ByteSizeValue.ofGb(1).getBytes());
             }
             default -> throw new AssertionError("unexpected randomization");
         }
@@ -1280,8 +1275,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 .addShard(newShardRouting(shardIdFrom(indexMetadata1, 0), "node-1", true, STARTED))
                 .addShard(newShardRouting(shardIdFrom(indexMetadata1, 1), "node-2", true, STARTED))
         );
-        clusterInfoBuilder.withShard(shardIdFrom(indexMetadata1, 0), true, ByteSizeValue.ofGb(8).getBytes())
-            .withShard(shardIdFrom(indexMetadata1, 1), true, ByteSizeValue.ofGb(8).getBytes());
+        clusterInfoBuilder.withShardOnNode("node-1", shardIdFrom(indexMetadata1, 0), true, ByteSizeValue.ofGb(8).getBytes())
+            .withShardOnNode("node-2", shardIdFrom(indexMetadata1, 1), true, ByteSizeValue.ofGb(8).getBytes());
 
         // index-2 & index-3 are restored as new from snapshot
         var indexMetadata2 = IndexMetadata.builder("index-2")
@@ -1416,9 +1411,22 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             return this;
         }
 
+        /** A shard the poll saw on the node. */
+        public ClusterInfoTestBuilder withShardOnNode(String nodeId, ShardId shardId, boolean primary, long size) {
+            dataPath.put(new NodeAndShard(nodeId, shardId), "/data/path");
+            return withShard(shardId, primary, size);
+        }
+
+        /** A shard whose recovery was partly on disk when the poll was taken. */
+        public ClusterInfoTestBuilder withRecoveringShard(String nodeId, ShardId shardId) {
+            dataPath.put(new NodeAndShard(nodeId, shardId), "/data/path");
+            return this;
+        }
+
         public ClusterInfoTestBuilder withShard(ShardRouting shard, long size) {
             shardSizes.put(shardIdentifierFromRouting(shard), size);
-            if (shard.unassigned() == false) {
+            // the poll saw the shard on its node, unless it was not on disk yet
+            if (shard.started() || shard.relocating()) {
                 dataPath.put(NodeAndShard.from(shard), "/data/path");
             }
             return this;
@@ -1926,242 +1934,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 mockLog.assertAllExpectationsMatched();
             }
         }
-    }
-
-    public void testMaybeSimulateAlreadyStartedShards() {
-        final var clusterInfoSimulator = mock(ClusterInfoSimulator.class);
-        final var routingChangesObserver = mock(RoutingChangesObserver.class);
-
-        final ClusterState initialState = createInitialClusterState(3, 3, 1);
-        final RoutingNodes routingNodes = initialState.mutableRoutingNodes();
-
-        final IndexRoutingTable indexRoutingTable = initialState.routingTable(ProjectId.DEFAULT).index(TEST_INDEX);
-
-        final List<ShardRouting> existingStartedShards = new ArrayList<>();
-
-        // Shard 0 - start a primary, and randomly choose to start a replica thereof.
-        final String shard0PrimaryNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
-        existingStartedShards.add(
-            routingNodes.startShard(
-                routingNodes.initializeShard(
-                    indexRoutingTable.shard(0).primaryShard(),
-                    shard0PrimaryNodeId,
-                    null,
-                    randomLongBetween(100, 999),
-                    routingChangesObserver
-                ),
-                routingChangesObserver,
-                randomLongBetween(100, 999)
-            )
-        );
-        if (randomBoolean()) {
-            existingStartedShards.add(
-                routingNodes.startShard(
-                    routingNodes.initializeShard(
-                        indexRoutingTable.shard(0).replicaShards().getFirst(),
-                        randomValueOtherThan(shard0PrimaryNodeId, () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()),
-                        null,
-                        randomLongBetween(100, 999),
-                        routingChangesObserver
-                    ),
-                    routingChangesObserver,
-                    randomLongBetween(100, 999)
-                )
-            );
-        }
-
-        // Shard 1 - initializing a primary, and randomly choose to initialize a replica thereof.
-        final String shard1PrimaryNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
-        ShardRouting initializingShard = routingNodes.initializeShard(
-            indexRoutingTable.shard(1).primaryShard(),
-            shard1PrimaryNodeId,
-            null,
-            randomLongBetween(100, 999),
-            routingChangesObserver
-        );
-        if (randomBoolean()) {
-            existingStartedShards.add(routingNodes.startShard(initializingShard, routingChangesObserver, randomLongBetween(100, 999)));
-            initializingShard = routingNodes.initializeShard(
-                indexRoutingTable.shard(1).replicaShards().getFirst(),
-                randomValueOtherThan(shard1PrimaryNodeId, () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()),
-                null,
-                randomLongBetween(100, 999),
-                routingChangesObserver
-            );
-        }
-
-        // Shard 2 - Start a primary and then immediately set to relocating
-        final String shard2PrimaryNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
-        final Tuple<ShardRouting, ShardRouting> relocationTuple = routingNodes.relocateShard(
-            routingNodes.startShard(
-                routingNodes.initializeShard(
-                    indexRoutingTable.shard(2).primaryShard(),
-                    shard2PrimaryNodeId,
-                    null,
-                    randomLongBetween(100, 999),
-                    routingChangesObserver
-                ),
-                routingChangesObserver,
-                randomLongBetween(100, 999)
-            ),
-            randomValueOtherThan(shard2PrimaryNodeId, () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()),
-            randomLongBetween(100, 999),
-            MoveReason.CANNOT_REMAIN,
-            routingChangesObserver,
-            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-        );
-        // Add the shard as started on the source node.
-        existingStartedShards.add(relocationTuple.v1());
-
-        // Now build the ClusterInfo to expect the RoutingTable/RoutingNodes set up above.
-        final ClusterInfo clusterInfo = ClusterInfo.builder()
-            .dataPath(
-                existingStartedShards.stream()
-                    .collect(Collectors.toUnmodifiableMap(NodeAndShard::from, ignore -> "/data/" + randomIdentifier()))
-            )
-            .build();
-
-        // The first call should do nothing because the ClusterInfo still matches the RoutingNodes.
-        {
-            DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
-            verifyNoInteractions(clusterInfoSimulator);
-        }
-
-        // Start the initializing shard (that was never added to the ClusterInfo) and it should be identified as new and simulated.
-        final var startedShard = routingNodes.startShard(initializingShard, routingChangesObserver, randomLongBetween(100, 999));
-        {
-            DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
-            verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
-            verifyNoMoreInteractions(clusterInfoSimulator);
-        }
-
-        // Start the relocating shard, and now both (the previous change and this one) should be identified as new and simulated.
-        {
-            Mockito.clearInvocations(clusterInfoSimulator);
-            final var startedRelocatingShard = routingNodes.startShard(
-                relocationTuple.v2(), // ShardRouting for the target node
-                routingChangesObserver,
-                randomLongBetween(100, 999)
-            );
-            DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
-            // Simulation should be called for the two new shards
-            verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
-            verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedRelocatingShard, relocationTuple.v1().currentNodeId());
-            verifyNoMoreInteractions(clusterInfoSimulator);
-        }
-    }
-
-    ///
-    /// [DesiredBalanceComputer#maybeSimulateAlreadyStartedShards] accounts for shard movements that have occurred since the
-    /// [ClusterInfo] was generated.
-    /// Previously we used [ShardRouting#started()] to determine which shards to simulate, which omitted RELOCATING shards.
-    /// Relocating shards are effectively started and should be treated as such for the purpose of this simulation.
-    /// This test ensures that relocating shards are included in the simulation.
-    ///
-    public void testMaybeSimulateAlreadyStartedShardsIncludesRelocating() {
-        final var clusterInfoSimulator = mock(ClusterInfoSimulator.class);
-
-        // 6 data nodes, 3 shards, no replicas. Pinned node assignments (node-0..node-5) keep
-        // the verifications deterministic and avoid conditional handling for node overlap.
-        //
-        // node-0: shard 0 started (in ClusterInfo)
-        // node-1: shard 1 relocating away (not in ClusterInfo)
-        // node-2: shard 1 relocation target (initializing)
-        // node-3: shard 2 original location (in ClusterInfo, shard has since moved away)
-        // node-4: shard 2 current location (relocating a second time, not in ClusterInfo for node-4)
-        // node-5: shard 2 second-relocation target (initializing)
-        final ClusterState initialState = createInitialClusterState(6, 3, 0);
-        final RoutingNodes routingNodes = initialState.mutableRoutingNodes();
-        final IndexRoutingTable indexRoutingTable = initialState.routingTable(ProjectId.DEFAULT).index(TEST_INDEX);
-
-        // Shard 0: start on node-0 and record in ClusterInfo.
-        final ShardRouting startedShard0 = routingNodes.startShard(
-            routingNodes.initializeShard(
-                indexRoutingTable.shard(0).primaryShard(),
-                "node-0",
-                null,
-                randomLongBetween(100, 999),
-                RoutingChangesObserver.NOOP
-            ),
-            RoutingChangesObserver.NOOP,
-            randomLongBetween(100, 999)
-        );
-
-        // Shard 2: start on node-3 and record in ClusterInfo (its original position).
-        final ShardRouting startedShard2OnNode3 = routingNodes.startShard(
-            routingNodes.initializeShard(
-                indexRoutingTable.shard(2).primaryShard(),
-                "node-3",
-                null,
-                randomLongBetween(100, 999),
-                RoutingChangesObserver.NOOP
-            ),
-            RoutingChangesObserver.NOOP,
-            randomLongBetween(100, 999)
-        );
-
-        final ClusterInfo clusterInfo = ClusterInfo.builder()
-            .dataPath(
-                Map.of(
-                    NodeAndShard.from(startedShard0),
-                    "/data/" + randomIdentifier(),
-                    NodeAndShard.from(startedShard2OnNode3),
-                    "/data/" + randomIdentifier()
-                )
-            )
-            .build();
-
-        // Shard 1: start on node-1 and immediately relocate to node-2 — ClusterInfo has no entry for it.
-        final Tuple<ShardRouting, ShardRouting> shard1RelocationTuple = routingNodes.relocateShard(
-            routingNodes.startShard(
-                routingNodes.initializeShard(
-                    indexRoutingTable.shard(1).primaryShard(),
-                    "node-1",
-                    null,
-                    randomLongBetween(100, 999),
-                    RoutingChangesObserver.NOOP
-                ),
-                RoutingChangesObserver.NOOP,
-                randomLongBetween(100, 999)
-            ),
-            "node-2",
-            randomLongBetween(100, 999),
-            MoveReason.CANNOT_REMAIN,
-            RoutingChangesObserver.NOOP,
-            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-        );
-
-        // Shard 2: complete a first relocation (node-3 → node-4), then begin a second relocation
-        // (node-4 → node-5). ClusterInfo still shows shard 2 on node-3.
-        final Tuple<ShardRouting, ShardRouting> shard2FirstRelocationTuple = routingNodes.relocateShard(
-            startedShard2OnNode3,
-            "node-4",
-            randomLongBetween(100, 999),
-            MoveReason.CANNOT_REMAIN,
-            RoutingChangesObserver.NOOP,
-            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-        );
-        final ShardRouting startedShard2OnNode4 = routingNodes.startShard(
-            shard2FirstRelocationTuple.v2(),
-            RoutingChangesObserver.NOOP,
-            randomLongBetween(100, 999)
-        );
-        final Tuple<ShardRouting, ShardRouting> shard2SecondRelocationTuple = routingNodes.relocateShard(
-            startedShard2OnNode4,
-            "node-5",
-            randomLongBetween(100, 999),
-            MoveReason.CANNOT_REMAIN,
-            RoutingChangesObserver.NOOP,
-            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-        );
-
-        DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
-
-        // Shard 1: RELOCATING from node-1 with no ClusterInfo entry → sourceNodeId is null.
-        verify(clusterInfoSimulator).simulateAlreadyStartedShard(shard1RelocationTuple.v1(), null);
-        // Shard 2: RELOCATING from node-4, but ClusterInfo has it on node-3 (stale) → sourceNodeId is node-3.
-        verify(clusterInfoSimulator).simulateAlreadyStartedShard(shard2SecondRelocationTuple.v1(), "node-3");
-        verifyNoMoreInteractions(clusterInfoSimulator);
     }
 
     private static ShardRouting findShard(ClusterState clusterState, String name, boolean primary) {

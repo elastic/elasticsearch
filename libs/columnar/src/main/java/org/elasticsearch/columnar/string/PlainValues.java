@@ -353,9 +353,10 @@ final class PlainValues {
         /**
          * The byte length of each slot of the block of lengths {@link #lengthsAt} last decoded. Kept apart from
          * {@link #slotLengths} so a lengths-only read neither pays for the byte offsets that block's loader computes
-         * nor invalidates the block that loader has loaded.
+         * nor invalidates the block that loader has loaded. Allocated by the first lengths-only read, so a reader that
+         * only filters or reads values never pays for it.
          */
-        private final int[] blockLengths;
+        private int[] blockLengths;
         private long decodedLengths = -1;
 
         /** The bytes of the loaded block of values, and the stream position they begin at. */
@@ -381,7 +382,6 @@ final class PlainValues {
                 this.slotStarts = null;
                 this.slotLengths = null;
                 this.codes = null;
-                this.blockLengths = null;
                 return;
             }
             final int lengthBlockSize = meta.lengths().blockSize();
@@ -399,7 +399,6 @@ final class PlainValues {
             this.slotStarts = new long[lengthBlockSize];
             this.slotLengths = new int[lengthBlockSize];
             this.codes = new long[lengthBlockSize];
-            this.blockLengths = new int[lengthBlockSize];
         }
 
         long numValues() {
@@ -440,6 +439,9 @@ final class PlainValues {
         /** Decodes the codes of {@code block} into {@link #blockLengths}. */
         private void decodeLengths(long block) throws IOException {
             final long[] stored = lengths.block(block);
+            if (blockLengths == null) {
+                blockLengths = new int[lengthMask + 1];
+            }
             final int slots = (int) Math.min(blockLengths.length, numValues - (block << lengthShift));
             int previous = 0;
             for (int i = 0; i < slots; i++) {

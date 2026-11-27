@@ -1402,8 +1402,11 @@ public abstract sealed class StringColumnReader implements ColumnPrefetcher.Colu
      * {@code lengths}. The documents are resolved a page at a time and no value is decoded where the column keeps its
      * lengths apart.
      *
-     * @return whether every document of the page holds exactly one value, so that every entry of {@code counts} is one and
-     *         {@code lengths[0..count)} is complete. A caller that gets true can hand {@code lengths} on as it is; one that
+     * @return whether every document of the page is known to hold exactly one value, so that every entry of {@code counts}
+     *         is one and {@code lengths[0..count)} is complete. A caller that gets true can hand {@code lengths} on as it is.
+     *         This is a one-way guarantee: false means only that this was not established, not that the page holds a
+     *         document with no value or several. A column that is not {@link #pageable()}, say because some other document
+     *         holds several values or a null slot, answers false for a page of single-valued documents too. A caller that
      *         gets false reads {@code counts} to tell the documents apart.
      */
     public boolean readByteLengths(int[] docs, int offset, int count, int[] counts, int[] lengths, PageBudget budget) throws IOException {

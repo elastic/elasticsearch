@@ -183,15 +183,24 @@ public class TransportListTasksActionTests extends ESTestCase {
 
         assertEquals(
             0L,
-            TransportListTasksAction.bytesKeptFrom(firstPass, new ListTasksResponse(List.of(newerCopy), List.of(), List.of()))
+            TransportListTasksAction.bytesKeptFrom(firstPass, new ListTasksResponse(List.of(newerCopy), List.of(), List.of()), "local")
         );
         assertEquals(
             serializedSize(missed) + serializedSize(keptFailure),
             TransportListTasksAction.bytesKeptFrom(
                 firstPass,
-                new ListTasksResponse(List.of(newerCopy, missed), List.of(keptFailure), List.of())
+                new ListTasksResponse(List.of(newerCopy, missed), List.of(keptFailure), List.of()),
+                "local"
             )
         );
+    }
+
+    public void testTasksAndFailuresOfTheLocalNodeAreNotBytesKeptByTheMerge() {
+        final TaskInfo local = randomTaskInfoWithTaskId(new TaskId("local", 1L));
+        final TaskOperationFailure localFailure = new TaskOperationFailure("local", 2L, new ElasticsearchException("boom"));
+        final ListTasksResponse firstPass = new ListTasksResponse(List.of(local), List.of(localFailure), List.of());
+
+        assertEquals(0L, TransportListTasksAction.bytesKeptFrom(firstPass, firstPass, "local"));
     }
 
     public void testNodeFailuresOfTheFirstPassAreNotBytesKeptByTheMerge() {
@@ -201,7 +210,7 @@ public class TransportListTasksActionTests extends ESTestCase {
 
         assertEquals(
             0L,
-            TransportListTasksAction.bytesKeptFrom(firstPass, TransportListTasksAction.deduplicateAndMerge(firstPass, secondPass))
+            TransportListTasksAction.bytesKeptFrom(firstPass, TransportListTasksAction.deduplicateAndMerge(firstPass, secondPass), "local")
         );
     }
 

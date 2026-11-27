@@ -20,6 +20,7 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -62,7 +63,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.toSet;
@@ -87,6 +90,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final Executor mergeExecutor;
 
     @Inject
     public TransportListTasksAction(
@@ -106,6 +110,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.client = new OriginSettingClient(Objects.requireNonNull(client, "client"), TASKS_ORIGIN);
+        this.mergeExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry, "xContentRegistry");
     }
 
@@ -191,11 +196,22 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         final ActionListener<ListTasksResponse> listener
     ) {
         executeCharged(task, request, firstPassCharge, listener.delegateFailureAndWrap((l1, firstResponse) -> {
-            executeCharged(task, request, secondPassCharge, l1.delegateFailureAndWrap((l2, secondResponse) -> {
-                l2.onResponse(
-                    carryOver(firstResponse, deduplicateAndMerge(firstResponse, secondResponse), firstPassCharge, secondPassCharge)
-                );
-            }));
+            executeCharged(
+                task,
+                request,
+                secondPassCharge,
+                new ThreadedActionListener<>(mergeExecutor, l1.delegateFailureAndWrap((l2, secondResponse) -> {
+                    l2.onResponse(
+                        carryOver(
+                            firstResponse,
+                            deduplicateAndMerge(firstResponse, secondResponse),
+                            firstPassCharge,
+                            secondPassCharge,
+                            clusterService.localNode().getId()
+                        )
+                    );
+                }))
+            );
         }));
     }
 
@@ -210,26 +226,35 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     ) {
         final ListTasksRequest firstPassRequest = copyWithoutWaitForCompletion(request);
         executeCharged(task, firstPassRequest, firstPassCharge, listener.delegateFailureAndWrap((l1, firstPass) -> {
-            executeCharged(task, request, secondPassCharge, l1.delegateFailureAndWrap((l2, secondPass) -> {
-                reconcileMissedRelocations(
-                    task,
-                    firstPass,
-                    secondPass,
-                    l2.map(merged -> carryOver(firstPass, merged, firstPassCharge, secondPassCharge))
-                );
-            }));
+            executeCharged(
+                task,
+                request,
+                secondPassCharge,
+                new ThreadedActionListener<>(mergeExecutor, l1.delegateFailureAndWrap((l2, secondPass) -> {
+                    reconcileMissedRelocations(
+                        task,
+                        firstPass,
+                        secondPass,
+                        l2.map(
+                            merged -> carryOver(firstPass, merged, firstPassCharge, secondPassCharge, clusterService.localNode().getId())
+                        )
+                    );
+                }))
+            );
         }));
     }
 
     /// Moves to the charge of the second pass the bytes of the tasks and task failures of the first pass that the merged response keeps,
-    /// so that data stays accounted for as long as the response is held. Node failures are not charged, so they do not count.
+    /// so that data stays accounted for as long as the response is held. Only what came from other nodes was charged, so the local node
+    /// does not count, and neither do node failures.
     private static ListTasksResponse carryOver(
         final ListTasksResponse firstPass,
         final ListTasksResponse merged,
         final NodeReplyCharge firstPassCharge,
-        final NodeReplyCharge secondPassCharge
+        final NodeReplyCharge secondPassCharge,
+        final String localNodeId
     ) {
-        final long keptBytes = bytesKeptFrom(firstPass, merged);
+        final long keptBytes = bytesKeptFrom(firstPass, merged, localNodeId);
         if (keptBytes > 0) {
             firstPassCharge.transferTo(secondPassCharge, keptBytes);
         }
@@ -237,20 +262,23 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     }
 
     // visible for testing
-    static long bytesKeptFrom(final ListTasksResponse firstPass, final ListTasksResponse merged) {
-        return serializedSizeOfKept(firstPass.getTasks(), merged.getTasks()) + serializedSizeOfKept(
-            firstPass.getTaskFailures(),
-            merged.getTaskFailures()
-        );
+    static long bytesKeptFrom(final ListTasksResponse firstPass, final ListTasksResponse merged, final String localNodeId) {
+        return serializedSizeOfKept(firstPass.getTasks(), merged.getTasks(), t -> t.taskId().getNodeId(), localNodeId)
+            + serializedSizeOfKept(firstPass.getTaskFailures(), merged.getTaskFailures(), TaskOperationFailure::getNodeId, localNodeId);
     }
 
-    private static <T extends Writeable> long serializedSizeOfKept(final List<T> firstPass, final List<T> merged) {
+    private static <T extends Writeable> long serializedSizeOfKept(
+        final List<T> firstPass,
+        final List<T> merged,
+        final Function<T, String> nodeId,
+        final String localNodeId
+    ) {
         final Set<T> kept = Collections.newSetFromMap(new IdentityHashMap<>());
         kept.addAll(merged);
         final CountingStreamOutput out = new CountingStreamOutput();
         try {
             for (final T item : firstPass) {
-                if (kept.contains(item)) {
+                if (kept.contains(item) && localNodeId.equals(nodeId.apply(item)) == false) {
                     item.writeTo(out);
                 }
             }

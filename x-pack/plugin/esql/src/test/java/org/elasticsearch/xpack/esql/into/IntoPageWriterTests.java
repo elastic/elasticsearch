@@ -60,6 +60,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -686,6 +687,32 @@ public class IntoPageWriterTests extends ComputeTestCase {
                     )
                     .build()
             )
+        );
+    }
+
+    /** Every refused row is counted, but only a sample of the reasons is reported. */
+    public void testKeepGoingCountsEveryInvalidIdButCapsTheDetails() {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        int invalid = IntoStats.MAX_FAILURE_DETAILS + 5;
+        String[] ids = new String[invalid + 2];
+        String[] hosts = new String[invalid + 2];
+        Arrays.fill(ids, "");
+        ids[0] = "first";
+        ids[ids.length - 1] = "last";
+        Arrays.setAll(hosts, i -> "h" + i);
+        idWriter.consume(idPage(ids, hosts));
+
+        assertThat(client.bulks.getFirst().requests().stream().map(DocWriteRequest::id).toList(), equalTo(List.of("first", "last")));
+        client.answer(CREATED, CREATED);
+        idWriter.finish();
+
+        IntoStats stats = idWriter.stats();
+        assertThat(stats.total(), equalTo((long) invalid + 2));
+        assertThat(stats.created(), equalTo(2L));
+        assertThat(stats.failures(), equalTo((long) invalid));
+        assertThat(
+            stats.failureDetails(),
+            equalTo(Collections.nCopies(IntoStats.MAX_FAILURE_DETAILS, "[400] if _id is specified it must not be empty"))
         );
     }
 

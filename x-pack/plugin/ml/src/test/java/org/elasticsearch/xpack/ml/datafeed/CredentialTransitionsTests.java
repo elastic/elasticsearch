@@ -839,7 +839,7 @@ public class CredentialTransitionsTests extends ESTestCase {
                 listener.onResponse(new PutDatafeedAction.Response(req.getDatafeed()));
             }, ActionTestUtils.assertNoFailureListener(response::set));
 
-            assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + " | LIMIT 0")));
+            assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + "\n| LIMIT 0")));
             assertThat(h.probeRouting, equalTo(List.of("_alias:_origin")));
             assertThat(h.events, equalTo(List.of("probe", "mint", "persist")));
             assertThat(response.get().getResponse().getCloudInternalCredential(), equalTo(h.minted));
@@ -895,7 +895,7 @@ public class CredentialTransitionsTests extends ESTestCase {
             AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
             h.executeUpdate(ActionTestUtils.assertNoFailureListener(response::set));
 
-            assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + " | LIMIT 0")));
+            assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + "\n| LIMIT 0")));
             assertThat(h.probeRouting, equalTo(List.of("_alias:_origin")));
             assertThat(h.probeAuthenticationHeaders, equalTo(List.of("caller-authentication")));
             assertThat(h.probeClients, equalTo(List.of(h.wrappedClient)));

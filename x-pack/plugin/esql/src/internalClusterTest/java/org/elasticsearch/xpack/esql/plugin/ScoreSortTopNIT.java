@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 
 import java.util.List;
 import java.util.Locale;
@@ -19,11 +20,13 @@ import java.util.Locale;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Runs top N queries sorted by descending {@code _score} over several shards. The drivers that read the shards skip the
- * documents that score below a top N another driver has already filled, which must not change the rows returned.
+ * documents that score below a top N another driver has already filled. The top N must stay correct: the same rows when
+ * the sort orders them completely, and the same scores when rows tie on every sort key.
  */
 public class ScoreSortTopNIT extends AbstractEsqlIntegTestCase {
     /**
@@ -33,6 +36,13 @@ public class ScoreSortTopNIT extends AbstractEsqlIntegTestCase {
 
     public void testScoreThenNumericKey() {
         assertTopNIsPrefixOfAllRows("_score DESC, id " + randomFrom("ASC", "DESC"), true);
+    }
+
+    /**
+     * A keyword key shares a collector manager on main, and shares the bound like the other keys with this change.
+     */
+    public void testScoreThenKeywordKey() {
+        assertTopNIsPrefixOfAllRows("_score DESC, kw " + randomFrom("ASC", "DESC") + ", id ASC", true);
     }
 
     public void testScoreThenDateKey() {
@@ -92,6 +102,62 @@ public class ScoreSortTopNIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * All shards are on one data node and run in one batch, so their drivers share one bound, and the limit is below the
+     * documents of a shard, so the first shard to finish fills the top N. The profile shows that Lucene ran the top N.
+     */
+    public void testShardsOfOneNodeShareTheBound() {
+        String dataNode = internalCluster().getRandomDataNodeName();
+        int shards = between(2, 5);
+        int docsPerShard = between(50, 200);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("one-node")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", shards)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.routing.allocation.include._name", dataNode)
+                )
+                .setMapping("id", "type=integer", "content", "type=text")
+        );
+        // Routing by the id spreads the documents unevenly, so index many more than shards * docsPerShard would need
+        int docs = shards * docsPerShard * 3;
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int id = docs - 1; id >= 0; id--) {
+            String content = "fox ".repeat(between(1, 4)) + "dog ".repeat(between(0, 4));
+            bulk.add(new IndexRequest("one-node").id(Integer.toString(id)).source("id", id, "content", content));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        ensureGreen("one-node");
+
+        String query = """
+            FROM one-node METADATA _score
+            | WHERE match(content, "fox")
+            | SORT _score DESC, id ASC
+            | LIMIT %d
+            | KEEP id, _score
+            """;
+        List<List<Object>> all;
+        try (var resp = run(EsqlQueryRequest.syncEsqlQueryRequest(String.format(Locale.ROOT, query, NO_LIMIT)))) {
+            all = getValuesList(resp);
+            assertThat(all, hasSize(docs));
+        }
+        int limit = between(1, docsPerShard);
+        // No pragmas: by default a node runs up to 10 shards in one batch
+        try (var resp = run(EsqlQueryRequest.syncEsqlQueryRequest(String.format(Locale.ROOT, query, limit)).profile(true))) {
+            assertThat(getValuesList(resp), equalTo(all.subList(0, limit)));
+            long topNSources = resp.profile()
+                .drivers()
+                .stream()
+                .flatMap(driver -> driver.operators().stream())
+                .filter(operator -> operator.operator().startsWith("LuceneTopNSourceOperator"))
+                .count();
+            assertThat("the top N runs in Lucene", topNSources, greaterThan(0L));
+        }
+    }
+
     private void assertTopNIsPrefixOfAllRows(String sort, boolean compareIds) {
         int docs = createAndPopulateIndex();
         String query = """
@@ -131,13 +197,16 @@ public class ScoreSortTopNIT extends AbstractEsqlIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(Settings.builder().put("index.number_of_shards", between(2, 5)))
-                .setMapping("id", "type=integer", "ts", "type=date", "content", "type=text")
+                .setMapping("id", "type=integer", "ts", "type=date", "kw", "type=keyword", "content", "type=text")
         );
         int docs = between(200, 1000);
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int id = 0; id < docs; id++) {
             String content = "fox ".repeat(between(1, 4)) + "dog ".repeat(between(0, 4));
-            bulk.add(new IndexRequest("test").id(Integer.toString(id)).source("id", id, "ts", between(0, 50) * 1000L, "content", content));
+            bulk.add(
+                new IndexRequest("test").id(Integer.toString(id))
+                    .source("id", id, "ts", between(0, 50) * 1000L, "kw", "k" + between(0, 9), "content", content)
+            );
         }
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         ensureYellow("test");

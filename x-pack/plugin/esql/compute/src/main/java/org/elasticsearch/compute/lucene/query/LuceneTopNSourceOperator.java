@@ -696,13 +696,15 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
             @Override
             public void setScorer(Scorable scorer) throws IOException {
-                // The operator scores a segment in several ranges and hands over the same scorer for each. Keeping the
-                // wrapper keeps the last score set on that scorer.
+                // The operator scores a segment in several ranges. Some bulk scorers hand over the same scorer for each range
+                // and some a new one, and the wrapper of a new one doesn't know the last score set.
                 if (this.scorer == null || this.scorer.wraps(scorer) == false) {
                     this.scorer = new SharingScorable(scorer, shared);
                 }
-                in.setScorer(this.scorer);
+                // The shared bound is at least every score set on a scorer of this segment before. Setting it before the
+                // collector sees the scorer means the collector can't set a lower one.
                 this.scorer.setSharedScore();
+                in.setScorer(this.scorer);
             }
 
             @Override

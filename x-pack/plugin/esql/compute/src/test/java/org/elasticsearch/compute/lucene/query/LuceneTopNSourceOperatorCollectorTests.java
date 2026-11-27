@@ -10,7 +10,10 @@ package org.elasticsearch.compute.lucene.query;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -31,8 +34,10 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.AssertingQuery;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -65,7 +70,9 @@ import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
@@ -74,7 +81,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
     /**
-     * A sort that a {@link LuceneSourceOperatorTests.MockShardContext}, which has no mappings, resolves the sort builders to.
+     * The Lucene sort a test shard uses, whatever the sort builders are. The mock shard has no mappings to resolve them.
      *
      * @param skipsTies whether its collectors skip the documents that tie with the lowest score of a full top N
      */
@@ -116,8 +123,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * Once a collector has a full top N, a collector of another driver starts with the lowest score of that top N as its
-     * minimum competitive score, on the same shard or on another one.
+     * Once a collector has a full top N, a collector of another driver starts with the minimum competitive score of that
+     * top N, on the same shard or on another one. That is its lowest score, or the next float up when the score is the
+     * only sort key.
      */
     public void testFullTopNSharesItsLowestScore() throws IOException {
         TestSort sort = randomFrom(SHARING);
@@ -158,7 +166,8 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
     /**
      * A collector whose own top N is worse than another one's sets a lower minimum competitive score than the shared one.
-     * The scorer never sees it: its minimum competitive score must not go down.
+     * The scorer never sees it: its minimum competitive score must not go down. The scorer is handed to the collector
+     * again at random, the way the operator does for every range of a segment, as the same object or as a new one.
      */
     public void testScorerNeverGetsALowerScore() throws IOException {
         TestSort sort = randomFrom(SHARING);
@@ -175,7 +184,11 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         LeafReaderContext leaf = reader.leaves().getFirst();
         LeafCollector leafCollector = collector.getLeafCollector(leaf);
         leafCollector.setScorer(scorer);
-        for (int doc = 0; doc < Math.min(hits, leaf.reader().maxDoc()); doc++) {
+        assertThat(hits, lessThanOrEqualTo(leaf.reader().maxDoc()));
+        for (int doc = 0; doc < hits; doc++) {
+            if (randomBoolean()) {
+                leafCollector.setScorer(randomBoolean() ? scorer : scorer.view());
+            }
             scorer.score = doc + 1;
             leafCollector.collect(doc);
         }
@@ -254,7 +267,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
      * rows are compared rather than the documents.
      * <p>
      *     Some shards are a single segment of more documents than the operator scores in one go, so its scorer is handed to
-     *     the collector several times, and {@link DataPartitioning#DOC} splits such a segment between drivers.
+     *     the collector several times.
      * </p>
      */
     public void testDriversSharingAScoreEmitTopN() throws IOException {
@@ -342,6 +355,73 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         } finally {
             IOUtils.close(readers);
             IOUtils.close(directories);
+        }
+    }
+
+    /**
+     * {@link DataPartitioning#DOC} splits a large segment between drivers, so collectors that read different ranges of the
+     * same segment share the bound. The rows they emit must still be the best documents of the segment.
+     */
+    public void testDriversSplittingASegmentEmitTopN() throws IOException {
+        TestSort sort = randomFrom(SHARING);
+        int limit = between(1, 50);
+        Directory shardDirectory = newDirectory();
+        IndexReader shardReader = null;
+        try {
+            // A slice holds at least LuceneSliceQueue.MIN_DOCS_PER_SLICE documents, so the segment needs several times that
+            int docs = between(3, 4) * LuceneSliceQueue.MIN_DOCS_PER_SLICE;
+            IndexWriterConfig config = new IndexWriterConfig(new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec());
+            try (IndexWriter writer = new IndexWriter(shardDirectory, config)) {
+                for (int d = 0; d < docs; d++) {
+                    List<IndexableField> doc = new ArrayList<>();
+                    // Later documents sort first on the second key, so a collector keeps finding better rows
+                    doc.add(new SortedNumericDocValuesField("s", docs - d));
+                    // Few distinct scores, so many documents tie on the score
+                    doc.add(new TextField("t", "a ".repeat(between(1, 5)), Field.Store.NO));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+                shardReader = DirectoryReader.open(writer);
+            }
+            assertThat(shardReader.leaves().size(), equalTo(1));
+            Query query = new TermQuery(new Term("t", "a"));
+            int taskConcurrency = between(2, 4);
+            ShardContext ctx = createMockShardContext(shardReader, 0, sort);
+            var factory = new LuceneTopNSourceOperator.Factory(
+                new IndexedByShardIdFromSingleton<>(ctx),
+                c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+                DataPartitioning.DOC,
+                DataPartitioning.AutoStrategy.DEFAULT,
+                taskConcurrency,
+                between(10, 100),
+                limit,
+                sort.builders(),
+                randomLongBetween(10, 20),
+                true,
+                () -> 0L,
+                QueryWarnings.EMIT
+            );
+            assertThat("the segment is split into slices", factory.sliceQueue.totalSlices(), greaterThan(1));
+
+            List<SortKeys> expected = new ArrayList<>();
+            for (ScoreDoc scoreDoc : ctx.searcher().search(query, limit, new Sort(SortField.FIELD_SCORE, FIELD_SORT), true).scoreDocs) {
+                expected.add(sortKeys(sort, shardReader, scoreDoc.doc, scoreDoc.score));
+            }
+            List<SortKeys> actual = new ArrayList<>();
+            for (Page page : runDrivers(factory, taskConcurrency)) {
+                DocVector emitted = page.<DocBlock>getBlock(0).asVector();
+                DoubleBlock scores = page.getBlock(1);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    int doc = shardReader.leaves().get(emitted.segments().getInt(p)).docBase + emitted.docs().getInt(p);
+                    actual.add(sortKeys(sort, shardReader, doc, (float) scores.getDouble(p)));
+                }
+            }
+            Collections.sort(expected);
+            Collections.sort(actual);
+            assertThat(sort.toString(), actual.size(), greaterThanOrEqualTo(limit));
+            assertThat(sort.toString(), actual.subList(0, limit), equalTo(expected));
+        } finally {
+            IOUtils.close(shardReader, shardDirectory);
         }
     }
 
@@ -650,6 +730,23 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         public void setMinCompetitiveScore(float minScore) {
             lowered |= minScore < minCompetitiveScore;
             minCompetitiveScore = minScore;
+        }
+
+        /**
+         * Another object for the same scorer, like the one some bulk scorers create for every range they score.
+         */
+        Scorable view() {
+            return new Scorable() {
+                @Override
+                public float score() {
+                    return score;
+                }
+
+                @Override
+                public void setMinCompetitiveScore(float minScore) {
+                    RecordingScorable.this.setMinCompetitiveScore(minScore);
+                }
+            };
         }
     }
 

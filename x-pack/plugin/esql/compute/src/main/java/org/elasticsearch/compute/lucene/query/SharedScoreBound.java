@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.search.Scorable;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -16,13 +18,17 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p>
  *     A score is only offered on behalf of a full top N. The rows of that top N are part of the output, unless their
  *     driver fails, and then the query fails or its result is flagged as partial. So no collector needs a document that
- *     scores below the bound, in any shard: it scores below all of those rows or, when the score is the only sort key,
- *     ties with the last one. Collectors skip such documents by handing the bound to
- *     {@link Scorable#setMinCompetitiveScore}.
+ *     scores below the bound, in any shard. Such a document scores below every row of that top N. The one exception is
+ *     a sort by the score alone, where it can also tie with the last row, and tied rows are interchangeable.
  * </p>
  * <p>
- *     {@link SharedSortBound} is the bound of a top N on a field. It is shared by the batches of shards of a request and
- *     skips whole shards. This bound belongs to one operator factory and makes scorers skip documents.
+ *     Collectors skip those documents by handing the bound to {@link Scorable#setMinCompetitiveScore}.
+ * </p>
+ * <p>
+ *     Two other classes share a bound of a top N, neither for scorers. {@link SharedSortBound} holds the bound on a
+ *     field for the batches of shards of a request and skips whole shards. {@link SharedMinCompetitive} holds the encoded
+ *     sort keys of a {@link TopNOperator}, which filters documents with a query. This bound is one float that belongs to
+ *     one operator factory.
  * </p>
  * <p>
  *     The bound only grows, which {@link Scorable#setMinCompetitiveScore} requires.

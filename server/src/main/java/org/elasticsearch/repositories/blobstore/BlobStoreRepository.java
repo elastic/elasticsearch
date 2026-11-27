@@ -3622,12 +3622,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
                 metadataFromStore = context.metadataSnapshot();
                 fileNames = context.fileNames();
+                Map<String, BlobStoreIndexShardSnapshot.FileInfo> existingFilesByPhysicalName = null;
                 for (String fileName : fileNames) {
                     ensureNotAborted(shardId, snapshotId, snapshotStatus, fileName);
 
                     logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
                     final StoreFileMetadata md = metadataFromStore.get(fileName);
-                    BlobStoreIndexShardSnapshot.FileInfo existingFileInfo = snapshots.findPhysicalIndexFile(md);
+                    if (existingFilesByPhysicalName == null) {
+                        existingFilesByPhysicalName = snapshots.findPhysicalIndexFiles(fileNames, metadataFromStore);
+                    }
+                    final BlobStoreIndexShardSnapshot.FileInfo existingFileInfo = existingFilesByPhysicalName.get(fileName);
 
                     // We can skip writing blobs where the metadata hash is equal to the blob's contents because we store the hash/contents
                     // directly in the shard level metadata in this case

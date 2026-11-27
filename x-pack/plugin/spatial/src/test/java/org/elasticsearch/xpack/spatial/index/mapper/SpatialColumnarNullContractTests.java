@@ -33,16 +33,17 @@ public class SpatialColumnarNullContractTests extends AbstractColumnarNullContra
     // are not
     // required to execute as a batch. They exercise batch indexing as soon as the mapper accepts a column.
     static Scenario point() {
-        return scenario("point", () -> Map.of("x", randomIntBetween(0, 100) + 0.5, "y", randomIntBetween(0, 100) + 0.5)).withoutIndex()
+        return scenario("point", () -> Map.of("x", randomIntBetween(0, 100) + 0.5, "y", randomIntBetween(0, 100) + 0.5))
+            .withDefaultIndexSetting()
             .withCanonical(value -> new TreeMap<>((Map<?, ?>) value).toString());
     }
 
     static Scenario geoShape() {
-        return scenario("geo_shape", SpatialColumnarNullContractTests::wellKnownText).withoutIndex();
+        return scenario("geo_shape", SpatialColumnarNullContractTests::wellKnownText).withDefaultIndexSetting();
     }
 
     static Scenario shape() {
-        return scenario("shape", SpatialColumnarNullContractTests::wellKnownText).withoutIndex();
+        return scenario("shape", SpatialColumnarNullContractTests::wellKnownText).withDefaultIndexSetting();
     }
 
     public void testPointExistsDocument() throws IOException {

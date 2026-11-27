@@ -32,18 +32,19 @@ public class AnalyticsColumnarNullContractTests extends AbstractColumnarNullCont
         return scenario("histogram", () -> {
             final double lower = randomIntBetween(0, 100) / 4.0;
             return Map.of("values", List.of(lower, lower + 1.5), "counts", List.of(randomIntBetween(1, 5), randomIntBetween(1, 5)));
-        }).withoutIndex().withCanonical(value -> new TreeMap<>((Map<?, ?>) value).toString()).asSingleValued();
+        }).withDefaultIndexSetting().withCanonical(value -> new TreeMap<>((Map<?, ?>) value).toString()).asSingleValued();
     }
 
     private static Scenario tdigest() {
         return scenario("tdigest", () -> {
             final double lower = randomIntBetween(0, 100) / 4.0;
             return Map.of("centroids", List.of(lower, lower + 1.5), "counts", List.of(randomIntBetween(1, 5), randomIntBetween(1, 5)));
-        }).withoutIndex().withCanonical(value -> canonical(value, "centroids", "counts")).asSingleValued();
+        }).withDefaultIndexSetting().withCanonical(value -> canonical(value, "centroids", "counts")).asSingleValued();
     }
 
     private static Scenario exponentialHistogram() {
-        return scenario("exponential_histogram", () -> Map.of("scale", 0, "zero", Map.of("count", randomIntBetween(1, 5)))).withoutIndex()
+        return scenario("exponential_histogram", () -> Map.of("scale", 0, "zero", Map.of("count", randomIntBetween(1, 5))))
+            .withDefaultIndexSetting()
             .withCanonical(value -> canonical(value, "scale", "zero"))
             .asSingleValued();
     }

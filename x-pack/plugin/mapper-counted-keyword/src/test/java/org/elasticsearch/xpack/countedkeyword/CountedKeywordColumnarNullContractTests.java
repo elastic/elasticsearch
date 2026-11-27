@@ -25,7 +25,7 @@ public class CountedKeywordColumnarNullContractTests extends AbstractColumnarNul
     // NOTE: counted_keyword does not implement batch indexing today, so the scenario lists no batched shape and the BATCH tests are not
     // required to execute as a batch. They exercise batch indexing as soon as the mapper accepts a column.
     static Scenario countedKeyword() {
-        return scenario("counted_keyword", () -> randomAlphaOfLengthBetween(1, 8)).withoutIndex();
+        return scenario("counted_keyword", () -> randomAlphaOfLengthBetween(1, 8)).withDefaultIndexSetting();
     }
 
     public void testCountedKeywordExistsDocument() throws IOException {

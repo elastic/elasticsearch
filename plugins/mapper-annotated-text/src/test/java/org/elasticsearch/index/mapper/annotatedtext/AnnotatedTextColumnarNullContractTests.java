@@ -27,7 +27,7 @@ public class AnnotatedTextColumnarNullContractTests extends AbstractColumnarNull
     // NOTE: annotated_text does not implement batch indexing today, so the scenario lists no batched shape and the BATCH tests are not
     // required to execute as a batch. They exercise batch indexing as soon as the mapper accepts a column.
     private static Scenario annotatedText() {
-        return scenario("annotated_text", () -> randomAlphaOfLengthBetween(1, 8)).withoutIndex();
+        return scenario("annotated_text", () -> randomAlphaOfLengthBetween(1, 8)).withDefaultIndexSetting();
     }
 
     public void testAnnotatedTextExistsDocument() throws IOException {

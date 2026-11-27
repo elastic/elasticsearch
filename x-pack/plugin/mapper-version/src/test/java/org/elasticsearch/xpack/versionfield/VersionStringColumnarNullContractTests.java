@@ -25,7 +25,7 @@ public class VersionStringColumnarNullContractTests extends AbstractColumnarNull
 
     private static Scenario version() {
         return scenario("version", () -> randomIntBetween(0, 9) + "." + randomIntBetween(0, 9) + "." + randomIntBetween(0, 9))
-            .withoutIndex()
+            .withDefaultIndexSetting()
             .batchedGroups((configuration, shape) -> true);
     }
 

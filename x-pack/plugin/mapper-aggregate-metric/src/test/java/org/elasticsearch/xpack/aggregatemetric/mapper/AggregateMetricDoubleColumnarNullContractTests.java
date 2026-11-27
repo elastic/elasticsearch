@@ -32,7 +32,7 @@ public class AggregateMetricDoubleColumnarNullContractTests extends AbstractColu
         return scenario("aggregate_metric_double", () -> {
             final double min = randomIntBetween(0, 100) / 4.0;
             return Map.of("min", min, "max", min + randomIntBetween(0, 20) / 4.0);
-        }).withoutIndex()
+        }).withDefaultIndexSetting()
             .withParameters(Map.of("metrics", List.of("min", "max")))
             .withCanonical(value -> new TreeMap<>((Map<?, ?>) value).toString())
             .asSingleValued();

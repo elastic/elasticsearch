@@ -25,7 +25,7 @@ public class PatternTextColumnarNullContractTests extends AbstractColumnarNullCo
     }
 
     private static Scenario patternText() {
-        return scenario("pattern_text", () -> randomAlphaOfLengthBetween(1, 8)).withoutIndex()
+        return scenario("pattern_text", () -> randomAlphaOfLengthBetween(1, 8)).withDefaultIndexSetting()
             .asSingleValued()
             .batchedGroups((configuration, shape) -> true);
     }

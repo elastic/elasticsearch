@@ -28,7 +28,8 @@ public class WildcardColumnarNullContractTests extends AbstractColumnarNullContr
     }
 
     private static Scenario wildcard() {
-        return scenario("wildcard", () -> randomAlphaOfLengthBetween(1, 8)).withoutIndex().batchedGroups((configuration, shape) -> true);
+        return scenario("wildcard", () -> randomAlphaOfLengthBetween(1, 8)).withDefaultIndexSetting()
+            .batchedGroups((configuration, shape) -> true);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)

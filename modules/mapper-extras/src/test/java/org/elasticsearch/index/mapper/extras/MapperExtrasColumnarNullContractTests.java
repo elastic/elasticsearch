@@ -31,7 +31,7 @@ public class MapperExtrasColumnarNullContractTests extends AbstractColumnarNullC
     }
 
     private static Scenario matchOnlyText() {
-        return scenario("match_only_text", () -> randomAlphaOfLengthBetween(1, 8)).withoutIndex()
+        return scenario("match_only_text", () -> randomAlphaOfLengthBetween(1, 8)).withDefaultIndexSetting()
             .batchedGroups((configuration, shape) -> true);
     }
 

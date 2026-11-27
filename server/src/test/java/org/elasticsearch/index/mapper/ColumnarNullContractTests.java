@@ -43,12 +43,14 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
 
     // The reconstructed _source reorders the values of a geo_point field and drops its repeated values.
 
-    private static final Predicate<Configuration> INDEXED = Configuration::indexed;
-    private static final Predicate<Configuration> NOT_INDEXED = INDEXED.negate();
-    private static final Predicate<Configuration> INDEXED_WITHOUT_VECTORDB = configuration -> configuration.indexed()
-        && configuration.mode() != IndexMode.VECTORDB_COLUMNAR;
-    private static final Predicate<Configuration> VECTORDB_INDEXED = configuration -> configuration.indexed()
-        && configuration.mode() == IndexMode.VECTORDB_COLUMNAR;
+    private static final Predicate<Configuration> INDEXED = configuration -> configuration.index() == IndexSetting.ENABLED;
+    private static final Predicate<Configuration> NOT_INDEXED = configuration -> configuration.index() == IndexSetting.DISABLED;
+    private static final Predicate<Configuration> INDEXED_WITHOUT_VECTORDB = INDEXED.and(
+        configuration -> configuration.mode() != IndexMode.VECTORDB_COLUMNAR
+    );
+    private static final Predicate<Configuration> VECTORDB_INDEXED = INDEXED.and(
+        configuration -> configuration.mode() == IndexMode.VECTORDB_COLUMNAR
+    );
 
     private static final List<String> NUMBERS = List.of("long", "integer", "short", "byte", "double", "float", "half_float");
     private static final String MALFORMED_DATE = "not a \"date\"";
@@ -111,14 +113,14 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         final Scenario scenario = scenario(type, values(type));
         return switch (type) {
             case "keyword", "text" -> scenario.batchedGroups((configuration, shape) -> true);
-            case "ip" -> scenario.batchedGroups((configuration, shape) -> configuration.indexed() == false);
+            case "ip" -> scenario.batchedGroups((configuration, shape) -> configuration.index() == IndexSetting.DISABLED);
             case "long", "integer", "short", "byte", "double", "float", "half_float" -> scenario.batchedGroups(
                 (configuration, shape) -> shape == SCALARS || shape == ARRAYS
             );
             case "date", "date_nanos" -> scenario.withCanonical(value -> Instant.parse(String.valueOf(value)).toString())
                 .batchedGroups((configuration, shape) -> shape == SCALARS);
             case "boolean" -> scenario.batchedGroups((configuration, shape) -> shape == SCALARS);
-            case "binary" -> scenario.withoutIndex().withParameters(Map.of("doc_values", true));
+            case "binary" -> scenario.withDefaultIndexSetting().withParameters(Map.of("doc_values", true));
             default -> throw new AssertionError("no scenario for [" + type + "]");
         };
     }
@@ -216,11 +218,11 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
             case "integer_range", "long_range" -> scenario(type, () -> {
                 final int lower = randomIntBetween(0, 1000);
                 return Map.of("gte", lower, "lte", lower + randomIntBetween(0, 50));
-            }).withoutIndex().withCanonical(ColumnarNullContractTests::canonicalRange);
+            }).withDefaultIndexSetting().withCanonical(ColumnarNullContractTests::canonicalRange);
             case "float_range", "double_range" -> scenario(type, () -> {
                 final double lower = randomIntBetween(0, 1000) / 4.0;
                 return Map.of("gte", lower, "lte", lower + randomIntBetween(0, 50));
-            }).withoutIndex().withCanonical(ColumnarNullContractTests::canonicalRange);
+            }).withDefaultIndexSetting().withCanonical(ColumnarNullContractTests::canonicalRange);
             case "date_range" -> scenario(type, () -> {
                 final long lower = randomLongBetween(0, 4_000_000_000_000L);
                 return Map.of(
@@ -229,12 +231,12 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
                     "lte",
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lower + randomIntBetween(0, 1000))
                 );
-            }).withoutIndex().withCanonical(ColumnarNullContractTests::canonicalRange);
+            }).withDefaultIndexSetting().withCanonical(ColumnarNullContractTests::canonicalRange);
             case "ip_range" -> scenario(type, () -> {
                 final int second = randomIntBetween(0, 255);
                 final int third = randomIntBetween(0, 255);
                 return Map.of("gte", "10." + second + "." + third + ".0", "lte", "10." + second + "." + third + ".255");
-            }).withoutIndex().withCanonical(ColumnarNullContractTests::canonicalRange);
+            }).withDefaultIndexSetting().withCanonical(ColumnarNullContractTests::canonicalRange);
             default -> throw new AssertionError("no range scenario for [" + type + "]");
         };
     }
@@ -293,7 +295,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
     // points, are not batch mapped.
     private static Scenario geoPoint() {
         return scenario("geo_point", () -> Map.of("lat", randomIntBetween(-160, 160) / 2.0, "lon", randomIntBetween(-340, 340) / 2.0))
-            .withoutIndex()
+            .withDefaultIndexSetting()
             .withCanonical(ColumnarNullContractTests::canonicalGeoPoint)
             .batchedGroups((configuration, shape) -> shape == SCALARS);
     }

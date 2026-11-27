@@ -83,13 +83,13 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
 
     private static final String SOURCE_MODE = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey();
 
-    protected static final Predicate<Configuration> SYNTHETIC_SOURCE = configuration -> SourceFieldMapper.Mode.SYNTHETIC.toString()
-        .equals(configuration.settings().get(SOURCE_MODE));
-    protected static final Predicate<Configuration> COLUMNAR_STORED_SOURCE = SYNTHETIC_SOURCE.negate();
+    protected static final Predicate<Configuration> SYNTHETIC_SOURCE = configuration -> configuration
+        .sourceMode() == SourceFieldMapper.Mode.SYNTHETIC;
+    protected static final Predicate<Configuration> COLUMNAR_STORED_SOURCE = configuration -> configuration
+        .sourceMode() == SourceFieldMapper.Mode.COLUMNAR_STORED;
 
     private static final String NUMERIC_CODEC = IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey();
-    protected static final Predicate<Configuration> NUMERIC_CODEC_ENABLED = configuration -> configuration.settings()
-        .hasValue(NUMERIC_CODEC);
+    protected static final Predicate<Configuration> NUMERIC_CODEC_ENABLED = Configuration::numericCodec;
 
     private enum Kind {
         ABSENT,
@@ -98,13 +98,24 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         ARRAY
     }
 
+    protected enum IndexSetting {
+        ENABLED,
+        DISABLED,
+        DEFAULT
+    }
+
     /**
-     * @param indexed  the value of the {@code index} parameter, which is always {@code true} for a type that has no such parameter
-     * @param settings further index settings of the configuration
+     * @param index        the value of the {@code index} parameter, or {@code DEFAULT} when the mapping leaves it to the mapper
+     * @param sourceMode   how the {@code _source} is kept
+     * @param numericCodec whether a numeric field writes the numeric codec
      */
-    protected record Configuration(IndexMode mode, boolean indexed, Settings settings) {
-        public Configuration(IndexMode mode, boolean indexed) {
-            this(mode, indexed, Settings.EMPTY);
+    protected record Configuration(IndexMode mode, IndexSetting index, SourceFieldMapper.Mode sourceMode, boolean numericCodec) {
+        Settings settings() {
+            final Settings.Builder settings = Settings.builder().put(SOURCE_MODE, sourceMode.toString());
+            if (numericCodec) {
+                settings.put(NUMERIC_CODEC, true);
+            }
+            return settings.build();
         }
     }
 
@@ -141,9 +152,8 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
      * @param values        a source of values of the type, in the form the mapper accepts them
      * @param nullValue     the {@code null_value} of the field, or {@code null} when it has none
      * @param canonical     the form in which a value is compared, applied to the expected values and to those in the reconstructed source
-     * @param hasIndex      whether the type has an {@code index} parameter, which the tests run both ways
+     * @param varyIndex     whether the tests run the {@code index} parameter both ways, or leave it to the mapper default
      * @param batchedGroups the configurations and column shapes that are known to execute as a batch today
-     * @param modes         the strict modes that accept the type
      * @param singleValued  whether the type rejects a document with more than one value, which the documents then respect
      * @param indexable     whether a value is indexed, which is false for a value that {@code ignore_malformed} keeps in the source only
      */
@@ -153,44 +163,43 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         Supplier<Object> values,
         Object nullValue,
         Function<Object, String> canonical,
-        boolean hasIndex,
+        boolean varyIndex,
         BiPredicate<Configuration, Integer> batchedGroups,
-        List<IndexMode> modes,
         boolean singleValued,
         Predicate<Object> indexable
     ) {
         public Scenario withParameters(Map<String, Object> parameters) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued, indexable);
+            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchedGroups, singleValued, indexable);
         }
 
         public Scenario withNullValue(Object nullValue) {
             final Map<String, Object> withNullValue = new HashMap<>(parameters);
             withNullValue.put("null_value", nullValue);
-            return new Scenario(type, withNullValue, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued, indexable);
+            return new Scenario(type, withNullValue, values, nullValue, canonical, varyIndex, batchedGroups, singleValued, indexable);
         }
 
         public Scenario withValues(Supplier<Object> values) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued, indexable);
+            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchedGroups, singleValued, indexable);
         }
 
         public Scenario withCanonical(Function<Object, String> canonical) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued, indexable);
+            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchedGroups, singleValued, indexable);
         }
 
-        public Scenario withoutIndex() {
-            return new Scenario(type, parameters, values, nullValue, canonical, false, batchedGroups, modes, singleValued, indexable);
+        public Scenario withDefaultIndexSetting() {
+            return new Scenario(type, parameters, values, nullValue, canonical, false, batchedGroups, singleValued, indexable);
         }
 
         public Scenario asSingleValued() {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, true, indexable);
+            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchedGroups, true, indexable);
         }
 
         public Scenario withIndexable(Predicate<Object> indexable) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued, indexable);
+            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchedGroups, singleValued, indexable);
         }
 
         public Scenario batchedGroups(BiPredicate<Configuration, Integer> batchedGroups) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued, indexable);
+            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchedGroups, singleValued, indexable);
         }
 
         boolean hasValue(TestDocument document) {
@@ -214,18 +223,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
     }
 
     protected static Scenario scenario(String type, Supplier<Object> values) {
-        return new Scenario(
-            type,
-            Map.of(),
-            values,
-            null,
-            String::valueOf,
-            true,
-            (configuration, group) -> false,
-            MODES,
-            false,
-            value -> true
-        );
+        return new Scenario(type, Map.of(), values, null, String::valueOf, true, (configuration, group) -> false, false, value -> true);
     }
 
     protected static TestDocument absent() {
@@ -302,23 +300,23 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
      */
     protected List<Configuration> configurations(Scenario scenario) {
         final List<Configuration> configurations = new ArrayList<>();
-        for (final IndexMode mode : scenario.modes()) {
+        for (final IndexMode mode : MODES) {
             for (final SourceFieldMapper.Mode sourceMode : List.of(
                 SourceFieldMapper.Mode.SYNTHETIC,
                 SourceFieldMapper.Mode.COLUMNAR_STORED
             )) {
-                final Settings settings = Settings.builder().put(SOURCE_MODE, sourceMode.toString()).build();
-                configurations.add(new Configuration(mode, true, settings));
-                if (scenario.hasIndex()) {
-                    configurations.add(new Configuration(mode, false, settings));
+                if (scenario.varyIndex()) {
+                    configurations.add(new Configuration(mode, IndexSetting.ENABLED, sourceMode, false));
+                    configurations.add(new Configuration(mode, IndexSetting.DISABLED, sourceMode, false));
+                } else {
+                    configurations.add(new Configuration(mode, IndexSetting.DEFAULT, sourceMode, false));
                 }
             }
         }
         // NOTE: only a long field writes the numeric codec so far. Its index setting exists while the feature flag is enabled.
         if (scenario.type().equals("long") && IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled()) {
             for (final Configuration configuration : List.copyOf(configurations)) {
-                final Settings settings = Settings.builder().put(configuration.settings()).put(NUMERIC_CODEC, true).build();
-                configurations.add(new Configuration(configuration.mode(), configuration.indexed(), settings));
+                configurations.add(new Configuration(configuration.mode(), configuration.index(), configuration.sourceMode(), true));
             }
         }
         return configurations;
@@ -331,8 +329,8 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             mapping(b -> {
                 b.startObject("@timestamp").field("type", "date").endObject();
                 b.startObject(FIELD).field("type", scenario.type());
-                if (scenario.hasIndex()) {
-                    b.field("index", configuration.indexed());
+                if (configuration.index() != IndexSetting.DEFAULT) {
+                    b.field("index", configuration.index() == IndexSetting.ENABLED);
                 }
                 for (final Map.Entry<String, Object> parameter : scenario.parameters().entrySet()) {
                     b.field(parameter.getKey(), parameter.getValue());
@@ -554,14 +552,11 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             groups,
             DOCUMENT_SHAPES,
             (configuration, stored, storedWriter, docs) -> {
-                final Settings syntheticSettings = Settings.builder()
-                    .put(configuration.settings())
-                    .put(SOURCE_MODE, SourceFieldMapper.Mode.SYNTHETIC.toString())
-                    .build();
                 final Configuration syntheticConfiguration = new Configuration(
                     configuration.mode(),
-                    configuration.indexed(),
-                    syntheticSettings
+                    configuration.index(),
+                    SourceFieldMapper.Mode.SYNTHETIC,
+                    configuration.numericCodec()
                 );
                 final MapperService synthetic = createMapperService(scenario, syntheticConfiguration);
                 try (

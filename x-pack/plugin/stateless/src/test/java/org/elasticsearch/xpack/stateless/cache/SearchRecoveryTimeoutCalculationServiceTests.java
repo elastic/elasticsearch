@@ -2963,12 +2963,12 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             assertThat(extendedWaitEndsAt, equalTo(307_031L));
             assertThat(sourceShutdownPlanEndsAt, equalTo(195_000L));
             assertThat(
-                "the extended wait ends no later than the source's own plan would have ended",
+                "the extended wait should end after the source's own plan",
                 extendedWaitEndsAt,
                 greaterThan(sourceShutdownPlanEndsAt)
             );
             assertThat(
-                "the first plan alone ends no earlier than the source's own plan, so the test would pass without an extension",
+                "the first plan alone should end before the source's own plan",
                 firstPlan.timeout().millis(),
                 lessThan(sourceShutdownPlanEndsAt)
             );

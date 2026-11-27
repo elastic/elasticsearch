@@ -180,22 +180,22 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     /**
-     * Records 30 days old with a 1m bucket span leave about 43,200 empty buckets before real-time. Without the skip, the first
-     * real-time flush writes a bucket result for each of them.
+     * Records 6 hours old with a 1s bucket span leave about 21,600 empty buckets before real-time. Without the skip, the first
+     * real-time flush writes a bucket result for each of them. The short span keeps real-time fast to reach.
      */
     public void testRealtimeAfterSparseLookbackShouldSkipEmptyBuckets() throws Exception {
         String index = "esql-sparse-realtime";
         String jobId = "esql-sparse-realtime-job";
         String datafeedId = jobId + "-datafeed";
-        TimeValue bucketSpan = TimeValue.timeValueMinutes(1);
+        TimeValue bucketSpan = TimeValue.timeValueSeconds(1);
         long now = System.currentTimeMillis();
-        long firstBucket = Intervals.alignToFloor(now - TimeValue.timeValueDays(30).millis(), bucketSpan.millis());
+        long firstBucket = Intervals.alignToFloor(now - TimeValue.timeValueHours(6).millis(), bucketSpan.millis());
         // Autodetect never writes the bucket that holds the first record of a job, so the checked records go in the next one.
         long lastRecordBucket = firstBucket + bucketSpan.millis();
         int lastBucketRecords = 5;
         createSourceIndex(index);
-        indexDocuments(index, 1, firstBucket + 30_000L);
-        indexDocuments(index, lastBucketRecords, lastRecordBucket + 30_000L);
+        indexDocuments(index, 1, firstBucket + 500L);
+        indexDocuments(index, lastBucketRecords, lastRecordBucket + 500L);
 
         putJob(createJob(jobId, bucketSpan));
         putDatafeed(
@@ -212,8 +212,8 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         startDatafeed(datafeedId, firstBucket - TimeValue.timeValueDays(1).millis(), null);
 
         // Real-time has run once the model holds a bucket in the last few minutes.
-        long recentBucketStart = Intervals.alignToFloor(now - TimeValue.timeValueMinutes(4).millis(), bucketSpan.millis());
-        assertBusy(() -> assertThat(bucketCount(jobId, recentBucketStart, Long.MAX_VALUE), greaterThan(0L)), 5, TimeUnit.MINUTES);
+        long recentBucketStart = Intervals.alignToFloor(now - TimeValue.timeValueSeconds(30).millis(), bucketSpan.millis());
+        assertBusy(() -> assertThat(bucketCount(jobId, recentBucketStart, Long.MAX_VALUE), greaterThan(0L)), 2, TimeUnit.MINUTES);
 
         assertThat(bucketCount(jobId, 0, Long.MAX_VALUE), lessThan(1_000L));
         // The skip must not drop the still open bucket that holds the last record.
@@ -223,8 +223,9 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(buckets.size(), equalTo(1));
         assertThat(buckets.get(0).getEventCount(), equalTo((long) lastBucketRecords));
         assertThat(getJobStats(jobId).get(0).getState(), equalTo(JobState.OPENED));
+        // Audit messages are written asynchronously, so wait for the skip message before asserting that no failure was audited.
+        assertBusy(() -> assertThat(fetchAllAuditMessages(jobId).toString(), containsString("Datafeed skipped")), 30, TimeUnit.SECONDS);
         assertThat(fetchAllAuditMessages(jobId).toString(), not(containsString("could not skip")));
-        assertThat(fetchAllAuditMessages(jobId).toString(), containsString("Datafeed skipped"));
 
         stopDatafeed(datafeedId);
         closeJob(jobId);
@@ -238,12 +239,12 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         String index = "esql-sparse-restart";
         String jobId = "esql-sparse-restart-job";
         String datafeedId = jobId + "-datafeed";
-        TimeValue bucketSpan = TimeValue.timeValueMinutes(1);
-        long firstBucket = Intervals.alignToFloor(System.currentTimeMillis() - TimeValue.timeValueDays(30).millis(), bucketSpan.millis());
+        TimeValue bucketSpan = TimeValue.timeValueSeconds(1);
+        long firstBucket = Intervals.alignToFloor(System.currentTimeMillis() - TimeValue.timeValueHours(6).millis(), bucketSpan.millis());
         long lastRecordBucket = firstBucket + bucketSpan.millis();
         createSourceIndex(index);
-        indexDocuments(index, 1, firstBucket + 30_000L);
-        indexDocuments(index, 5, lastRecordBucket + 30_000L);
+        indexDocuments(index, 1, firstBucket + 500L);
+        indexDocuments(index, 5, lastRecordBucket + 500L);
 
         putJob(createJob(jobId, bucketSpan));
         putDatafeed(
@@ -268,9 +269,11 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         openJob(jobId);
         long restartTime = System.currentTimeMillis();
         startDatafeed(datafeedId, restartTime, null);
-        long recentBucketStart = Intervals.alignToFloor(restartTime + TimeValue.timeValueMinutes(1).millis(), bucketSpan.millis());
-        assertBusy(() -> assertThat(bucketCount(jobId, recentBucketStart, Long.MAX_VALUE), greaterThan(0L)), 5, TimeUnit.MINUTES);
+        long recentBucketStart = Intervals.alignToFloor(restartTime + TimeValue.timeValueSeconds(2).millis(), bucketSpan.millis());
+        assertBusy(() -> assertThat(bucketCount(jobId, recentBucketStart, Long.MAX_VALUE), greaterThan(0L)), 2, TimeUnit.MINUTES);
 
+        // Audit messages are written asynchronously, so wait for the restart message before asserting that no skip was audited.
+        assertBusy(() -> assertThat(fetchAllAuditMessages(jobId).toString(), containsString("real-time")), 30, TimeUnit.SECONDS);
         // The start time skip already moved the model clock, so no second skip over the same gap is audited.
         assertThat(fetchAllAuditMessages(jobId).toString(), not(containsString("Datafeed skipped")));
         assertThat(bucketCount(jobId, 0, Long.MAX_VALUE), lessThan(1_000L));

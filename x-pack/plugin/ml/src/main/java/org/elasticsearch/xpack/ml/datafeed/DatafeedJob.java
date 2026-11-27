@@ -326,56 +326,62 @@ class DatafeedJob {
         // a latency longer than the gap leaves no gap, and the advance flush below can never pass the skip time.
         long advanceTimeMs = lastRecordBucketEndMs + latencyMs;
         long gapStartMs = Math.max(advanceTimeMs, finalizedEndMs);
+        // The limit applies to the whole gap, so a delayed data window cannot hide a flood.
+        long gapBuckets = (Intervals.alignToFloor(timeMs, bucketSpanMs) - gapStartMs) / bucketSpanMs;
+        if (gapBuckets <= MAX_EMPTY_BUCKETS_TO_MATERIALISE) {
+            return;
+        }
         // Keep the delayed data check window written: that check compares source counts with finalized bucket results.
         // Autodetect rounds a skip time up to the next bucket, so floor it to keep the bucket that holds the target.
-        long gapEndMs = Intervals.alignToFloor(timeMs - delayedDataDetector.getWindow(), bucketSpanMs);
-        long gapBuckets = (gapEndMs - gapStartMs) / bucketSpanMs;
-        if (gapBuckets > MAX_EMPTY_BUCKETS_TO_MATERIALISE) {
-            String gapStart = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(gapStartMs);
-            String gapEnd = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(gapEndMs);
-            String bucketSpan = TimeValue.timeValueMillis(bucketSpanMs).toString();
-            try {
-                if (lastRecordBucketEndMs > finalizedEndMs) {
-                    // Skipping alone would drop the still open bucket that holds the last record.
-                    FlushJobAction.Request advanceRequest = new FlushJobAction.Request(jobId);
-                    advanceRequest.setAdvanceTime(String.valueOf(advanceTimeMs));
-                    advanceRequest.setWaitForNormalization(false);
-                    advanceRequest.setRefreshRequired(false);
-                    recordFinalizedBucketEnd(flushJob(advanceRequest));
-                }
-                FlushJobAction.Request skipRequest = new FlushJobAction.Request(jobId);
-                skipRequest.setSkipTime(String.valueOf(gapEndMs));
-                skipRequest.setRefreshRequired(false);
-                recordFinalizedBucketEnd(flushJob(skipRequest));
-            } catch (AnalysisProblemException e) {
-                throw new AnalysisProblemException(
-                    e.nextDelayInMsSinceEpoch,
-                    e.shouldStop,
-                    new ElasticsearchException(
-                        Messages.getMessage(
-                            Messages.DATAFEED_SKIP_EMPTY_GAP_FAILED,
-                            datafeedId,
-                            jobId,
-                            String.valueOf(gapBuckets),
-                            bucketSpan,
-                            gapStart,
-                            gapEnd,
-                            e.getCause().getMessage()
-                        ),
-                        e.getCause()
-                    )
-                );
-            }
-            String msg = Messages.getMessage(
-                Messages.JOB_AUDIT_DATAFEED_SKIPPED_EMPTY_GAP,
-                String.valueOf(gapBuckets),
-                bucketSpan,
-                gapStart,
-                gapEnd
-            );
-            auditor.info(jobId, msg);
-            LOGGER.info("[{}] {}", jobId, msg);
+        long skipEndMs = Intervals.alignToFloor(timeMs - delayedDataDetector.getWindow(), bucketSpanMs);
+        if (skipEndMs <= gapStartMs) {
+            return;
         }
+        long skippedBuckets = (skipEndMs - gapStartMs) / bucketSpanMs;
+        String gapStart = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(gapStartMs);
+        String gapEnd = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(skipEndMs);
+        String bucketSpan = TimeValue.timeValueMillis(bucketSpanMs).toString();
+        try {
+            if (lastRecordBucketEndMs > finalizedEndMs) {
+                // Skipping alone would drop the still open bucket that holds the last record.
+                FlushJobAction.Request advanceRequest = new FlushJobAction.Request(jobId);
+                advanceRequest.setAdvanceTime(String.valueOf(advanceTimeMs));
+                advanceRequest.setWaitForNormalization(false);
+                advanceRequest.setRefreshRequired(false);
+                recordFinalizedBucketEnd(flushJob(advanceRequest));
+            }
+            FlushJobAction.Request skipRequest = new FlushJobAction.Request(jobId);
+            skipRequest.setSkipTime(String.valueOf(skipEndMs));
+            skipRequest.setRefreshRequired(false);
+            recordFinalizedBucketEnd(flushJob(skipRequest));
+        } catch (AnalysisProblemException e) {
+            throw new AnalysisProblemException(
+                e.nextDelayInMsSinceEpoch,
+                e.shouldStop,
+                new ElasticsearchException(
+                    Messages.getMessage(
+                        Messages.DATAFEED_SKIP_EMPTY_GAP_FAILED,
+                        datafeedId,
+                        jobId,
+                        String.valueOf(skippedBuckets),
+                        bucketSpan,
+                        gapStart,
+                        gapEnd,
+                        e.getCause().getMessage()
+                    ),
+                    e.getCause()
+                )
+            );
+        }
+        String msg = Messages.getMessage(
+            Messages.JOB_AUDIT_DATAFEED_SKIPPED_EMPTY_GAP,
+            String.valueOf(skippedBuckets),
+            bucketSpan,
+            gapStart,
+            gapEnd
+        );
+        auditor.info(jobId, msg);
+        LOGGER.info("[{}] {}", jobId, msg);
     }
 
     private void recordFinalizedBucketEnd(FlushJobAction.Response flushResponse) {
@@ -605,6 +611,8 @@ class DatafeedJob {
                     return;
                 }
                 if (extractedData.isPresent()) {
+                    // A chunk after a long empty stretch makes autodetect write the stretch's empty buckets, so skip before posting.
+                    skipLongEmptyGapBefore(searchInterval.startMs());
                     DataCounts counts;
                     try (InputStream in = extractedData.get()) {
                         counts = postData(in, XContentType.JSON);

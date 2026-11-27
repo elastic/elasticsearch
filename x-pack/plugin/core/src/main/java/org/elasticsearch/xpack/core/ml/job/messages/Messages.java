@@ -282,7 +282,7 @@ public final class Messages {
     public static final String DATAFEED_SKIP_EMPTY_GAP_FAILED = "Datafeed [{0}] for job [{1}] could not skip {2} empty bucket spans of {3}"
         + " from {4} to {5}. The cause is: {6}."
         + " The datafeed retries the skip on the next real-time search before it sends more data to the job."
-        + " If the job is closed, open the job and restart the datafeed.";
+        + " If the datafeed stops, make sure that the job is open. Then start the datafeed again.";
     public static final String JOB_AUDIT_DATAFEED_STARTED_FROM_TO = "Datafeed started (from: {0} to: {1}) with frequency [{2}]";
     public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "Datafeed started in real-time";
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";

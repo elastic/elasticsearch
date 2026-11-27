@@ -1815,6 +1815,65 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(flushes(), equalTo(List.of("interim")));
     }
 
+    public void testGapFullSizeAboveLimitShouldSkipEvenWhenDelayedDataWindowTrimsItBelowLimit() throws Exception {
+        long realtimeEnd = 11 * MINUTE_MS + 11_000 * MINUTE_MS;
+        DatafeedJob datafeedJob = jobAfterLookback(realtimeEnd - 2 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        // The gap holds 10,998 buckets. Without the 1,440 bucket window kept for the delayed data check the skip covers 9,558.
+        when(delayedDataDetector.getWindow()).thenReturn(1_440 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, realtimeEnd);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 574140000", "advance 660660000")));
+    }
+
+    public void testEmptyGapBetweenLookbackChunksShouldSkipBeforePostingSecondChunk() throws Exception {
+        skipLongEmptyGaps = true;
+        bucketSpanMs = MINUTE_MS;
+        when(delayedDataDetector.getWindow()).thenReturn(0L);
+        currentTime = SPARSE_NOW + HOUR_MS;
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(countsWithLatestRecord(10 * MINUTE_MS + 30_000)));
+        when(dataExtractor.getEndTime()).thenReturn(SPARSE_NOW + HOUR_MS);
+        when(dataExtractor.hasNext()).thenReturn(true, true, false);
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(
+                new SearchInterval(0L, 11 * MINUTE_MS),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            ),
+            new DataExtractor.Result(
+                new SearchInterval(SPARSE_NOW, SPARSE_NOW + MINUTE_MS),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            )
+        );
+        givenFlushAcks(11 * MINUTE_MS, SPARSE_NOW, SPARSE_NOW + HOUR_MS);
+        DatafeedJob datafeedJob = createDatafeedJob(MINUTE_MS, 0, -1, -1, false);
+
+        datafeedJob.runLookBack(0L, null);
+
+        assertThat(flushes(), equalTo(List.of("advance 660000", "skip 86400000000", "interim")));
+        verify(postDataFuture, times(2)).actionGet();
+    }
+
+    public void testCatchUpChunkStartingLongAfterLastRecordShouldSkipBeforePostingIt() throws Exception {
+        // The real-time start is near the last record, so only the chunk start shows the gap.
+        DatafeedJob datafeedJob = jobAfterLookback(12 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        when(dataExtractor.hasNext()).thenReturn(true, false);
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(
+                new SearchInterval(SPARSE_NOW, SPARSE_NOW + 1000L),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            )
+        );
+        when(flushJobFuture.actionGet()).thenReturn(flushAck(11 * MINUTE_MS), flushAck(SPARSE_NOW), flushAck(14 * MINUTE_MS));
+
+        currentTime = 14 * MINUTE_MS;
+        datafeedJob.runRealtime();
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86400000000", "advance 840000")));
+    }
+
     private DatafeedJob jobAfterLookback(
         long nowMs,
         long queryDelayMs,

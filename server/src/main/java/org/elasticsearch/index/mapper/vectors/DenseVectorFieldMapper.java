@@ -4451,9 +4451,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * elements of these vectors straight to float, as the row path does, instead of to double. An omitted {@code element_type}
      * defaults to {@code float}, or to {@code bfloat16} in {@code vectordb} index mode, which are both included.
      *
-     * <p>With synthetic source, the row path copies the text of a vector to {@code _ignored_source} when the vector or an object
-     * around it has {@code synthetic_source_keep: all}, and when it is in an array of objects that keep arrays, by their own
-     * {@code synthetic_source_keep: arrays} or the index's. A batch with such a vector falls back to the row path, but from the
+     * <p>With synthetic source, the row path copies the text of a vector to {@code _ignored_source} when an object around it has
+     * {@code synthetic_source_keep: all}, and when it is in an array of objects that keep arrays, by their own
+     * {@code synthetic_source_keep: arrays} or the index's. {@code synthetic_source_keep} on the vector itself is ignored, as these
+     * paths are only read with {@link IndexSettings#INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING} on or in a strict columnar mode,
+     * which rejects it; see {@link #sourceKeepMode()}. A batch with such a vector falls back to the row path, but from the
      * source rebuilt from the batch, where an element parsed to float would be written out widened to double, such as
      * {@code 0.012299999594688416} for {@code 0.0123}. So these vectors are left out, and their elements are parsed as doubles,
      * which keep their text. An object that keeps arrays leaves out its vectors whether or not a document holds it in an array.
@@ -4492,17 +4494,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             for (Map.Entry<?, ?> entry : properties.entrySet()) {
                 if (entry.getValue() instanceof Map<?, ?> fieldMapping) {
                     final String path = prefix + entry.getKey();
-                    final Object keepMode = fieldMapping.get(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
                     if (CONTENT_TYPE.equals(fieldMapping.get("type"))) {
                         final Object elementType = fieldMapping.get("element_type");
-                        if ((elementType == null
+                        // synthetic_source_keep on the vector itself is ignored, so it never keeps the vector's text
+                        if (elementType == null
                             || ElementType.FLOAT.toString().equals(elementType)
-                            || ElementType.BFLOAT16.toString().equals(elementType))
-                            // a vector parses its array itself, so only keeping all source keeps its text
-                            && Mapper.SourceKeepMode.ALL.toString().equals(keepMode) == false) {
+                            || ElementType.BFLOAT16.toString().equals(elementType)) {
                             paths.add(path);
                         }
                     } else {
+                        final Object keepMode = fieldMapping.get(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
                         final Object objectKeepMode = keepMode != null ? keepMode : indexKeepMode;
                         if (Mapper.SourceKeepMode.NONE.toString().equals(objectKeepMode)) {
                             collectFloatElementPaths(fieldMapping, path + ".", indexKeepMode, paths);
@@ -4811,6 +4812,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return format.toString();
             }
         };
+    }
+
+    /**
+     * Returns {@code NONE}, whatever the mapping sets, for a synthetic source index with
+     * {@link IndexSettings#INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING}: the vector is rebuilt from the index, so storing its text in
+     * {@code _ignored_source} would only duplicate it.
+     */
+    @Override
+    public Optional<SourceKeepMode> sourceKeepMode() {
+        if (excludeSourceVectorsSetting && fieldType().isSyntheticSource) {
+            return Optional.of(SourceKeepMode.NONE);
+        }
+        return super.sourceKeepMode();
     }
 
     @Override

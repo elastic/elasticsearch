@@ -387,7 +387,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
      * Same as the no-mask preload, with per-row-group flags for dictionary and bloom pre-warm.
      * A {@code null} mask means every row group (today's behaviour). A {@code false} bit skips
      * dictionary / bloom ranges for that group; ColumnIndex and OffsetIndex ranges are unchanged
-     * (page-index GETs for STATISTICS-MISS groups stay this PR).
+     * (skipping page-index GETs for STATISTICS-MISS groups is a follow-up).
      *
      * @param dictUseful  per-row-group dictionary pre-warm, or {@code null} for every group
      * @param bloomUseful per-row-group bloom pre-warm, or {@code null} for every group

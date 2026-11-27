@@ -194,6 +194,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     private final FilterCompat.Filter pushedFilter;
     private final ParquetPushedExpressions pushedExpressions;
     private final boolean forceBaselinePath;
+    /**
+     * Test-only. When true, open skips {@link FilterLevelUsefulness} and preloads every predicate
+     * dictionary/bloom page (null masks — today's behaviour). Copied by {@code with*} so it
+     * survives {@link #withPushedFilter}. Production constructors leave it false.
+     */
+    private final boolean skipFilterLevelUsefulness;
     private final boolean optimizedReader;
     private final DynamicThreshold dynamicThreshold;
     /** Declared per-column date parse patterns (physical name &rarr; pattern); see {@link #withDeclaredDateFormats}. */
@@ -214,13 +220,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * second exact-range read is issued (see {@link #metadataAsync}).
      */
     static final int FOOTER_TAIL_PREFETCH_BYTES = 64 * 1024;
-
-    /**
-     * Test-only. When true, the open path skips {@link FilterLevelUsefulness} and preloads every
-     * predicate dictionary/bloom page (null masks — today's behaviour). Production is always false.
-     * Tests restore this in {@code try/finally}.
-     */
-    static final ThreadLocal<Boolean> SKIP_FILTER_LEVEL_USEFULNESS_FOR_TESTS = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     /** The 4-byte magic that both opens and closes a (non-encrypted) Parquet file. */
     private static final byte[] PARQUET_MAGIC = { 'P', 'A', 'R', '1' };
@@ -541,10 +540,49 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         int schemaMaxFields,
         int externalIoThreads
     ) {
+        this(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            footerBytes,
+            parsedFooters,
+            ioWatermark,
+            heapBufferPool,
+            maxFooterReadBytes,
+            schemaMaxFields,
+            externalIoThreads,
+            false
+        );
+    }
+
+    private ParquetFormatReader(
+        BlockFactory blockFactory,
+        FilterCompat.Filter pushedFilter,
+        ParquetPushedExpressions pushedExpressions,
+        boolean forceBaselinePath,
+        boolean optimizedReader,
+        DynamicThreshold dynamicThreshold,
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns,
+        FooterByteCache footerBytes,
+        ParsedFooterCache<ParquetMetadata> parsedFooters,
+        ParquetIoWatermark ioWatermark,
+        PoolingHeapByteBufferAllocator heapBufferPool,
+        int maxFooterReadBytes,
+        int schemaMaxFields,
+        int externalIoThreads,
+        boolean skipFilterLevelUsefulness
+    ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
         this.pushedExpressions = pushedExpressions;
         this.forceBaselinePath = forceBaselinePath;
+        this.skipFilterLevelUsefulness = skipFilterLevelUsefulness;
         this.optimizedReader = optimizedReader;
         this.dynamicThreshold = dynamicThreshold;
         this.declaredDateFormats = declaredDateFormats;
@@ -650,6 +688,34 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             maxFooterReadBytes,
             schemaMaxFields,
             externalIoThreads
+        );
+    }
+
+    /**
+     * Test-only: today's null-mask preload (skip the usefulness visitor). Package-private so
+     * GET-count tests can A/B against the masked path without a {@code ThreadLocal}.
+     */
+    ParquetFormatReader withSkipFilterLevelUsefulness() {
+        if (skipFilterLevelUsefulness) {
+            return this;
+        }
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            footerBytes,
+            parsedFooters,
+            ioWatermark,
+            heapBufferPool,
+            maxFooterReadBytes,
+            schemaMaxFields,
+            externalIoThreads,
+            true
         );
     }
 
@@ -3001,7 +3067,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         if (FilterCompat.isFilteringRequired(recordFilter)
             && predicateColumnPaths != null
             && filterPredicate != null
-            && SKIP_FILTER_LEVEL_USEFULNESS_FOR_TESTS.get() == false) {
+            && skipFilterLevelUsefulness == false) {
             boolean[] statsSurvivors = new boolean[blocks.size()];
             markSurvivors(blocks, filterRowGroups(ROW_GROUP_FILTER_LEVELS_STATISTICS_ONLY, recordFilter, blocks, reader), statsSurvivors);
             dictUseful = new boolean[blocks.size()];

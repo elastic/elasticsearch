@@ -62,10 +62,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.junit.After;
@@ -129,7 +131,6 @@ public class ParquetOpenRequestCountTests extends ESTestCase {
 
     @After
     public void stopAsyncIo() throws Exception {
-        ParquetFormatReader.SKIP_FILTER_LEVEL_USEFULNESS_FOR_TESTS.remove();
         terminate(asyncIo);
     }
 
@@ -142,7 +143,14 @@ public class ParquetOpenRequestCountTests extends ESTestCase {
         byte[] file = vpcFile();
         assertThat("dict at offset 4 must sit outside the cached footer tail", (long) file.length, greaterThan((long) FOOTER_TAIL));
         List<Expression> pushed = List.of(gte(startAttr(), 0), lt(startAttr(), 10_000), neqAction("-"));
-        OpenResult result = open(file, new ParquetPushedExpressions(pushed), List.of("start", "action"), vpcSchema(), true);
+        ParquetPushedExpressions exprs = new ParquetPushedExpressions(pushed);
+        OpenResult unmasked = open(file, exprs, List.of("start", "action"), vpcSchema(), true, true);
+        assertThat(
+            "unmasked path must still issue a dict-only GET so the classifier is not vacuous",
+            unmasked.dictOnlyGets(),
+            greaterThanOrEqualTo(1)
+        );
+        OpenResult result = open(file, exprs, List.of("start", "action"), vpcSchema(), true);
         List<Integer> expected = expectedStarts(i -> actionFor(i).equals("-") == false);
         assertEquals(expected, result.ids());
         assertEquals(
@@ -155,7 +163,11 @@ public class ParquetOpenRequestCountTests extends ESTestCase {
         assertThat(result.getsAfterDrain(), greaterThanOrEqualTo(1));
     }
 
-    public void testAllMissFileIssuesNoPreloadGet() throws Exception {
+    /**
+     * All-MISS: no dictionary or bloom preload. Page-index GETs may still fire
+     * ({@code elastic/esql-planning#2852}).
+     */
+    public void testAllMissFileIssuesNoDictBloomPreloadGet() throws Exception {
         byte[] file = vpcFile();
         // Eq on dict-encoded action would be dictionary-useful if STATISTICS admitted the group.
         OpenResult result = open(
@@ -300,7 +312,7 @@ public class ParquetOpenRequestCountTests extends ESTestCase {
      */
     public void testRandomFilesRowIdentityAndSurvivorsNeverShrink() throws Exception {
         int rows = randomIntBetween(150, 250);
-        int groups = randomIntBetween(1, 4);
+        int groups = randomIntBetween(1, 8);
         boolean dict = randomBoolean();
         boolean bloom = dict == false && randomBoolean();
         int[] values = new int[] { 0, 1, 2, 3, 4 };
@@ -308,20 +320,24 @@ public class ParquetOpenRequestCountTests extends ESTestCase {
         byte[] file = valueFile(rows, rgBytes, dict, bloom, values);
         assertThat("random files must sit outside the cached footer tail", (long) file.length, greaterThan((long) FOOTER_TAIL));
         int needle = randomIntBetween(0, 6);
-        int kind = randomIntBetween(0, 4);
+        int kind = randomIntBetween(0, 6);
         Expression pushed = switch (kind) {
             case 0 -> eqValue(needle);
             case 1 -> gt(valueAttr(), needle);
             case 2 -> new NotEquals(Source.EMPTY, valueAttr(), litInt(needle), null);
             case 3 -> new Or(Source.EMPTY, eqValue(needle), gt(valueAttr(), needle));
-            default -> new And(Source.EMPTY, gt(valueAttr(), needle - 1), new NotEquals(Source.EMPTY, valueAttr(), litInt(needle), null));
+            case 4 -> new And(Source.EMPTY, gt(valueAttr(), needle - 1), new NotEquals(Source.EMPTY, valueAttr(), litInt(needle), null));
+            case 5 -> new In(Source.EMPTY, valueAttr(), List.of(litInt(needle), litInt(0)));
+            default -> new Not(Source.EMPTY, eqValue(needle));
         };
         IntPredicate javaPred = switch (kind) {
             case 0 -> v -> v == needle;
             case 1 -> v -> v > needle;
             case 2 -> v -> v != needle;
             case 3 -> v -> v == needle || v > needle;
-            default -> v -> v > needle - 1 && v != needle;
+            case 4 -> v -> v > needle - 1 && v != needle;
+            case 5 -> v -> v == needle || v == 0;
+            default -> v -> v != needle;
         };
         ParquetPushedExpressions exprs = new ParquetPushedExpressions(List.of(pushed));
         OpenResult pushedRead = open(file, exprs, List.of("value"), List.of(valueAttr()), true);
@@ -333,6 +349,7 @@ public class ParquetOpenRequestCountTests extends ESTestCase {
             }
         }
         assertEquals(expected, pushedRead.ids());
+        assertEquals(0L, pushedRead.syncGets());
         FilterPredicate parquetPred = exprs.toFilterPredicate(valueFileSchema());
         assertNotNull(parquetPred);
         int parquetMrKept = parquetMrKept(file, parquetPred);
@@ -373,11 +390,19 @@ public class ParquetOpenRequestCountTests extends ESTestCase {
         OpenResult unmasked = open(file, pushed, projection, schema, true, true);
         OpenResult masked = open(file, pushed, projection, schema, true, false);
         assertEquals("masked path must emit the same rows as today's null-mask preload", unmasked.ids(), masked.ids());
-        assertThat(
-            "skipping a useless level must only widen survivors",
-            masked.status().rowGroupsKept(),
-            greaterThanOrEqualTo(unmasked.status().rowGroupsKept())
-        );
+        if (masked.dictOnlyGets() > 0 || masked.bloomOnlyGets() > 0) {
+            assertEquals(
+                "useful levels still ran, so survivors must match the unmasked path",
+                unmasked.status().rowGroupsKept(),
+                masked.status().rowGroupsKept()
+            );
+        } else {
+            assertThat(
+                "skipping a useless level must only widen survivors",
+                masked.status().rowGroupsKept(),
+                greaterThanOrEqualTo(unmasked.status().rowGroupsKept())
+            );
+        }
     }
 
     private OpenResult open(byte[] file, Object pushed, List<String> projection, List<Attribute> schema, boolean tripwire)
@@ -409,9 +434,11 @@ public class ParquetOpenRequestCountTests extends ESTestCase {
             .readCounters(counters)
             .build();
         ParquetFormatReader filtered = base.withPushedFilter(pushed);
+        if (skipUsefulness) {
+            filtered = filtered.withSkipFilterLevelUsefulness();
+        }
         List<Integer> ids = new ArrayList<>();
         OpenResult result;
-        ParquetFormatReader.SKIP_FILTER_LEVEL_USEFULNESS_FOR_TESTS.set(skipUsefulness);
         try (CloseableIterator<Page> iter = filtered.read(storage, filteredContext)) {
             drain(iter, ids);
             List<long[]> ranges;
@@ -428,8 +455,6 @@ public class ParquetOpenRequestCountTests extends ESTestCase {
                 storage.pageRanges.bloom(),
                 file.length
             );
-        } finally {
-            ParquetFormatReader.SKIP_FILTER_LEVEL_USEFULNESS_FOR_TESTS.remove();
         }
         assertEquals("breaker refunds everything after close", 0L, breaker.getUsed());
         return result;

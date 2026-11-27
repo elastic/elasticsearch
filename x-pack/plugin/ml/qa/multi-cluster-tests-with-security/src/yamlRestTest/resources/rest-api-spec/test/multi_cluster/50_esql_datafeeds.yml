@@ -20,6 +20,7 @@ setup:
         job_id: esql-ccs-job
         body: >
           {
+            "results_index_name": "esql-ccs-job",
             "analysis_config": {
               "bucket_span": "1h",
               "detectors": [{"function": "count"}]

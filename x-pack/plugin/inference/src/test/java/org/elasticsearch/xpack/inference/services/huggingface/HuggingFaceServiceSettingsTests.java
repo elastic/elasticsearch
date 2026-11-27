@@ -145,6 +145,88 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
         );
     }
 
+    /**
+     * An empty {@code rate_limit} object and a {@code rate_limit} object with a null {@code requests_per_minute} carry no value. The
+     * shared update parser treats both the same as an explicit null {@code rate_limit}, so the rate limit resets to the service default.
+     */
+    public void testUpdateServiceSettings_RateLimitWithoutValue_ResetsToDefault() {
+        var originalServiceSettings = new HuggingFaceServiceSettings(
+            INITIAL_TEST_URI,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var nullRequestsPerMinute = new HashMap<String, Object>();
+        nullRequestsPerMinute.put(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, null);
+
+        for (Map<String, Object> rateLimit : List.of(new HashMap<String, Object>(), nullRequestsPerMinute)) {
+            var updateMap = new HashMap<String, Object>(Map.of(RateLimitSettings.FIELD_NAME, rateLimit));
+            var updatedServiceSettings = originalServiceSettings.updateServiceSettings(updateMap);
+
+            assertThat(
+                updatedServiceSettings,
+                is(
+                    new HuggingFaceServiceSettings(
+                        INITIAL_TEST_URI,
+                        INITIAL_TEST_SIMILARITY_MEASURE,
+                        INITIAL_TEST_DIMENSIONS,
+                        INITIAL_TEST_MAX_INPUT_TOKENS,
+                        new RateLimitSettings(DEFAULT_RATE_LIMIT_REQUESTS_PER_MINUTE)
+                    )
+                )
+            );
+        }
+    }
+
+    public void testUpdateServiceSettings_MaxInputTokensNull_ClearsField() {
+        var originalServiceSettings = new HuggingFaceServiceSettings(
+            INITIAL_TEST_URI,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updateMap = new HashMap<String, Object>();
+        updateMap.put(ServiceFields.MAX_INPUT_TOKENS, null);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(updateMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new HuggingFaceServiceSettings(
+                    INITIAL_TEST_URI,
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    INITIAL_TEST_DIMENSIONS,
+                    null,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_NonPositiveMaxInputTokens_ThrowsException() {
+        var originalServiceSettings = new HuggingFaceServiceSettings(
+            INITIAL_TEST_URI,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var thrownException = expectThrows(
+            XContentParseException.class,
+            () -> originalServiceSettings.updateServiceSettings(buildServiceSettingsMap(null, null, null, 0, null))
+        );
+
+        assertThat(
+            thrownException.getCause().getMessage(),
+            is(Strings.format("[service_settings] Invalid value [0]. [%s] must be a positive integer", ServiceFields.MAX_INPUT_TOKENS))
+        );
+    }
+
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {
         var originalServiceSettings = new HuggingFaceServiceSettings(
             INITIAL_TEST_URI,

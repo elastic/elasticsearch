@@ -281,6 +281,9 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
     /**
      * Parses an update request, which may only contain the mutable {@code max_input_tokens} and {@code rate_limit} fields. Including any
      * immutable field (such as {@code url}, {@code similarity} or {@code dimensions}) causes the strict parser to reject the request.
+     * Both mutable fields follow the tri-state update semantics of {@link StatefulValue}: an absent field keeps the current value, an
+     * explicit {@code null} clears {@code max_input_tokens} and resets {@code rate_limit} to the default, and a value replaces the
+     * current value.
      */
     private static class Update {
 
@@ -289,14 +292,17 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
         static {
             var builder = UpdateServiceSettingsOPBuilder.of(Update::new, Update::setRateLimitSettings);
             PARSER = builder.build();
-            PARSER.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+            StatefulValue.declareNullable(PARSER, Update::setMaxInputTokens, p -> {
+                Integer value = p.intValue();
+                validatePositiveInteger(value, MAX_INPUT_TOKENS);
+                return value;
+            }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);
         }
 
-        private Integer maxInputTokens;
+        private StatefulValue<Integer> maxInputTokens = StatefulValue.undefined();
         private StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
 
-        private void setMaxInputTokens(Integer maxInputTokens) {
-            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
+        private void setMaxInputTokens(StatefulValue<Integer> maxInputTokens) {
             this.maxInputTokens = maxInputTokens;
         }
 
@@ -309,7 +315,7 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
                 existing.uri,
                 existing.similarity,
                 existing.dimensions,
-                maxInputTokens != null ? maxInputTokens : existing.maxInputTokens,
+                applyUpdate(maxInputTokens, existing.maxInputTokens),
                 applyUpdate(rateLimitSettings, existing.rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS)
             );
         }

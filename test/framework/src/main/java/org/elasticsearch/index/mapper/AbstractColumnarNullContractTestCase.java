@@ -369,6 +369,42 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             throws IOException;
     }
 
+    private static void assertExecutedAs(
+        Scenario scenario,
+        IndexingStrategy strategy,
+        Configuration configuration,
+        int shape,
+        IndexingStrategy.Outcome outcome
+    ) {
+        switch (strategy) {
+            case DOCUMENT -> assertDocument(scenario, configuration, shape, outcome);
+            case BATCH -> assertBatch(scenario, configuration, shape, outcome);
+        }
+    }
+
+    private static void assertDocument(Scenario scenario, Configuration configuration, int shape, IndexingStrategy.Outcome outcome) {
+        assertFalse(
+            scenario.type() + " " + configuration + " column shape " + shape + " was indexed as a batch by DOCUMENT",
+            outcome.batched()
+        );
+    }
+
+    // NOTE: NumberFieldMapper#doSupportsColumnarParse refuses the BINARY disk format, which the numeric codec uses
+    private static void assertBatch(Scenario scenario, Configuration configuration, int shape, IndexingStrategy.Outcome outcome) {
+        if (NUMERIC_CODEC_ENABLED.test(configuration) == false && scenario.batchedGroups().test(configuration, shape)) {
+            assertTrue(
+                scenario.type()
+                    + " "
+                    + configuration
+                    + " column shape "
+                    + shape
+                    + " is expected to execute as a batch but fell back to document indexing: "
+                    + outcome.fallbackReason(),
+                outcome.batched()
+            );
+        }
+    }
+
     private void forEachConfiguration(
         Scenario scenario,
         IndexingStrategy strategy,
@@ -392,23 +428,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                 int firstSeqNo = 0;
                 for (int g = 0; g < groups.size(); g++) {
                     final IndexingStrategy.Outcome outcome = strategy.index(mapperService, indexWriter, sources(groups.get(g)), firstSeqNo);
-                    // NOTE: a numeric field is refused for batch indexing when it writes the numeric codec
-                    // (NumberFieldMapper#doSupportsColumnarParse
-                    // returns false for binary doc values), so the batch is not required there.
-                    if (strategy == IndexingStrategy.BATCH
-                        && NUMERIC_CODEC_ENABLED.test(configuration) == false
-                        && scenario.batchedGroups().test(configuration, shapes.get(g))) {
-                        assertTrue(
-                            scenario.type()
-                                + " "
-                                + configuration
-                                + " column shape "
-                                + shapes.get(g)
-                                + " is expected to execute as a batch but fell back to document indexing: "
-                                + outcome.fallbackReason(),
-                            outcome.batched()
-                        );
-                    }
+                    assertExecutedAs(scenario, strategy, configuration, shapes.get(g), outcome);
                     indexWriter.commit();
                     firstSeqNo += groups.get(g).size();
                 }
@@ -538,19 +558,27 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                     .put(configuration.settings())
                     .put(SOURCE_MODE, SourceFieldMapper.Mode.SYNTHETIC.toString())
                     .build();
-                final MapperService synthetic = createMapperService(
-                    scenario,
-                    new Configuration(configuration.mode(), configuration.indexed(), syntheticSettings)
+                final Configuration syntheticConfiguration = new Configuration(
+                    configuration.mode(),
+                    configuration.indexed(),
+                    syntheticSettings
                 );
+                final MapperService synthetic = createMapperService(scenario, syntheticConfiguration);
                 try (
                     Directory directory = new MockDirectoryWrapper(random(), new ByteBuffersDirectory());
                     IndexWriter syntheticWriter = new IndexWriter(directory, indexWriterConfig(synthetic))
                 ) {
                     int firstSeqNo = 0;
-                    for (final List<TestDocument> group : groups) {
-                        strategy.index(synthetic, syntheticWriter, sources(group), firstSeqNo);
+                    for (int g = 0; g < groups.size(); g++) {
+                        final IndexingStrategy.Outcome outcome = strategy.index(
+                            synthetic,
+                            syntheticWriter,
+                            sources(groups.get(g)),
+                            firstSeqNo
+                        );
+                        assertExecutedAs(scenario, strategy, syntheticConfiguration, DOCUMENT_SHAPES.get(g), outcome);
                         syntheticWriter.commit();
-                        firstSeqNo += group.size();
+                        firstSeqNo += groups.get(g).size();
                     }
                     for (final boolean merged : new boolean[] { false, true }) {
                         if (merged) {

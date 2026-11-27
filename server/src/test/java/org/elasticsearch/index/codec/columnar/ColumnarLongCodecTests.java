@@ -287,8 +287,10 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         final int multiValued = docs / 2;
         createNewestFirstIndices(docs, multiValued);
         final int size = between(1, 20);
+        final List<String> withCodec = oldestFirst(WITH_CODEC, size);
+        assertEquals(oldestFirst(WITHOUT_CODEC, size), withCodec);
+        assertEquals(Integer.toString(multiValued), withCodec.getFirst());
         for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
-            assertEquals(index, Integer.toString(multiValued), oldestFirst(index, size).getFirst());
             assertTailShortcutKeepsMultiValued(index, size);
         }
     }
@@ -343,6 +345,7 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
                     multiValuedDoc = doc;
                 }
             }
+            assertThat("a document has several values", multiValuedDoc, greaterThanOrEqualTo(0));
             assertThat("before the end the shortcut collects", multiValuedDoc, lessThan(maxDoc - hits - 1));
             final LeafFieldComparator comparator = sortField.getComparator(hits, Pruning.GREATER_THAN_OR_EQUAL_TO).getLeafComparator(leaf);
             comparator.setHitsThresholdReached();

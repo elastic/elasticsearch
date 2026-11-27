@@ -557,23 +557,38 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
-    public void testNullOnlyArraysHaveNoDocValuesOrNormInColumnar() throws IOException {
-        assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode.COLUMNAR);
+    public void testNullOnlyArraysHaveNoDocValuesOrNormInColumnarDocument() throws IOException {
+        assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode.COLUMNAR, IndexingStrategy.DOCUMENT);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
-    public void testNullOnlyArraysHaveNoDocValuesOrNormInLogsdbColumnar() throws IOException {
-        assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode.LOGSDB_COLUMNAR);
+    public void testNullOnlyArraysHaveNoDocValuesOrNormInColumnarBatch() throws IOException {
+        assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode.COLUMNAR, IndexingStrategy.BATCH);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
-    public void testNullOnlyArraysHaveNoDocValuesOrNormInVectordbColumnar() throws IOException {
-        assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode.VECTORDB_COLUMNAR);
+    public void testNullOnlyArraysHaveNoDocValuesOrNormInLogsdbColumnarDocument() throws IOException {
+        assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode.LOGSDB_COLUMNAR, IndexingStrategy.DOCUMENT);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testNullOnlyArraysHaveNoDocValuesOrNormInLogsdbColumnarBatch() throws IOException {
+        assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode.LOGSDB_COLUMNAR, IndexingStrategy.BATCH);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testNullOnlyArraysHaveNoDocValuesOrNormInVectordbColumnarDocument() throws IOException {
+        assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode.VECTORDB_COLUMNAR, IndexingStrategy.DOCUMENT);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testNullOnlyArraysHaveNoDocValuesOrNormInVectordbColumnarBatch() throws IOException {
+        assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode.VECTORDB_COLUMNAR, IndexingStrategy.BATCH);
     }
 
     private record DocValuesAndNorms(List<Integer> withDocValues, List<Integer> withNorm) {}
 
-    private void assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode indexMode) throws IOException {
+    private void assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode indexMode, IndexingStrategy strategy) throws IOException {
         final MapperService mapperService = createMapperService(
             IndexVersion.current(),
             Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build(),
@@ -586,30 +601,20 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         shapes.addAll(VALUELESS_FIELD_SHAPES);
         final List<String> sources = shapes.stream().map(AbstractColumnarNullHandlingTestCase::timestamped).toList();
 
-        final DocValuesAndNorms oneByOne;
+        final DocValuesAndNorms indexed;
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
-            for (int i = 0; i < sources.size(); i++) {
-                final SourceToParse source = new SourceToParse("d" + i, new BytesArray(sources.get(i)), XContentType.JSON);
-                iw.addDocument(mapperService.documentMapper().parse(source).rootDoc());
+            final IndexingStrategy.Outcome outcome = strategy.index(mapperService, iw, sources, 0);
+            if (strategy == IndexingStrategy.BATCH) {
+                assertTrue("the documents must be indexed as a batch, but " + outcome.fallbackReason(), outcome.batched());
             }
             try (DirectoryReader reader = DirectoryReader.open(iw)) {
-                oneByOne = docValuesAndNorms(reader);
+                indexed = docValuesAndNorms(reader);
             }
         }
 
-        final DocValuesAndNorms batch;
-        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
-            withMappedColumns(mapperService, sources, columns -> iw.addBatch(columns.toColumnBatch()));
-            try (DirectoryReader reader = DirectoryReader.open(iw)) {
-                batch = docValuesAndNorms(reader);
-            }
-        }
-
-        assertEquals("documents that have doc values, indexed one by one", List.of(0), oneByOne.withDocValues());
-        assertEquals("documents that have doc values, indexed as a batch", List.of(0), batch.withDocValues());
+        assertEquals("documents that have doc values, indexed with " + strategy, List.of(0), indexed.withDocValues());
         final List<Integer> expectedWithNorm = mapperService.fieldType(FIELD).getTextSearchInfo().hasNorms() ? List.of(0) : List.of();
-        assertEquals("documents that have a norm, indexed one by one", expectedWithNorm, oneByOne.withNorm());
-        assertEquals("documents that have a norm, indexed as a batch", expectedWithNorm, batch.withNorm());
+        assertEquals("documents that have a norm, indexed with " + strategy, expectedWithNorm, indexed.withNorm());
     }
 
     private DocValuesAndNorms docValuesAndNorms(DirectoryReader reader) throws IOException {

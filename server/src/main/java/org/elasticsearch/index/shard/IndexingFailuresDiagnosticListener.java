@@ -133,7 +133,7 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
      */
     private boolean isUserError(Exception ex) {
         return switch (ex) {
-            case DocumentMissingException _, VersionConflictEngineException _ -> true;
+            case DocumentMissingException _,VersionConflictEngineException _ -> true;
             case IllegalArgumentException iae -> InternalEngine.isTooManyDocsFailure(iae);
             default -> false;
         };

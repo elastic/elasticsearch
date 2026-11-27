@@ -27,7 +27,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.FailureCollector;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceSelection;
@@ -111,10 +110,12 @@ abstract class DataNodeRequestSender {
     private final Map<DiscoveryNode, Semaphore> nodePermits = new HashMap<>();
     private final Map<ShardId, ShardFailure> shardFailures = ConcurrentCollections.newConcurrentMap();
     /**
-     * The nodes that {@link NodeFailure#REFUSED refused} a request of this query. Such a node is shutting down and stays closed to
-     * these requests, so it is left out for every shard that is resolved again, also where the routing still places a copy on it.
+     * The nodes that {@link NodeFailure#REFUSED refused} a request of this query, each with the failure it first refused with. Such
+     * a node is shutting down and stays closed to these requests. It is left out for every shard that is resolved again, also where
+     * the routing still places a copy on it, and a shard that still lists it is refused without another request, see
+     * {@link #sendOneNodeRequest}.
      */
-    private final Set<DiscoveryNode> refusedNodes = ConcurrentCollections.newConcurrentSet();
+    private final Map<DiscoveryNode, Exception> refusals = ConcurrentCollections.newConcurrentMap();
     /**
      * For each shard, the nodes that were {@link NodeFailure#UNREACHABLE unreachable} for a request that held it. Such a node is
      * left out when that shard is resolved again, also where the routing still places a copy on it: nothing waits between two
@@ -127,13 +128,7 @@ abstract class DataNodeRequestSender {
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
     private final AtomicInteger remainingUnavailableShardResolutionAttempts;
-    private final TimeValue routingWaitTimeout;
 
-    /**
-     * @param routingWaitTimeout how long a shard with no copy left to try waits for newer routing. Only zero is supported: a shard
-     *                           is resolved again on the routing the node has, under the resolution attempts, and fails if that
-     *                           gives no copy, see {@link #resolveAgain}.
-     */
     DataNodeRequestSender(
         ClusterService clusterService,
         ProjectResolver projectResolver,
@@ -146,10 +141,8 @@ abstract class DataNodeRequestSender {
         String clusterAlias,
         boolean allowPartialResults,
         int concurrentRequests,
-        int unavailableShardResolutionAttempts,
-        TimeValue routingWaitTimeout
+        int unavailableShardResolutionAttempts
     ) {
-        assert routingWaitTimeout.millis() == 0 : "waiting for newer routing is not supported yet, got [" + routingWaitTimeout + "]";
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.transportService = transportService;
@@ -164,7 +157,6 @@ abstract class DataNodeRequestSender {
         this.remainingUnavailableShardResolutionAttempts = new AtomicInteger(
             unavailableShardResolutionAttempts >= 0 ? unavailableShardResolutionAttempts : Integer.MAX_VALUE
         );
-        this.routingWaitTimeout = routingWaitTimeout;
     }
 
     /**
@@ -300,7 +292,7 @@ abstract class DataNodeRequestSender {
 
     /**
      * Resolves again the shards that have no copy left to try and whose failures allow it, on the routing this node has, and gives
-     * each the copies it resolves to that are not on a node that {@link #refusedNodes refused}, or that was
+     * each the copies it resolves to that are not on a node that {@link #refusals refused}, or that was
      * {@link #unreachableNodes unreachable} for this shard. A shard that gets none is failed by the caller in the same pass. That
      * is every shard here once the query is cancelled: its shards fail with the failures they have, and nothing is started on
      * another node for the cancellation to stop.
@@ -312,7 +304,6 @@ abstract class DataNodeRequestSender {
      */
     private void resolveAgain(TargetShards targetShards, Set<ShardId> pendingRetries) {
         assert sendingLock.isHeldByCurrentThread();
-        assert routingWaitTimeout.millis() == 0;
         if (rootTask.isCancelled()) {
             return;
         }
@@ -336,7 +327,7 @@ abstract class DataNodeRequestSender {
             final List<DiscoveryNode> remainingNodes = targetShards.getShard(shardId).remainingNodes;
             final Set<DiscoveryNode> unreachable = unreachableNodes.getOrDefault(shardId, Set.of());
             for (DiscoveryNode node : entry.getValue()) {
-                if (refusedNodes.contains(node) == false && unreachable.contains(node) == false) {
+                if (refusals.containsKey(node) == false && unreachable.contains(node) == false) {
                     remainingNodes.add(node);
                     charged |= refused.contains(shardId) == false;
                 }
@@ -384,7 +375,7 @@ abstract class DataNodeRequestSender {
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
         final ActionListener<DriverCompletionInfo> listener = computeListener.acquireCompute();
-        sendRequest(request.node, request.shards, request.aliasFilters, new NodeListener() {
+        final NodeListener nodeListener = new NodeListener() {
 
             void onAfterRequest() {
                 nodePermits.get(request.node).release();
@@ -423,7 +414,7 @@ abstract class DataNodeRequestSender {
             public void onFailure(Exception e, boolean receivedData, NodeFailure nodeFailure) {
                 try {
                     if (nodeFailure == NodeFailure.REFUSED) {
-                        refusedNodes.add(request.node);
+                        refusals.putIfAbsent(request.node, e);
                     }
                     for (var shard : request.shards) {
                         ShardId shardId = shard.shardId();
@@ -456,7 +447,24 @@ abstract class DataNodeRequestSender {
                 LOGGER.error(message, e);
                 assert false : new AssertionError(message, e);
             }
-        });
+        };
+        final Exception refusal = refusals.get(request.node);
+        if (refusal != null && noMoreResultsNeeded() == false) {
+            // The node has refused a request of this query and stays closed to it, so these shards are refused without asking it
+            // again. That keeps their retry free of charge: another request could find the node gone by now, and would then count
+            // as one to an unreachable node. The shards go on to their other copies, or are resolved again.
+            nodeListener.onFailure(refusal, false, NodeFailure.REFUSED);
+            return;
+        }
+        sendRequest(request.node, request.shards, request.aliasFilters, nodeListener);
+    }
+
+    /**
+     * Whether the query needs no more results, for example because it has reached its limit. {@link #sendRequest} then skips a
+     * request instead of sending it, and a shard that is skipped must not be failed first for what is known about its node.
+     */
+    boolean noMoreResultsNeeded() {
+        return false;
     }
 
     abstract void sendRequest(

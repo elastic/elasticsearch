@@ -444,11 +444,6 @@ tests:
   - :x-pack:plugin:esql:test
   method: testStaleTestDirectoriesNameNoMethodOfTheSuite
   issue: https://github.com/elastic/elasticsearch/issues/164167
-- class: org.elasticsearch.telemetry.apm.internal.APMAgentSettingsTests
-  tasks:
-  - :modules:apm:test
-  method: testUpdateMaxSpansPropagatesToTracer
-  issue: https://github.com/elastic/elasticsearch/issues/164198
 - class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
@@ -562,26 +557,6 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testSourcesFinishedUnregistersSink
   issue: https://github.com/elastic/elasticsearch/issues/165591
-- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
-  tasks:
-  - :x-pack:plugin:transform:yamlRestTest
-  method: test {yaml=multi_cluster/80_transform/Batch transform from local and remote cluster}
-  issue: https://github.com/elastic/elasticsearch/issues/165716
-- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
-  tasks:
-  - :x-pack:plugin:transform:yamlRestTest
-  method: test {yaml=multi_cluster/80_transform/Batch transform from remote cluster}
-  issue: https://github.com/elastic/elasticsearch/issues/165718
-- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
-  tasks:
-  - :x-pack:plugin:transform:yamlRestTest
-  method: test {yaml=multi_cluster/80_transform/Batch transform preview from remote cluster}
-  issue: https://github.com/elastic/elasticsearch/issues/165720
-- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
-  tasks:
-  - :x-pack:plugin:transform:yamlRestTest
-  method: test {yaml=multi_cluster/80_transform/Batch transform local and remote index sharing the same name}
-  issue: https://github.com/elastic/elasticsearch/issues/165722
 - class: org.elasticsearch.xpack.spatial.SpatialDiskUsageIT
   tasks:
   - :x-pack:plugin:spatial:internalClusterTest
@@ -769,21 +744,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/167507
-- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
-  tasks:
-  - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
-  method: test {yaml=multi_cluster/50_esql_datafeeds/Test put and start ES|QL datafeed on a remote cluster index}
-  issue: https://github.com/elastic/elasticsearch/issues/167537
-- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
-  tasks:
-  - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
-  method: test {yaml=multi_cluster/50_esql_datafeeds/Test start of ES|QL datafeed fails when the only source is on a skipped remote}
-  issue: https://github.com/elastic/elasticsearch/issues/167539
-- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
-  tasks:
-  - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
-  method: test {yaml=multi_cluster/50_esql_datafeeds/Test preview ES|QL datafeed returns the rows of a remote cluster index}
-  issue: https://github.com/elastic/elasticsearch/issues/167541
 - class: org.elasticsearch.get.MultiGetCircuitBreakerIT
   tasks:
   - :server:internalClusterTest

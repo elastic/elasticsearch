@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.junit.Before;
@@ -85,6 +86,7 @@ public class NdJsonDottedPrefixStreamingTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             )
         ) {

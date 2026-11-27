@@ -6175,6 +6175,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * A dense first page fills the observed limiter before K progress polls. Cap stays at 1
      * and parked producers never open a split, even though the first unit has not EOFed.
+     * Overflow must be queued while remaining &gt; 0: charging first lets the producer discard
+     * the in-flight page and finish empty.
      */
     public void testFilteredLimitRampStaysParkedOnDenseFirstPage() throws Exception {
         int splitCount = 8;
@@ -6198,8 +6200,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             CountDownLatch done = new CountDownLatch(drivers);
             List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
             pollQualifyingPages(operators.get(0), 1);
-            observed.tryAccumulateHits(1);
             waitForBufferedPage(operators.get(0));
+            observed.tryAccumulateHits(1);
             pollQualifyingPages(operators.get(0), 1);
             assertRampStayedAtOne(factory);
             assertThat(readCount.get(), equalTo(1));
@@ -6238,8 +6240,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             CountDownLatch done = new CountDownLatch(drivers);
             List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
             pollQualifyingPages(operators.get(0), 1);
-            observed.tryAccumulateHits(1);
             waitForBufferedPage(operators.get(0));
+            observed.tryAccumulateHits(1);
             pollQualifyingPages(operators.get(0), 1);
             assertRampStayedAtOne(factory);
             assertThat(readCount.get(), equalTo(1));
@@ -6338,7 +6340,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
     /**
      * Once remaining hits 0, further page polls and the eventual unit EOF both skip parked
-     * producers rather than opening them.
+     * producers rather than opening them. Overflow is queued before remaining is zeroed so the
+     * producer cannot finish empty between the first poll and the skip check.
      */
     public void testFilteredLimitRampSkipsParkedWhenRemainingHitsZero() throws Exception {
         int splitCount = 8;
@@ -6363,8 +6366,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             CountDownLatch done = new CountDownLatch(drivers);
             List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
             pollQualifyingPages(operators.get(0), 1);
-            observed.tryAccumulateHits(observed.remaining());
             waitForBufferedPage(operators.get(0));
+            observed.tryAccumulateHits(observed.remaining());
             pollQualifyingPages(operators.get(0), 1);
             Page sibling = operators.get(1).getOutput();
             if (sibling != null) {
@@ -6646,8 +6649,20 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertThat("remaining==0 must skip every parked producer", factory.filteredLimitParkedCount(), equalTo(0));
     }
 
+    /**
+     * Wait until an overflow page is queued. Must not call {@link SourceOperator#isBlocked()} or
+     * {@link SourceOperator#getOutput()}: both fire the deferred ramp hook. Finished-empty is a
+     * failure, not success — charging remaining after that discards the in-flight page. A pending
+     * producer failure is thrown immediately; {@link AsyncExternalSourceOperator#isFinished()} stays
+     * false while one is stored.
+     */
     private void waitForBufferedPage(SourceOperator operator) throws Exception {
-        assertBusy(() -> assertTrue(operator.isBlocked().listener().isDone()));
+        AsyncExternalSourceOperator source = (AsyncExternalSourceOperator) operator;
+        assertBusy(() -> {
+            source.throwIfFailed();
+            assertFalse("source finished before overflow page was buffered", operator.isFinished());
+            assertTrue("expected a queued overflow page", source.hasQueuedPage());
+        });
     }
 
     private static void pollQualifyingPages(SourceOperator operator, int pages) {
@@ -6676,6 +6691,130 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
     private static Attribute attr(String name, DataType type) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    /**
+     * One case per path the factory dispatches to.
+     */
+    public void testTheConfiguredExtremumWidthReachesTheSliceQueueLeaf() throws Exception {
+        WidthCapturingReader reader = new WidthCapturingReader(false);
+        FileSplit split = new FileSplit("test", StoragePath.of("s3://bucket/whole.ndjson"), 0, 1024, "ndjson", Map.of(), Map.of());
+
+        AsyncExternalSourceOperatorFactory factory = widthFactory(reader, StoragePath.of("s3://bucket/whole.ndjson")).sliceQueue(
+            new ExternalSliceQueue(List.of(split))
+        ).build();
+
+        drainWidthFactory(factory);
+
+        assertEquals(1, reader.contexts.size());
+        assertEquals(NARROW_EXTREMUM_WIDTH, reader.contexts.get(0).statsMaxExtremumBytes());
+    }
+
+    public void testTheConfiguredExtremumWidthReachesTheNativeAsyncWholeFileRead() throws Exception {
+        WidthCapturingReader reader = new WidthCapturingReader(true);
+
+        drainWidthFactory(widthFactory(reader, StoragePath.of("s3://bucket/whole.test")).build());
+
+        assertEquals(1, reader.contexts.size());
+        assertEquals(NARROW_EXTREMUM_WIDTH, reader.contexts.get(0).statsMaxExtremumBytes());
+    }
+
+    public void testTheConfiguredExtremumWidthReachesTheSyncWrapperWholeFileRead() throws Exception {
+        WidthCapturingReader reader = new WidthCapturingReader(false);
+
+        drainWidthFactory(widthFactory(reader, StoragePath.of("s3://bucket/whole.test")).build());
+
+        assertEquals(1, reader.contexts.size());
+        assertEquals(NARROW_EXTREMUM_WIDTH, reader.contexts.get(0).statsMaxExtremumBytes());
+    }
+
+    public void testTheConfiguredExtremumWidthReachesTheMultiFileRead() throws Exception {
+        WidthCapturingReader reader = new WidthCapturingReader(false);
+        StoragePath path = StoragePath.of("s3://bucket/data/f1.test");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://bucket/data/*.test");
+
+        drainWidthFactory(widthFactory(reader, path).fileList(fileList).build());
+
+        assertEquals(1, reader.contexts.size());
+        assertEquals(NARROW_EXTREMUM_WIDTH, reader.contexts.get(0).statsMaxExtremumBytes());
+    }
+
+    /** Nothing like the 1 KB default, so a dropped forward cannot pass for a wired one. */
+    private static final int NARROW_EXTREMUM_WIDTH = 64;
+
+    private static AsyncExternalSourceOperatorFactory.Builder widthFactory(FormatReader reader, StoragePath path) {
+        return AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            reader,
+            path,
+            List.of(attr("value", DataType.INTEGER)),
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).statsMaxExtremumBytes(NARROW_EXTREMUM_WIDTH);
+    }
+
+    private static void drainWidthFactory(AsyncExternalSourceOperatorFactory factory) throws Exception {
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        SourceOperator operator = factory.get(driverContext);
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    page.releaseBlocks();
+                }
+            }
+        } finally {
+            operator.close();
+        }
+    }
+
+    /** Records every {@link FormatReadContext} handed to it, and reports the native-async mode that path needs. */
+    private static class WidthCapturingReader implements NoConfigFormatReader {
+        private final List<FormatReadContext> contexts = new ArrayList<>();
+        private final boolean nativeAsync;
+
+        WidthCapturingReader(boolean nativeAsync) {
+            this.nativeAsync = nativeAsync;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            contexts.add(context);
+            return emptyIterator();
+        }
+
+        @Override
+        public boolean supportsNativeAsync() {
+            return nativeAsync;
+        }
+
+        @Override
+        public String formatName() {
+            return "test-width";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".test");
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static class LatchedPageReader implements NoConfigFormatReader {

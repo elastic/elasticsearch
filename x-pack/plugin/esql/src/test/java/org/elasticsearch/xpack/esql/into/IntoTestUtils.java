@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.into;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -27,13 +28,16 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,8 +54,25 @@ class IntoTestUtils {
 
     enum Outcome {
         CREATED,
-        REFUSED
+        /** The destination refuses the row with a 400 whose message is {@code mapper_parsing_exception[<item index>]}. */
+        REFUSED,
+        /** Like {@link #REFUSED}, but the cause has no message. */
+        REFUSED_WITHOUT_MESSAGE,
+        /** Like {@link #REFUSED}, but the message is {@link #LONG_MESSAGE_LENGTH} characters long. */
+        REFUSED_WITH_LONG_MESSAGE,
+        /** The item fails with a transient 429, which says nothing about the row. */
+        REJECTED,
+        /** The caller may not write to the destination, which says nothing about the row. */
+        FORBIDDEN,
+        /** The item fails with a 500, which says nothing about the row. */
+        FAILED,
+        /** The mapping rejects the row with a {@link MapperException}, which has no status of its own and is reported as a 500. */
+        MAPPER_REJECTED,
+        /** Like {@link #MAPPER_REJECTED}, but another node handled the mapping update, so the exception arrives wrapped. */
+        REMOTE_MAPPER_REJECTED
     }
+
+    static final int LONG_MESSAGE_LENGTH = 5000;
 
     static class CapturingClient extends NoOpClient {
         final List<BulkRequest> bulks = new ArrayList<>();
@@ -105,14 +126,60 @@ class IntoTestUtils {
                 DocWriteRequest.OpType opType = bulk.requests().get(i).opType();
                 items[i] = switch (outcomes[i]) {
                     case CREATED -> BulkItemResponse.success(i, opType, new IndexResponse(SHARD, "id-" + i, 0, 1, 1, true));
-                    case REFUSED -> BulkItemResponse.failure(
+                    case REFUSED -> refused(i, opType, new IllegalArgumentException("mapper_parsing_exception[" + i + "]"));
+                    case REFUSED_WITHOUT_MESSAGE -> refused(i, opType, new IllegalArgumentException());
+                    case REFUSED_WITH_LONG_MESSAGE -> refused(i, opType, new IllegalArgumentException("x".repeat(LONG_MESSAGE_LENGTH)));
+                    case REJECTED -> BulkItemResponse.failure(
                         i,
                         opType,
-                        new BulkItemResponse.Failure(DEST, "id-" + i, new IllegalArgumentException("mapper_parsing_exception"))
+                        new BulkItemResponse.Failure(
+                            DEST,
+                            "id-" + i,
+                            new EsRejectedExecutionException("rejected"),
+                            RestStatus.TOO_MANY_REQUESTS
+                        )
+                    );
+                    case FORBIDDEN -> BulkItemResponse.failure(
+                        i,
+                        opType,
+                        new BulkItemResponse.Failure(
+                            DEST,
+                            "id-" + i,
+                            new ElasticsearchSecurityException("action [indices:data/write/bulk[s]] is unauthorized", RestStatus.FORBIDDEN),
+                            RestStatus.FORBIDDEN
+                        )
+                    );
+                    case FAILED -> refused(i, opType, new IllegalStateException("shard failed"));
+                    case REMOTE_MAPPER_REJECTED -> BulkItemResponse.failure(
+                        i,
+                        opType,
+                        new BulkItemResponse.Failure(
+                            DEST,
+                            "id-" + i,
+                            new RemoteTransportException(
+                                "[node-b][127.0.0.1:9300][indices:data/write/bulk[s][p]]",
+                                new MapperException("Pass-through source [a] has a conflicting param [priority=1] with source [b]")
+                            ),
+                            RestStatus.INTERNAL_SERVER_ERROR
+                        )
+                    );
+                    case MAPPER_REJECTED -> BulkItemResponse.failure(
+                        i,
+                        opType,
+                        new BulkItemResponse.Failure(
+                            DEST,
+                            "id-" + i,
+                            new MapperException("Pass-through source [a] has a conflicting param [priority=1] with source [b]"),
+                            RestStatus.INTERNAL_SERVER_ERROR
+                        )
                     );
                 };
             }
             listeners.removeFirst().onResponse(new BulkResponse(items, 1));
+        }
+
+        private static BulkItemResponse refused(int item, DocWriteRequest.OpType opType, Exception cause) {
+            return BulkItemResponse.failure(item, opType, new BulkItemResponse.Failure(DEST, "id-" + item, cause));
         }
 
         void fail(Exception e) {
@@ -147,11 +214,14 @@ class IntoTestUtils {
     static IntoStats stats(Page page) {
         try {
             assertThat(page.getPositionCount(), equalTo(1));
-            LongBlock total = page.getBlock(0);
-            LongBlock created = page.getBlock(1);
-            return new IntoStats(total.getLong(0), created.getLong(0));
+            return IntoStats.fromPage(page, 0);
         } finally {
             page.releaseBlocks();
         }
+    }
+
+    /** Stats of a run in which the destination refused nothing. */
+    static IntoStats noFailures(long total, long created) {
+        return new IntoStats(total, created, 0, List.of());
     }
 }

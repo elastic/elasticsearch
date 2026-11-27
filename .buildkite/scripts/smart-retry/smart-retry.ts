@@ -170,11 +170,19 @@ export function transformTaskStatus(report: TaskStatusReport, testseed: string):
     Object.entries(successfulSuites).flatMap(([taskPath, classes]) => classes.map((c) => `${taskPath}\0${c}`)),
   );
 
+  // A method that is run more than once under the same name, as with `-Dtests.iters`, has a result for every run.
+  // Tests are excluded from a retry by that name, so a method with a failing run must not be excluded for its passing
+  // runs.
+  const failedMethods = new Set(
+    report.tests.filter((t) => t.result === "FAILURE").map((t) => `${t.taskPath}\0${t.className}#${t.methodName}`),
+  );
+
   const successfulTests: Record<string, string[]> = {};
   for (const test of report.tests) {
     if (test.result !== "SUCCESS") continue;
     if (successfulTaskSet.has(test.taskPath)) continue;
     if (successfulSuiteSet.has(`${test.taskPath}\0${test.className}`)) continue;
+    if (failedMethods.has(`${test.taskPath}\0${test.className}#${test.methodName}`)) continue;
     (successfulTests[test.taskPath] ??= []).push(`${test.className}#${test.methodName}`);
   }
   for (const key of Object.keys(successfulTests)) {

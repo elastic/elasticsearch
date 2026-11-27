@@ -433,13 +433,23 @@ tasks.register("integTest", Test) {
 
   // Func tests of plugins that work on test tasks run their fixture projects with the real runner of the Elasticsearch tests. This
   // build is built before the :test:vintage-randomized-runner project that holds it, so the project cannot be a dependency here. The runner only
-  // needs the randomized runner and JUnit 4, which the fixtures have anyway, so they compile a copy of its source.
-  // The source is a task input, so that the tests run again when the runner changes, and the path is not, for cache relocatability.
-  def esRandomizedRunnerSource =
-    layout.projectDirectory.file("../test/vintage-randomized-runner/src/main/java/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java")
-  inputs.file(esRandomizedRunnerSource).withPropertyName("esRandomizedRunnerSource").withPathSensitivity(PathSensitivity.NONE)
+  // needs the randomized runner and JUnit 4, which the fixtures have anyway, so they compile a copy of its sources: the runner and the
+  // class it reads the seeds of the iterations of tests with, which must stay free of other dependencies.
+  // The sources are task inputs, so that the tests run again when the runner changes, and the paths are not, for cache relocatability.
+  def esRandomizedRunnerSources = [
+    esRandomizedRunnerSource       : "ESRandomizedRunner.java",
+    esRandomizedRunnerIterationSeedsSource: "IterationSeeds.java"
+  ].collectEntries { propertyName, fileName ->
+    [(propertyName): layout.projectDirectory.file("../test/vintage-randomized-runner/src/main/java/org/elasticsearch/test/junit/runner/${fileName}")]
+  }
+  esRandomizedRunnerSources.each { propertyName, source ->
+    inputs.file(source).withPropertyName(propertyName).withPathSensitivity(PathSensitivity.NONE)
+  }
   jvmArgumentProviders.add({
-    ["-Des.randomized.runner.source=${esRandomizedRunnerSource.asFile}".toString()]
+    [
+      "-Des.randomized.runner.source=${esRandomizedRunnerSources.esRandomizedRunnerSource.asFile}".toString(),
+      "-Des.randomized.runner.iteration.seeds.source=${esRandomizedRunnerSources.esRandomizedRunnerIterationSeedsSource.asFile}".toString()
+    ]
   } as CommandLineArgumentProvider)
 }
 

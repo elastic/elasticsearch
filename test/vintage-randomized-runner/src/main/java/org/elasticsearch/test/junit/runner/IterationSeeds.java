@@ -20,7 +20,11 @@ import java.util.regex.Pattern;
  */
 public final class IterationSeeds {
 
-    private static final Pattern SEED_IN_NAME = Pattern.compile(" ?seed=\\[([0-9A-Fa-f]+:[0-9A-Fa-f]+)\\]");
+    /** The seed the runner adds as the last parameter of a test, and the brace that closes the parameters. */
+    private static final Pattern TRAILING_SEED = Pattern.compile(" ?seed=\\[([0-9A-Fa-f]+:[0-9A-Fa-f]+)\\](?=\\}$)");
+
+    /** The parameters the runner leaves of a test without any: they only held the seed. */
+    private static final String EMPTY_PARAMETERS = " {}";
 
     private IterationSeeds() {}
 
@@ -33,19 +37,27 @@ public final class IterationSeeds {
         if (testName == null) {
             return null;
         }
-        Matcher matcher = SEED_IN_NAME.matcher(testName);
+        Matcher matcher = TRAILING_SEED.matcher(testName);
         return matcher.find() ? matcher.group(1) : null;
     }
 
     /**
      * The name of a test without its seed: {@code testFoo {p=a seed=[X:Y]}} is {@code testFoo {p=a}}, and {@code testFoo {seed=[X:Y]}}
-     * is {@code testFoo}.
+     * is {@code testFoo}. A name that does not end with a seed is returned as it is, including parameters that are empty or that
+     * contain braces, such as {@code testFoo {q=match {}}}.
      */
     @Nullable
     public static String withoutSeed(@Nullable String testName) {
         if (testName == null) {
             return null;
         }
-        return SEED_IN_NAME.matcher(testName).replaceAll("").replace(" {}", "");
+        Matcher matcher = TRAILING_SEED.matcher(testName);
+        if (matcher.find() == false) {
+            return testName;
+        }
+        String withoutSeed = testName.substring(0, matcher.start()) + testName.substring(matcher.end());
+        return withoutSeed.endsWith(EMPTY_PARAMETERS)
+            ? withoutSeed.substring(0, withoutSeed.length() - EMPTY_PARAMETERS.length())
+            : withoutSeed;
     }
 }

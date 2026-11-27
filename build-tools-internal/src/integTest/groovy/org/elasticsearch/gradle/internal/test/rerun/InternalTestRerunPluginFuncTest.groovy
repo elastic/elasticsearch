@@ -386,7 +386,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
      * exclude exactly the ones that were successful.
      */
     void parameterizedTestSetup(boolean optOutOfIndividualTestPruning = false) {
-        String runnerSource = esRandomizedRunnerSource()
+        Map<String, String> runnerSources = esRandomizedRunnerSources()
         buildFile << """
         allprojects {
                 apply plugin: 'java'
@@ -419,7 +419,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
                 """
             }
             createTest("SubProject1TestClazz1")
-            file("src/test/java/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java") << runnerSource
+            runnerSources.each { path, source -> file("src/test/java/${path}") << source }
             file("src/test/java/org/acme/RandomizedTestClazz.java") << """
             package org.acme;
 
@@ -476,10 +476,13 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     /**
-     * The source of the runner of the Elasticsearch tests, which the fixture projects compile. It cannot be a dependency of this
-     * build, see the integTest task definition in build.gradle.
+     * The sources of the runner of the Elasticsearch tests, by their path below a source directory, which the fixture projects
+     * compile. They cannot be a dependency of this build, see the integTest task definition in build.gradle.
      */
-    static String esRandomizedRunnerSource() {
-        new File(System.getProperty("es.randomized.runner.source")).text
+    static Map<String, String> esRandomizedRunnerSources() {
+        [
+            "org/elasticsearch/test/junit/runner/ESRandomizedRunner.java": new File(System.getProperty("es.randomized.runner.source")).text,
+            "org/elasticsearch/test/junit/runner/IterationSeeds.java": new File(System.getProperty("es.randomized.runner.iteration.seeds.source")).text
+        ]
     }
 }

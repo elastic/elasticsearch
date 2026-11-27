@@ -53,4 +53,18 @@ public class IterationSeedsTests extends RandomizedTest {
         assertThat(IterationSeeds.withoutSeed("testFoo {p=a}"), equalTo("testFoo {p=a}"));
         assertThat(IterationSeeds.withoutSeed(null), nullValue());
     }
+
+    /** The ` {}` and the seed-like values belong to the parameters of the test, they are not what the runner adds. */
+    public void testOnlyTheTrailingSeedIsRemoved() {
+        assertThat(IterationSeeds.withoutSeed("testFoo {q=match {}}"), equalTo("testFoo {q=match {}}"));
+        assertThat(IterationSeeds.withoutSeed("testFoo {q=match {} seed=[A1:B2]}"), equalTo("testFoo {q=match {}}"));
+        assertThat(IterationSeeds.withoutSeed("testFoo {}"), equalTo("testFoo {}"));
+        assertThat(IterationSeeds.withoutSeed("testFoo {p=seed=[A1:B2] q=b}"), equalTo("testFoo {p=seed=[A1:B2] q=b}"));
+        assertThat(IterationSeeds.withoutSeed("testFoo {p=seed=[A1:B2] q=b seed=[C3:D4]}"), equalTo("testFoo {p=seed=[A1:B2] q=b}"));
+    }
+
+    public void testSeedLikeParameterIsNotTheSeedOfTheIteration() {
+        assertThat(IterationSeeds.seedOf("testFoo {p=seed=[A1:B2] q=b}"), nullValue());
+        assertThat(IterationSeeds.seedOf("testFoo {p=seed=[A1:B2] q=b seed=[C3:D4]}"), equalTo("C3:D4"));
+    }
 }

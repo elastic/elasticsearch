@@ -11,6 +11,7 @@ package org.elasticsearch.test.junit.runner;
 import com.carrotsearch.randomizedtesting.JUnit3MethodProvider;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
@@ -34,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -371,6 +373,127 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
         );
         for (Description description : fired) {
             Assert.assertTrue("unknown description " + description, known.contains(description));
+        }
+    }
+
+    /** Records the descriptions of the events a runner fires, which of them are failures, and which tests were started. */
+    private static class RecordedEvents extends RunListener {
+        final List<Description> fired = new ArrayList<>();
+        final List<Description> started = new ArrayList<>();
+        final List<Description> failed = new ArrayList<>();
+
+        @Override
+        public void testSuiteStarted(Description description) {
+            fired.add(description);
+        }
+
+        @Override
+        public void testSuiteFinished(Description description) {
+            fired.add(description);
+        }
+
+        @Override
+        public void testStarted(Description description) {
+            fired.add(description);
+            started.add(description);
+        }
+
+        @Override
+        public void testFinished(Description description) {
+            fired.add(description);
+        }
+
+        @Override
+        public void testFailure(Failure failure) {
+            fired.add(failure.getDescription());
+            failed.add(failure.getDescription());
+        }
+
+        @Override
+        public void testAssumptionFailure(Failure failure) {
+            fired.add(failure.getDescription());
+        }
+    }
+
+    /**
+     * With {@code tests.iters} the events the runner passes on are about the tests as the platform discovered them, without the seed in
+     * their names. The unique id of a description, which {@code equals} compares, keeps the seed, so what the test checks is the
+     * method names, to be sure the events were translated: they are what Gradle reports.
+     */
+    public void testRunEventsDoNotHaveSeedsInTheirNamesWithIterations() throws Exception {
+        ESRandomizedRunner runner = withIterations(3, () -> new ESRandomizedRunner(FailingFixture.class, VINTAGE_LIKE_FILTER_PREFIX));
+        Description root = runner.getDescription();
+        Set<Description> known = new HashSet<>(root.getChildren());
+        known.add(root);
+        RecordedEvents events = new RecordedEvents();
+        RunNotifier notifier = new RunNotifier();
+        notifier.addListener(events);
+
+        runner.run(notifier);
+
+        // 3 methods, 2 variants each, 3 iterations
+        assertThat(root.getChildren().size(), equalTo(18));
+        assertThat(new HashSet<>(events.started), equalTo(new HashSet<>(root.getChildren())));
+        assertThat(events.started.size(), equalTo(18));
+        assertThat(events.failed.size(), equalTo(6));
+        for (Description description : events.fired) {
+            Assert.assertTrue("unknown description " + description, known.contains(description));
+            if (description.getMethodName() != null) {
+                assertFalse(description.getMethodName(), SEED_IN_NAME.matcher(description.getMethodName()).find());
+            }
+        }
+        assertThat(countByName(events.failed), equalTo(Map.of("testFails {p=a}", 3L, "testFails {p=b}", 3L)));
+    }
+
+    /** Without {@code tests.iters} the descriptions are the ones of {@link RandomizedRunner}, so are the events. */
+    public void testRunEventsAreNotChangedWithoutIterations() throws Exception {
+        ESRandomizedRunner runner = new ESRandomizedRunner(FailingFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
+        RecordedEvents events = new RecordedEvents();
+        RunNotifier notifier = new RunNotifier();
+        notifier.addListener(events);
+
+        runner.run(notifier);
+
+        assertThat(events.started.size(), equalTo(6));
+        assertThat(new HashSet<>(events.started), equalTo(new HashSet<>(runner.getDescription().getChildren())));
+    }
+
+    /** Method names the listeners saw while a {@link ListenedFixture} ran. */
+    private static final List<String> LISTENED_NAMES = new CopyOnWriteArrayList<>();
+
+    public static final class NameRecordingListener extends RunListener {
+        @Override
+        public void testStarted(Description description) {
+            LISTENED_NAMES.add(description.getMethodName());
+        }
+    }
+
+    @Listeners({ NameRecordingListener.class })
+    @TestMethodProviders({ JUnit3MethodProvider.class })
+    public static class ListenedFixture {
+        public void testOne() {}
+    }
+
+    /**
+     * The {@code @Listeners} of the test class, such as the one that prints how to reproduce a failure, need the seed of the iteration,
+     * which is what makes it different from the others. They are called by {@link RandomizedRunner}, before the events are translated.
+     */
+    public void testListenersOfTheTestClassSeeTheSeedsOfIterations() throws Exception {
+        LISTENED_NAMES.clear();
+        ESRandomizedRunner runner = withIterations(3, () -> new ESRandomizedRunner(ListenedFixture.class, VINTAGE_LIKE_FILTER_PREFIX));
+        RecordedEvents events = new RecordedEvents();
+        RunNotifier notifier = new RunNotifier();
+        notifier.addListener(events);
+
+        runner.run(notifier);
+
+        assertThat(LISTENED_NAMES.size(), equalTo(3));
+        for (String name : LISTENED_NAMES) {
+            Assert.assertNotNull(name, IterationSeeds.seedOf(name));
+        }
+        assertThat(events.started.size(), equalTo(3));
+        for (Description description : events.started) {
+            assertFalse(description.getMethodName(), SEED_IN_NAME.matcher(description.getMethodName()).find());
         }
     }
 

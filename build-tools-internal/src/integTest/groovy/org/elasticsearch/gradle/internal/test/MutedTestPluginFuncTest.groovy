@@ -154,7 +154,7 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     def "muting a single parameter of a parameterized test leaves its siblings running"() {
         given:
         muteTest("org.acme.ParameterizedTest", "someTest {phase=1}")
-        file("src/test/java/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java").text = esRandomizedRunnerSource()
+        copyRandomizedRunnerSources("src/test/java")
         file("src/test/java/org/acme/ParameterizedTest.java").text = """
             package org.acme;
 
@@ -220,7 +220,7 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
      * The body is the content of the class, whose methods must use the fully qualified name of the JUnit annotations.
      */
     private File randomizedClass(String sourceDir, String className, Closure<String> body) {
-        file("${sourceDir}/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java").text = esRandomizedRunnerSource()
+        copyRandomizedRunnerSources(sourceDir)
 
         int lastDot = className.lastIndexOf('.')
         File sourceFile = file("${sourceDir}/${className.replace('.', '/')}.java")
@@ -238,9 +238,11 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         sourceFile
     }
 
-    /** The source of the runner of the Elasticsearch tests, handed over by the integTest task. */
-    private static String esRandomizedRunnerSource() {
-        new File(System.getProperty("es.randomized.runner.source")).text
+    private void copyRandomizedRunnerSources(String sourceDir) {
+        file("${sourceDir}/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java").text =
+            new File(System.getProperty("es.randomized.runner.source")).text
+        file("${sourceDir}/org/elasticsearch/test/junit/runner/IterationSeeds.java").text =
+            new File(System.getProperty("es.randomized.runner.iteration.seeds.source")).text
     }
 
     private void addOtherTestSourceSet() {

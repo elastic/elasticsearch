@@ -3080,7 +3080,7 @@ public class EsqlSession {
                 listener.onFailure(ve);
             } else {
                 // retrying the index resolution without index filtering.
-                executionInfo.clusterInfo.clear();
+                executionInfo.clearClusters();
                 resolveIndicesAndAnalyze(
                     parsed,
                     unmappedResolution,

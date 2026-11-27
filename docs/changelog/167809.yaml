@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 165752
+pr: 167809
+summary: Load or nullify the unmapped field that a STATS grouping alias of the same name reads
+type: bug

@@ -2018,3 +2018,17 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | missing
 2024-10-23T13:53:55.832Z | Connection error?
 ;
+
+// #165752: a grouping alias named like the unmapped field that its definition reads. The field in the definition is an input field.
+nullifyStatsGroupingAliasOfTheUnmappedFieldItReads
+required_capability: optional_fields_nullify_tech_preview
+required_capability: optional_fields_fix_stats_grouping_alias_of_unmapped_field
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| STATS c = COUNT(*) BY unmapped_message = TO_UPPER(unmapped_message)
+;
+
+c:long | unmapped_message:keyword
+7      | null
+;

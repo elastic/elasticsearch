@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.ml.MachineLearningTests;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -233,28 +234,16 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDistributionChange() throws IOException {
-        NormalDistribution first = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
-        NormalDistribution second = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 5);
+        // Use a fixed seed. About 0.8% of random series like this are classified as something other than a distribution
+        // change, so the detector is tested statistically in EventDetectorTests#testReportsMostVarianceIncreasesAsADistributionChange.
+        Random random = new Random(42);
+        NormalDistribution first = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(random), 0, 1);
+        NormalDistribution second = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(random), 0, 5);
         double[] bucketValues = DoubleStream.concat(
             DoubleStream.generate(first::sample).limit(50),
             DoubleStream.generate(second::sample).limit(50)
         ).toArray();
-        testChangeType(
-            bucketValues,
-            (changeType, msg) -> assertThat(
-                msg,
-                changeType,
-                anyOf(
-                    // Due to the random nature of the values generated, any of these could be detected
-                    // Distribution change is a "catch anything weird" if previous checks didn't find anything
-                    instanceOf(ChangeType.DistributionChange.class),
-                    instanceOf(ChangeType.Stationary.class),
-                    instanceOf(ChangeType.Spike.class),
-                    instanceOf(ChangeType.Dip.class),
-                    instanceOf(ChangeType.TrendChange.class)
-                )
-            )
-        );
+        testChangeType(bucketValues, (changeType, msg) -> assertThat(msg, changeType, instanceOf(ChangeType.DistributionChange.class)));
     }
 
     public void testZeroDeviation() throws IOException {

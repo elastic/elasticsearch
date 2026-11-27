@@ -205,7 +205,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         InferenceSettings inferenceSettings,
         EsqlFlags flags
     ) {
-        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings, pragmas(), flags);
+        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings, pragmas(), flags, requestSettings());
         QuerySettings.validate(statement, settingsValidationCtx);
         return statement;
     }

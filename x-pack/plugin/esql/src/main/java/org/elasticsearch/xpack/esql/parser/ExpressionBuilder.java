@@ -20,6 +20,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -148,13 +149,17 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     /**
      * @param pragmas the pragmas of the query, which override the cluster limits in {@code flags} for this query
      * @param flags the cluster-wide ES|QL settings
+     * @param anyParamValue the value of the {@code param_any_value} setting resolved from the request and the defaults, which a
+     *                      {@code SET} in the query can still override, or {@code null} if the parser must not recognize any
+     *                      reserved value, which is the case on release builds
      */
     public record ParsingContext(
         QueryParams params,
         InferenceSettings inferenceSettings,
         String viewName,
         QueryPragmas pragmas,
-        EsqlFlags flags
+        EsqlFlags flags,
+        @Nullable String anyParamValue
     ) {
 
         /** Maximum number of commands in a statement, counting the main query and all its subqueries together. */
@@ -163,8 +168,25 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
     }
 
+    /**
+     * The value of {@code param_any_value} that applies to the statement being built: the one in the {@link ParsingContext}, or
+     * the one a {@code SET} in the statement set, which {@code LogicalPlanBuilder#visitStatements} applies before it visits
+     * the query. {@code null} when no reserved value is recognized.
+     */
+    private String anyParamValue;
+
     ExpressionBuilder(ParsingContext context) {
         this.context = context;
+        this.anyParamValue = context.anyParamValue();
+    }
+
+    @Nullable
+    String anyParamValue() {
+        return anyParamValue;
+    }
+
+    void anyParamValue(@Nullable String anyParamValue) {
+        this.anyParamValue = anyParamValue;
     }
 
     /**

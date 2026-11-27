@@ -1378,9 +1378,16 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             this.node = node;
         }
 
+        private void unregisterWhenListed() {
+            if (task.get() != null) {
+                unregisterOnce();
+            }
+        }
+
         private void unregisterOnce() {
-            if (unregistered.compareAndSet(false, true)) {
-                node.transportService.getTaskManager().unregister(task.get());
+            final Task registered = task.get();
+            if (registered != null && unregistered.compareAndSet(false, true)) {
+                node.transportService.getTaskManager().unregister(registered);
             }
         }
     }
@@ -1392,7 +1399,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 node,
                 TransportListTasksAction.RELOCATABLE_ACTIONS.iterator().next(),
                 descriptionLength,
-                vanishing::unregisterOnce,
+                vanishing::unregisterWhenListed,
                 () -> {}
             )
         );
@@ -1426,7 +1433,18 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         final long usedBefore = breaker.getUsed();
         final int descriptionLength = 5_000;
         final VanishingTask relocating = registerRelocatableTaskThatVanishesWhenFirstListed(testNodes[1], descriptionLength);
-        testNodes[0].clientBehaviour.set((request, listener) -> respondWithFailedLookup(listener));
+        final AtomicLong firstPassTaskIdOnNode2 = new AtomicLong(-1);
+        final Task answering = registerTaskWithDescription(
+            testNodes[2],
+            descriptionLength,
+            () -> firstPassTaskIdOnNode2.compareAndSet(-1, highestNodeListingTaskId(testNodes[2]))
+        );
+        final AtomicBoolean answeringUnregistered = new AtomicBoolean();
+        final AtomicInteger lookups = new AtomicInteger();
+        testNodes[0].clientBehaviour.set((request, listener) -> {
+            lookups.incrementAndGet();
+            respondWithFailedLookup(listener);
+        });
         try {
             final AtomicLong usedAtDelivery = new AtomicLong(-1);
             final PlainActionFuture<ListTasksResponse> future = new PlainActionFuture<>();
@@ -1442,20 +1460,36 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                     }, future::onFailure)
                 );
 
+            assertBusy(() -> {
+                assertThat(firstPassTaskIdOnNode2.get(), greaterThanOrEqualTo(0L));
+                assertThat(highestNodeListingTaskId(testNodes[2]), greaterThan(firstPassTaskIdOnNode2.get()));
+            });
+            assertFalse(future.isDone());
+            answeringUnregistered.set(true);
+            testNodes[2].transportService.getTaskManager().unregister(answering);
+
             final ListTasksResponse response = safeGet(future);
+            assertThat(lookups.get(), equalTo(1));
             assertThat(response.getNodeFailures(), hasSize(0));
             assertTrue(
                 response.getTasks()
                     .stream()
                     .anyMatch(t -> t.action().equals(TransportListTasksAction.RELOCATABLE_ACTIONS.iterator().next()))
             );
-            assertThat(usedAtDelivery.get(), greaterThanOrEqualTo(usedBefore + descriptionLength));
+            assertThat(usedAtDelivery.get(), greaterThanOrEqualTo(usedBefore + 3L * descriptionLength));
             assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
         } finally {
             relocating.unregisterOnce();
+            if (answeringUnregistered.get() == false) {
+                testNodes[2].transportService.getTaskManager().unregister(answering);
+            }
         }
     }
 
+    @TestLogging(
+        reason = "task registration reads the description for its trace message",
+        value = "org.elasticsearch.tasks.TaskManager:TRACE"
+    )
     public void testFailureWhileReconcilingAMissedRelocationReleasesBothPasses() throws Exception {
         final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
         final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
@@ -1551,8 +1585,16 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             );
             assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
 
-            answer.countDown();
-            assertBusy(() -> assertThat(highestNodeListingTaskId(testNodes[1]), equalTo(-1L)));
+            MockLog.awaitLogger(
+                answer::countDown,
+                TransportService.class,
+                new MockLog.SeenEventExpectation(
+                    "late reply reaches the coordinating node",
+                    TransportService.class.getCanonicalName(),
+                    Level.WARN,
+                    "Received response for a request that has timed out*"
+                )
+            );
             assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
         } finally {
             answer.countDown();

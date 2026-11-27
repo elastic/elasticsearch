@@ -105,6 +105,9 @@ dependencies {
   testImplementation project(path: xpackModule('esql-core'))
   // x-pack-esql lists x-pack-encryption in extendedPlugins; required on the test plugin classpath for ES|QL validator ITs.
   testImplementation project(':x-pack:plugin:encryption')
+  // x-pack-esql-core extends mapper-version, so its classes are not bundled. ES|QL evaluates a keyword IN through a comparison that
+  // loads them; required on the test plugin classpath for the ES|QL datafeed probe ITs.
+  testImplementation project(path: xpackModule('mapper-version'))
   // ml deps
   api project(':libs:grok')
   api project(':modules:lang-mustache')

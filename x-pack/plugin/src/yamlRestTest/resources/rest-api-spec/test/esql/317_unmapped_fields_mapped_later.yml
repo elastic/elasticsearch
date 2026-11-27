@@ -19,6 +19,8 @@ setup:
   # The rebalancer must not move a copy of these indices once "f" and "n" are mapped: a copy that is built by recovery
   # replays the translog with the current mapping, so it holds doc values for the first document, and the result then
   # depends on which copy answers. Rebalancing is disabled for them, see https://github.com/elastic/elasticsearch/issues/164963.
+  # This is the same replay with the current mapping as in https://github.com/elastic/elasticsearch/issues/167063, where it fails
+  # a replica's recovery; the guard can be removed when that is fixed.
   - do:
       indices.create:
         index: mapped-later-stored

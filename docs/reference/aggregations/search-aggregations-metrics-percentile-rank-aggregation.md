@@ -2,6 +2,9 @@
 navigation_title: "Percentile ranks"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-percentile-rank-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Percentile ranks aggregation [search-aggregations-metrics-percentile-rank-aggregation]

@@ -1276,7 +1276,8 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // FORK after a subquery, view or LET binding that contains a FORK. They are different FORK scopes, so they are not consecutive FORKs.
+    // FORK after a subquery, view or LET named subquery that contains a FORK. They are different FORK scopes, so they are not consecutive
+    // FORKs.
 
     public void testForkAfterSingleSubqueryWithFork() {
         runGoldenTest("""
@@ -1307,7 +1308,6 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testForkAfterLetWithFork() {
-        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         runGoldenTest("""
             LET q = (FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10));
             FROM q
@@ -1316,7 +1316,6 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testForkAfterChainedLetsWithFork() {
-        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         runGoldenTest("""
             LET q = (FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10));
             LET r = (FROM q | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5));

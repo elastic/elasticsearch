@@ -104,6 +104,11 @@ public class MvRLike extends MvRegexMatch {
     }
 
     @Override
+    protected RLikePattern compilePattern(String pattern) {
+        return new RLikePattern(pattern);
+    }
+
+    @Override
     protected ExpressionEvaluator.Factory buildEvaluator(ToEvaluator toEvaluator, String patternString) {
         return MvAutomataMatch.toEvaluator(source(), toEvaluator.apply(left()), new RLikePattern(patternString).createAutomaton(false));
     }

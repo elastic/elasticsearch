@@ -81,11 +81,11 @@ processingCommand
     | mmrCommand
     | highlightCommand
     | denseVectorCommand
+    | describeCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
-    | {this.isDevVersion()}? describeCommand
     | {this.isDevVersion()}? intoCommand
     | {this.isDevVersion()}? nestedExpandCommand
     ;
@@ -407,7 +407,7 @@ tsCollapseCommand
     ;
 
 describeCommand
-    : DEV_DESCRIBE
+    : DESCRIBE
     ;
 
 //
@@ -422,7 +422,7 @@ dedupCommand
     ;
 
 intoCommand
-    : DEV_INTO indexPattern
+    : DEV_INTO indexPattern commandNamedParameters
     ;
 
 highlightCommand
@@ -466,7 +466,7 @@ setField
     ;
 
 letCommand
-    : DEV_LET letBinding SEMICOLON
+    : LET letBinding SEMICOLON
     ;
 
 letBinding

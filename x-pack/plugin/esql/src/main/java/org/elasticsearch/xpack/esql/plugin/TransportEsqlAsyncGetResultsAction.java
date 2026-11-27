@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,6 +36,9 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsyncGetResultsAction<EsqlQueryResponse, EsqlQueryTask> {
 
+    /** Breaker label for a relayed get or stop async ES|QL response. */
+    public static final String RELAYED_RESPONSE_BREAKER_LABEL = "<async_esql_response>";
+
     private final BlockFactory blockFactory;
     private final ThreadPool threadPool;
 
@@ -47,7 +51,8 @@ public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsync
         Client client,
         BigArrays bigArrays,
         BlockFactoryProvider blockFactoryProvider,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(
             EsqlAsyncGetResultAction.NAME,
@@ -58,6 +63,7 @@ public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsync
             client,
             threadPool,
             bigArrays,
+            circuitBreakerService,
             EsqlQueryTask.class
         );
         this.blockFactory = blockFactoryProvider.blockFactory();
@@ -72,6 +78,11 @@ public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsync
     @Override
     public Writeable.Reader<EsqlQueryResponse> responseReader() {
         return EsqlQueryResponse.reader(blockFactory);
+    }
+
+    @Override
+    protected String relayedResponseBreakerLabel() {
+        return RELAYED_RESPONSE_BREAKER_LABEL;
     }
 
     static final String PARSE_EX_NAME = ElasticsearchException.getExceptionName(new ParsingException(Source.EMPTY, ""));

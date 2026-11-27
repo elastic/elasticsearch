@@ -69,6 +69,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         "search_lane_requirements_in_cluster_info"
     );
     static final TransportVersion SHARD_SEARCH_LOAD_IN_CLUSTER_INFO = TransportVersion.fromName("shard_search_load_in_cluster_info");
+    static final TransportVersion SEARCH_LOAD_METRICS_IN_CLUSTER_INFO = TransportVersion.fromName("search_load_metrics_in_cluster_info");
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -87,6 +88,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     // per-shard search-lane requirement in vCPU, populated by a SearchLaneRequirementsCollector and read by an allocation decider.
     final Map<ShardId, Double> shardSearchLaneRequirements;
     final Map<ShardId, Double> shardSearchLoads;
+    // per-copy search demand
+    final Map<NodeAndShard, SearchCopyDemand> searchCopyDemands;
+    // per-node search capacity
+    final Map<String, NodeSearchCapacity> nodeSearchCapacities;
     // max heap size per node ID
     final Map<String, ByteSizeValue> maxHeapSizePerNode;
     final Set<String> nodeIdsWriteLoadHotspotting;
@@ -107,6 +112,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             Map.of(),
             Map.of(),
             Set.of(),
+            Map.of(),
+            Map.of(),
             Map.of(),
             Map.of(),
             Map.of(),
@@ -136,6 +143,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
      * @param hostedShardsPartitionSizeByNodeId hosted-shards partition size in bytes per node ID
      * @param shardSearchLaneRequirements per-shard search-lane requirement in vCPU, for an allocation decider
      * @param shardSearchLoads the search load per shard, for an allocation decider
+     * @param searchCopyDemands per-copy search demand keyed by node and shard
+     * @param nodeSearchCapacities per-node search capacity keyed by node id
      */
     public ClusterInfo(
         Map<String, DiskUsage> leastAvailableSpaceUsage,
@@ -155,7 +164,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements,
         Map<String, Long> hostedShardsPartitionSizeByNodeId,
         Map<ShardId, Double> shardSearchLaneRequirements,
-        Map<ShardId, Double> shardSearchLoads
+        Map<ShardId, Double> shardSearchLoads,
+        Map<NodeAndShard, SearchCopyDemand> searchCopyDemands,
+        Map<String, NodeSearchCapacity> nodeSearchCapacities
     ) {
         this(
             leastAvailableSpaceUsage,
@@ -176,7 +187,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             shardCacheRequirements,
             hostedShardsPartitionSizeByNodeId,
             shardSearchLaneRequirements,
-            shardSearchLoads
+            shardSearchLoads,
+            searchCopyDemands,
+            nodeSearchCapacities
         );
     }
 
@@ -199,7 +212,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements,
         Map<String, Long> hostedShardsPartitionSizeByNodeId,
         Map<ShardId, Double> shardSearchLaneRequirements,
-        Map<ShardId, Double> shardSearchLoads
+        Map<ShardId, Double> shardSearchLoads,
+        Map<NodeAndShard, SearchCopyDemand> searchCopyDemands,
+        Map<String, NodeSearchCapacity> nodeSearchCapacities
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
@@ -220,6 +235,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         this.hostedShardsPartitionSizeByNodeId = Map.copyOf(hostedShardsPartitionSizeByNodeId);
         this.shardSearchLaneRequirements = Map.copyOf(shardSearchLaneRequirements);
         this.shardSearchLoads = Map.copyOf(shardSearchLoads);
+        this.searchCopyDemands = Map.copyOf(searchCopyDemands);
+        this.nodeSearchCapacities = Map.copyOf(nodeSearchCapacities);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -287,6 +304,13 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         } else {
             this.shardSearchLoads = Map.of();
         }
+        if (in.getTransportVersion().supports(SEARCH_LOAD_METRICS_IN_CLUSTER_INFO)) {
+            this.searchCopyDemands = in.readImmutableMap(NodeAndShard::new, SearchCopyDemand::new);
+            this.nodeSearchCapacities = in.readImmutableMap(StreamInput::readString, NodeSearchCapacity::new);
+        } else {
+            this.searchCopyDemands = Map.of();
+            this.nodeSearchCapacities = Map.of();
+        }
     }
 
     ClusterInfo updateWith(
@@ -321,7 +345,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             hostedShardsPartitionSizeByNodeId,
             // search-lane requirements remain unchanged during simulation, as they reflect the original state
             shardSearchLaneRequirements,
-            shardSearchLoads
+            shardSearchLoads,
+            searchCopyDemands,
+            nodeSearchCapacities
         );
     }
 
@@ -382,6 +408,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         }
         if (out.getTransportVersion().supports(SHARD_SEARCH_LOAD_IN_CLUSTER_INFO)) {
             out.writeMap(this.shardSearchLoads, StreamOutput::writeWriteable, StreamOutput::writeDouble);
+        }
+        if (out.getTransportVersion().supports(SEARCH_LOAD_METRICS_IN_CLUSTER_INFO)) {
+            out.writeMap(this.searchCopyDemands, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
+            out.writeMap(this.nodeSearchCapacities, StreamOutput::writeString, StreamOutput::writeWriteable);
         }
     }
 
@@ -448,7 +478,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             }),
             endArray() // end "reserved_sizes"
             // NOTE: We don't serialize estimatedHeapUsages/nodeUsageStatsForThreadPools/shardWriteLoads/maxHeapSizePerNode/
-            // nodeIdsWriteLoadHotspotting/estimatedShardHeapUsages/nodeCacheSizeAndCommitments/shardCacheRequirements/shardSearchLoads at
+            // nodeIdsWriteLoadHotspotting/estimatedShardHeapUsages/nodeCacheSizeAndCommitments/shardCacheRequirements/shardSearchLoads/
+            // searchCopyDemands/nodeSearchCapacities at
             // this stage, to avoid committing to API
             // payloads until the features are settled
         );
@@ -553,6 +584,20 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     }
 
     /**
+     * Returns per-copy search demand keyed by node and shard. The absence of a copy should be interpreted as no measurement.
+     */
+    public Map<NodeAndShard, SearchCopyDemand> getSearchCopyDemands() {
+        return searchCopyDemands;
+    }
+
+    /**
+     * Returns per-node search capacity keyed by node id. The absence of a node should be interpreted as unknown capacity.
+     */
+    public Map<String, NodeSearchCapacity> getNodeSearchCapacities() {
+        return nodeSearchCapacities;
+    }
+
+    /**
      * Returns the shard size for the given shardId or <code>null</code> if that metric is not available.
      */
     @Override
@@ -635,7 +680,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             && shardCacheRequirements.equals(that.shardCacheRequirements)
             && hostedShardsPartitionSizeByNodeId.equals(that.hostedShardsPartitionSizeByNodeId)
             && shardSearchLaneRequirements.equals(that.shardSearchLaneRequirements)
-            && shardSearchLoads.equals(that.shardSearchLoads);
+            && shardSearchLoads.equals(that.shardSearchLoads)
+            && searchCopyDemands.equals(that.searchCopyDemands)
+            && nodeSearchCapacities.equals(that.nodeSearchCapacities);
     }
 
     @Override
@@ -658,7 +705,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             shardCacheRequirements,
             hostedShardsPartitionSizeByNodeId,
             shardSearchLaneRequirements,
-            shardSearchLoads
+            shardSearchLoads,
+            searchCopyDemands,
+            nodeSearchCapacities
         );
     }
 
@@ -791,6 +840,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         private Map<String, Long> hostedShardsPartitionSizeByNodeId = Map.of();
         private Map<ShardId, Double> shardSearchLaneRequirements = Map.of();
         private Map<ShardId, Double> shardSearchLoads = Map.of();
+        private Map<NodeAndShard, SearchCopyDemand> searchCopyDemands = Map.of();
+        private Map<String, NodeSearchCapacity> nodeSearchCapacities = Map.of();
 
         public ClusterInfo build() {
             return new ClusterInfo(
@@ -811,7 +862,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
                 shardCacheRequirements,
                 hostedShardsPartitionSizeByNodeId,
                 shardSearchLaneRequirements,
-                shardSearchLoads
+                shardSearchLoads,
+                searchCopyDemands,
+                nodeSearchCapacities
             );
         }
 
@@ -902,6 +955,16 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
 
         public Builder shardSearchLoads(Map<ShardId, Double> shardSearchLoads) {
             this.shardSearchLoads = shardSearchLoads;
+            return this;
+        }
+
+        public Builder searchCopyDemands(Map<NodeAndShard, SearchCopyDemand> searchCopyDemands) {
+            this.searchCopyDemands = searchCopyDemands;
+            return this;
+        }
+
+        public Builder nodeSearchCapacities(Map<String, NodeSearchCapacity> nodeSearchCapacities) {
+            this.nodeSearchCapacities = nodeSearchCapacities;
             return this;
         }
     }

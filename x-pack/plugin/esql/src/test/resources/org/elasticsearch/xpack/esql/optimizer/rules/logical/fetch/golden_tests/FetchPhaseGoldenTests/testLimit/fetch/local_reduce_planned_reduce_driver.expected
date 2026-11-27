@@ -1,3 +1,0 @@
-ExchangeSinkExec[[_doc{f}#0],false]
-\_LimitExec[10[INTEGER],376]
-  \_ExchangeSourceExec[[_doc{f}#0],false]

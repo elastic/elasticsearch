@@ -240,7 +240,7 @@ public class PreAnalyzer {
         });
         // Only a HIGHLIGHT analyzing with the mapping analyzers reads which indices use which one; skip the cost otherwise.
         boolean needsAnalyzerGroups = plan.anyMatch(p -> p instanceof Highlight h && h.hasAnalyzerOption() == false);
-        // Only DESCRIBE reads the field semantics; skip building them otherwise.
+        // DESCRIBE reads the field semantics; column_metadata asks for them with withFieldSemantics(). Skip them otherwise.
         boolean needsFieldSemantics = plan.anyMatch(Describe.class::isInstance);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)

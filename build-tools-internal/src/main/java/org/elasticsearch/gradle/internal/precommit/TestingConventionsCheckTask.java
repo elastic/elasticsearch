@@ -21,6 +21,7 @@ import org.gradle.api.problems.Problem;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
@@ -45,6 +46,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 @CacheableTask
@@ -70,6 +72,13 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
     @Input
     public abstract ListProperty<String> getBaseClasses();
 
+    /**
+     * Whether test classes may run with the plain {@code RandomizedRunner}. For the projects that cannot use {@code ESRandomizedRunner},
+     * because they do not depend on the Elasticsearch test infrastructure.
+     */
+    @Input
+    public abstract Property<Boolean> getAllowPlainRandomizedRunner();
+
     @Inject
     public abstract WorkerExecutor getWorkerExecutor();
 
@@ -89,12 +98,14 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             parameters.getClassDirectories().setFrom(getTestClassesDirs());
             parameters.getBaseClassesNames().set(getBaseClasses().get());
             parameters.getSuffixes().set(getSuffixes().get());
+            parameters.getAllowPlainRandomizedRunner().set(getAllowPlainRandomizedRunner());
         });
     }
 
     abstract static class TestingConventionsCheckWorkAction implements WorkAction<Parameters> {
 
         private static final String JUNIT3_TEST_METHOD_PREFIX = "test";
+        private static final String PLAIN_RANDOMIZED_RUNNER = "com.carrotsearch.randomizedtesting.RandomizedRunner";
         private static final Predicate<Class<?>> isAbstractClass = clazz -> Modifier.isAbstract(clazz.getModifiers());
         private static final Predicate<Class<?>> isPublicClass = clazz -> Modifier.isPublic(clazz.getModifiers());
         private static final Predicate<Class<?>> isStaticClass = clazz -> Modifier.isStatic(clazz.getModifiers());
@@ -127,10 +138,14 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 .map(className -> loadClassWithoutInitializing(className, getClass().getClassLoader()))
                 .toList();
             testClassCandidates.removeAll(baseClasses);
+            var allTestClassCandidates = List.copyOf(testClassCandidates);
             var matchingBaseClass = getBaseClassMatching(testClassCandidates, baseClasses);
             assertMatchesSuffix(suffixes, matchingBaseClass);
             testClassCandidates.removeAll(matchingBaseClass);
             assertNoMissmatchingTest(testClassCandidates);
+            if (getParameters().getAllowPlainRandomizedRunner().get() == false) {
+                assertNoPlainRandomizedRunner(allTestClassCandidates);
+            }
         }
 
         private void assertNoMissmatchingTest(List<? extends Class<?>> testClassesCandidate) {
@@ -252,6 +267,58 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 throw new RuntimeException("Failed to load class " + name + ". Incorrect classpath?", e);
             }
         }
+
+        /**
+         * Tests must not run with the plain {@code RandomizedRunner}: on the JUnit Platform, the Vintage engine filters its tests in a way
+         * that does not work for the parameterized ones, which {@code ESRandomizedRunner} compensates for. {@code ESTestCase} and the other
+         * Elasticsearch base classes are annotated with it, and {@code @RunWith} is inherited, so this only catches the classes that
+         * extend {@code LuceneTestCase} or {@code RandomizedTest} directly, or declare their own plain {@code @RunWith}.
+         */
+        private void assertNoPlainRandomizedRunner(List<? extends Class<?>> testClassCandidates) {
+            var offendingClasses = testClassCandidates.stream()
+                .filter(testClassDefaultPredicate)
+                .filter(clazz -> PLAIN_RANDOMIZED_RUNNER.equals(getRunnerName(clazz)))
+                .filter(TestingConventionsCheckWorkAction::seemsLikeATest)
+                .toList();
+            if (offendingClasses.isEmpty() == false) {
+                ProblemReporter reporter = getProblems().getReporter();
+                List<Problem> problems = new ArrayList<>();
+                for (Class<?> clazz : offendingClasses) {
+                    problems.add(
+                        reporter.create(
+                            ElasticsearchBuildProblems.TESTING_CONVENTIONS.problemId(getProblems(), "Plain randomized runner"),
+                            spec -> spec.contextualLabel(clazz.getName())
+                                .solution("Extend ESTestCase or annotate the class with @RunWith(ESRandomizedRunner.class)")
+                        )
+                    );
+                }
+                throw reporter.throwing(
+                    new GradleException(
+                        "Following test classes run with the plain RandomizedRunner, use ESRandomizedRunner instead:\n\t"
+                            + offendingClasses.stream().map(c -> c.getName()).collect(Collectors.joining("\n\t"))
+                    ),
+                    problems
+                );
+            }
+        }
+
+        /**
+         * The name of the runner of the test class, taking inherited {@code @RunWith} annotations into account, or {@code null} if there
+         * is none. It is looked up by name, as the JUnit classes are not necessarily on the classpath of this check.
+         */
+        @Nullable
+        private static String getRunnerName(Class<?> clazz) {
+            for (var annotation : clazz.getAnnotations()) {
+                if (annotation.annotationType().getName().equals("org.junit.runner.RunWith")) {
+                    try {
+                        return ((Class<?>) annotation.annotationType().getMethod("value").invoke(annotation)).getName();
+                    } catch (ReflectiveOperationException e) {
+                        throw new IllegalStateException("Failed to inspect the runner of " + clazz.getName(), e);
+                    }
+                }
+            }
+            return null;
+        }
     }
 
     private static final class ClassLoadingFileVisitor extends EmptyFileVisitor {
@@ -284,5 +351,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         ListProperty<String> getSuffixes();
 
         ListProperty<String> getBaseClassesNames();
+
+        Property<Boolean> getAllowPlainRandomizedRunner();
     }
 }

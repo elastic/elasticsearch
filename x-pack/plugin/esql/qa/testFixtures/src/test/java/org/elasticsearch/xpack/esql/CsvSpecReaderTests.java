@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
+import org.elasticsearch.xpack.esql.CsvSpecReader.Param;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -167,6 +169,141 @@ public class CsvSpecReaderTests extends ESTestCase {
             () -> CsvSpecReader.specParser().parse("dataset: c: bare")
         );
         assertThat(e.getMessage(), containsString("a name and a quoted resource are required"));
+    }
+
+    // param: directive tests
+
+    /**
+     * Feeds the {@code param:} directives through a fresh parser followed by {@code query} and an empty result section.
+     */
+    private static CsvTestCase parseWithParams(String query, String... params) {
+        SpecReader.Parser parser = CsvSpecReader.specParser();
+        for (String line : params) {
+            parser.parse(line);
+        }
+        parser.parse(query + ";");
+        Object result = parser.parse(";");
+        assertThat(result, instanceOf(CsvTestCase.class));
+        return (CsvTestCase) result;
+    }
+
+    public void testNoParams() {
+        CsvTestCase testCase = parse();
+        assertThat(testCase.params, empty());
+        assertThat(testCase.paramsJson(), nullValue());
+        assertFalse(testCase.hasParamsUsedAsNames());
+    }
+
+    public void testNamedParams() {
+        CsvTestCase testCase = parse(
+            "param: s = \"a string with = and {braces}\"",
+            "param: i=5",
+            "param: d = -1.5",
+            "param: b = true",
+            "param: n = null",
+            "param: a = [1, 2]",
+            "PARAM: v = {\"value\": \"x\"}",
+            "param: f = {\"identifier\": \"first_name\"}"
+        );
+        assertThat(
+            testCase.params,
+            equalTo(
+                List.of(
+                    new Param("s", "\"a string with = and {braces}\""),
+                    new Param("i", "5"),
+                    new Param("d", "-1.5"),
+                    new Param("b", "true"),
+                    new Param("n", "null"),
+                    new Param("a", "[1, 2]"),
+                    new Param("v", "{\"value\": \"x\"}"),
+                    new Param("f", "{\"identifier\": \"first_name\"}")
+                )
+            )
+        );
+        assertThat(
+            testCase.paramsJson(),
+            equalTo(
+                "[{\"s\": \"a string with = and {braces}\"}, {\"i\": 5}, {\"d\": -1.5}, {\"b\": true}, {\"n\": null}, {\"a\": [1, 2]}, "
+                    + "{\"v\": {\"value\": \"x\"}}, {\"f\": {\"identifier\": \"first_name\"}}]"
+            )
+        );
+    }
+
+    public void testUnnamedParams() {
+        CsvTestCase testCase = parse("param: \"F\"", "param: 10008", "param: [\"a\", \"b\"]", "param: \"x = 1\"");
+        assertThat(
+            testCase.params,
+            equalTo(
+                List.of(new Param(null, "\"F\""), new Param(null, "10008"), new Param(null, "[\"a\", \"b\"]"), new Param(null, "\"x = 1\""))
+            )
+        );
+        assertThat(testCase.paramsJson(), equalTo("[\"F\", 10008, [\"a\", \"b\"], \"x = 1\"]"));
+    }
+
+    public void testParamsDoNotLeakIntoNextTest() {
+        SpecReader.Parser parser = CsvSpecReader.specParser();
+        parser.parse("param: x = 1");
+        parser.parse("FROM foo;");
+        assertThat(((CsvTestCase) parser.parse(";")).params, equalTo(List.of(new Param("x", "1"))));
+        parser.parse("FROM bar;");
+        assertThat(((CsvTestCase) parser.parse(";")).params, empty());
+    }
+
+    public void testParamInResultsIsNotADirective() {
+        CsvTestCase testCase = parseWithWarnings("param:keyword | other:integer", "param: 42 | 1");
+        assertThat(testCase.params, empty());
+        assertThat(testCase.expectedResults, equalTo("param:keyword | other:integer\r\nparam: 42 | 1\r\n"));
+    }
+
+    public void testUnquotedStringParamRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> CsvSpecReader.specParser().parse("param: first = Georgi")
+        );
+        assertThat(e.getMessage(), containsString("Invalid param [param: first = Georgi]"));
+    }
+
+    public void testParamWithTrailingContentRejected() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> CsvSpecReader.specParser().parse("param: x = 1 2"));
+        assertThat(e.getMessage(), containsString("with a single JSON value"));
+    }
+
+    public void testEmptyParamRejected() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> CsvSpecReader.specParser().parse("param: x ="));
+        assertThat(e.getMessage(), containsString("with a single JSON value"));
+    }
+
+    public void testUnnamedObjectParamRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> CsvSpecReader.specParser().parse("param: {\"x\": 1}")
+        );
+        assertThat(e.getMessage(), containsString("an unnamed parameter can't be an object"));
+    }
+
+    public void testMixedNamedAndUnnamedParamsRejected() {
+        SpecReader.Parser parser = CsvSpecReader.specParser();
+        parser.parse("param: x = 1");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse("param: 2"));
+        assertThat(e.getMessage(), containsString("named and unnamed parameters can't be mixed"));
+    }
+
+    public void testParamsCanBeNames() {
+        assertFalse(parseWithParams("FROM foo | WHERE a == ?x", "param: x = \"a\"").hasParamsUsedAsNames());
+        assertFalse(parseWithParams("FROM foo | WHERE a == ?x", "param: x = {\"value\": \"a\"}").hasParamsUsedAsNames());
+        assertFalse(parseWithParams("FROM foo | WHERE a == ??x").hasParamsUsedAsNames());
+        assertTrue(parseWithParams("FROM foo | WHERE ??x == ?y", "param: x = \"a\"", "param: y = 1").hasParamsUsedAsNames());
+        assertTrue(parseWithParams("FROM foo | KEEP ??1", "param: \"a\"").hasParamsUsedAsNames());
+        assertTrue(parseWithParams("FROM foo | KEEP ??", "param: \"a\"").hasParamsUsedAsNames());
+        assertTrue(parseWithParams("FROM foo | KEEP ?x", "param: x = {\"identifier\": \"a\"}").hasParamsUsedAsNames());
+        assertTrue(parseWithParams("FROM foo | KEEP ?x", "param: x = {\"Pattern\": \"a*\"}").hasParamsUsedAsNames());
+    }
+
+    public void testPromqlIndexIsParam() {
+        assertTrue(parseWithParams("PROMQL index=?idx step=1m (avg(x))", "param: idx = \"k8s\"").hasPromqlIndexParam());
+        assertTrue(parseWithParams("PROMQL step=1m index = ?idx (avg(x))", "param: idx = \"k8s\"").hasPromqlIndexParam());
+        assertFalse(parseWithParams("PROMQL index=k8s step=?step (avg(x))", "param: step = \"1m\"").hasPromqlIndexParam());
+        assertFalse(parseWithParams("PROMQL index=?idx (avg(x))").hasPromqlIndexParam());
     }
 
     // makeWarningsOptional() tests

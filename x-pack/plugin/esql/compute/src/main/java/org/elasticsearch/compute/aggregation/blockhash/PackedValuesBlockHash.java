@@ -73,6 +73,11 @@ import java.util.List;
  *     nested {@code for} loops with the first column being the outer-most loop
  *     and the last column being the inner-most loop. See {@link Group} for more.
  * </p>
+ * <p>
+ *     With {@code wholeMultivalues}, each position is one key and a multivalue is kept as a list. Positions without
+ *     a multivalue pack as usual and keep the batch paths. A position with one sets a marker bit after the null bits
+ *     and packs, for each column, its value count and then its values in block order.
+ * </p>
  */
 public final class PackedValuesBlockHash extends PartitionedBlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
@@ -83,21 +88,39 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
     private final BreakingBytesRefBuilder bytes;
     private final List<GroupSpec> specs;
     private final BatchWork batchWork;
+    private final boolean wholeMultivalues;
     private boolean seenNull;
+    private boolean seenMultivalue;
 
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
-        this(specs, blockFactory, blockFactory.breaker(), emitBatchSize);
+        this(specs, blockFactory, blockFactory.breaker(), emitBatchSize, false);
+    }
+
+    PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize, boolean wholeMultivalues) {
+        this(specs, blockFactory, blockFactory.breaker(), emitBatchSize, wholeMultivalues);
+    }
+
+    PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, CircuitBreaker circuitBreaker, int emitBatchSize) {
+        this(specs, blockFactory, circuitBreaker, emitBatchSize, false);
     }
 
     /*
      * This constructor is also used by {@code PackedValuesBlockHashCircuitBreakerTests} to provide different circuit breakers
      *  to bytesRefHash and bytes. Production code should use the primary constructor above and provide same breaker for both.
      */
-    PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, CircuitBreaker circuitBreaker, int emitBatchSize) {
+    private PackedValuesBlockHash(
+        List<GroupSpec> specs,
+        BlockFactory blockFactory,
+        CircuitBreaker circuitBreaker,
+        int emitBatchSize,
+        boolean wholeMultivalues
+    ) {
         super(blockFactory);
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
-        this.nullTrackingBytes = (specs.size() + 7) / 8;
+        this.wholeMultivalues = wholeMultivalues;
+        // With whole multivalues, one more bit marks the positions that hold a multivalue.
+        this.nullTrackingBytes = (specs.size() + (wholeMultivalues ? 1 : 0) + 7) / 8;
         final int[] columnOffsets = new int[specs.size()];
         int keyLength = nullTrackingBytes;
         boolean allFixedWidth = true;
@@ -157,6 +180,48 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
         add(page, addInput, DEFAULT_BATCH_SIZE);
     }
 
+    /**
+     * Like {@link #add(Page, GroupingAggregatorFunction.AddInput)}, but with {@code skipMultivalues} a position where any key
+     * has more than one value gets a {@code null} group and adds nothing, rather than a group for every combination of its
+     * values. The add-side twin of the {@code multivaluesMiss} option of
+     * {@link #lookup(Page, BlockFactory, ByteSizeValue, boolean)}: a caller that treats multivalued keys as invalid can keep
+     * them out of the hash without copying the key blocks. A page with no multivalued key keeps the fast paths.
+     */
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput, boolean skipMultivalues) {
+        Block[] multivaluedKeys = skipMultivalues ? multivaluedKeys(page) : new Block[0];
+        if (multivaluedKeys.length == 0) {
+            add(page, addInput);
+            return;
+        }
+        try (AddWork work = new AddWork(page, addInput, DEFAULT_BATCH_SIZE, multivaluedKeys)) {
+            work.add();
+        }
+    }
+
+    /**
+     * The key blocks of {@code page} with a multivalued position. These are the raw blocks because the encoders deduplicate
+     * values, and a key like {@code [7, 7]} is still multivalued.
+     */
+    private Block[] multivaluedKeys(Page page) {
+        return specs.stream().map(s -> page.<Block>getBlock(s.channel())).filter(Block::doesHaveMultivaluedFields).toArray(Block[]::new);
+    }
+
+    private static boolean anyMultivalued(Block[] keys, int position) {
+        for (Block key : keys) {
+            if (key.getValueCount(position) > 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Moves every group past the current position's values without hashing them. */
+    private static void skipValues(Group[] groups) {
+        for (Group group : groups) {
+            group.valueOffset += group.valueCount;
+        }
+    }
+
     /** Whether any key column of the page holds no value at some position. */
     private boolean mayHaveNulls(Page page) {
         for (GroupSpec spec : specs) {
@@ -188,7 +253,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
     }
 
     void add(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
-        try (AddWork work = new AddWork(page, addInput, batchSize)) {
+        try (AddWork work = new AddWork(page, addInput, batchSize, new Block[0])) {
             work.add();
         }
     }
@@ -213,9 +278,15 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
         int valueCount;
         int bytesStart;
 
-        Group(GroupSpec spec, Page page, int batchSize) {
+        /**
+         * @param direct read each value from the block only when it's hashed, rather than deduplicating and copying a batch
+         *               of positions up front. Whole multivalues need it, and so does skipping multivalued positions, which
+         *               would otherwise copy the values it skips.
+         */
+        Group(GroupSpec spec, Page page, int batchSize, boolean direct) {
             this.spec = spec;
-            this.encoder = MultivalueDedupe.batchEncoder(page.getBlock(spec.channel()), batchSize, true);
+            Block block = page.getBlock(spec.channel());
+            this.encoder = direct ? MultivalueDedupe.directEncoder(block) : MultivalueDedupe.batchEncoder(block, batchSize, true);
         }
 
         @Override
@@ -227,11 +298,27 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
     class AddWork extends AddPage {
         final Group[] groups;
         final int positionCount;
+        /** Key blocks whose multivalued positions are skipped. Empty unless the caller asked to skip multivalues. */
+        private final Block[] skippedMultivaluedKeys;
         int position;
 
-        AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
+        AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize, Block[] skippedMultivaluedKeys) {
             super(blockFactory, emitBatchSize, addInput);
-            this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
+            this.skippedMultivaluedKeys = skippedMultivaluedKeys;
+            Group[] groups = new Group[specs.size()];
+            boolean success = false;
+            try {
+                for (int g = 0; g < groups.length; g++) {
+                    groups[g] = new Group(specs.get(g), page, batchSize, wholeMultivalues || skippedMultivaluedKeys.length > 0);
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    // The encoders hold a reference to their block.
+                    Releasables.closeExpectNoException(groups);
+                }
+            }
+            this.groups = groups;
             this.positionCount = page.getPositionCount();
         }
 
@@ -243,13 +330,43 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
         void add() {
             for (position = 0; position < positionCount; position++) {
                 boolean singleEntry = startPosition(groups, bytes);
-                if (singleEntry) {
+                if (anyMultivalued(skippedMultivaluedKeys, position)) {
+                    appendNullSv(position);
+                    skipValues(groups);
+                } else if (singleEntry) {
                     addSingleEntry();
+                } else if (wholeMultivalues) {
+                    addWholeEntry();
                 } else {
                     addMultipleEntries();
                 }
             }
             flushRemaining();
+        }
+
+        /**
+         * Packs a position that holds a multivalue as one key, see the class javadoc.
+         */
+        private void addWholeEntry() {
+            seenMultivalue = true;
+            int marker = groups.length;
+            bytes.bytes()[marker / 8] |= (byte) (1 << (marker % 8));
+            for (int g = 0; g < groups.length; g++) {
+                Group group = groups[g];
+                int start = bytes.length();
+                bytes.grow(start + Integer.BYTES);
+                INT_HANDLE.set(bytes.bytes(), start, group.valueCount);
+                bytes.setLength(start + Integer.BYTES);
+                for (int v = 0; v < group.valueCount; v++) {
+                    if (group.encoder.read(group.valueOffset + v, bytes) == 0) {
+                        assert group.valueCount == 1 : "null value in non-singleton list";
+                        seenNull = true;
+                        bytes.bytes()[g / 8] |= (byte) (1 << (g % 8));
+                    }
+                }
+                group.valueOffset += group.valueCount;
+            }
+            appendOrdSv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.bytesRefView()))));
         }
 
         private void addSingleEntry() {
@@ -292,6 +409,23 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
      * {@code resultFactory}, so each caller charges its own breaker rather than the one the hash was built on.
      */
     public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory resultFactory, ByteSizeValue targetBlockSize) {
+        return lookup(page, resultFactory, targetBlockSize, false);
+    }
+
+    /**
+     * Like {@link #lookup(Page, BlockFactory, ByteSizeValue)}, but with {@code multivaluesMiss} a position where any key has
+     * more than one value is a miss rather than a lookup of every combination of its values. That lets a caller that treats
+     * multivalued keys as invalid skip them without copying the key blocks to null them out.
+     */
+    public ReleasableIterator<IntBlock> lookup(
+        Page page,
+        BlockFactory resultFactory,
+        ByteSizeValue targetBlockSize,
+        boolean multivaluesMiss
+    ) {
+        if (wholeMultivalues) {
+            throw new UnsupportedOperationException("lookup isn't supported with whole multivalues");
+        }
         int fixedKeyLength = batchWork == null ? -1 : batchWork.fixedKeyLength();
         // One byte more than a fixed-width key, because BreakingBytesRefBuilder#grow also grows when the capacity equals the request
         int initialCapacity = fixedKeyLength >= 0 ? fixedKeyLength + 1 : nullTrackingBytes;
@@ -302,7 +436,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
         );
         boolean success = false;
         try {
-            LookupWork work = new LookupWork(page, resultFactory, targetBlockSize.getBytes(), DEFAULT_BATCH_SIZE, scratch);
+            LookupWork work = new LookupWork(page, resultFactory, targetBlockSize.getBytes(), DEFAULT_BATCH_SIZE, scratch, multivaluesMiss);
             success = true;
             return work;
         } finally {
@@ -318,14 +452,32 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
         private final long targetByteSize;
         private final int positionCount;
         private final BreakingBytesRefBuilder bytes;
+        /**
+         * Key blocks whose multivalued positions are misses, each referenced until this closes. Empty unless the caller
+         * asked for multivalues to miss. These are the raw blocks because the encoders deduplicate values, and a key
+         * like {@code [7, 7]} is still multivalued.
+         */
+        private final Block[] multivaluedKeys;
         private int position;
 
-        LookupWork(Page page, BlockFactory resultFactory, long targetByteSize, int batchSize, BreakingBytesRefBuilder bytes) {
-            this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
+        LookupWork(
+            Page page,
+            BlockFactory resultFactory,
+            long targetByteSize,
+            int batchSize,
+            BreakingBytesRefBuilder bytes,
+            boolean multivaluesMiss
+        ) {
+            this.multivaluedKeys = multivaluesMiss ? multivaluedKeys(page) : new Block[0];
+            boolean direct = multivaluedKeys.length > 0;
+            this.groups = specs.stream().map(s -> new Group(s, page, batchSize, direct)).toArray(Group[]::new);
             this.resultFactory = resultFactory;
             this.positionCount = page.getPositionCount();
             this.targetByteSize = targetByteSize;
             this.bytes = bytes;
+            for (Block key : multivaluedKeys) {
+                key.incRef();
+            }
         }
 
         @Override
@@ -345,7 +497,10 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                 while (position < positionCount && ords.estimatedBytes() < targetByteSize) {
                     // TODO a test where targetByteSize is very small should still make a few rows.
                     boolean singleEntry = startPosition(groups, bytes);
-                    if (singleEntry) {
+                    if (anyMultivalued(multivaluedKeys, position)) {
+                        ords.appendNull();
+                        skipValues(groups);
+                    } else if (singleEntry) {
                         lookupSingleEntry(ords);
                     } else {
                         lookupMultipleEntries(ords);
@@ -411,7 +566,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(Releasables.wrap(groups), bytes);
+            Releasables.closeExpectNoException(Releasables.wrap(groups), bytes, Releasables.wrap(multivaluedKeys));
         }
     }
 
@@ -520,6 +675,9 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
 
     @Override
     public Block[] getKeys(IntVector selected) {
+        if (seenMultivalue) {
+            throw new UnsupportedOperationException("keys holding a whole multivalue can't be read back");
+        }
         if (batchWork != null && seenNull == false) {
             return batchWork.getNonNullKeys(selected, bytesRefHash, blockFactory);
         }
@@ -785,35 +943,40 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
             for (int g = 0; g < specs.size(); g++) {
                 vectors[g] = page.getBlock(specs.get(g).channel()).asVector();
             }
-            while (positionOffset < positionCount) {
-                final int emitSize = Math.min(emitBatchSize, positionCount - positionOffset);
-                int batchOffset = 0;
-                while (batchOffset < emitSize) {
-                    final int chunkSize = Math.min(BATCH_SIZE, emitSize - batchOffset);
-                    fillKeys(positionOffset + batchOffset, chunkSize);
-                    if (swiss.shouldPrefetch()) {
-                        for (int i = 0; i < chunkSize; i++) {
-                            hashes[i] = BytesRefSwissHash.hash64(keys, i * keyLength, keyLength);
-                            dummy ^= swiss.prefetch(hashes[i]);
+            try {
+                while (positionOffset < positionCount) {
+                    final int emitSize = Math.min(emitBatchSize, positionCount - positionOffset);
+                    int batchOffset = 0;
+                    while (batchOffset < emitSize) {
+                        final int chunkSize = Math.min(BATCH_SIZE, emitSize - batchOffset);
+                        fillKeys(positionOffset + batchOffset, chunkSize);
+                        if (swiss.shouldPrefetch()) {
+                            for (int i = 0; i < chunkSize; i++) {
+                                hashes[i] = BytesRefSwissHash.hash64(keys, i * keyLength, keyLength);
+                                dummy ^= swiss.prefetch(hashes[i]);
+                            }
+                            for (int i = 0; i < chunkSize; i++) {
+                                key.offset = i * keyLength;
+                                long id = swiss.addWithHash(key, hashes[i]);
+                                groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
+                            }
+                        } else {
+                            for (int i = 0; i < chunkSize; i++) {
+                                key.offset = i * keyLength;
+                                long id = swiss.add(key);
+                                groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
+                            }
                         }
-                        for (int i = 0; i < chunkSize; i++) {
-                            key.offset = i * keyLength;
-                            long id = swiss.addWithHash(key, hashes[i]);
-                            groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
-                        }
-                    } else {
-                        for (int i = 0; i < chunkSize; i++) {
-                            key.offset = i * keyLength;
-                            long id = swiss.add(key);
-                            groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
-                        }
+                        batchOffset += chunkSize;
                     }
-                    batchOffset += chunkSize;
+                    emitBatch(blockFactory, addInput, groupIds, positionOffset, emitSize);
+                    positionOffset += emitSize;
                 }
-                emitBatch(blockFactory, addInput, groupIds, positionOffset, emitSize);
-                positionOffset += emitSize;
+                prefetchBarrier.consume(dummy);
+            } finally {
+                // Don't keep the page reachable after it's released.
+                Arrays.fill(vectors, null);
             }
-            prefetchBarrier.consume(dummy);
         }
 
         private void fillKeys(int positionOffset, int batchSize) {
@@ -1101,39 +1264,46 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
             for (int b = 0; b < brVectors.length; b++) {
                 brVectors[b] = (BytesRefVector) vectors[bytesRefSpecIdx[b]];
             }
-            while (positionOffset < positionCount) {
-                final int emitSize = Math.min(emitBatchSize, positionCount - positionOffset);
-                int batchOffset = 0;
-                while (batchOffset < emitSize) {
-                    final int requested = Math.min(BATCH_SIZE, emitSize - batchOffset);
-                    final int chunkSize = collectRowSizes(positionOffset + batchOffset, requested);
-                    ensureKeyBuf(rowKeys[chunkSize - 1].offset + rowKeys[chunkSize - 1].length);
-                    for (int i = 0; i < chunkSize; i++) {
-                        rowKeys[i].bytes = keyBuf;
-                    }
-                    serializeColumns(positionOffset + batchOffset, chunkSize, cursors);
+            try {
+                while (positionOffset < positionCount) {
+                    final int emitSize = Math.min(emitBatchSize, positionCount - positionOffset);
+                    int batchOffset = 0;
+                    while (batchOffset < emitSize) {
+                        final int requested = Math.min(BATCH_SIZE, emitSize - batchOffset);
+                        final int chunkSize = collectRowSizes(positionOffset + batchOffset, requested);
+                        ensureKeyBuf(rowKeys[chunkSize - 1].offset + rowKeys[chunkSize - 1].length);
+                        for (int i = 0; i < chunkSize; i++) {
+                            rowKeys[i].bytes = keyBuf;
+                        }
+                        serializeColumns(positionOffset + batchOffset, chunkSize, cursors);
 
-                    if (swiss.shouldPrefetch()) {
-                        for (int i = 0; i < chunkSize; i++) {
-                            hashes[i] = BytesRefSwissHash.hash64(rowKeys[i]);
-                            dummy ^= swiss.prefetch(hashes[i]);
+                        if (swiss.shouldPrefetch()) {
+                            for (int i = 0; i < chunkSize; i++) {
+                                hashes[i] = BytesRefSwissHash.hash64(rowKeys[i]);
+                                dummy ^= swiss.prefetch(hashes[i]);
+                            }
+                            for (int i = 0; i < chunkSize; i++) {
+                                long id = swiss.addWithHash(rowKeys[i], hashes[i]);
+                                groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
+                            }
+                        } else {
+                            for (int i = 0; i < chunkSize; i++) {
+                                long id = swiss.add(rowKeys[i]);
+                                groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
+                            }
                         }
-                        for (int i = 0; i < chunkSize; i++) {
-                            long id = swiss.addWithHash(rowKeys[i], hashes[i]);
-                            groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
-                        }
-                    } else {
-                        for (int i = 0; i < chunkSize; i++) {
-                            long id = swiss.add(rowKeys[i]);
-                            groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
-                        }
+                        batchOffset += chunkSize;
                     }
-                    batchOffset += chunkSize;
+                    emitBatch(blockFactory, addInput, groupIds, positionOffset, emitSize);
+                    positionOffset += emitSize;
                 }
-                emitBatch(blockFactory, addInput, groupIds, positionOffset, emitSize);
-                positionOffset += emitSize;
+                prefetchBarrier.consume(dummy);
+            } finally {
+                // Don't keep the page reachable after it's released.
+                Arrays.fill(vectors, null);
+                Arrays.fill(nullableBlocks, null);
+                Arrays.fill(brVectors, null);
             }
-            prefetchBarrier.consume(dummy);
         }
 
         /**
@@ -1299,7 +1469,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                 for (int i = 0; i < rows; i++) {
                     final int o = rowKeys[i].offset;
                     for (int b = 0; b < nullTrackingBytes; b++) {
-                        keyBuf[o + b] = (byte) (rowNulls[i] >>> (b * Byte.SIZE));
+                        keyBuf[o + b] = b < Long.BYTES ? (byte) (rowNulls[i] >>> (b * Byte.SIZE)) : 0;
                     }
                     cursors[i] = o + nullTrackingBytes;
                 }

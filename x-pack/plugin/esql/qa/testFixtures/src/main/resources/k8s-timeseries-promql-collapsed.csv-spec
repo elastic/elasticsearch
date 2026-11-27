@@ -9,13 +9,14 @@ required_capability: promql_command_v0
 required_capability: ts_collapse
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_round_to_nearest
 PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" (
-  sum(avg_over_time(network.cost[5m]))
+  round(sum(avg_over_time(network.cost[5m])), 0.000001)
 )
 | TS_COLLAPSE;
 
-sum(avg_over_time(network.cost[5m])):double | step:datetime
-[51.958333333333336, 51.59375]             | [2024-05-10T00:20:00.000Z, 2024-05-10T00:25:00.000Z]
+round(sum(avg_over_time(network.cost[5m])), 0.000001):double | step:datetime
+[51.958333, 51.59375]                                        | [2024-05-10T00:20:00.000Z, 2024-05-10T00:25:00.000Z]
 ;
 
 // Single step, per-cluster — mirrors nested_within_series_sum_by_cluster_avg_over_time.
@@ -108,6 +109,20 @@ clients:double        | step:datetime                                           
 [440.0, 565.0, 454.0] | [2024-05-10T00:02:00.000Z, 2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z] | qa              | 486.3333333333333
 [205.0, 357.0]        | [2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z]                           | staging         | 281.0
 // end::ts_collapse_eval-result[]
+;
+
+// Mirrors absent_series_starts_and_ends.
+absent_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: promql_absent
+PROMQL index=k8s step=5m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:40:00.000Z" result=(absent(network.cost{cluster="qa", pod="two"}))
+| TS_COLLAPSE;
+
+result:double        | step:datetime                                                                                                  | cluster:keyword | pod:keyword
+[1.0, 1.0, 1.0, 1.0] | [2024-05-10T00:00:00.000Z, 2024-05-10T00:30:00.000Z, 2024-05-10T00:35:00.000Z, 2024-05-10T00:40:00.000Z] | qa              | two
 ;
 
 // TS_COLLAPSE folds the three steps into one row, so v holds three values while one holds one.

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.arrow_interop;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -22,6 +23,8 @@ import org.elasticsearch.test.fixtures.arrowinterop.ArrowInteropContainer.Langua
 import org.elasticsearch.test.fixtures.testcontainers.DockerAvailability;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -45,7 +48,6 @@ import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Checks that the official Arrow libraries of other languages ({@code pyarrow} and {@code apache-arrow} for Node.js)
@@ -257,9 +259,10 @@ public class ArrowInteropIT extends ESRestTestCase {
         Request request = new Request("POST", "/_query");
         request.setJsonEntity("{\"query\": \"FROM arrow-interop | SORT i | KEEP ip | LIMIT 10\"}");
         request.setOptions(request.getOptions().toBuilder().addHeader("Accept", "application/vnd.apache.arrow.stream"));
-        assertThat(
-            client().performRequest(request).getEntity().getContentType().getValue(),
-            startsWith("application/vnd.apache.arrow.stream")
+        // Exact media type, ignoring parameters
+        assertEquals(
+            "application/vnd.apache.arrow.stream",
+            ContentType.parse(client().performRequest(request).getEntity().getContentType().getValue()).getMimeType()
         );
 
         List<?> expected = (List<?>) parseJson("{\"columns\":" + resource("expected/ip.json") + "}").get("columns");
@@ -367,9 +370,12 @@ public class ArrowInteropIT extends ESRestTestCase {
         return copy;
     }
 
+    /** Parses a JSON object, and fails if anything follows it: a client parsing the whole cell would reject that. */
     private static Object parseJsonUnchecked(String json) {
-        try {
-            return parseJson(json);
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            Map<String, Object> result = parser.map();
+            assertNull("Unexpected content after the JSON object in " + json, parser.nextToken());
+            return result;
         } catch (IOException e) {
             throw new AssertionError("Invalid JSON: " + json, e);
         }

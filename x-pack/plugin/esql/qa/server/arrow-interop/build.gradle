@@ -32,3 +32,19 @@ dependencies {
   clusterModules project(xpackModule('autoscaling'))
   clusterModules project(xpackModule('ilm')) // x-pack core registers ILM settings and actions, which must then exist
 }
+
+tasks.named('javaRestTest') {
+  // Docker availability is only checked by a JUnit rule, which skips the whole suite when Docker is missing. It must be a
+  // task input, so that a run skipped for lack of Docker is not reused (up-to-date or from the build cache) once Docker is available.
+  inputs.property('dockerAvailable', providers.provider {
+    try {
+      new ProcessBuilder('docker', 'info')
+        .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+        .redirectError(ProcessBuilder.Redirect.DISCARD)
+        .start()
+        .waitFor() == 0
+    } catch (IOException e) {
+      false // no docker command
+    }
+  })
+}

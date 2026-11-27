@@ -2637,11 +2637,12 @@ public class ComputeService {
     }
 
     /**
-     * Keeps the query that {@code coordinatorTask} coordinates tracked on this node until {@code listener} completes.
-     * The computes of the coordinator share its memory. The part closes at the latest when the task is removed.
+     * Opens the coordination part of the query that {@code coordinatorTask} coordinates, which keeps the query tracked on
+     * this node. The query's planning and the computes of the coordinator share its memory. The caller closes it once
+     * the query completes; it closes at the latest when the task is removed.
      */
-    <T> ActionListener<T> coordinate(Task coordinatorTask, ActionListener<T> listener) {
-        return ActionListener.releaseAfter(listener, searchService.coordinate(coordinatorTask));
+    QueryScheduler.QueryPart coordinate(Task coordinatorTask) {
+        return searchService.coordinate(coordinatorTask);
     }
 
     /**

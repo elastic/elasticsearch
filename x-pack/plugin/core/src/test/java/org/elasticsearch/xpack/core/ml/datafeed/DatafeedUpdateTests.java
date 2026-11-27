@@ -46,6 +46,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
@@ -367,17 +368,14 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(exception.getMessage(), containsString("cannot add [esql_query] to non-ES|QL datafeed [classic-datafeed]"));
     }
 
-    public void testApplyEsqlSourceTimeFieldUpdateToClassicDatafeedShouldReject() {
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(List.of("source-index")).build();
-        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setSourceTimeField("t").build();
-
-        ElasticsearchStatusException exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+    public void testParseUpdateWithSourceTimeFieldShouldReject() throws IOException {
+        String json = """
+            {"datafeed_id": "esql-datafeed", "source_time_field": "@timestamp"}""";
+        XContentParseException exception = expectThrows(
+            XContentParseException.class,
+            () -> DatafeedUpdate.PARSER.apply(createParser(JsonXContent.jsonXContent, json), null)
         );
-
-        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(exception.getMessage(), containsString("source_time_field can only be set when esql_query is configured"));
+        assertThat(exception.getMessage(), containsString("unknown field [source_time_field]"));
     }
 
     public void testApplyEsqlGroupingIntervalUpdateToClassicDatafeedShouldReject() {
@@ -396,7 +394,6 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     public void testMinRequiredTransportVersionShouldCoverAllEsqlFields() {
         List<DatafeedUpdate> esqlUpdates = List.of(
             new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs").build(),
-            new DatafeedUpdate.Builder("test-datafeed").setSourceTimeField("t").build(),
             new DatafeedUpdate.Builder("test-datafeed").setGroupingInterval(TimeValue.timeValueHours(1)).build()
         );
         for (DatafeedUpdate update : esqlUpdates) {
@@ -410,7 +407,6 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
         List<DatafeedUpdate> queryShapeUpdates = List.of(
             new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery("FROM different-index").build(),
-            new DatafeedUpdate.Builder(datafeed.getId()).setSourceTimeField("event.ingested").build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setGroupingInterval(TimeValue.timeValueMinutes(30)).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setIndices(Collections.emptyList()).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setQuery(QueryProvider.defaultQuery()).build(),
@@ -454,7 +450,6 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
 
     private static DatafeedConfig createEsqlDatafeed(String id) {
         return new DatafeedConfig.Builder(id, "esql-job").setEsqlQuery("FROM source-index")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
     }

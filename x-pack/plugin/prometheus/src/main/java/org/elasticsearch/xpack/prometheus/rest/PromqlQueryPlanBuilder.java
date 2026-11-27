@@ -43,6 +43,8 @@ import java.util.List;
 class PromqlQueryPlanBuilder {
 
     private static final Duration DEFAULT_SCRAPE_INTERVAL = Duration.ofMinutes(1);
+    // https://github.com/prometheus/prometheus/blob/ad8f26eed18a6aabfd9729bb281c6a3e53beabe9/web/api/v1/api.go#L1235-L1237
+    static final long MAX_POINTS_PER_SERIES = 11_000;
 
     /**
      * The statement to run and the Prometheus result type of its response. The response to a string literal query is the
@@ -87,10 +89,27 @@ class PromqlQueryPlanBuilder {
         Instant startInstant = PromqlParserUtils.parseDate(Source.EMPTY, startStr);
         Instant endInstant = PromqlParserUtils.parseDate(Source.EMPTY, endStr);
         Duration stepDuration = parseDuration(stepStr);
+        if (stepDuration.isPositive() && exceedsMaxPointsPerSeries(Duration.between(startInstant, endInstant), stepDuration)) {
+            throw new IllegalArgumentException(
+                "exceeded maximum resolution of 11,000 points per timeseries. Try decreasing the query resolution (?step=XX)"
+            );
+        }
         Literal startLiteral = Literal.dateTime(Source.EMPTY, startInstant);
         Literal endLiteral = Literal.dateTime(Source.EMPTY, endInstant);
         Literal stepLiteral = Literal.timeDuration(Source.EMPTY, stepDuration);
         return buildStatement(query, index, startLiteral, endLiteral, stepLiteral, Literal.NULL, limit, mode);
+    }
+
+    /**
+     * Whether a range query over {@code range} with a positive {@code step} has more than {@link #MAX_POINTS_PER_SERIES} points
+     * per series. A point count that does not fit in a {@code long} exceeds it too.
+     */
+    private static boolean exceedsMaxPointsPerSeries(Duration range, Duration step) {
+        try {
+            return range.dividedBy(step) > MAX_POINTS_PER_SERIES;
+        } catch (ArithmeticException e) {
+            return range.isPositive();
+        }
     }
 
     static PromqlStatementResult buildStatement(

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
@@ -17,32 +18,34 @@ import java.util.Optional;
 import java.util.OptionalLong;
 
 /**
- * Builds a {@link SourceStatistics} from a cached {@link ExternalStats.Stats} for the
- * line-oriented text-format readers (CSV / TSV / NDJSON).
+ * Builds a {@link SourceStatistics} for the line-oriented text-format readers (CSV / TSV / NDJSON).
  * <p>
- * Cache miss → row count + column statistics absent; {@code sizeInBytes} still published when
- * derivable from {@code StorageObject.length()}. Cache hit → row count populated, plus
- * stream-derived {@code bytesRead} fed into {@code sizeInBytes} when {@code length()} was
- * unknown at the time of metadata resolution (stream-only compression sources), plus per-column
- * statistics for every column whose name resolves to an attribute in the schema.
+ * {@link #build} publishes the row count and the per-column statistics of a measurement the current
+ * read just made, plus stream-derived {@code bytesRead} fed into {@code sizeInBytes} when
+ * {@code StorageObject.length()} was unknown at metadata resolution. An empty measurement is cold
+ * resolution and publishes neither.
  */
 public final class TextFormatStats {
+
+    /** {@link #harvested} is handed a harvest {@link #build} already capped, so it has nothing left to withhold. */
+    private static final int ALREADY_CAPPED = Integer.MAX_VALUE;
 
     private TextFormatStats() {}
 
     public static SourceStatistics build(
-        Optional<ExternalStats.Stats> cachedStats,
+        Optional<ExternalStats.Stats> measurement,
         OptionalLong lengthDerivedSizeInBytes,
-        List<Attribute> schema
+        List<Attribute> schema,
+        int maxExtremumBytes
     ) {
         OptionalLong rowCount;
         OptionalLong sizeInBytes;
         Map<String, SourceStatistics.ColumnStatistics> columns;
-        if (cachedStats.isPresent()) {
-            ExternalStats.Stats s = cachedStats.get();
+        if (measurement.isPresent()) {
+            ExternalStats.Stats s = measurement.get();
             rowCount = OptionalLong.of(s.rowCount());
             sizeInBytes = lengthDerivedSizeInBytes.isPresent() ? lengthDerivedSizeInBytes : s.bytesRead();
-            columns = buildColumns(s.columns(), schema);
+            columns = buildColumns(s.columns(), schema, maxExtremumBytes);
         } else {
             rowCount = OptionalLong.empty();
             sizeInBytes = lengthDerivedSizeInBytes;
@@ -52,16 +55,16 @@ public final class TextFormatStats {
     }
 
     /**
-     * The statistics of one already-filtered harvest, with no schema applied. The filter belongs at the
-     * harvest — {@link StripeStatsHarvester#emit} runs {@link #build} before a piece is handed on — so a
-     * consumer holding a filtered harvest has nothing left to filter and reads its columns from the harvest
-     * itself. Applying the schema a second time there would make the columns a record COUNTS and the columns
-     * it WRITES come from two different places.
+     * The statistics of one already-filtered harvest, with no schema applied. The schema filter belongs at
+     * the harvest — {@link StripeStatsHarvester#emit} runs {@link #build} before a piece is handed on — so a
+     * consumer holding a filtered harvest reads its columns from the harvest itself. Applying the schema a
+     * second time there would make the columns a record COUNTS and the columns it WRITES come from two
+     * different places.
      */
     static SourceStatistics harvested(long rowCount, Map<String, ExternalStats.ColumnStats> columns) {
         Map<String, SourceStatistics.ColumnStatistics> cols = new HashMap<>();
         for (Map.Entry<String, ExternalStats.ColumnStats> entry : columns.entrySet()) {
-            cols.put(entry.getKey(), toSpi(entry.getValue()));
+            cols.put(entry.getKey(), toSpi(entry.getValue(), ALREADY_CAPPED));
         }
         return statistics(OptionalLong.of(rowCount), OptionalLong.empty(), cols);
     }
@@ -94,7 +97,8 @@ public final class TextFormatStats {
 
     private static Map<String, SourceStatistics.ColumnStatistics> buildColumns(
         Map<String, ExternalStats.ColumnStats> cached,
-        List<Attribute> schema
+        List<Attribute> schema,
+        int maxExtremumBytes
     ) {
         if (cached.isEmpty() || schema == null || schema.isEmpty()) {
             return Map.of();
@@ -108,12 +112,12 @@ public final class TextFormatStats {
             if (cs == null) {
                 continue;
             }
-            out.put(a.name(), toSpi(cs));
+            out.put(a.name(), toSpi(cs, maxExtremumBytes));
         }
         return out;
     }
 
-    private static SourceStatistics.ColumnStatistics toSpi(ExternalStats.ColumnStats cs) {
+    private static SourceStatistics.ColumnStatistics toSpi(ExternalStats.ColumnStats cs, int maxExtremumBytes) {
         return new SourceStatistics.ColumnStatistics() {
             @Override
             public OptionalLong nullCount() {
@@ -132,13 +136,31 @@ public final class TextFormatStats {
 
             @Override
             public Optional<Object> minValue() {
-                return Optional.ofNullable(cs.min());
+                return Optional.ofNullable(publishable(cs.min(), maxExtremumBytes));
             }
 
             @Override
             public Optional<Object> maxValue() {
-                return Optional.ofNullable(cs.max());
+                return Optional.ofNullable(publishable(cs.max(), maxExtremumBytes));
             }
         };
+    }
+
+    /**
+     * {@code extremum}, or {@code null} when it is a {@link BytesRef} longer than {@code maxExtremumBytes},
+     * so it covers {@code KEYWORD}, {@code TEXT} and {@code IP} alike. Counts are unaffected, as is the
+     * column's other end. Applied when a read publishes, never when a stored record is read back.
+     */
+    private static Object publishable(Object extremum, int maxExtremumBytes) {
+        assert extremum == null
+            || extremum instanceof BytesRef
+            || extremum instanceof Integer
+            || extremum instanceof Long
+            || extremum instanceof Double
+            || extremum instanceof Boolean
+            : "a harvested extremum must be one of ColumnStatTypeSupport's carriers; ["
+                + extremum.getClass().getName()
+                + "] would pass the cap uncapped";
+        return extremum instanceof BytesRef bytes && bytes.length > maxExtremumBytes ? null : extremum;
     }
 }

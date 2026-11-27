@@ -253,11 +253,6 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
      * A S3 repository plugin that keeps track of the credentials used to build an AmazonS3 client
      */
     public static final class ProxyS3RepositoryPlugin extends S3RepositoryPlugin {
-
-        public ProxyS3RepositoryPlugin(Settings settings) {
-            super(settings);
-        }
-
         @Override
         S3Service s3Service(
             Environment environment,

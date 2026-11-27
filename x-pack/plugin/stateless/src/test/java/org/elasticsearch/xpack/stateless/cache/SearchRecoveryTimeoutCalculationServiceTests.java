@@ -2899,12 +2899,13 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     /// The relocation source starts shutting down while the shard waits on the equal-share plan made for 'another shutting-down node' plan,
     /// and the wait is extended past what the source's own shutdown plan would give. With a 10m grace period and 10 slots, node A has 30
     /// shards relocating to the target and the source B has this shard and one other. The 32 recoveries share the 600s left until A's
-    /// deadline, so the plan waits `18.75s * 10 slots = 187.5s`. B started shutting down 7.5s after A, so when the plan expires B has
-    /// 420s left. Its 2 shards get an equal share of `420s / 2 = 210s`, and the 2 of the 32 relocations to the target that are B's get
-    /// `10 slots * 2 / 32 = 0.625` slots. The re-evaluation extends the wait by the part of that share above the 18.75s that the plan
-    /// budgeted, scaled to the slots: `(210s - 18.75s) * 0.625 ~ 119.5s`. That is 307s in all, whereas the source's plan from scratch is
-    /// `210s * 0.625 = 131.25s`. The previous plan's share is what the extension is measured from, and it does not come from the deadline
-    /// that now applies.
+    /// deadline, so the plan waits `18.75s * 10 slots = 187.5s`. B started shutting down 7.5s after A. Had the shard started waiting on
+    /// B's own plan at that moment, B would have 600s left, its 2 shards would get an equal share of `600s / 2 = 300s`, and the 2 of the
+    /// 32 relocations to the target that are B's would get `10 slots * 2 / 32 = 0.625` slots, so the wait would be `300s * 0.625 =
+    /// 187.5s` and end 195s after A started shutting down. Instead the plan expires at 187.5s, when B has 420s left and an equal share of
+    /// `420s / 2 = 210s`. The re-evaluation extends the wait by the part of that share above the 18.75s that the plan budgeted, scaled
+    /// to the slots: `(210s - 18.75s) * 0.625 ~ 119.5s`, so the wait ends about 307s after A started shutting down. That is later than
+    /// B's own plan would have ended, and the comparison is made on completion times as both waits are measured from the same instant.
     public void testRelocationSourceShuttingDownDuringOtherNodePlanExtendsBeyondTheSourceShutdownPlan() {
         try (
             var threadPool = new FakeTimeThreadPool(
@@ -2933,8 +2934,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             assertThat(firstPlan.timeout(), equalTo(TimeValue.timeValueMillis(187_500)));
             assertThat(firstPlan.perShardShareMs(), closeTo(18_750.0, 1e-6));
 
-            // the plan expires with the source 420s from its deadline, having started shutting down 180s before
-            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + firstPlan.timeout().millis());
             final var stateWithSourceShuttingDown = relocationFromSourceWithOtherNodeShuttingDown(
                 1,
                 sourceShutdownStartedAt,
@@ -2943,23 +2942,35 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 shutdownStartedAt
             );
 
+            // the plan the source would give at the moment it starts shutting down, with its whole grace period still ahead
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 7_500);
             final var sourceShutdownPlan = service.searchRecoveryTimeout(stateWithSourceShuttingDown, self, 0L, null);
             assertThat(sourceShutdownPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
-            assertThat(sourceShutdownPlan.timeout(), equalTo(TimeValue.timeValueMillis(131_250)));
-            assertThat(sourceShutdownPlan.perShardShareMs(), closeTo(210_000.0, 1e-6));
+            assertThat(sourceShutdownPlan.timeout(), equalTo(TimeValue.timeValueMillis(187_500)));
+            assertThat(sourceShutdownPlan.perShardShareMs(), closeTo(300_000.0, 1e-6));
+            final long sourceShutdownPlanEndsAt = 7_500 + sourceShutdownPlan.timeout().millis();
+
+            // the plan expires with the source 420s from its deadline, having started shutting down 180s before
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + firstPlan.timeout().millis());
 
             final var extension = service.extendedTimeout(stateWithSourceShuttingDown, self, 0L, 0L, firstPlan, firstPlan.timeout());
             assertThat(extension.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
             assertThat(extension.timeout(), equalTo(TimeValue.timeValueMillis(119_531)));
             assertThat(extension.perShardShareMs(), closeTo(210_000.0, 1e-6));
 
-            final var totalWait = firstPlan.timeout().millis() + extension.timeout().millis();
-            assertThat(totalWait, equalTo(307_031L));
-            assertThat("the wait goes on past the source shutdown plan", totalWait, greaterThan(sourceShutdownPlan.timeout().millis()));
+            // both ends are measured from the moment the first node started shutting down
+            final long extendedWaitEndsAt = firstPlan.timeout().millis() + extension.timeout().millis();
+            assertThat(extendedWaitEndsAt, equalTo(307_031L));
+            assertThat(sourceShutdownPlanEndsAt, equalTo(195_000L));
             assertThat(
-                "but the extension alone is less than the source shutdown plan, as the first plan's share is deducted",
-                extension.timeout(),
-                lessThan(sourceShutdownPlan.timeout())
+                "the extended wait ends no later than the source's own plan would have ended",
+                extendedWaitEndsAt,
+                greaterThan(sourceShutdownPlanEndsAt)
+            );
+            assertThat(
+                "the first plan alone ends no earlier than the source's own plan, so the test would pass without an extension",
+                firstPlan.timeout().millis(),
+                lessThan(sourceShutdownPlanEndsAt)
             );
         }
     }

@@ -245,7 +245,7 @@ $$$esql-external-cache-stats-max-extremum-size$$$
     - **Default:** `1kb`
     - **Valid values:** A byte size from `0b` to `1mb`. `0b` withholds all non-empty bounds. Values below `16b` also withhold bounds for `ip` columns.
 
-    Configure the same value on every node; changes apply only to subsequent reads, not existing cache entries. Lower this setting to keep long values out of the statistics cache. Raise it to avoid re-reading files with long text values, but keep it well below the statistics cache's per-entry memory limit, or the entire statistics entry for a file (including row counts) is dropped.
+    Configure the same value on every node; changes apply only to subsequent reads, not existing cache entries. Lower this setting to keep long values out of the statistics cache. Raise it to avoid re-reading files with long text values, bearing in mind that the cache weighs a file's whole statistics entry: an entry over the per-entry memory limit is dropped whole, row counts included, so a file with many columns can exceed it even when every single bound is within this limit.
 
 $$$esql-external-cache-footer-size$$$
 

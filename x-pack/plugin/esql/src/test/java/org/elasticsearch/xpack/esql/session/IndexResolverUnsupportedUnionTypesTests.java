@@ -86,6 +86,27 @@ public class IndexResolverUnsupportedUnionTypesTests extends ESTestCase {
         assertThat(((UnsupportedEsField) field).getOriginalTypes(), equalTo(List.of("rank_feature")));
     }
 
+    /**
+     * The original type that stands for the unsupported types, when the field is unsupported for its sub-fields or reported, is the
+     * one of the first index that maps one, as it is for a field that is unsupported in every index, not the first by name.
+     */
+    public void testOriginalTypeIsTheFirstOneMet() {
+        TypeConflictedField conflict = (TypeConflictedField) resolve(
+            TransportVersion.current(),
+            index("idx-long", "long"),
+            index("idx-rank-2", "rank_features"),
+            index("idx-rank", "rank_feature")
+        );
+
+        assertThat(conflict.firstUnsupportedOriginalType(), equalTo("rank_features"));
+        assertThat(conflict.originalTypes(), equalTo(List.of("rank_features")));
+        // The types of the warnings and messages don't depend on the order
+        assertThat(
+            conflict.unsupportedOriginalTypesToIndices(),
+            equalTo(Map.of("rank_features", Set.of("idx-rank-2"), "rank_feature", Set.of("idx-rank")))
+        );
+    }
+
     private static EsField resolve(TransportVersion minimumVersion, FieldCapabilitiesIndexResponse... indices) {
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(List.of(indices)).build();
         var resolution = IndexResolver.mergedMappings(

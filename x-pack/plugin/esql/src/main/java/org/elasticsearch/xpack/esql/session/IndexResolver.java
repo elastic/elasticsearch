@@ -682,10 +682,7 @@ public class IndexResolver {
                     && conflictedParent.types().contains(UNSUPPORTED)) {
                         // A parent that is unsupported in some indices is as unsupported for its sub-fields as one that is unsupported
                         // everywhere, as it was before it kept its unsupported types.
-                        firstUnsupportedParent = new UnsupportedEsField(
-                            conflictedParent.getName(),
-                            List.of(conflictedParent.unsupportedOriginalTypesToIndices().keySet().iterator().next())
-                        );
+                        firstUnsupportedParent = new UnsupportedEsField(conflictedParent.getName(), conflictedParent.originalTypes());
                     }
                 fields = obj.getProperties();
                 name = name.substring(nextDot + 1);
@@ -1152,6 +1149,7 @@ public class IndexResolver {
                 name,
                 typesToIndices,
                 unsupportedOriginalTypes,
+                firstUnsupported == null ? null : originalType(firstUnsupported),
                 indexDedupCache,
                 timeSeriesFieldType
             );

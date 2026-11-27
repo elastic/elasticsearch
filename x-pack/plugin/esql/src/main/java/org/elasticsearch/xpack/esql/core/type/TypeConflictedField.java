@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.io.IOException;
@@ -71,6 +72,17 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
     }
 
     /**
+     * For a field with {@link DataType#UNSUPPORTED} among its {@link #types()}, the original type of the first index that maps a type
+     * ES|QL doesn't support, in the order the indices were resolved. It is the type of the {@link UnsupportedEsField} that the field
+     * is for its sub-fields, or when it is reported, as it is for a field that is unsupported in every index. {@code null} if the field
+     * has no unsupported type.
+     */
+    @Nullable
+    public String firstUnsupportedOriginalType() {
+        return null;
+    }
+
+    /**
      * Whether the field has a type that ES|QL doesn't support in some indices. Unlike the conflict of the other types, it can't be
      * explained by the types it has, and the field is {@link UnsupportedEsField} when it must be sent to the nodes or reported.
      */
@@ -83,8 +95,9 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
      * type that ES|QL doesn't support, only the first of those, as for a field that is unsupported in every index.
      */
     public final List<String> originalTypes() {
-        if (hasUnsupportedType() && unsupportedOriginalTypesToIndices().isEmpty() == false) {
-            return List.of(unsupportedOriginalTypesToIndices().keySet().iterator().next());
+        String firstUnsupported = firstUnsupportedOriginalType();
+        if (hasUnsupportedType() && firstUnsupported != null) {
+            return List.of(firstUnsupported);
         }
         return getTypesToIndices().keySet().stream().toList();
     }

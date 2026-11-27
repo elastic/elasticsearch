@@ -245,6 +245,14 @@ public class CsvIT extends ESTestCase {
         }
 
         /**
+         * Whether to leave an actual warning out of the comparison. For a variant whose rewrite of the corpus makes the cluster
+         * warn about something the spec entries could not know about. The default keeps every warning.
+         */
+        default boolean ignoresWarning(String warning) {
+            return false;
+        }
+
+        /**
          * Called once after the index for {@code dataset} has been fully populated.
          */
         default void afterIndexLoaded(CsvTestsDataLoader.TestDataset dataset, Client client) throws IOException {}
@@ -559,6 +567,7 @@ public class CsvIT extends ESTestCase {
             var warnings = listener.warnings.stream()
                 .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
                 .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
+                .filter(w -> differentialTestStrategy.ignoresWarning(w) == false)
                 .map(differentialTestStrategy::normalizeWarning)
                 .toList();
             // Apply the same normalization to the expected warnings so a variant that rewrites the

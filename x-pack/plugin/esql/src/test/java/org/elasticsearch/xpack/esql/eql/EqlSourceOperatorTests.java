@@ -955,13 +955,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         CapturingEqlClient client = new CapturingEqlClient(threadPool);
         DriverContext driverContext = driverContext();
         Hits hits = new Hits(List.of(), null, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
-        EqlSearchResponse response = new EqlSearchResponse(
-            hits,
-            3L,
-            false,
-            List.of(),
-            List.of(new EqlClusterShards(LOCAL, 1, 1, 0, 0))
-        );
+        EqlSearchResponse response = new EqlSearchResponse(hits, 3L, false, List.of(), List.of(new EqlClusterShards(LOCAL, 1, 1, 0, 0)));
         SourceOperator operator = operator(
             client,
             driverContext,

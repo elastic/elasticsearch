@@ -4801,7 +4801,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             shouldFailClusterStatePublication.set(false);
             // Now perform any action that produces new cluster state so that the node that was isolated gets latest cluster state
             // and is in a clean state for teardown.
-            createIndex(indexName + "2");
+            bumpClusterStateVersion();
         }
 
         // Wait for reshard completion via the previously isolated node which would also confirm that it has latest cluster state.

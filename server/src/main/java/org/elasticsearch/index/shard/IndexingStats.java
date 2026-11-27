@@ -419,8 +419,11 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
             builder.field(Fields.NOOP_UPDATE_TOTAL, noopUpdateCount);
             // Only expose the in-place doc-values update counter while the feature is enabled, so the public stats response is unchanged
-            // on release builds until updatable doc-values ships. The wire format still carries the value unconditionally.
-            if (FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled()) {
+            // on release builds until updatable doc-values ships. A nonzero count is always exposed so that a coordinating node with the
+            // feature disabled still reports counts aggregated from feature-enabled shard nodes rather than dropping them. The wire format
+            // carries the value unconditionally. On release builds the feature is off everywhere, so the count is always zero and the
+            // field stays absent.
+            if (FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled() || inPlaceDocValuesUpdateCount > 0) {
                 builder.field(Fields.IN_PLACE_DOC_VALUES_UPDATE_TOTAL, inPlaceDocValuesUpdateCount);
             }
 

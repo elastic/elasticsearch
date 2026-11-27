@@ -9,15 +9,63 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndexingStatsTests extends ESTestCase {
 
     private static final double DOUBLE_TOLERANCE = 1.0e-10;
+
+    /**
+     * The in-place doc-values update counter is gated in the rendered response: with the feature enabled it is always present (carrying
+     * its value, including zero), so the field ships with the feature.
+     */
+    public void testInPlaceDocValuesUpdateStatRenderedWhenFeatureEnabled() throws IOException {
+        assumeTrue("requires the updatable doc-values feature flag", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
+        assertThat(renderedInPlaceCount(statsWithInPlaceCount(0)), equalTo(0L));
+        assertThat(renderedInPlaceCount(statsWithInPlaceCount(7)), equalTo(7L));
+    }
+
+    /**
+     * With the feature disabled the field is omitted when there is nothing to report, keeping the public stats response unchanged on
+     * release builds, but a nonzero count aggregated from feature-enabled shard nodes onto a feature-disabled coordinating node is still
+     * reported rather than silently dropped. Only runs in the feature-flag-disabled CI configuration.
+     */
+    public void testInPlaceDocValuesUpdateStatOnlyRenderedForNonzeroWhenFeatureDisabled() throws IOException {
+        assumeFalse(
+            "only meaningful when the updatable doc-values feature flag is disabled",
+            FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled()
+        );
+        assertThat(renderedInPlaceCount(statsWithInPlaceCount(0)), nullValue());
+        assertThat(renderedInPlaceCount(statsWithInPlaceCount(7)), equalTo(7L));
+    }
+
+    private static IndexingStats.Stats statsWithInPlaceCount(long inPlaceCount) {
+        return new IndexingStats.Stats(1, 2, 3, 4, 5, 0, 6, 7, 8, 9, inPlaceCount, false, 10, 11, 11, 12, 0.1357, 0.2468);
+    }
+
+    private static Long renderedInPlaceCount(IndexingStats.Stats stats) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        Map<String, Object> map = convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
+        Object value = map.get("in_place_doc_values_update_total");
+        return value == null ? null : ((Number) value).longValue();
+    }
 
     public void testStatsGetWriteLoad() {
         IndexingStats.Stats stats = new IndexingStats.Stats(

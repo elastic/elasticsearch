@@ -27,6 +27,8 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -37,6 +39,7 @@ import java.util.List;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -270,6 +273,83 @@ public class DocValuesUpdateEngineTests extends EngineTestCase {
             assertThat(readCounterOfLiveDoc(engine), equalTo(1L));
             assertThat(countHistoryDocsInLucene(engine), equalTo(0));
         });
+    }
+
+    public void testDocValuesUpdateRejectedAtShardDocumentLimit() throws Exception {
+        // An in-place update still writes a born-soft-deleted history document, so it needs a Lucene slot. At the shard document limit the
+        // slot reservation fails and the update is rejected cleanly: no sequence number is allocated and the engine is not failed. This
+        // differs from a plain index or delete at the limit, so it needs its own regression coverage.
+        int maxDocs = randomIntBetween(1, 10);
+        runOnColumnarEngineWithDocLimit(maxDocs, engine -> {
+            long baseSeqNo = -1;
+            for (int i = 0; i < maxDocs; i++) {
+                LuceneDocument document = testDocument();
+                document.add(new SortedNumericDocValuesField("counter", 1));
+                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, document, new BytesArray("{}"));
+                Engine.IndexResult indexResult = engine.index(indexForDoc(doc));
+                assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                if (i == 0) {
+                    baseSeqNo = indexResult.getSeqNo();
+                }
+            }
+            final long maxSeqNoBeforeUpdate = engine.getLocalCheckpointTracker().getMaxSeqNo();
+
+            // The shard is full, so the update's history document has no slot and the update is rejected.
+            Engine.DocValuesUpdateResult result = engine.docValuesUpdate(primaryDocValuesUpdate("0", 42, baseSeqNo, primaryTerm.get()));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(result.getFailure(), instanceOf(IllegalArgumentException.class));
+            assertThat(
+                result.getFailure().getMessage(),
+                containsString("Number of documents in the shard cannot exceed [" + maxDocs + "]")
+            );
+            // No sequence number was taken and the engine stays open: a clean rejection, not a half-applied update.
+            assertThat(result.getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(engine.getLocalCheckpointTracker().getMaxSeqNo(), equalTo(maxSeqNoBeforeUpdate));
+            assertFalse(engine.isClosed.get());
+
+            // Nothing was written: the live document keeps its value and no history document was added.
+            engine.refresh("test");
+            assertThat(readCounterOfLiveDoc(engine), equalTo(1L));
+            assertThat(countHistoryDocsInLucene(engine), equalTo(0));
+        });
+    }
+
+    /**
+     * Like {@link #runOnColumnarEngine}, but builds the strict-columnar engine with an explicit shard document limit so the in-place
+     * update path's slot reservation can be exercised at the limit. The limit must be set on the engine itself (not just the Lucene
+     * writer) for the reservation to reject before a sequence number is assigned.
+     */
+    private void runOnColumnarEngineWithDocLimit(int maxDocs, CheckedConsumer<InternalEngine, Exception> body) throws Exception {
+        final SeqNoFieldMapper.SeqNoIndexOptions previous = seqNoIndexOptions;
+        seqNoIndexOptions = SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY;
+        try {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h")
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), seqNoIndexOptions)
+                .put("index.disable_sequence_numbers", false)
+                .build();
+            IndexSettings columnarSettings = IndexSettingsModule.newIndexSettings("index", settings);
+            try (Store store = createStore()) {
+                // No merges so the born-soft-deleted history documents are not reclaimed and can be counted.
+                EngineConfig config = config(columnarSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
+                store.createEmpty();
+                String translogUuid = Translog.createEmptyTranslog(
+                    config.getTranslogConfig().getTranslogPath(),
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    shardId,
+                    primaryTerm.get()
+                );
+                store.associateIndexWithNewTranslog(translogUuid);
+                try (InternalEngine engine = new InternalTestEngine(config, maxDocs, LocalCheckpointTracker::new)) {
+                    recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
+                    body.accept(engine);
+                }
+            }
+        } finally {
+            seqNoIndexOptions = previous;
+        }
     }
 
     /**

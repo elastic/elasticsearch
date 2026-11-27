@@ -141,6 +141,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.ElasticsearchCodec;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -581,8 +582,23 @@ public abstract class ESTestCase extends LuceneTestCase {
     @BeforeClass
     @SuppressForbidden(reason = "This replaces SuppressCodecs(\"*\")")
     public static void setDefaultCodec() {
+        ElasticsearchCodec codec = CodecService.createESDefaultCodec(null, BigArrays.NON_RECYCLING_INSTANCE, null);
+        // randomly add asserts to the formats
+        // this is best-effort, as codec loading is complicated and difficult to override
+        if (randomBoolean()) {
+            var wrapper = new AssertingFormatWrapper();
+            codec.setWrapper(wrapper);
+            // also for codecs created by CodecService
+            CodecService.setCodecWrapper(wrapper);
+            // and for the codec instance possibly already loaded by ServiceLoader
+            ((ElasticsearchCodec)Codec.forName(codec.getName())).setWrapper(wrapper);
+        } else {
+            // remove any existing wrapper from previous tests
+            CodecService.setCodecWrapper(null);
+            ((ElasticsearchCodec)Codec.forName(codec.getName())).setWrapper(null);
+        }
         // this is not exhaustive - test that need something from MapperService should define the codec/format explicitly
-        Codec.setDefault(CodecService.createESDefaultCodec(null, BigArrays.NON_RECYCLING_INSTANCE, null));
+        Codec.setDefault(codec);
     }
 
     // setup mock filesystems for this test run. we change PathUtils

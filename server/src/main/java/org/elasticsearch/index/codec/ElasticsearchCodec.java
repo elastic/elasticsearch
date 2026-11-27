@@ -14,15 +14,20 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.LiveDocsFormat;
+import org.apache.lucene.codecs.NormsFormat;
 import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
+import org.apache.lucene.codecs.TermVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.codec.tsdb.ValidatingFieldInfosFormat;
+
+import java.util.Objects;
 
 /**
  * The formats Elasticsearch supplies on top of a Lucene codec, so that a codec for a newer Lucene needs only a name and that
@@ -37,6 +42,40 @@ import org.elasticsearch.index.codec.tsdb.ValidatingFieldInfosFormat;
  * whose name-selected formats differ from an existing one needs a name of its own.
  */
 public abstract class ElasticsearchCodec extends FilterCodec {
+
+    public static class FormatWrapper {
+        public PostingsFormat wrap(PostingsFormat format) {
+            return format;
+        }
+
+        public DocValuesFormat wrap(DocValuesFormat format) {
+            return format;
+        }
+
+        public KnnVectorsFormat wrap(KnnVectorsFormat format) {
+            return format;
+        }
+
+        public StoredFieldsFormat wrap(StoredFieldsFormat format) {
+            return format;
+        }
+
+        public PointsFormat wrap(PointsFormat format) {
+            return format;
+        }
+
+        public NormsFormat wrap(NormsFormat format) {
+            return format;
+        }
+
+        public TermVectorsFormat wrap(TermVectorsFormat format) {
+            return format;
+        }
+
+        public LiveDocsFormat wrap(LiveDocsFormat format) {
+            return format;
+        }
+    }
 
     private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
         @Override
@@ -64,6 +103,8 @@ public abstract class ElasticsearchCodec extends FilterCodec {
     private final PerFieldKnnVectorsFormat delegateKnnVectorsFormat;
     private final FieldInfosFormat fieldInfosFormat;
     private final StoredFieldsFormat storedFieldsFormat;
+
+    private FormatWrapper wrapper = new FormatWrapper();
 
     /**
      * @param name             the name recorded in segments this codec writes
@@ -103,6 +144,10 @@ public abstract class ElasticsearchCodec extends FilterCodec {
         return type.cast(format);
     }
 
+    public void setWrapper(FormatWrapper wrapper) {
+        this.wrapper = Objects.requireNonNullElseGet(wrapper, FormatWrapper::new);
+    }
+
     /** The Lucene codec this one delegates to. */
     public final Codec delegate() {
         return delegate;
@@ -114,28 +159,43 @@ public abstract class ElasticsearchCodec extends FilterCodec {
     }
 
     @Override
+    public final LiveDocsFormat liveDocsFormat() {
+        return wrapper.wrap(super.liveDocsFormat());
+    }
+
+    @Override
     public final StoredFieldsFormat storedFieldsFormat() {
-        return storedFieldsFormat;
+        return wrapper.wrap(storedFieldsFormat);
     }
 
     @Override
     public final PointsFormat pointsFormat() {
-        return Elasticsearch900AdaptivePointsFormat.INSTANCE;
+        return wrapper.wrap(Elasticsearch900AdaptivePointsFormat.INSTANCE);
     }
 
     @Override
     public final PostingsFormat postingsFormat() {
-        return postingsFormat;
+        return wrapper.wrap(postingsFormat);
+    }
+
+    @Override
+    public final NormsFormat normsFormat() {
+        return wrapper.wrap(super.normsFormat());
+    }
+
+    @Override
+    public final TermVectorsFormat termVectorsFormat() {
+        return wrapper.wrap(super.termVectorsFormat());
     }
 
     @Override
     public final DocValuesFormat docValuesFormat() {
-        return docValuesFormat;
+        return wrapper.wrap(docValuesFormat);
     }
 
     @Override
     public final KnnVectorsFormat knnVectorsFormat() {
-        return knnVectorsFormat;
+        return wrapper.wrap(knnVectorsFormat);
     }
 
     /** Postings format for writing new segments of {@code field}; subclasses dispatch per field. */

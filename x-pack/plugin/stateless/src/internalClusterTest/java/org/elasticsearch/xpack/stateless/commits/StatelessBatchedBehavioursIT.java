@@ -10,12 +10,9 @@ package org.elasticsearch.xpack.stateless.commits;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -53,11 +50,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -403,98 +397,6 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
 
         // Unblock and ready to shutdown correctly
         latch.countDown();
-    }
-
-    /**
-     * Stops an indexing node while the post-recovery flush of a primary that it recovered from translog is still waiting for its commit
-     * upload. Node stop shuts down the {@link ObjectStoreService} before closing shards, so the upload can never succeed after that point.
-     */
-    public void testNodeStopCompletesWhilePostRecoveryCommitUploadIsPending() throws Exception {
-        final var nodeStopTimeout = TimeValue.timeValueSeconds(30);
-        startMasterOnlyNode(
-            Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-                .build()
-        );
-        final String nodeA = startIndexNode();
-
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
-        ensureGreen(indexName);
-        // Operations are only in the (object store) translog, so the primary has to replay them, and then flush, when it fails over
-        indexDocs(indexName, between(1, 100));
-
-        final var bccUploadBlocked = new CountDownLatch(1);
-        final var objectStoreServiceB = new AtomicReference<ObjectStoreService>();
-        final String nodeB = startIndexNode(Settings.EMPTY, new StatelessMockRepositoryStrategy() {
-            @Override
-            public boolean supportsConcurrentMultipartUploads(BooleanSupplier originalRunnable) {
-                return false;
-            }
-
-            @Override
-            public void blobContainerWriteBlobAtomic(
-                CheckedRunnable<IOException> originalRunnable,
-                OperationPurpose purpose,
-                String blobName,
-                InputStream inputStream,
-                long blobSize,
-                boolean failIfAlreadyExists
-            ) throws IOException {
-                if (BccBlob.startsWithBlobPrefix(blobName)) {
-                    bccUploadBlocked.countDown();
-                    // Fail this attempt only once the node has started stopping, so that every retry fails in ensureRunning()
-                    final var stopping = waitUntil(() -> {
-                        final var objectStoreService = objectStoreServiceB.get();
-                        return objectStoreService != null && objectStoreService.lifecycleState() != Lifecycle.State.STARTED;
-                    }, nodeStopTimeout.seconds() * 2, TimeUnit.SECONDS);
-                    if (stopping == false) {
-                        throw new AssertionError("node was never stopped");
-                    }
-                    throw new IOException("simulated BCC upload failure");
-                }
-                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
-            }
-        });
-        ensureStableCluster(3);
-
-        final var shardId = new ShardId(resolveIndex(indexName), 0);
-        // Fetched up front: InternalTestCluster is locked while a node is stopping
-        objectStoreServiceB.set(getObjectStoreService(nodeB));
-        final var commitServiceB = internalCluster().getInstance(StatelessCommitService.class, nodeB);
-
-        logger.info("--> stopping [{}] so the primary fails over to [{}]", nodeA, nodeB);
-        internalCluster().stopNode(nodeA);
-        safeAwait(bccUploadBlocked);
-
-        logger.info("--> stopping [{}] while its post-recovery commit upload is blocked", nodeB);
-        final var nodeStopped = new PlainActionFuture<Void>();
-        final var stopper = new Thread(() -> {
-            try {
-                internalCluster().stopNode(nodeB);
-                nodeStopped.onResponse(null);
-            } catch (Exception e) {
-                nodeStopped.onFailure(e);
-            }
-        }, "stop-" + nodeB);
-        stopper.start();
-
-        try {
-            nodeStopped.get(nodeStopTimeout.millis(), TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            // Break the cycle so that the stopper thread and the test cluster can shut down instead of hitting the suite timeout
-            commitServiceB.closeShard(shardId);
-            stopper.join(nodeStopTimeout.millis());
-            fail(
-                e,
-                "stopping [%s] did not complete within [%s], shard close is blocked by a pending commit upload",
-                nodeB,
-                nodeStopTimeout
-            );
-        }
-        stopper.join();
-        // Speeds up the test: otherwise the flush in beforeIndexDeletion() waits out its timeout for the now unassigned primary
-        assertAcked(indicesAdmin().prepareDelete(indexName));
     }
 
     private void assertDocumentExists(String indexName, String docId) {

@@ -110,6 +110,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testNestedExpandOfAnAliasAsksForTheAliasedCollection() {
+        assumeTrue("NESTED_EXPAND required", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
         String query = "from test | eval o = items | nested_expand o | keep id";
         assertFieldNames(query, Set.of("id", "id.*", "items", "items.*", "o", "o.*", "_index"));
         assertThat(nestedScope(query), is(true));
@@ -122,6 +123,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testNestedExpandOfARenamedCollectionAsksForTheCollection() {
+        assumeTrue("NESTED_EXPAND required", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
         String query = "from test | rename items as i | nested_expand i | keep id";
         assertFieldNames(query, Set.of("id", "id.*", "items", "items.*", "i", "i.*", "_index"));
         assertThat(nestedScope(query), is(true));

@@ -48,11 +48,61 @@ public record BooleanLogicExpressionEvaluator(BinaryLogic bl, ExpressionEvaluato
         try (Block lhs = leftEval.eval(page); Block rhs = rightEval.eval(page)) {
             Vector lhsVector = lhs.asVector();
             Vector rhsVector = rhs.asVector();
+            // Empty array vectors are vacuously allTrue() and allFalse(); skip the short-cut.
+            if (lhs.getPositionCount() != 0) {
+                if (lhsVector != null && rhs.mayHaveMultivaluedFields() == false) {
+                    Block shortcut = tryUniform(lhs, rhs, (BooleanVector) lhsVector);
+                    if (shortcut != null) {
+                        return shortcut;
+                    }
+                }
+                if (rhsVector != null && lhs.mayHaveMultivaluedFields() == false) {
+                    Block shortcut = tryUniform(rhs, lhs, (BooleanVector) rhsVector);
+                    if (shortcut != null) {
+                        return shortcut;
+                    }
+                }
+            }
             if (lhsVector != null && rhsVector != null) {
                 return eval((BooleanVector) lhsVector, (BooleanVector) rhsVector);
             }
             return eval(lhs, rhs);
         }
+    }
+
+    /**
+     * One-sided uniform short-cut. {@code other} is the eval {@link Block}, never
+     * {@code vector.asBlock()} — a second wrapper would double-close. The MV-guard
+     * on {@code other} lives at the call site so every short-cut (absorb and identity)
+     * keeps {@code false AND MV} / {@code true OR MV} / {@code true AND MV} / {@code false OR MV}
+     * as null.
+     */
+    private Block tryUniform(Block vectorBlock, Block other, BooleanVector vector) {
+        if (vector.getPositionCount() == 0) {
+            return null;
+        }
+        return switch (bl.function()) {
+            case AND -> {
+                if (vector.allFalse()) {
+                    yield vectorBlock.blockFactory().newConstantBooleanBlockWith(false, vector.getPositionCount());
+                }
+                if (vector.allTrue()) {
+                    other.incRef();
+                    yield other;
+                }
+                yield null;
+            }
+            case OR -> {
+                if (vector.allTrue()) {
+                    yield vectorBlock.blockFactory().newConstantBooleanBlockWith(true, vector.getPositionCount());
+                }
+                if (vector.allFalse()) {
+                    other.incRef();
+                    yield other;
+                }
+                yield null;
+            }
+        };
     }
 
     @Override

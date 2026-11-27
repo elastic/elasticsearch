@@ -142,7 +142,6 @@ public class BooleanLogicExpressionEvaluatorTests extends ComputeTestCase {
     /**
      * {@code appendNull} does not allocate {@code firstValueIndexes}, so
      * {@code mayHaveMultivaluedFields()} is false and an identity short-cut is legal.
-     * Values must match; {@code assertSame} is reserved until the short-cut ships.
      */
     public void testUniformVectorTimesNullableNoMv() {
         BlockFactory factory = blockFactory();
@@ -155,16 +154,16 @@ public class BooleanLogicExpressionEvaluatorTests extends ComputeTestCase {
             assertFalse(nullable.mayHaveMultivaluedFields());
             assertNull(nullable.asVector());
             try (Block result = eval(andLogic(), allTrue, nullable)) {
-                assertBlocksEqual(result, nullable);
+                assertSame(nullable, result);
             }
             try (Block result = eval(andLogic(), nullable, allTrue)) {
-                assertBlocksEqual(result, nullable);
+                assertSame(nullable, result);
             }
             try (Block result = eval(orLogic(), allFalse, nullable)) {
-                assertBlocksEqual(result, nullable);
+                assertSame(nullable, result);
             }
             try (Block result = eval(orLogic(), nullable, allFalse)) {
-                assertBlocksEqual(result, nullable);
+                assertSame(nullable, result);
             }
             try (Block result = eval(andLogic(), allFalse, nullable)) {
                 assertAllFalse(result, positions);
@@ -216,7 +215,10 @@ public class BooleanLogicExpressionEvaluatorTests extends ComputeTestCase {
                 assertAllFalse(result, positions);
             }
             try (Block result = eval(andLogic(), allTrue, (BooleanBlock) nulls)) {
-                assertAllNull(result, positions);
+                assertSame(nulls, result);
+            }
+            try (Block result = eval(andLogic(), (BooleanBlock) nulls, allTrue)) {
+                assertSame(nulls, result);
             }
             try (Block result = eval(orLogic(), allTrue, (BooleanBlock) nulls)) {
                 assertAllTrue(result, positions);
@@ -225,7 +227,10 @@ public class BooleanLogicExpressionEvaluatorTests extends ComputeTestCase {
                 assertAllTrue(result, positions);
             }
             try (Block result = eval(orLogic(), allFalse, (BooleanBlock) nulls)) {
-                assertAllNull(result, positions);
+                assertSame(nulls, result);
+            }
+            try (Block result = eval(orLogic(), (BooleanBlock) nulls, allFalse)) {
+                assertSame(nulls, result);
             }
         }
     }
@@ -301,7 +306,7 @@ public class BooleanLogicExpressionEvaluatorTests extends ComputeTestCase {
                 );
                 Block result = evaluator.eval(new Page(x))
             ) {
-                assertBlocksEqual(result, x);
+                assertSame(x, result);
             }
         }
     }
@@ -482,13 +487,6 @@ public class BooleanLogicExpressionEvaluatorTests extends ComputeTestCase {
         assertThat(result.getPositionCount(), equalTo(positions));
         for (int p = 0; p < positions; p++) {
             assertThat(BlockUtils.toJavaObject(result, p), nullValue());
-        }
-    }
-
-    private static void assertBlocksEqual(Block actual, Block expected) {
-        assertThat(actual.getPositionCount(), equalTo(expected.getPositionCount()));
-        for (int p = 0; p < actual.getPositionCount(); p++) {
-            assertThat(BlockUtils.toJavaObject(actual, p), equalTo(BlockUtils.toJavaObject(expected, p)));
         }
     }
 

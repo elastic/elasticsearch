@@ -300,6 +300,11 @@ public abstract class IntervalBuilder {
         }
 
         @Override
+        public int maxExtent() {
+            return 0;
+        }
+
+        @Override
         public Collection<IntervalsSource> pullUpDisjunctions() {
             return Collections.emptyList();
         }

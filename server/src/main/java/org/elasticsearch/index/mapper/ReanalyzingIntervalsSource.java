@@ -174,6 +174,11 @@ public final class ReanalyzingIntervalsSource extends IntervalsSource {
     }
 
     @Override
+    public int maxExtent() {
+        return in.maxExtent();
+    }
+
+    @Override
     public Collection<IntervalsSource> pullUpDisjunctions() {
         return Collections.singleton(this);
     }

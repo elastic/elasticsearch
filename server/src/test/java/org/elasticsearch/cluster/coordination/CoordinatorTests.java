@@ -1249,6 +1249,35 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    public void testNodeCannotJoinIfJoinAttributeBarrierRejectsIt() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final Set<DiscoveryNode> rejectedNodes = new HashSet<>();
+            final JoinAttributeBarrier barrier = (node, attributes, state) -> {
+                if (attributes.contains("test.can_join") == false) {
+                    rejectedNodes.add(node);
+                    throw new IllegalStateException("node cannot join");
+                }
+            };
+            cluster.clusterNodes.forEach(cn -> {
+                cn.joinAttributes.add("test.can_join");
+                cn.extraJoinAttributeBarriers.add(barrier);
+            });
+            List<ClusterNode> addedNodes = cluster.addNodes(randomIntBetween(1, 2));
+            addedNodes.forEach(cn -> cn.extraJoinAttributeBarriers.add(barrier));
+            cluster.runFor(10000, "failing join attribute barrier");
+            assertEquals(addedNodes.stream().map(ClusterNode::getLocalNode).collect(Collectors.toSet()), rejectedNodes);
+            assertTrue(addedNodes.stream().allMatch(ClusterNode::isCandidate));
+            final DiscoveryNodes leaderNodes = cluster.getAnyLeader().getLastAppliedClusterState().nodes();
+            assertTrue(addedNodes.stream().noneMatch(cn -> leaderNodes.nodeExists(cn.getLocalNode())));
+
+            addedNodes.forEach(cn -> cn.joinAttributes.add("test.can_join"));
+            cluster.stabilise();
+        }
+    }
+
     @TestLogging(
         reason = "test includes assertions about Coordinator and JoinHelper logging",
         value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"

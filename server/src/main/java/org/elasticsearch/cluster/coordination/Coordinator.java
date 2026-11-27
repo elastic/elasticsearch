@@ -221,6 +221,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         SeedHostsProvider seedHostsProvider,
         ClusterApplier clusterApplier,
         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators,
+        Collection<JoinAttributeBarrier> joinAttributeBarriers,
         Random random,
         RerouteService rerouteService,
         ElectionStrategy electionStrategy,
@@ -257,7 +258,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             reconfigurator::maybeReconfigureAfterNewMasterIsElected,
             this::getLatestStoredStateAfterWinningAnElection,
             compatibilityVersions,
-            featureService
+            featureService,
+            joinAttributeBarriers
         );
         this.joinValidationService = new JoinValidationService(
             settings,
@@ -915,6 +917,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     joinRequest.getSourceNode(),
                     joinRequest.getCompatibilityVersions(),
                     joinRequest.getFeatures(),
+                    joinRequest.getJoinAttributes(),
                     joinListener
                 );
 

@@ -1405,6 +1405,7 @@ public class SnapshotResiliencyTestHelper {
                     hostsResolver -> nodes.values().stream().filter(n -> n.node.isMasterNode()).map(n -> n.node.getAddress()).toList(),
                     clusterService.getClusterApplierService(),
                     Collections.emptyList(),
+                    List.of(),
                     LuceneTestCase.random(),
                     rerouteService,
                     createElectionStrategy(),

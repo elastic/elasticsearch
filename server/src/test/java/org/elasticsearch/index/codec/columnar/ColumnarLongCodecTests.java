@@ -9,10 +9,14 @@
 
 package org.elasticsearch.index.codec.columnar;
 
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -22,6 +26,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.columnar.numeric.NumericBinaryValues;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.DocValuesSkippers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
@@ -77,7 +82,11 @@ import static org.elasticsearch.columnar.numeric.NumericBinaryValues.INITIAL_DEC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * A {@code long} field of a strict columnar index that opts into
@@ -115,6 +124,119 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         assertNull("no offsets companion", fieldInfo(WITH_CODEC, FieldArrayContext.offsetsFieldName(FIELD)));
         assertEquals(DocValuesType.SORTED_NUMERIC, fieldInfo(WITH_CODEC, "i").getDocValuesType());
         assertEquals(DocValuesType.SORTED_NUMERIC, fieldInfo(WITHOUT_CODEC, FIELD).getDocValuesType());
+    }
+
+    /**
+     * {@link DocValuesSkippers} finds the skip index of a ColumNAR long column, which Lucene doesn't, with the bounds and counts of
+     * its values. A string column has none, and a field on {@code SORTED_NUMERIC} doc values gets Lucene's skipper.
+     */
+    public void testColumnarLongHasASkipper() throws IOException {
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final String mapping = "type=long,index=false";
+        createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, mapping, "k", "type=keyword");
+        createIndex(WITHOUT_CODEC, settings(mode, false), "@timestamp", "type=date", FIELD, mapping, "k", "type=keyword");
+        final int docs = between(1, 20_000);
+        long min = Long.MAX_VALUE;
+        long max = Long.MIN_VALUE;
+        int withValue = 0;
+        final BulkRequestBuilder withCodec = client().prepareBulk();
+        final BulkRequestBuilder withoutCodec = client().prepareBulk();
+        for (int i = 0; i < docs; i++) {
+            final String source;
+            if (randomInt(9) == 0) {
+                source = "{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"k\":\"a\"}";
+            } else {
+                final long value = randomLongBetween(-1_000_000, 1_000_000);
+                min = Math.min(min, value);
+                max = Math.max(max, value);
+                withValue++;
+                source = "{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"k\":\"a\",\"l\":" + value + "}";
+            }
+            withCodec.add(prepareIndex(WITH_CODEC).setId(Integer.toString(i)).setSource(source, XContentType.JSON));
+            withoutCodec.add(prepareIndex(WITHOUT_CODEC).setId(Integer.toString(i)).setSource(source, XContentType.JSON));
+        }
+        assertNoFailures(withCodec.get());
+        assertNoFailures(withoutCodec.get());
+        for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+            indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+            indicesAdmin().prepareRefresh(index).get();
+        }
+        final long expectedMin = min;
+        final long expectedMax = max;
+        final int expectedDocCount = withValue;
+        forEachLeaf(WITH_CODEC, leaf -> {
+            assertNull("Lucene has no skipper for binary doc values", leaf.reader().getDocValuesSkipper(FIELD));
+            final DocValuesSkipper skipper = DocValuesSkippers.get(leaf.reader(), FIELD);
+            if (expectedDocCount == 0) {
+                assertNull(skipper);
+                return;
+            }
+            assertNotNull(skipper);
+            assertEquals(expectedMin, skipper.minValue());
+            assertEquals(expectedMax, skipper.maxValue());
+            assertEquals(expectedDocCount, skipper.docCount());
+            // The intervals cover the documents with a value, in order, each within the column's bounds
+            int counted = 0;
+            int previousMax = -1;
+            skipper.advance(0);
+            while (skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
+                assertThat(skipper.minDocID(0), greaterThan(previousMax));
+                assertThat(skipper.minValue(0), greaterThanOrEqualTo(expectedMin));
+                assertThat(skipper.maxValue(0), lessThanOrEqualTo(expectedMax));
+                counted += skipper.docCount(0);
+                previousMax = skipper.maxDocID(0);
+                skipper.advance(previousMax + 1);
+            }
+            assertEquals(expectedDocCount, counted);
+            assertNull("a string column is not numeric", DocValuesSkippers.get(leaf.reader(), "k"));
+        });
+        forEachLeaf(WITHOUT_CODEC, leaf -> {
+            final DocValuesSkipper lucene = leaf.reader().getDocValuesSkipper(FIELD);
+            final DocValuesSkipper found = DocValuesSkippers.get(leaf.reader(), FIELD);
+            assertEquals("the Lucene skipper is the one found", lucene == null, found == null);
+            if (found != null) {
+                assertEquals(expectedMin, found.minValue());
+                assertEquals(expectedMax, found.maxValue());
+            }
+        });
+    }
+
+    /** Once it holds a bottom, the comparator of a sort on a ColumNAR long column skips the blocks that can't beat it. */
+    public void testComparatorPrunesWithTheColumnSkipIndex() throws IOException {
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, "type=long,index=false");
+        final int docs = 50_000;
+        final boolean reverse = randomBoolean();
+        final BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < docs; i++) {
+            // The best values come first, so the bottom of the first hits already rules out every block after them
+            final long value = reverse ? docs - i : i;
+            bulk.add(
+                prepareIndex(WITH_CODEC).setId(Integer.toString(i))
+                    .setSource("{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"l\":" + value + "}", XContentType.JSON)
+            );
+        }
+        assertNoFailures(bulk.get());
+        indicesAdmin().prepareForceMerge(WITH_CODEC).setMaxNumSegments(1).get();
+        indicesAdmin().prepareRefresh(WITH_CODEC).get();
+        final SortField sortField = new ColumnarNumericSortField(FIELD, SortField.Type.LONG, reverse, reverse, null);
+        forEachLeaf(WITH_CODEC, leaf -> {
+            final int hits = 10;
+            final LeafFieldComparator comparator = sortField.getComparator(hits, Pruning.GREATER_THAN_OR_EQUAL_TO).getLeafComparator(leaf);
+            comparator.setHitsThresholdReached();
+            for (int doc = 0; doc < hits; doc++) {
+                comparator.copy(doc, doc);
+            }
+            comparator.setBottom(hits - 1);
+            final DocIdSetIterator competitive = comparator.competitiveIterator();
+            assertNotNull("the comparator prunes", competitive);
+            int competing = 0;
+            while (competitive.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                competing++;
+            }
+            assertThat("competing documents", competing, lessThan(docs / 2));
+            assertThat(competing, greaterThanOrEqualTo(hits));
+        });
     }
 
     /**

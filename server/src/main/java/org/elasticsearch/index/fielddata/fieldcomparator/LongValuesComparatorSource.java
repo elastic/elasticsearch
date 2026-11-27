@@ -26,6 +26,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.DocValuesSkippers;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -295,7 +296,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
     // Whether every document of the segment has a value for the field, false if that can't be determined cheaply.
     private static boolean allDocsHaveValue(LeafReader reader, String field) throws IOException {
-        DocValuesSkipper skipper = reader.getDocValuesSkipper(field);
+        DocValuesSkipper skipper = DocValuesSkippers.get(reader, field);
         if (skipper != null) {
             return skipper.docCount() == reader.maxDoc();
         }

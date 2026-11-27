@@ -366,6 +366,47 @@ final class PreloadedRowGroupMetadata implements Releasable {
         long coalescedJoinTimeoutMs,
         int externalIoThreads
     ) {
+        return preload(
+            reader,
+            storageObject,
+            predicateColumnPaths,
+            columnIndexPaths,
+            offsetIndexPaths,
+            offsetIndexRowGroupLimit,
+            breaker,
+            ioWatermark,
+            footerBytes,
+            coalescedJoinTimeoutMs,
+            externalIoThreads,
+            null,
+            null
+        );
+    }
+
+    /**
+     * Same as the no-mask preload, with per-row-group flags for dictionary and bloom pre-warm.
+     * A {@code null} mask means every row group (today's behaviour). A {@code false} bit skips
+     * dictionary / bloom ranges for that group; ColumnIndex and OffsetIndex ranges are unchanged
+     * (skipping page-index GETs for STATISTICS-MISS groups is a follow-up).
+     *
+     * @param dictUseful  per-row-group dictionary pre-warm, or {@code null} for every group
+     * @param bloomUseful per-row-group bloom pre-warm, or {@code null} for every group
+     */
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes,
+        long coalescedJoinTimeoutMs,
+        int externalIoThreads,
+        @Nullable boolean[] dictUseful,
+        @Nullable boolean[] bloomUseful
+    ) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
             return empty();
@@ -385,7 +426,9 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     ioWatermark,
                     footerBytes,
                     coalescedJoinTimeoutMs,
-                    externalIoThreads
+                    externalIoThreads,
+                    dictUseful,
+                    bloomUseful
                 );
             } catch (ElasticsearchTimeoutException e) {
                 throw e;
@@ -437,7 +480,9 @@ final class PreloadedRowGroupMetadata implements Releasable {
         @Nullable ParquetIoWatermark ioWatermark,
         @Nullable FooterByteCache footerBytes,
         long coalescedJoinTimeoutMs,
-        int externalIoThreads
+        int externalIoThreads,
+        @Nullable boolean[] dictUseful,
+        @Nullable boolean[] bloomUseful
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
         List<RangeMeta> rangeMetas = new ArrayList<>();
@@ -445,6 +490,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
         boolean fetchPreWarm = predicateColumnPaths != null && predicateColumnPaths.isEmpty() == false;
         for (int rgIdx = 0; rgIdx < rowGroups.size(); rgIdx++) {
             BlockMetaData block = rowGroups.get(rgIdx);
+            boolean dictForRg = maskAllows(dictUseful, rgIdx);
+            boolean bloomForRg = maskAllows(bloomUseful, rgIdx);
             for (ColumnChunkMetaData col : block.getColumns()) {
                 String path = col.getPath().toDotString();
                 IndexReference ciRef = col.getColumnIndexReference();
@@ -458,6 +505,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
                 // Omitted dictionary_page_offset needs OffsetIndex[0] as the data-page bound.
                 // Include that index in the first batch even when the column is predicate-only.
                 boolean needOiForOmittedDict = fetchPreWarm
+                    && dictForRg
                     && predicateColumnPaths.contains(path)
                     && col.hasDictionaryPage()
                     && col.getDictionaryPageOffset() <= 0;
@@ -468,8 +516,12 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     addRange(ranges, rangeMetas, oiRef.getOffset(), oiRef.getLength(), rgIdx, col, RangeKind.OFFSET_INDEX);
                 }
                 if (fetchPreWarm && predicateColumnPaths.contains(path)) {
-                    addDictionaryRange(ranges, rangeMetas, rgIdx, col);
-                    addBloomFilterRange(ranges, rangeMetas, rgIdx, col);
+                    if (dictForRg) {
+                        addDictionaryRange(ranges, rangeMetas, rgIdx, col);
+                    }
+                    if (bloomForRg) {
+                        addBloomFilterRange(ranges, rangeMetas, rgIdx, col);
+                    }
                 }
             }
         }
@@ -634,6 +686,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
                 omittedDictRelease = fetchOmittedDictionaryPages(
                     rowGroups,
                     predicateColumnPaths,
+                    dictUseful,
                     offsetIndexes,
                     preWarmedChunks,
                     storageObject,
@@ -702,6 +755,15 @@ final class PreloadedRowGroupMetadata implements Releasable {
     }
 
     /**
+     * {@code true} when {@code mask} is {@code null} (today: preload every row group) or
+     * {@code mask[rgIdx]} is {@code true}. A {@code false} bit skips dictionary / bloom ranges
+     * for that group; index ranges are decided separately.
+     */
+    private static boolean maskAllows(@Nullable boolean[] mask, int rgIdx) {
+        return mask == null || mask[rgIdx];
+    }
+
+    /**
      * Dictionary ranges for predicate columns whose {@code dictionary_page_offset} was omitted.
      * Uses OffsetIndex page 0 as the first data-page bound. Empty when every dictionary was
      * already collected in the first coalesced batch.
@@ -712,8 +774,21 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Map<String, OffsetIndex> offsetIndexes,
         Set<Long> alreadyCoveredOffsets
     ) {
+        return omittedDictionaryRanges(rowGroups, predicateColumnPaths, null, offsetIndexes, alreadyCoveredOffsets);
+    }
+
+    static List<CoalescedRangeReader.ByteRange> omittedDictionaryRanges(
+        List<BlockMetaData> rowGroups,
+        Set<String> predicateColumnPaths,
+        @Nullable boolean[] dictUseful,
+        Map<String, OffsetIndex> offsetIndexes,
+        Set<Long> alreadyCoveredOffsets
+    ) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
         for (int rgIdx = 0; rgIdx < rowGroups.size(); rgIdx++) {
+            if (maskAllows(dictUseful, rgIdx) == false) {
+                continue;
+            }
             for (ColumnChunkMetaData col : rowGroups.get(rgIdx).getColumns()) {
                 if (predicateColumnPaths.contains(col.getPath().toDotString()) == false) {
                     continue;
@@ -743,6 +818,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
     private static Releasable fetchOmittedDictionaryPages(
         List<BlockMetaData> rowGroups,
         Set<String> predicateColumnPaths,
+        @Nullable boolean[] dictUseful,
         Map<String, OffsetIndex> offsetIndexes,
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks,
         StorageObject storageObject,
@@ -754,6 +830,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
         List<CoalescedRangeReader.ByteRange> ranges = omittedDictionaryRanges(
             rowGroups,
             predicateColumnPaths,
+            dictUseful,
             offsetIndexes,
             preWarmedChunks.keySet()
         );
@@ -792,9 +869,10 @@ final class PreloadedRowGroupMetadata implements Releasable {
     /**
      * Adds the bloom filter byte range for {@code col} when one is present and its length is
      * known up front. parquet-mr allows bloom filter length to be omitted from the column chunk
-     * metadata; in that case the length must be discovered by reading the bloom-filter header
-     * from the file, which would defeat the point of pre-fetching. We skip those filters here
-     * and let parquet-mr fall back to its existing synchronous read path.
+     * metadata; discovering it would require reading the bloom-filter header from the file,
+     * which defeats pre-fetching. Those filters are skipped here, and
+     * {@code computeSurvivingRowGroups} drops the BLOOMFILTER level so parquet-mr does not
+     * issue a synchronous read for them.
      */
     private static void addBloomFilterRange(
         List<CoalescedRangeReader.ByteRange> ranges,
@@ -823,6 +901,10 @@ final class PreloadedRowGroupMetadata implements Releasable {
      * column-path and OffsetIndex row-group cap as {@link #preloadCoalesced}. Intentional: a
      * coalesced-preload failure must not silently re-fetch every page index (that used to undo
      * {@code computeIndexColumnPaths} gating, including the full-scan zero-index-GET path).
+     *
+     * <p>Does not fetch dictionary pages or bloom filters. {@code computeSurvivingRowGroups} then
+     * drops those levels because {@code preWarmedChunks} is empty, so the unhappy path cannot
+     * reintroduce dict/bloom GETs. Masks are unused here for that reason.
      */
     private static PreloadedRowGroupMetadata preloadSequential(
         ParquetFileReader reader,

@@ -200,7 +200,6 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         putJob(createJob(jobId, bucketSpan));
         putDatafeed(
             new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + index + " | KEEP event_time, value")
-                .setSourceTimeField("event_time")
                 .setGroupingInterval(bucketSpan)
                 .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueDays(1)))
                 .setFrequency(bucketSpan)
@@ -249,7 +248,6 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         putJob(createJob(jobId, bucketSpan));
         putDatafeed(
             new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + index + " | KEEP event_time, value")
-                .setSourceTimeField("event_time")
                 .setGroupingInterval(bucketSpan)
                 .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueDays(1)))
                 .setFrequency(bucketSpan)

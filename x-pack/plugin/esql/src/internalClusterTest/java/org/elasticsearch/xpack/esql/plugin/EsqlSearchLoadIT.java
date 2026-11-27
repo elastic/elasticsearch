@@ -22,13 +22,19 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.StreamQueryTestUtils;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -42,9 +48,15 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * The time ES|QL spends on a query is charged to the shards it reads, on the nodes holding them.
+ * External (CSV/Parquet) computes charge the query the same way, via {@code DriverCompletionInfo}.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
+public class EsqlSearchLoadIT extends AbstractExternalDataSourceIT {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class, ParquetDataSourcePlugin.class);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -148,6 +160,69 @@ public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
         assertThat(searchLoad("read"), greaterThan(0.0));
         assertCpuIsPartOfTheLoad("read");
         assertThat(searchLoad("other"), equalTo(0.0));
+    }
+
+    /**
+     * An external CSV query on a data node reports load and CPU on {@code DriverCompletionInfo}
+     * (and the response). Coordinator work is not charged; {@code "final"} has no load target.
+     *
+     * <p>{@code AdaptiveStrategy} stays {@code LOCAL} for a single split or a LIMIT-only plan, which
+     * runs coordinator {@code "single"} with a null load. Two files plus grouped {@code STATS} fan
+     * empty-shard {@code DATA} compute to the data node, the path that charges {@code QueryLoad}.
+     */
+    public void testExternalCsvOnDataNodeReportsSearchLoad() throws Exception {
+        String dataNode = internalCluster().startNode();
+        String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("a.csv"), csvRows(1_000));
+        Files.writeString(dir.resolve("b.csv"), csvRows(1_000));
+        String dataset = registerDataset("csv_load", StoragePath.fileUri(dir) + "/*.csv", Map.of("format", "csv"));
+        assertExternalQueryReportsSearchLoad(dataNode, coordinator, "FROM " + dataset + " | STATS c = COUNT(*) BY k");
+    }
+
+    public void testExternalParquetOnDataNodeReportsSearchLoad() throws Exception {
+        String dataNode = internalCluster().startNode();
+        String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("a.parquet"), 1_000, 128);
+        writeParquet(dir.resolve("b.parquet"), 1_000, 128);
+        String dataset = registerDataset("parquet_load", StoragePath.fileUri(dir) + "/*.parquet", Map.of());
+        assertExternalQueryReportsSearchLoad(dataNode, coordinator, "FROM " + dataset + " | STATS c = COUNT(*) BY name");
+    }
+
+    /**
+     * Data node: load and CPU on {@code DriverCompletionInfo} (copied onto the response). Coordinator
+     * {@code "final"} compute has no load target.
+     */
+    private void assertExternalQueryReportsSearchLoad(String dataNode, String coordinator, String query) throws Exception {
+        ThreadPool dataPool = internalCluster().getInstance(ThreadPool.class, dataNode);
+        ThreadPool coordPool = internalCluster().getInstance(ThreadPool.class, coordinator);
+        var dataWorkers = (TaskExecutionTimeTrackingEsThreadPoolExecutor) dataPool.executor(EsqlPlugin.computePool());
+        var dataIo = (TaskExecutionTimeTrackingEsThreadPoolExecutor) dataPool.executor(EsqlPlugin.externalBlobStorePool());
+        var coordWorkers = (TaskExecutionTimeTrackingEsThreadPoolExecutor) coordPool.executor(EsqlPlugin.computePool());
+        long dataAttributedBefore = dataWorkers.getAttributedTaskExecutionTime();
+        long dataIoAttributedBefore = dataIo.getAttributedTaskExecutionTime();
+        long coordAttributedBefore = coordWorkers.getAttributedTaskExecutionTime();
+
+        try (var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
+            assertThat(response.searchLoad().loadNanos(), greaterThan(0L));
+            assertThat(response.searchLoad().cpuNanos(), greaterThan(0L));
+            assertThat(response.searchLoad().cpuNanos(), lessThanOrEqualTo(response.searchLoad().loadNanos()));
+        }
+
+        assertBusy(() -> {
+            assertThat(dataWorkers.getAttributedTaskExecutionTime() - dataAttributedBefore, greaterThan(0L));
+            assertThat(dataIo.getAttributedTaskExecutionTime() - dataIoAttributedBefore, greaterThan(0L));
+        });
+        assertThat(coordWorkers.getAttributedTaskExecutionTime() - coordAttributedBefore, equalTo(0L));
+    }
+
+    private static String csvRows(int rows) {
+        StringBuilder csv = new StringBuilder("k:keyword,v:long\n");
+        for (int i = 0; i < rows; i++) {
+            csv.append("k").append(i % 10).append(',').append(i).append('\n');
+        }
+        return csv.toString();
     }
 
     /**

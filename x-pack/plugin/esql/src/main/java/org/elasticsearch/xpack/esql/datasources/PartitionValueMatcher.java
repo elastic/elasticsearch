@@ -138,6 +138,7 @@ public final class PartitionValueMatcher {
             case LESS_THAN_OR_EQUAL -> compareValues(partitionValue, literal) <= 0;
             // File listing compiles LIKE once in FileMetadataFilter. Folder walk must not recompile per value.
             case LIKE -> null;
+            case RANGE -> null; // FolderRangePredicate tests each branch; a folder is not a single bound.
             case IN -> null; // handled above
         };
     }

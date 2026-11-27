@@ -51,6 +51,8 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -71,6 +73,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -3402,6 +3405,79 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(rows.get(0).get(0), equalTo(1000L)); // emp_no=1 -> 1 second -> 1000 ms
+        }
+    }
+
+    /**
+     * Hive-style day of 12 five-minute {@code epoch_second} Parquet files. An hourly filter must plan
+     * exactly the overlapping files (footer min/max rescaled to millis), not the whole day.
+     */
+    public void testDeclaredEpochSecondHourlyFilterPlansOnlyOverlappingFiles() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        ZonedDateTime day = ZonedDateTime.of(2025, 11, 20, 0, 0, 0, 0, ZoneOffset.UTC);
+        Path dayDir = createTempDir().resolve("year=2025").resolve("month=11").resolve("day=20");
+        Files.createDirectories(dayDir);
+        for (int hour = 0; hour < 24; hour += 2) {
+            long hourStart = day.plusHours(hour).toEpochSecond();
+            Path file = dayDir.resolve(String.format(java.util.Locale.ROOT, "%02d00.parquet", hour));
+            writeParquet(file, "message m { required int64 start; }", 5, 1024, (g, i) -> g.add("start", hourStart + i * 60L));
+        }
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("@timestamp", DatasetFieldMapping.withFormat("date", "start", "epoch_second"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "epoch_day_files",
+                    "local_ds",
+                    StoragePath.fileUri(dayDir) + "/*.parquet",
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        // STATS COUNT(*) (not KEEP): KEEP + default LIMIT sets filteredLimit, which caps footer
+        // discovery at taskConcurrency and emits whole-file splits for the rest — that masks prune.
+        assertEpochPrune("""
+            FROM epoch_day_files
+            | WHERE @timestamp >= TO_DATETIME("2025-11-20T10:00:00Z")
+              AND @timestamp < TO_DATETIME("2025-11-20T11:00:00Z")
+            | STATS c = COUNT(*)
+            """, 5L, 1);
+        assertEpochPrune("""
+            FROM epoch_day_files
+            | WHERE @timestamp >= TO_DATETIME("2025-11-20T11:00:00Z")
+              AND @timestamp < TO_DATETIME("2025-11-20T12:00:00Z")
+            | STATS c = COUNT(*)
+            """, 0L, 0);
+        assertEpochPrune("""
+            FROM epoch_day_files
+            | WHERE @timestamp >= TO_DATETIME("2025-11-20T00:00:00Z")
+              AND @timestamp < TO_DATETIME("2025-11-21T00:00:00Z")
+            | STATS c = COUNT(*)
+            """, 60L, 12);
+    }
+
+    /**
+     * COUNT must match the overlapping rows. {@code filesScanned} is 0 when discovery folds, otherwise
+     * exactly the overlapping files — never the rest of the day.
+     */
+    private void assertEpochPrune(String query, long expectedCount, int expectedFilesIfNotFolded) {
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertEquals(expectedCount, ((Number) rows.get(0).get(0)).longValue());
+            int scanned = response.getExecutionInfo().queryProfile().filesScanned();
+            if (expectedFilesIfNotFolded == 0) {
+                assertEquals("non-overlapping filter must not scan", 0, scanned);
+            } else {
+                assertThat(scanned, either(equalTo(0)).or(equalTo(expectedFilesIfNotFolded)));
+            }
         }
     }
 

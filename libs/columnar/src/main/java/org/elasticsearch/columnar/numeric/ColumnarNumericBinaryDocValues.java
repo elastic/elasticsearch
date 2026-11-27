@@ -277,6 +277,11 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
         return true;
     }
 
+    @Override
+    public DocValuesSkipper skipper() throws IOException {
+        return skipperMeta == null ? null : SkipIndexCodec.forId(skipperMeta.codecId()).reader(skipperMeta, skipIndex);
+    }
+
     /**
      * A {@link DocIdSetIterator} over documents whose value is in {@code [lowerValue, upperValue]}, or
      * {@code null} when the column is multi-valued. Consults the skip index when present.
@@ -291,9 +296,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
         }
         final ColumnIterator column = reader.iterator();
         final BlockMask mask = new BlockMask(lowerValue, upperValue);
-        final DocValuesSkipper skipper = skipperMeta == null
-            ? null
-            : SkipIndexCodec.forId(skipperMeta.codecId()).reader(skipperMeta, skipIndex);
+        final DocValuesSkipper skipper = skipper();
         final TwoPhaseIterator twoPhase = skipper == null
             ? scanningTwoPhase(column, mask, lowerValue, upperValue)
             : skippingTwoPhase(column, mask, skipper, lowerValue, upperValue);

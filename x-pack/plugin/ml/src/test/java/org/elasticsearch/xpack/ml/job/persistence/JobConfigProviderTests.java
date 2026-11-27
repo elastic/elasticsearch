@@ -48,9 +48,9 @@ import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUti
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -115,17 +115,15 @@ public class JobConfigProviderTests extends ESTestCase {
     }
 
     private static DatafeedConfig.Builder newEsqlDatafeed() {
-        return new DatafeedConfig.Builder("df", "job").setEsqlQuery(ESQL_QUERY)
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1));
+        return new DatafeedConfig.Builder("df", "job").setEsqlQuery(ESQL_QUERY);
     }
 
     /** Completes the {@code validateQuery} probe with {@code failure}, or successfully when it is null. */
     private void stubProbe(Exception failure) {
         doAnswer(invocation -> {
-            complete(invocation.getArgument(7), failure);
+            complete(invocation.getArgument(8), failure);
             return null;
-        }).when(queryValidator).validateQuery(any(), any(), anyString(), any(), anyString(), any(), anyBoolean(), any(), any());
+        }).when(queryValidator).validateQuery(any(), any(), anyString(), any(), anyString(), any(), any(), any(), any(), any());
     }
 
     private static void complete(ActionListener<Boolean> listener, Exception failure) {
@@ -194,7 +192,8 @@ public class JobConfigProviderTests extends ESTestCase {
             eq(null),
             eq("time"),
             eq("c"),
-            eq(false),
+            eq(TimeValue.timeValueHours(1)),
+            isNull(),
             any(),
             eq("df")
         );
@@ -230,7 +229,7 @@ public class JobConfigProviderTests extends ESTestCase {
 
         validateUpdateExpectingSuccess(newProvider(false), current, updated);
 
-        verifyProbe(client, null, false);
+        verifyProbe(client, null);
     }
 
     public void testValidateDatafeedUpdateWhenCredentialIsClearedShouldProbe() {
@@ -241,10 +240,10 @@ public class JobConfigProviderTests extends ESTestCase {
 
         validateUpdateExpectingSuccess(newProvider(false), current, updated);
 
-        verifyProbe(client, null, false);
+        verifyProbe(client, null);
     }
 
-    private void verifyProbe(Client probeClient, String projectRouting, boolean expectedCrossProjectEnabled) {
+    private void verifyProbe(Client probeClient, String projectRouting) {
         verify(queryValidator).validateQuery(
             same(probeClient),
             eq(HEADERS),
@@ -252,7 +251,8 @@ public class JobConfigProviderTests extends ESTestCase {
             eq(projectRouting),
             eq("time"),
             eq("c"),
-            eq(expectedCrossProjectEnabled),
+            eq(TimeValue.timeValueHours(1)),
+            isNull(),
             any(),
             eq("df")
         );
@@ -274,6 +274,6 @@ public class JobConfigProviderTests extends ESTestCase {
             newEsqlDatafeed().setProjectRouting("_alias:prod-*").setCloudInternalCredential(credential).build()
         );
 
-        verifyProbe(wrappedClient, "_alias:prod-*", true);
+        verifyProbe(wrappedClient, "_alias:prod-*");
     }
 }

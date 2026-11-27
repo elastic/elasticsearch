@@ -137,6 +137,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         addDistributionExtClosureRules(rules);
         addAntUsageRules(rules);
         addEagerTestSeedRules(rules);
+        addLegacyRestIntegTestTaskRules(rules);
         return rules;
     }
 
@@ -271,7 +272,8 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
      * and a quoted method or property name after a dot ({@code project."createAntBuilder"()}).
      * <p>
      * This is a lexer, not a parser, so it uses heuristics. A {@code /} starts a slashy string only where a value is
-     * expected, that is when the code before it does not end with an identifier, a number, a closing bracket or a string.
+     * expected, that is when the code before it does not end with an identifier, a number, a closing bracket or a string,
+     * or when it ends with a keyword that is followed by a value, such as {@code return} or {@code case}.
      * A string without its closing delimiter is treated as code, so a misdetected string never hides the rest of the script.
      */
     static String blankCommentsAndStrings(String content) {
@@ -388,12 +390,44 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             result.append(content.charAt(pos++));
         }
 
+        /** Keywords after which Groovy expects a value, so a following {@code /} starts a slashy string. */
+        private static final Set<String> VALUE_KEYWORDS = Set.of("return", "case", "assert", "throw", "in", "yield", "else");
+
         /**
          * Whether a {@code /} at the current position starts a slashy string rather than being a division.
          */
         private boolean valueExpected() {
             char last = lastCodeChar();
-            return last == 0 || (isIdentifierPart(last) == false && ")]}'\"/".indexOf(last) < 0);
+            if (last == 0) {
+                return true;
+            }
+            if (isIdentifierPart(last)) {
+                return VALUE_KEYWORDS.contains(lastCodeKeyword());
+            }
+            return ")]}'\"/".indexOf(last) < 0;
+        }
+
+        /**
+         * Returns the identifier that the code copied so far ends with, or an empty string if it is a property or method
+         * name after a dot (such as {@code foo.in}), which is not a keyword.
+         */
+        private String lastCodeKeyword() {
+            int end = result.length();
+            while (end > 0 && Character.isWhitespace(result.charAt(end - 1))) {
+                end--;
+            }
+            int start = end;
+            while (start > 0 && isIdentifierPart(result.charAt(start - 1))) {
+                start--;
+            }
+            int before = start;
+            while (before > 0 && Character.isWhitespace(result.charAt(before - 1))) {
+                before--;
+            }
+            if (before > 0 && result.charAt(before - 1) == '.') {
+                return "";
+            }
+            return result.substring(start, end);
         }
 
         /**
@@ -453,6 +487,38 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                     + "configuration cache can never be reused.",
                 "Keep the value lazy: map the provider (buildParams.testSeedProvider.map { seed -> ... }) and pass it to "
                     + "nonInputProperties.systemProperty, which reads it when the test JVM starts."
+            )
+        );
+    }
+
+    static final String LEGACY_REST_INTEG_TEST_TASK_RULE_ID = "legacy-rest-integ-test-task";
+
+    /**
+     * Matches references to the legacy REST integ test task types in code: {@code StandaloneRestIntegTestTask} and its
+     * internal subtype {@code RestIntegTestTask}, whether imported, fully qualified or used as a task type. Comments and
+     * string literal text are blanked out before matching.
+     */
+    static final Pattern LEGACY_REST_INTEG_TEST_TASK_PATTERN = Pattern.compile("\\b(?:Standalone)?RestIntegTestTask\\b");
+
+    /**
+     * Adds a ratchet against new usages of the legacy REST integ test task types. They are tied to the Gradle
+     * test-clusters framework, which is being replaced by JUnit rule based test clusters and plain {@code Test} tasks
+     * registered via {@code restTests.register(...)}. The rule applies to all scanned script files so that neither build
+     * scripts nor precompiled script plugins can add new usages; existing usages are baselined with counted ignore entries.
+     * Compiled build logic is covered by {@code LegacyRestIntegTestTaskArchUnitSpec}.
+     */
+    private void addLegacyRestIntegTestTaskRules(List<ScriptRule> rules) {
+        rules.add(
+            new ScriptRule(
+                LEGACY_REST_INTEG_TEST_TASK_RULE_ID,
+                "Build logic must not use the legacy REST integ test task types",
+                path -> true,
+                LEGACY_REST_INTEG_TEST_TASK_PATTERN,
+                true,
+                "StandaloneRestIntegTestTask and RestIntegTestTask belong to the legacy Gradle test-clusters framework that is "
+                    + "being removed. New REST integ tests must use JUnit rule based test clusters.",
+                "Register a plain Test task via restTests.register(\"name\") { ... } (or apply elasticsearch.internal-java-rest-test "
+                    + "/ elasticsearch.internal-yaml-rest-test) and define the cluster with an ElasticsearchCluster @ClassRule."
             )
         );
     }

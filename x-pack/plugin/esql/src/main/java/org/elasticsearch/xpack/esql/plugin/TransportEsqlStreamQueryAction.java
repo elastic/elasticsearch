@@ -32,9 +32,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -235,7 +237,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         AtomicReference<Result> resultRef,
         ActionListener<ActionResponse.Empty> streamListener
     ) {
-        ActionListener<ActionResponse.Empty> listener = computeService.coordinate(task, streamListener);
+        // The coordination part lives until the query completes, so planning charges the query's breaker too.
+        QueryScheduler.QueryPart coordination = computeService.coordinate(task);
+        ActionListener<ActionResponse.Empty> listener = ActionListener.releaseAfter(streamListener, coordination);
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
         AtomicBoolean streamStarted = new AtomicBoolean(false);
@@ -315,6 +319,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             columns,
                             nullColumns,
                             QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()),
+                            new TaskId(clusterService.localNode().getId(), task.getId()),
                             executionInfo::isPartial
                         );
                         if (startFailure != null) {
@@ -394,6 +399,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             externalBlobStoreExecutor(),
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
+            coordination.breaker(),
             ActionListener.wrap(versionedResult -> {
                 Result result = versionedResult.inner();
                 try {
@@ -421,6 +427,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         columns,
                         request.dropNullColumns() ? new boolean[columns.size()] : null,
                         QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
+                        new TaskId(clusterService.localNode().getId(), task.getId()),
                         executionInfo::isPartial
                     );
                     if (startFailure != null) {
@@ -519,10 +526,11 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         List<ColumnInfoImpl> columns,
         boolean[] nullColumns,
         ZoneId zoneId,
+        TaskId taskId,
         BooleanSupplier isPartial
     ) {
         request.resultStreamListener()
-            .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, isPartial));
+            .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, taskId, isPartial));
         Exception startFailure = publisher.failure();
         if (startFailure != null) {
             return startFailure;

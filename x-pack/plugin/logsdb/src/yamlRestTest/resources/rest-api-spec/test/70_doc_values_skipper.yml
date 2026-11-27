@@ -105,6 +105,13 @@ create logs data stream with doc values sparse index:
       cluster_features: [ "mapper.doc_values_skipper" ]
       reason: requires setting 'index.mapping.use_doc_values_skipper' to enable the doc values sparse index
   - requires:
+      test_runner_features: [ "capabilities" ]
+      capabilities:
+        - method: POST
+          path: /{index}/_disk_usage
+          capabilities: [ doc_values_skipper_stats ]
+      reason: disk usage reports doc values skippers separately
+  - requires:
       test_runner_features: [ "allowed_warnings" ]
 
   - do:
@@ -199,3 +206,4 @@ create logs data stream with doc values sparse index:
 
   - match: { .$backing_index.fields.@timestamp.points_in_bytes: 0 }
   - gt: { .$backing_index.fields.@timestamp.doc_values_in_bytes: 0 }
+  - gt: { .$backing_index.fields.@timestamp.doc_values_skipper_in_bytes: 0 }

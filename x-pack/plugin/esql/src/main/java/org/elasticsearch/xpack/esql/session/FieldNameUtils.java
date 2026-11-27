@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -116,10 +117,9 @@ public class FieldNameUtils {
     private static PreAnalysisResult addNestedExpand(LogicalPlan parsed, PreAnalysisResult result) {
         Set<String> collections = new HashSet<>();
         parsed.forEachDown(NestedExpand.class, expand -> {
-            if (expand.bound() == false && expand.target() != null) {
-                // TODO: When collection aliases/references are supported, resolve their owning
-                // source and mapped path here; the target name may be an alias in the query.
-                collections.add(expand.target().name());
+            String collection = collectionToBind(expand);
+            if (collection != null) {
+                collections.add(collection);
             }
         });
         // NESTED_ANY names child fields the same way. The marker keeps them in the private schema instead of dropping them.
@@ -149,6 +149,26 @@ public class FieldNameUtils {
             fieldNames.addAll(parentPrefixes(collection));
         }
         return new PreAnalysisResult(fieldNames, result.parentPaths(), true, result.wildcardJoinIndices());
+    }
+
+    /**
+     * The collection {@code expand} names, when it is still to be bound to one, or {@code null}. Pre-analysis asks for the
+     * mapping of each such collection of an index, and the analyzer gives a dataset its nested scope when a plan names any
+     * ({@link #expandsNestedCollection}).
+     */
+    @Nullable
+    public static String collectionToBind(NestedExpand expand) {
+        if (expand.bound() == false && expand.target() != null) {
+            // TODO: When collection aliases/references are supported, resolve their owning
+            // source and mapped path here; the target name may be an alias in the query.
+            return expand.target().name();
+        }
+        return null;
+    }
+
+    /** Whether {@code plan} has a {@code NESTED_EXPAND} that names a collection still to be bound. */
+    public static boolean expandsNestedCollection(LogicalPlan plan) {
+        return plan.anyMatch(node -> node instanceof NestedExpand expand && collectionToBind(expand) != null);
     }
 
     private static PreAnalysisResult collectFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {

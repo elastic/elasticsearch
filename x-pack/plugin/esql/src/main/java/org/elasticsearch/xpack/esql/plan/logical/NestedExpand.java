@@ -35,6 +35,12 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  * name; analysis binds the nested path and one column per child field.
  */
 public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPreserving {
+    /**
+     * Peers that can run {@code NESTED_EXPAND} over a dataset. On a cluster with an older node the analyzer gives every
+     * dataset collection a scope conflict, raised at the {@code NESTED_EXPAND} that binds it.
+     */
+    public static final TransportVersion DATASET_VERSION = TransportVersion.fromName("esql_nested_dataset_collections");
+
     public static final TransportVersion VERSION = TransportVersion.fromName("esql_nested_expand");
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,

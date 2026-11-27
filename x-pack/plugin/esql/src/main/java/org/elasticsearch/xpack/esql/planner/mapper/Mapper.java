@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerat
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetNestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -106,7 +107,10 @@ public class Mapper {
         SubqueryJoin.rejectUntilSupported(versionedPlan.inner());
         // We ignore the version for now, but it's fine to use later for plans that work
         // differently from some version and up.
-        return mapInner(versionedPlan.inner());
+        PhysicalPlan mapped = mapInner(versionedPlan.inner());
+        // After mapping, so an expansion after a command that runs on the coordinator is refused as on an index
+        DatasetNestedExpand.refuseUnsupported(versionedPlan.inner());
+        return mapped;
     }
 
     private PhysicalPlan mapInner(LogicalPlan p) {

@@ -208,7 +208,7 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
      *
      * <p>Verifies end-to-end that {@link PushTopNIntoExternalSource} fires and annotates the
      * {@link ExternalSourceExec} when the query is
-     * {@code EXTERNAL "..." | STATS count(*) BY user_id, region | SORT user_id ASC, region ASC | LIMIT 10}.
+     * {@code FROM <dataset> | STATS count(*) BY user_id, region | SORT user_id ASC, region ASC | LIMIT 10}.
      * Uses {@link LocalMapper} (the data-node path) so that {@code TopNExec → AggregateExec(INITIAL) →
      * ExternalSourceExec} appears in one contiguous plan tree where the rule can see both nodes.
      */

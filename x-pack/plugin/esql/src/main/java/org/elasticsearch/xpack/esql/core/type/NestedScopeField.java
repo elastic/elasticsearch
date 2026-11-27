@@ -388,6 +388,38 @@ public final class NestedScopeField extends EsField {
         );
     }
 
+    /**
+     * A collection a source other than an index describes, such as a dataset's list of structures: its path, the type of
+     * each of its element's fields by its path in the element, and how the source's files disagree about it, or
+     * {@code null}.
+     */
+    public record Collection(String path, Map<String, DataType> leaves, @Nullable String conflict) {}
+
+    /**
+     * The private nested schema of {@code collections}, laid out as {@link #namespace(List, LeafMerger)} lays out an
+     * index's: each collection a {@link Kind#COLLECTION} at its path, and each element field a {@link Kind#VALUE} below it
+     * that reads as a field of its type, or as an {@link UnsupportedEsField} when its type is {@link DataType#UNSUPPORTED}.
+     */
+    public static EsField namespace(List<Collection> collections) {
+        List<ResolvedField> fields = new ArrayList<>();
+        for (Collection collection : collections) {
+            fields.add(
+                new ResolvedField(collection.path(), DataType.SOURCE, Kind.COLLECTION, collection.path(), collection.conflict(), null)
+            );
+            for (Map.Entry<String, DataType> leaf : collection.leaves().entrySet()) {
+                String fullName = collection.path() + "." + leaf.getKey();
+                String name = fullName.substring(fullName.lastIndexOf('.') + 1);
+                // An element field of a type the source cannot read is unsupported as an index's is: IndexResolver makes it
+                // an UnsupportedEsField, which binds as an UnsupportedAttribute
+                EsField read = leaf.getValue() == DataType.UNSUPPORTED
+                    ? new UnsupportedEsField(name, List.of(leaf.getValue().typeName()))
+                    : new EsField(name, leaf.getValue(), Map.of(), false, TimeSeriesFieldType.NONE);
+                fields.add(new ResolvedField(fullName, leaf.getValue(), Kind.VALUE, collection.path(), null, read));
+            }
+        }
+        return tree(fields);
+    }
+
     private static EsField tree(List<ResolvedField> fields) {
         Map<String, EsField> roots = new TreeMap<>();
         for (ResolvedField field : fields) {

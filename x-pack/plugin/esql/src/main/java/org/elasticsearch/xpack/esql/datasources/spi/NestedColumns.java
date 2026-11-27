@@ -18,7 +18,7 @@ import java.util.TreeMap;
  * The columns of a source that are nested: a list of structures, whose elements are a child relation of the source's rows,
  * as a nested field's objects are child documents of an index's. The schema keeps such a column as one
  * {@link DataType#UNSUPPORTED} attribute; this says that it is nested and what each element holds, and is what the analyzer
- * reads to keep it out of the dataset's columns. It is found when the schema is discovered and travels in
+ * builds the nested scope from. It is found when the schema is discovered and travels in
  * {@link SourceMetadata#sourceMetadata()} under {@link #KEY}, which only this class reads or writes.
  *
  * @param columns by dotted path

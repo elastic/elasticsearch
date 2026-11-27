@@ -5061,9 +5061,10 @@ public class EsqlCapabilities {
         NESTED_EXPAND(Build.current().isSnapshot()),
 
         /**
-         * Datasets whose list-of-struct columns schema discovery describes as nested. With it, such a column is no longer one
-         * of the dataset's columns, as an index's {@code nested} field is not; without it, a dataset shows the column as
-         * unsupported, as before. Snapshot-only with {@link #NESTED_EXPAND}.
+         * {@code NESTED_EXPAND} over a dataset, whose list-of-struct columns schema discovery describes as nested. With it, such
+         * a column is no longer one of the dataset's columns, as an index's {@code nested} field is not; without it, a dataset
+         * shows the column as unsupported, as before. {@code NESTED_ANY} over a dataset is not supported. Snapshot-only with
+         * {@link #NESTED_EXPAND}.
          */
         NESTED_EXPAND_DATASET(Build.current().isSnapshot()),
 

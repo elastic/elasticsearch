@@ -208,6 +208,7 @@ import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.physical.AbstractExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -221,6 +222,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExpandingExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
@@ -630,7 +632,7 @@ public class LocalExecutionPlanner {
             return planEqlSource(eqlSource);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
-        } else if (node instanceof ExternalSourceExec externalSource) {
+        } else if (node instanceof AbstractExternalSourceExec<?> externalSource) {
             return planExternalSource(externalSource, context);
         }
         // lookups and joins
@@ -2467,7 +2469,7 @@ public class LocalExecutionPlanner {
      * @param context the planner context
      * @return the physical operation
      */
-    private PhysicalOperation planExternalSource(ExternalSourceExec externalSource, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planExternalSource(AbstractExternalSourceExec<?> externalSource, LocalExecutionPlannerContext context) {
         // Federation gate, operator-build backstop. This is where an external source becomes a running operator, so
         // enforcing here refuses any already-rewritten ExternalSourceExec that reaches a node without federation
         // regardless of who planned the query: an enabled coordinator, a remote cluster in CCS/CPS, or an enabled
@@ -2510,8 +2512,9 @@ public class LocalExecutionPlanner {
         }
 
         StoragePath path = StoragePath.of(externalSource.sourcePath());
+        // The scan's own columns; an expanding scan's element columns follow them on the page, read by the ExpandRead
         List<String> projectedColumns = new ArrayList<>();
-        for (Attribute attr : externalSource.output()) {
+        for (Attribute attr : externalSource.attributes()) {
             projectedColumns.add(attr.name());
         }
 
@@ -2563,11 +2566,13 @@ public class LocalExecutionPlanner {
                 + " is missing resolved fileList partition columns "
                 + fileList.partitionMetadata().partitionColumns().keySet();
 
+        // The one difference between the two scans here: an expanding one also asks the reader for its elements
+        ExpandingExternalSourceExec expanding = externalSource instanceof ExpandingExternalSourceExec e ? e : null;
         SourceOperatorContext operatorContext = SourceOperatorContext.builder()
             .sourceType(externalSource.sourceType())
             .path(path)
             .projectedColumns(projectedColumns)
-            .attributes(externalSource.output())
+            .attributes(externalSource.attributes())
             // Projection-independent, unlike attributes(): a read-configuration identity must not vary with what the query
             // selects, or a coordinator and a data node would derive different identities for the same read.
             .unifiedSchema(externalSource.unifiedSchema())
@@ -2591,6 +2596,10 @@ public class LocalExecutionPlanner {
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
             .deferredExtraction(externalSource.deferredExtraction())
+            .expandRead(
+                expanding == null ? null : expanding.expandRead(),
+                expanding == null ? FormatReader.NO_LIMIT : expanding.expansion().parentLimit()
+            )
             .minTransportVersion(minTransportVersion)
             .build();
 
@@ -2612,7 +2621,7 @@ public class LocalExecutionPlanner {
         return target == null ? executor : TaskLoadAttribution.charging(executor, target);
     }
 
-    private static void annotateDatasetLabel(ExternalSourceExec externalSource, SourceOperator.SourceOperatorFactory factory) {
+    private static void annotateDatasetLabel(AbstractExternalSourceExec<?> externalSource, SourceOperator.SourceOperatorFactory factory) {
         if (!(factory instanceof AsyncExternalSourceOperatorFactory asyncFactory)) {
             return;
         }
@@ -2888,8 +2897,9 @@ public class LocalExecutionPlanner {
     /**
      * Installs the downstream limiter on an external source when {@code child} is a
      * {@link FilterExec} / {@link EvalExec} / {@link ProjectExec} chain over
-     * {@link ExternalSourceExec}. Pushed LIMIT still wires; the source ignores
-     * observed remaining when it owns a {@code sourceLimiter}.
+     * an {@link AbstractExternalSourceExec}. Pushed LIMIT still wires; the source ignores
+     * observed remaining when it owns a {@code sourceLimiter}. It is the {@code LIMIT}'s own
+     * limiter, so over an expanding scan it counts elements.
      */
     static void observeExternalLimit(PhysicalPlan child, SourceOperatorFactory sourceFactory, LimitOperator.Factory limitFactory) {
         if (canObserveExternalLimit(child) == false) {
@@ -2903,7 +2913,7 @@ public class LocalExecutionPlanner {
     }
 
     /**
-     * True when {@code plan} is an {@link ExternalSourceExec} reached through only
+     * True when {@code plan} is an external source scan, expanding or not, reached through only
      * {@link FilterExec} / {@link EvalExec} / {@link ProjectExec}. Aggregates, {@code MV_EXPAND},
      * joins, and {@code LIMIT BY} sit between LIMIT and the source too often for a remaining-row
      * observation to be meaningful.
@@ -2911,7 +2921,7 @@ public class LocalExecutionPlanner {
     static boolean canObserveExternalLimit(PhysicalPlan plan) {
         PhysicalPlan p = plan;
         while (true) {
-            if (p instanceof ExternalSourceExec) {
+            if (p instanceof AbstractExternalSourceExec<?>) {
                 return true;
             }
             if (p instanceof FilterExec || p instanceof EvalExec || p instanceof ProjectExec) {

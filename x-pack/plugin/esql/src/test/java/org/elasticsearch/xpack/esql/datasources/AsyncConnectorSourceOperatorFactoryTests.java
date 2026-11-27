@@ -512,7 +512,8 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
                 @Override
                 public void close() {}
             };
-            QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+            // The registry supplies a null factory, so get() must bind the driver parent rather than forward the base request.
+            QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, null);
             AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool);
             DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, child, null);
             SourceOperator operator = factory.get(ctx);

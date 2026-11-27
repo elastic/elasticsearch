@@ -112,6 +112,30 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         return codecWithOptimizedMerge;
     }
 
+    @Override
+    protected Codec getCodecWithPrefixPartitions(boolean writePrefixPartitions) {
+        final DocValuesFormat format = new ES95TSDBDocValuesFormat(
+            128,
+            16,
+            false,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            NUMERIC_BLOCK_SHIFT,
+            writePrefixPartitions,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+            NumericCodecFactory.DEFAULT,
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            null
+        );
+        return new Elasticsearch93Lucene104Codec() {
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return format;
+            }
+        };
+    }
+
     public void testAddIndices() throws IOException {
         doTestAddIndices(
             List.of(

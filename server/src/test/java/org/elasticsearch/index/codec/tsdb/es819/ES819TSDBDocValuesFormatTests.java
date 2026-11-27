@@ -133,6 +133,25 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
         return codecWithOptimizedMerge;
     }
 
+    @Override
+    protected Codec getCodecWithPrefixPartitions(boolean writePrefixPartitions) {
+        final DocValuesFormat format = new ES819Version3TSDBDocValuesFormat(
+            128,
+            16,
+            false,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            NUMERIC_BLOCK_SHIFT,
+            writePrefixPartitions
+        );
+        return new Elasticsearch93Lucene104Codec() {
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return format;
+            }
+        };
+    }
+
     public void testBinaryCompressionEnabled() {
         ES819TSDBDocValuesFormat docValueFormat = new ES819Version3TSDBDocValuesFormat();
         assertThat(docValueFormat.formatConfig.binaryCompressionMode(), equalTo(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));

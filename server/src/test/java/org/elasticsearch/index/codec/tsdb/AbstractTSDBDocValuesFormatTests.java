@@ -293,41 +293,59 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
     }
 
     /**
-     * The partition table of a prefix-partitioned primary sort field is data of that field, and must be reported
-     * exactly when the field has one.
+     * A codec whose format parameters are fixed, so that two of them differ in nothing but whether prefix partitions are
+     * written.
      */
-    public void testVisitDiskUsageReportsPrefixPartitions() throws Exception {
-        final int numDocs = randomIntBetween(200, 2000);
-        try (Directory dir = newDirectory()) {
-            IndexWriterConfig config = new IndexWriterConfig().setCodec(getCodec())
-                .setUseCompoundFile(false)
-                .setIndexSort(new Sort(new SortField("first", SortField.Type.STRING)));
-            try (IndexWriter writer = new IndexWriter(dir, config)) {
-                for (int i = 0; i < numDocs; i++) {
-                    final byte[] term = randomByteArrayOfLength(4);
-                    term[0] = (byte) randomIntBetween(0, 8);
-                    Document doc = new Document();
-                    doc.add(new SortedDocValuesField("first", new BytesRef(term)));
-                    writer.addDocument(doc);
-                }
-                writer.commit();
-            }
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                assertThat(reader.leaves().size(), equalTo(1));
-                final SegmentReader segmentReader = (SegmentReader) reader.leaves().get(0).reader();
-                final var partitioned = segmentReader.getSortedDocValues("first");
-                assertThat(partitioned, instanceOf(PartitionedDocValues.class));
-                final boolean hasPartitions = ((PartitionedDocValues) partitioned).prefixPartitionBits() > 0;
+    protected abstract Codec getCodecWithPrefixPartitions(boolean writePrefixPartitions);
 
-                final DiskUsageTotals totals = new DiskUsageTotals();
-                final var diskUsage = (DocValuesDiskUsage) segmentReader.getDocValuesReader();
-                assertTrue(diskUsage.visitDiskUsage(segmentReader.getFieldInfos().fieldInfo("first"), totals));
-                if (hasPartitions) {
-                    assertThat(totals.dataComponents.get("partitions"), greaterThan(0L));
-                } else {
-                    assertFalse(totals.dataComponents.containsKey("partitions"));
+    /**
+     * The partition table of a prefix-partitioned primary sort field is data of that field. Writing the same documents
+     * with and without partitions must differ in the data file by exactly the bytes reported for the partitions.
+     */
+    public void testVisitDiskUsageReportsExactPrefixPartitionBytes() throws Exception {
+        final int numDocs = randomIntBetween(200, 2000);
+        final List<BytesRef> terms = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            final byte[] term = randomByteArrayOfLength(4);
+            term[0] = (byte) randomIntBetween(0, 8);
+            terms.add(new BytesRef(term));
+        }
+
+        long dataFileBytesWithoutPartitions = 0;
+        for (boolean writePartitions : new boolean[] { false, true }) {
+            try (Directory dir = newDirectory()) {
+                IndexWriterConfig config = new IndexWriterConfig().setCodec(getCodecWithPrefixPartitions(writePartitions))
+                    .setUseCompoundFile(false)
+                    .setIndexSort(new Sort(new SortField("first", SortField.Type.STRING)));
+                try (IndexWriter writer = new IndexWriter(dir, config)) {
+                    for (BytesRef term : terms) {
+                        Document doc = new Document();
+                        doc.add(new SortedDocValuesField("first", term));
+                        writer.addDocument(doc);
+                    }
+                    writer.commit();
                 }
-                assertAccountsForAllFileBytes(dir, segmentReader, totals);
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    assertThat(reader.leaves().size(), equalTo(1));
+                    final SegmentReader segmentReader = (SegmentReader) reader.leaves().get(0).reader();
+                    final var sortedValues = segmentReader.getSortedDocValues("first");
+                    assertThat(sortedValues, instanceOf(PartitionedDocValues.class));
+                    assertThat(((PartitionedDocValues) sortedValues).prefixPartitionBits() > 0, equalTo(writePartitions));
+
+                    final DiskUsageTotals totals = new DiskUsageTotals();
+                    final var diskUsage = (DocValuesDiskUsage) segmentReader.getDocValuesReader();
+                    assertTrue(diskUsage.visitDiskUsage(segmentReader.getFieldInfos().fieldInfo("first"), totals));
+                    assertAccountsForAllFileBytes(dir, segmentReader, totals);
+
+                    final long dataFileBytes = segmentFileBytes(dir, segmentReader, "dvd");
+                    if (writePartitions) {
+                        assertThat(totals.dataComponents.get("partitions"), greaterThan(0L));
+                        assertThat(totals.dataComponents.get("partitions"), equalTo(dataFileBytes - dataFileBytesWithoutPartitions));
+                    } else {
+                        assertFalse(totals.dataComponents.containsKey("partitions"));
+                        dataFileBytesWithoutPartitions = dataFileBytes;
+                    }
+                }
             }
         }
     }

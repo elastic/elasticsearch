@@ -147,7 +147,7 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         // Verify that the destination index now exists
         assertTrue(indexExists(destIndex));
         // Verify that both aliases are configured on the dest index
-        assertAliases(destIndex, destAliasAll, destAliasLatest);
+        assertBusy(() -> assertAliases(destIndex, destAliasAll, destAliasLatest));
     }
 
     public void testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation() throws Exception {
@@ -186,7 +186,7 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         // Verify that the destination index now exists
         assertTrue(indexExists(destIndex));
         // Verify that both aliases are configured on the dest index
-        assertAliases(destIndex, destAliasAll, destAliasLatest);
+        assertBusy(() -> assertAliases(destIndex, destAliasAll, destAliasLatest));
     }
 
     public void testUnattendedTransformDestIndexCreatedByIndexer() throws Exception {

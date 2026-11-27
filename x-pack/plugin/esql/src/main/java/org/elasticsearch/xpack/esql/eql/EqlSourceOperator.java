@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.eql.execution.search.EqlProjectScope;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -136,6 +137,7 @@ public class EqlSourceOperator extends SourceOperator {
         // (NodeClient.doExecute forwards those to onFailure), so the async action is always released below.
         client.execute(EqlSearchAction.INSTANCE, request, ActionListener.wrap(response -> {
             try {
+                EqlProjectScope.ensureSame(executionInfo.getResolvedTargetProjects(), request.getResolvedTargetProjects());
                 // Convert synchronously inside the callback and copy the bytes we need out of the (ref-counted)
                 // response into blocks. We do not own a reference here — the EQL transport action delivers the
                 // response via respondAndRelease and releases it once this listener returns — so we must not

@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -26,9 +27,12 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.session.EqlSession;
+import org.elasticsearch.xpack.eql.util.SearchHitUtils;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
+import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -47,6 +51,7 @@ import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 public class PITAwareQueryClient extends BasicQueryClient {
 
     private BytesReference pitId;
+    private List<ShardSearchFailure> pitFailures = List.of();
     private final TimeValue keepAlive;
     private final QueryBuilder filter;
 
@@ -154,6 +159,18 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
         client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
             pitId = r.getPointInTimeId();
+            try {
+                EqlProjectScope.ensureSame(cfg.targetProjects(), request.getResolvedTargetProjects());
+                pitFailures = SearchHitUtils.skippedClusterFailures(r.getClusters());
+                if (allowPartialSearchResults == false && pitFailures.isEmpty() == false) {
+                    ShardSearchFailure failure = pitFailures.getFirst();
+                    throw new EqlIllegalArgumentException(failure.reason(), failure.getCause());
+                }
+            } catch (Exception e) {
+                close(ActionListener.noop());
+                l.onFailure(e);
+                return;
+            }
             runnable.run();
         }));
     }
@@ -174,5 +191,10 @@ public class PITAwareQueryClient extends BasicQueryClient {
     @Override
     protected boolean usingPit() {
         return true;
+    }
+
+    @Override
+    public List<ShardSearchFailure> searchFailures() {
+        return pitFailures;
     }
 }

@@ -302,6 +302,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 // supplied it, so the engine skips its own resolution; null (every other caller) means self-resolve.
                 request.takePreResolvedFieldCaps()
             );
+            cfg.targetProjects(request.getResolvedTargetProjects());
             planExecutor.eql(cfg, request.query(), params, wrap(r -> {
                 EqlSearchResponse response = createResponse(r, task.getExecutionId());
                 response.setDirectoryMetrics(r.directoryMetrics());

@@ -21,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -134,6 +135,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     // Project routing telemetry — coordinator-only, not serialized
     private transient ProjectRoutingRequestInfo projectRoutingInfo;
+    private transient TargetProjects resolvedTargetProjects;
     /**
      * Request-breaker reservation for external-datasource planning. Coordinator-only, like the other transient
      * fields on this class: {@link #writeTo} does not write it and {@link #EsqlExecutionInfo(StreamInput)} does
@@ -228,6 +230,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public void setProjectRoutingInfo(@Nullable ProjectRoutingRequestInfo info, boolean hasLinkedProjects) {
         this.projectRoutingInfo = info;
         this.hasLinkedProjects = hasLinkedProjects;
+    }
+
+    /** Captures the schema resolution's scope for coordinator-local EQL execution, without seeding authorization. */
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
     }
 
     @Nullable

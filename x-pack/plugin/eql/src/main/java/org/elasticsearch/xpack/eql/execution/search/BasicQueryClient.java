@@ -87,6 +87,9 @@ public class BasicQueryClient implements QueryClient {
             applyCrossProjectSearchOptions(search);
         }
         client.search(search, listener.delegateFailureAndWrap((delegate, response) -> {
+            if (usingPit() == false) {
+                EqlProjectScope.ensureSame(cfg.targetProjects(), search.getResolvedTargetProjects());
+            }
             directoryMetricsConsumer.accept(response.getDirectoryMetrics());
             delegate.onResponse(response);
         }));

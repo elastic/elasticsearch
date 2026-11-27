@@ -64,6 +64,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.eql.execution.search.EqlProjectScope;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -3125,7 +3126,7 @@ public class EsqlSession {
             // cross-cluster state. After it completes we run the lenient pass over any
             // ViewShadowRelation patterns (CPS-only) so their results land in
             // result.optionalLinkedResolution() — empty iterator → no-op when there are no shadows.
-            Consumer<TargetProjects> routingInfoCapture = getRoutingInfoCapture(executionInfo);
+            Consumer<TargetProjects> routingInfoCapture = getRoutingInfoCapture(executionInfo, preAnalysis);
             forAll(
                 preAnalysis.indexes().entrySet().iterator(),
                 result,
@@ -3166,12 +3167,16 @@ public class EsqlSession {
         }
     }
 
-    private static Consumer<TargetProjects> getRoutingInfoCapture(EsqlExecutionInfo executionInfo) {
+    static Consumer<TargetProjects> getRoutingInfoCapture(EsqlExecutionInfo executionInfo, PreAnalyzer.PreAnalysis preAnalysis) {
         // Capture routing info from the first successful field-caps round only. Multiple index patterns
         // in the FROM clause each trigger a separate resolveFlatIndicesVersioned call; all share the
         // same project_routing expression so only the first result is needed.
         Holder<Boolean> routingCaptured = new Holder<>(false);
         return tp -> {
+            if (preAnalysis.eqlPatterns().isEmpty() == false) {
+                EqlProjectScope.ensureSame(executionInfo.getResolvedTargetProjects(), tp);
+                executionInfo.setResolvedTargetProjects(tp);
+            }
             if (routingCaptured.get() == false) {
                 routingCaptured.set(true);
                 executionInfo.setProjectRoutingInfo(tp.projectRoutingRequestInfo(), tp.hasLinkedProjects());

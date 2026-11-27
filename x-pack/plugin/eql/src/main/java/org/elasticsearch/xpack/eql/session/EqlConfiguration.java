@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
@@ -37,6 +38,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final boolean allowPartialSequenceResults;
     private final String projectRouting;
     private final boolean crossProjectEnabled;
+    private TargetProjects targetProjects;
     private final ResolvedIndexExpressions resolvedIndexExpressions;
     // A merged field-caps response the caller already resolved for these indices (e.g. the ES|QL EQL source command),
     // letting the engine plan against it instead of issuing its own _field_caps. Coordinator-local like
@@ -149,6 +151,15 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public boolean crossProjectEnabled() {
         return crossProjectEnabled;
+    }
+
+    /** Records the outer request's authorized scope for comparison with independently authorized child requests. */
+    public void targetProjects(TargetProjects targetProjects) {
+        this.targetProjects = targetProjects;
+    }
+
+    public TargetProjects targetProjects() {
+        return targetProjects;
     }
 
     public ResolvedIndexExpressions resolvedIndexExpressions() {

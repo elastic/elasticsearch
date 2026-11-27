@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.eql.querydsl.container.CompositeAggRef;
 import org.elasticsearch.xpack.eql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.eql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
+import org.elasticsearch.xpack.eql.util.SearchHitUtils;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
@@ -61,7 +62,7 @@ public final class RuntimeUtils {
         boolean allowPartialResults
     ) {
         return listener.delegateFailureAndWrap((delegate, response) -> {
-            List<ShardSearchFailure> failures = response.getShardFailures();
+            List<ShardSearchFailure> failures = SearchHitUtils.shardFailures(response);
             if (failures.isEmpty() == false && allowPartialResults == false) {
                 delegate.onFailure(new EqlIllegalArgumentException(failures.getFirst().reason(), failures.getFirst().getCause()));
                 return;
@@ -85,7 +86,7 @@ public final class RuntimeUtils {
 
                 if (failure == null) {
                     if (allowPartialSearchResults == false) {
-                        List<ShardSearchFailure> failures = response.getShardFailures();
+                        List<ShardSearchFailure> failures = SearchHitUtils.shardFailures(response);
                         if (failures.isEmpty() == false) {
                             failure = new EqlIllegalArgumentException(failures.getFirst().reason(), failures.getFirst().getCause());
                         }

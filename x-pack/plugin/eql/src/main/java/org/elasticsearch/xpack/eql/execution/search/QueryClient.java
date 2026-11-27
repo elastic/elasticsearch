@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.List;
@@ -27,4 +28,9 @@ public interface QueryClient {
     void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener);
 
     default void multiQuery(List<SearchRequest> searches, ActionListener<MultiSearchResponse> listener) {}
+
+    /** Failures from opening the search context must remain visible even if subsequent searches cannot revisit those projects. */
+    default List<ShardSearchFailure> searchFailures() {
+        return List.of();
+    }
 }

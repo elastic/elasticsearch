@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -62,6 +63,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -85,10 +87,19 @@ public class PITAwareQueryClientTests extends ESTestCase {
     private static final String[] INDICES = new String[] { "test1", "test2", "test3" };
 
     public void testQueryFilterUsedInPitAndSearches() {
+        executeSequence(false);
+    }
+
+    public void testSkippedProjectDuringSecondaryStageSuppressesIncompleteSequence() {
+        executeSequence(true);
+    }
+
+    private void executeSequence(boolean skipDuringSecondaryStage) {
         try (var threadPool = createThreadPool()) {
             final var filter = frequently() ? randomFrom(FILTERS) : null;
             int stages = randomIntBetween(2, 5);
             final var esClient = new ESMockClient(threadPool, filter, stages);
+            esClient.skipDuringSecondaryStage = skipDuringSecondaryStage;
 
             EqlConfiguration eqlConfiguration = new EqlConfiguration(
                 INDICES,
@@ -102,7 +113,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 null,
                 123,
                 1,
-                randomBoolean(),
+                skipDuringSecondaryStage || randomBoolean(),
                 randomBoolean(),
                 null,
                 "",
@@ -155,7 +166,10 @@ public class PITAwareQueryClientTests extends ESTestCase {
                     new SequenceCriterion(
                         i,
                         new BoxedQueryRequest(
-                            () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),
+                            () -> SearchSourceBuilder.searchSource()
+                                .size(skipDuringSecondaryStage ? 1 : 10)
+                                .query(matchAllQuery())
+                                .terminateAfter(j),
                             "@timestamp",
                             emptyList(),
                             emptySet()
@@ -177,11 +191,15 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 null,
                 matcher,
                 Collections.emptyList(),
-                randomBoolean(),
-                randomBoolean()
+                skipDuringSecondaryStage || randomBoolean(),
+                skipDuringSecondaryStage == false && randomBoolean()
             );
             window.execute(wrap(response -> {
-                // do nothing, we don't care about the query results
+                if (skipDuringSecondaryStage) {
+                    assertTrue(response.values().isEmpty());
+                    assertEquals(1, response.shardFailures().size());
+                    assertEquals("linked", response.shardFailures().getFirst().shard().getClusterAlias());
+                }
             }, ex -> { fail("Shouldn't have failed"); }));
         }
     }
@@ -195,6 +213,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
         private final BytesReference pitId = new BytesArray("test_pit_id");
         private boolean openedPIT = false;
         private int searchRequestsRemainingCount;
+        private boolean skipDuringSecondaryStage;
 
         ESMockClient(ThreadPool threadPool, QueryBuilder filter, int stages) {
             super(threadPool);
@@ -237,6 +256,12 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 assertEquals(3, actualQuery.filter().size());
                 assertTrue(actualQuery.filter().get(0) instanceof MatchAllQueryBuilder); // the match_all we used when building the criteria
                 assertTrue(actualQuery.filter().get(1) instanceof RangeQueryBuilder);
+                if (skipDuringSecondaryStage && searchRequest.source().terminateAfter() == 1) {
+                    assertNotNull(
+                        "secondary stage must remain bounded by the base window",
+                        ((RangeQueryBuilder) actualQuery.filter().get(1)).to()
+                    );
+                }
                 QueryBuilder expectedQuery = termsQuery("_index", INDICES); // indices should be used as a filter further on
                 assertEquals(expectedQuery, actualQuery.filter().get(2));
 
@@ -255,6 +280,15 @@ public class PITAwareQueryClientTests extends ESTestCase {
             );
 
             SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 0.0f);
+            SearchResponse.Clusters clusters = SearchResponse.Clusters.EMPTY;
+            if (skipDuringSecondaryStage && ordinal == 1) {
+                SearchResponse.Cluster skipped = new SearchResponse.Cluster.Builder(
+                    new SearchResponse.Cluster("linked", "test*", true, null)
+                ).setStatus(SearchResponse.Cluster.Status.SKIPPED)
+                    .setFailures(List.of(new ShardSearchFailure(new IllegalStateException("linked stage unavailable"))))
+                    .build();
+                clusters = new SearchResponse.Clusters(Map.of("linked", skipped), false);
+            }
             SearchResponse response = new SearchResponse(
                 searchHits,
                 null,
@@ -270,7 +304,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 0,
                 List.of(),
                 List.of(),
-                SearchResponse.Clusters.EMPTY,
+                clusters,
                 searchRequest.pointInTimeBuilder().getEncodedId(),
                 null,
                 null

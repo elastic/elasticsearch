@@ -37,7 +37,7 @@ public class Results {
         return new Results(
             new TotalHits(values.size(), Relation.EQUAL_TO),
             payload.timeTook(),
-            false,
+            payload.timedOut(),
             values,
             payload.resultType(),
             payload.shardFailures(),

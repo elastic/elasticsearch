@@ -11,7 +11,9 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -240,7 +242,14 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 if (localResolvedIndexExpressions != null) { // this should never be null in CPS
                     collectedIndices.addAll(localResolvedIndexExpressions.getLocalIndicesList());
                 }
-                request.indices(collectedIndices.toArray(String[]::new));
+                // Keep unresolved projects in the PIT-opening phase, which either opens them or reports them as skipped.
+                List<String> pitIndices = new ArrayList<>(collectedIndices);
+                for (String alias : remoteExceptions.keySet()) {
+                    for (String index : indicesPerCluster.get(alias).indices()) {
+                        pitIndices.add(buildRemoteIndexName(alias, index));
+                    }
+                }
+                request.indices(pitIndices.toArray(String[]::new));
                 executeOpenPit(task, request, listener);
             });
         ActionListener<Map.Entry<String, SearchPlanningPhaseResolutionResult>> groupedListener = new GroupedActionListener<>(
@@ -291,7 +300,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         }
         List<String> aliases = new ArrayList<>(remoteExceptions.keySet());
         Collections.sort(aliases);
-        ElasticsearchStatusException failure = null;
+        ElasticsearchException failure = null;
         for (String alias : aliases) {
             Exception remoteFailure = remoteExceptions.get(alias);
             // Keep the alias in this message and the remote status on this exception. A wrapper or a cause is
@@ -299,10 +308,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             Throwable reported = ExceptionsHelper.unwrapCause(remoteFailure);
             String raw = reported.getMessage();
             String detail = raw == null ? reported.toString() : raw;
-            ElasticsearchStatusException one = new ElasticsearchStatusException(
-                "failed to resolve indices on project [" + alias + "]: " + detail,
-                ExceptionsHelper.status(remoteFailure)
-            );
+            String message = "failed to resolve indices on project [" + alias + "]: " + detail;
+            ElasticsearchException one = reported instanceof ElasticsearchException elasticsearchException
+                && elasticsearchException.isTimeout()
+                    ? new ElasticsearchTimeoutException(message)
+                    : new ElasticsearchStatusException(message, ExceptionsHelper.status(remoteFailure));
             if (failure == null) {
                 failure = one;
             } else {

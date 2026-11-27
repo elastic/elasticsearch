@@ -2,6 +2,9 @@
 navigation_title: "Extended stats bucket"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-pipeline-extended-stats-bucket-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Extended stats bucket aggregation [search-aggregations-pipeline-extended-stats-bucket-aggregation]

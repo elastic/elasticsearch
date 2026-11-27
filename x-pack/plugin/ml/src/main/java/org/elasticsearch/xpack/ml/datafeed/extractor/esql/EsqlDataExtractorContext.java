@@ -16,7 +16,6 @@ record EsqlDataExtractorContext(
     String esqlQuery,
     String sourceTimeField,
     String emittedTimeField,
-    long groupingIntervalMillis,
     long start,
     long end,
     Map<String, String> headers,

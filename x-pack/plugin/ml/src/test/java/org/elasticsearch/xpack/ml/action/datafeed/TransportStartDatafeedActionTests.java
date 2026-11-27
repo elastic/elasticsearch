@@ -442,6 +442,34 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         assertThat(params.getIndicesOptions(), sameInstance(SearchRequest.DEFAULT_INDICES_OPTIONS));
     }
 
+    public void testStartSkipsFactoryValidationOnlyForEsqlDatafeeds() {
+        // The start action must not build an ES|QL extractor factory (it would run a second | DESCRIBE); the task node does.
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        DatafeedConfig classicDatafeed = new DatafeedConfig.Builder("classic-datafeed", "job_id").setIndices(List.of("logs")).build();
+
+        CrossProjectModeDecider notCrossProject = new CrossProjectModeDecider(Settings.EMPTY);
+
+        assertThat(TransportStartDatafeedAction.skipsFactoryValidation(esqlDatafeed, notCrossProject), is(true));
+        assertThat(TransportStartDatafeedAction.skipsFactoryValidation(classicDatafeed, notCrossProject), is(false));
+    }
+
+    public void testStartValidatesEsqlDatafeedFactoryInCrossProjectMode() {
+        // The master skips its | DESCRIBE in cross-project mode, so the factory creation must validate or errors surface as a timeout.
+        assumeTrue("cross-project ML is off in this build", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        CrossProjectModeDecider crossProject = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+
+        assertThat(TransportStartDatafeedAction.skipsFactoryValidation(esqlDatafeed, crossProject), is(false));
+    }
+
     public void testStartClassicDatafeedSetsIndicesOptions() {
         DatafeedConfig classicDatafeed = new DatafeedConfig.Builder("classic-datafeed", "job_id").setIndices(List.of("logs"))
             .setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN)

@@ -529,6 +529,23 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
     }
 
     /**
+     * Two glob dirs, template {@code {year}}: mixed {@code year=2024/2025/a.parquet} binds 2025
+     * via {@code fileBindings} / {@code columnValue} (filename dropped). Hive first-wins binds 2024.
+     */
+    public void testWalkLayoutFileBindingsDropsFilenameOnMixedHivePrefix() {
+        TemplatePartitionDetector.WalkLayout layout = TemplatePartitionDetector.walkLayout(
+            StoragePath.of("s3://bucket/data/"),
+            "*/*/*.parquet",
+            "{year}"
+        );
+        assertNotNull(layout);
+        String mixed = StoragePath.of("s3://bucket/data/year=2024/2025/a.parquet").path();
+        assertEquals("2025", layout.fileBindings(mixed).get("year"));
+        assertEquals("2025", TemplatePartitionDetector.columnValue(mixed, "year", "{year}"));
+        assertEquals("2024", PartitionValueMatcher.pathBindings(mixed).get("year"));
+    }
+
+    /**
      * Empty glob dirs keep a slot that {@link TemplatePartitionDetector#nonEmptySegments} drops.
      * Binding that empty string as a placeholder literal would apply {@code x} filters to the
      * folder that actually binds {@code y}. Fail closed — no walk.

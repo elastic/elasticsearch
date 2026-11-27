@@ -140,7 +140,11 @@ public final class TsidPrefixHistogram implements Writeable {
     }
 
     /**
-     * Drops the fewest low prefix bits that leave at most {@code maxCells} cells.
+     * Drops the fewest low prefix bits that leave at most {@code maxCells} cells. Node, cluster, and final responses are
+     * capped at {@link #MAX_CELLS} to keep their memory and transport size small: without a cap, the 18-bit prefix allows
+     * up to 2^18 cells, about 3MB per response. Capping merges adjacent cells, so the series and group estimates do not
+     * change, and {@link #splits} can only cut at coarser prefix boundaries. The planner asks for at most 256 splits, so
+     * {@link #MAX_CELLS} cells still leave enough prefixes to split good partitions.
      */
     TsidPrefixHistogram capped(int maxCells) {
         if (numPrefixes <= maxCells) {

@@ -29,12 +29,10 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -70,24 +68,15 @@ public final class QueryCaptureSink extends QuerySink<QueryCaptureContext> {
     private final Consumer<CapturedSearch> consumer;
     private final Supplier<Random> random;
     private volatile boolean enabled;
-    private final CaptureRate captureRate = new CaptureRate(0, 0);
+    private volatile double captureRate;
     private final LongSupplier millis;
-    private final AtomicReference<Mark> lastUpdate;
     private final AtomicLong lastWarning = new AtomicLong(NEVER);
-
-    // how often the capture rate is brought up to date with the traffic, by the searches themselves
-    private static final long UPDATE_INTERVAL_MILLIS = TimeUnit.SECONDS.toMillis(10);
-
-    /** The number of kNN searches there had been when the capture rate was last brought up to date, and when. */
-    private record Mark(long knnSearches, long millis) {}
 
     private final LongAdder knnSearches = new LongAdder();
     private final LongAdder captured = new LongAdder();
 
     /**
-     * @param millis a clock in milliseconds that is cheap to read: it is read by every kNN search, and a call to the system
-     *               clock costs far more than the rest of the sink when many threads make it at once, so the cached time
-     *               of the thread pool is the one to give
+     * @param millis a clock in milliseconds, to log a failure to capture at most once a minute
      */
     public QueryCaptureSink(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer, LongSupplier millis) {
         this(clusterSettings, consumer, millis, Randomness::get);
@@ -104,34 +93,8 @@ public final class QueryCaptureSink extends QuerySink<QueryCaptureContext> {
         this.consumer = consumer;
         this.random = random;
         this.millis = millis;
-        this.lastUpdate = new AtomicReference<>(new Mark(0, millis.getAsLong()));
         clusterSettings.initializeAndWatch(QuerySamplingSettings.ENABLED, value -> this.enabled = value);
-        clusterSettings.initializeAndWatch(QuerySamplingSettings.CAPTURE_RATE, captureRate::baseRate);
-        clusterSettings.initializeAndWatch(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR, captureRate::minPerHour);
-    }
-
-    /**
-     * Brings the capture rate up to date with the traffic once an interval has passed. The searches do it, so a node
-     * without kNN searches does nothing, and the one that finds it due does it for all: the others go on.
-     */
-    private void updateRateIfDue() {
-        Mark last = lastUpdate.get();
-        long now = millis.getAsLong();
-        if (now - last.millis() < UPDATE_INTERVAL_MILLIS) {
-            return;
-        }
-        long total = knnSearches.sum();
-        if (lastUpdate.compareAndSet(last, new Mark(total, now))) {
-            long elapsed = now - last.millis();
-            if (elapsed >= 2 * UPDATE_INTERVAL_MILLIS) {
-                captureRate.forgetTraffic(); // after a quiet spell, or while sampling was off, the traffic before it says nothing
-            }
-            captureRate.observe(total - last.knnSearches(), elapsed / 1000.0);
-        }
-    }
-
-    public double effectiveCaptureRate() {
-        return captureRate.effective();
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.CAPTURE_RATE, value -> this.captureRate = value);
     }
 
     @Override
@@ -163,9 +126,8 @@ public final class QueryCaptureSink extends QuerySink<QueryCaptureContext> {
             return;
         }
         knnSearches.increment();
-        updateRateIfDue();
         // read once: the draw and the rate recorded with the search must be the same value
-        double rate = captureRate.effective();
+        double rate = captureRate;
         if (random.get().nextDouble() >= rate) {
             return;
         }
@@ -253,12 +215,18 @@ public final class QueryCaptureSink extends QuerySink<QueryCaptureContext> {
             || searchesRemoteIndices(request);
     }
 
-    // the hits of a cross-cluster search come from several clusters, and a hit says which index and document, not which cluster
+    // the hits of a cross-cluster search come from several clusters, and a hit says which index and document, not which cluster;
+    // a loop and not a stream, as this runs for every kNN search and a stream allocates
     private static boolean searchesRemoteIndices(SearchRequest request) {
-        return Arrays.stream(request.indices()).anyMatch(RemoteClusterAware::isRemoteIndexName);
+        for (String index : request.indices()) {
+            if (RemoteClusterAware.isRemoteIndexName(index)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    // sorted by a field, the hits have no score, which the samples and the hardness of a query are made of; sorted by score
+    // sorted by a field, the hits have no score, which the samples are made of; sorted by score
     // in ascending order, they are the worst of the candidates, not the nearest ones
     private static boolean returnsOtherHitsThanTheBestScoredFirst(SearchSourceBuilder source) {
         return source.sorts() != null

@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.querysampling.capture.QueryCaptureSink;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
-import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
 
 import java.util.Collection;
 import java.util.List;
@@ -47,6 +46,13 @@ public class KnnQuerySamplingPlugin extends Plugin {
     // about 130 bytes each, so 6.5 MB; at the default capture rate it is reached by about 700 searches a second of queries that are all
     // new, and a query that does not fit is not sampled, so it is better not to go lower without making the capture rate back off
     private static final int MAX_DISTINCT_QUERIES = 50_000;
+    // γ, the scale of the pick probability: the first captured arrival of a query is picked with min(1, γ·ln(1 + 1/capture_rate)),
+    // about 0.69·γ when every search is captured, falling as the query is searched more
+    private static final double ACCEPTANCE_SCALE = 1.0;
+    // captured arrivals from which a query is always picked, so that estimates do not hinge on one coin flip on a hot query
+    private static final long HEAD_THRESHOLD = 100;
+    // the window that the arrivals of a query are counted in: a query is forgotten between one and two windows after its last search
+    private static final TimeValue MULTIPLICITY_WINDOW = TimeValue.timeValueHours(1);
 
     private final SetOnce<QueryCaptureSink> captureSink = new SetOnce<>();
 
@@ -82,16 +88,8 @@ public class KnnQuerySamplingPlugin extends Plugin {
             return List.of();
         }
         ClusterSettings clusterSettings = services.clusterService().getClusterSettings();
-        MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES, TimeValue.timeValueHours(1), System::nanoTime);
-        tracker.watch(clusterSettings);
-        // the values given here are replaced by the settings in the watch calls
-        QuerySampler sampler = new QuerySampler(
-            1.0,
-            100,
-            Randomness::get,
-            new PickBudget(System::nanoTime),
-            new SpatialStrata(QuerySamplingSettings.SPATIAL_CLUSTERS.get(services.clusterService().getSettings()))
-        );
+        MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES, MULTIPLICITY_WINDOW, System::nanoTime);
+        QuerySampler sampler = new QuerySampler(ACCEPTANCE_SCALE, HEAD_THRESHOLD, Randomness::get, new PickBudget(System::nanoTime));
         sampler.watch(clusterSettings);
         // what is picked goes to the listeners of the pipeline; none are registered yet, storing the samples comes later
         SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of());

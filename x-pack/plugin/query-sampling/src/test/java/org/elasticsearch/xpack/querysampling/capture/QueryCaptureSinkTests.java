@@ -39,11 +39,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -153,47 +150,16 @@ public class QueryCaptureSinkTests extends ESTestCase {
         assertThat(captured.size(), equalTo(1));
     }
 
-    public void testTheCaptureRateFollowsTheTrafficWhenSearchesComeInWithoutAScheduledTask() {
-        AtomicLong millis = new AtomicLong();
-        QueryCaptureSink sink = new QueryCaptureSink(clusterSettings(true, 0.0, 3600), captured::add, millis::get);
-        assertThat("no traffic known yet, and none configured", sink.effectiveCaptureRate(), equalTo(0.0));
-
-        for (int i = 0; i < 20; i++) {
-            search(sink, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
-        }
-        assertThat("an interval has not passed", sink.effectiveCaptureRate(), equalTo(0.0));
-
-        millis.addAndGet(TimeUnit.SECONDS.toMillis(10));
-        search(sink, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
-        assertThat("21 searches in 10 s, and 3600 captures an hour are wanted", sink.effectiveCaptureRate(), closeTo(1 / 2.1, 1e-9));
-
-        millis.addAndGet(TimeUnit.SECONDS.toMillis(60));
-        search(sink, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
-        assertThat(
-            "after a quiet spell what came before is forgotten, and whatever arrives is wanted",
-            sink.effectiveCaptureRate(),
-            equalTo(1.0)
-        );
-    }
-
     private static QueryCaptureSink sink(boolean enabled, double rate, Consumer<CapturedSearch> consumer) {
         return new QueryCaptureSink(clusterSettings(enabled, rate), consumer, () -> 0L);
     }
 
     private static ClusterSettings clusterSettings(boolean enabled, double rate) {
-        return clusterSettings(enabled, rate, 0);
-    }
-
-    private static ClusterSettings clusterSettings(boolean enabled, double rate, long minCapturesPerHour) {
         Settings settings = Settings.builder()
             .put(QuerySamplingSettings.ENABLED.getKey(), enabled)
             .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), rate)
-            .put(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR.getKey(), minCapturesPerHour)
             .build();
-        return new ClusterSettings(
-            settings,
-            Set.of(QuerySamplingSettings.ENABLED, QuerySamplingSettings.CAPTURE_RATE, QuerySamplingSettings.MIN_CAPTURES_PER_HOUR)
-        );
+        return new ClusterSettings(settings, Set.of(QuerySamplingSettings.ENABLED, QuerySamplingSettings.CAPTURE_RATE));
     }
 
     private static SearchSourceBuilder knnSource() {

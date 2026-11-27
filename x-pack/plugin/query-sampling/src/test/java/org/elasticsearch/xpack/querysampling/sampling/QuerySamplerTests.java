@@ -29,7 +29,7 @@ public class QuerySamplerTests extends ESTestCase {
         AtomicLong clock = new AtomicLong();
         PickBudget limit = new PickBudget(clock::get);
         limit.perHour(60);
-        QuerySampler sampler = new QuerySampler(1.0, 1000, supplying(alwaysDrawing(0.5)), limit, new SpatialStrata(0));
+        QuerySampler sampler = new QuerySampler(1.0, 1000, supplying(alwaysDrawing(0.5)), limit);
         MultiplicityTracker tracker = new MultiplicityTracker(10);
 
         TrackedQuery first = tracker.record(new QueryFingerprint(1, 1));
@@ -55,7 +55,7 @@ public class QuerySamplerTests extends ESTestCase {
         AtomicLong clock = new AtomicLong();
         PickBudget limit = new PickBudget(clock::get);
         limit.perHour(60); // a single pick
-        QuerySampler sampler = new QuerySampler(1.0, 1000, supplying(alwaysDrawing(0.0)), limit, new SpatialStrata(0));
+        QuerySampler sampler = new QuerySampler(1.0, 1000, supplying(alwaysDrawing(0.0)), limit);
         MultiplicityTracker tracker = new MultiplicityTracker(10);
 
         assertTrue("picked, which uses the only pick up", sampler.offer(tracker.record(FINGERPRINT)));
@@ -73,13 +73,7 @@ public class QuerySamplerTests extends ESTestCase {
     }
 
     public void testInclusionProbabilityMatchesHowOftenQueriesAreSampled() {
-        QuerySampler sampler = new QuerySampler(
-            0.3,
-            1000,
-            supplying(seededRandom()),
-            new PickBudget(System::nanoTime),
-            new SpatialStrata(0)
-        );
+        QuerySampler sampler = new QuerySampler(0.3, 1000, supplying(seededRandom()), new PickBudget(System::nanoTime));
         int arrivals = 6;
         int trials = 20_000;
         int sampled = 0;

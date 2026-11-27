@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.querysampling.dedup;
 
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,7 +25,7 @@ import java.util.function.LongSupplier;
 public final class MultiplicityTracker {
 
     private final int maxDistinct;
-    private volatile long windowNanos;
+    private final long windowNanos;
     private final LongSupplier nanoTime;
     private final Map<QueryFingerprint, TrackedQuery> tracked = new ConcurrentHashMap<>();
     // only used by the thread that records
@@ -45,10 +43,6 @@ public final class MultiplicityTracker {
         this.windowNanos = window.nanos();
         this.nanoTime = nanoTime;
         this.windowStart = nanoTime.getAsLong();
-    }
-
-    public void watch(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(QuerySamplingSettings.MULTIPLICITY_WINDOW, value -> this.windowNanos = value.nanos());
     }
 
     @Nullable

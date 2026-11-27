@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.querysampling.dedup;
 
-import org.elasticsearch.core.Nullable;
-
 /**
  * Counters of one distinct query: captures, whether it was picked and how likely that was. Updated from the
  * pipeline thread but read from others, hence the synchronization.
@@ -23,9 +21,6 @@ public final class TrackedQuery {
     private double lastArrivalWeight;
     private double logSurvival;
     private boolean sampled;
-    private Stratum stratum;
-    private Hardness hardness;
-    private boolean placed;
 
     // weight is the inverse of the capture probability: how many arrivals this captured one stands for
     synchronized void recordArrival(double weight) {
@@ -52,33 +47,6 @@ public final class TrackedQuery {
 
     public synchronized Weights weights() {
         return new Weights(multiplicity, weightedMultiplicity, inclusionProbability(), 1.0 / lastArrivalWeight);
-    }
-
-    @Nullable
-    public synchronized Stratum stratum() {
-        return stratum;
-    }
-
-    public synchronized void stratum(@Nullable Stratum stratum) {
-        this.stratum = stratum;
-    }
-
-    @Nullable
-    public synchronized Hardness hardness() {
-        return hardness;
-    }
-
-    public synchronized void hardness(@Nullable Hardness hardness) {
-        this.hardness = hardness;
-    }
-
-    /** Whether the query has been put in its strata, which is done once, on the first capture that has hits. */
-    public synchronized boolean isPlaced() {
-        return placed;
-    }
-
-    public synchronized void markPlaced() {
-        placed = true;
     }
 
     public synchronized boolean isSampled() {

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162071
+pr: 164218
+summary: Return 404 instead of 500 when getting a query that doesn't exist
+type: bug

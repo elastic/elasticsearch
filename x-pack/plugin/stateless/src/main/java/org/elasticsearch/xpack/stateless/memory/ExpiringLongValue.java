@@ -23,9 +23,13 @@ final class ExpiringLongValue {
 
     /**
      * Record {@code value} as valid from {@code nowInNanos} for {@code validityNanos}.
+     * {@code value} must be non-negative
      * Keeps the current sample when it is still valid and larger, or when it is equal and expires later.
      */
     void update(long value, long nowInNanos, long validityNanos) {
+        if (value < 0) {
+            throw new IllegalArgumentException("value must be non-negative but was [" + value + "]");
+        }
         ref.accumulateAndGet(new Sample(value, nowInNanos + validityNanos), (existing, proposed) -> {
             if (existing == null || existing.validUntil() < nowInNanos) {
                 return proposed;
@@ -35,14 +39,14 @@ final class ExpiringLongValue {
     }
 
     /**
-     * The stored value when it is still valid at {@code nowInNanos}, otherwise {@code 0}. An expired sample is cleared.
+     * The stored value when it is still valid at {@code nowInNanos}, otherwise {@code fallback}. An expired sample is cleared.
      */
-    long valueIfValid(long nowInNanos) {
+    long valueIfValid(long nowInNanos, long fallback) {
         var sample = ref.get();
         if (sample == null || sample.validUntil() < nowInNanos) {
             // Try to clear the memory once the results are stale
             ref.compareAndSet(sample, null);
-            return 0;
+            return fallback;
         }
         return sample.value();
     }

@@ -353,14 +353,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (indexingOperationsMemoryMetricsEnabled == false) {
             return 0;
         }
-        return indexingOperationsHeapMemoryRequirements.valueIfValid(relativeTimeInNanos());
+        return indexingOperationsHeapMemoryRequirements.valueIfValid(relativeTimeInNanos(), 0L);
     }
 
     public long largestRecentIndexingOpSize() {
         if (indexingOperationsMemoryMetricsEnabled == false) {
             return 0;
         }
-        return largestIndexingOperation.valueIfValid(relativeTimeInNanos());
+        return largestIndexingOperation.valueIfValid(relativeTimeInNanos(), 0L);
     }
 
     public long mergeMemoryEstimation() {

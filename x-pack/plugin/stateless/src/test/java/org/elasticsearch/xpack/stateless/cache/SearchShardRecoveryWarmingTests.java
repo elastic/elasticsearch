@@ -1420,12 +1420,18 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     public void testTwoPhaseWarmingWhenOfflineFinishesBeforeRecoveryWarming() throws Exception {
         var fixture = TwoPhaseWarmingFixture.start(getTestName());
         try (fixture) {
+            fixture.holdPhase1();
             fixture.offlineListener().onResponse(null);
             assertFalse(fixture.phase1.isDone());
             assertFalse(fixture.phase2.isDone());
             assertTrue(fixture.isAwaitingWarming());
 
             fixture.headerListener().onResponse(null);
+            fixture.awaitPhase1Entered();
+            assertFalse("expected phase2 to wait until phase1 returns, but phase2 completed early", fixture.phase2.isDone());
+            assertThat(fixture.phase2Calls.get(), equalTo(0));
+
+            fixture.releasePhase1();
             safeGet(fixture.phase1);
             safeGet(fixture.phase2);
             fixture.assertBothRanOnGenericInOrder();
@@ -1437,11 +1443,16 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     public void testSharedTimeoutUnblocksBothPhasesOnce() throws Exception {
         var fixture = TwoPhaseWarmingFixture.start(getTestName());
         try (fixture) {
+            fixture.holdPhase1();
             assertFalse(fixture.phase1.isDone());
             assertFalse(fixture.phase2.isDone());
 
             fixture.timeoutCommand().run();
+            fixture.awaitPhase1Entered();
+            assertFalse("expected phase2 to wait until phase1 returns, but phase2 completed early", fixture.phase2.isDone());
+            assertThat(fixture.phase2Calls.get(), equalTo(0));
 
+            fixture.releasePhase1();
             safeGet(fixture.phase1);
             safeGet(fixture.phase2);
             fixture.assertBothRanOnGenericInOrder();
@@ -1481,6 +1492,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         final var failure = new ElasticsearchException(randomAlphaOfLength(10));
         var fixture = TwoPhaseWarmingFixture.start(getTestName());
         try (fixture) {
+            fixture.holdPhase1();
             Runnable completeHeader = failHeader
                 ? () -> fixture.headerListener().onFailure(failure)
                 : () -> fixture.headerListener().onResponse(null);
@@ -1496,8 +1508,13 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 completeOffline.run();
             }
 
+            fixture.awaitPhase1Entered();
+            assertFalse("expected phase2 failure to wait until phase1 returns, but phase2 completed early", fixture.phase2.isDone());
+            assertThat(fixture.phase2Calls.get(), equalTo(0));
+
+            fixture.releasePhase1();
             safeGet(fixture.phase1);
-            Exception thrown = expectThrows(ElasticsearchException.class, fixture.phase2::actionGet);
+            Exception thrown = expectThrows(ElasticsearchException.class, () -> fixture.phase2.actionGet(SAFE_AWAIT_TIMEOUT));
             assertSame(failure, thrown);
             fixture.assertBothRanOnGenericInOrder();
             assertTrue(fixture.awaitingWarmingEmpty());
@@ -1518,11 +1535,18 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         final AtomicInteger phase2Calls = new AtomicInteger();
         final AtomicBoolean phase1Finished = new AtomicBoolean(false);
         final AtomicBoolean phase2SawPhase1Finished = new AtomicBoolean(false);
+        final AtomicReference<CountDownLatch> phase1Entered = new AtomicReference<>();
+        final AtomicReference<CountDownLatch> allowPhase1Finish = new AtomicReference<>();
         final PlainActionFuture<Void> phase1 = new PlainActionFuture<>() {
             @Override
             public void onResponse(Void result) {
                 phase1Calls.incrementAndGet();
                 phase1Executor.set(EsExecutors.executorName(Thread.currentThread()));
+                CountDownLatch entered = phase1Entered.get();
+                if (entered != null) {
+                    entered.countDown();
+                    safeAwait(allowPhase1Finish.get());
+                }
                 phase1Finished.set(true);
                 super.onResponse(result);
             }
@@ -1591,6 +1615,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                     ActionListener<Void> listener
                 ) {
+                    assertNotNull(
+                        "expected warmForRecovery to be called before warmSearchOffline, but it had not been called",
+                        headerListener.get()
+                    );
                     assertTrue(
                         "expected a single warmSearchOffline call, but it was called more than once",
                         offlineListener.compareAndSet(null, listener)
@@ -1618,6 +1646,19 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
 
         static TwoPhaseWarmingFixture start(String testName) {
             return new TwoPhaseWarmingFixture(testName);
+        }
+
+        void holdPhase1() {
+            phase1Entered.set(new CountDownLatch(1));
+            allowPhase1Finish.set(new CountDownLatch(1));
+        }
+
+        void awaitPhase1Entered() {
+            safeAwait(phase1Entered.get());
+        }
+
+        void releasePhase1() {
+            allowPhase1Finish.get().countDown();
         }
 
         ActionListener<Void> headerListener() {
@@ -1662,6 +1703,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
 
         @Override
         public void close() {
+            CountDownLatch release = allowPhase1Finish.get();
+            if (release != null) {
+                release.countDown();
+            }
             threadPool.close();
         }
     }

@@ -192,7 +192,9 @@ public class DesiredBalanceComputer {
         routingAllocation.setSimulatedShardStarter(new SimulatedShardStarter() {
             @Override
             public boolean shouldContinue() {
-                return relocationsThisIteration.get() < movesPerIteration
+                // Once new indices' shards are assigned, return to the computer, which may publish them without waiting for a long drain.
+                return newlyCreatedShardStartedInline.get() == false
+                    && relocationsThisIteration.get() < movesPerIteration
                     && (timePerIterationMillis < 0
                         || timeProvider.relativeTimeInMillis() - iterationStartedMillis.get() < timePerIterationMillis);
             }

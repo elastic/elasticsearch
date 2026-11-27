@@ -655,7 +655,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
      */
     public void testDrainWithTimeLimitPerIteration() {
         final int dataNodes = between(3, 6);
-        final int shards = between(20, 100);
+        // enough shards start on node-0 that a limit of a couple of relocations cannot fit its drain into one call
+        final int shards = between(60, 100);
         final var input = drainInput(dataNodes, shards);
 
         final var allocateCalls = new AtomicInteger();
@@ -665,10 +666,33 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         // every reading of the clock advances it by a millisecond
         final var clock = new AtomicLong();
         final var settings = Settings.builder()
-            .put(DesiredBalanceComputer.MAX_TIME_PER_ITERATION_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 10)))
+            .put(DesiredBalanceComputer.MAX_TIME_PER_ITERATION_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 2)))
             .build();
         assertDrained(computeDrain(input, settings, TimeProviderUtils.create(clock::incrementAndGet), allocateCalls), shards, dataNodes);
         assertThat(allocateCalls.get(), greaterThan(callsWithoutLimit));
+    }
+
+    /**
+     * New shards are assigned and the computer gets control back at once, so that it can publish them, instead of waiting for the
+     * allocator to finish draining a node.
+     */
+    public void testNewShardsAreReturnedWithoutWaitingForADrain() {
+        final int dataNodes = between(3, 6);
+        final int shards = between(60, 100);
+        final var input = drainInput(dataNodes, shards, shards / 2, Decision.NO);
+        final var settings = Settings.builder()
+            // do not allow any grace period to finish the computation
+            .put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "0s")
+            .build();
+
+        final var desiredBalance = computeDrain(input, settings, TimeProviderUtils.create(() -> 0L), new AtomicInteger());
+
+        assertThat(desiredBalance.finishReason(), equalTo(DesiredBalance.ComputationFinishReason.STOP_EARLY));
+        assertThat(
+            "the drain is not finished",
+            desiredBalance.assignments().values().stream().anyMatch(assignment -> assignment.nodeIds().contains("node-0")),
+            equalTo(true)
+        );
     }
 
     /**
@@ -694,13 +718,20 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceInput drainInput(int dataNodes, int shards, Decision canRemainOnDrainedNode) {
+        return drainInput(dataNodes, shards, shards, canRemainOnDrainedNode);
+    }
+
+    /** As {@link #drainInput(int, int)}, but only the first {@code startedShards} shards are started, the rest are new and unassigned. */
+    private static DesiredBalanceInput drainInput(int dataNodes, int shards, int startedShards, Decision canRemainOnDrainedNode) {
         var clusterState = createInitialClusterState(dataNodes, shards, 0);
 
         final var changes = new RoutingChangesObserver.DelegatingRoutingChangesObserver();
         final var routingNodes = clusterState.mutableRoutingNodes();
-        for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
+        int started = 0;
+        for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext() && started < startedShards;) {
             iterator.next();
             routingNodes.startShard(iterator.initialize(randomFrom("node-0", "node-1"), null, 0L, changes), changes, 0L);
+            started++;
         }
         clusterState = rebuildRoutingTable(clusterState, routingNodes);
 

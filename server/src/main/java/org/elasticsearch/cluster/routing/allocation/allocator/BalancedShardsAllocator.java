@@ -200,6 +200,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         try {
             shardAssigned = balancer.allocateUnassigned();
             if (balancer.startsShardsInline()) {
+                if (shardAssigned) {
+                    // The simulation may want the new shards back at once, for example to publish new indices without waiting for a drain.
+                    balancer.checkShouldContinue();
+                }
                 // Each pass makes the changes of the highest-priority kind that has any, and the next pass starts again from the top so
                 // that its decisions take account of them: moves of shards that cannot remain, then one move of a not-preferred shard,
                 // then one rebalancing move. The simulation has started every change, so the next pass can follow in the same call,
@@ -903,8 +907,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return shardStarter != null;
         }
 
-        /** Asks the simulation, after a relocation, whether to go on. */
-        private void afterRelocation() {
+        /** Asks the simulation, after a relocation or after shards were assigned, whether to go on. */
+        private void checkShouldContinue() {
             if (shardStarter != null && shardStarter.shouldContinue() == false) {
                 stopped = true;
             }
@@ -1186,7 +1190,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 targetNode.replaceShard(projectIndex(shard), shard, started);
                 inlineMoves++;
             }
-            afterRelocation();
+            checkShouldContinue();
             if (logger.isTraceEnabled()) {
                 logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
             }
@@ -1779,7 +1783,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         modelShard = shard.relocate(minNode.getNodeId(), shardSize, RecoveryPriority.RELOCATE_REBALANCING);
                     }
                     minNode.addShard(projectIndex(shard), modelShard);
-                    afterRelocation();
+                    checkShouldContinue();
                     return true;
                 }
             }

@@ -108,6 +108,12 @@ You can use the following settings to control the rebalancing of shards across t
     :::
 
 
+`cluster.routing.allocation.desired_balance.max_moves_per_iteration`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The maximum number of shard relocations that one step of the desired balance computation may simulate before it checks whether its result is still wanted. Defaults to unlimited. This limits the work of the background computation only. It does not limit concurrent shard recoveries or relocations on nodes, which are controlled by the other settings on this page. A low value makes a computation that has to move many shards, for example when a node is drained, take longer overall.
+
+`cluster.routing.allocation.desired_balance.max_time_per_iteration`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The maximum time that one step of the desired balance computation may keep simulating shard relocations before it checks whether its result is still wanted. Defaults to `-1`, which means unlimited. It is checked after each simulated relocation, so a step can overrun it by the time one relocation takes. Like `cluster.routing.allocation.desired_balance.max_moves_per_iteration`, it limits the work of the background computation only.
+
 ## Shard balancing heuristics settings [shards-rebalancing-heuristics]
 
 Rebalancing works by computing a *weight* for each node based on its allocation of shards, and then moving shards between nodes to reduce the weight of the heavier nodes and increase the weight of the lighter ones. The cluster is balanced when there is no possible shard movement that can bring the weight of any node closer to the weight of any other node by more than a configurable threshold.

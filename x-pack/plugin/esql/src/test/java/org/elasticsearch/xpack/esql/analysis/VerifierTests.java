@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -5503,6 +5504,162 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testDedupRejectsAggregateMetricDoubleWhenInSchema() {
         assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         k8sDownsampled().error("FROM k8s | DEDUP", containsString("cannot dedup on [aggregate_metric_double] type for column"));
+    }
+
+    /**
+     * DEDUP checks every column as if the query had listed it in {@code LIMIT 1 BY}: a union-type column fails with the
+     * same message {@code LIMIT 1 BY} gives, reported at {@code DEDUP}.
+     */
+    public void testDedupRejectsUnionTypeColumnLikeLimitBy() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        assertDedupRejectsLikeLimitBy(dedupUnionTypesAnalyzer(), "FROM test* | KEEP multi_typed", "multi_typed");
+        assertDedupRejectsLikeLimitBy(dedupUnionTypesAnalyzer(), "FROM test* | KEEP multi_typed, name", "multi_typed");
+        assertDedupRejectsLikeLimitBy(
+            dedupUnionTypesAnalyzer(),
+            "FROM test* | KEEP multi_typed, name | FORK (WHERE true) (WHERE true)",
+            "multi_typed"
+        );
+        assertDedupRejectsLikeLimitBy(
+            dedupUnionTypesAnalyzer(),
+            "FROM test* | FORK (WHERE true) (WHERE true) | KEEP multi_typed",
+            "multi_typed"
+        );
+        assertDedupRejectsLikeLimitBy(
+            dedupUnsupportedInOneBranchAnalyzer(),
+            "FROM (FROM unsupported_x | KEEP x), (FROM keyword_x | KEEP x)",
+            "x"
+        );
+        assertDedupRejectsLikeLimitBy(
+            dedupUnsupportedInOneBranchAnalyzer(),
+            "FROM (FROM unsupported_x | KEEP y), (FROM keyword_x | KEEP y)",
+            "y"
+        );
+        assertDedupRejectsLikeLimitBy(dedupHiddenConflictAnalyzer(), "FROM (FROM ints_longs | KEEP x), (FROM ranges | KEEP x)", "x");
+    }
+
+    public void testDedupReportsEveryUnionTypeColumn() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().error(
+            "FROM test* | DEDUP",
+            allOf(
+                containsString("Cannot use field [multi_typed] due to ambiguities"),
+                containsString("Cannot use field [other_multi_typed] due to ambiguities")
+            )
+        );
+    }
+
+    public void testDedupRejectsUnionTypeColumnConvertedOnlyAfterDedup() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().error(
+            "FROM test* | KEEP multi_typed | DEDUP | EVAL x = multi_typed::long",
+            containsString("Cannot use field [multi_typed] due to ambiguities")
+        );
+    }
+
+    public void testDedupRejectsUnionTypeColumnWithUnmappedFields() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        for (String mode : List.of("load", "nullify")) {
+            dedupUnionTypesAnalyzer().statementError(
+                "SET unmapped_fields=\"" + mode + "\"; FROM test* | KEEP multi_typed | DEDUP",
+                containsString("Cannot use field [multi_typed] due to ambiguities")
+            );
+        }
+    }
+
+    /**
+     * The one column DEDUP does not key on is one that is always null, so it cannot tell rows apart. {@code LIMIT 1 BY} still
+     * rejects such a column, because there the query names it.
+     */
+    public void testDedupIgnoresAlwaysNullUnsupportedColumn() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().query("FROM test* | KEEP unsupported, name | DEDUP");
+        dedupHiddenConflictAnalyzer().query("FROM (FROM ranges | KEEP x, name), (FROM other_ranges | KEEP x, name) | DEDUP");
+    }
+
+    /**
+     * On a mixed cluster a field whose type an older node cannot read is unsupported, though this node knows the type. It is
+     * null in every row, like any unsupported column, so DEDUP ignores it rather than treating it as a union type.
+     */
+    public void testDedupIgnoresColumnUnsupportedOnOlderNodes() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        Map<String, EsField> mapping = Map.of(
+            "vector",
+            new UnsupportedEsField("vector", List.of("dense_vector")),
+            "name",
+            new EsField("name", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        analyzer().addIndex("mixed", IndexResolution.valid(EsIndexGenerator.esIndex("mixed", mapping))).query("FROM mixed | DEDUP");
+    }
+
+    public void testDedupAcceptsUnionTypeColumnConvertedOrDropped() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().query(
+            "FROM test* | EVAL multi_typed = multi_typed::long, other_multi_typed = other_multi_typed::keyword | DEDUP"
+        );
+        dedupUnionTypesAnalyzer().query("FROM test* | DROP multi_typed, other_multi_typed | DEDUP");
+    }
+
+    private static void assertDedupRejectsLikeLimitBy(TestAnalyzer analyzer, String base, String column) {
+        String limitBy = stripPosition(analyzer.error(base + " | LIMIT 1 BY " + column, containsString("[" + column + "]")));
+        String query = base + " | DEDUP";
+        analyzer.error(query, equalTo("1:" + (query.lastIndexOf("DEDUP") + 1) + ": " + limitBy));
+    }
+
+    private static String stripPosition(String message) {
+        return message.substring(message.indexOf(": ") + 2);
+    }
+
+    /**
+     * An index pattern with two union-type columns, a column of an unsupported type and a regular one.
+     */
+    private TestAnalyzer dedupUnionTypesAnalyzer() {
+        // IndexResolver sorts the types, so the conflict error lists them in type order. Map.of alone iterates in random order.
+        Map<String, EsField> mapping = Map.of(
+            "multi_typed",
+            new InvalidMappedField("multi_typed", new TreeMap<>(Map.of("integer", Set.of("test1"), "long", Set.of("test2")))),
+            "other_multi_typed",
+            new InvalidMappedField("other_multi_typed", new TreeMap<>(Map.of("keyword", Set.of("test1"), "text", Set.of("test2")))),
+            "unsupported",
+            new UnsupportedEsField("unsupported", List.of("ip_range")),
+            "name",
+            new EsField("name", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        return analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping))).stripErrorPrefix(true);
+    }
+
+    /**
+     * Two indices for {@code FROM} subqueries: {@code x} is unsupported in one and {@code keyword} in the other, and {@code y} is
+     * {@code integer} in one and {@code long} in the other.
+     */
+    private TestAnalyzer dedupUnsupportedInOneBranchAnalyzer() {
+        EsField keywordX = new EsField("x", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        EsField integerY = new EsField("y", INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        EsField longY = new EsField("y", LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        Map<String, EsField> unsupportedMapping = Map.of("x", new UnsupportedEsField("x", List.of("ip_range")), "y", integerY);
+        Map<String, EsField> keywordMapping = Map.of("x", keywordX, "y", longY);
+        return analyzer().addIndex("unsupported_x", IndexResolution.valid(EsIndexGenerator.esIndex("unsupported_x", unsupportedMapping)))
+            .addIndex("keyword_x", IndexResolution.valid(EsIndexGenerator.esIndex("keyword_x", keywordMapping)))
+            .stripErrorPrefix(true);
+    }
+
+    /**
+     * Three indices for {@code FROM} subqueries where {@code x} is {@code UNSUPPORTED} in every one: a plain unsupported type in
+     * {@code ranges} and {@code other_ranges}, and a union of {@code integer} and {@code long} in {@code ints_longs}.
+     */
+    private TestAnalyzer dedupHiddenConflictAnalyzer() {
+        EsField name = new EsField("name", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        Map<String, EsField> ranges = Map.of("x", new UnsupportedEsField("x", List.of("ip_range")), "name", name);
+        Map<String, EsField> otherRanges = Map.of("x", new UnsupportedEsField("x", List.of("integer_range")), "name", name);
+        Map<String, EsField> intsLongs = Map.of(
+            "x",
+            new InvalidMappedField("x", new TreeMap<>(Map.of("integer", Set.of("ints"), "long", Set.of("longs")))),
+            "name",
+            name
+        );
+        return analyzer().addIndex("ranges", IndexResolution.valid(EsIndexGenerator.esIndex("ranges", ranges)))
+            .addIndex("other_ranges", IndexResolution.valid(EsIndexGenerator.esIndex("other_ranges", otherRanges)))
+            .addIndex("ints_longs", IndexResolution.valid(EsIndexGenerator.esIndex("ints_longs", intsLongs)))
+            .stripErrorPrefix(true);
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

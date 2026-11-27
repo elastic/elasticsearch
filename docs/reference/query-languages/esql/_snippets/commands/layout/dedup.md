@@ -65,7 +65,11 @@ Every column in scope is part of the comparison, so `DEDUP` reads every column o
 :::{include} ../../generated/x-pack-esql/syntax/dedup-unsupported-types.md
 :::
 
-Columns of an `unsupported` type are ignored when comparing rows, and `DEDUP` does not fail because of them. This includes fields mapped to incompatible types across the indices of a `FROM` (a union type): such a field is returned as `null` until it is converted, so it cannot tell rows apart. For example, if `emp_no` is `integer` in one index and `long` in another, `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` returns a single row. A later conversion such as `EVAL e = emp_no::long` does not bring the removed rows back. To deduplicate on the value of such a field, convert it first and then `DEDUP`: `EVAL e = emp_no::long | DROP emp_no | DEDUP`.
+Columns of an `unsupported` type are `null` in every row, so they are ignored when comparing rows, and `DEDUP` does not fail because of them.
+
+`DEDUP` checks every other column the way `LIMIT 1 BY` checks a column you list. A field mapped to incompatible types across the indices of a `FROM`, or across subqueries (a union type), holds values that can't be compared without a conversion, so `DEDUP` rejects it with the same error as `LIMIT 1 BY`. For example, if `emp_no` is `integer` in one index and `long` in another, `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` fails. Convert such a field first, then `DEDUP`: `EVAL e = emp_no::long | DROP emp_no | DEDUP`, or drop it.
+
+{applies_to}`stack: preview =9.6` Union-type columns are ignored like `unsupported` ones: they are returned as `null`, so `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` returns a single row, and a later conversion such as `EVAL e = emp_no::long` does not bring the removed rows back.
 
 Full-text searches on indexed fields (such as `MATCH` or `KQL`) can't appear after `DEDUP` in the same pipeline.
 

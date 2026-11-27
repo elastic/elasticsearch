@@ -74,20 +74,51 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
     }
 
     /**
-     * The columns DEDUP compares. Synthetic attributes (e.g. union-type conversions pushed into UnionAll branches)
-     * are dropped before the final output, so the user never dedups on them. Unsupported columns are always null,
-     * so they cannot tell rows apart. The {@code _unmapped_fields} column that {@code LOAD_ALL} adds is a key like
-     * any other: rows that differ only in unmapped fields are different rows. {@code _doc} is internal and
-     * implicitly dropped.
+     * The columns DEDUP compares: every column, as if the query listed it in {@code LIMIT 1 BY}. Synthetic attributes
+     * (e.g. union-type conversions pushed into UnionAll branches) are dropped before the final output, so the user never
+     * dedups on them. A column that is always null cannot tell rows apart and is skipped. The {@code _unmapped_fields}
+     * column that {@code LOAD_ALL} adds is a key like any other: rows that differ only in unmapped fields are different
+     * rows. {@code _doc} is internal and implicitly dropped.
      */
     private static boolean isDedupKey(Attribute attr) {
-        return attr.dataType() != DataType.DOC_DATA_TYPE && attr instanceof UnsupportedAttribute == false && attr.synthetic() == false;
+        return attr.dataType() != DataType.DOC_DATA_TYPE && attr.synthetic() == false && isAlwaysNull(attr) == false;
+    }
+
+    /**
+     * An unsupported column that is null in every row: one of a single type, including a type an older node cannot read,
+     * or one whose types are all unsupported. A union-type column is not: it holds values of supported types that cannot be
+     * compared without a conversion.
+     */
+    private static boolean isAlwaysNull(Attribute attr) {
+        if (attr instanceof UnsupportedAttribute ua) {
+            List<String> types = ua.originalTypes();
+            return types.stream().distinct().count() <= 1 || types.stream().noneMatch(Dedup::isSupportedType);
+        }
+        return false;
+    }
+
+    /**
+     * Original types are Elasticsearch field types for a column read from an index, and ES|QL type names for a column
+     * merged from subqueries, so both spellings are looked up.
+     */
+    private static boolean isSupportedType(String typeName) {
+        DataType type = DataType.fromTypeName(typeName);
+        if (type == null) {
+            type = DataType.fromEs(typeName);
+        }
+        return type != DataType.UNSUPPORTED;
     }
 
     @Override
     public void postAnalysisVerification(Failures failures) {
         for (Attribute attr : child().output()) {
-            if (isDedupKey(attr) && Aggregate.isUnsupportedGrouping(attr)) {
+            if (isDedupKey(attr) == false) {
+                continue;
+            }
+            if (attr instanceof UnsupportedAttribute unsupported) {
+                // A failure is identified by its node, so each column keeps its own failure while reporting at DEDUP.
+                failures.add(fail(unsupported.withLocation(source()), "{}", unsupported.unresolvedMessage()));
+            } else if (Aggregate.isUnsupportedGrouping(attr)) {
                 failures.add(
                     fail(
                         attr,

@@ -3941,6 +3941,7 @@ public class FileSplitProvider implements SplitProvider {
             // epoch_millis on INTEGER/LONG are rescaled into the declared unit and unpoisoned.
             Map<String, String> physicalToLogical = PhysicalNames.inverse(declaredReadSpec.renames());
             Set<String> poison = new HashSet<>(declaredReadSpec.dateFormats().keySet());
+            Set<String> unpoisoned = Set.of();
             if (inferredFileTypes != null) {
                 Map<String, DataType> overlaidTypes = attributesToTypeMap(readSchema); // logical, declared types
                 for (String logical : declaredReadSpec.declaredTypeColumns()) {
@@ -3959,7 +3960,8 @@ public class FileSplitProvider implements SplitProvider {
                     inferredFileTypes
                 );
                 stats = rescale.stats();
-                poison.removeAll(rescale.unpoisoned());
+                unpoisoned = rescale.unpoisoned();
+                poison.removeAll(unpoisoned);
                 stats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, physicalToLogical, poison);
                 // Inferred file types, rekeyed to logical so they align with the rekeyed stats + reconciledTypes.
                 statsFileTypes = new HashMap<>(inferredFileTypes.size());
@@ -3968,7 +3970,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 // Pin unpoisoned names to the declared type so DATETIME+DATE_NANOS union conversion sees
                 // DATETIME (millis→nanos ×1e6), not LONG (identity fallthrough, millis served as nanos).
-                for (String logical : rescale.unpoisoned()) {
+                for (String logical : unpoisoned) {
                     DataType declaredType = overlaidTypes.get(logical);
                     if (declaredType != null) {
                         statsFileTypes.put(logical, declaredType);
@@ -3980,6 +3982,18 @@ public class FileSplitProvider implements SplitProvider {
                 stats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, physicalToLogical, poison);
                 statsFileTypes = attributesToTypeMap(readSchema);
             }
+            stats = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, statsFileTypes, reconciledTypes);
+            stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(
+                stats,
+                statsFileTypes,
+                attributesToTypeMap(readSchema),
+                implicitNulls,
+                declaredReadSpec.declaredTypeColumns()
+            );
+            Map<String, Object> beforeFold = stats;
+            stats = SourceStatisticsSerializer.alignHarvestWithFold(stats, foldedSourceMetadata);
+            // Dataset-level poison must not wipe per-split epoch bounds this file independently verified.
+            return SourceStatisticsSerializer.restoreVerifiedExtrema(stats, beforeFold, unpoisoned);
         }
         // Footer stats are in each file's LOCAL unit/representation (footer or inferred types, not a
         // pinned or unified type); normalize to the reconciled query type so the split-filter classifier

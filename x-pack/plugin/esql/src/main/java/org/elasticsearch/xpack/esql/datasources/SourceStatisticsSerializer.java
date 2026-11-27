@@ -345,6 +345,48 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
+     * Puts independently verified extrema back after {@link #alignHarvestWithFold}. Dataset-level poison
+     * must not discard per-split bounds used for prune. Counts stay as the fold left them.
+     */
+    @Nullable
+    public static Map<String, Object> restoreVerifiedExtrema(
+        @Nullable Map<String, Object> afterFold,
+        @Nullable Map<String, Object> beforeFold,
+        Set<String> columns
+    ) {
+        if (afterFold == null || beforeFold == null || columns == null || columns.isEmpty()) {
+            return afterFold;
+        }
+        Map<String, Object> out = null;
+        for (String column : columns) {
+            Object min = beforeFold.get(columnMinKey(column));
+            Object max = beforeFold.get(columnMaxKey(column));
+            if (min == null && max == null) {
+                continue;
+            }
+            boolean foldPoisoned = Boolean.TRUE.equals(afterFold.get(columnMinUnservableKey(column)))
+                || Boolean.TRUE.equals(afterFold.get(columnMaxUnservableKey(column)));
+            if (foldPoisoned == false
+                && Objects.equals(afterFold.get(columnMinKey(column)), min)
+                && Objects.equals(afterFold.get(columnMaxKey(column)), max)) {
+                continue;
+            }
+            if (out == null) {
+                out = new HashMap<>(afterFold);
+            }
+            if (min != null) {
+                out.put(columnMinKey(column), min);
+                out.remove(columnMinUnservableKey(column));
+            }
+            if (max != null) {
+                out.put(columnMaxKey(column), max);
+                out.remove(columnMaxUnservableKey(column));
+            }
+        }
+        return out == null ? afterFold : out;
+    }
+
+    /**
      * The column name a flat {@code _stats.columns.<name>.<suffix>} key belongs to, or {@code null}
      * when {@code key} is not a per-column stat key. Splits on the last dot so a dotted column name
      * ({@code _stats.columns.a.b.min} -> {@code a.b}) survives.

@@ -5757,6 +5757,39 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Footer epoch rescale is parquet/orc only (raw ticks). A first_file_wins sibling without a native-type
+     * snapshot, or any file whose inferred type is not INTEGER/LONG, keeps the column poisoned.
+     */
+    static boolean canRescaleDeclaredEpoch(
+        boolean fileTyped,
+        boolean firstFileWinsMultiFile,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        DeclaredReadSpec declaredReadSpec,
+        Map<String, SourceStatisticsSerializer.EpochScale> epochScales
+    ) {
+        if (fileTyped == false || epochScales == null || epochScales.isEmpty() || schemaMap == null || schemaMap.isEmpty()) {
+            return false;
+        }
+        for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
+            Map<String, DataType> fileTypes = info.inferredTypes();
+            if (fileTypes == null) {
+                if (firstFileWinsMultiFile) {
+                    return false;
+                }
+                continue;
+            }
+            for (String logical : epochScales.keySet()) {
+                String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
+                DataType inferred = fileTypes.get(physical);
+                if (inferred != null && inferred != DataType.LONG && inferred != DataType.INTEGER) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
      * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
      * columns in the user-facing schema and in each per-file schema (lenient — a column may be absent from one
      * file under union-by-name), preserving the inferred stats/sourceMetadata and the per-file column mappings.
@@ -5984,15 +6017,32 @@ public class ExternalSourceResolver {
         // physical column a partition shadows, which every reader does parse — and took the per-column statistics of
         // every mapped partitioned dataset permanently cold.
         Map<String, Object> servableStats = SourceStatisticsSerializer.restrictToReadConfig(inferred.sourceMetadata(), expectedReadConfig);
-        SourceStatisticsSerializer.EpochRescale rescale = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
-            servableStats,
-            physicalToLogical,
-            SourceStatisticsSerializer.epochScales(declaredReadSpec.dateFormats(), overlaidTypes),
-            inferredTypes
+        Map<String, SourceStatisticsSerializer.EpochScale> epochScales = SourceStatisticsSerializer.epochScales(
+            declaredReadSpec.dateFormats(),
+            overlaidTypes
         );
-        poisonColumns.removeAll(rescale.unpoisoned());
+        Map<String, Object> statsForOverlay = servableStats;
+        // Footer ticks only: text-reader harvests already hold declared-unit values (and stamp a matching
+        // read-config), so rescale would multiply twice. Skip also when a first_file_wins sibling has no
+        // native-type snapshot, or any file's inferred type is not INTEGER/LONG.
+        if (canRescaleDeclaredEpoch(
+            fileTyped,
+            anchorPinnedFirstFileWins && overlaidSchemaMap.size() > 1,
+            overlaidSchemaMap,
+            declaredReadSpec,
+            epochScales
+        )) {
+            SourceStatisticsSerializer.EpochRescale rescale = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                servableStats,
+                physicalToLogical,
+                epochScales,
+                inferredTypes
+            );
+            poisonColumns.removeAll(rescale.unpoisoned());
+            statsForOverlay = rescale.stats();
+        }
         Map<String, Object> overlaidSourceMetadata = Map.copyOf(
-            SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(rescale.stats(), physicalToLogical, poisonColumns)
+            SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(statsForOverlay, physicalToLogical, poisonColumns)
         );
         ExternalSourceMetadata overlaidMetadata = new ExternalSourceMetadata() {
             @Override

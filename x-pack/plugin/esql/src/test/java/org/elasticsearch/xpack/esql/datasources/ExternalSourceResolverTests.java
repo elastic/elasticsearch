@@ -403,6 +403,51 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * Footer rescale is parquet/orc only. Text harvests, first_file_wins files without a native-type
+     * snapshot, and non-integral inferred types stay poisoned.
+     */
+    public void testCanRescaleDeclaredEpochGates() {
+        DeclaredReadSpec spec = DeclaredReadSpec.of(
+            Map.of("@timestamp", "start"),
+            Map.of("@timestamp", "epoch_second"),
+            Set.of("@timestamp")
+        );
+        Map<String, SourceStatisticsSerializer.EpochScale> scales = Map.of(
+            "@timestamp",
+            new SourceStatisticsSerializer.EpochScale(DataType.DATETIME, 1_000L)
+        );
+        StoragePath a = StoragePath.of("s3://b/a.parquet");
+        StoragePath b = StoragePath.of("s3://b/b.parquet");
+        ExternalSchema schema = new ExternalSchema(List.of(attr("start", DataType.LONG)));
+        SchemaReconciliation.FileSchemaInfo longInfo = new SchemaReconciliation.FileSchemaInfo(
+            schema,
+            null,
+            null,
+            Map.of("start", DataType.LONG)
+        );
+        SchemaReconciliation.FileSchemaInfo boolInfo = new SchemaReconciliation.FileSchemaInfo(
+            schema,
+            null,
+            null,
+            Map.of("start", DataType.BOOLEAN)
+        );
+        SchemaReconciliation.FileSchemaInfo unknown = new SchemaReconciliation.FileSchemaInfo(schema, null, null, null);
+        assertTrue(ExternalSourceResolver.canRescaleDeclaredEpoch(true, false, Map.of(a, longInfo), spec, scales));
+        assertFalse(
+            "csv harvest is already in the declared unit",
+            ExternalSourceResolver.canRescaleDeclaredEpoch(false, false, Map.of(a, longInfo), spec, scales)
+        );
+        assertFalse(
+            "first_file_wins sibling without a native-type snapshot",
+            ExternalSourceResolver.canRescaleDeclaredEpoch(true, true, Map.of(a, longInfo, b, unknown), spec, scales)
+        );
+        assertFalse(
+            "BOOLEAN sibling is not a linear epoch map",
+            ExternalSourceResolver.canRescaleDeclaredEpoch(true, false, Map.of(a, longInfo, b, boolInfo), spec, scales)
+        );
+    }
+
+    /**
      * Out-of-range extrema stay poisoned even under {@code error_mode: null_field} — a valid superset of
      * the scan, but one rule is cheaper than two. The stats map must not serve a truncated min.
      */

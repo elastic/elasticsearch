@@ -6385,6 +6385,64 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * Dataset-level poison (one sibling out of range) must not wipe per-split rescaled bounds.
+     * Hourly prune still drops the non-overlapping range.
+     */
+    public void testRangeAwareSplitsFoldPoisonKeepsEpochBounds() {
+        long rawMin = 1_763_596_800L;
+        long rawMax = 1_763_597_100L;
+        long hourLaterMin = 1_763_600_400L;
+        long hourLaterMax = 1_763_600_700L;
+        RangeAwareFormatReader mockReader = createMockRangeReader(
+            List.of(
+                new SplitRange(100, 400, harvestStats("start", rawMin, rawMax)),
+                new SplitRange(500, 400, harvestStats("start", hourLaterMin, hourLaterMax))
+            )
+        );
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 2000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+        List<Attribute> overlaid = List.of(new ReferenceAttribute(SRC, "@timestamp", DataType.DATETIME));
+        ExternalSchema schema = new ExternalSchema(overlaid);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(schema, null, null, Map.of("start", DataType.LONG))
+        );
+        DeclaredReadSpec spec = DeclaredReadSpec.of(
+            Map.of("@timestamp", "start"),
+            Map.of("@timestamp", "epoch_second"),
+            Set.of("@timestamp")
+        );
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp"), Boolean.TRUE);
+        SourceMetadata metadata = new SimpleSourceMetadata(overlaid, "parquet", "s3://b/*.parquet", null, null, folded, Map.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            metadata,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            schema,
+            schema,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            spec
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(2, splits.size());
+        Map<String, Object> first = ((FileSplit) splits.get(0)).statistics();
+        assertEquals(rawMin * 1_000L, first.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertEquals(rawMax * 1_000L, first.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertNull(first.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+
+        Expression hourly = timestampRange(rawMin * 1_000L, hourLaterMin * 1_000L);
+        assertEquals(1, FileSplitProvider.dropStatsMisses(splits, List.of(hourly)).size());
+    }
+
+    /**
      * Pin {@code statsFileTypes} to the declared DATETIME so DATETIME+DATE_NANOS union conversion
      * sees millis and scales ×1e6, not LONG (identity, millis served as nanos).
      */

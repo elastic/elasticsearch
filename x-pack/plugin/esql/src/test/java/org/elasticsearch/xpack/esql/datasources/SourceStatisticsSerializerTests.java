@@ -892,6 +892,23 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         );
     }
 
+    public void testRestoreVerifiedExtremaSurvivesFoldPoison() {
+        Map<String, Object> before = epochStats("ts", 1_000L, 2_000L, 12L);
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.columnMinUnservableKey("ts"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnMaxUnservableKey("ts"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnValueCountKey("ts"), 12L);
+        folded.put(SourceStatisticsSerializer.columnNullCountKey("ts"), 0L);
+        Map<String, Object> afterFold = SourceStatisticsSerializer.alignHarvestWithFold(before, folded);
+        assertEquals(Boolean.TRUE, afterFold.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+        assertNull(afterFold.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        Map<String, Object> restored = SourceStatisticsSerializer.restoreVerifiedExtrema(afterFold, before, Set.of("ts"));
+        assertEquals(1_000L, restored.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertEquals(2_000L, restored.get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        assertNull(restored.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+        assertEquals(12L, restored.get(SourceStatisticsSerializer.columnValueCountKey("ts")));
+    }
+
     private static Map<String, Object> epochStats(String column, long min, long max, long valueCount) {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, valueCount);

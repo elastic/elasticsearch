@@ -596,8 +596,46 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
     'execution-closure-project-reference': [
       'build.gradle::2',
       'modules/lang-painless/build.gradle::4',
-      'qa/vector/build.gradle::1'
-    ]
+      'qa/vector/build.gradle::1',
+    ],
+    // Legacy test-clusters REST integ test task types. Counted so new usages fail even in baselined
+    // files; migrate to JUnit rule based clusters and lower or remove the entry.
+    'legacy-rest-integ-test-task': [
+      'modules/ingest-geoip/qa/full-cluster-restart/build.gradle::2',
+      'modules/ingest-geoip/qa/geoip-reindexed/build.gradle::2',
+      'modules/repository-azure/build.gradle::3',
+      'qa/ccs-rolling-upgrade-remote-cluster/build.gradle::2',
+      'qa/full-cluster-restart/build.gradle::3',
+      'qa/mixed-cluster/build.gradle::2',
+      'qa/multi-cluster-search/build.gradle::3',
+      'qa/repository-multi-version/build.gradle::2',
+      'qa/rolling-upgrade/build.gradle::3',
+      'qa/verify-version-constants/build.gradle::2',
+      'x-pack/plugin/downsample/qa/mixed-cluster/build.gradle::2',
+      'x-pack/plugin/ent-search/qa/full-cluster-restart/build.gradle::2',
+      'x-pack/plugin/eql/qa/ccs-rolling-upgrade/build.gradle::2',
+      'x-pack/plugin/eql/qa/mixed-node/build.gradle::2',
+      'x-pack/plugin/esql/qa/server/mixed-cluster/build.gradle::3',
+      'x-pack/plugin/esql/qa/server/multi-clusters/build.gradle::4',
+      'x-pack/plugin/esql/qa/server/single-node/build.gradle::2',
+      'x-pack/plugin/inference/qa/mixed-cluster/build.gradle::2',
+      'x-pack/plugin/inference/qa/rolling-upgrade/build.gradle::2',
+      'x-pack/plugin/logsdb/qa/legacy-rolling-upgrade/build.gradle::2',
+      'x-pack/plugin/logsdb/qa/rolling-upgrade/build.gradle::2',
+      'x-pack/plugin/security/qa/multi-cluster/build.gradle::2',
+      'x-pack/plugin/shutdown/qa/full-cluster-restart/build.gradle::2',
+      'x-pack/plugin/shutdown/qa/rolling-upgrade/build.gradle::2',
+      'x-pack/plugin/snapshot-repo-test-kit/qa/azure/build.gradle::3',
+      'x-pack/plugin/sql/qa/jdbc/build.gradle::2',
+      'x-pack/plugin/sql/qa/mixed-node/build.gradle::2',
+      'x-pack/plugin/transform/qa/multi-cluster-tests-with-security/build.gradle::3',
+      'x-pack/qa/full-cluster-restart/build.gradle::2',
+      'x-pack/qa/mixed-tier-cluster/build.gradle::2',
+      'x-pack/qa/repository-old-versions/build.gradle::2',
+      'x-pack/qa/rolling-upgrade-basic/build.gradle::2',
+      'x-pack/qa/rolling-upgrade-multi-cluster/build.gradle::2',
+      'x-pack/qa/rolling-upgrade/build.gradle::3',
+    ],
   ])
 }
 

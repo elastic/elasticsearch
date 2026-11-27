@@ -408,6 +408,12 @@ port of `5007`.
 ./gradlew :rest-api-spec:yamlRestTest -Dtests.cluster.debug.enabled=true
 ---------------------------------------------------------------------------
 
+NOTE: The `--debug-server-jvm` flag is only available on tasks that still use
+the legacy `StandaloneRestIntegTestTask` type. REST test tasks registered as
+plain `Test` tasks (`javaRestTest`, `yamlRestTest`, `heapPressureTest` and
+others registered via `restTests.register`) do not accept it; use the system
+property instead.
+
 NOTE: In the case of test clusters using multiple nodes, multiple debuggers
 will need to be attached on incrementing ports. For example, for a 3 node
 cluster ports `5007`, `5008`, and `5009` will attempt to attach to a listening

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
@@ -418,18 +419,8 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
 
         client.failRefresh(new IndexNotFoundException(DEST));
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(3L, 1L, 2L, 0L, 0L, List.of())));
-        assertThat(
-            warnings(),
-            equalTo(
-                List.of(
-                    "index refresh for INTO ["
-                        + DEST
-                        + "] failed after [3] documents were written, so they may not be searchable yet: no such index ["
-                        + DEST
-                        + "]"
-                )
-            )
-        );
+        String format = "index refresh for INTO [%s] failed after [%d] documents were written, so they may not be searchable yet: %s";
+        assertThat(warnings(), equalTo(List.of(Strings.format(format, DEST, 3, "no such index [" + DEST + "]"))));
     }
 
     public void testEveryPositionOfAPageIsSummed() {

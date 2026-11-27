@@ -103,7 +103,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     private ThreadPool threadPool;
     private IntoTestUtils.CapturingClient client;
-    private BlockFactory blockFactory;
+    private BlockFactory factory;
     private DriverContext driverContext;
     private IntoPageWriter.Factory sink;
     private IntoPageWriter writer;
@@ -112,9 +112,9 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void setUpWriter() {
         threadPool = new TestThreadPool(getTestName());
         client = new IntoTestUtils.CapturingClient(threadPool);
-        blockFactory = blockFactory();
-        driverContext = new DriverContext(mockBigArrays(), blockFactory, null);
-        sink = newSink(blockFactory.breaker());
+        factory = blockFactory();
+        driverContext = new DriverContext(mockBigArrays(), factory, null);
+        sink = newSink(factory.breaker());
         writer = sink.create(driverContext);
     }
 
@@ -141,10 +141,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testPageToSourceConversion() throws IOException {
-        try (
-            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
-            LongBlock.Builder ts = blockFactory.newLongBlockBuilder(2)
-        ) {
+        try (BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(2); LongBlock.Builder ts = factory.newLongBlockBuilder(2)) {
             host.beginPositionEntry().appendBytesRef(new BytesRef("h1")).appendBytesRef(new BytesRef("h2")).endPositionEntry();
             ts.appendLong(1_750_000_000_000L);
             host.appendNull();
@@ -165,12 +162,9 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testEscfBatchProperties() throws IOException {
-        var escfSink = newSink(blockFactory.breaker());
-        IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), blockFactory, null));
-        try (
-            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
-            LongBlock.Builder ts = blockFactory.newLongBlockBuilder(2)
-        ) {
+        var escfSink = newSink(factory.breaker());
+        IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), factory, null));
+        try (BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(2); LongBlock.Builder ts = factory.newLongBlockBuilder(2)) {
             host.beginPositionEntry().appendBytesRef(new BytesRef("h1")).appendBytesRef(new BytesRef("h2")).endPositionEntry();
             ts.appendLong(1_750_000_000_000L);
             host.appendNull();
@@ -189,7 +183,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
             )
         );
         client.answer(CREATED, CREATED);
-        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+        assertThat(factory.breaker().getUsed(), equalTo(0L));
     }
 
     public void testEscfBatchBytesIncludeRecyclerOverhead() {
@@ -344,7 +338,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
         var exactWriter = newSink(driverContext.breaker(), List.of(column)).create(driverContext);
         expectThrows(EsqlIllegalArgumentException.class, () -> {
-            try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
+            try (LongBlock.Builder values = factory.newLongBlockBuilder(1)) {
                 values.appendLong(NumericUtils.asLongUnsigned(BigInteger.TWO.pow(63).add(BigInteger.ONE)));
                 exactWriter.consume(new Page(values.build()));
             }
@@ -554,8 +548,8 @@ public class IntoPageWriterTests extends ComputeTestCase {
         IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
         Page page;
         try (
-            BytesRefBlock.Builder id = blockFactory.newBytesRefBlockBuilder(2);
-            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2)
+            BytesRefBlock.Builder id = factory.newBytesRefBlockBuilder(2);
+            BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(2)
         ) {
             id.appendBytesRef(new BytesRef("ok"));
             host.appendBytesRef(new BytesRef("h1"));
@@ -573,11 +567,11 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testMultiValuedIdStopsSiblingWriters() {
         IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
-        IntoPageWriter sibling = sink.create(new DriverContext(mockBigArrays(), blockFactory, null));
+        IntoPageWriter sibling = sink.create(new DriverContext(mockBigArrays(), factory, null));
         Page bad;
         try (
-            BytesRefBlock.Builder id = blockFactory.newBytesRefBlockBuilder(1);
-            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(1)
+            BytesRefBlock.Builder id = factory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(1)
         ) {
             id.beginPositionEntry().appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("b")).endPositionEntry();
             host.appendBytesRef(new BytesRef("h1"));
@@ -612,13 +606,13 @@ public class IntoPageWriterTests extends ComputeTestCase {
             new ReferenceAttribute(Source.EMPTY, IdFieldMapper.NAME, DataType.NULL),
             new ReferenceAttribute(Source.EMPTY, "host", DataType.KEYWORD)
         );
-        sink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), DEST, columns, INDEX, IntoOptions.DEFAULT);
+        sink = IntoPageWriter.Factory.createFactory(bulks(), client, factory.breaker(), DEST, columns, INDEX, IntoOptions.DEFAULT);
         IntoPageWriter nullIdWriter = sink.create(driverContext);
         Page page;
-        try (BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2)) {
+        try (BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(2)) {
             host.appendBytesRef(new BytesRef("h1"));
             host.appendBytesRef(new BytesRef("h2"));
-            page = new Page(blockFactory.newConstantNullBlock(2), host.build());
+            page = new Page(factory.newConstantNullBlock(2), host.build());
         }
         nullIdWriter.consume(page);
 
@@ -655,7 +649,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testReplaceWithoutIdColumnCreatesEveryRow() {
         IntoOptions options = IntoOptions.builder().collisions(Collisions.REPLACE).build();
-        sink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), DEST, COLUMNS, INDEX, options);
+        sink = IntoPageWriter.Factory.createFactory(bulks(), client, factory.breaker(), DEST, COLUMNS, INDEX, options);
         IntoPageWriter replaceWriter = sink.create(driverContext);
         replaceWriter.consume(page("h1", "h2"));
         client.answer(CREATED, CREATED);
@@ -701,7 +695,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
             new ReferenceAttribute(Source.EMPTY, "host", DataType.KEYWORD)
         );
         IntoOptions options = IntoOptions.builder().collisions(collisions).build();
-        sink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), DEST, columns, INDEX, options);
+        sink = IntoPageWriter.Factory.createFactory(bulks(), client, factory.breaker(), DEST, columns, INDEX, options);
         return sink.create(driverContext);
     }
 
@@ -709,8 +703,8 @@ public class IntoPageWriterTests extends ComputeTestCase {
     private Page idPage(String[] ids, String... hosts) {
         assertThat(ids.length, equalTo(hosts.length));
         try (
-            BytesRefBlock.Builder id = blockFactory.newBytesRefBlockBuilder(ids.length);
-            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(hosts.length)
+            BytesRefBlock.Builder id = factory.newBytesRefBlockBuilder(ids.length);
+            BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(hosts.length)
         ) {
             for (int i = 0; i < ids.length; i++) {
                 if (ids[i] == null) {
@@ -742,7 +736,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     /** Replaces the default {@link #sink} and {@link #writer} with ones that run under {@code keep_going}. */
     private void keepGoingSink() {
-        sink = newSink(blockFactory.breaker(), IntoOptions.builder().keepGoing(true).build());
+        sink = newSink(factory.breaker(), IntoOptions.builder().keepGoing(true).build());
         writer = sink.create(driverContext);
     }
 
@@ -751,7 +745,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
         var exactWriter = newSink(driverContext.breaker(), List.of(column)).create(driverContext);
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
-            try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
+            try (LongBlock.Builder values = factory.newLongBlockBuilder(1)) {
                 values.appendLong(NumericUtils.asLongUnsigned(big));
                 exactWriter.consume(new Page(values.build()));
             }
@@ -890,11 +884,11 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     private Page page(String... hosts) {
-        try (BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(hosts.length)) {
+        try (BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(hosts.length)) {
             for (String value : hosts) {
                 host.appendBytesRef(new BytesRef(value));
             }
-            return new Page(host.build(), blockFactory.newConstantLongBlockWith(0L, hosts.length));
+            return new Page(host.build(), factory.newConstantLongBlockWith(0L, hosts.length));
         }
     }
 

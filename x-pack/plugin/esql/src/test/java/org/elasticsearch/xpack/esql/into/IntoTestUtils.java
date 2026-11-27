@@ -135,15 +135,10 @@ class IntoTestUtils {
                     case REFUSED_WITHOUT_MESSAGE -> refused(i, opType, new IllegalArgumentException());
                     case REFUSED_WITH_LONG_MESSAGE -> refused(i, opType, new IllegalArgumentException("x".repeat(LONG_MESSAGE_LENGTH)));
                     case UPDATED -> BulkItemResponse.success(i, opType, new IndexResponse(SHARD, "id-" + i, 0, 1, 2, false));
-                    case CONFLICT -> BulkItemResponse.failure(
-                        i,
-                        opType,
-                        new BulkItemResponse.Failure(
-                            DEST,
-                            "id-" + i,
-                            new VersionConflictEngineException(SHARD, "[id-" + i + "]", "document already exists")
-                        )
-                    );
+                    case CONFLICT -> {
+                        var expception = new VersionConflictEngineException(SHARD, "[id-" + i + "]", "document already exists");
+                        yield BulkItemResponse.failure(i, opType, new BulkItemResponse.Failure(DEST, "id-" + i, expception));
+                    }
                     case REJECTED -> BulkItemResponse.failure(
                         i,
                         opType,

@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.tree.Node.NodeStringFormat;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -54,6 +53,7 @@ public class Into extends UnaryPlan
         + "add a LIMIT after the SORT, or remove the SORT";
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Into", Into::new);
+    public static final String INVALID_TYPE_MSG_FORMAT = "INTO column [{}] must be of type [keyword] or [text], found [{}]";
 
     /** {@code NULL} is an all-null {@code _id} column, which leaves every id to the destination. */
     private static final Set<DataType> ID_TYPES = Set.of(DataType.KEYWORD, DataType.TEXT, DataType.NULL);
@@ -167,14 +167,7 @@ public class Into extends UnaryPlan
         }
         for (Attribute column : child().output()) {
             if (column.name().equals(IdFieldMapper.NAME) && ID_TYPES.contains(column.dataType()) == false) {
-                failures.add(
-                    fail(
-                        column,
-                        "INTO column [{}] must be of type [keyword] or [text], found [{}]",
-                        IdFieldMapper.NAME,
-                        column.dataType().typeName()
-                    )
-                );
+                failures.add(fail(column, INVALID_TYPE_MSG_FORMAT, IdFieldMapper.NAME, column.dataType().typeName()));
             }
         }
     }

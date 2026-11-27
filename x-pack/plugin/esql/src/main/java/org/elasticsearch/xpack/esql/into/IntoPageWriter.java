@@ -392,13 +392,8 @@ public final class IntoPageWriter {
                 for (int i = 0; i < count; i++) {
                     values.add(ids.getBytesRef(start + i, scratch).utf8ToString());
                 }
-                ElasticsearchStatusException failed = new ElasticsearchStatusException(
-                    "INTO [{}] failed: [{}] must be single-valued, found [{}]",
-                    RestStatus.BAD_REQUEST,
-                    sink.destination,
-                    IdFieldMapper.NAME,
-                    values
-                );
+                String msg = "INTO [{}] failed: [{}] must be single-valued, found [{}]";
+                var failed = new ElasticsearchStatusException(msg, RestStatus.BAD_REQUEST, sink.destination, IdFieldMapper.NAME, values);
                 sink.failure.compareAndSet(null, failed);
                 throw failed;
             }

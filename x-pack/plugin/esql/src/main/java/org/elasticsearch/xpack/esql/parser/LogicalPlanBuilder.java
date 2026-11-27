@@ -674,16 +674,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         String option = Option.COLLISIONS.optionName();
         if (value instanceof Literal lit && DataType.isString(lit.dataType()) && lit.value() != null) {
             String text = BytesRefs.toString(lit.value());
-            return Collisions.parse(text)
-                .orElseThrow(
-                    () -> new ParsingException(
-                        value.source(),
-                        "Invalid value [{}] for option [{}] in INTO, expected one of {}",
-                        text,
-                        option,
-                        Collisions.NAMES
-                    )
-                );
+            return Collisions.parse(text).orElseThrow(() -> {
+                String message = "Invalid value [{}] for option [{}] in INTO, expected one of {}";
+                return new ParsingException(value.source(), message, text, option, Collisions.NAMES);
+            });
         }
         throw new ParsingException(value.source(), "Option [{}] must be a string literal, one of {}", option, Collisions.NAMES);
     }

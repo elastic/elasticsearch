@@ -273,6 +273,20 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * The exclusion in a view's pattern applies to that pattern only. It must not cancel a missing index that the
+     * query names next to the view, even though both patterns end up registered for the same cluster.
+     */
+    public void testExclusionInViewDoesNotCancelOuterIndex() {
+        try (var excluding = createView("excluding", "FROM zzz*,-missing | KEEP f1")) {
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing,zzz*,-missing]"),
+                () -> run(syncEsqlQueryRequest("FROM missing, excluding")).close()
+            );
+        }
+    }
+
     private Releasable createView(String name, String query) {
         return createView(name, query, null, false);
     }

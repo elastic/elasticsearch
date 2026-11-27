@@ -18,6 +18,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.columnar.numeric.NumericBinaryValues;
+import org.elasticsearch.common.lucene.DocValuesSkippers;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -111,6 +112,12 @@ public class ColumnarLongIndexFieldData extends IndexNumericFieldData {
     @Override
     public IndexType indexType() {
         return indexType;
+    }
+
+    /** The column keeps a skip index over its values, which sorts find through {@link DocValuesSkippers}. */
+    @Override
+    protected boolean canUseOptimizedSort() {
+        return true;
     }
 
     /** Lucene's native numeric sort can't sort an index by these fields, so they sort it with a {@link ColumnarNumericSortField}. */

@@ -657,7 +657,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             String configFingerprint = computeConfigFingerprint();
             // Cold resolution publishes only the file size + identity; row/column stats arrive via the
             // data-node capture → coordinator reconcile into SchemaCacheEntry.
-            SourceStatistics stats = TextFormatStats.build(Optional.empty(), cachedSize, schema);
+            // No cached stats, so this publishes no columns and the extremum width is never read.
+            SourceStatistics stats = TextFormatStats.build(
+                Optional.empty(),
+                cachedSize,
+                schema,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES
+            );
             Map<String, Object> baseSourceMetadata = Map.of(
                 ExternalStats.MTIME_MILLIS_KEY,
                 mtimeMillis,
@@ -814,6 +820,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             context.statsStripeSize(),
             context.statsFileFinal(),
             context.statsColumnScope(),
+            context.statsMaxExtremumBytes(),
             context.statsStripeSink(),
             context.informationalWarningSink()
         );

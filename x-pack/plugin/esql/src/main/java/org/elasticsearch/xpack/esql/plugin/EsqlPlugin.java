@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlIntoDestinationAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
@@ -183,6 +184,7 @@ import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor;
+import org.elasticsearch.xpack.esql.timeseries.TransportTsidPrefixHistogramAction;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
@@ -847,6 +849,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
             new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
             new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+            new ActionHandler(TransportTsidPrefixHistogramAction.TYPE, TransportTsidPrefixHistogramAction.class),
             new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
             new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
             new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
@@ -856,6 +859,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
             new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
             new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
+            new ActionHandler(EsqlIntoDestinationAction.TYPE, EsqlIntoDestinationAction.class),
             new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
             new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
@@ -1054,13 +1058,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             // consume their output. Max is the heap- and CPU-scaled concurrency knob (memory-capped,
             // ceiling 100, or a max_concurrent_requests override still clipped by the memory term) that also
             // sizes the permit semaphore, so pool capacity tracks the concurrency the reads are permitted.
-            // Scales from 0 so idle nodes pay nothing.
+            // Scales from 0 so idle nodes pay nothing. Tracks execution time so TaskLoadAttribution.charging
+            // can attribute I/O wall as busy and CPU as compute, same as shards.
             new ScalingExecutorBuilder(
                 EXTERNAL_IO_THREAD_POOL_NAME,
                 0,
                 ExternalSourceSettings.externalIoThreads(settings),
                 TimeValue.timeValueSeconds(30),
-                false
+                false,
+                "thread_pool." + EXTERNAL_IO_THREAD_POOL_NAME,
+                EsExecutors.TaskTrackingConfig.builder()
+                    .trackExecutionTime(ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA)
+                    .attributeTaskLoad()
+                    .build(),
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             )
         );
     }

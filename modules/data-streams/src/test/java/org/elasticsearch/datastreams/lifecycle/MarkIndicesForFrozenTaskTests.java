@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datastreams.lifecycle;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,13 +18,17 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -35,6 +40,7 @@ public class MarkIndicesForFrozenTaskTests extends ESTestCase {
     final ProjectId PROJECT_ID = randomProjectIdOrDefault();
     final String REPO = randomAlphaOfLength(10);
 
+    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle.MarkIndicesForFrozenTask:INFO", reason = "asserts the success log")
     public void testMarkIndicesForFrozen() throws Exception {
         IndexMetadata vanilla = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("vanilla", 1))
             .settings(settings(IndexVersion.current()))
@@ -82,33 +88,55 @@ public class MarkIndicesForFrozenTaskTests extends ESTestCase {
             .put(alreadyMarkedDifferentRepo, true)
             .put(alreadyMarkedSameRepo, true)
             .build();
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
-        MarkIndicesForFrozenTask task = new MarkIndicesForFrozenTask(PROJECT_ID, allIndices, ActionListener.noop());
 
-        ClusterState newState = task.execute(state);
-        // No change, there is no default repo
-        assertThat(newState, sameInstance(state));
+        // A cluster state value, which can change after the task is queued, takes precedence over the node-level value.
+        // An empty value means no default repository.
+        String effectiveRepository = randomFrom("", REPO);
+        boolean repositoryInClusterState = randomBoolean();
+        String nodeRepository = repositoryInClusterState
+            ? randomFrom("", randomValueOtherThan(REPO, () -> randomAlphaOfLength(10)))
+            : effectiveRepository;
+        Metadata.Builder metadata = Metadata.builder().put(projectMetadata);
+        if (repositoryInClusterState) {
+            metadata.persistentSettings(
+                Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), effectiveRepository).build()
+            );
+        }
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        MarkIndicesForFrozenTask task = new MarkIndicesForFrozenTask(PROJECT_ID, allIndices, nodeRepository, ActionListener.noop());
 
-        // Add the repo to the settings
-        state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .persistentSettings(Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), REPO).build())
-                    .build()
-            )
-            .putProjectMetadata(projectMetadata)
-            .build();
-
-        newState = task.execute(state);
-        assertIndexMarked(newState, vanilla.getIndex().getName());
-        assertIndexMarked(newState, withOtherCustom.getIndex().getName());
-        assertIndexMarked(newState, alreadyMarkedDifferentRepo.getIndex().getName());
-        assertIndexMarked(newState, alreadyMarkedSameRepo.getIndex().getName());
-
-        assertThat(
-            getCustomData(newState, withOtherCustom.getIndex().getName()),
-            equalTo(Map.of("other", "thing", DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO))
-        );
+        ClusterState newState;
+        try (var mockLog = MockLog.capture(MarkIndicesForFrozenTask.class)) {
+            String loggerName = MarkIndicesForFrozenTask.class.getName();
+            mockLog.addExpectation(
+                effectiveRepository.isEmpty()
+                    ? new MockLog.UnseenEventExpectation("no success log", loggerName, Level.INFO, "DLM successfully marked*")
+                    : new MockLog.SeenEventExpectation(
+                        "success log lists only newly marked indices",
+                        loggerName,
+                        Level.INFO,
+                        "DLM successfully marked 3 indices as ready to be frozen: *"
+                    )
+            );
+            newState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+                state,
+                new DataStreamLifecycleService.MarkIndicesForFrozenExecutor(),
+                List.of(task)
+            );
+            mockLog.assertAllExpectationsMatched();
+        }
+        if (effectiveRepository.isEmpty()) {
+            assertThat(newState, sameInstance(state));
+        } else {
+            assertIndexMarked(newState, vanilla.getIndex().getName());
+            assertIndexMarked(newState, withOtherCustom.getIndex().getName());
+            assertIndexMarked(newState, alreadyMarkedDifferentRepo.getIndex().getName());
+            assertIndexMarked(newState, alreadyMarkedSameRepo.getIndex().getName());
+            assertThat(
+                getCustomData(newState, withOtherCustom.getIndex().getName()),
+                equalTo(Map.of("other", "thing", DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO))
+            );
+        }
     }
 
     private void assertIndexMarked(ClusterState state, String indexName) {

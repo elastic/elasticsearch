@@ -1067,12 +1067,16 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planInto(IntoExec into, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(into.child(), context);
         Layout outputLayout = new Layout.Builder().append(into.output()).build();
+        IntoPageWriter.Factory.Indexing indexing = configuration.explainOnly()
+            ? IntoPageWriter.Factory.Indexing.DISCARD
+            : IntoPageWriter.Factory.Indexing.INDEX;
+        // Resolved once, so the refresh targets the index that was written to, not one that date math resolves to a moment later
+        String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
         return switch (into.mode()) {
             case WRITE -> {
-                String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
                 boolean discard = configuration.explainOnly();
                 if (discard == false) {
-                    IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
+                    IntoPageWriter.Factory.requireBatchDestinationUnchanged(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
                 }
                 IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
                     escfBulkService,
@@ -1080,14 +1084,15 @@ public class LocalExecutionPlanner {
                     blockFactory.breaker(),
                     target,
                     into.sourceAttributes(),
-                    discard ? IntoPageWriter.Factory.Indexing.DISCARD : IntoPageWriter.Factory.Indexing.INDEX
+                    indexing,
+                    into.options()
                 );
                 yield source.with(
                     new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),
                     outputLayout
                 );
             }
-            case MERGE_STATS -> source.with(new IntoMergeStatsOperator.Factory(), outputLayout);
+            case MERGE_STATS -> source.with(IntoMergeStatsOperator.Factory.create(client, target, into.options(), indexing), outputLayout);
         };
     }
 

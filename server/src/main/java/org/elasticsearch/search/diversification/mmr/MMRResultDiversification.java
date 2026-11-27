@@ -45,9 +45,13 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
 
         // our chosen DocIDs to keep
         List<Integer> selectedDocRanks = new ArrayList<>();
+        // constant-time membership check for selectedDocRanks, indexed by rank - 1
+        boolean[] isSelected = new boolean[docs.length];
 
         // cache the similarity scores for the query vector vs. searchHits
         float[] querySimilarities = getQuerySimilarityForDocs(docs);
+        // scoring the whole window against the query can be costly, and a small size may never enter the selection loop
+        context.ensureNotCancelled();
         OptionalInt bestDocIdx = IntStream.range(0, querySimilarities.length)
             .filter(i -> context.getFieldVector(i + 1) != null)
             .reduce((a, b) -> querySimilarities[a] >= querySimilarities[b] ? a : b);
@@ -59,18 +63,21 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
         int prevSelectedDocRank = 1 + bestDocIdx.getAsInt();
 
         selectedDocRanks.add(prevSelectedDocRank);
+        isSelected[prevSelectedDocRank - 1] = true;
         int topDocsSize = context.getSize();
 
         float[] maxSimilarityToSelected = new float[docs.length];
         Arrays.fill(maxSimilarityToSelected, Float.NEGATIVE_INFINITY);
 
         for (int x = 0; x < topDocsSize && selectedDocRanks.size() < topDocsSize && selectedDocRanks.size() < docs.length; x++) {
+            // each round compares every candidate, so stop early if the search was cancelled
+            context.ensureNotCancelled();
             int thisMaxMMRDocRank = -1;
             float thisMaxMMRScore = Float.NEGATIVE_INFINITY;
             for (RankDoc doc : docs) {
                 int docRank = doc.rank;
 
-                if (selectedDocRanks.contains(docRank)) {
+                if (docRank > 0 && docRank <= isSelected.length && isSelected[docRank - 1]) {
                     continue;
                 }
 
@@ -98,6 +105,7 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
 
             if (thisMaxMMRDocRank >= 0) {
                 selectedDocRanks.add(thisMaxMMRDocRank);
+                isSelected[thisMaxMMRDocRank - 1] = true;
                 prevSelectedDocRank = thisMaxMMRDocRank;
             }
         }

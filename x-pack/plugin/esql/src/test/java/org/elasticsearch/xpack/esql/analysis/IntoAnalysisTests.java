@@ -34,8 +34,8 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
     }
 
     @Before
-    public void requiresSnapshot() {
-        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+    public void requiresIntoCommand() {
+        assumeTrue("INTO command required", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
     }
 
     public void testNoImplicitLimitAdded() {
@@ -47,7 +47,6 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
 
     public void testDescribeAfterIntoIsRejected() {
         analyzer().error("ROW a = 1 | INTO dst | DESCRIBE", containsString("INTO must be the last command of the query"));
-        assertWarnings("No limit defined, adding default limit of [1000]");
     }
 
     public void testSyntheticAttributesStrippedFromChildOutput() {
@@ -65,6 +64,7 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
         String error = "INTO must be the last command of the query";
         analyzer().stripErrorPrefix(true).error("ROW a = 1 | INTO dst | LIMIT 1", equalTo("1:13: " + error));
         analyzer().error("ROW a = 1 | FORK (INTO dst) (LIMIT 1)", containsString(error));
+        analyzer().error("ROW a = 1 | FORK (INTO dst WITH {\"keep_going\": true}) (LIMIT 1)", containsString(error));
     }
 
     public void testUnsupportedSources() {

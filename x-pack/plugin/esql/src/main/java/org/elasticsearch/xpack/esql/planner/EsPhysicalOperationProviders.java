@@ -415,10 +415,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         Expression conversion = conversionFor(unionTypes, shardContext, fieldName);
         if (conversion == null) {
             Expression potentiallyUnmapped = unionTypes.getUnmappedConversionExpression();
-            if (!(potentiallyUnmapped instanceof AbstractConvertFunction convert)) {
+            // The conversion reads the field as its first argument. Conversions with other arguments, like TO_LONG(field, 16), are not
+            // an AbstractConvertFunction, but they have to load the unmapped field too.
+            if (potentiallyUnmapped == null || !(potentiallyUnmapped.children().get(0) instanceof Attribute unmappedField)) {
                 return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
             }
-            fieldName = getFieldName((Attribute) convert.field());
+            fieldName = getFieldName(unmappedField);
             conversion = potentiallyUnmapped;
         }
         if (conversion instanceof BlockLoaderExpression ble) {

@@ -2,6 +2,9 @@
 navigation_title: "Date histogram"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-datehistogram-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Date histogram aggregation [search-aggregations-bucket-datehistogram-aggregation]

@@ -185,7 +185,7 @@ public final class TimeSeriesBlockHash extends PartitionedBlockHash {
             return;
         }
         final IntVector groupsIds;
-        try (var groupBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+        try (var groupBuilder = blockFactory.newIntVectorFixedBuilder(positionCount, true)) {
             groupBuilder.appendInt(0, prevGroupId);
             for (int p = 1; p < positionCount; p++) {
                 long timestamp = timestamps.getLong(p);
@@ -246,19 +246,16 @@ public final class TimeSeriesBlockHash extends PartitionedBlockHash {
         final int ordinalsLength = ordinalsVector.getPositionCount();
         final BytesRefVector dictVector = tsidVector.getDictionaryVector();
         final int dictLength = dictVector.getPositionCount();
-        long acquiredBytes = (long) Integer.BYTES * (ordinalsLength + dictLength);
-        blockFactory.breaker().addEstimateBytesAndMaybeBreak(acquiredBytes, "TimeSeriesBlockHash");
-        try {
-            final int[] dictOrds = new int[dictLength];
+        final int[] dictOrds = blockFactory.acquireInts(dictLength);
+        try (var groupIdsBuilder = blockFactory.newIntVectorFixedBuilder(ordinalsLength, true)) {
             for (int p = 0; p < dictLength; p++) {
                 BytesRef v = dictVector.getBytesRef(p, scratch);
                 dictOrds[p] = Math.toIntExact(hashOrdToGroup(tsidHash.add(v)));
             }
-            final int[] groupIds = new int[ordinalsLength];
             int prevTsid = dictOrds[ordinalsVector.getInt(0)];
             long prevTimestamp = timestamps.getLong(0);
             int prevGroupId = Math.toIntExact(hashOrdToGroup(finalHash.add(prevTsid, prevTimestamp)));
-            groupIds[0] = prevGroupId;
+            groupIdsBuilder.appendInt(0, prevGroupId);
             for (int p = 1; p < ordinalsLength; p++) {
                 final long timestamp = timestamps.getLong(p);
                 int tsid = dictOrds[ordinalsVector.getInt(p)];
@@ -267,39 +264,29 @@ public final class TimeSeriesBlockHash extends PartitionedBlockHash {
                     prevGroupId = Math.toIntExact(hashOrdToGroup(finalHash.add(tsid, prevTimestamp)));
                     prevTsid = tsid;
                 }
-                groupIds[p] = prevGroupId;
+                groupIdsBuilder.appendInt(p, prevGroupId);
             }
-            try (var groupsVector = blockFactory.newIntArrayVector(groupIds, ordinalsLength, acquiredBytes)) {
-                acquiredBytes = 0;
+            try (var groupsVector = groupIdsBuilder.build()) {
                 assert assertKeysMatchGroups(0, groupsVector, tsidVector, timestamps);
                 addInput.add(0, groupsVector);
             }
         } finally {
-            blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
+            blockFactory.recycleInts(dictOrds);
         }
     }
 
     private void addVector(BytesRefVector tsidVector, LongVector timestamps, GroupingAggregatorFunction.AddInput addInput) {
         final int positionCount = tsidVector.getPositionCount();
-        long acquiredBytes = (long) Integer.BYTES * positionCount;
-        blockFactory.breaker().addEstimateBytesAndMaybeBreak(acquiredBytes, "TimeSeriesBlockHash");
-        final int[] ords = new int[positionCount];
-        try {
+        try (var groupIdsBuilder = blockFactory.newIntVectorFixedBuilder(positionCount, true)) {
             for (int p = 0; p < positionCount; p++) {
                 BytesRef v = tsidVector.getBytesRef(p, scratch);
-                ords[p] = Math.toIntExact(hashOrdToGroup(tsidHash.add(v)));
+                int tsid = Math.toIntExact(hashOrdToGroup(tsidHash.add(v)));
+                groupIdsBuilder.appendInt(p, Math.toIntExact(hashOrdToGroup(finalHash.add(tsid, timestamps.getLong(p)))));
             }
-            for (int p = 0; p < positionCount; p++) {
-                long timestamp = timestamps.getLong(p);
-                ords[p] = Math.toIntExact(hashOrdToGroup(finalHash.add(ords[p], timestamp)));
-            }
-            try (var groupIds = blockFactory.newIntArrayVector(ords, positionCount, acquiredBytes)) {
-                acquiredBytes = 0;
+            try (var groupIds = groupIdsBuilder.build()) {
                 assert assertKeysMatchGroups(0, groupIds, tsidVector, timestamps);
                 addInput.add(0, groupIds);
             }
-        } finally {
-            blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
         }
     }
 

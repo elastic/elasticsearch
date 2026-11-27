@@ -1,0 +1,13 @@
+area: ES|QL
+breaking:
+  area: ES|QL
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Reject union-type columns in DEDUP
+issues:
+ - 164588
+pr: 167950
+summary: Reject union-type columns in DEDUP
+type: breaking

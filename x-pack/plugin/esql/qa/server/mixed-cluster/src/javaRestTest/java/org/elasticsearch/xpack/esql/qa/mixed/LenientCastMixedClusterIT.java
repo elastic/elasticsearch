@@ -26,6 +26,7 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +48,9 @@ import static org.hamcrest.Matchers.equalTo;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class LenientCastMixedClusterIT extends ESRestTestCase {
     private static final String INDEX = "lenient_cast_mixed";
+    /** {@code value} is an {@code ip} here, and a {@code keyword} in {@link #KEYWORD_INDEX}. */
+    private static final String IP_INDEX = "lenient_cast_mixed_ip";
+    private static final String KEYWORD_INDEX = "lenient_cast_mixed_keyword";
     private static final String LENIENT_CAST = EsqlCapabilities.Cap.LENIENT_CAST.capabilityName();
 
     @ClassRule
@@ -67,6 +71,8 @@ public class LenientCastMixedClusterIT extends ESRestTestCase {
         // first, so a stateless cluster doesn't get an index it can't search
         assumeFalse("the cluster is stateless", isStateless());
         createIndexOnce(INDEX, "{\"id\": {\"type\": \"integer\"}}", "{\"id\": 1}");
+        createIndexOnce(IP_INDEX, "{\"value\": {\"type\": \"ip\"}}", "{\"value\": \"10.0.0.1\"}");
+        createIndexOnce(KEYWORD_INDEX, "{\"value\": {\"type\": \"keyword\"}}", "{\"value\": \"7\"}");
     }
 
     /**
@@ -83,6 +89,17 @@ public class LenientCastMixedClusterIT extends ESRestTestCase {
             "FROM " + INDEX + " | EVAL x = TO_IP(id) | KEEP x | LIMIT 10",
             List.of(Collections.singletonList(null)),
             error
+        );
+    }
+
+    /**
+     * A field mapped to several types is {@code null} in the indices that map a type the cast doesn't convert, which is an {@code ip}
+     * for {@code TO_LONG}.
+     */
+    public void testCastOfAFieldMappedToSeveralTypes() throws IOException {
+        assertLenientOnlyWhenEveryNodeCan(
+            "FROM " + IP_INDEX + "," + KEYWORD_INDEX + " METADATA _index | EVAL x = value::long | SORT _index | KEEP _index, x",
+            List.of(Arrays.asList(IP_INDEX, null), Arrays.asList(KEYWORD_INDEX, 7))
         );
     }
 

@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class NestedPredicateLuceneTests extends ESTestCase {
     private static final LucenePushdownPredicates CHILDREN = PushNestedPredicateToSource.childFields(new EsqlFlags(true));
     private static final String EQUALS_A = "items.sku == \"a\"";
+    private static final String UNTRANSLATABLE = "items.qty + 1 > 2";
 
     public void testAQueryableChildTranslatesToAnExactNestedQuery() {
         NestedPredicate predicate = predicate(EQUALS_A);
@@ -158,6 +159,81 @@ public class NestedPredicateLuceneTests extends ESTestCase {
         PhysicalPlan planned = new EvaluateNestedPredicateInLucene().apply(eval, context(queryableAsRead(predicate)));
 
         assertThat(only(planned).queryBuilder(), sameInstance(existing));
+    }
+
+    public void testATranslatableConjunctBesideAnUntranslatableOneTranslatesToASupersetQuery() {
+        NestedPredicate predicate = predicate(EQUALS_A + " AND " + UNTRANSLATABLE);
+
+        PushNestedPredicateToSource.Translation translation = PushNestedPredicateToSource.translate(
+            predicate,
+            CHILDREN,
+            stats(queryableAsRead(predicate))
+        );
+
+        assertThat(translation.exact(), is(false));
+        assertIsTheNestedQueryForSkuA(translation.query());
+    }
+
+    public void testUntranslatableConjunctsInEitherOrderLeaveTheSameSupersetQuery() {
+        NestedPredicate predicate = predicate(UNTRANSLATABLE + " AND " + EQUALS_A);
+
+        PushNestedPredicateToSource.Translation translation = PushNestedPredicateToSource.translate(
+            predicate,
+            CHILDREN,
+            stats(queryableAsRead(predicate))
+        );
+
+        assertThat(translation.exact(), is(false));
+        assertIsTheNestedQueryForSkuA(translation.query());
+    }
+
+    public void testAPartiallyTranslatedPredicateIsPushedAndStillEvaluated() {
+        NestedPredicate predicate = predicate(EQUALS_A + " AND " + UNTRANSLATABLE);
+
+        PushNestedPredicateToSource.Pushed pushed = PushNestedPredicateToSource.push(
+            predicate,
+            false,
+            CHILDREN,
+            stats(queryableAsRead(predicate))
+        );
+
+        assertThat(pushed.exact(), is(false));
+        assertIsTheNestedQueryForSkuA(pushed.query());
+    }
+
+    public void testANegatedPartiallyTranslatedPredicateIsNotPushed() {
+        NestedPredicate predicate = predicate(EQUALS_A + " AND " + UNTRANSLATABLE);
+
+        assertThat(PushNestedPredicateToSource.push(predicate, true, CHILDREN, stats(queryableAsRead(predicate))), is(nullValue()));
+    }
+
+    public void testADisjunctionWithAnUntranslatableSideDoesNotTranslate() {
+        NestedPredicate predicate = predicate(EQUALS_A + " OR " + UNTRANSLATABLE);
+
+        assertThat(PushNestedPredicateToSource.translate(predicate, CHILDREN, stats(queryableAsRead(predicate))), is(nullValue()));
+    }
+
+    public void testConjunctsThatAreAllUntranslatableDoNotTranslate() {
+        NestedPredicate predicate = predicate(UNTRANSLATABLE + " AND items.qty * 2 > 3");
+
+        assertThat(PushNestedPredicateToSource.translate(predicate, CHILDREN, stats(queryableAsRead(predicate))), is(nullValue()));
+    }
+
+    public void testAConjunctOnAChildTheShardsCannotQueryIsLeftOutOfTheSupersetQuery() {
+        NestedPredicate predicate = predicate(EQUALS_A + " AND items.qty > 1");
+        Map<String, DataType> onlySku = Map.of("items.sku", DataType.KEYWORD);
+
+        PushNestedPredicateToSource.Translation translation = PushNestedPredicateToSource.translate(predicate, CHILDREN, stats(onlySku));
+
+        assertThat(translation.exact(), is(false));
+        assertIsTheNestedQueryForSkuA(translation.query());
+    }
+
+    public void testAPartiallyTranslatedPredicateIsNotEvaluatedByLuceneInEval() {
+        NestedPredicate predicate = predicate(EQUALS_A + " AND " + UNTRANSLATABLE);
+        EvalExec eval = eval(predicate);
+
+        assertThat(new EvaluateNestedPredicateInLucene().apply(eval, context(queryableAsRead(predicate))), equalTo(eval));
     }
 
     private static void assertEvaluatedByTheNestedQuery(PhysicalPlan plan, NestedPredicate predicate) {

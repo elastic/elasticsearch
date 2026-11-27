@@ -115,6 +115,29 @@ id:keyword
 1
 ;
 
+aConditionLucenePushesBesideOneItDoesNot
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items.sku == "c" AND items.qty + 1 > 2)
+| KEEP id
+;
+
+id:keyword
+3
+;
+
+aPushedConditionIsRecheckedAgainstTheOneItDoesNotPush
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items.sku == "a" AND items.qty + 1 > 2)
+| KEEP id
+;
+
+id:keyword
+;
+
 stackedFiltersEachReadTheChildren
 required_capability: fn_nested_any
 

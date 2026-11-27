@@ -25,6 +25,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SkipBlockRangeIterator;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.IntsRef;
+import org.elasticsearch.common.lucene.DocValuesSkippers;
 
 import java.io.IOException;
 
@@ -107,7 +108,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
             if (pointValues != null) {
                 return new PointsCompetitiveDISIBuilder(pointValues, this);
             } else {
-                DocValuesSkipper skipper = reader.getDocValuesSkipper(field);
+                DocValuesSkipper skipper = DocValuesSkippers.get(reader, field);
                 if (skipper != null) {
                     return new DVSkipperCompetitiveDISIBuilder(skipper, this);
                 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.info;
 
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
@@ -70,6 +71,13 @@ public interface BuildParameterExtension {
     BwcVersions getBwcVersions();
 
     Provider<BwcVersions> getBwcVersionsProvider();
+
+    /**
+     * All Elasticsearch versions known to this build, read from the local {@code Version.java}. Unlike {@link #getBwcVersionsProvider()}
+     * this does not depend on {@code branches.json}, so tasks that load the development branches themselves (e.g. at execution
+     * time) can combine both without triggering an extra download.
+     */
+    Provider<List<Version>> getAllVersionsProvider();
 
     Provider<Random> getRandom();
 

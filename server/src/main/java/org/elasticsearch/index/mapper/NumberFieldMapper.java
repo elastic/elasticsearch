@@ -3006,7 +3006,7 @@ public class NumberFieldMapper extends FieldMapper {
     private static final IndexableFieldType DOUBLE_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0.0).fieldType();
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // ignore_malformed is not enforced by mapColumnBatch — it only matters for documents the
         // columnar path already refuses, and refusing late falls back to the row path.
         return switch (fieldType.diskFormat) {
@@ -3025,7 +3025,7 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         switch (source.kind()) {
-            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.ARRAY -> {
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.ARRAY, EscfColumnKind.UNION -> {
             } // handled below
             default -> throw new UnsupportedOperationException(
                 Strings.format(

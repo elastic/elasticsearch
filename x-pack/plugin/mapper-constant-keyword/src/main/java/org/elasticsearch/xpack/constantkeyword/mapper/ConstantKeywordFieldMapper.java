@@ -77,6 +77,7 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -394,7 +395,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     private static final IndexableFieldType MARKER_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return fieldType().value() != null;
     }
 

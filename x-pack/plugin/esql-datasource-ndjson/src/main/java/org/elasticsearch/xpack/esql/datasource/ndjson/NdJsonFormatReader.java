@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 
@@ -638,6 +639,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 }
                 mtimeMillis = mtime.toEpochMilli();
             } catch (IOException e) {
+                // The throwable stays out: a store's own message can quote the signed URL back.
+                logger.debug(
+                    "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                    sourceLocation,
+                    e.getClass().getSimpleName()
+                );
                 return sampledMetadata(schema, location, null, counted.count(), sampled.sampleRows()).withWarnings(warnings)
                     .withWidenedColumns(widenedColumns);
             }
@@ -650,7 +657,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             String configFingerprint = computeConfigFingerprint();
             // Cold resolution publishes only the file size + identity; row/column stats arrive via the
             // data-node capture → coordinator reconcile into SchemaCacheEntry.
-            SourceStatistics stats = TextFormatStats.build(Optional.empty(), cachedSize, schema);
+            // No cached stats, so this publishes no columns and the extremum width is never read.
+            SourceStatistics stats = TextFormatStats.build(
+                Optional.empty(),
+                cachedSize,
+                schema,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES
+            );
             Map<String, Object> baseSourceMetadata = Map.of(
                 ExternalStats.MTIME_MILLIS_KEY,
                 mtimeMillis,
@@ -727,7 +740,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "NDJSON read [{}]: readSchema={}, firstSplit={}, recordAligned={}, projection={}",
-                object.path(),
+                ExternalFailures.redactHttpUrl(object.path().toString()),
                 context.readSchema() == null ? "null" : "present(" + context.readSchema().size() + ")",
                 context.firstSplit(),
                 context.recordAligned(),
@@ -757,7 +770,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // new mtime with old data.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
-        boolean cacheable = wholeFileRead || chunkMode;
+        // Under NONE nothing is harvested, so take no cacheable identity: that skips the mtime probe below.
+        boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {
             try {
@@ -769,6 +783,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                     chunkMode = false;
                 }
             } catch (IOException e) {
+                // The throwable stays out: a store's own message can quote the signed URL back.
+                logger.debug(
+                    "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                    ExternalFailures.redactHttpUrl(object.path().toString()),
+                    e.getClass().getSimpleName()
+                );
                 cacheable = false;
                 chunkMode = false;
             }
@@ -800,6 +820,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             context.statsStripeSize(),
             context.statsFileFinal(),
             context.statsColumnScope(),
+            context.statsMaxExtremumBytes(),
             context.statsStripeSink(),
             context.informationalWarningSink()
         );

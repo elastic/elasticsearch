@@ -1706,7 +1706,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         final IndexMode mode = indexSettings.getMode();
         return (mode.isStrictColumnar() || mode.isTsdb())
             && supportsColumnarDocValues(mode)

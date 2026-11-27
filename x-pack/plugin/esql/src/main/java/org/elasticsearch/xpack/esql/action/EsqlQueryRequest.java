@@ -84,6 +84,11 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     private transient Map<String, ViewQuerySettings> viewSettings = Map.of();
     /**
+     * The {@code @timestamp} range the query asks for, once the query has got far enough to extract it.
+     * Runtime-only state of the node that runs the query: it is not serialized, and kept when the query fails.
+     */
+    private transient RequestedTimeRange requestedTimeRange;
+    /**
      * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
      * {@link #applyCanonicalRequestSettings()}. A setting that also has a legacy top-level body field
      * must be supplied in exactly one place — see that method.
@@ -457,6 +462,21 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     /** The settings each resolved view's definition applies, by view name; empty if the query resolved no views (yet). */
     public Map<String, ViewQuerySettings> viewSettings() {
         return viewSettings;
+    }
+
+    /** Records the {@code @timestamp} range the query asks for. Not serialized. */
+    public void setRequestedTimeRange(@Nullable RequestedTimeRange requestedTimeRange) {
+        this.requestedTimeRange = requestedTimeRange;
+    }
+
+    /**
+     * The {@code @timestamp} range the query asks for, see {@link RequestedTimeRange}, or {@code null} if neither the request filter
+     * nor the query bounds {@code @timestamp} or the query failed before it was extracted. It is extracted once the query's now is
+     * fixed, after parsing and view resolution, so a query that fails before that has none.
+     */
+    @Nullable
+    public RequestedTimeRange requestedTimeRange() {
+        return requestedTimeRange;
     }
 
     Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {

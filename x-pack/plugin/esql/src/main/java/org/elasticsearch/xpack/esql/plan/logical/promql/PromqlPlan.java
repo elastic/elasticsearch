@@ -49,7 +49,8 @@ public interface PromqlPlan {
      * enclosing consumer rather than by this node.
      * <p>
      * Return {@code false} only for nodes that bind the enclosing series identity - across-series aggregation
-     * ({@code by}/{@code without}), across-series reduction ({@code topk}/{@code bottomk}), and vector binary operators.
+     * ({@code by}/{@code without}), across-series reduction ({@code topk}/{@code bottomk}), vector binary operators, and
+     * {@code absent}, whose result is a new series.
      * Per-series and value/type-shaping nodes (selectors, {@code rate}-style within-series aggregates, scalar/vector
      * conversions, {@code histogram_quantile}) are transparent for this purpose even when they reshape labels, because a
      * relabel below them still feeds the same enclosing aggregation. This drives the supported-placement check for the

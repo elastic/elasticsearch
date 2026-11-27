@@ -20,12 +20,12 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.columnar.numeric.NumericBinaryValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.lucene.comparators.XLongComparator;
 
 import java.io.IOException;
 
@@ -84,7 +84,8 @@ public final class ColumnarNumericSortField extends SortField {
     @Override
     public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
         return switch (getType()) {
-            case LONG -> new LongComparator(numHits, getField(), (Long) missingValue, reverse, Pruning.NONE) {
+            // The skip index bounds all of a document's values, so it bounds the minimum or maximum this sorts by
+            case LONG -> new XLongComparator(numHits, getField(), (Long) missingValue, reverse, pruning) {
                 @Override
                 public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                     return new LongLeafComparator(context) {

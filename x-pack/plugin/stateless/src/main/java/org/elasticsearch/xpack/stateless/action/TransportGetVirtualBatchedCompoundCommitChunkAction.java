@@ -54,6 +54,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.StatelessThreadPools;
+import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.Scope;
 import org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 
@@ -72,6 +73,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
+    private final GetVirtualBatchedCompoundCommitChunkMetrics metrics;
 
     @Inject
     public TransportGetVirtualBatchedCompoundCommitChunkAction(
@@ -82,9 +84,11 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         ClusterService clusterService,
         GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure,
         StatelessCommitServiceProvider statelessCommitServiceProvider,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        GetVirtualBatchedCompoundCommitChunkMetrics metrics
     ) {
         super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.metrics = metrics;
         this.indicesService = indicesService;
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -125,7 +129,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
     ) {
         assert transportService.getLocalNode().hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()) : "not a search node";
-        ActionListener.run(listener, l -> {
+        ActionListener.run(metricsListener(listener, Scope.END_TO_END), l -> {
             if (task != null) {
                 request.setParentTask(clusterService.localNode().getId(), task.getId());
             }
@@ -185,26 +189,30 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
     private void sendRequestToPrimaryNode(
         DiscoveryNode discoveryNode,
         GetVirtualBatchedCompoundCommitChunkRequest request,
-        ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
+        ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> outerListener
     ) {
         assert discoveryNode != null : request;
+        // Measure the time between sending the request and receiving its response, before the response is used by the caller. The metrics
+        // listener is placed below the NodeClosedException conversion so that it sees the failure as returned by the transport: a
+        // ResourceNotFoundException at this point is a response of the indexing node, which means that the VBCC has been uploaded.
+        final var listener = metricsListener(outerListener.delegateResponse((l, e) -> {
+            var cause = ExceptionsHelper.unwrapCause(e);
+            // We don't want to retry on this exception, but still want to convert it to recoverable ResourceNotFoundException
+            var currentState = clusterService.state();
+            if (cause instanceof NodeClosedException && shouldRetryReadingFromTheBlobStore(currentState, request.getShardId())) {
+                l.onFailure(new ResourceNotFoundException("Unable to get virtual batched compound commit chunk", e));
+            } else {
+                l.onFailure(e);
+            }
+        }), Scope.SINGLE_REQUEST);
         transportService.sendRequest(
             discoveryNode,
             transportPrimaryAction,
             request,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                var cause = ExceptionsHelper.unwrapCause(e);
-                // We don't want to retry on this exception, but still want to convert it to recoverable ResourceNotFoundException
-                var currentState = clusterService.state();
-                if (cause instanceof NodeClosedException && shouldRetryReadingFromTheBlobStore(currentState, request.getShardId())) {
-                    l.onFailure(new ResourceNotFoundException("Unable to get virtual batched compound commit chunk", e));
-                } else {
-                    l.onFailure(e);
-                }
-            }).delegateFailure((l, r) -> {
+            new ActionListenerResponseHandler<>(listener.delegateFailure((l, r) -> {
                 assert ThreadPool.assertCurrentThreadPool(TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX);
-                listener.onResponse(r);
+                l.onResponse(r);
             }), GetVirtualBatchedCompoundCommitChunkResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
@@ -272,4 +280,34 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             }
         });
     }
+
+    /**
+     * Wraps the listener so that the time elapsed since this method was called is recorded in the metrics when the listener completes,
+     * before the response (or failure) is passed to the wrapped listener.
+     *
+     * @param listener the listener to wrap
+     * @param scope    what the measurement covers: a single request sent to the indexing node, or the whole action execution including
+     *                 retries
+     */
+    private ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> metricsListener(
+        final ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener,
+        final Scope scope
+    ) {
+        final ThreadPool threadPool = transportService.getThreadPool();
+        final long startTimeInMillis = threadPool.rawRelativeTimeInMillis();
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(GetVirtualBatchedCompoundCommitChunkResponse response) {
+                metrics.record(scope, null, threadPool.rawRelativeTimeInMillis() - startTimeInMillis);
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                metrics.record(scope, e, threadPool.rawRelativeTimeInMillis() - startTimeInMillis);
+                listener.onFailure(e);
+            }
+        };
+    }
+
 }

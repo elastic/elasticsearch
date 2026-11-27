@@ -145,8 +145,12 @@ public class MergeBlobTests extends AbstractWireSerializingTestCase<MergeBlob> {
         assertThat(exception.getMessage(), startsWith("malformed blob name [" + blobName + ']'));
     }
 
-    private static MergeBlob randomMergeBlob() {
-        return new MergeBlob(MergeBlob.blobName(randomSegmentId()), randomNonNegativeLong());
+    public static String randomMergeBlobName() {
+        return MergeBlob.blobName(randomSegmentId());
+    }
+
+    public static MergeBlob randomMergeBlob() {
+        return new MergeBlob(randomMergeBlobName(), randomNonNegativeLong());
     }
 
     private static byte[] randomSegmentId() {

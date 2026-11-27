@@ -17,26 +17,29 @@ import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.bulk.EscfBulkWriter;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -47,10 +50,16 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Streams an {@code INTO} query's pages through one {@link EscfBulkWriter}. Each driver has
- * its own producer. The writer bounds the bulks in flight and charges the query breaker and coordinating indexing pressure.
+ * its own producer. The writer bounds the bulks in flight with the node's {@link EscfBulkService#defaultPolicy()} and
+ * charges the query breaker and coordinating indexing pressure.
+ * A row the destination refuses fails the run, unless {@link IntoOptions#keepGoing()} is set: then it is counted and the
+ * run continues. A bulk request that fails as a whole always fails the run, as does a row whose failure is transient
+ * (too many requests or service unavailable), because that row was not refused by the destination and dropping it would
+ * silently lose data.
  */
 public final class IntoPageWriter {
-    static final EscfBulkWriter.Policy POLICY = new EscfBulkWriter.Policy(3, Operator.TARGET_PAGE_SIZE);
+
+    private static final int MAX_FAILURE_DETAIL_LENGTH = 1024;
 
     /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
     public static final class Factory {
@@ -64,10 +73,14 @@ public final class IntoPageWriter {
         private final String destination;
         private final List<String> columns;
         private final List<DataType> types;
+        private final IntoOptions options;
         @Nullable
         private final EscfBulkWriter writer;
         private final AtomicLong total = new AtomicLong();
         private final AtomicLong created = new AtomicLong();
+        private final AtomicLong failures = new AtomicLong();
+        // The reasons for the first refusals. Every access synchronizes on this list, because bulks are acknowledged on several threads.
+        private final List<String> failureDetails = new ArrayList<>(IntoStats.MAX_FAILURE_DETAILS);
         private final AtomicReference<Exception> failure = new AtomicReference<>();
         private final AtomicInteger openProducers = new AtomicInteger();
         private final List<IntoPageWriter> drivers = new CopyOnWriteArrayList<>();
@@ -79,7 +92,8 @@ public final class IntoPageWriter {
             CircuitBreaker breaker,
             String destination,
             List<Attribute> output,
-            Indexing indexing
+            Indexing indexing,
+            IntoOptions options
         ) {
             return new Factory(
                 bulks,
@@ -88,7 +102,8 @@ public final class IntoPageWriter {
                 destination,
                 Expressions.names(output),
                 output.stream().map(Attribute::dataType).toList(),
-                indexing
+                indexing,
+                options
             );
         }
 
@@ -99,13 +114,15 @@ public final class IntoPageWriter {
             String destination,
             List<String> columns,
             List<DataType> types,
-            Indexing indexing
+            Indexing indexing,
+            IntoOptions options
         ) {
             this.destination = destination;
             this.columns = columns;
             this.types = types;
+            this.options = options;
             this.writer = indexing == Indexing.INDEX
-                ? bulks.newWriter(client, breaker, destination, POLICY, this::onResponse, this::onCapacity)
+                ? bulks.newWriter(client, breaker, destination, bulks.defaultPolicy(), this::onResponse, this::onCapacity)
                 : null;
         }
 
@@ -126,8 +143,15 @@ public final class IntoPageWriter {
         }
 
         private Exception onResponse(BulkResponse response) {
+            long createdItems = 0;
+            long refusedItems = 0;
             for (BulkItemResponse item : response) {
-                if (item.isFailed()) {
+                if (item.isFailed() == false) {
+                    createdItems++;
+                } else if (options.keepGoing() && isRefusal(item.getFailure())) {
+                    recordRefusal(item.getFailure());
+                    refusedItems++;
+                } else {
                     Exception cause = item.getFailure().getCause();
                     ElasticsearchStatusException failed = new ElasticsearchStatusException(
                         "INTO [{}] failed: {}",
@@ -140,10 +164,51 @@ public final class IntoPageWriter {
                     return failed;
                 }
             }
-            long rows = response.getItems().length;
-            total.addAndGet(rows);
-            created.addAndGet(rows);
+            total.addAndGet(createdItems + refusedItems);
+            created.addAndGet(createdItems);
+            failures.addAndGet(refusedItems);
             return null;
+        }
+
+        /**
+         * A row is refused when the destination does not accept the row itself: a 400, such as a field that its mapping rejects, or a
+         * {@link MapperException}, which has no status of its own and so is reported as a 500. Any other status is about the caller,
+         * the destination or the cluster, so it fails the query instead of being counted as a refusal.
+         */
+        private static boolean isRefusal(BulkItemResponse.Failure failure) {
+            // The mapping update can be handled by another node, which wraps the rejection in a transport exception
+            return failure.getStatus() == RestStatus.BAD_REQUEST
+                || ExceptionsHelper.unwrapCause(failure.getCause()) instanceof MapperException;
+        }
+
+        private void recordRefusal(BulkItemResponse.Failure refusal) {
+            synchronized (failureDetails) {
+                if (failureDetails.size() < IntoStats.MAX_FAILURE_DETAILS) {
+                    // Without the transport exception around it, which names a node that the caller has no business with
+                    Throwable cause = ExceptionsHelper.unwrapCause(refusal.getCause());
+                    String reason = Objects.requireNonNullElse(cause.getMessage(), cause.getClass().getSimpleName());
+                    String detail = "[" + refusal.getStatus().getStatus() + "] " + reason;
+                    failureDetails.add(Strings.cleanTruncate(detail, MAX_FAILURE_DETAIL_LENGTH));
+                }
+            }
+        }
+
+        private Exception recordWriterFailure(Exception failed) {
+            // A missing destination is wrapped so DataNodeRequestSender does not take it for a missing source shard and retry that
+            boolean destinationUnavailable = TransportActions.isShardNotAvailableException(failed);
+            failure.compareAndSet(
+                null,
+                destinationUnavailable
+                    ? new ElasticsearchStatusException(
+                        "INTO [{}] failed: {}",
+                        ExceptionsHelper.status(failed),
+                        failed,
+                        destination,
+                        failed.getMessage()
+                    )
+                    : failed
+            );
+            return failure.get();
         }
 
         private void onCapacity() {
@@ -160,7 +225,7 @@ public final class IntoPageWriter {
 
         private void settled(Exception failed) {
             if (failed != null) {
-                failure.compareAndSet(null, failed);
+                recordWriterFailure(failed);
             }
             settled = true;
             for (IntoPageWriter pageWriter : drivers) {
@@ -169,7 +234,9 @@ public final class IntoPageWriter {
         }
 
         IntoStats stats() {
-            return new IntoStats(total.get(), created.get());
+            synchronized (failureDetails) {
+                return new IntoStats(total.get(), created.get(), failures.get(), failureDetails);
+            }
         }
 
         /** Returns the first bulk or item failure recorded by this run, or {@code null} if every write succeeded. */
@@ -179,8 +246,8 @@ public final class IntoPageWriter {
         }
 
         /**
-         * Fails the query when {@code target} cannot be written as a pre-built ESCF batch.
-         * Checked once on the coordinator.
+         * Fails the query when {@code target} cannot be written as a pre-built ESCF batch. Checked on the coordinator before the
+         * query is dispatched, and again where a node plans the write, since the destination can change in between.
          */
         public static void requireBatchDestination(boolean batchIndexingSupported, ProjectMetadata project, String target) {
             // TODO: authorize write access to the destination before reporting destination-specific errors below, which would
@@ -246,7 +313,7 @@ public final class IntoPageWriter {
     }
 
     IntoStats stats() {
-        return reportsStats ? sink.stats() : new IntoStats(0, 0);
+        return reportsStats ? sink.stats() : IntoStats.EMPTY;
     }
 
     /** Returns the first bulk or item failure recorded by this run, or {@code null} if every write succeeded. */
@@ -264,8 +331,7 @@ public final class IntoPageWriter {
                 producer.add(new PageRows(page, sink.columns, sink.types, sink.destination), false);
                 Exception failed = sink.writer.failure();
                 if (failed != null) {
-                    sink.failure.compareAndSet(null, failed);
-                    throw ExceptionsHelper.convertToRuntime(failed);
+                    throw ExceptionsHelper.convertToRuntime(sink.recordWriterFailure(failed));
                 }
             }
         } finally {

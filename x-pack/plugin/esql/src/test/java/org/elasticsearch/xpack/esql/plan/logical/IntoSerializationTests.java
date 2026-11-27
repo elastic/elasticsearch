@@ -7,41 +7,38 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
+import org.elasticsearch.xpack.esql.into.IntoStats;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-
 public class IntoSerializationTests extends AbstractLogicalPlanSerializationTests<Into> {
     @Override
     protected Into createTestInstance() {
-        return new Into(randomSource(), randomChild(0), randomAlphaOfLength(10));
-    }
-
-    public void testOutputRegeneratedOnRead() throws IOException {
-        Into original = createTestInstance();
-        Into roundTripped = copyInstance(original, TransportVersion.current());
-        assertThat(roundTripped.output().stream().map(Attribute::name).toList(), equalTo(List.of("total", "created")));
-        assertThat(roundTripped.output().stream().map(Attribute::dataType).toList(), equalTo(List.of(DataType.LONG, DataType.LONG)));
-        // Regenerated attributes have fresh NameIds; if output were serialized, the original ids would be preserved.
-        assertThat(roundTripped.output().get(0).id(), not(equalTo(original.output().get(0).id())));
+        return new Into(randomSource(), randomChild(0), randomAlphaOfLength(10), randomIntoOptions());
     }
 
     @Override
     protected Into mutateInstance(Into instance) throws IOException {
         LogicalPlan child = instance.child();
         String destination = instance.destination();
-        switch (between(0, 1)) {
+        IntoOptions options = instance.options();
+        // The coordinator plan around a data-node Into refers to its output by id, so the ids must survive the wire
+        List<Attribute> output = instance.output();
+        switch (between(0, 3)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> destination = randomValueOtherThan(destination, () -> randomAlphaOfLength(10));
+            case 2 -> output = IntoStats.createAttributes(instance.source());
+            case 3 -> options = randomValueOtherThan(options, IntoSerializationTests::randomIntoOptions);
             default -> throw new AssertionError("Unexpected case");
         }
-        return new Into(instance.source(), child, destination);
+        return new Into(instance.source(), child, destination, options, output);
+    }
+
+    public static IntoOptions randomIntoOptions() {
+        return IntoOptions.builder().refresh(randomBoolean()).keepGoing(randomBoolean()).build();
     }
 
     @Override

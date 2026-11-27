@@ -13,12 +13,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,6 +36,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -59,13 +62,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.DEST;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.IN_FLIGHT;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.FAILED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.FORBIDDEN;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.MAPPER_REJECTED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WITHOUT_MESSAGE;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WITH_LONG_MESSAGE;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REJECTED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REMOTE_MAPPER_REJECTED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.bulks;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.mockBigArrays;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.noFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -73,8 +86,10 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 
 public class IntoPageWriterTests extends ComputeTestCase {
     private static final List<Attribute> COLUMNS = List.of(
@@ -95,7 +110,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client = new IntoTestUtils.CapturingClient(threadPool);
         blockFactory = blockFactory();
         driverContext = new DriverContext(mockBigArrays(), blockFactory, null);
-        sink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), DEST, COLUMNS, INDEX);
+        sink = newSink(blockFactory.breaker());
         writer = sink.create(driverContext);
     }
 
@@ -146,7 +161,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testEscfBatchProperties() throws IOException {
-        var escfSink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), DEST, COLUMNS, INDEX);
+        var escfSink = newSink(blockFactory.breaker());
         IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), blockFactory, null));
         try (
             BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
@@ -176,7 +191,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void testEscfBatchBytesIncludeRecyclerOverhead() {
         BlockFactory limited = blockFactory();
         DriverContext escfContext = new DriverContext(mockBigArrays(), limited, null);
-        var escfSink = IntoPageWriter.Factory.createFactory(bulks(), client, limited.breaker(), DEST, COLUMNS, INDEX);
+        var escfSink = newSink(limited.breaker());
         IntoPageWriter escfWriter = escfSink.create(escfContext);
         escfWriter.consume(page("h1"));
         long charged = escfContext.breaker().getUsed();
@@ -190,7 +205,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         // One row charges more than a page. The trip must release that charge and send nothing.
         long pageSize = driverContext.bigArrays().bytesRefRecycler().pageSize();
         BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(pageSize + 100));
-        var escfSink = IntoPageWriter.Factory.createFactory(bulks(), client, limited.breaker(), DEST, COLUMNS, INDEX);
+        var escfSink = newSink(limited.breaker());
         IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), limited, null));
         expectThrows(CircuitBreakingException.class, () -> escfWriter.consume(page("h1")));
         assertThat(limited.breaker().getUsed(), equalTo(0L));
@@ -198,7 +213,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testBackpressureAtInFlightByteLimit() {
-        int pages = IntoPageWriter.POLICY.maxBulksInFlight() + 1;
+        int pages = IN_FLIGHT + 1;
         for (int i = 0; i < pages; i++) {
             assertThat(writer.isBlocked(), equalTo(Operator.NOT_BLOCKED));
             writer.consume(widePage());
@@ -233,7 +248,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(oneRow, greaterThan(0L));
 
         BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(oneRow));
-        var factory = IntoPageWriter.Factory.createFactory(bulks(), client, limited.breaker(), DEST, COLUMNS, INDEX);
+        var factory = newSink(limited.breaker());
         var limitedWriter = factory.create(new DriverContext(mockBigArrays(), limited, null));
         expectThrows(CircuitBreakingException.class, () -> limitedWriter.consume(page("h1", "h2")));
         assertThat(client.bulks, empty());
@@ -242,7 +257,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testCrankyBreakerReleasesAndStatsMatchWrittenRows() {
         BlockFactory crankyFactory = crankyBlockFactory();
-        var crankySink = IntoPageWriter.Factory.createFactory(bulks(), client, crankyFactory.breaker(), DEST, COLUMNS, INDEX);
+        var crankySink = newSink(crankyFactory.breaker());
         IntoPageWriter crankyWriter = crankySink.create(new DriverContext(mockBigArrays(), crankyFactory, null));
         int written = 0;
         boolean tripped = false;
@@ -261,7 +276,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertTrue(tripped);
         assertThat(client.bulks, empty());
         assertThat(crankyFactory.breaker().getUsed(), equalTo(0L));
-        assertThat(crankyWriter.stats(), equalTo(new IntoStats(written, written)));
+        assertThat(crankyWriter.stats(), equalTo(noFailures(written, written)));
     }
 
     public void testFinishWaitsForOutstandingBulks() {
@@ -280,7 +295,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertTrue(blocked.listener().isDone());
         assertFalse(driverContext.hasPendingAsyncActions());
         assertThat(sink.failure(), nullValue());
-        assertThat(writer.stats(), equalTo(new IntoStats(2, 2)));
+        assertThat(writer.stats(), equalTo(noFailures(2, 2)));
     }
 
     public void testCloseAfterFinishKeepsTheAsyncActionUntilBulksSettle() {
@@ -293,15 +308,14 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testCloseWithoutFinishDropsRowsThatWereNotSent() {
-        int inFlight = IntoPageWriter.POLICY.maxBulksInFlight();
-        for (int i = 0; i < inFlight + 1; i++) {
+        for (int i = 0; i < IN_FLIGHT + 1; i++) {
             writer.consume(widePage());
         }
-        assertThat(client.bulks, hasSize(inFlight));
+        assertThat(client.bulks, hasSize(IN_FLIGHT));
 
         // A cancelled or failed driver closes without finish(): the page held back for lack of capacity must not be written afterwards.
         writer.close();
-        for (int i = 0; i < inFlight; i++) {
+        for (int i = 0; i < IN_FLIGHT; i++) {
             client.answer(CREATED);
         }
         assertThat(client.bulks, empty());
@@ -324,8 +338,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testCloseAfterFailureReleasesTheAsyncAction() {
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
-        var exactWriter = IntoPageWriter.Factory.createFactory(bulks(), client, driverContext.breaker(), DEST, List.of(column), INDEX)
-            .create(driverContext);
+        var exactWriter = newSink(driverContext.breaker(), List.of(column)).create(driverContext);
         expectThrows(EsqlIllegalArgumentException.class, () -> {
             try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
                 values.appendLong(NumericUtils.asLongUnsigned(BigInteger.TWO.pow(63).add(BigInteger.ONE)));
@@ -359,6 +372,142 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(client.bulks, empty());
     }
 
+    public void testKeepGoingCountsRefusedRowsAndKeepsWriting() {
+        keepGoingSink();
+        writer.consume(page("ok", "bad", "ok"));
+        client.answer(CREATED, REFUSED, CREATED);
+        assertThat(sink.failure(), nullValue());
+
+        writer.consume(page("later"));
+        client.answer(CREATED);
+        writer.finish();
+
+        assertTrue(writer.isFinished());
+        assertThat(writer.failure(), nullValue());
+        assertThat(writer.stats(), equalTo(new IntoStats(4, 3, 1, List.of("[400] mapper_parsing_exception[1]"))));
+    }
+
+    public void testKeepGoingCapsFailureDetailsKeepingTheFirstOnes() {
+        keepGoingSink();
+        int refused = IntoStats.MAX_FAILURE_DETAILS + between(1, 10);
+        String[] hosts = new String[refused];
+        Arrays.fill(hosts, "bad");
+        writer.consume(page(hosts));
+        IntoTestUtils.Outcome[] outcomes = new IntoTestUtils.Outcome[refused];
+        Arrays.fill(outcomes, REFUSED);
+        client.answer(outcomes);
+        writer.finish();
+
+        IntoStats stats = writer.stats();
+        assertThat(stats.total(), equalTo((long) refused));
+        assertThat(stats.failures(), equalTo((long) refused));
+        assertThat(stats.created(), equalTo(0L));
+        assertThat(
+            stats.failureDetails(),
+            equalTo(IntStream.range(0, IntoStats.MAX_FAILURE_DETAILS).mapToObj(i -> "[400] mapper_parsing_exception[" + i + "]").toList())
+        );
+    }
+
+    public void testKeepGoingDetailFallsBackToTheExceptionNameWithoutAMessage() {
+        keepGoingSink();
+        writer.consume(page("bad"));
+        client.answer(REFUSED_WITHOUT_MESSAGE);
+        writer.finish();
+
+        assertThat(writer.stats().failureDetails(), equalTo(List.of("[400] IllegalArgumentException")));
+    }
+
+    public void testKeepGoingTruncatesLongFailureDetails() {
+        keepGoingSink();
+        writer.consume(page("bad"));
+        client.answer(REFUSED_WITH_LONG_MESSAGE);
+        writer.finish();
+
+        List<String> details = writer.stats().failureDetails();
+        assertThat(details, hasSize(1));
+        assertThat(details.getFirst().length(), lessThanOrEqualTo(1024));
+        assertThat(details.getFirst(), startsWith("[400] xxx"));
+    }
+
+    public void testKeepGoingStillFailsOnTransientItemFailure() {
+        keepGoingSink();
+        writer.consume(page("ok", "busy"));
+        client.answer(CREATED, REJECTED);
+        writer.finish();
+
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+        assertThat(failure.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(writer.stats().failures(), equalTo(0L));
+
+        writer.consume(page("dropped"));
+        assertThat(client.bulks, empty());
+    }
+
+    /** A caller who may not write has not sent a row the destination dislikes, so the query fails, whatever {@code keep_going} says. */
+    public void testKeepGoingStillFailsOnForbiddenItem() {
+        keepGoingSink();
+        writer.consume(page("ok", "denied"));
+        client.answer(CREATED, FORBIDDEN);
+        writer.finish();
+
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+        assertThat(failure.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(writer.stats().failures(), equalTo(0L));
+    }
+
+    /** A row that the mapping rejects is a refusal even when its exception has no status of its own, and so is reported as a 500. */
+    public void testKeepGoingCountsAMapperExceptionAsARefusal() {
+        keepGoingSink();
+        writer.consume(page("ok", "clashes"));
+        client.answer(CREATED, MAPPER_REJECTED);
+        writer.finish();
+
+        assertNull(sink.failure());
+        IntoStats stats = writer.stats();
+        assertThat(stats.created(), equalTo(1L));
+        assertThat(stats.failures(), equalTo(1L));
+        assertThat(stats.failureDetails(), hasSize(1));
+        assertThat(stats.failureDetails().getFirst(), startsWith("[500] Pass-through source [a] has a conflicting param"));
+    }
+
+    /** The mapping update can be handled by another node, so the rejection arrives in a transport exception to look through. */
+    public void testKeepGoingCountsARemoteMapperExceptionAsARefusalWithoutTheTransportHop() {
+        keepGoingSink();
+        writer.consume(page("ok", "clashes"));
+        client.answer(CREATED, REMOTE_MAPPER_REJECTED);
+        writer.finish();
+
+        assertNull(sink.failure());
+        IntoStats stats = writer.stats();
+        assertThat(stats.created(), equalTo(1L));
+        assertThat(stats.failures(), equalTo(1L));
+        assertThat(
+            stats.failureDetails(),
+            equalTo(List.of("[500] Pass-through source [a] has a conflicting param [priority=1] with source [b]"))
+        );
+    }
+
+    public void testKeepGoingStillFailsOnServerErrorItem() {
+        keepGoingSink();
+        writer.consume(page("ok", "broken"));
+        client.answer(CREATED, FAILED);
+        writer.finish();
+
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+        assertThat(failure.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(writer.stats().failures(), equalTo(0L));
+    }
+
+    public void testKeepGoingStillFailsOnWholeBulkFailure() {
+        keepGoingSink();
+        writer.consume(page("h1"));
+        Exception rejected = new EsRejectedExecutionException("rejected");
+        client.fail(rejected);
+        writer.finish();
+
+        assertThat(writer.failure(), sameInstance(rejected));
+    }
+
     public void testWholeBulkFailureIsRecordedAndSettles() {
         writer.consume(page("h1"));
         Exception rejected = new EsRejectedExecutionException("rejected");
@@ -370,20 +519,49 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertFalse(driverContext.hasPendingAsyncActions());
     }
 
+    public void testDestinationNotFoundIsNotMistakenForMissingSourceShard() {
+        writer.consume(page("h1"));
+        client.fail(new IndexNotFoundException("dst"));
+        writer.finish();
+
+        assertFalse(TransportActions.isShardNotAvailableException(sink.failure()));
+    }
+
     public void testEmptyPageSendsNothing() {
         writer.consume(page());
         writer.finish();
 
         assertThat(client.bulks, empty());
         assertTrue(writer.isFinished());
-        assertThat(writer.stats(), equalTo(new IntoStats(0, 0)));
+        assertThat(writer.stats(), equalTo(noFailures(0, 0)));
+    }
+
+    private IntoPageWriter.Factory newSink(CircuitBreaker breaker) {
+        return newSink(breaker, COLUMNS, IntoOptions.DEFAULT);
+    }
+
+    private IntoPageWriter.Factory newSink(CircuitBreaker breaker, List<Attribute> columns) {
+        return newSink(breaker, columns, IntoOptions.DEFAULT);
+    }
+
+    private IntoPageWriter.Factory newSink(CircuitBreaker breaker, IntoOptions options) {
+        return newSink(breaker, COLUMNS, options);
+    }
+
+    private IntoPageWriter.Factory newSink(CircuitBreaker breaker, List<Attribute> columns, IntoOptions options) {
+        return IntoPageWriter.Factory.createFactory(bulks(), client, breaker, DEST, columns, INDEX, options);
+    }
+
+    /** Replaces the default {@link #sink} and {@link #writer} with ones that run under {@code keep_going}. */
+    private void keepGoingSink() {
+        sink = newSink(blockFactory.breaker(), IntoOptions.builder().keepGoing(true).build());
+        writer = sink.create(driverContext);
     }
 
     public void testUnsignedLongAboveLongMaxIsRejected() {
         BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
-        var exactWriter = IntoPageWriter.Factory.createFactory(bulks(), client, driverContext.breaker(), DEST, List.of(column), INDEX)
-            .create(driverContext);
+        var exactWriter = newSink(driverContext.breaker(), List.of(column)).create(driverContext);
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
             try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
                 values.appendLong(NumericUtils.asLongUnsigned(big));
@@ -496,7 +674,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void testWritersShareCapacity() {
         IntoPageWriter writerB = sink.create(driverContext);
 
-        for (int i = 0; i < IntoPageWriter.POLICY.maxBulksInFlight() + 1; i++) {
+        for (int i = 0; i < IN_FLIGHT + 1; i++) {
             writer.consume(widePage());
         }
         assertFalse(writer.isBlocked().listener().isDone());
@@ -505,9 +683,9 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client.answer(CREATED);
         assertThat(writer.isBlocked(), equalTo(Operator.NOT_BLOCKED));
         assertThat(writerB.isBlocked(), equalTo(Operator.NOT_BLOCKED));
-        client.answer(CREATED);
-        client.answer(CREATED);
-        client.answer(CREATED);
+        while (client.bulks.isEmpty() == false) {
+            client.answer(CREATED);
+        }
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 

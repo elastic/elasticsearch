@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunc
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -85,6 +86,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFraction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
@@ -138,6 +140,7 @@ import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomEsIndex;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexProperties;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomRemotesWithIndices;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
+import static org.elasticsearch.xpack.esql.plan.logical.IntoSerializationTests.randomIntoOptions;
 import static org.elasticsearch.xpack.esql.plan.physical.LookupJoinExecSerializationTests.randomJoinOnExpression;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomEsField;
 import static org.mockito.Mockito.mock;
@@ -426,9 +429,12 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return JoinTypes.MARK;
         } else if (toBuildClass == HashJoin.class) {
             return JoinTypes.INNER;
-        } else if (toBuildClass == Join.class || toBuildClass == LookupJoin.class || toBuildClass == InlineJoin.class) {
-            return JoinTypes.LEFT;
-        }
+        } else if (toBuildClass == Join.class
+            || toBuildClass == LookupJoin.class
+            || toBuildClass == InlineJoin.class
+            || toBuildClass == SubqueryJoin.class) {
+                return JoinTypes.LEFT;
+            }
         throw new IllegalArgumentException("Unknown join plan node [" + toBuildClass.getName() + "]; no JoinType mapping defined");
     }
 
@@ -522,6 +528,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Grok.Parser.class) {
             // Grok.Parser is a record / final, cannot be mocked
             return Grok.pattern(Source.EMPTY, randomGrokPattern());
+        } else if (argClass == IntoOptions.class) {
+            return randomIntoOptions();
         } else if (argClass == FileList.class) {
             // FileList implementations are package-private; use coordinator sentinel.
             return FileList.UNRESOLVED;
@@ -661,11 +669,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
         if (argClass == SliceSelection.class) {
             // a record, which cannot be mocked
-            return randomFrom(
-                SliceSelection.UNSPECIFIED,
-                SliceSelection.ALL,
-                SliceSelection.of(randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 8)))
-            );
+            return randomFrom(SliceSelection.UNSPECIFIED, SliceSelection.of(randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 8))));
         }
         if (argClass == IndexProperties.class) {
             IndexMode mode = randomFrom(IndexMode.availableModes());

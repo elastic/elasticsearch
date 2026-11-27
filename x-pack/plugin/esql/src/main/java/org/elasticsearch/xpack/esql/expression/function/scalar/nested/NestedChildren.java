@@ -48,6 +48,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
 
 /**
@@ -57,6 +59,8 @@ import java.util.stream.IntStream;
  */
 public final class NestedChildren implements Releasable {
     static final String BREAKER_LABEL = "nested_children";
+
+    static final int PAGE_SIZE = 1024;
 
     /**
      * One shard's filters selecting parents and the children of this nested field, both {@code null} where it is not mapped.
@@ -222,6 +226,8 @@ public final class NestedChildren implements Releasable {
     private final ElementType[] types;
     /** Block 0 of each page the reader gives is the child documents and the child fields follow it. */
     private final int[] fieldsProjection;
+    /** Block 0 of each page {@link #read} loads is the parent positions and the child fields follow it. */
+    private final int[] readProjection;
     @Nullable
     private Buffers buffers;
     private boolean expanding;
@@ -237,6 +243,135 @@ public final class NestedChildren implements Releasable {
         this.reader = reader;
         this.types = types;
         this.fieldsProjection = IntStream.range(1, 1 + types.length).toArray();
+        this.readProjection = IntStream.range(1, 2 + types.length).toArray();
+    }
+
+    /**
+     * Reads the children of the parents at the positions of {@code parents} that are {@code included} and hands them, in
+     * parent order, to {@code consumer} in pages of at most {@link #PAGE_SIZE} children. Block 0 of each page is an
+     * {@link IntVector} of each child's parent position, and the child fields follow it. Each page is released once
+     * {@code consumer} returns.
+     */
+    void read(DocVector parents, IntPredicate included, Consumer<Page> consumer) {
+        read(parents, included, position -> true, consumer);
+    }
+
+    /**
+     * As {@link #read(DocVector, IntPredicate, Consumer)}, but a parent's remaining children are skipped once
+     * {@code keepReading} says its position needs no more. It is asked after each page is consumed, so a parent whose
+     * children fit in one page is read whole.
+     */
+    void read(DocVector parents, IntPredicate included, IntPredicate keepReading, Consumer<Page> consumer) {
+        parents.ensureAttached("NESTED");
+        int[] shardIds = new int[PAGE_SIZE];
+        int[] segments = new int[PAGE_SIZE];
+        int[] docs = new int[PAGE_SIZE];
+        int[] positions = new int[PAGE_SIZE];
+        int count = 0;
+        try {
+            for (int p = 0; p < parents.getPositionCount(); p++) {
+                if (included.test(p) == false) {
+                    continue;
+                }
+                int shardId = parents.shards().getInt(p);
+                Shard shard = shards.get(shardId);
+                int segment = parents.segments().getInt(p);
+                int parent = parents.docs().getInt(p);
+                if (shard.children() == null || parent == 0) {
+                    continue;
+                }
+                LeafReaderContext leaf = shard.reader().leaves().get(segment);
+                BitSet children = shard.children().getBitSet(leaf);
+                if (children == null) {
+                    continue;
+                }
+                int first = shard.parents().getBitSet(leaf).prevSetBit(parent - 1) + 1;
+                int child = children.nextSetBit(first);
+                while (child < parent && keepReading.test(p)) {
+                    shardIds[count] = shardId;
+                    segments[count] = segment;
+                    docs[count] = child;
+                    positions[count] = p;
+                    if (++count == PAGE_SIZE) {
+                        emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), consumer);
+                        count = 0;
+                    }
+                    child = children.nextSetBit(child + 1);
+                }
+            }
+            if (count > 0) {
+                emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), consumer);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private void emit(
+        int[] shardIds,
+        int[] segments,
+        int[] docs,
+        int[] positions,
+        int count,
+        boolean mayContainDuplicates,
+        Consumer<Page> consumer
+    ) {
+        context.checkForEarlyTermination();
+        BlockFactory blockFactory = context.blockFactory();
+        IntVector shardVector = null;
+        IntVector segmentVector = null;
+        IntVector docVector = null;
+        IntVector positionVector = null;
+        DocVector children = null;
+        try {
+            shardVector = blockFactory.newIntArrayVector(Arrays.copyOf(shardIds, count), count);
+            segmentVector = blockFactory.newIntArrayVector(Arrays.copyOf(segments, count), count);
+            docVector = blockFactory.newIntArrayVector(Arrays.copyOf(docs, count), count);
+            positionVector = blockFactory.newIntArrayVector(Arrays.copyOf(positions, count), count);
+            // The parent page holds the shards while its children are read. A parent repeated by a join or an expansion
+            // repeats its children.
+            children = new DocVector(
+                AlwaysReferencedIndexedByShardId.INSTANCE,
+                shardVector,
+                segmentVector,
+                docVector,
+                DocVector.config().mayContainDuplicates(mayContainDuplicates)
+            );
+            shardVector = segmentVector = docVector = null;
+            Page input = new Page(children.asBlock(), positionVector.asBlock());
+            children = null;
+            positionVector = null;
+            if (reader == null) {
+                Page counted;
+                try {
+                    counted = input.projectBlocks(readProjection);
+                } finally {
+                    input.releaseBlocks();
+                }
+                accept(counted, consumer);
+                return;
+            }
+            reader.addInput(input);
+            for (Page out = reader.getOutput(); out != null; out = reader.getOutput()) {
+                Page loaded;
+                try {
+                    loaded = out.projectBlocks(readProjection);
+                } finally {
+                    out.releaseBlocks();
+                }
+                accept(loaded, consumer);
+            }
+        } finally {
+            Releasables.closeExpectNoException(shardVector, segmentVector, docVector, positionVector, children);
+        }
+    }
+
+    private static void accept(Page page, Consumer<Page> consumer) {
+        try {
+            consumer.accept(page);
+        } finally {
+            page.releaseBlocks();
+        }
     }
 
     /**

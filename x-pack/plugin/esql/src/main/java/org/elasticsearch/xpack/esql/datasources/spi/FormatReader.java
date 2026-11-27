@@ -506,8 +506,7 @@ public interface FormatReader extends Closeable {
      * #readsHeaderLine} is false: headerless text, NDJSON, columnar formats). Passed to the splits of a file through
      * {@link FormatReadContext#fileHeaderColumns}, so that none reads it from its own bytes.
      * <p>
-     * Must abort its stream ({@link StorageObject#abortStream}) rather than close it: a provider that drains the
-     * remaining bytes on close would transfer the whole object.
+     * Must close the sample stream when done; the leaf decides drain vs drop.
      *
      * @param file the whole file, positioned at its first byte (not a range of it)
      */

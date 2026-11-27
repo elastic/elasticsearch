@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cache.reader;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -44,8 +46,10 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.MergeBlob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
@@ -61,6 +65,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -73,6 +78,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.LongConsumer;
@@ -326,7 +332,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         cacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             (term) -> indexingDirectory.getBlobStoreCacheDirectory().getBlobContainer(term),
-                            virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()).bccBlob(),
+                            virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()).blob(),
                             new MutableObjectStoreUploadTracker() {
                                 @Override
                                 public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
@@ -498,6 +504,76 @@ public class CacheBlobReaderTests extends ESTestCase {
             assertThat(node.getBlobReads(), greaterThan(blobReadsBefore));
             assertArrayEquals(BytesReference.toBytes(expected.bytes()), BytesReference.toBytes(actual.bytes()));
         }
+    }
+
+    public void testMergeBlobIsAlwaysReadFromTheObjectStore() throws Exception {
+        final var primaryTerm = randomLongBetween(1L, 10L);
+        try (var node = new FakeVBCCStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            final var mergeBlob = new MergeBlob(MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH)), primaryTerm);
+            final byte[] content = randomByteArrayOfLength(between(1, 2 * node.sharedCacheService.getRegionSize()));
+            node.indexingDirectory.getBlobStoreCacheDirectory()
+                .getBlobContainer(primaryTerm)
+                .writeBlob(OperationPurpose.INDICES, mergeBlob.blobName(), new BytesArray(content), true);
+
+            final int position = between(0, content.length - 1);
+            final int length = between(1, content.length - position);
+
+            // Through the service, with a tracker that must not be consulted and no bytes allowed from the indexing shard
+            final var bytesReadFromObjectStore = new AtomicLong();
+            final var neverConsultedTracker = new MutableObjectStoreUploadTracker() {
+                @Override
+                public UploadInfo getLatestUploadInfo(PrimaryTermAndGeneration bccTermAndGen) {
+                    throw new AssertionError("the upload tracker must not be consulted for a merge blob");
+                }
+
+                @Override
+                public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
+                    throw new AssertionError("unexpected call");
+                }
+
+                @Override
+                public void updateLatestCommitInfo(PrimaryTermAndGeneration ccTermAndGen, String nodeId) {
+                    throw new AssertionError("unexpected call");
+                }
+            };
+            final int blobReadsBeforeService = node.getBlobReads();
+            final var serviceReader = node.cacheBlobReaderService.getCacheBlobReader(
+                node.shardId,
+                term -> node.searchDirectory.getBlobContainer(term),
+                mergeBlob,
+                neverConsultedTracker,
+                bytesReadFromObjectStore::addAndGet,
+                bytesFromIndexing -> fail("a merge blob must never be read from the indexing shard"),
+                BlobCacheMetrics.CachePopulationReason.CacheMiss,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                mergeBlob.blobName(),
+                false
+            );
+            assertThat(serviceReader.executorName(), equalTo(SHARD_READ_THREAD_POOL));
+            assertThat(readRange(serviceReader, position, length), equalTo(Arrays.copyOfRange(content, position, position + length)));
+            assertThat(bytesReadFromObjectStore.get(), equalTo((long) length));
+            assertThat(node.getBlobReads(), greaterThan(blobReadsBeforeService));
+
+            // Through the search directory, which is what reads use: its tracker has no uploaded BCC, a BCC would be read from indexing
+            final int blobReadsBeforeDirectory = node.getBlobReads();
+            final var directoryReader = node.searchDirectory.getCacheBlobReader(mergeBlob.blobName(), mergeBlob);
+            assertThat(readRange(directoryReader, 0, content.length), equalTo(content));
+            assertThat(node.getBlobReads(), greaterThan(blobReadsBeforeDirectory));
+        }
+    }
+
+    private static byte[] readRange(CacheBlobReader reader, long position, int length) {
+        final var future = new PlainActionFuture<byte[]>();
+        // the stream is read and closed in the callback so that a late response can never leak it, and the future is only completed
+        // once the stream has been successfully closed
+        reader.getRangeInputStream(position, length, future.delegateFailureAndWrap((l, in) -> {
+            final byte[] bytes;
+            try (in) {
+                bytes = in.readNBytes(length);
+            }
+            l.onResponse(bytes);
+        }));
+        return safeGet(future);
     }
 
     public void testCacheBlobReaderFetchFromIndexingAndSwitchToBlobStore() throws Exception {
@@ -782,7 +858,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             );
             final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(
                 internalLocation.getKey(),
-                internalLocation.getValue().bccBlob()
+                internalLocation.getValue().blob()
             );
             final var cacheFileReader = new CacheFileReader(
                 cacheFile,
@@ -846,7 +922,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
-                        BccBlob bccBlob,
+                        Blob blob,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer totalBytesReadFromObjectStore,
                         LongConsumer totalBytesReadFromIndexing,
@@ -858,7 +934,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             blobContainer,
-                            bccBlob,
+                            blob,
                             objectStoreUploadTracker,
                             totalBytesReadFromObjectStore,
                             totalBytesReadFromIndexing,

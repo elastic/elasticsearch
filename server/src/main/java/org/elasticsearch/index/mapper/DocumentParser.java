@@ -965,6 +965,21 @@ public final class DocumentParser {
         String fieldPath = context.path().pathAsText(fieldName);
         MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
         if (fieldType != null) {
+            if (context.indexSettings().getMode().isStrictColumnar() && fieldType instanceof AbstractScriptFieldType<?> == false) {
+                // The field type of this path is not a runtime field, but no mapper that is reachable from the current parent exists
+                // for it. This happens when the parent has subobjects disabled and a dotted key addresses a field of a nested object,
+                // including a key of a flattened field (for example n.f.key). Silently dropping the
+                // value is not acceptable in strict columnar index modes, so we reject the document. This is because with other index
+                // modes these dotted field names would still be part of source or ignored source and subobjects option is always disabled.
+                throw new DocumentParsingException(
+                    XContentLocation.UNKNOWN,
+                    "field ["
+                        + fieldPath
+                        + "] can not be indexed as a leaf field of ["
+                        + context.parent().fullPath()
+                        + "]: it is mapped as part of a nested or flattened object. Use object notation instead of a dotted field name."
+                );
+            }
             // we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
             assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
             return noopFieldMapper(fieldPath);

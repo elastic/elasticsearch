@@ -228,6 +228,8 @@ public final class RestoreService implements ClusterStateApplier {
 
     private final RestoreProjectCustomUpdater customUpdater;
 
+    private final RestoreMetrics restoreMetrics;
+
     public RestoreService(
         ClusterService clusterService,
         RepositoriesService repositoriesService,
@@ -242,7 +244,8 @@ public final class RestoreService implements ClusterStateApplier {
         boolean deserializeProjectMetadata,
         IndexMetadataRestoreTransformer indexMetadataRestoreTransformer,
         FeatureService featureService,
-        RestoreProjectCustomUpdater restoreProjectCustomUpdater
+        RestoreProjectCustomUpdater restoreProjectCustomUpdater,
+        RestoreMetrics restoreMetrics
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -250,6 +253,7 @@ public final class RestoreService implements ClusterStateApplier {
         this.createIndexService = createIndexService;
         this.indexMetadataVerifier = indexMetadataVerifier;
         this.deserializeProjectMetadata = deserializeProjectMetadata;
+        this.restoreMetrics = Objects.requireNonNull(restoreMetrics);
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
             clusterService.addStateApplier(this);
         }
@@ -344,6 +348,18 @@ public final class RestoreService implements ClusterStateApplier {
         final ActionListener<RestoreCompletionResponse> listener,
         final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
     ) {
+        restoreSnapshot(projectId, request, restoreUUID, reportShardRestoring, /* requireDataStreamTemplates = */ false, listener, updater);
+    }
+
+    public void restoreSnapshot(
+        final ProjectId projectId,
+        final RestoreSnapshotRequest request,
+        final String restoreUUID,
+        final boolean reportShardRestoring,
+        final boolean requireDataStreamTemplates,
+        final ActionListener<RestoreCompletionResponse> listener,
+        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
+    ) {
         Objects.requireNonNull(restoreUUID);
         if (SnapshotRecoverySource.NO_API_RESTORE_UUID.equals(restoreUUID)) {
             throw new IllegalArgumentException(
@@ -418,6 +434,7 @@ public final class RestoreService implements ClusterStateApplier {
                     restoreUUID,
                     updater,
                     reportShardRestoring,
+                    requireDataStreamTemplates,
                     responseListener
                 )
             )
@@ -448,6 +465,7 @@ public final class RestoreService implements ClusterStateApplier {
      *                       as the restore operation
      * @param reportShardRestoring whether requests that hit a shard of this restore should fail with {@link ShardRestoringException};
      *                             see {@link RestoreInProgress.Entry#reportShardRestoring()}
+     * @param requireDataStreamTemplates whether restore fails if the name that a data stream is restored to has no matching index template
      * @param listener       listener to resolve once restore has been started
      * @throws IOException   on failure to load metadata from the repository
      */
@@ -459,6 +477,7 @@ public final class RestoreService implements ClusterStateApplier {
         String restoreUUID,
         BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
         boolean reportShardRestoring,
+        boolean requireDataStreamTemplates,
         ActionListener<RestoreCompletionResponse> listener
     ) throws IOException {
         assert Repository.assertSnapshotMetaThread();
@@ -528,7 +547,15 @@ public final class RestoreService implements ClusterStateApplier {
         Map<String, DataStream> dataStreamsToRestore = result.v1();
         Map<String, DataStreamAlias> dataStreamAliasesToRestore = result.v2();
 
-        validateDataStreamTemplatesExistAndWarnIfMissing(dataStreamsToRestore, snapshotInfo, globalMetadata);
+        // A restore that requires the templates fails instead of warning about a data stream that has none
+        if (requireDataStreamTemplates == false) {
+            validateDataStreamTemplatesExistAndWarnIfMissing(dataStreamsToRestore, snapshotInfo, globalMetadata);
+        } else if (request.includeGlobalState()) {
+            // Restoring the global state replaces the templates of the project with those of the snapshot, which do not change,
+            // so they can be checked before the restore cluster state update task starts.
+            // Otherwise, the restore checks the templates that exist when it runs, see RestoreSnapshotStateTask#execute
+            ensureDataStreamTemplatesExist(dataStreamsToRestore.values(), request, globalMetadata.getProject(projectId));
+        }
         ensureNoDataStreamMatchesSystemIndexPattern(dataStreamsToRestore.values(), request, systemIndices, snapshot);
 
         // Remove the data streams from the list of requested indices
@@ -709,6 +736,7 @@ public final class RestoreService implements ClusterStateApplier {
                 clusterService.getSettings(),
                 restoreUUID,
                 reportShardRestoring,
+                requireDataStreamTemplates,
                 existingDataStreamTargets,
                 openIndexTargets
             )
@@ -840,6 +868,7 @@ public final class RestoreService implements ClusterStateApplier {
                 clusterService.getSettings(),
                 restoreUUID,
                 reportShardRestoring,
+                /* requireDataStreamTemplates = */ false,
                 List.of(),
                 openIndexTargets
             )
@@ -1021,10 +1050,37 @@ public final class RestoreService implements ClusterStateApplier {
                 clusterService.getSettings(),
                 restoreUUID,
                 reportShardRestoring,
+                // the data streams that are restored over already have to have a matching template, see
+                // validateAndDeleteExistingDataStreams
+                /* requireDataStreamTemplates = */ false,
                 List.copyOf(targets),
                 Map.of()
             )
         );
+    }
+
+    /**
+     * Fails if the name that a data stream is restored to has no matching index template
+     * with a data stream configuration in {@code project}.
+     * System data streams are not checked, they have no templates.
+     *
+     * @throws MissingDataStreamTemplateException for the first data stream that has no template
+     */
+    private static void ensureDataStreamTemplatesExist(
+        Collection<DataStream> dataStreams,
+        RestoreSnapshotRequest request,
+        ProjectMetadata project
+    ) {
+        for (DataStream dataStream : dataStreams) {
+            if (dataStream.isSystem() == false) {
+                final String destination = renameDataStream(dataStream.getName(), request);
+                try {
+                    MetadataCreateDataStreamService.lookupTemplateForDataStream(destination, project);
+                } catch (IllegalArgumentException e) {
+                    throw new MissingDataStreamTemplateException(destination, e);
+                }
+            }
+        }
     }
 
     private void validateDataStreamTemplatesExistAndWarnIfMissing(
@@ -1402,7 +1458,10 @@ public final class RestoreService implements ClusterStateApplier {
                     if (shardsBuilder == null) {
                         shardsBuilder = ImmutableOpenMap.builder(entry.shards());
                     }
-                    shardsBuilder.put(shardId, new ShardRestoreStatus(null, RestoreInProgress.State.FAILURE, "index was deleted"));
+                    shardsBuilder.put(
+                        shardId,
+                        ShardRestoreStatus.failed(null, RestoreInProgress.ShardRestoreFailureReason.INDEX_DELETED, "index was deleted")
+                    );
                 }
             }
             if (shardsBuilder != null) {
@@ -1430,6 +1489,28 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     public record RestoreCompletionResponse(String uuid, Snapshot snapshot, RestoreInfo restoreInfo) {}
+
+    /**
+     * The failure of a restore that requires index templates for its data streams (see
+     * {@link #restoreSnapshot(ProjectId, RestoreSnapshotRequest, String, boolean, boolean, ActionListener, BiConsumer)}) when no
+     * index template with a data stream configuration matches the name that one of them is restored to. It is an
+     * {@link IllegalArgumentException} with the message of creating that data stream, so that it is the same bad request, which lets
+     * the caller tell it apart from the other failures of a restore by its type and not by its message.
+     */
+    public static final class MissingDataStreamTemplateException extends IllegalArgumentException {
+
+        private final String dataStream;
+
+        public MissingDataStreamTemplateException(String dataStream, IllegalArgumentException cause) {
+            super(cause.getMessage(), cause);
+            this.dataStream = dataStream;
+        }
+
+        /** The name that the data stream is restored to, after the renaming of the restore, which no index template matches. */
+        public String dataStream() {
+            return dataStream;
+        }
+    }
 
     public static class RestoreInProgressUpdater implements RoutingChangesObserver {
         // Map of RestoreUUID to a of changes to the shards' restore statuses
@@ -1460,9 +1541,9 @@ public final class RestoreService implements ClusterStateApplier {
                     if (unassignedInfo.failure() != null && Lucene.isCorruptionException(unassignedInfo.failure().getCause())) {
                         changes(recoverySource).put(
                             failedShard.shardId(),
-                            new ShardRestoreStatus(
+                            ShardRestoreStatus.failed(
                                 failedShard.currentNodeId(),
-                                RestoreInProgress.State.FAILURE,
+                                RestoreInProgress.ShardRestoreFailureReason.CORRUPTION,
                                 unassignedInfo.failure().getCause().getMessage()
                             )
                         );
@@ -1478,9 +1559,9 @@ public final class RestoreService implements ClusterStateApplier {
                 && initializedShard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT) {
                 changes(unassignedShard.recoverySource()).put(
                     unassignedShard.shardId(),
-                    new ShardRestoreStatus(
+                    ShardRestoreStatus.failed(
                         null,
-                        RestoreInProgress.State.FAILURE,
+                        RestoreInProgress.ShardRestoreFailureReason.RECOVERY_SOURCE_CHANGED,
                         "recovery source type changed from snapshot to " + initializedShard.recoverySource()
                     )
                 );
@@ -1493,9 +1574,15 @@ public final class RestoreService implements ClusterStateApplier {
             if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
                 if (newUnassignedInfo.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
                     String reason = "shard could not be allocated to any of the nodes";
-                    changes(recoverySource).put(
+                    // A shard whose last allowed attempt failed with a more specific reason, such as corruption, in this same allocation is
+                    // then refused by every node because its retries are used up. Keep the specific reason rather than this generic one.
+                    changes(recoverySource).putIfAbsent(
                         unassignedShard.shardId(),
-                        new ShardRestoreStatus(unassignedShard.currentNodeId(), RestoreInProgress.State.FAILURE, reason)
+                        ShardRestoreStatus.failed(
+                            unassignedShard.currentNodeId(),
+                            RestoreInProgress.ShardRestoreFailureReason.NO_ELIGIBLE_NODE,
+                            reason
+                        )
                     );
                 }
             }
@@ -2083,8 +2170,30 @@ public final class RestoreService implements ClusterStateApplier {
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 cleanupInProgress = false;
+                recordRemovedRestores(oldState, newState);
             }
         });
+    }
+
+    /**
+     * Records each completed restore that the published cleanup removed from the cluster state. A restore whose completion the
+     * {@link RestoreProjectCustomUpdater} failed to record is kept for the next cleanup, and only recorded once it is actually removed.
+     * <p>
+     * Recording only after publication means a restore is never counted twice, but it can be missed: if the master publishes the state
+     * that removes the entry and then fails before this runs, no master records it, because the next master never sees the entry. The
+     * completion counters can therefore undercount slightly across a change of master. Shard outcomes are also only counted here, when
+     * the whole restore completes, so failures of a long-running restore are not visible in the counters until it finishes; the gauges
+     * cover a restore while it runs.
+     * <p>
+     * Package-private for unit tests.
+     */
+    void recordRemovedRestores(ClusterState oldState, ClusterState newState) {
+        final RestoreInProgress remaining = RestoreInProgress.get(newState);
+        for (RestoreInProgress.Entry entry : RestoreInProgress.get(oldState)) {
+            if (entry.state().completed() && remaining.get(entry.uuid()) == null) {
+                restoreMetrics.restoreCompleted(entry);
+            }
+        }
     }
 
     @Override
@@ -2227,6 +2336,11 @@ public final class RestoreService implements ClusterStateApplier {
         private final boolean reportShardRestoring;
 
         /**
+         * Whether the name that every data stream is restored to must have a matching index template with a data stream configuration.
+         */
+        private final boolean requireDataStreamTemplates;
+
+        /**
          * The restore request that triggered this restore task.
          */
         private final RestoreSnapshotRequest request;
@@ -2289,6 +2403,7 @@ public final class RestoreService implements ClusterStateApplier {
             Settings settings,
             String restoreUUID,
             boolean reportShardRestoring,
+            boolean requireDataStreamTemplates,
             Collection<DataStreamRestoreTarget> existingDataStreamTargets,
             Map<String, Index> openIndexTargets
         ) {
@@ -2305,6 +2420,7 @@ public final class RestoreService implements ClusterStateApplier {
             this.listener = new AllocationActionListener<>(listener, threadPool.getThreadContext());
             this.restoreUUID = restoreUUID;
             this.reportShardRestoring = reportShardRestoring;
+            this.requireDataStreamTemplates = requireDataStreamTemplates;
             this.existingDataStreamTargets = existingDataStreamTargets;
             this.openIndexTargets = openIndexTargets;
         }
@@ -2334,6 +2450,12 @@ public final class RestoreService implements ClusterStateApplier {
 
             // Check if the snapshot to restore is currently being deleted
             ensureSnapshotNotDeleted(currentState);
+
+            // With the global state the templates of the snapshot replace the current state's,
+            // and were checked before this task was submitted
+            if (requireDataStreamTemplates && request.includeGlobalState() == false) {
+                ensureDataStreamTemplatesExist(dataStreamsToRestore, request, currentState.metadata().getProject(projectId));
+            }
 
             // Deleting a data stream removes it from its aliases, so the aliases that the data streams that are restored over are in have
             // to be taken from the project as it is before they are deleted.
@@ -2498,7 +2620,7 @@ public final class RestoreService implements ClusterStateApplier {
                     shards.put(
                         new ShardId(renamedIndex, shard),
                         ignoreShards.contains(shard)
-                            ? new ShardRestoreStatus(localNodeId, RestoreInProgress.State.FAILURE)
+                            ? ShardRestoreStatus.failed(localNodeId, RestoreInProgress.ShardRestoreFailureReason.FAILED_IN_SNAPSHOT, null)
                             : new ShardRestoreStatus(localNodeId)
                     );
                 }
@@ -2812,6 +2934,11 @@ public final class RestoreService implements ClusterStateApplier {
                 snapshot,
                 snapshotInfo.indices()
             );
+            // a restore with no shards to restore, such as one of only the global state, has no entry and is not counted
+            final RestoreInProgress.Entry entry = RestoreInProgress.get(newState).get(restoreUUID);
+            if (entry != null && RestoreInProgress.get(oldState).get(restoreUUID) == null) {
+                restoreMetrics.restoreStarted(entry);
+            }
             listener.clusterStateUpdate().onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
         }
     }

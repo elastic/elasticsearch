@@ -13,7 +13,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
+import org.elasticsearch.simdjson.Utf8Value;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Unit tests for {@link EscfColumnBuilder}, covering both {@link CollisionPolicy}s: the
@@ -76,6 +79,82 @@ public class EscfColumnBuilderTests extends ESTestCase {
         EscfColumn col = EscfColumn.from(data);
         assertEquals("alpha", col.getStringValue(0).string());
         assertEquals("gamma", col.getStringValue(1).string());
+    }
+
+    public void testUtf8ValueStringKind() {
+        EscfColumnBuilder b = builder();
+        b.addUtf8String(utf8Value("alpha"));
+        b.addAbsent();
+        b.addUtf8String(utf8Value(""));
+        b.addUtf8String(utf8Value("gamma"));
+        EscfColumnData data = b.finish(4);
+        assertEquals(EscfColumnKind.STRING, data.kind());
+        EscfColumn col = EscfColumn.from(data);
+        assertEquals("alpha", col.getStringValue(0).string());
+        assertTrue(col.isAbsent(1));
+        assertEquals("", col.getStringValue(2).string());
+        assertEquals("gamma", col.getStringValue(3).string());
+    }
+
+    /** Enough strings to fill several stream pages, so that some of them do not fit in the page they start in. */
+    public void testUtf8ValueStringsAcrossPages() {
+        EscfColumnBuilder b = builder();
+        List<String> expected = new ArrayList<>();
+        int totalBytes = 0;
+        while (totalBytes < 5 * PageCacheRecycler.BYTE_PAGE_SIZE) {
+            String value = randomRealisticUnicodeOfLengthBetween(0, 3000);
+            expected.add(value);
+            totalBytes += value.getBytes(StandardCharsets.UTF_8).length;
+            b.addUtf8String(utf8Value(value));
+        }
+        EscfColumnData data = b.finish(expected.size());
+        assertEquals(EscfColumnKind.STRING, data.kind());
+        EscfColumn col = EscfColumn.from(data);
+        for (int i = 0; i < expected.size(); i++) {
+            assertEquals("row " + i, expected.get(i), col.getStringValue(i).string());
+        }
+    }
+
+    /**
+     * A value larger than a page always goes through the scratch buffer. Written as raw bytes, the same value leaves the
+     * same pages and offsets but no scratch buffer, so the difference in memory is the scratch buffer alone.
+     */
+    public void testRamBytesUsedCountsStringScratch() {
+        String value = randomAlphaOfLength(2 * PageCacheRecycler.BYTE_PAGE_SIZE);
+        try (EscfColumnBuilder viaScratch = builder(); EscfColumnBuilder direct = builder()) {
+            viaScratch.addUtf8String(utf8Value(value));
+            direct.addString(utf8(value));
+            assertThat(viaScratch.ramBytesUsed() - direct.ramBytesUsed(), greaterThanOrEqualTo((long) value.length()));
+        }
+    }
+
+    public void testUtf8ValuePromotesToUnion() {
+        EscfColumnBuilder b = builder();
+        b.addLong(7);
+        b.addUtf8String(utf8Value("text"));
+        b.addDouble(2.5);
+        b.addUtf8String(utf8Value("more"));
+        EscfColumnData data = b.finish(4);
+        assertEquals(EscfColumnKind.UNION, data.kind());
+        EscfColumn col = EscfColumn.from(data);
+        assertEquals(7L, col.getLongValue(0));
+        assertEquals(SourceValueType.STRING, col.getTypeByte(1));
+        assertEquals("text", col.getStringValue(1).string());
+        assertEquals(2.5, col.getDoubleValue(2), 0.0);
+        assertEquals(SourceValueType.STRING, col.getTypeByte(3));
+        assertEquals("more", col.getStringValue(3).string());
+    }
+
+    public void testUtf8ValueMergesIntoStringArrayColumn() {
+        EscfColumnBuilder b = mergeBuilder();
+        b.setString(0, bytesRef("x"));
+        b.setString(0, bytesRef("y")); // second element for doc 0 → ARRAY
+        b.addUtf8String(utf8Value("z"));
+        EscfColumnData data = b.finish(2);
+        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertEquals(2, elemCount(data, 0));
+        assertEquals(1, elemCount(data, 1));
+        assertEquals("z", readArrayElem(data, 1, 0));
     }
 
     public void testBoolKind() {
@@ -1433,5 +1512,13 @@ public class EscfColumnBuilderTests extends ESTestCase {
     private static XContentString.UTF8Bytes utf8(String s) {
         byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
         return new XContentString.UTF8Bytes(bytes, 0, bytes.length);
+    }
+
+    /** A value in the middle of a larger array, so that the offset is exercised. */
+    private static Utf8Value utf8Value(String s) {
+        byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
+        byte[] padded = new byte[bytes.length + 7];
+        System.arraycopy(bytes, 0, padded, 3, bytes.length);
+        return Utf8Value.of(padded, 3, bytes.length);
     }
 }

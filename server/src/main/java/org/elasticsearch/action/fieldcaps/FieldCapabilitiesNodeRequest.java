@@ -40,6 +40,7 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
     private final long nowInMillis;
     private final Map<String, Object> runtimeFields;
     private final boolean includeEmptyFields;
+    private final boolean includeTimeSeriesStats;
 
     FieldCapabilitiesNodeRequest(StreamInput in) throws IOException {
         super(in);
@@ -52,6 +53,7 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
         nowInMillis = in.readLong();
         runtimeFields = in.readGenericMap();
         includeEmptyFields = in.readBoolean();
+        includeTimeSeriesStats = in.getTransportVersion().supports(FieldCapabilitiesIndexResponse.TIME_SERIES_STATS) && in.readBoolean();
     }
 
     FieldCapabilitiesNodeRequest(
@@ -63,7 +65,8 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
         QueryBuilder indexFilter,
         long nowInMillis,
         Map<String, Object> runtimeFields,
-        boolean includeEmptyFields
+        boolean includeEmptyFields,
+        boolean includeTimeSeriesStats
     ) {
         this.shardIds = Objects.requireNonNull(shardIds);
         this.fields = fields;
@@ -74,6 +77,7 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
         this.nowInMillis = nowInMillis;
         this.runtimeFields = runtimeFields;
         this.includeEmptyFields = includeEmptyFields;
+        this.includeTimeSeriesStats = includeTimeSeriesStats;
     }
 
     public String[] fields() {
@@ -122,6 +126,10 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
         return includeEmptyFields;
     }
 
+    public boolean includeTimeSeriesStats() {
+        return includeTimeSeriesStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -134,6 +142,9 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
         out.writeLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
         out.writeBoolean(includeEmptyFields);
+        if (out.getTransportVersion().supports(FieldCapabilitiesIndexResponse.TIME_SERIES_STATS)) {
+            out.writeBoolean(includeTimeSeriesStats);
+        }
     }
 
     @Override
@@ -190,12 +201,13 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
             && Objects.equals(originalIndices, that.originalIndices)
             && Objects.equals(indexFilter, that.indexFilter)
             && Objects.equals(runtimeFields, that.runtimeFields)
-            && includeEmptyFields == that.includeEmptyFields;
+            && includeEmptyFields == that.includeEmptyFields
+            && includeTimeSeriesStats == that.includeTimeSeriesStats;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields, includeEmptyFields);
+        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields, includeEmptyFields, includeTimeSeriesStats);
         result = 31 * result + shardIds.hashCode();
         result = 31 * result + Arrays.hashCode(fields);
         result = 31 * result + Arrays.hashCode(filters);

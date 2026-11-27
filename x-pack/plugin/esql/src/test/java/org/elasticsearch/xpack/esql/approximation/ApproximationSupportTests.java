@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
@@ -104,13 +105,15 @@ import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AbsentFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
@@ -181,6 +184,7 @@ public class ApproximationSupportTests extends ESTestCase {
         InstantSelector.class,
         RangeSelector.class,
         PromqlFunctionCall.class,
+        AbsentFunction.class,
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
         CountValuesAggregate.class,
@@ -226,7 +230,7 @@ public class ApproximationSupportTests extends ESTestCase {
         BinaryPlan.class,
         InferencePlan.class,
         CompoundOutputEval.class,
-        AbstractSubqueryJoin.class,
+        AbstractInSubqueryJoin.class,
         MergePlan.class,
 
         // INTO writes rows; approximating what it writes makes no sense.
@@ -249,6 +253,7 @@ public class ApproximationSupportTests extends ESTestCase {
         ResolvingProject.class,
         SemiJoin.class,
         SparklineGenerateEmptyBuckets.class,
+        SubqueryJoin.class,
 
         // internals
         Fetch.class,
@@ -377,7 +382,7 @@ public class ApproximationSupportTests extends ESTestCase {
             List.of(),
             List.of()
         );
-        Into into = new Into(Source.EMPTY, agg, "dst");
+        Into into = new Into(Source.EMPTY, agg, "dst", IntoOptions.DEFAULT);
         VerificationException e = expectThrows(
             VerificationException.class,
             () -> ApproximationVerifier.verifyPlanOrThrow(into, TransportVersion.current())

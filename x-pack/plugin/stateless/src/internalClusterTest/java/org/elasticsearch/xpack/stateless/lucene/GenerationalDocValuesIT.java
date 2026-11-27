@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTr
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -302,12 +303,12 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         }
 
         @Override
-        protected CacheBlobReader getCacheBlobReader(String fileName, BccBlob bccBlob) {
+        protected CacheBlobReader getCacheBlobReader(String fileName, Blob blob) {
             // Use the direct executor so we can use the thread name in testBackgroundMergeCanRetainDeletedGenerationalFile
             return new MeteringCacheBlobReader(
                 new ObjectStoreCacheBlobReader(
-                    getBlobContainer(bccBlob.primaryTerm()),
-                    bccBlob.blobName(),
+                    getBlobContainer(blob.primaryTerm()),
+                    blob.blobName(),
                     getCacheService().getRangeSize(),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE
                 ) {
@@ -388,14 +389,12 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         private synchronized Map<String, Long> getGenerationalFilesAsMap() {
             return inputs.values()
                 .stream()
-                .collect(
-                    Collectors.toUnmodifiableMap(NameAndLocation::name, e -> e.blobLocation().compoundFileGeneration(), (gen1, gen2) -> {
-                        if (Objects.equals(gen1, gen2) == false) {
-                            throw new AssertionError("Different generation " + gen1 + " vs " + gen2);
-                        }
-                        return gen1;
-                    })
-                );
+                .collect(Collectors.toUnmodifiableMap(NameAndLocation::name, e -> blobGeneration(e.blobLocation()), (gen1, gen2) -> {
+                    if (Objects.equals(gen1, gen2) == false) {
+                        throw new AssertionError("Different generation " + gen1 + " vs " + gen2);
+                    }
+                    return gen1;
+                }));
         }
 
         static GenerationalFilesTracker getDirectoryGenerationalFilesTracker(final Directory directory) {
@@ -870,7 +869,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
     }
 
     public void testSearchShardGenerationFilesRetention() throws Exception {
-        final var indexingNodeSettings = randomHollowIndexNodeSettings();
+        final var indexingNodeSettings = Settings.builder()
+            .put(randomHollowIndexNodeSettings())
+            // Release commit files right after upload so that directory content assertions don't wait on search notifications
+            .put(StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(), TimeValue.ZERO)
+            .build();
         final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(indexingNodeSettings);
         var masterNode = startMasterOnlyNode();
         var indexNode = startIndexNode(indexingNodeSettings);
@@ -1334,6 +1337,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         );
     }
 
+    private static long blobGeneration(BlobLocation location) {
+        assert location.blob() instanceof BccBlob : "generational files are located in BCC blobs, but found: " + location.blob();
+        return ((BccBlob) location.blob()).generation();
+    }
+
     private static void executeBulk(Consumer<BulkRequestBuilder> consumer) {
         var bulkRequest = client().prepareBulk();
         consumer.accept(bulkRequest);
@@ -1346,7 +1354,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             for (var expected : expectedLocations.entrySet()) {
                 var fileName = expected.getKey();
                 var blobLocation = BlobStoreCacheDirectoryTestUtils.getBlobLocation(blobStoreCacheDirectory, fileName);
-                var actualCompoundCommitGeneration = blobLocation != null ? blobLocation.compoundFileGeneration() : null;
+                var actualCompoundCommitGeneration = blobLocation != null ? blobGeneration(blobLocation) : null;
                 assertThat(
                     "BlobLocation of file ["
                         + fileName

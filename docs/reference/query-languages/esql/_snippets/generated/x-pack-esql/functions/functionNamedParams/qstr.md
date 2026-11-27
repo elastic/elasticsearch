@@ -29,9 +29,6 @@
 `enable_position_increments`
 :   (boolean) If true, enable position increments in queries constructed from a query_string search. Defaults to true.
 
-`fields`
-:   (keyword) Array of fields to search. Supports wildcards (*).
-
 `fuzzy_max_expansions`
 :   (integer) Maximum number of terms to which the query expands for fuzzy matching. Defaults to 50.
 

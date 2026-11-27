@@ -48,10 +48,6 @@ public final class SimdJsonVectorSupport {
         );
     }
 
-    public static int vectorByteSize() {
-        return byteSpecies == null ? 0 : byteSpecies.vectorByteSize();
-    }
-
     private static VectorSpecies<Byte> selectSpecies() {
         String species = System.getProperty("tests.vectorsize", "preferred");
         VectorSpecies<Byte> selected = switch (species) {

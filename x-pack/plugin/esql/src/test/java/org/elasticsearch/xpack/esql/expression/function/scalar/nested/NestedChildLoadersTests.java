@@ -27,6 +27,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -35,6 +37,7 @@ import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MapperService;
@@ -62,6 +65,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -255,6 +260,51 @@ public class NestedChildLoadersTests extends ComputeTestCase {
             List.of(DataType.LONG, DataType.UNSUPPORTED)
         );
         assertThat(rows, equalTo(List.of(row(0, 1L, null), row(0, 2L, null))));
+    }
+
+    public void testReadsAllChildrenOfAParentWithMoreThanOnePage() throws IOException {
+        int children = NestedChildren.PAGE_SIZE * 3;
+        List<List<Object>> rows = readChildren(
+            Settings.EMPTY,
+            qtyMapping(),
+            List.of(parentWithChildren(children), parentWithChildren(2)),
+            List.of("qty"),
+            List.of(DataType.LONG)
+        );
+        assertThat(qtysOf(rows, 0), equalTo(LongStream.range(0, children).boxed().toList()));
+        assertThat(qtysOf(rows, 1), equalTo(List.of(0L, 1L)));
+    }
+
+    public void testStopsReadingAParentsChildrenOnceItNeedsNoMore() throws IOException {
+        int children = NestedChildren.PAGE_SIZE * 3;
+        List<List<Object>> rows = readChildren(
+            Settings.EMPTY,
+            qtyMapping(),
+            List.of(parentWithChildren(children), parentWithChildren(2)),
+            List.of("qty"),
+            List.of(DataType.LONG),
+            read -> read.isEmpty() == false
+        );
+        assertThat(qtysOf(rows, 0), equalTo(LongStream.range(0, NestedChildren.PAGE_SIZE).boxed().toList()));
+        assertThat(qtysOf(rows, 1), equalTo(List.of(0L, 1L)));
+    }
+
+    private static List<Long> qtysOf(List<List<Object>> rows, int parent) {
+        return rows.stream().filter(row -> row.get(0).equals(parent)).map(row -> (Long) row.get(1)).toList();
+    }
+
+    private static String qtyMapping() {
+        return """
+            {"_doc": {"properties": {"items": {"type": "nested", "properties": {"qty": {"type": "long"}}}}}}
+            """;
+    }
+
+    private static String parentWithChildren(int children) {
+        StringBuilder json = new StringBuilder("{\"items\": [");
+        for (int i = 0; i < children; i++) {
+            json.append(i == 0 ? "" : ",").append("{\"qty\": ").append(i).append('}');
+        }
+        return json.append("]}").toString();
     }
 
     public void testDeclaredSubfieldOfAnObjectStillReads() throws IOException {
@@ -558,6 +608,21 @@ public class NestedChildLoadersTests extends ComputeTestCase {
         List<String> paths,
         List<DataType> types
     ) throws IOException {
+        return readChildren(settings, mapping, documents, paths, types, null);
+    }
+
+    /**
+     * As above, but reads with {@link NestedChildren#read} and skips the first parent's remaining children once
+     * {@code firstParentIsDone} holds for the rows read. A {@code null} {@code firstParentIsDone} reads with {@link NestedChildren#expand}.
+     */
+    private List<List<Object>> readChildren(
+        Settings settings,
+        String mapping,
+        List<String> documents,
+        List<String> paths,
+        List<DataType> types,
+        @Nullable Predicate<List<List<Object>>> firstParentIsDone
+    ) throws IOException {
         index(settings, mapping, documents);
         NestedChildren.Factory factory = NestedChildren.factory(
             new IndexedByShardIdFromSingleton<>(shard),
@@ -571,25 +636,42 @@ public class NestedChildLoadersTests extends ComputeTestCase {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         List<List<Object>> rows = new ArrayList<>();
-        try (
-            NestedChildren children = factory.get(driverContext);
-            DocBlock parents = parents(blockFactory, parentDocs);
-            NestedChildren.Expansion expansion = children.expand(parents.asVector(), between(1, 4))
-        ) {
-            while (expansion.hasNext()) {
-                NestedChildren.Rows page = expansion.next();
-                try {
-                    for (int r = 0; r < page.count(); r++) {
-                        List<Object> row = new ArrayList<>();
-                        row.add(page.positions()[page.offset() + r]);
-                        for (Block field : page.fields()) {
-                            row.add(normalize(BlockUtils.toJavaObject(field, r)));
+        try (NestedChildren children = factory.get(driverContext); DocBlock parents = parents(blockFactory, parentDocs)) {
+            if (firstParentIsDone == null) {
+                try (NestedChildren.Expansion expansion = children.expand(parents.asVector(), between(1, 4))) {
+                    while (expansion.hasNext()) {
+                        NestedChildren.Rows page = expansion.next();
+                        try {
+                            for (int r = 0; r < page.count(); r++) {
+                                List<Object> row = new ArrayList<>();
+                                row.add(page.positions()[page.offset() + r]);
+                                for (Block field : page.fields()) {
+                                    row.add(normalize(BlockUtils.toJavaObject(field, r)));
+                                }
+                                rows.add(row);
+                            }
+                        } finally {
+                            Releasables.closeExpectNoException(page.fields());
                         }
-                        rows.add(row);
                     }
-                } finally {
-                    Releasables.closeExpectNoException(page.fields());
                 }
+            } else {
+                children.read(
+                    parents.asVector(),
+                    position -> true,
+                    position -> position != 0 || firstParentIsDone.test(rows) == false,
+                    page -> {
+                        IntVector parentPositions = page.<IntBlock>getBlock(0).asVector();
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            List<Object> row = new ArrayList<>();
+                            row.add(parentPositions.getInt(p));
+                            for (int b = 1; b < page.getBlockCount(); b++) {
+                                row.add(normalize(BlockUtils.toJavaObject(page.<Block>getBlock(b), p)));
+                            }
+                            rows.add(row);
+                        }
+                    }
+                );
             }
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));

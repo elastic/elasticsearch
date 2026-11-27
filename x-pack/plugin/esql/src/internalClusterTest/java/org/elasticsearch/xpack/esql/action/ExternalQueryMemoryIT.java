@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * {@code QueryCircuitBreaker}; the request breaker still sees those bytes, {@code memoryBytes(queryId)}
  * does not. Do not "fix" {@code QueryCircuitBreaker}. The scheduler contract lives in
  * {@link org.elasticsearch.search.scheduling.QuerySchedulerMemoryTests#testForgottenQueryDoesNotCountLaterChargesOnOldBreaker}.
- * Coordinator planning on the query part is M4, not this suite.
+ * Coordinator planning is charged to the coordination part (M4); see {@code PlanExecutorMetricsTests}.
  */
 public class ExternalQueryMemoryIT extends AbstractEsqlIntegTestCase {
 

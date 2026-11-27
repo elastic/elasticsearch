@@ -109,6 +109,22 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
         assertMap(field.getTypesToIndices(), matchesMap().entry(DataType.LONG.typeName(), Set.of("idx_a")));
     }
 
+    public void testAsPotentiallyUnmappedKeepsIndexCounts() {
+        Set<String> longIndices = IntStream.range(0, 5).mapToObj(i -> "idx_l" + i).collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<DataType, Set<String>> input = new TreeMap<>(Map.of(DataType.KEYWORD, Set.of("idx_k"), DataType.LONG, longIndices));
+
+        CompactInvalidMappedField field = CompactInvalidMappedField.mappedEverywhere(
+            "f",
+            input,
+            new HashMap<>(),
+            EsField.TimeSeriesFieldType.UNKNOWN
+        ).asPotentiallyUnmapped();
+
+        assertThat(field.isPotentiallyUnmapped(), equalTo(true));
+        assertThat(field.errorMessage(), containsString("[long] in [idx_l0, idx_l1, idx_l2] and [2] other indices"));
+        assertThat(field.errorMessage(), containsString("[keyword] due to loading from _source and in [idx_k]"));
+    }
+
     public void testTypesReflectsKeysOfTruncatedMap() {
         Map<DataType, Set<String>> input = new TreeMap<>(
             Map.of(

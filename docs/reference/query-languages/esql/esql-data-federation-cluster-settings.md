@@ -189,7 +189,7 @@ $$$esql-external-allowed-endpoint-hosts$$$
 
 ## Caching
 
-These settings control the external-source cache, which stores inferred schemas, file listings, and the footers of columnar files.
+These settings control the external-source cache, which stores inferred schemas, column statistics, file listings, and the footers of columnar files.
 
 $$$esql-external-cache-enabled$$$
 
@@ -236,6 +236,16 @@ $$$esql-external-cache-schema-ttl$$$
 
     - **Default:** `20m`
     - **Valid values:** A time value. `0` removes the limit on schemas, and the memoized dataset total stays on `esql.external.cache.listing.ttl`.
+
+$$$esql-external-cache-stats-max-extremum-size$$$
+
+`esql.external.cache.stats.max_extremum_size` {applies_to}`stack: preview 9.6+`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Maximum byte width of a cached minimum or maximum value collected from CSV, TSV, or NDJSON reads for `keyword`, `text`, and `ip` columns. Values wider than this limit aren't stored; queries that need a withheld bound (such as `MIN`, `MAX`, or range filters on that column) read the file instead, while counts and other columns remain usable. Columnar formats such as Parquet read statistics from the file footer and aren't affected. Refer to [column statistics for text files](esql-data-federation-querying.md#column-statistics-for-text-files) for how cached statistics affect query reads.
+
+    - **Default:** `1kb`
+    - **Valid values:** A byte size from `0b` to `1mb`. `0b` withholds all non-empty bounds. Values below `16b` also withhold bounds for `ip` columns.
+
+    Configure the same value on every node; changes apply only to subsequent reads, not existing cache entries. Lower this setting to keep long values out of the statistics cache. Raise it to avoid re-reading files with long text values, bearing in mind that the cache weighs a file's whole statistics entry: an entry over the per-entry memory limit is dropped whole, row counts included, so a file with many columns can exceed it even when every single bound is within this limit.
 
 $$$esql-external-cache-footer-size$$$
 

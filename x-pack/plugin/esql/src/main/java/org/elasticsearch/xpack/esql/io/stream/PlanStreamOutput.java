@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntIdentityHashMap;
+
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -26,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 
@@ -58,15 +60,25 @@ public final class PlanStreamOutput extends StreamOutput {
      * Attributes can be shared by many plan nodes (eg. ExcahngeSink output, Project output, EsRelation fields);
      * in addition, multiple Attributes can share the same parent field.
      * This cache allows to send each attribute only once; from the second occurrence, only an id will be sent
+     * <p>
+     *     This and the other id caches map to primitive ints because plans for wide mappings cache hundreds of
+     *     thousands of entries, and boxed ids and per-entry map nodes would cost about as much heap as the
+     *     serialized plan itself.
+     * </p>
      */
-    protected final Map<Attribute, Integer> cachedAttributes = new IdentityHashMap<>();
+    protected final ObjectIntIdentityHashMap<Attribute> cachedAttributes = new ObjectIntIdentityHashMap<>();
 
     /**
      * Cache for EsFields.
      */
-    protected final Map<EsField, Integer> cachedEsFields = new IdentityHashMap<>();
+    protected final ObjectIntIdentityHashMap<EsField> cachedEsFields = new ObjectIntIdentityHashMap<>();
 
-    protected final Map<String, Integer> stringCache = new HashMap<>();
+    protected final ObjectIntHashMap<String> stringCache = new ObjectIntHashMap<>();
+
+    /**
+     * Returned by the id caches for entries that have not been cached. Real ids are never negative.
+     */
+    private static final int NOT_CACHED = -1;
 
     private final StreamOutput delegate;
 
@@ -113,9 +125,9 @@ public final class PlanStreamOutput extends StreamOutput {
     @Override
     public void close() throws IOException {
         delegate.close();
-        stringCache.clear();
-        cachedEsFields.clear();
-        cachedAttributes.clear();
+        stringCache.release();
+        cachedEsFields.release();
+        cachedAttributes.release();
     }
 
     @Override
@@ -163,8 +175,8 @@ public final class PlanStreamOutput extends StreamOutput {
      * @throws IOException
      */
     public boolean writeAttributeCacheHeader(Attribute attribute) throws IOException {
-        Integer cacheId = attributeIdFromCache(attribute);
-        if (cacheId != null) {
+        int cacheId = attributeIdFromCache(attribute);
+        if (cacheId != NOT_CACHED) {
             writeZLong(cacheId);
             return false;
         }
@@ -174,8 +186,8 @@ public final class PlanStreamOutput extends StreamOutput {
         return true;
     }
 
-    private Integer attributeIdFromCache(Attribute attr) {
-        return cachedAttributes.get(attr);
+    private int attributeIdFromCache(Attribute attr) {
+        return cachedAttributes.getOrDefault(attr, NOT_CACHED);
     }
 
     private int cacheAttribute(Attribute attr) {
@@ -199,8 +211,8 @@ public final class PlanStreamOutput extends StreamOutput {
      * @return true if the attribute needs to serialize itself, false otherwise (ie. if already cached)
      */
     public boolean writeEsFieldCacheHeader(EsField field, TransportVersion transportVersion) throws IOException {
-        Integer cacheId = esFieldIdFromCache(field);
-        if (cacheId != null) {
+        int cacheId = esFieldIdFromCache(field);
+        if (cacheId != NOT_CACHED) {
             writeZLong(cacheId);
             return false;
         }
@@ -238,8 +250,8 @@ public final class PlanStreamOutput extends StreamOutput {
      * Values serialized with this method have to be deserialized with {@link PlanStreamInput#readCachedString()}
      */
     public void writeCachedString(String string) throws IOException {
-        Integer cacheId = stringCache.get(string);
-        if (cacheId != null) {
+        int cacheId = stringCache.getOrDefault(string, NOT_CACHED);
+        if (cacheId != NOT_CACHED) {
             writeZLong(cacheId);
             return;
         }
@@ -262,8 +274,8 @@ public final class PlanStreamOutput extends StreamOutput {
         }
     }
 
-    private Integer esFieldIdFromCache(EsField field) {
-        return cachedEsFields.get(field);
+    private int esFieldIdFromCache(EsField field) {
+        return cachedEsFields.getOrDefault(field, NOT_CACHED);
     }
 
     private int cacheEsField(EsField attr) {

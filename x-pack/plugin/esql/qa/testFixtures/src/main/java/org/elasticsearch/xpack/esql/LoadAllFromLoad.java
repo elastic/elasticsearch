@@ -38,6 +38,9 @@ public final class LoadAllFromLoad {
         "unmapped-load.loadUnmappedFieldInOneSubqueryBranchNoOuterKeep"
     );
 
+    /** Tests of a command that {@code LOAD_ALL} doesn't support yet. */
+    private static final Set<String> UNSUPPORTED_BY_LOAD_ALL = Set.of("describe.describePartiallyMappedFieldHasNoOriginalTypes");
+
     public static final String UNMAPPED_FIELDS_COLUMN = "_unmapped_fields";
 
     private static final Pattern LOAD_SETTING = Pattern.compile("(?i)(unmapped_fields\\s*=\\s*)\"load\"");
@@ -62,6 +65,9 @@ public final class LoadAllFromLoad {
     public static String skipReason(String testId) {
         if (DIFFERS_BY_DESIGN.contains(testId)) {
             return "LOAD_ALL differs from LOAD by design here: it loads the field in the other branches too";
+        }
+        if (UNSUPPORTED_BY_LOAD_ALL.contains(testId)) {
+            return "LOAD_ALL doesn't support DESCRIBE yet";
         }
         return null;
     }

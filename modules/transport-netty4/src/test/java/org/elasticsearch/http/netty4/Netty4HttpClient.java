@@ -31,7 +31,6 @@ import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -51,11 +50,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
@@ -147,13 +143,14 @@ class Netty4HttpClient implements Closeable {
             channelFuture = clientBootstrap.connect(remoteAddress);
             channelFuture.sync();
 
+            var writeFutures = new ArrayList<ChannelFuture>();
             boolean needsFinalFlush = false;
             for (HttpRequest request : requests) {
                 if (ESTestCase.randomBoolean()) {
-                    channelFuture.channel().writeAndFlush(request);
+                    writeFutures.add(channelFuture.channel().writeAndFlush(request));
                     needsFinalFlush = false;
                 } else {
-                    channelFuture.channel().write(request);
+                    writeFutures.add(channelFuture.channel().write(request));
                     needsFinalFlush = true;
                 }
             }
@@ -162,18 +159,22 @@ class Netty4HttpClient implements Closeable {
             }
 
             if (latch.await(30L, TimeUnit.SECONDS) == false) {
-                final Map<HttpResponseStatus, Long> responsesByStatus = new ArrayList<>(content).stream()
-                    .collect(Collectors.groupingBy(FullHttpResponse::status, TreeMap::new, Collectors.counting()));
-                fail(
-                    String.format(
-                        Locale.ROOT,
-                        "Failed to get all expected responses: sent [%d] requests, received responses %s",
-                        requests.size(),
-                        responsesByStatus
-                    )
-                );
-            }
+                StringBuilder writeFailures = new StringBuilder();
+                for (var future : writeFutures) {
+                    if (future.isDone() && future.isSuccess() == false) {
+                        writeFailures.append(future.cause()).append('\n');
+                    }
+                }
 
+                var responseStatus = new ArrayList<>(content).stream().map(HttpResponse::status).toList();
+                fail(String.format(Locale.ROOT, """
+                        Failed to get all expected responses for [%d] sent requests.
+                        Write failures:
+                        [%s]
+                        Received response status codes:
+                        [%s]
+                    """, requests.size(), writeFailures.isEmpty() ? "none" : writeFailures, responseStatus));
+            }
         } finally {
             if (channelFuture != null) {
                 channelFuture.channel().close().sync();

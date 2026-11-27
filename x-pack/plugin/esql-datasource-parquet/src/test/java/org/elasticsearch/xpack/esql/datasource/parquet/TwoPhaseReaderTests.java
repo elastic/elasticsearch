@@ -71,7 +71,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -82,6 +81,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * End-to-end tests for the two-phase I/O decode flow added to
@@ -208,6 +208,43 @@ public class TwoPhaseReaderTests extends ESTestCase {
         }
         twoPhasePages.forEach(Page::releaseBlocks);
         lateMatPages.forEach(Page::releaseBlocks);
+    }
+
+    public void testTwoPhaseLimitCountsSurvivorsNotSourceRows() throws Exception {
+        int totalRows = 20_000;
+        int batchSize = 1000;
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("keep")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("two_phase_limit");
+        byte[] parquetData = buildParquetWithLayout(schema, totalRows, 64L * 1024 * 1024, 1024, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            return factory.newGroup()
+                .append("id", (long) i)
+                .append("keep", i % 100 == 0 ? 1L : 0L)
+                .append("label", repeat('x', 256) + "_" + i);
+        });
+        ReferenceAttribute keepAttr = new ReferenceAttribute(Source.EMPTY, "keep", DataType.LONG);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new Equals(Source.EMPTY, keepAttr, new Literal(Source.EMPTY, 1L, DataType.LONG), null))
+        );
+        List<Page> pages = readAllPages(
+            new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed),
+            new CountingStorageObject(parquetData, true),
+            FormatReadContext.builder().batchSize(batchSize).rowLimit(10).build()
+        );
+        try {
+            int total = pages.stream().mapToInt(Page::getPositionCount).sum();
+            assertThat("LIMIT caps emitted survivors", total, equalTo(10));
+            assertThat("selective LIMIT must not emit one page per source window", pages.size(), lessThanOrEqualTo(2));
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
     }
 
     public void testSinglePhaseFilteredReadMatchesWhenInitialPrefetchFails() throws Exception {
@@ -1961,15 +1998,14 @@ public class TwoPhaseReaderTests extends ESTestCase {
     }
 
     private List<Page> readAllPages(ParquetFormatReader reader, StorageObject obj, int batchSize) throws IOException {
-        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(batchSize).build())) {
+        return readAllPages(reader, obj, FormatReadContext.builder().batchSize(batchSize).build());
+    }
+
+    private List<Page> readAllPages(ParquetFormatReader reader, StorageObject obj, FormatReadContext ctx) throws IOException {
+        try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
             List<Page> pages = new ArrayList<>();
             while (it.hasNext()) {
-                Page page;
-                try {
-                    page = it.next();
-                } catch (NoSuchElementException e) {
-                    break;
-                }
+                Page page = it.next();
                 if (page.getPositionCount() == 0) {
                     page.releaseBlocks();
                     continue;

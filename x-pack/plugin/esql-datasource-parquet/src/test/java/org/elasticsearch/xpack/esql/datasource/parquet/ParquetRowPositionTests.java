@@ -355,12 +355,7 @@ public class ParquetRowPositionTests extends ESTestCase {
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(projection, 1000))) {
             ((ColumnExtractorProducer) iter).setExtractorId(0);
             while (iter.hasNext()) {
-                Page page;
-                try {
-                    page = iter.next();
-                } catch (java.util.NoSuchElementException e) {
-                    break;
-                }
+                Page page = iter.next();
                 try {
                     if (page.getPositionCount() == 0) {
                         continue;

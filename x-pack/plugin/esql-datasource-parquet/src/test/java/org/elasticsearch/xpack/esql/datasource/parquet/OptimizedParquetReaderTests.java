@@ -59,7 +59,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -714,13 +713,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
     private List<Page> collectPages(CloseableIterator<Page> iter) {
         List<Page> pages = new ArrayList<>();
         while (iter.hasNext()) {
-            Page page;
-            try {
-                page = iter.next();
-            } catch (NoSuchElementException e) {
-                // Last row group had source rows but every remaining window was filtered out.
-                break;
-            }
+            Page page = iter.next();
             if (page.getPositionCount() == 0) {
                 page.releaseBlocks();
                 continue;

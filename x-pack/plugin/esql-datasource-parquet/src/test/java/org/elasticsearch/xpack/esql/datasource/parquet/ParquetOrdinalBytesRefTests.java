@@ -359,12 +359,7 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
                 .read(storageObject(data), FormatReadContext.of(List.of("id", "name"), BATCH_SIZE))
         ) {
             while (iter.hasNext()) {
-                Page page;
-                try {
-                    page = iter.next();
-                } catch (java.util.NoSuchElementException e) {
-                    break;
-                }
+                Page page = iter.next();
                 try {
                     if (page.getPositionCount() == 0) {
                         continue;

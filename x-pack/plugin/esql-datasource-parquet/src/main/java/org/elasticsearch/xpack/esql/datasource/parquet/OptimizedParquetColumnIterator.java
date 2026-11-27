@@ -349,6 +349,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      */
     @Nullable
     private Block[] pageFillLeftover;
+    /**
+     * Late-mat output page probed by {@link #hasNext()} so a true {@code hasNext()} always has a
+     * {@link #next()} that succeeds. Source rows remaining in the group are not the same as
+     * survivors. Two-phase does not use this: stored survivor counts already make
+     * {@link #hasBufferedRows()} accurate after {@link #drainEmptyTwoPhaseBatches()}.
+     */
+    @Nullable
+    private Page pendingFilledPage;
 
     private final boolean lateMaterialization;
     /**
@@ -1251,6 +1259,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     @Override
     public Page tryAdvance() {
         throwIfFailed();
+        if (pendingFilledPage != null) {
+            Page pending = pendingFilledPage;
+            pendingFilledPage = null;
+            consumeGrantedIo();
+            return pending;
+        }
         if (closed.get() || exhausted || budgetExhausted()) {
             if (budgetExhausted() && exhausted == false) {
                 exhausted = true;
@@ -1869,6 +1883,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     @Override
     public boolean hasNext() {
         throwIfFailed();
+        if (pendingFilledPage != null) {
+            return true;
+        }
         if (closed.get() || exhausted) {
             consumeGrantedIo();
             return false;
@@ -1888,7 +1905,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // Early termination still takes effect below, where it stops us from advancing to (and
         // prefetching) any further row groups; the only extra work is draining the already-decoded,
         // in-memory current group, which the TopN simply discards.
-        if (hasBufferedRows()) {
+        if (hasBufferedRows() && lateMatHasEmitablePage()) {
             return true;
         }
         if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
@@ -1905,11 +1922,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (closed.get() || exhausted) {
                     return false;
                 }
-                if (hasBufferedRows()) {
+                if (hasBufferedRows() && lateMatHasEmitablePage()) {
                     return true;
                 }
                 if (advanceRowGroup()) {
-                    return true;
+                    if (lateMatHasEmitablePage()) {
+                        return true;
+                    }
+                    continue;
                 }
                 if (exhausted || closed.get()) {
                     return false;
@@ -1950,7 +1970,25 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 rowsRemainingInGroup = 0;
             }
         }
-        return pageFillLeftover != null || rowsRemainingInGroup > 0;
+        return pendingFilledPage != null || pageFillLeftover != null || rowsRemainingInGroup > 0;
+    }
+
+    /**
+     * Two-phase and unfiltered paths: source remaining (after empty-batch drain) is enough.
+     * Late-mat fill: decode windows until a non-empty page exists or this row group is spent,
+     * so {@link #hasNext()} is not true for a fully-filtered tail. Stashes the page in
+     * {@link #pendingFilledPage}. Must not run on two-phase: breaker tests arm after
+     * {@code hasNext()} and expect projection allocation to trip in {@link #next()}.
+     */
+    private boolean lateMatHasEmitablePage() {
+        if (pendingFilledPage != null) {
+            return true;
+        }
+        if (twoPhase != null || lateMaterialization == false || currentRowGroupTriviallyPasses) {
+            return hasBufferedRows();
+        }
+        pendingFilledPage = emitReadyPage();
+        return pendingFilledPage != null;
     }
 
     /**
@@ -1996,6 +2034,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      */
     private boolean advanceRowGroup() throws IOException {
         consumeGrantedIo();
+        closePendingFilledPage();
         closePageFillLeftover();
         closeTwoPhaseState();
         if (rowGroup != null) {
@@ -3897,15 +3936,21 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // Drain any already-decoded batch without re-reading noFurtherCandidates. After
         // advanceRowGroup() a new two-phase group may still have leading empty batches, so a true
         // hasNext() is not enough to emit: loop until hasBufferedRows() or the iterator is done.
-        // emitReadyPage() returns null when the remaining windows of this RG are all filtered;
-        // retry rather than treating that as EOF (hasNext() was true because source rows remained).
+        // Late-mat hasNext() probes survivors into pendingFilledPage so a fully-filtered RG
+        // tail does not throw after hasNext()==true.
         while (true) {
             while (hasBufferedRows() == false) {
                 if (hasNext() == false) {
                     throw new NoSuchElementException("Parquet iterator exhausted");
                 }
             }
-            Page page = emitReadyPage();
+            Page page;
+            if (pendingFilledPage != null) {
+                page = pendingFilledPage;
+                pendingFilledPage = null;
+            } else {
+                page = emitReadyPage();
+            }
             if (page != null) {
                 return page;
             }
@@ -4454,6 +4499,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
+    private void closePendingFilledPage() {
+        if (pendingFilledPage != null) {
+            pendingFilledPage.releaseBlocks();
+            pendingFilledPage = null;
+        }
+    }
+
     private Block[] nextWithLateMaterialization(int rowsToRead, int firstRowOfBatchInRG) {
         Block[] blocks = new Block[attributes.size()];
         try {
@@ -4798,6 +4850,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private void releaseHeldIo(boolean propagateRowGroupClose) throws IOException {
         Exception rowGroupCloseException = null;
         try {
+            closePendingFilledPage();
             closePageFillLeftover();
             closeTwoPhaseState();
             closePageColumnReaders();

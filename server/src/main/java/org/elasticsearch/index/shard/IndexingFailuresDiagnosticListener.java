@@ -80,7 +80,7 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
                     logFailure(
                         result.getFailure(),
                         // the engine already warned once for the abort, so its repeats must not use up the warn limit
-                        result.isBatchAborted() == false,
+                        !result.isBatchAborted(),
                         prefix -> getMessageSupplier(prefix, batch.id(docIndex), batch.seqNo(docIndex), batch.primaryTerm(), batch.origin())
                     );
                 }
@@ -98,7 +98,7 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace(messageSupplierForPrefix.apply("index-fail"), ex);
             }
-        } else if (mayWarn && warnLimiter.tryAcquirePermit()) {
+        } else if (mayWarn && LOGGER.isWarnEnabled() && warnLimiter.tryAcquirePermit()) {
             LOGGER.warn(messageSupplierForPrefix.apply("real-index-fail"), ex);
         } else if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(messageSupplierForPrefix.apply("real-index-fail"), ex);
@@ -133,8 +133,7 @@ public class IndexingFailuresDiagnosticListener implements IndexingOperationList
      */
     private boolean isUserError(Exception ex) {
         return switch (ex) {
-            case DocumentMissingException dme -> true;
-            case VersionConflictEngineException vcee -> true;
+            case DocumentMissingException _, VersionConflictEngineException _ -> true;
             case IllegalArgumentException iae -> InternalEngine.isTooManyDocsFailure(iae);
             default -> false;
         };

@@ -126,15 +126,21 @@ public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
 
     /**
      * Real failures from all paths and from many listeners share one limit: WARN up to the limit, then DEBUG if enabled,
-     * with a fresh limit in each window. Successes in between must not use permits.
+     * with a fresh limit in each window. Successes in between, and failures while WARN is disabled, must not use permits.
      */
     public void testWarnLimitIsSharedAndResetsEachWindow() {
         boolean debugEnabled = randomBoolean();
-        Loggers.setLevel(LOGGER, debugEnabled ? randomFrom(Level.TRACE, Level.DEBUG) : randomFrom(Level.INFO, Level.WARN));
+        Level level = debugEnabled ? randomFrom(Level.TRACE, Level.DEBUG) : randomFrom(Level.INFO, Level.WARN);
         FailurePath[] paths = FailurePath.values();
         int windows = randomIntBetween(1, 4);
         for (int w = 0; w < windows; w++) {
             appender.events.clear();
+            Loggers.setLevel(LOGGER, randomFrom(Level.ERROR, Level.OFF));
+            int failuresWhileWarnDisabled = randomIntBetween(0, 10);
+            for (int i = 0; i < failuresWhileWarnDisabled; i++) {
+                logFailure(listener(sharedLimiter), randomFrom(paths), randomRealError());
+            }
+            Loggers.setLevel(LOGGER, level);
             List<Level> expected = new ArrayList<>();
             int failures = MAX_WARNINGS_PER_WINDOW + randomIntBetween(1, 10);
             for (int i = 0; i < failures; i++) {

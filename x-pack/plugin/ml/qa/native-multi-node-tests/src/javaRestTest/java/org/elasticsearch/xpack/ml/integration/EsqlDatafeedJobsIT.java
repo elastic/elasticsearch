@@ -230,6 +230,55 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         closeJob(jobId);
     }
 
+    /**
+     * A restart with a start time of now skips the model clock to that time and has no lookback range. The real-time gap
+     * check must start from that clock, so it neither skips the gap again nor sends a flush behind the clock.
+     */
+    public void testRestartWithStartNowAfterSparseLookbackShouldNotMoveModelClockBack() throws Exception {
+        String index = "esql-sparse-restart";
+        String jobId = "esql-sparse-restart-job";
+        String datafeedId = jobId + "-datafeed";
+        TimeValue bucketSpan = TimeValue.timeValueMinutes(1);
+        long firstBucket = Intervals.alignToFloor(System.currentTimeMillis() - TimeValue.timeValueDays(30).millis(), bucketSpan.millis());
+        long lastRecordBucket = firstBucket + bucketSpan.millis();
+        createSourceIndex(index);
+        indexDocuments(index, 1, firstBucket + 30_000L);
+        indexDocuments(index, 5, lastRecordBucket + 30_000L);
+
+        putJob(createJob(jobId, bucketSpan));
+        putDatafeed(
+            new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + index + " | KEEP event_time, value")
+                .setSourceTimeField("event_time")
+                .setGroupingInterval(bucketSpan)
+                .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueDays(1)))
+                .setFrequency(bucketSpan)
+                .setQueryDelay(bucketSpan)
+                .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+                .build()
+        );
+        openJob(jobId);
+        runLookback(
+            datafeedId,
+            jobId,
+            firstBucket - TimeValue.timeValueDays(1).millis(),
+            firstBucket + TimeValue.timeValueHours(1).millis(),
+            6L
+        );
+
+        openJob(jobId);
+        long restartTime = System.currentTimeMillis();
+        startDatafeed(datafeedId, restartTime, null);
+        long recentBucketStart = Intervals.alignToFloor(restartTime + TimeValue.timeValueMinutes(1).millis(), bucketSpan.millis());
+        assertBusy(() -> assertThat(bucketCount(jobId, recentBucketStart, Long.MAX_VALUE), greaterThan(0L)), 5, TimeUnit.MINUTES);
+
+        // The start time skip already moved the model clock, so no second skip over the same gap is audited.
+        assertThat(fetchAllAuditMessages(jobId).toString(), not(containsString("Datafeed skipped")));
+        assertThat(bucketCount(jobId, 0, Long.MAX_VALUE), lessThan(1_000L));
+
+        stopDatafeed(datafeedId);
+        closeJob(jobId);
+    }
+
     private long bucketCount(String jobId, long start, long end) {
         GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
         request.setStart(Long.toString(start));

@@ -99,7 +99,8 @@ public class LenientCastMixedClusterIT extends ESRestTestCase {
     public void testCastOfAFieldMappedToSeveralTypes() throws IOException {
         assertLenientOnlyWhenEveryNodeCan(
             "FROM " + IP_INDEX + "," + KEYWORD_INDEX + " METADATA _index | EVAL x = value::long | SORT _index | KEEP _index, x",
-            List.of(Arrays.asList(IP_INDEX, null), Arrays.asList(KEYWORD_INDEX, 7))
+            List.of(Arrays.asList(IP_INDEX, null), Arrays.asList(KEYWORD_INDEX, 7)),
+            "Cannot use field [value] due to ambiguities being mapped as [2] incompatible types"
         );
     }
 

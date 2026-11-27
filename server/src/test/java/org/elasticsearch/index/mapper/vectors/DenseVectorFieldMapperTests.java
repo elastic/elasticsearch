@@ -56,8 +56,10 @@ import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectors
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -3272,6 +3274,70 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    /**
+     * With {@code index.mapping.exclude_source_vectors}, on by default, {@code synthetic_source_keep} on a vector field itself is
+     * ignored, as the vector is rebuilt from the index. A vector inside a kept object, nested object, or array of objects kept by the
+     * index-level {@code arrays} setting stays in {@code _ignored_source} with it, as indexed and in place. This holds for existing
+     * indices too, as the keep mode is only read when indexing.
+     */
+    public void testSyntheticSourceKeepOnExcludedVectorField() throws IOException {
+        // from the version that writes _ignored_source in the coalesced format decoded below, also without its feature flag
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.IGNORED_SOURCE_COALESCED_ENTRIES,
+            IndexVersion.current()
+        );
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+            .put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays")
+            .build();
+        DocumentMapper mapper = createMapperService(version, settings, mapping(b -> {
+            b.startObject("arr").startObject("properties");
+            b.startObject("k").field("type", "keyword").endObject();
+            b.startObject("vector").field("type", "dense_vector").field("dims", 3).endObject();
+            b.endObject().endObject();
+            b.startObject("vector").field("type", "dense_vector").field("dims", 3).field("synthetic_source_keep", "all").endObject();
+            b.startObject("obj").field("synthetic_source_keep", "all").startObject("properties");
+            b.startObject("k").field("type", "keyword").endObject();
+            b.startObject("vector").field("type", "dense_vector").field("dims", 3).endObject();
+            b.endObject().endObject();
+            b.startObject("nested").field("type", "nested").field("synthetic_source_keep", "all").startObject("properties");
+            b.startObject("k").field("type", "keyword").endObject();
+            b.startObject("vector").field("type", "dense_vector").field("dims", 3).endObject();
+            b.endObject().endObject();
+        })).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("arr");
+            b.startObject().field("k", "first").endObject();
+            b.startObject().field("k", "second").field("vector", List.of(1, 2, 3)).endObject();
+            b.endArray();
+            b.field("vector", List.of(1, 2, 3));
+            b.startObject("obj").field("k", "foo").field("vector", List.of(1, 2, 3)).endObject();
+            b.startArray("nested");
+            b.startObject().field("k", "first").endObject();
+            b.startObject().field("k", "second").field("vector", List.of(1, 2, 3)).endObject();
+            b.endArray();
+        }));
+        Map<String, Object> ignoredSource = new HashMap<>();
+        for (IndexableField field : doc.rootDoc().getFields(IgnoredSourceFieldMapper.NAME)) {
+            for (var entry : IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decodeAsMap(field.binaryValue())) {
+                ignoredSource.putAll(entry.map());
+            }
+        }
+        assertThat(
+            ignoredSource,
+            equalTo(
+                Map.of(
+                    "arr",
+                    List.of(Map.of("k", "first"), Map.of("k", "second", "vector", List.of(1, 2, 3))),
+                    "obj",
+                    Map.of("k", "foo", "vector", List.of(1, 2, 3)),
+                    "nested",
+                    List.of(Map.of("k", "first"), Map.of("k", "second", "vector", List.of(1, 2, 3)))
+                )
+            )
+        );
     }
 
     /** The post-filter threshold is user-settable, so it must reject anything outside [0, 1], including NaN. */

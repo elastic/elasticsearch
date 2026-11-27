@@ -250,11 +250,36 @@ public final class IntoPageWriter {
          * query is dispatched, and again where a node plans the write, since the destination can change in between.
          */
         public static void requireBatchDestination(boolean batchIndexingSupported, ProjectMetadata project, String target) {
-            // TODO: authorize write access to the destination before reporting destination-specific errors below, which would
-            // otherwise reveal an inaccessible index's pipeline or routing. Tracked with the destination authorization in EsqlSession.
+            // The coordinator authorizes the caller's write access to the destination before it calls this (IntoDestinationAuthorizer).
+            requireBatchIndexing(batchIndexingSupported, target);
+            requireEligibleDestination(project, target);
+        }
+
+        /**
+         * The check a node runs when it plans the write, after the coordinator has authorized the caller and checked the destination, so
+         * a failure here means the destination changed since. As with a bulk, which resolves templates once and does not derive them
+         * again on a later hop, the node does not say why: the caller was not authorized for what a template would describe. That does
+         * not hold for batch indexing, which is not about the destination, so its failure stays as it is.
+         */
+        public static void requireBatchDestinationUnchanged(boolean batchIndexingSupported, ProjectMetadata project, String target) {
+            requireBatchIndexing(batchIndexingSupported, target);
+            // TODO: this does not notice a destination that was deleted since the coordinator checked it, which the first bulk then
+            // creates again. A node cannot tell a deleted destination from a cluster state that it has not applied yet. Bulk needs an
+            // option to fail instead of creating the index, see https://github.com/elastic/elasticsearch/issues/167559
+            try {
+                requireEligibleDestination(project, target);
+            } catch (ElasticsearchStatusException e) {
+                throw new ElasticsearchStatusException("INTO [{}] can no longer write to the destination", RestStatus.CONFLICT, target);
+            }
+        }
+
+        private static void requireBatchIndexing(boolean batchIndexingSupported, String target) {
             if (batchIndexingSupported == false) {
                 throw rejection("INTO [%s] requires batch indexing", target);
             }
+        }
+
+        private static void requireEligibleDestination(ProjectMetadata project, String target) {
             if (hasPipeline(project, target)) {
                 throw rejection("INTO [%s] does not support ingest pipelines", target);
             }
@@ -278,6 +303,8 @@ public final class IntoPageWriter {
             if (abstraction == null) {
                 // Any matching template can create the index with source routing. Applying the template
                 // is what resolves that routing, so a match is rejected.
+                // TODO: the design allows a destination that a composable template matches, which the first bulk creates. Resolve the
+                // template's routing and pipeline here instead of rejecting every match.
                 return MetadataIndexTemplateService.findV2Template(project, target, false) != null
                     || MetadataIndexTemplateService.findV1Templates(project, target, Boolean.FALSE).isEmpty() == false;
             }

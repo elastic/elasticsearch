@@ -245,6 +245,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         return pendingAllocationStates.keySet().stream().anyMatch(key -> key.shardId().equals(shardId));
     }
 
+    /// Local recovery retry count for the shard allocation identified by `routing`, which must be
+    /// assigned to this node. [pendingAllocationStates] is checked first, since
+    /// it's the only place the count survives during the awaiting-retry window, when no local [Shard]
+    /// exists for this allocation. Otherwise, falls back to the local shard's own [Shard#recoveryState].
+    public int getLocalRecoveryRetryCount(ShardRouting routing) {
+        final PendingAllocationState pending = pendingAllocationStates.get(ShardAllocationId.fromRouting(routing));
+        if (pending != null) {
+            return switch (pending) {
+                case PendingAllocationState.InFlight inFlight -> inFlight.localRecoveryRetries();
+                case PendingAllocationState.AwaitingRecoveryRetry awaiting -> awaiting.localRecoveryRetries();
+                case PendingAllocationState.FailureReported ignored -> 0;
+            };
+        }
+        final AllocatedIndex<? extends Shard> indexService = indicesService.indexService(routing.index());
+        final Shard shard = indexService == null ? null : indexService.getShardOrNull(routing.id());
+        if (shard == null || shard.routingEntry().isSameAllocation(routing) == false) {
+            return 0;
+        }
+        return shard.recoveryState().getLocalRetries();
+    }
+
     private final RepositoriesService repositoriesService;
 
     private final FailedShardHandler failedShardHandler = new FailedShardHandler();

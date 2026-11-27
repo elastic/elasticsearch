@@ -15,10 +15,22 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
-public record EsqlDataExtractorFactory(Client client, DatafeedConfig datafeed, Job job, DatafeedTimingStatsReporter timingStatsReporter)
-    implements
-        DataExtractorFactory {
+/**
+ * Creates extractors for an ES|QL datafeed. {@code timeColumn} is the time column as {@code DESCRIBE} reported it when the task
+ * started: extractors filter the source on its name and size chunks by its bucket interval.
+ */
+public record EsqlDataExtractorFactory(
+    Client client,
+    DatafeedConfig datafeed,
+    Job job,
+    DatafeedTimingStatsReporter timingStatsReporter,
+    TimeColumn timeColumn
+) implements DataExtractorFactory {
 
+    /**
+     * Runs the master's {@code DESCRIBE} checks again and keeps the time column it reports, for {@link #timeColumn}. The remote
+     * sources are extracted on the master only. A failure of this {@code DESCRIBE} fails the task.
+     */
     public static void create(
         Client client,
         DatafeedConfig datafeed,
@@ -26,8 +38,37 @@ public record EsqlDataExtractorFactory(Client client, DatafeedConfig datafeed, J
         DatafeedTimingStatsReporter timingStatsReporter,
         ActionListener<DataExtractorFactory> factoryHandler
     ) {
-        DataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
-        factoryHandler.onResponse(factory);
+        create(EsqlQueryRunner.DEFAULT, client, datafeed, job, timingStatsReporter, factoryHandler);
+    }
+
+    static void create(
+        EsqlQueryRunner queryRunner,
+        Client client,
+        DatafeedConfig datafeed,
+        Job job,
+        DatafeedTimingStatsReporter timingStatsReporter,
+        ActionListener<DataExtractorFactory> factoryHandler
+    ) {
+        String timeField = job.getDataDescription().getTimeField();
+        String summaryCountField = EsqlDatafeedQueryValidator.requiredSummaryCountField(datafeed, job);
+        EsqlDatafeedQueryValidator.describeRequiredColumns(
+            queryRunner,
+            client,
+            datafeed.getHeaders(),
+            datafeed.getEsqlQuery(),
+            datafeed.getProjectRouting(),
+            timeField,
+            summaryCountField,
+            factoryHandler.delegateFailureAndWrap((handler, response) -> {
+                TimeColumn timeColumn = EsqlDatafeedQueryValidator.checkResponse(response, timeField, summaryCountField, datafeed.getId());
+                handler.onResponse(new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, timeColumn));
+            })
+        );
+    }
+
+    @Override
+    public long timeBucketMillis() {
+        return timeColumn.bucketMillis();
     }
 
     @Override
@@ -35,9 +76,7 @@ public record EsqlDataExtractorFactory(Client client, DatafeedConfig datafeed, J
         EsqlDataExtractorContext ctx = new EsqlDataExtractorContext(
             job.getId(),
             datafeed.getEsqlQuery(),
-            datafeed.getSourceTimeField(),
-            job.getDataDescription().getTimeField(),
-            datafeed.getGroupingInterval().millis(),
+            timeColumn.name(),
             start,
             end,
             datafeed.getHeaders(),

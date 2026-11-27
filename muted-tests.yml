@@ -151,11 +151,6 @@ tests:
   - :x-pack:plugin:transform:qa:multi-node-tests:javaRestTest
   method: testTransformLifecycleInALoop
   issue: https://github.com/elastic/elasticsearch/issues/155844
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded
-  issue: https://github.com/elastic/elasticsearch/issues/153406
 - class: org.elasticsearch.client.RestClientSingleHostIntegTests
   tasks:
   - :client:rest:test

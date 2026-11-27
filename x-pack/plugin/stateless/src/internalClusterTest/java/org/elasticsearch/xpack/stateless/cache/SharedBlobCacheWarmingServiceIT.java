@@ -1140,6 +1140,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             connection.sendRequest(requestId, action, request, options);
         });
 
+        final var recoveryVerified = new AtomicBoolean(false);
         MockTransportService.getInstance(indexNode)
             .addRequestHandlingBehavior(
                 TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
@@ -1158,7 +1159,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     public void sendResponse(TransportResponse response) {
                         // With immediateVbccRelease the VBCC is gone before the first chunk request arrives, so the handler
                         // must never reach a success response. With the default timeout the VBCC is still alive, so it can.
-                        assert immediateVbccRelease == false : "unexpectedly trying to send response " + response;
+                        // Once recovery is verified, later commits (e.g. the cleanup flush) may legitimately be served.
+                        assert recoveryVerified.get() || immediateVbccRelease == false : "unexpectedly trying to send response " + response;
                         channel.sendResponse(response);
                     }
                 }, task)
@@ -1176,6 +1178,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         assertTrue(flushed.get());
         assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
 
+        recoveryVerified.set(true);
         stopFailingObjectStore(searchNode);
         disableTransportBlocking(searchNode);
         ensureSearchHits(indexName, totalDocs);

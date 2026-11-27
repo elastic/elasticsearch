@@ -67,7 +67,7 @@ teardown:
 'a column named _unmapped_fields by EVAL replaces the discovered fields':
   - do:
       allowed_warnings:
-        - "Line 1:53: Column name [_unmapped_fields] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]"
+        - "Line 1:53: Column name [_unmapped_fields] starts with [_], which is reserved for internal columns"
       warnings:
         - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
       esql.query:
@@ -84,7 +84,7 @@ teardown:
 'a column named _unmapped_fields by RENAME replaces the discovered fields':
   - do:
       allowed_warnings:
-        - "Line 1:85: Column name [_unmapped_fields] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]"
+        - "Line 1:85: Column name [_unmapped_fields] starts with [_], which is reserved for internal columns"
       warnings:
         - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
       esql.query:

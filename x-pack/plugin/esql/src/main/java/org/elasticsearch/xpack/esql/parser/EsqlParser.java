@@ -127,6 +127,7 @@ public class EsqlParser {
             null,
             QueryPragmas.EMPTY,
             EsqlFlags.DEFAULTS,
+            true,
             EsqlBaseParser::singleStatement,
             AstBuilder::plan
         );
@@ -139,7 +140,7 @@ public class EsqlParser {
 
     // testing utility
     public EsqlStatement unvalidatedStatement(String query, QueryParams params) {
-        return createStatement(query, params, new InferenceSettings(Settings.EMPTY), null, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
+        return createStatement(query, params, new InferenceSettings(Settings.EMPTY), null, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS, true);
     }
 
     // testing utility
@@ -170,7 +171,7 @@ public class EsqlParser {
         QueryPragmas pragmas,
         EsqlFlags flags
     ) {
-        var parsed = createStatement(query, params, inferenceSettings, null, pragmas, flags);
+        var parsed = createStatement(query, params, inferenceSettings, null, pragmas, flags, true);
         if (log.isDebugEnabled()) {
             log.debug("Parsed logical plan:\n{}", parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
@@ -196,7 +197,25 @@ public class EsqlParser {
         QueryPragmas pragmas,
         EsqlFlags flags
     ) {
-        var parsed = createStatement(query, params, inferenceSettings, viewName, pragmas, flags);
+        return parseView(query, params, inferenceSettings, viewName, pragmas, flags, false);
+    }
+
+    /**
+     * Like {@link #parseView(String, QueryParams, InferenceSettings, String, QueryPragmas, EsqlFlags)}, but also warns about
+     * column names in the definition that start with {@code _} if {@code warnReservedColumnNames} is set. That is meant for when
+     * a view is created or updated, so its author learns about such names once. When a query reads from a view, the definition
+     * is parsed again; warning then would repeat on every query, pointing into a definition the user may not be able to change.
+     */
+    public EsqlStatement parseView(
+        String query,
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        String viewName,
+        QueryPragmas pragmas,
+        EsqlFlags flags,
+        boolean warnReservedColumnNames
+    ) {
+        var parsed = createStatement(query, params, inferenceSettings, viewName, pragmas, flags, warnReservedColumnNames);
         if (log.isDebugEnabled()) {
             log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
@@ -214,12 +233,23 @@ public class EsqlParser {
         InferenceSettings inferenceSettings,
         String viewName,
         QueryPragmas pragmas,
-        EsqlFlags flags
+        EsqlFlags flags,
+        boolean warnReservedColumnNames
     ) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, inferenceSettings, viewName, pragmas, flags, EsqlBaseParser::statements, AstBuilder::statement);
+        return invokeParser(
+            query,
+            params,
+            inferenceSettings,
+            viewName,
+            pragmas,
+            flags,
+            warnReservedColumnNames,
+            EsqlBaseParser::statements,
+            AstBuilder::statement
+        );
     }
 
     private record ParserPipeline(CommonTokenStream tokenStream, EsqlBaseParser parser) {}
@@ -248,6 +278,7 @@ public class EsqlParser {
         String viewName,
         QueryPragmas pragmas,
         EsqlFlags flags,
+        boolean warnReservedColumnNames,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -283,7 +314,9 @@ public class EsqlParser {
 
             AstBuilder builder = new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName, pragmas, flags));
             T parsed = result.apply(builder, tree);
-            builder.addReservedColumnNameWarning();
+            if (warnReservedColumnNames) {
+                builder.addReservedColumnNameWarning();
+            }
             return parsed;
         } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);

@@ -10,7 +10,7 @@ emp_no:integer |_index:keyword |_version:long
 aliasWithSameName
 required_capability: metadata_fields
 from employees metadata _index, _version | sort emp_no | limit 2 | eval _index = _index, _version = _version | keep emp_no, _index, _version;
-warningRegex:Line 1:73: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 emp_no:integer |_index:keyword |_version:long
 10001          |employees      |1
@@ -63,7 +63,7 @@ emp_no:integer |_index:keyword
 metaIndexAliasedInAggs
 required_capability: index_metadata_field
 from employees metadata _index | eval _i = _index | stats max = max(emp_no) by _i;
-warningRegex:Line 1:39: Column name \[_i\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_i\] starts with \[_\], which is reserved for internal columns
 
 
 max:integer |_i:keyword
@@ -81,7 +81,7 @@ min:integer |_version:long
 metaVersionAliasedInAggs
 required_capability: metadata_fields
 from employees metadata _version | eval _v = _version | stats min = min(emp_no) by _v;
-warningRegex:Line 1:41: Column name \[_v\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_v\] starts with \[_\], which is reserved for internal columns
 
 min:integer |_v:long
 10001       |1
@@ -118,7 +118,7 @@ max:long |_index:keyword
 inAggsAndAsGroupsAliased
 required_capability: metadata_fields
 from employees metadata _index, _version | eval _i = _index, _v = _version | stats max = max(_v) by _i;
-warningRegex:Line 1:49: Column name \[_i\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_i\] starts with \[_\], which is reserved for internal columns
 
 max:long |_i:keyword
 1        |employees
@@ -161,7 +161,7 @@ min:integer |i:double
 overwritten
 required_capability: metadata_fields
 from employees metadata _index, _version | sort emp_no | eval _index = 3, _version = "version" | keep emp_no, _index, _version | limit 3;
-warningRegex:Line 1:63: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 emp_no:integer |_index:integer |_version:keyword
 10001          |3              |version

@@ -556,7 +556,7 @@ setup:
 "A column of the query named _doc does not replace the document NESTED_EXPAND reads":
   - do:
       allowed_warnings_regex:
-        - "Line 1:27: Column name \\[_doc\\] starts with \\[_\\], which is reserved for internal columns like .*"
+        - "Line 1:27: Column name \\[_doc\\] starts with \\[_\\], which is reserved for internal columns.*"
       esql.query:
         body:
           query: 'FROM nested_expand | EVAL _doc = CONCAT(id, "-user") | NESTED_EXPAND items | KEEP _doc, items.qty | SORT items.qty | LIMIT 10'
@@ -569,7 +569,7 @@ setup:
   # A column of a LOOKUP JOIN named _doc
   - do:
       allowed_warnings_regex:
-        - "Line 1:74: Column name \\[_doc\\] starts with \\[_\\], which is reserved for internal columns like .*"
+        - "Line 1:74: Column name \\[_doc\\] starts with \\[_\\], which is reserved for internal columns.*"
       esql.query:
         body:
           query: 'FROM ne_orders_items | LOOKUP JOIN ne_lookup_note ON id | RENAME note AS _doc | NESTED_EXPAND items | KEEP _doc, items.qty | SORT items.qty | LIMIT 10'
@@ -579,7 +579,7 @@ setup:
   # A column of the query with the name _doc is carried under
   - do:
       allowed_warnings_regex:
-        - "Line 1:27: Column name \\[_doc\\] starts with \\[_\\], which is reserved for internal columns like .*"
+        - "Line 1:27: Column name \\[_doc\\] starts with \\[_\\], which is reserved for internal columns.*"
       esql.query:
         body:
           query: 'FROM nested_expand | EVAL _doc = CONCAT(id, "-user"), `$$nested_expand$_doc` = CONCAT(id, "-other") | NESTED_EXPAND items | KEEP _doc, `$$nested_expand$_doc`, items.qty | SORT items.qty | LIMIT 10'

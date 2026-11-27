@@ -667,17 +667,13 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         LogicalPlan plan = test().addView("v", "FROM test | EVAL _unmapped_fields = 1 | KEEP emp_no")
             .statement(setUnmappedLoadAll("FROM test, v"));
         assertThat(relationsWithUnmappedFields(plan), hasSize(1));
-        assertWarnings(reservedColumnNameWarning(1, 18, UnmappedFieldsAttribute.ATTRIBUTE_NAME));
     }
 
     public void testColumnOfViewNamedLikeUnmappedFieldsIsTheQuerys() {
         LogicalPlan plan = test().addView("v", "FROM test | EVAL _unmapped_fields = 1 | KEEP emp_no, _unmapped_fields")
             .statement(setUnmappedLoadAll("FROM test, v"));
         assertThat(relationsWithUnmappedFields(plan), empty());
-        assertWarnings(
-            DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING,
-            reservedColumnNameWarning(1, 18, UnmappedFieldsAttribute.ATTRIBUTE_NAME)
-        );
+        assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
     }
 
     public void testViewInsideUserSubqueryBesideIndexKeepsTheNullColumn() {

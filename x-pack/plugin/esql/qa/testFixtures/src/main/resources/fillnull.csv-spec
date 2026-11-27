@@ -1638,7 +1638,7 @@ FROM employees
 | FILLNULL "x" ON *
 ;
 warningRegex:Line 5:3: \[FILLNULL\] the fill value could not be applied to the following fields, which were left unchanged: \[emp_no\]
-warningRegex:Line 4:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 emp_no:integer | gender:keyword | _score:keyword
 10010          | x              | x
@@ -2403,7 +2403,7 @@ FROM employees
 | FILLNULL "x" ON *
 | DROP _fork
 ;
-warningRegex:Line 4:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 gender:keyword | _score:keyword
 x              | x
@@ -2423,7 +2423,7 @@ FROM (FROM employees | WHERE emp_no == 10010 | KEEP gender | EVAL _index = gende
 | FILLNULL "x" ON *
 | SORT gender
 ;
-warningRegex:Line 1:67: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 gender:keyword | _index:keyword
 M              | x

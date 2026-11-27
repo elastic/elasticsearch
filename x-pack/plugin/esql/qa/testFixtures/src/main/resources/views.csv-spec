@@ -447,7 +447,7 @@ FROM airports_mp_filtered, airports METADATA _index
 | WHERE duplications == 2
 | EVAL indexes = MV_SORT(indexes)
 ;
-warningRegex:Line 2:8: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 duplications:long | abbrev:keyword | indexes:keyword
@@ -2738,7 +2738,7 @@ FROM (FROM view_with_fork),
 | KEEP _fork, emp_no
 | SORT _fork, emp_no
 ;
-warningRegex:Line 2:52: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _fork:keyword | emp_no:integer
 fork1         | 10092
@@ -2965,7 +2965,7 @@ FROM (FROM view_with_fork),
 | STATS c = COUNT(*) BY _fork, tag
 | SORT _fork, tag
 ;
-warningRegex:Line 2:52: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 c:long | _fork:keyword | tag:keyword
 1      | fork1         | fork1-10091
@@ -2990,7 +2990,7 @@ FROM (FROM view_with_fork),
 | KEEP _fork, emp_no, language_name
 | SORT _fork, emp_no
 ;
-warningRegex:Line 2:52: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _fork:keyword | emp_no:integer | language_name:keyword
 fork1         | 10091          | Spanish
@@ -3613,7 +3613,7 @@ FROM (FROM employees_all | WHERE emp_no >= 10091 AND emp_no < 10093 | FORK (WHER
 | KEEP _fork, emp_no
 | SORT _fork, emp_no
 ;
-warningRegex:Line 2:57: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _fork:keyword | emp_no:integer
 fork1         | 10001
@@ -3662,7 +3662,7 @@ FROM (FROM view_with_fork),
 ;
 warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[does_not_exist_field\])(?=.*\[employees_all\])
 warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[does_not_exist_field\])(?=.*\[view_with_fork\])
-warningRegex:Line 3:52: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _fork:keyword | emp_no:integer | does_not_exist_field:keyword
 fork1         | 10091          | null

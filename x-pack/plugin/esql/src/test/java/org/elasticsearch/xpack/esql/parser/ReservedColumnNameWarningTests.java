@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -167,6 +172,30 @@ public class ReservedColumnNameWarningTests extends AbstractStatementParserTests
 
     public void testPromqlValueName() {
         assertWarnsAt("PROMQL index=test step=5m _v=(foo)", "_v");
+    }
+
+    /**
+     * A view's definition warns when the view is created or updated, so its author learns about such names, but not when a query
+     * reads from the view, which would repeat the warning on every query and point into a definition the user may not own.
+     */
+    public void testViewDefinition() {
+        String definition = "FROM foo | EVAL _x = a";
+        parseView(definition, false);
+        ensureNoWarnings();
+        parseView(definition, true);
+        assertWarnings(warning(definition, "_x", "_x"));
+    }
+
+    private static void parseView(String definition, boolean warnReservedColumnNames) {
+        TEST_PARSER.parseView(
+            definition,
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            "v",
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS,
+            warnReservedColumnNames
+        );
     }
 
     public void testParameterAsName() {

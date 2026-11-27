@@ -163,6 +163,10 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.TIM
 /**
  * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
  * which change the grammar will need to make changes here as well.
+ * <p>
+ * When a command lets users name its output columns, those names must be checked for the reserved {@code _} prefix. This happens
+ * automatically for {@code name = ...}, but a name given in any other way, like {@code ... AS name} or inside a string, needs a
+ * call to {@link #warnIfReservedColumnName}; see there.
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
     /**
@@ -705,7 +709,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (outputPrefix == null) {
             throw new ParsingException(source, "URI_PARTS command requires an output field prefix");
         }
-        warnIfReservedColumnName(outputPrefix.source(), outputPrefix.name());
 
         Expression input = expression(ctx.primaryExpression());
         if (input == null) {
@@ -723,7 +726,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (outputPrefix == null) {
             throw new ParsingException(source, "REGISTERED_DOMAIN command requires an output field prefix");
         }
-        warnIfReservedColumnName(outputPrefix.source(), outputPrefix.name());
 
         Expression input = expression(ctx.primaryExpression());
         if (input == null) {
@@ -741,7 +743,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (outputPrefix == null) {
             throw new ParsingException(source, "USER_AGENT command requires an output field prefix");
         }
-        warnIfReservedColumnName(outputPrefix.source(), outputPrefix.name());
 
         Expression input = expression(ctx.primaryExpression());
         if (input == null) {
@@ -861,7 +862,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (outputPrefix == null) {
             throw new ParsingException(source, "IP_LOCATION command requires an output field prefix");
         }
-        warnIfReservedColumnName(outputPrefix.source(), outputPrefix.name());
 
         Expression input = expression(ctx.primaryExpression());
         if (input == null) {
@@ -1796,10 +1796,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (scoreAttribute.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), ctx.targetField.getText());
         }
-        if (ctx.targetField != null) {
-            // Only an explicit target warns: the default _score is the internal column RERANK is meant to update.
-            warnIfReservedColumnName(scoreAttribute.source(), scoreAttribute.name());
-        }
         Literal rowLimit = Literal.integer(source, context.inferenceSettings().rerankRowLimit());
 
         return p -> applyRerankOptions(
@@ -2009,7 +2005,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 DENSE_VECTOR_SUFFIX_KEYWORD
             );
         }
-        warnIfReservedColumnName(targetField.source(), targetField.name());
         return targetField.name();
     }
 
@@ -2076,9 +2071,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         if (targetField.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
-        }
-        if (ctx.targetField != null) {
-            warnIfReservedColumnName(targetField.source(), targetField.name());
         }
 
         Literal rowLimit = Literal.integer(source, context.inferenceSettings().completionRowLimit());

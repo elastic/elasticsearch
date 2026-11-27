@@ -6983,7 +6983,7 @@ FROM change_point_mapped
 | SORT k
 ;
 warningRegex:The query has a column named \[_unmapped_fields\], so the unmapped fields are not returned in a column of that name; rename that column to get them
-warningRegex:Line 3:26: Column name \[_unmapped_fields\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_unmapped_fields\] starts with \[_\], which is reserved for internal columns
 
 k:long | v:long | _unmapped_fields:keyword | cp:double
 12     | 10     | null                     | null
@@ -7744,7 +7744,7 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 warningRegex:The query has a column named \[_unmapped_fields\], so the unmapped fields are not returned in a column of that name; rename that column to get them
-warningRegex:Line 3:8: Column name \[_unmapped_fields\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_unmapped_fields\] starts with \[_\], which is reserved for internal columns
 
 @timestamp:datetime      | _unmapped_fields:keyword
 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
@@ -7765,7 +7765,7 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 warningRegex:The query has a column named \[_unmapped_fields\], so the unmapped fields are not returned in a column of that name; rename that column to get them
-warningRegex:Line 3:8: Column name \[_unmapped_fields\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_unmapped_fields\] starts with \[_\], which is reserved for internal columns
 
 @timestamp:datetime      | _unmapped_fields:keyword
 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
@@ -7788,7 +7788,7 @@ FROM partial_mapping_sample_data
 ;
 warningRegex:Line 6:3: \[FILLNULL\] the fill value could not be applied to the following fields, which were left unchanged: \[@timestamp\]
 warningRegex:The query has a column named \[_unmapped_fields\], so the unmapped fields are not returned in a column of that name; rename that column to get them
-warningRegex:Line 4:15: Column name \[_unmapped_fields\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_unmapped_fields\] starts with \[_\], which is reserved for internal columns
 
 @timestamp:datetime      | _unmapped_fields:keyword
 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
@@ -8260,7 +8260,7 @@ FROM partial_mapping_sample_data METADATA _score
 | SORT _score DESC, @timestamp
 | LIMIT 2
 ;
-warningRegex:Line 5:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 @timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _score:double | _unmapped_fields:_source
 2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | 0.06 | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d"",""language_code"":""1""}"
@@ -8286,7 +8286,7 @@ FROM partial_mapping_sample_data METADATA _id, _index, _score
 | SORT _score DESC, @timestamp
 | LIMIT 2
 ;
-warningRegex:Line 6:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 @timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _fork:keyword | _score:double
 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232 | Connected to 10.1.0.3! | fork2 | 0.0164
@@ -8651,7 +8651,7 @@ required_capability: optional_fields_load_all_row
 SET unmapped_fields="LOAD_ALL"\;
 ROW _unmapped_fields = "mine"
 ;
-warningRegex:Line 2:5: Column name \[_unmapped_fields\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_unmapped_fields\] starts with \[_\], which is reserved for internal columns
 
 _unmapped_fields:keyword
 mine

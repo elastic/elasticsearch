@@ -523,7 +523,7 @@ FROM
 | KEEP _index, emp_no, @timestamp
 | SORT _index, emp_no, @timestamp
 ;
-warningRegex:Line 9:8: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _index:keyword | emp_no:integer | @timestamp:date
 employees      | 10001          | null
@@ -926,7 +926,7 @@ FROM (FROM employees | WHERE emp_no >= 10091 AND emp_no < 10093 | FORK (WHERE em
 | KEEP _fork, emp_no
 | SORT _fork, emp_no
 ;
-warningRegex:Line 2:67: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _fork:keyword | emp_no:integer
 fork1         | 10091
@@ -950,7 +950,7 @@ FROM
 | KEEP _fork, emp_no
 | SORT _fork, emp_no
 ;
-warningRegex:Line 4:48: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _fork:keyword | emp_no:integer
 fork1         | 10091
@@ -995,7 +995,7 @@ FROM (FROM employees | WHERE emp_no >= 10091 AND emp_no < 10093 | FORK (WHERE em
 | SORT _fork, emp_no
 // end::forkInsideAndAfterMultiSourceFrom[]
 ;
-warningRegex:Line 2:67: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _fork:keyword | emp_no:integer
 fork1         | 10092
@@ -1057,7 +1057,7 @@ FROM (FROM employees | WHERE emp_no >= 10091 AND emp_no < 10093 | FORK (WHERE em
 | KEEP _fork, emp_no, tag
 | SORT _fork, emp_no
 ;
-warningRegex:Line 2:48: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _fork:keyword | emp_no:integer | tag:keyword
 fork1         | 10091          | fork1-10091
@@ -1637,7 +1637,7 @@ FROM (FROM employees | WHERE emp_no <= 10003 | FORK (WHERE does_not_exist_field 
 | KEEP _fork, emp_no, does_not_exist_field
 | SORT _fork, emp_no
 ;
-warningRegex:Line 3:48: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _fork:keyword | emp_no:integer | does_not_exist_field:null
 fork1         | 10001          | null
@@ -1960,7 +1960,7 @@ FROM (FROM employees | WHERE emp_no <= 10003 | FORK (WHERE emp_no == 10001) (WHE
 | KEEP _fork, emp_no, language_name
 | SORT _fork, emp_no
 ;
-warningRegex:Line 2:48: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _fork:keyword | emp_no:integer | language_name:keyword
 fork1         | 10001          | French
@@ -2027,7 +2027,7 @@ FROM (FROM employees | WHERE emp_no >= 10091 AND emp_no < 10093 | FORK (WHERE em
 | KEEP _fork, emp_no, does_not_exist_field
 | SORT _fork, emp_no
 ;
-warningRegex:Line 3:55: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _fork:keyword | emp_no:integer | does_not_exist_field:keyword
 fork1         | 10091          | null

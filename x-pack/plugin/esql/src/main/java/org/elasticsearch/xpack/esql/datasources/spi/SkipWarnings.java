@@ -104,6 +104,11 @@ public class SkipWarnings {
 
         @Override
         public void addRemovedFromMultiValue(String detail) {}
+
+        @Override
+        public boolean acceptsDetail() {
+            return false;
+        }
     };
 
     private final String summary;
@@ -200,6 +205,19 @@ public class SkipWarnings {
             multiValueSummaryEmitted = true;
         }
         addDetail(detail);
+    }
+
+    /**
+     * Whether anything handed to {@link #add(String)} would still reach the client: false once the per-event cap is
+     * spent AND the overflow line has gone out, past which {@code add} does nothing with its argument at all.
+     *
+     * <p>For a caller that BUILDS its message per event on a row-rate path, where the formatting is the cost rather
+     * than the delivery. It answers about the message, never about the event: a caller must not read it as "no need
+     * to record this", only as "no need to compose this". It stays true while the summary is still unsent, so the
+     * one call that carries the summary out is never the one skipped.
+     */
+    public boolean acceptsDetail() {
+        return summaryEmitted == false || added < MAX_ADDED_WARNINGS || overflowEmitted == false;
     }
 
     private void addDetail(String detail) {

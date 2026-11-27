@@ -28,8 +28,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IntoParserTests extends AbstractStatementParserTests {
     @Before
-    public void requiresSnapshot() {
-        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+    public void requiresIntoCommand() {
+        assumeTrue("INTO command required", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
     }
 
     public void testDestination() {
@@ -78,7 +78,10 @@ public class IntoParserTests extends AbstractStatementParserTests {
     }
 
     public void testMultipleUnknownOptionsRejected() {
-        expectError("ROW a = 1 | INTO dst WITH {\"foo\": 1, \"bar\": 2}", "Invalid options [foo, bar] in INTO, expected one of [refresh]");
+        expectError(
+            "ROW a = 1 | INTO dst WITH {\"foo\": 1, \"bar\": 2}",
+            "Invalid options [foo, bar] in INTO, expected one of [refresh, keep_going]"
+        );
     }
 
     public void testRefresh() {
@@ -125,6 +128,45 @@ public class IntoParserTests extends AbstractStatementParserTests {
         String error = "Duplicate option [refresh] in INTO";
         expectError("ROW a = 1 | INTO dst WITH {\"refresh\": {}, \"refresh\": false}", error);
         expectError("ROW a = 1 | INTO dst WITH {\"refresh\": {\"x\": 1}, \"REFRESH\": true}", error);
+    }
+
+    public void testKeepGoingDefaultsToFalse() {
+        assertFalse(as(query("ROW a = 1 | INTO dst"), Into.class).options().keepGoing());
+    }
+
+    public void testExplicitKeepGoingFalse() {
+        assertFalse(as(query("ROW a = 1 | INTO dst WITH {\"keep_going\": false}"), Into.class).options().keepGoing());
+    }
+
+    public void testKeepGoing() {
+        String query = "ROW a = 1 | INTO dst WITH {\"" + randomCasing("keep_going") + "\": true}";
+        assertTrue(as(query(query), Into.class).options().keepGoing());
+    }
+
+    public void testCaseFoldedDuplicateRejected() {
+        expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": true, \"KEEP_GOING\": false}", "Duplicate option [keep_going] in INTO");
+    }
+
+    public void testKeepGoingFromParameter() {
+        Into into = as(
+            query("ROW a = 1 | INTO dst WITH {\"keep_going\": ?kg}", new QueryParams(List.of(paramAsConstant("kg", true)))),
+            Into.class
+        );
+        assertTrue(into.options().keepGoing());
+    }
+
+    public void testKeepGoingMustBeBoolean() {
+        String error = "Option [keep_going] must be a boolean literal";
+        expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": \"yes\"}", error);
+        expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": 1}", error);
+        expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": null}", error);
+        expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": [true, false]}", error);
+        expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": {\"x\": true}}", error);
+    }
+
+    public void testRefreshAndKeepGoingTogether() {
+        Into into = as(query("ROW a = 1 | INTO dst WITH {\"refresh\": false, \"keep_going\": true}"), Into.class);
+        assertThat(into.options(), equalTo(IntoOptions.builder().refresh(false).keepGoing(true).build()));
     }
 
     public void testExplainInto() {

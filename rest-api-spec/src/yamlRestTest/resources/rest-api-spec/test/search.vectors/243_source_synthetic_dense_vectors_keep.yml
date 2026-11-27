@@ -1,0 +1,46 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.exclude_source_vectors_from_ignored_source" ]
+      reason: 'synthetic_source_keep on an excluded vector field is ignored'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 3
+                synthetic_source_keep: all
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          vector: [ 1, 3.14159265358979, -2 ]
+
+---
+"synthetic_source_keep on an excluded vector field is ignored":
+  # Vectors are excluded from _source by default.
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match: { _source: {} }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+        _source_exclude_vectors: false
+
+  # Kept in _ignored_source, the vector would come back as indexed, [1, 3.14159265358979, -2]. It is rebuilt from the index
+  # instead, as float32.
+  - match: { _source.vector: [ 1.0, 3.1415927, -2.0 ] }

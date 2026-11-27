@@ -441,7 +441,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchRequest,
                     inner,
                     responseListener -> new AsyncSearchActionProvider(responseListener, coordination),
-                    true
+                    true,
+                    coordination.breaker()
                 )
             )
         );
@@ -453,7 +454,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> originalListener,
         Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider
     ) {
-        executeRequest(task, original, originalListener, searchPhaseProvider, false);
+        // Open point in time does not coordinate, so there is no query breaker. It does not minimize roundtrips.
+        executeRequest(task, original, originalListener, searchPhaseProvider, false, circuitBreaker);
     }
 
     private void executeRequest(
@@ -461,7 +463,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequest original,
         ActionListener<SearchResponse> originalListener,
         Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider,
-        boolean collectSearchTelemetry
+        boolean collectSearchTelemetry,
+        CircuitBreaker coordinationBreaker
     ) {
         boolean resolvesCrossProject = crossProjectModeDecider.resolvesCrossProject(original);
         final long relativeStartNanos = System.nanoTime();
@@ -538,7 +541,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             closePIT(client, original.source().pointInTimeBuilder(), () -> delegate.onFailure(e));
                         }
                     };
-                    executeRequest(task, original, pitListener, searchPhaseProvider, true);
+                    executeRequest(task, original, pitListener, searchPhaseProvider, true, coordinationBreaker);
                 })
             );
             return;
@@ -718,6 +721,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                     task.getProgressListener()
                                         .notifyListShards(Collections.emptyList(), Collections.emptyMap(), clusters, false, timeProvider);
                                 }
+                                // A multi-search keeps the merged response charged after the search completes, on the node's
+                                // breaker, so it charges that breaker from the start.
+                                CircuitBreaker responseBreaker = rewritten.bufferSubSearchResponseForMultiSearch()
+                                    ? circuitBreaker
+                                    : coordinationBreaker;
                                 ccsRemoteReduce(
                                     task,
                                     parentTaskId,
@@ -740,7 +748,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                     ),
                                     transportService,
                                     forceConnectTimeoutSecs,
-                                    circuitBreaker
+                                    responseBreaker
                                 );
                             }
                         })

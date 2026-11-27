@@ -12,18 +12,24 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
 import java.util.Objects;
 
 /**
- * Adapts {@link EsqlScalarFunction} taking a single input into
- * a {@link ValuesSourceReaderOperator.ConverterFactory}.
+ * Adapts {@link EsqlScalarFunction} reading a single field into a {@link ValuesSourceReaderOperator.ConverterFactory}.
+ * Any attribute the function reads is bound to the loaded block; its other arguments can only be constants,
+ * like the base in {@code TO_LONG(x, base)}.
  */
 class TypeConverter implements ValuesSourceReaderOperator.ConverterFactory {
+    /** Constants don't read any attribute, so they are evaluated without a layout. */
+    private static final Layout NO_ATTRIBUTES = new Layout.Builder().build();
+
     private final EsqlScalarFunction convertFunction;
     private final ExpressionEvaluator.Factory factory;
 
@@ -32,7 +38,14 @@ class TypeConverter implements ValuesSourceReaderOperator.ConverterFactory {
         this.factory = convertFunction.toEvaluator(new EvaluatorMapper.ToEvaluator() {
             @Override
             public ExpressionEvaluator.Factory apply(Expression expression) {
-                return LOAD_BLOCK_FOR_CONVERSION_FACTORY;
+                if (expression instanceof Attribute) {
+                    return LOAD_BLOCK_FOR_CONVERSION_FACTORY;
+                }
+                if (expression.foldable()) {
+                    // A constant argument of the conversion, like the base of TO_LONG(x, base). It doesn't read the loaded field.
+                    return EvalMapper.toEvaluator(FoldContext.small(), expression, NO_ATTRIBUTES);
+                }
+                throw new IllegalStateException("[" + expression + "] can't be evaluated while loading a field");
             }
 
             @Override

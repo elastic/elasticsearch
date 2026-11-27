@@ -373,7 +373,7 @@ public class ApproximationSupportTests extends ESTestCase {
     }
 
     public void testIntoQueryIsRejectedByApproximationVerifier() {
-        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        assumeTrue("INTO command required", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
         Row row = new Row(Source.EMPTY, List.of());
         // Wrap with Aggregate so the "must have STATS" check passes, then Into triggers the INTO-specific rejection.
         org.elasticsearch.xpack.esql.plan.logical.Aggregate agg = new org.elasticsearch.xpack.esql.plan.logical.Aggregate(

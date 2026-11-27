@@ -495,6 +495,15 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             Set.of()
         );
         assertTrue("explicit dictionary_page_offset belongs in the first batch, not the omitted pass", explicitOffset.isEmpty());
+
+        List<CoalescedRangeReader.ByteRange> maskedOff = PreloadedRowGroupMetadata.omittedDictionaryRanges(
+            List.of(block),
+            Set.of("min_fl"),
+            new boolean[] { false },
+            indexes,
+            Set.of()
+        );
+        assertTrue("a false dictUseful bit must skip the omitted-dictionary GET for that row group", maskedOff.isEmpty());
     }
 
     /**

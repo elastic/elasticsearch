@@ -98,7 +98,7 @@ final class LongBlockHash extends PartitionedBlockHash {
             return addWithPrefetch(vector, swiss);
         }
         int positions = vector.getPositionCount();
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions, true)) {
             for (int i = 0; i < positions; i++) {
                 long v = vector.getLong(i);
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));
@@ -110,7 +110,7 @@ final class LongBlockHash extends PartitionedBlockHash {
     private IntVector addWithPrefetch(LongVector vector, LongSwissHash swiss) {
         int positions = vector.getPositionCount();
         int dummy = 0;
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions, true)) {
             for (int offset = 0; offset < positions; offset += PREFETCH_BATCH) {
                 int batchSize = Math.min(PREFETCH_BATCH, positions - offset);
                 for (int i = 0; i < batchSize; i++) {

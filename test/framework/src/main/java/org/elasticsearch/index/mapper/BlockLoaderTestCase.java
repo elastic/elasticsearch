@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -76,7 +77,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             IndexMode.COLUMNAR,
             IndexMode.LOGSDB,
             IndexMode.LOGSDB_COLUMNAR,
-            IndexMode.TIME_SERIES
+            IndexMode.TIME_SERIES,
+            IndexMode.LOOKUP,
+            IndexMode.VECTORDB_DOCUMENT,
+            IndexMode.VECTORDB_COLUMNAR
         );
 
         for (IndexMode indexMode : modes) {
@@ -447,7 +451,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public static Settings.Builder getSettingsForParams(Params params) {
         var builder = Settings.builder();
-        builder.put("index.mapping.source.mode", params.sourceMode().name());
+        builder.put("index.mapping.source.mode", params.sourceMode().name().toLowerCase(Locale.ROOT));
         builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
         if (params.indexMode() == IndexMode.TIME_SERIES) {
             builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), TIME_SERIES_DIMENSION_FIELD);

@@ -2,6 +2,9 @@
 navigation_title: "IP range"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-iprange-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # IP range aggregation [search-aggregations-bucket-iprange-aggregation]

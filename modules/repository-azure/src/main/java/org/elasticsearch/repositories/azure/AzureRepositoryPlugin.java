@@ -47,13 +47,6 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
 
     // protected for testing
     final SetOnce<AzureStorageService> azureStoreService = new SetOnce<>();
-    private final Settings settings;
-
-    public AzureRepositoryPlugin(Settings settings) {
-        // eagerly load client settings so that secure settings are read
-        AzureStorageSettings.load(settings);
-        this.settings = settings;
-    }
 
     @Override
     public Map<String, Repository.Factory> getRepositories(
@@ -84,6 +77,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        Settings settings = services.environment().settings();
         AzureClientProvider azureClientProvider = AzureClientProvider.create(services.threadPool(), settings);
         azureStoreService.set(
             createAzureStorageService(settings, azureClientProvider, services.clusterService(), services.projectResolver())

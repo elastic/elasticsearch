@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -196,16 +197,25 @@ public final class ListingWalkHarness implements StorageProvider {
     final List<String> enumeratedFiles = Collections.synchronizedList(new ArrayList<>());
     final Map<String, Integer> keysPulled = Collections.synchronizedMap(new LinkedHashMap<>());
     final AtomicInteger listObjectPages = new AtomicInteger();
+    final AtomicInteger listObjectsRequests = new AtomicInteger();
+    final AtomicInteger listObjectsInFlight = new AtomicInteger();
+    final AtomicInteger maxListObjectsInFlight = new AtomicInteger();
     final AtomicInteger listChildrenRequests = new AtomicInteger();
     final AtomicInteger listChildrenInFlight = new AtomicInteger();
     final AtomicInteger maxListChildrenInFlight = new AtomicInteger();
     volatile LongSupplier listChildrenDelayNanos = () -> 0L;
+    volatile LongSupplier listObjectsDelayNanos = () -> 0L;
     /**
      * When set, {@link #listChildrenDelayNanos} is invoked only for prefixes containing this fragment.
      * Blocking delay suppliers used by cancel tests must not run on unfiltered listings.
      */
     volatile String delayListChildrenContaining;
+    volatile String delayListObjectsContaining;
     volatile String failListChildrenContaining;
+    volatile String failListObjectsContaining;
+    volatile boolean failListObjectsUnavailable;
+    volatile boolean failListObjectsRuntime;
+    volatile Consumer<String> onListObjectsExit;
     volatile boolean failListChildrenUnavailable;
     volatile boolean failListChildrenRuntime;
     /** Return {@code null} from {@link #listChildren} after this many successful calls. {@code -1} disables. */
@@ -227,6 +237,18 @@ public final class ListingWalkHarness implements StorageProvider {
 
     public int listObjectPages() {
         return listObjectPages.get();
+    }
+
+    public int listObjectsRequests() {
+        return listObjectsRequests.get();
+    }
+
+    public int maxListObjectsInFlight() {
+        return maxListObjectsInFlight.get();
+    }
+
+    public int listObjectsInFlight() {
+        return listObjectsInFlight.get();
     }
 
     public int listChildrenRequests() {
@@ -252,6 +274,39 @@ public final class ListingWalkHarness implements StorageProvider {
     /** Restricts {@link #setListChildrenDelayNanos} to {@code listChildren} prefixes containing {@code fragment}. */
     public void setDelayListChildrenContaining(String fragment) {
         this.delayListChildrenContaining = fragment;
+    }
+
+    public void setListObjectsDelayNanos(long nanos) {
+        this.listObjectsDelayNanos = () -> nanos;
+    }
+
+    public void setListObjectsDelayNanos(LongSupplier delay) {
+        this.listObjectsDelayNanos = delay == null ? () -> 0L : delay;
+    }
+
+    /** Restricts {@link #setListObjectsDelayNanos} to {@code listObjects} prefixes containing {@code fragment}. */
+    public void setDelayListObjectsContaining(String fragment) {
+        this.delayListObjectsContaining = fragment;
+    }
+
+    /** Invoked when a {@link #listObjects} call returns or throws, including iterator close. */
+    public void setOnListObjectsExit(Consumer<String> observer) {
+        this.onListObjectsExit = observer;
+    }
+
+    /** Throws from {@link #listObjects} when the prefix contains this fragment. */
+    public void setFailListObjectsContaining(String fragment) {
+        this.failListObjectsContaining = fragment;
+    }
+
+    /** {@link #setFailListObjectsContaining} throws 503-class {@code ExternalUnavailableException}. */
+    public void setFailListObjectsUnavailable(boolean unavailable) {
+        this.failListObjectsUnavailable = unavailable;
+    }
+
+    /** {@link #setFailListObjectsContaining} throws a {@link RuntimeException}, not {@link IOException}. */
+    public void setFailListObjectsRuntime(boolean runtime) {
+        this.failListObjectsRuntime = runtime;
     }
 
     /** Snapshot of recursive {@code listObjects} prefixes, in call order. */
@@ -401,6 +456,18 @@ public final class ListingWalkHarness implements StorageProvider {
     public static List<StorageEntry> wideHiveSevenDayTree() {
         List<LocalDate> days = new ArrayList<>(WIDE_HIVE_SEVEN_DAYS + 1);
         for (int d = 1; d <= WIDE_HIVE_SEVEN_DAYS; d++) {
+            days.add(LocalDate.of(2026, 6, d));
+        }
+        days.add(LocalDate.of(2026, 7, 1));
+        return wideHiveTree(days);
+    }
+
+    /** June 1–30 plus 1 July. Hour-grain peeks of pruned June days exceed the 3000 directory ceiling. */
+    public static final int WIDE_HIVE_JUNE_DAYS = 30;
+
+    public static List<StorageEntry> wideHiveJuneTree() {
+        List<LocalDate> days = new ArrayList<>(WIDE_HIVE_JUNE_DAYS + 1);
+        for (int d = 1; d <= WIDE_HIVE_JUNE_DAYS; d++) {
             days.add(LocalDate.of(2026, 6, d));
         }
         days.add(LocalDate.of(2026, 7, 1));
@@ -833,52 +900,86 @@ public final class ListingWalkHarness implements StorageProvider {
 
     /** Prefix listing is always recursive, like S3; {@code recursive} is ignored. */
     @Override
-    public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+    public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
         String p = withTrailingSlash(prefix.toString());
         listedPrefixes.add(p);
-        List<StorageEntry> under = new ArrayList<>();
-        for (StorageEntry e : allEntries) {
-            if (e.path().toString().startsWith(p)) {
-                under.add(e);
+        listObjectsRequests.incrementAndGet();
+        if (failListObjectsContaining != null && p.contains(failListObjectsContaining)) {
+            delayListObjects(p, true);
+            try {
+                if (failListObjectsUnavailable) {
+                    throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "HTTP 503", "", false, 0L);
+                }
+                if (failListObjectsRuntime) {
+                    throw new RuntimeException("injected listing failure");
+                }
+                throw new IOException("injected listing failure");
+            } finally {
+                notifyListObjectsExit(p);
             }
         }
-        return new StorageIterator() {
-            int cursor;
-            int fetched;
-            boolean started;
+        int inFlight = listObjectsInFlight.incrementAndGet();
+        maxListObjectsInFlight.accumulateAndGet(inFlight, Math::max);
+        boolean handedOut = false;
+        try {
+            delayListObjects(p, false);
+            List<StorageEntry> under = new ArrayList<>();
+            for (StorageEntry e : allEntries) {
+                if (e.path().toString().startsWith(p)) {
+                    under.add(e);
+                }
+            }
+            StorageIterator iterator = new StorageIterator() {
+                int cursor;
+                int fetched;
+                boolean started;
+                boolean closed;
 
-            @Override
-            public boolean hasNext() {
-                if (started == false) {
+                @Override
+                public boolean hasNext() {
+                    if (started == false) {
+                        listObjectPages.incrementAndGet();
+                        fetched = Math.min(under.size(), LIST_PAGE_SIZE);
+                        started = true;
+                    }
+                    if (cursor < fetched) {
+                        return true;
+                    }
+                    if (cursor >= under.size()) {
+                        return false;
+                    }
                     listObjectPages.incrementAndGet();
-                    fetched = Math.min(under.size(), LIST_PAGE_SIZE);
-                    started = true;
+                    fetched = Math.min(under.size(), cursor + LIST_PAGE_SIZE);
+                    return cursor < fetched;
                 }
-                if (cursor < fetched) {
-                    return true;
-                }
-                if (cursor >= under.size()) {
-                    return false;
-                }
-                listObjectPages.incrementAndGet();
-                fetched = Math.min(under.size(), cursor + LIST_PAGE_SIZE);
-                return cursor < fetched;
-            }
 
-            @Override
-            public StorageEntry next() {
-                if (hasNext() == false) {
-                    throw new NoSuchElementException();
+                @Override
+                public StorageEntry next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    StorageEntry e = under.get(cursor++);
+                    enumeratedFiles.add(e.path().toString());
+                    keysPulled.merge(p, 1, Integer::sum);
+                    return e;
                 }
-                StorageEntry e = under.get(cursor++);
-                enumeratedFiles.add(e.path().toString());
-                keysPulled.merge(p, 1, Integer::sum);
-                return e;
-            }
 
-            @Override
-            public void close() {}
-        };
+                @Override
+                public void close() {
+                    if (closed == false) {
+                        closed = true;
+                        listObjectsInFlight.decrementAndGet();
+                        notifyListObjectsExit(p);
+                    }
+                }
+            };
+            handedOut = true;
+            return iterator;
+        } finally {
+            if (handedOut == false) {
+                listObjectsInFlight.decrementAndGet();
+            }
+        }
     }
 
     @Override
@@ -962,6 +1063,31 @@ public final class ListingWalkHarness implements StorageProvider {
         long delay = listChildrenDelayNanos.getAsLong();
         if (delay > 0) {
             LockSupport.parkNanos(delay);
+        }
+    }
+
+    /**
+     * @param matchingFragmentOnly when {@code true}, delay only if {@link #delayListObjectsContaining} is set
+     *                             and matches — injected failures stay instant unless a test names that prefix
+     */
+    private void delayListObjects(String prefix, boolean matchingFragmentOnly) {
+        if (matchingFragmentOnly) {
+            if (delayListObjectsContaining == null || prefix.contains(delayListObjectsContaining) == false) {
+                return;
+            }
+        } else if (delayListObjectsContaining != null && prefix.contains(delayListObjectsContaining) == false) {
+            return;
+        }
+        long delay = listObjectsDelayNanos.getAsLong();
+        if (delay > 0) {
+            LockSupport.parkNanos(delay);
+        }
+    }
+
+    private void notifyListObjectsExit(String prefix) {
+        Consumer<String> observer = onListObjectsExit;
+        if (observer != null) {
+            observer.accept(prefix);
         }
     }
 

@@ -49,6 +49,14 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), true, TimeSeriesFieldType.UNKNOWN);
     }
 
+    /**
+     * This field, also unmapped in some indices. It keeps the counts of the indices of each type, which rebuilding it from
+     * {@link #getTypesToIndices()} would lose: those are already truncated, with a {@code "..."} in place of the dropped indices.
+     */
+    public CompactInvalidMappedField asPotentiallyUnmapped() {
+        return new CompactInvalidMappedField(getName(), typesToIndices, true, TimeSeriesFieldType.UNKNOWN);
+    }
+
     private static Set<String> truncate(Set<String> indices) {
         Set<String> truncated = new LinkedHashSet<>(MAX_INDICES_PER_TYPE);
         indices.stream().sorted().limit(MAX_INDICES_PER_TYPE).forEach(truncated::add);

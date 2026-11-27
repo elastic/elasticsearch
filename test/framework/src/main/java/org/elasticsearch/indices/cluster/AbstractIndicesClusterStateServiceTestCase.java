@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -281,14 +282,14 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             IndexRemovalReason reason,
             String extraInfo,
             Executor shardCloseExecutor,
-            ActionListener<Void> shardsClosedListener
+            Releasable onShardsClosed
         ) {
             if (hasIndex(index)) {
                 Map<String, MockIndexService> newIndices = new HashMap<>(indices);
                 newIndices.remove(index.getUUID());
                 indices = unmodifiableMap(newIndices);
             }
-            shardsClosedListener.onResponse(null);
+            onShardsClosed.close();
         }
 
         @Override
@@ -378,7 +379,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public synchronized void removeShard(int shardId, String reason, Executor closeExecutor, ActionListener<Void> closeListener) {
+        public synchronized void removeShard(int shardId, String reason, Executor closeExecutor, Releasable onClosed) {
             try {
                 if (shards.containsKey(shardId) == false) {
                     return;
@@ -388,7 +389,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 assert indexShard != null;
                 shards = unmodifiableMap(newShards);
             } finally {
-                closeListener.onResponse(null);
+                onClosed.close();
             }
         }
 

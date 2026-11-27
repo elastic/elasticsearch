@@ -30,12 +30,11 @@ final class ChunkedDataExtractorEsqlSizing {
 
     /**
      * Maximum ES|QL shrink retries per chunk after a result hits {@link EsqlDataExtractor#INJECTED_ROW_LIMIT}; the interval shrinks by
-     * at least {@link #CHUNK_HEADROOM_FACTOR} except where the one-grouping-interval floor applies.
+     * at least {@link #CHUNK_HEADROOM_FACTOR} except where the one-time-bucket floor applies.
      */
     static final int MAX_ESQL_SHRINK_ATTEMPTS = 6;
 
     private final ChunkedDataExtractorContext.TimeAligner timeAligner;
-    private final boolean injectsEsqlRowLimit;
     private long initialChunkSpan;
     private int shrinkAttempts;
     @Nullable
@@ -43,7 +42,6 @@ final class ChunkedDataExtractorEsqlSizing {
 
     ChunkedDataExtractorEsqlSizing(ChunkedDataExtractorContext context) {
         this.timeAligner = context.timeAligner();
-        this.injectsEsqlRowLimit = context.injectsEsqlRowLimit();
     }
 
     void captureInitialChunkSpan(long chunkSpan) {
@@ -51,7 +49,7 @@ final class ChunkedDataExtractorEsqlSizing {
     }
 
     boolean isTruncated(long rowCount) {
-        return injectsEsqlRowLimit && rowCount >= EsqlDataExtractor.INJECTED_ROW_LIMIT;
+        return rowCount >= EsqlDataExtractor.INJECTED_ROW_LIMIT;
     }
 
     /** Returns the shrunk end to retry the chunk with, or empty after recording {@code interval} as incomplete. */

@@ -34,6 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
@@ -687,6 +688,119 @@ public class BatchBulkIT extends ESIntegTestCase {
         );
     }
 
+    /**
+     * A number field that receives integer literals, floating-point literals and nulls in one batch has a union source column. The
+     * batch must still be indexed by the batch path, not re-indexed by the row path, and the values must read back as the row path
+     * would index them.
+     */
+    public void testColumnarNumberFieldWithMixedIntegerAndFloatingPointValues() throws IOException {
+        final String index = "test-columnar-mixed-number";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("cpu_usage").field("type", randomFrom("float", "double", "long", "half_float")).endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        // One shard, so that the whole bulk is a single batch with both kinds of values.
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        final String coordinatingNode = findCoordinatingNode();
+
+        // Whole values keep the field's value the same for every number type, so that the expected value does not depend on the type.
+        final int numDocs = randomIntBetween(30, 100);
+        final Number[] sent = new Number[numDocs];
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            sent[i] = switch (i % 4) {
+                case 0 -> Integer.valueOf(randomIntBetween(0, 100));
+                case 1 -> Double.valueOf(randomIntBetween(0, 100));
+                case 2 -> null;
+                case 3 -> Integer.valueOf(randomIntBetween(0, 100));
+                default -> throw new AssertionError("unreachable");
+            };
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .source(XContentType.JSON, "host", "host-" + (i % 5), "cpu_usage", sent[i])
+                    .opType(DocWriteRequest.OpType.CREATE)
+            );
+        }
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class, ShardBatchMapper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            // A chunk the mappers refuse is logged and re-indexed by the row path, which would hide a broken batch path.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no batch mapping fallback",
+                    ShardBatchMapper.class.getName(),
+                    Level.WARN,
+                    "columnar batch mapping failed*"
+                )
+            );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs).addDocValueField("cpu_usage"),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                assertThat(searchResponse.getHits().getHits().length, equalTo(numDocs));
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    final Number expected = sent[Integer.parseInt(hit.getId().substring("doc-".length()))];
+                    final DocumentField field = hit.field("cpu_usage");
+                    if (expected == null) {
+                        assertTrue(hit.getId(), field == null || field.getValues().isEmpty());
+                    } else {
+                        assertNotNull(hit.getId(), field);
+                        assertThat(hit.getId(), field.getValues().size(), equalTo(1));
+                        assertEquals(hit.getId(), expected.doubleValue(), ((Number) field.getValue()).doubleValue(), 0.0);
+                    }
+                }
+            }
+        );
+    }
+
     public void testBulkIndexingViaBatchMode() throws IOException {
         String index = "test-batch";
         createBatchIndex(index, 2, 1);
@@ -967,6 +1081,107 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertThat(primaryStats.getIndexFailedCount(), equalTo((long) numDocs));
         assertThat(primaryStats.getIndexFailedDueToVersionConflictCount(), equalTo((long) numDocs));
         assertThat(primaryStats.getIndexCurrent(), equalTo(0L));
+    }
+
+    public void testColumnarBulkWithVersionConflict() throws IOException {
+        final String index = "test-columnar-conflict-then-success";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                )
+                .setMapping("ints", "type=integer")
+        );
+        ensureGreen(index);
+
+        final List<List<String>> idSequences = List.of(
+            List.of("a", "a"),
+            List.of("a", "b", "a"),
+            List.of("a", "b", "b"),
+            List.of("a", "a", "b"),
+            List.of("a", "b", "a", "c"),
+            List.of("a", "a", "b", "c"),
+            List.of("a", "a", "a", "b")
+        );
+        // Each id sequence is a bulk. The ids carry the number of the sequence so that the bulks do not interact.
+        final List<List<String>> bulks = new ArrayList<>();
+        for (int sequence = 0; sequence < idSequences.size(); sequence++) {
+            final String prefix = sequence + "-";
+            bulks.add(idSequences.get(sequence).stream().map(id -> prefix + id).toList());
+        }
+
+        final String coordinatingNode = findCoordinatingNode();
+        final Set<String> expectedIds = new LinkedHashSet<>();
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try {
+            for (List<String> ids : bulks) {
+                BulkRequest bulkRequest = new BulkRequest();
+                for (String id : ids) {
+                    bulkRequest.add(
+                        new IndexRequest(index).id(id).opType(DocWriteRequest.OpType.CREATE).source(XContentType.JSON, "ints", 1)
+                    );
+                }
+
+                final BulkResponse bulkResponse;
+                try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "batch indexed on primary",
+                            ShardBatchIndexer.class.getName(),
+                            Level.TRACE,
+                            "batch indexed * operations on primary shard *"
+                        )
+                    );
+                    bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+                    mockLog.assertAllExpectationsMatched();
+                }
+
+                final BulkItemResponse[] items = bulkResponse.getItems();
+                assertThat(items.length, equalTo(ids.size()));
+                for (int i = 0; i < items.length; i++) {
+                    if (expectedIds.add(ids.get(i))) {
+                        assertFalse(ids + " item " + i, items[i].isFailed());
+                        assertThat(ids + " item " + i, items[i].status(), equalTo(RestStatus.CREATED));
+                    } else {
+                        assertTrue(ids + " item " + i, items[i].isFailed());
+                        assertThat(ids + " item " + i, items[i].status(), equalTo(RestStatus.CONFLICT));
+                    }
+                }
+
+                refresh(index);
+                assertResponse(
+                    prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true),
+                    searchResponse -> assertThat(
+                        "documents after the bulk " + ids,
+                        searchResponse.getHits().getTotalHits().value(),
+                        equalTo((long) expectedIds.size())
+                    )
+                );
+            }
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        // Fetching a document without an _id used to fail an assertion, which is fatal for the node.
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
+                .setSize(expectedIds.size())
+                .seqNoAndPrimaryTerm(true)
+                .setVersion(true),
+            searchResponse -> {
+                final Set<String> fetchedIds = new LinkedHashSet<>();
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    fetchedIds.add(hit.getId());
+                    assertThat(hit.getId(), hit.getSeqNo(), greaterThanOrEqualTo(0L));
+                }
+                assertThat(fetchedIds, equalTo(expectedIds));
+            }
+        );
     }
 
     /**
@@ -1705,6 +1920,118 @@ public class BatchBulkIT extends ESIntegTestCase {
                 }
             }
         );
+    }
+
+    public void testBatchModeWithDynamicFieldsBeyondFieldLimit() throws IOException {
+        String index = "test-batch-beyond-field-limit";
+
+        // The two mapped fields use up the whole budget of the limit, so every dynamic field is beyond it.
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("name").field("type", "keyword").endObject();
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put("index.mapping.total_fields.limit", 2)
+                        .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        int numDocs = randomIntBetween(20, 100);
+        Set<String> idsWithExtraField = new LinkedHashSet<>();
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("name", "doc-" + i);
+            source.put("host", "host-" + (i % 5));
+            if (i % 2 == 0) {
+                source.put("extra_field", i);
+                idsWithExtraField.add("doc-" + i);
+            }
+            bulkRequest.add(new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.CREATE).source(source));
+        }
+
+        // Record whether the coordinating node sent the shard a batch, so that the fallback is not tested against inline bulk items.
+        Set<String> indicesWithBatch = ConcurrentCollections.newConcurrentSet();
+        Set<String> indicesWithoutBatch = ConcurrentCollections.newConcurrentSet();
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(TransportShardBulkAction.ACTION_NAME + "[p]", (handler, request, channel, task) -> {
+                    // the primary action receives the request wrapped for its target allocation id
+                    BulkShardRequest shardRequest = (BulkShardRequest) ((TransportReplicationAction.ConcreteShardRequest<?>) request)
+                        .getRequest();
+                    (shardRequest.getBulkShardBatch() != null ? indicesWithBatch : indicesWithoutBatch).add(
+                        shardRequest.shardId().getIndexName()
+                    );
+                    handler.messageReceived(request, channel, task);
+                });
+        }
+        try {
+            BulkResponse bulkResponse = client(findCoordinatingNode()).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+        }
+        assertThat(indicesWithBatch, equalTo(Set.of(index)));
+        assertThat(indicesWithoutBatch, equalTo(Set.of()));
+
+        refresh(index);
+
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+
+        // Only the documents that carried a field beyond the limit are reported in _ignored.
+        for (QueryBuilder ignoredQuery : List.of(
+            QueryBuilders.existsQuery("_ignored"),
+            QueryBuilders.termQuery("_ignored", "extra_field")
+        )) {
+            assertResponse(prepareSearch(index).setQuery(ignoredQuery).setSize(numDocs).setTrackTotalHits(true), searchResponse -> {
+                assertNoFailures(searchResponse);
+                Set<String> ignoredIds = new LinkedHashSet<>();
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    ignoredIds.add(hit.getId());
+                }
+                assertThat(ignoredIds, equalTo(idsWithExtraField));
+            });
+        }
+
+        // Columnar modes rebuild _source from doc values, so the dropped values are lost.
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs), searchResponse -> {
+            assertNoFailures(searchResponse);
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                assertThat(hit.getSourceAsMap().keySet(), equalTo(Set.of("name", "host")));
+            }
+        });
+
+        // The fields beyond the limit are not mapped.
+        var mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get().getMappings().get(index);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) mappings.sourceAsMap().get("properties");
+        assertThat(properties.keySet(), equalTo(Set.of("name", "host")));
     }
 
     public void testBulkWithExplicitRouting() throws IOException {

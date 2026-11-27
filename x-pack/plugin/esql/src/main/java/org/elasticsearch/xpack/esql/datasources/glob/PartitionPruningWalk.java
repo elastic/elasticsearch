@@ -30,20 +30,24 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * Hint-narrowed enumeration of a partition tree: the tree is walked level by level via
@@ -238,7 +242,9 @@ final class PartitionPruningWalk {
         Map<String, DataType> columnFullTypes,
         List<StoragePath> prunedDirs,
         @Nullable StorageEntry fileKeepStash,
-        int globKeptCount
+        int globKeptCount,
+        int listed,
+        boolean truncated
     ) {}
 
     /**
@@ -360,6 +366,42 @@ final class PartitionPruningWalk {
         BooleanSupplier cancelled,
         @Nullable String pathTemplate
     ) throws IOException {
+        return tryWalk(
+            provider,
+            prefix,
+            matcher,
+            nameFilter,
+            hints,
+            maxDiscoveredFiles,
+            glob,
+            folderRange,
+            fileKeep,
+            maxListedObjects,
+            maxDirectoryListings,
+            cancelled,
+            pathTemplate,
+            Integer.MAX_VALUE,
+            null
+        );
+    }
+
+    static WalkResult tryWalk(
+        StorageProvider provider,
+        StoragePath prefix,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        String glob,
+        @Nullable FolderRangePredicate folderRange,
+        @Nullable Predicate<StorageEntry> fileKeep,
+        int maxListedObjects,
+        int maxDirectoryListings,
+        BooleanSupplier cancelled,
+        @Nullable String pathTemplate,
+        int maxFiles,
+        @Nullable AtomicReference<WalkDiagnostics> diagnosticsOut
+    ) throws IOException {
         return walk(
             provider,
             prefix,
@@ -373,18 +415,23 @@ final class PartitionPruningWalk {
             maxListedObjects,
             maxDirectoryListings,
             cancelled,
-            pathTemplate
+            pathTemplate,
+            maxFiles,
+            diagnosticsOut
         );
     }
 
     /**
-     * Async counterpart of {@link #tryWalk}: each directory level and each retroactive peek batch is
-     * listed concurrently on {@code executor} via {@link ThrottledIterator}, results merged in
-     * directory-slot order. The calling thread is not blocked; {@code listener} fires on an executor
-     * thread. A cancelled child fails with {@link TaskCancelledException}. A store {@link IOException}
-     * fails the listener rather than completing with {@code null}. {@code null} remains a walk withdraw
-     * (unsupported {@code listChildren}, ceiling, stray). Output and LIST count match the sequential
-     * walk: peeks consume the remaining listing budget greedily, then fail closed if any peek was skipped.
+     * Async counterpart of {@link #tryWalk}: each directory level, each retroactive peek batch, and the
+     * finish {@code listObjects} of surviving folders are listed concurrently on {@code executor} via
+     * {@link ThrottledIterator}, results merged in directory-slot order. Finish pages do not count
+     * against {@code maxDirectoryListings}. The calling thread is not blocked; {@code listener} fires
+     * on an executor thread. A cancelled child fails with {@link TaskCancelledException}. A store
+     * {@link IOException} fails the listener rather than completing with {@code null}. {@code null}
+     * remains a walk withdraw (unsupported {@code listChildren}, ceiling, stray). Output and
+     * directory-listing count match the sequential walk: peeks consume the remaining
+     * {@code maxDirectoryListings} budget greedily, then fail closed if any peek was skipped. Finish
+     * {@code listObjects} pages are a separate counter and do not count against that ceiling.
      */
     static void tryWalkAsync(
         StorageProvider provider,
@@ -441,6 +488,48 @@ final class PartitionPruningWalk {
         ActionListener<WalkResult> listener,
         @Nullable String pathTemplate
     ) {
+        tryWalkAsync(
+            provider,
+            prefix,
+            matcher,
+            nameFilter,
+            hints,
+            maxDiscoveredFiles,
+            glob,
+            folderRange,
+            fileKeep,
+            maxListedObjects,
+            maxDirectoryListings,
+            cancelled,
+            concurrency,
+            executor,
+            listener,
+            pathTemplate,
+            Integer.MAX_VALUE,
+            null
+        );
+    }
+
+    static void tryWalkAsync(
+        StorageProvider provider,
+        StoragePath prefix,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        String glob,
+        @Nullable FolderRangePredicate folderRange,
+        @Nullable Predicate<StorageEntry> fileKeep,
+        int maxListedObjects,
+        int maxDirectoryListings,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        ActionListener<WalkResult> listener,
+        @Nullable String pathTemplate,
+        int maxFiles,
+        @Nullable AtomicReference<WalkDiagnostics> diagnosticsOut
+    ) {
         WalkSession session;
         try {
             session = new WalkSession(
@@ -456,7 +545,9 @@ final class PartitionPruningWalk {
                 maxListedObjects,
                 maxDirectoryListings,
                 cancelled,
-                pathTemplate
+                pathTemplate,
+                maxFiles,
+                diagnosticsOut
             );
         } catch (RuntimeException e) {
             listener.onFailure(e);
@@ -497,7 +588,9 @@ final class PartitionPruningWalk {
         int maxListedObjects,
         int maxDirectoryListings,
         BooleanSupplier cancelled,
-        @Nullable String pathTemplate
+        @Nullable String pathTemplate,
+        int maxFiles,
+        @Nullable AtomicReference<WalkDiagnostics> diagnosticsOut
     ) throws IOException {
         return new WalkSession(
             provider,
@@ -512,7 +605,9 @@ final class PartitionPruningWalk {
             maxListedObjects,
             maxDirectoryListings,
             cancelled,
-            pathTemplate
+            pathTemplate,
+            maxFiles,
+            diagnosticsOut
         ).runSequential();
     }
 
@@ -546,11 +641,13 @@ final class PartitionPruningWalk {
      * Lists the direct children of each pruned dir in {@code peeks}, adding any {@code key=value} directory
      * entries to {@code seenValues} as shadow values for type-divergence detection. Each LIST is consumed as
      * it returns so the walk retains folder values, not the full {@link StorageChildren} payload. Returns
-     * {@code false} when a peek could not complete (budget exhausted or directory too wide to buffer) — the
+     * a stop reason when a peek could not complete (budget exhausted or directory too wide to buffer) — the
      * caller should return {@code null} (fall back to flat listing) in that case. Issues at most the remaining
-     * listing budget, matching the sequential walk's greedy ceiling.
+     * listing budget, matching the sequential walk's greedy ceiling. Callers may skip leftover peeks when
+     * survivors already typed the new key.
      */
-    private static boolean processPendingPeeks(
+    @Nullable
+    private static WalkDiagnostics.StopReason processPendingPeeks(
         StorageProvider provider,
         List<StoragePath> peeks,
         Map<String, List<String>> seenValues,
@@ -565,7 +662,7 @@ final class PartitionPruningWalk {
         }
         List<StoragePath> toPeek = peeksToIssue(peeks, listings.get(), maxDirectoryListings);
         if (toPeek == null) {
-            return false;
+            return WalkDiagnostics.StopReason.PEEK_BUDGET;
         }
         for (StoragePath dir : toPeek) {
             if (cancelled.getAsBoolean()) {
@@ -577,16 +674,16 @@ final class PartitionPruningWalk {
                 throw new TaskCancelledException("listing cancelled");
             }
             if (children == null) {
-                return false;
+                return WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED;
             }
             applyPeekChildren(children, seenValues, templateLayout, walkLevel);
         }
-        return toPeek.size() == peeks.size();
+        return toPeek.size() == peeks.size() ? null : WalkDiagnostics.StopReason.PEEK_BUDGET;
     }
 
     /**
-     * First {@code min(peeks, remaining budget)} dirs, or {@code null} when none fit. A truncated
-     * slice must still be listed then fail closed so issued counts match the sequential greedy ceiling.
+     * First {@code min(peeks, remaining budget)} dirs, or {@code null} when none fit. Callers skip leftover
+     * peeks when survivors already typed the new key; otherwise list the slice then fail closed.
      */
     @Nullable
     private static List<StoragePath> peeksToIssue(List<StoragePath> peeks, int issued, int maxDirectoryListings) {
@@ -687,6 +784,9 @@ final class PartitionPruningWalk {
         FinishMode mode,
         boolean templateFrontier
     ) throws IOException {
+        if (collector.truncated()) {
+            return collector.result(prunedColumns, columnFullTypes, prunedDirs);
+        }
         if (prunedColumns.isEmpty()) {
             return null;
         }
@@ -696,41 +796,212 @@ final class PartitionPruningWalk {
         if (dirs.isEmpty()) {
             return collector.result(prunedColumns, columnFullTypes, prunedDirs);
         }
-        int measure = templateFrontier ? 0 : indexOfFirstShapedDir(dirs);
-        List<StorageEntry> firstBatch = listDir(provider, dirs.get(measure));
-        int second = -1;
-        List<StorageEntry> secondBatch = null;
-        boolean floorPrefix = true;
-        if (mode == FinishMode.RULE && firstBatch.size() < MIN_FINISH_SAMPLE) {
-            boolean unfloored = cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, false);
-            boolean floored = cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, true);
-            if (unfloored == false && floored) {
-                floorPrefix = false;
-                second = templateFrontier ? (dirs.size() > 1 ? 1 : -1) : indexOfNextShapedDir(dirs, measure);
-                if (second >= 0) {
-                    secondBatch = listDir(provider, dirs.get(second));
-                    floorPrefix = secondBatch.size() >= MIN_FINISH_SAMPLE;
+        try (FinishProbe probe = probeFinish(provider, dirs, estimatedPrefixWidth, mode, templateFrontier)) {
+            if (probe.flatten) {
+                return null;
+            }
+            applyFinishProbe(collector, probe);
+            addRemainingDirs(collector, provider, dirs, probe.measure, probe.second);
+            return collector.result(prunedColumns, columnFullTypes, prunedDirs);
+        }
+    }
+
+    /**
+     * Async counterpart of {@link #finishSurvivors}: probes {@code k} on this thread (same cheaperToFinish
+     * arithmetic), then lists remaining survivor folders concurrently. Finish {@code listObjects} do not
+     * increment the directory-listing counter. Ordered merge into {@code collector}; a store failure
+     * fails the listener rather than flattening.
+     */
+    private static void finishSurvivorsAsync(
+        Collector collector,
+        StorageProvider provider,
+        List<StoragePath> dirs,
+        Set<String> prunedColumns,
+        Map<String, DataType> columnFullTypes,
+        double estimatedPrefixWidth,
+        List<StoragePath> prunedDirs,
+        FinishMode mode,
+        boolean templateFrontier,
+        int concurrency,
+        Executor executor,
+        BooleanSupplier cancelled,
+        ActionListener<WalkResult> listener
+    ) {
+        ActionListener<WalkResult> once = ActionListener.notifyOnce(listener);
+        if (concurrency <= 1 || executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+            ActionListener.completeWith(
+                once,
+                () -> finishSurvivors(
+                    collector,
+                    provider,
+                    dirs,
+                    prunedColumns,
+                    columnFullTypes,
+                    estimatedPrefixWidth,
+                    prunedDirs,
+                    mode,
+                    templateFrontier
+                )
+            );
+            return;
+        }
+        if (collector.truncated()) {
+            once.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
+            return;
+        }
+        if (prunedColumns.isEmpty() || mode == FinishMode.ALWAYS_FLAT) {
+            once.onResponse(null);
+            return;
+        }
+        if (dirs.isEmpty()) {
+            once.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
+            return;
+        }
+        FinishProbe probe = null;
+        try {
+            Exception cancelledNow = cancellationFailure(cancelled);
+            if (cancelledNow != null) {
+                once.onFailure(cancelledNow);
+                return;
+            }
+            probe = probeFinish(provider, dirs, estimatedPrefixWidth, mode, templateFrontier);
+            if (probe.flatten) {
+                once.onResponse(null);
+                return;
+            }
+            applyFinishProbe(collector, probe);
+            closeDirSample(probe.secondSample);
+            probe.secondSample = null;
+            if (collector.truncated()) {
+                once.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
+                return;
+            }
+            List<StoragePath> remaining = remainingFinishDirs(dirs, probe.measure, probe.second);
+            if (remaining.isEmpty()) {
+                once.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
+                return;
+            }
+            listObjectsParallel(provider, remaining, collector, concurrency, executor, cancelled, new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    once.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    once.onFailure(e);
+                }
+            });
+        } catch (Exception e) {
+            once.onFailure(e);
+        } finally {
+            if (probe != null) {
+                try {
+                    probe.close();
+                } catch (IOException close) {
+                    logger.debug("Closing finish sample after async probe", close);
                 }
             }
         }
-        if (mode == FinishMode.RULE
-            && cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, floorPrefix) == false) {
-            return null;
+    }
+
+    /**
+     * First-shaped-dir listing, optional second sample, and cheaperToFinish. Remaining drain is sequential
+     * {@link #addRemainingDirs} or {@link #listObjectsParallel}; this probe must stay shared so
+     * cheaperToFinish arithmetic cannot drift.
+     */
+    private static FinishProbe probeFinish(
+        StorageProvider provider,
+        List<StoragePath> dirs,
+        double estimatedPrefixWidth,
+        FinishMode mode,
+        boolean templateFrontier
+    ) throws IOException {
+        int measure = templateFrontier ? 0 : indexOfFirstShapedDir(dirs);
+        List<StorageEntry> firstBatch = listDir(provider, dirs.get(measure));
+        int second = -1;
+        DirSample secondSample = null;
+        boolean floorPrefix = true;
+        try {
+            if (mode == FinishMode.RULE && firstBatch.size() < MIN_FINISH_SAMPLE) {
+                boolean unfloored = cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, false);
+                boolean floored = cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, true);
+                if (unfloored == false && floored) {
+                    floorPrefix = false;
+                    second = templateFrontier ? (dirs.size() > 1 ? 1 : -1) : indexOfNextShapedDir(dirs, measure);
+                    if (second >= 0) {
+                        secondSample = listDirSample(provider, dirs.get(second), MIN_FINISH_SAMPLE);
+                        floorPrefix = secondSample.size() >= MIN_FINISH_SAMPLE;
+                    }
+                }
+            }
+            boolean flatten = mode == FinishMode.RULE
+                && cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, floorPrefix) == false;
+            return new FinishProbe(measure, second, firstBatch, secondSample, flatten);
+        } catch (Exception e) {
+            closeDirSample(secondSample);
+            throw e;
         }
-        for (StorageEntry entry : firstBatch) {
+    }
+
+    private static void applyFinishProbe(Collector collector, FinishProbe probe) throws IOException {
+        for (StorageEntry entry : probe.firstBatch) {
             collector.add(entry);
-        }
-        if (secondBatch != null) {
-            for (StorageEntry entry : secondBatch) {
-                collector.add(entry);
+            if (collector.truncated()) {
+                return;
             }
         }
+        if (probe.secondSample != null && collector.truncated() == false) {
+            probe.secondSample.drainInto(collector);
+        }
+    }
+
+    private static final class FinishProbe implements AutoCloseable {
+        final int measure;
+        final int second;
+        final List<StorageEntry> firstBatch;
+        @Nullable
+        DirSample secondSample;
+        final boolean flatten;
+
+        FinishProbe(int measure, int second, List<StorageEntry> firstBatch, @Nullable DirSample secondSample, boolean flatten) {
+            this.measure = measure;
+            this.second = second;
+            this.firstBatch = firstBatch;
+            this.secondSample = secondSample;
+            this.flatten = flatten;
+        }
+
+        @Override
+        public void close() throws IOException {
+            closeDirSample(secondSample);
+            secondSample = null;
+        }
+    }
+
+    private static void closeDirSample(@Nullable DirSample sample) throws IOException {
+        if (sample != null) {
+            sample.close();
+        }
+    }
+
+    private static void addRemainingDirs(Collector collector, StorageProvider provider, List<StoragePath> dirs, int measure, int second)
+        throws IOException {
         for (int i = 0; i < dirs.size(); i++) {
-            if (i != measure && i != second) {
+            if (i != measure && i != second && collector.truncated() == false) {
                 collector.addRecursively(provider, dirs.get(i));
             }
         }
-        return collector.result(prunedColumns, columnFullTypes, prunedDirs);
+    }
+
+    private static List<StoragePath> remainingFinishDirs(List<StoragePath> dirs, int measure, int second) {
+        List<StoragePath> remaining = new ArrayList<>(Math.max(dirs.size() - 1, 0));
+        for (int i = 0; i < dirs.size(); i++) {
+            if (i != measure && i != second) {
+                remaining.add(dirs.get(i));
+            }
+        }
+        return remaining;
     }
 
     /**
@@ -757,13 +1028,360 @@ final class PartitionPruningWalk {
     }
 
     private static List<StorageEntry> listDir(StorageProvider provider, StoragePath dir) throws IOException {
+        return listDirUntilSkip(provider, dir, () -> false, Integer.MAX_VALUE, null);
+    }
+
+    /**
+     * Recursive listing of {@code dir} that stops between pages when {@code skip} is true or
+     * {@code cap} listed-eligible objects have been taken. Empty when skipped mid-folder; the caller
+     * must not merge an empty skip into the collector. A finite {@code cap} is
+     * {@link Collector#remainingListedTripCap()} of the next merge slot: remaining listed budget plus
+     * the trip object sequential {@link Collector#addRecursively} observes. Directory placeholders do
+     * not count toward {@code cap}.
+     */
+    private static List<StorageEntry> listDirUntilSkip(
+        StorageProvider provider,
+        StoragePath dir,
+        BooleanSupplier skip,
+        int cap,
+        @Nullable Collector collector
+    ) throws IOException {
+        if (cap <= 0 || skip.getAsBoolean()) {
+            return List.of();
+        }
         List<StorageEntry> entries = new ArrayList<>();
+        int listedTaken = 0;
         try (StorageIterator iterator = provider.listObjects(dir, true)) {
-            while (iterator.hasNext()) {
-                entries.add(iterator.next());
+            while (true) {
+                if (skip.getAsBoolean()) {
+                    return List.of();
+                }
+                if (listedTaken >= cap) {
+                    break;
+                }
+                if (iterator.hasNext() == false) {
+                    break;
+                }
+                StorageEntry entry = iterator.next();
+                entries.add(entry);
+                if (cap != Integer.MAX_VALUE && collector != null && collector.countsTowardListed(entry)) {
+                    listedTaken++;
+                }
             }
         }
         return entries;
+    }
+
+    /**
+     * First {@code limit} objects under {@code dir}, keeping the iterator open when more remain so finish
+     * can stream the rest through {@link Collector} without buffering the whole folder.
+     */
+    private static DirSample listDirSample(StorageProvider provider, StoragePath dir, int limit) throws IOException {
+        StorageIterator iterator = provider.listObjects(dir, true);
+        List<StorageEntry> prefix = new ArrayList<>(Math.max(limit, 1));
+        try {
+            while (prefix.size() < limit && iterator.hasNext()) {
+                prefix.add(iterator.next());
+            }
+            if (iterator.hasNext() == false) {
+                iterator.close();
+                return new DirSample(prefix, null);
+            }
+            return new DirSample(prefix, iterator);
+        } catch (IOException | RuntimeException e) {
+            try {
+                iterator.close();
+            } catch (Exception close) {
+                e.addSuppressed(close);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Bounded second-probe listing. {@link #close()} is a no-op when the iterator was already exhausted.
+     */
+    private static final class DirSample implements AutoCloseable {
+        private final List<StorageEntry> prefix;
+        @Nullable
+        private StorageIterator rest;
+
+        DirSample(List<StorageEntry> prefix, @Nullable StorageIterator rest) {
+            this.prefix = prefix;
+            this.rest = rest;
+        }
+
+        int size() {
+            return prefix.size();
+        }
+
+        void drainInto(Collector collector) throws IOException {
+            try {
+                for (StorageEntry entry : prefix) {
+                    collector.add(entry);
+                    if (collector.truncated()) {
+                        return;
+                    }
+                }
+                if (rest == null) {
+                    return;
+                }
+                while (collector.truncated() == false && rest.hasNext()) {
+                    collector.add(rest.next());
+                }
+            } finally {
+                close();
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (rest != null) {
+                rest.close();
+                rest = null;
+            }
+        }
+    }
+
+    /**
+     * Parallel recursive {@code listObjects} of remaining finish dirs. Same {@link ThrottledIterator}
+     * batching as {@link #listChildrenParallel}: cancellable, fail-closed, in-flight bounded by
+     * {@code concurrency}, results merged in directory-slot order into {@code collector}. Unstarted
+     * slots skip once the collector is truncated or the batch fails. A failed slot that is still
+     * waiting to merge also stops later slots: those results cannot be used. Does not increment the
+     * directory-listing ceiling. Does not block the caller.
+     */
+    private static void listObjectsParallel(
+        StorageProvider provider,
+        List<StoragePath> dirs,
+        Collector collector,
+        int concurrency,
+        Executor executor,
+        BooleanSupplier cancelled,
+        ActionListener<Void> listener
+    ) {
+        int size = dirs.size();
+        if (size == 0) {
+            listener.onResponse(null);
+            return;
+        }
+        AtomicReference<AtomicReferenceArray<FinishSlot>> liveSlots = new AtomicReference<>(new AtomicReferenceArray<>(size));
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        AtomicBoolean skipRest = new AtomicBoolean();
+        AtomicInteger nextMerge = new AtomicInteger();
+        AtomicInteger earliestFailedSlot = new AtomicInteger(Integer.MAX_VALUE);
+        Object mergeLock = new Object();
+        ThrottledIterator.run(indexIterator(size), (Releasable releasable, Integer i) -> {
+            boolean submitted = false;
+            try {
+                Exception cancelledNow = cancellationFailure(cancelled);
+                if (failure.get() != null || skipRest.get() || cancelledNow != null || i > earliestFailedSlot.get()) {
+                    if (cancelledNow != null) {
+                        recordBatchFailure(failure, cancelledNow);
+                        discardFinishSlots(mergeLock, liveSlots);
+                    }
+                    return;
+                }
+                Runnable list = () -> {
+                    try {
+                        Exception cancelledInSlot = cancellationFailure(cancelled);
+                        if (failure.get() != null || skipRest.get() || cancelledInSlot != null || i > earliestFailedSlot.get()) {
+                            if (cancelledInSlot != null) {
+                                recordBatchFailure(failure, cancelledInSlot);
+                                discardFinishSlots(mergeLock, liveSlots);
+                            }
+                            return;
+                        }
+                        int cap;
+                        synchronized (mergeLock) {
+                            if (skipRest.get() || failure.get() != null || i > earliestFailedSlot.get()) {
+                                return;
+                            }
+                            cap = collector.remainingListedTripCap();
+                        }
+                        if (skipRest.get() || failure.get() != null || i > earliestFailedSlot.get()) {
+                            return;
+                        }
+                        List<StorageEntry> entries = listDirUntilSkip(provider, dirs.get(i), () -> {
+                            if (skipRest.get() || failure.get() != null || i > earliestFailedSlot.get()) {
+                                return true;
+                            }
+                            Exception cancelledMid = cancellationFailure(cancelled);
+                            if (cancelledMid != null) {
+                                recordBatchFailure(failure, cancelledMid);
+                                skipRest.set(true);
+                                return true;
+                            }
+                            return false;
+                        }, cap, collector);
+                        Exception cancelledAfter = cancellationFailure(cancelled);
+                        if (cancelledAfter != null || failure.get() != null) {
+                            if (cancelledAfter != null) {
+                                recordBatchFailure(failure, cancelledAfter);
+                            }
+                            discardFinishSlots(mergeLock, liveSlots);
+                            return;
+                        }
+                        if (skipRest.get() || i > earliestFailedSlot.get()) {
+                            return;
+                        }
+                        synchronized (mergeLock) {
+                            storeSlot(liveSlots, i, FinishSlot.ok(entries));
+                            mergeReadyFinishSlots(collector, liveSlots, nextMerge, size, skipRest, failure);
+                        }
+                        cancelledAfter = cancellationFailure(cancelled);
+                        if (cancelledAfter != null || failure.get() != null) {
+                            if (cancelledAfter != null) {
+                                recordBatchFailure(failure, cancelledAfter);
+                            }
+                            discardFinishSlots(mergeLock, liveSlots);
+                        }
+                    } catch (Exception e) {
+                        synchronized (mergeLock) {
+                            if (collector.truncated() || skipRest.get() || i > earliestFailedSlot.get()) {
+                                return;
+                            }
+                            earliestFailedSlot.accumulateAndGet(i, Math::min);
+                            storeSlot(liveSlots, i, FinishSlot.fail(e));
+                            mergeReadyFinishSlots(collector, liveSlots, nextMerge, size, skipRest, failure);
+                        }
+                    } finally {
+                        releasable.close();
+                    }
+                };
+                executor.execute(list);
+                submitted = true;
+            } catch (Exception submitEx) {
+                recordBatchFailure(failure, submitEx);
+                skipRest.set(true);
+                discardFinishSlots(mergeLock, liveSlots);
+            } finally {
+                if (submitted == false) {
+                    releasable.close();
+                }
+            }
+        }, Math.max(1, concurrency), () -> {
+            Exception cancelledNow = cancellationFailure(cancelled);
+            if (cancelledNow != null) {
+                discardFinishSlots(mergeLock, liveSlots);
+                listener.onFailure(cancelledNow);
+                return;
+            }
+            synchronized (mergeLock) {
+                mergeReadyFinishSlots(collector, liveSlots, nextMerge, size, skipRest, failure);
+            }
+            Exception e = failure.get();
+            if (e != null) {
+                discardFinishSlots(mergeLock, liveSlots);
+                listener.onFailure(e);
+                return;
+            }
+            if (collector.truncated() || nextMerge.get() == size) {
+                discardFinishSlots(mergeLock, liveSlots);
+                cancelledNow = cancellationFailure(cancelled);
+                if (cancelledNow != null) {
+                    listener.onFailure(cancelledNow);
+                    return;
+                }
+                listener.onResponse(null);
+                return;
+            }
+            discardFinishSlots(mergeLock, liveSlots);
+            listener.onFailure(new IllegalStateException("walk finish ended without a result for every remaining directory"));
+        }, executor, e -> {
+            if (recordBatchFailure(failure, e) == false) {
+                logger.debug("Additional failure during partition-walk finish listObjects (suppressed by first failure)", e);
+            }
+            skipRest.set(true);
+            discardFinishSlots(mergeLock, liveSlots);
+        });
+    }
+
+    /**
+     * One remaining-dir listObjects outcome. Failures stay in slot order: a later-folder error is
+     * dropped if an earlier slot truncates first, matching sequential {@link Collector#addRecursively}.
+     */
+    private static final class FinishSlot {
+        final List<StorageEntry> entries;
+        final Exception error;
+
+        private FinishSlot(List<StorageEntry> entries, Exception error) {
+            this.entries = entries;
+            this.error = error;
+        }
+
+        static FinishSlot ok(List<StorageEntry> entries) {
+            return new FinishSlot(entries == null ? List.of() : entries, null);
+        }
+
+        static FinishSlot fail(Exception error) {
+            return new FinishSlot(List.of(), error);
+        }
+    }
+
+    /**
+     * Adds consecutive ready finish slots to {@code collector} in directory order. Sets {@code skipRest}
+     * when the collector truncates so unstarted siblings do not list. A failed slot fails the walk only
+     * if earlier slots have not already truncated. Must not throw: a throw after {@code skipRest} is set
+     * leaves {@link ThrottledIterator} waiting for this item's releasable.
+     */
+    private static void mergeReadyFinishSlots(
+        Collector collector,
+        AtomicReference<AtomicReferenceArray<FinishSlot>> liveSlots,
+        AtomicInteger nextMerge,
+        int size,
+        AtomicBoolean skipRest,
+        AtomicReference<Exception> failure
+    ) {
+        AtomicReferenceArray<FinishSlot> results = liveSlots.get();
+        if (results == null) {
+            skipRest.set(true);
+            return;
+        }
+        while (nextMerge.get() < size) {
+            int n = nextMerge.get();
+            FinishSlot ready = results.get(n);
+            if (ready == null) {
+                return;
+            }
+            if (ready.error != null) {
+                results.set(n, null);
+                nextMerge.incrementAndGet();
+                if (collector.truncated() == false) {
+                    recordBatchFailure(failure, ready.error);
+                    skipRest.set(true);
+                    return;
+                }
+                continue;
+            }
+            if (collector.truncated() == false) {
+                try {
+                    for (StorageEntry entry : ready.entries) {
+                        collector.add(entry);
+                        if (collector.truncated()) {
+                            break;
+                        }
+                    }
+                } catch (RuntimeException e) {
+                    skipRest.set(true);
+                    recordBatchFailure(failure, e);
+                    results.set(n, null);
+                    nextMerge.incrementAndGet();
+                    return;
+                }
+            }
+            results.set(n, null);
+            nextMerge.incrementAndGet();
+            if (collector.truncated()) {
+                skipRest.set(true);
+            }
+        }
+    }
+
+    private static <T> void discardFinishSlots(Object mergeLock, AtomicReference<AtomicReferenceArray<T>> liveSlots) {
+        synchronized (mergeLock) {
+            discardSlotResults(liveSlots);
+        }
     }
 
     /**
@@ -1022,16 +1640,16 @@ final class PartitionPruningWalk {
         }
     }
 
-    private static void storeSlot(AtomicReference<AtomicReferenceArray<StorageChildren>> liveSlots, int i, StorageChildren children) {
-        AtomicReferenceArray<StorageChildren> results = liveSlots.get();
+    private static <T> void storeSlot(AtomicReference<AtomicReferenceArray<T>> liveSlots, int i, T value) {
+        AtomicReferenceArray<T> results = liveSlots.get();
         if (results != null) {
-            results.set(i, children);
+            results.set(i, value);
         }
     }
 
     /** Detach and null the slot array once. Later stores see a null live buffer and drop the payload. */
-    private static void discardSlotResults(AtomicReference<AtomicReferenceArray<StorageChildren>> liveSlots) {
-        AtomicReferenceArray<StorageChildren> results = liveSlots.getAndSet(null);
+    private static <T> void discardSlotResults(AtomicReference<AtomicReferenceArray<T>> liveSlots) {
+        AtomicReferenceArray<T> results = liveSlots.getAndSet(null);
         if (results == null) {
             return;
         }
@@ -1077,11 +1695,23 @@ final class PartitionPruningWalk {
         private final Set<String> pending = new HashSet<>();
         private final Set<String> seenKeys = new HashSet<>();
         private final Set<String> prunedColumns = new HashSet<>();
+        private final Set<String> unhintedSeenKeys = new LinkedHashSet<>();
+        private final Set<String> unprunedHintedKeys = new LinkedHashSet<>();
         private final List<StoragePath> prunedDirs = new ArrayList<>();
         private final Map<String, List<String>> seenValues = new LinkedHashMap<>();
+        private final @Nullable AtomicReference<WalkDiagnostics> diagnosticsOut;
+        private @Nullable WalkDiagnostics.StopReason stopReason;
         private boolean anyLevelHinted;
+        /**
+         * Async walk defers {@link #finishSurvivors()} onto {@link #finishSurvivorsAsync} so remaining
+         * folders list through {@link #listObjectsParallel} instead of blocking the callback thread.
+         */
+        private boolean deferFinish;
+        private boolean finishPending;
         private int walkLevel;
         private List<StoragePath> dirs;
+        /** True after {@code dirs} has been listed; false when {@code dirs} is the next unlisted frontier. */
+        private boolean frontierListed;
         /** Issued {@code listChildren} from the walk AND from retroactive peeks into pruned dirs. */
         private final AtomicInteger listings = new AtomicInteger();
         /**
@@ -1113,7 +1743,9 @@ final class PartitionPruningWalk {
             int maxListedObjects,
             int maxDirectoryListings,
             BooleanSupplier cancelled,
-            @Nullable String pathTemplate
+            @Nullable String pathTemplate,
+            int maxFiles,
+            @Nullable AtomicReference<WalkDiagnostics> diagnosticsOut
         ) {
             this.provider = provider;
             this.hints = hints;
@@ -1121,6 +1753,8 @@ final class PartitionPruningWalk {
             this.maxDirectoryListings = maxDirectoryListings;
             this.cancelled = cancelled;
             this.finishMode = FINISH_MODE.get();
+            this.diagnosticsOut = diagnosticsOut;
+            WalkLayout layout = pathTemplate == null ? null : TemplatePartitionDetector.walkLayout(prefix, glob, pathTemplate);
             this.collector = new Collector(
                 prefix.toString(),
                 matcher,
@@ -1128,9 +1762,11 @@ final class PartitionPruningWalk {
                 maxDiscoveredFiles,
                 fileKeep,
                 maxListedObjects,
-                folderRange
+                folderRange,
+                layout,
+                maxFiles,
+                this::publishSnapshot
             );
-            WalkLayout layout = pathTemplate == null ? null : TemplatePartitionDetector.walkLayout(prefix, glob, pathTemplate);
             this.declineWalk = pathTemplate != null && layout == null;
             this.templateLayout = layout;
             this.keyedGlobKeys = layout != null ? layout.placeholderKeys() : keyedGlobKeys(glob);
@@ -1159,12 +1795,14 @@ final class PartitionPruningWalk {
                 }
             }
             this.dirs = List.of(prefix);
+            this.frontierListed = false;
+            publish(null);
         }
 
         @Nullable
         WalkResult runSequential() throws IOException {
             if (declineWalk) {
-                return null;
+                return withdraw(WalkDiagnostics.StopReason.DECLINED_LAYOUT);
             }
             while (dirs.isEmpty() == false) {
                 if (cancelled.getAsBoolean()) {
@@ -1174,27 +1812,124 @@ final class PartitionPruningWalk {
                     return afterListingsStop();
                 }
                 StorageChildren[] listed = listChildrenSequential(provider, dirs, listings, cancelled);
+                // listings already includes this batch, even when listChildren returns null.
+                frontierListed = true;
                 if (listed == null) {
-                    return null;
+                    return withdraw(WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED);
                 }
                 ClassifiedLevel level = classifyListed(listed);
-                if (applyPeeksIfNeeded(level) == false) {
-                    return null;
+                WalkDiagnostics.StopReason peekFail = applyPeeksIfNeeded(level);
+                if (peekFail != null) {
+                    return withdraw(peekFail);
                 }
                 WalkResult done = applyClassified(level);
                 if (done != null || level.continueWalk == false) {
                     return done;
                 }
             }
-            return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
+            return finished();
         }
 
         void runAsync(int concurrency, Executor executor, ActionListener<WalkResult> listener) {
             if (declineWalk) {
-                listener.onResponse(null);
+                withdrawAsync(listener, WalkDiagnostics.StopReason.DECLINED_LAYOUT);
                 return;
             }
+            deferFinish = true;
             advanceAsync(concurrency, executor, listener);
+        }
+
+        private void setDirs(List<StoragePath> next) {
+            this.dirs = next;
+            this.frontierListed = false;
+        }
+
+        private WalkResult withdraw(WalkDiagnostics.StopReason reason) {
+            publish(reason);
+            return null;
+        }
+
+        private void withdrawAsync(ActionListener<WalkResult> listener, WalkDiagnostics.StopReason reason) {
+            publish(reason);
+            listener.onResponse(null);
+        }
+
+        private WalkResult finished() {
+            publish(WalkDiagnostics.StopReason.FINISHED);
+            return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
+        }
+
+        private void publish(@Nullable WalkDiagnostics.StopReason reason) {
+            if (reason != null) {
+                this.stopReason = reason;
+            }
+            publishSnapshot();
+        }
+
+        /**
+         * Writes the current walk state to {@code diagnosticsOut} and returns it. The collector
+         * calls this at a listing cap so a bounded fallback still sees the cap-time snapshot.
+         */
+        private WalkDiagnostics publishSnapshot() {
+            WalkDiagnostics snap = snapshot();
+            if (diagnosticsOut != null) {
+                diagnosticsOut.set(snap);
+            }
+            return snap;
+        }
+
+        private WalkDiagnostics snapshot() {
+            // listings + dirs.size() is the next-batch budget check, valid only while dirs is still
+            // unlisted and pending still needs another walk step. After a batch is listed, dirs still
+            // names that batch until applyClassified replaces it, so the same sum would double-count.
+            // An empty pending set means the walk would not issue that next batch even with more budget.
+            boolean nextBatchExceeds = pending.isEmpty() == false
+                && frontierListed == false
+                && listings.get() + dirs.size() > maxDirectoryListings;
+            boolean atCeiling = listings.get() >= maxDirectoryListings
+                || stopReason == WalkDiagnostics.StopReason.CEILING
+                || stopReason == WalkDiagnostics.StopReason.PEEK_BUDGET
+                || nextBatchExceeds;
+            return new WalkDiagnostics(
+                stopReason,
+                listings.get(),
+                maxDirectoryListings,
+                atCeiling,
+                walkLevel,
+                frontierKey(),
+                sortedCopy(pending),
+                List.copyOf(unhintedSeenKeys),
+                List.copyOf(unprunedHintedKeys),
+                sortedCopy(prunedColumns)
+            );
+        }
+
+        @Nullable
+        private String frontierKey() {
+            if (templateLayout != null && walkLevel < templateLayout.depth()) {
+                WalkLayout.Level role = templateLayout.level(walkLevel);
+                return role.isPlaceholder() ? role.name() : role.literal();
+            }
+            if (dirs.isEmpty() == false) {
+                String key = PartitionValueMatcher.folderKey(dirs.get(0).objectName());
+                if (key != null) {
+                    return key;
+                }
+            }
+            String lastUnhinted = null;
+            for (String key : unhintedSeenKeys) {
+                lastUnhinted = key;
+            }
+            return lastUnhinted;
+        }
+
+        private static List<String> sortedCopy(Set<String> keys) {
+            if (keys.isEmpty()) {
+                return List.of();
+            }
+            List<String> list = new ArrayList<>(keys);
+            Collections.sort(list);
+            return List.copyOf(list);
         }
 
         private void advanceAsync(int concurrency, Executor executor, ActionListener<WalkResult> listener) {
@@ -1207,8 +1942,10 @@ final class PartitionPruningWalk {
                 listChildrenParallel(provider, dirs, concurrency, executor, listings, cancelled, new ActionListener<>() {
                     @Override
                     public void onResponse(StorageChildren[] listed) {
+                        // listings already includes this batch, even when listChildren returns null.
+                        frontierListed = true;
                         if (listed == null) {
-                            listener.onResponse(null);
+                            withdrawAsync(listener, WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED);
                             return;
                         }
                         ClassifiedLevel level;
@@ -1220,14 +1957,14 @@ final class PartitionPruningWalk {
                         }
                         applyPeeksIfNeededAsync(level, concurrency, executor, new ActionListener<>() {
                             @Override
-                            public void onResponse(Boolean peekOk) {
+                            public void onResponse(WalkDiagnostics.StopReason peekFail) {
                                 Exception cancelledNow = cancellationFailure(cancelled);
                                 if (cancelledNow != null) {
                                     listener.onFailure(cancelledNow);
                                     return;
                                 }
-                                if (peekOk == false) {
-                                    listener.onResponse(null);
+                                if (peekFail != null) {
+                                    withdrawAsync(listener, peekFail);
                                     return;
                                 }
                                 WalkResult done;
@@ -1241,6 +1978,10 @@ final class PartitionPruningWalk {
                                 }
                                 if (continueWalk) {
                                     advanceAsync(concurrency, executor, listener);
+                                    return;
+                                }
+                                if (finishPending) {
+                                    finishSurvivorsAsync(concurrency, executor, listener);
                                     return;
                                 }
                                 listener.onResponse(done);
@@ -1260,7 +2001,7 @@ final class PartitionPruningWalk {
                 });
                 return;
             }
-            ActionListener.completeWith(listener, this::afterListingsStop);
+            afterListingsStopAsync(concurrency, executor, listener);
         }
 
         /**
@@ -1271,9 +2012,16 @@ final class PartitionPruningWalk {
          * lists peeks in order; {@link #applyPeeksIfNeededAsync} uses the same budget slice on
          * {@link #listChildrenParallel} so issued counts still match when the ceiling cuts a peek batch.
          */
-        private boolean applyPeeksIfNeeded(ClassifiedLevel level) throws IOException {
+        @Nullable
+        private WalkDiagnostics.StopReason applyPeeksIfNeeded(ClassifiedLevel level) throws IOException {
             if (level.newKeyLevel && pendingPeeks.isEmpty() == false) {
-                if (processPendingPeeks(
+                List<StoragePath> toPeek = peeksToIssue(pendingPeeks, listings.get(), maxDirectoryListings);
+                boolean truncated = toPeek == null || toPeek.size() < pendingPeeks.size();
+                if (truncated && peekKeysTyped(level)) {
+                    pendingPeeks = List.of();
+                    return null;
+                }
+                WalkDiagnostics.StopReason fail = processPendingPeeks(
                     provider,
                     pendingPeeks,
                     seenValues,
@@ -1282,22 +2030,45 @@ final class PartitionPruningWalk {
                     cancelled,
                     templateLayout,
                     walkLevel
-                ) == false) {
-                    return false;
+                );
+                if (fail != null) {
+                    return fail;
                 }
                 pendingPeeks = List.of();
+            }
+            return null;
+        }
+
+        /**
+         * Survivors at this new-key level bound the key. Pruned siblings at this listing are not a
+         * proof: skipping peeks then would drop type-widening spellings that live only under a pruned
+         * parent. Empty {@link ClassifiedLevel#survivorKeys} is untyped — fail closed.
+         */
+        private boolean peekKeysTyped(ClassifiedLevel level) {
+            if (level.levelKeys.isEmpty()) {
+                return false;
+            }
+            for (String key : level.levelKeys) {
+                if (level.survivorKeys.contains(key) == false) {
+                    return false;
+                }
             }
             return true;
         }
 
         /**
          * Async counterpart of {@link #applyPeeksIfNeeded}. Completes {@code listener} on every path:
-         * {@code true} when peeks finished or were not needed, {@code false} to fail the walk closed.
+         * {@code null} when peeks finished or were not needed, otherwise the stop reason to fail closed.
          * Does not block; peek LIST calls go through {@link #listChildrenParallel}.
          */
-        private void applyPeeksIfNeededAsync(ClassifiedLevel level, int concurrency, Executor executor, ActionListener<Boolean> listener) {
+        private void applyPeeksIfNeededAsync(
+            ClassifiedLevel level,
+            int concurrency,
+            Executor executor,
+            ActionListener<WalkDiagnostics.StopReason> listener
+        ) {
             if (level.newKeyLevel == false || pendingPeeks.isEmpty()) {
-                listener.onResponse(true);
+                listener.onResponse(null);
                 return;
             }
             Exception cancelledNow = cancellationFailure(cancelled);
@@ -1306,11 +2077,16 @@ final class PartitionPruningWalk {
                 return;
             }
             List<StoragePath> toPeek = peeksToIssue(pendingPeeks, listings.get(), maxDirectoryListings);
-            if (toPeek == null) {
-                listener.onResponse(false);
+            boolean truncated = toPeek == null || toPeek.size() < pendingPeeks.size();
+            if (truncated && peekKeysTyped(level)) {
+                pendingPeeks = List.of();
+                listener.onResponse(null);
                 return;
             }
-            boolean truncated = toPeek.size() < pendingPeeks.size();
+            if (toPeek == null) {
+                listener.onResponse(WalkDiagnostics.StopReason.PEEK_BUDGET);
+                return;
+            }
             listChildrenParallel(provider, toPeek, concurrency, executor, listings, cancelled, children -> {
                 synchronized (seenValues) {
                     applyPeekChildren(children, seenValues, templateLayout, walkLevel);
@@ -1324,14 +2100,15 @@ final class PartitionPruningWalk {
                         return;
                     }
                     if (listed == null) {
-                        listener.onResponse(false);
+                        listener.onResponse(WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED);
                         return;
                     }
-                    boolean ok = truncated == false;
-                    if (ok) {
-                        pendingPeeks = List.of();
+                    if (truncated) {
+                        listener.onResponse(WalkDiagnostics.StopReason.PEEK_BUDGET);
+                        return;
                     }
-                    listener.onResponse(ok);
+                    pendingPeeks = List.of();
+                    listener.onResponse(null);
                 }
 
                 @Override
@@ -1358,9 +2135,10 @@ final class PartitionPruningWalk {
          * a pruned subtree are skipped — that layout is already untrusted for walking. Callers skip this
          * when {@link #laterPlaceholder()} is false so a trailing literal does not list unused peeks.
          */
-        private boolean advancePendingPeeks(WalkLayout.Level role) throws IOException {
+        @Nullable
+        private WalkDiagnostics.StopReason advancePendingPeeks(WalkLayout.Level role) throws IOException {
             if (pendingPeeks.isEmpty()) {
-                return true;
+                return null;
             }
             List<StoragePath> next = new ArrayList<>(pendingPeeks.size());
             for (StoragePath pruned : pendingPeeks) {
@@ -1369,12 +2147,12 @@ final class PartitionPruningWalk {
                 }
                 int issued = listings.get();
                 if (issued >= maxDirectoryListings) {
-                    return false;
+                    return WalkDiagnostics.StopReason.PEEK_BUDGET;
                 }
                 listings.set(issued + 1);
                 StorageChildren children = provider.listChildren(pruned, MAX_LISTED_CHILDREN);
                 if (children == null) {
-                    return false;
+                    return WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED;
                 }
                 for (StoragePath sub : children.directories()) {
                     if (role.isLiteral() == false || role.literal().equals(sub.objectName())) {
@@ -1383,11 +2161,32 @@ final class PartitionPruningWalk {
                 }
             }
             pendingPeeks = next;
-            return true;
+            return null;
         }
 
         private WalkResult finishSurvivors() throws IOException {
-            return PartitionPruningWalk.finishSurvivors(
+            if (deferFinish) {
+                finishPending = true;
+                return null;
+            }
+            return afterFinishDecision(
+                PartitionPruningWalk.finishSurvivors(
+                    collector,
+                    provider,
+                    dirs,
+                    prunedColumns,
+                    inferColumnTypes(seenValues),
+                    estimatedPrefixWidth,
+                    prunedDirs,
+                    finishMode,
+                    templateLayout != null
+                )
+            );
+        }
+
+        private void finishSurvivorsAsync(int concurrency, Executor executor, ActionListener<WalkResult> listener) {
+            finishPending = false;
+            PartitionPruningWalk.finishSurvivorsAsync(
                 collector,
                 provider,
                 dirs,
@@ -1396,8 +2195,77 @@ final class PartitionPruningWalk {
                 estimatedPrefixWidth,
                 prunedDirs,
                 finishMode,
-                templateLayout != null
+                templateLayout != null,
+                concurrency,
+                executor,
+                cancelled,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(WalkResult result) {
+                        listener.onResponse(afterFinishDecision(result));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                }
             );
+        }
+
+        private WalkResult afterFinishDecision(WalkResult result) {
+            if (result != null) {
+                publish(WalkDiagnostics.StopReason.FINISHED);
+                return result;
+            }
+            if (prunedColumns.isEmpty()) {
+                boolean nextBatchExceeds = pending.isEmpty() == false
+                    && frontierListed == false
+                    && listings.get() + dirs.size() > maxDirectoryListings;
+                return withdraw(
+                    listings.get() >= maxDirectoryListings || nextBatchExceeds
+                        ? WalkDiagnostics.StopReason.CEILING
+                        : WalkDiagnostics.StopReason.NOTHING_PRUNED
+                );
+            }
+            if (finishMode == FinishMode.ALWAYS_FLAT) {
+                return withdraw(WalkDiagnostics.StopReason.ALWAYS_FLAT);
+            }
+            return withdraw(WalkDiagnostics.StopReason.CHEAPER_TO_FINISH);
+        }
+
+        private void afterListingsStopAsync(int concurrency, Executor executor, ActionListener<WalkResult> listener) {
+            listener = ActionListener.notifyOnce(listener);
+            if (concurrency <= 1 || executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+                // Sequential finish on this thread so a throwing onResponse surfaces, matching
+                // ActionListener.completeWith used before remaining dirs were fanned out.
+                boolean previous = deferFinish;
+                deferFinish = false;
+                try {
+                    ActionListener.completeWith(listener, this::afterListingsStop);
+                } finally {
+                    deferFinish = previous;
+                }
+                return;
+            }
+            try {
+                WalkResult truncated = resultIfTruncated();
+                if (truncated != null) {
+                    listener.onResponse(truncated);
+                    return;
+                }
+                if (dirs.isEmpty()) {
+                    listener.onResponse(finished());
+                    return;
+                }
+                if (pending.isEmpty() || listings.get() + dirs.size() > maxDirectoryListings || anyLevelHinted) {
+                    finishSurvivorsAsync(concurrency, executor, listener);
+                    return;
+                }
+                withdrawAsync(listener, WalkDiagnostics.StopReason.UNHINTED_LEVEL);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
 
         /**
@@ -1415,13 +2283,39 @@ final class PartitionPruningWalk {
 
         @Nullable
         private WalkResult afterListingsStop() throws IOException {
+            WalkResult truncated = resultIfTruncated();
+            if (truncated != null) {
+                return truncated;
+            }
             if (dirs.isEmpty()) {
-                return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
+                return finished();
             }
             if (pending.isEmpty() || listings.get() + dirs.size() > maxDirectoryListings) {
                 return finishSurvivors();
             }
-            return anyLevelHinted ? finishSurvivors() : null;
+            return anyLevelHinted ? finishSurvivors() : withdraw(WalkDiagnostics.StopReason.UNHINTED_LEVEL);
+        }
+
+        @Nullable
+        private WalkResult resultIfTruncated() {
+            if (collector.truncated() == false) {
+                return null;
+            }
+            publishSnapshot();
+            return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
+        }
+
+        @Nullable
+        private WalkResult addLevelFiles(List<StorageEntry> files) {
+            // Stop at the cap. Do not drain the rest of this already-fetched page past max_listed_objects.
+            for (StorageEntry file : files) {
+                collector.add(file);
+                WalkResult truncated = resultIfTruncated();
+                if (truncated != null) {
+                    return truncated;
+                }
+            }
+            return null;
         }
 
         /**
@@ -1521,15 +2415,23 @@ final class PartitionPruningWalk {
                 pending.remove(key);
                 List<PartitionFilterHint> keyHints = PartitionValueMatcher.hintsFor(key, hints);
                 if (keyHints.isEmpty()) {
+                    if (folderRange == null || folderRange.bindKeys().contains(key) == false) {
+                        unhintedSeenKeys.add(key);
+                    }
                     continue;
                 }
                 hintedLevel = true;
                 boolean[] matches = PartitionValueMatcher.matchesFolders(values, keyHints);
+                boolean anyMiss = false;
                 for (int j = 0; j < matches.length; j++) {
                     if (matches[j] == false) {
                         keep[group.getValue().get(j)] = false;
                         prunedColumns.add(key);
+                        anyMiss = true;
                     }
+                }
+                if (anyMiss == false) {
+                    unprunedHintedKeys.add(key);
                 }
             }
             if (folderRange != null && shapedDirs.isEmpty() == false) {
@@ -1544,7 +2446,14 @@ final class PartitionPruningWalk {
                     if (folderRange.mayContain(bindings) == false) {
                         keep[i] = false;
                         prunedColumns.add(shapedKeys.get(i));
+                        unprunedHintedKeys.remove(shapedKeys.get(i));
                     }
+                }
+            }
+            Set<String> survivorKeys = new HashSet<>();
+            for (int i = 0; i < keep.length; i++) {
+                if (keep[i]) {
+                    survivorKeys.add(shapedKeys.get(i));
                 }
             }
             return new ClassifiedLevel(
@@ -1554,6 +2463,7 @@ final class PartitionPruningWalk {
                 next,
                 levelFiles,
                 byKey.keySet(),
+                Set.copyOf(survivorKeys),
                 hintedLevel,
                 newKeyLevel,
                 false,
@@ -1570,8 +2480,8 @@ final class PartitionPruningWalk {
         @Nullable
         private WalkResult applyClassified(ClassifiedLevel level) throws IOException {
             if (level.withdraw) {
-                dirs = List.of();
-                return null;
+                setDirs(List.of());
+                return withdraw(WalkDiagnostics.StopReason.STRAY);
             }
             List<StoragePath> newPeeks = null;
             for (int i = 0; i < level.keep.length; i++) {
@@ -1588,15 +2498,19 @@ final class PartitionPruningWalk {
                 }
             }
             if (level.identityLevel) {
-                if (laterPlaceholder() && advancePendingPeeks(templateLayout.level(walkLevel)) == false) {
-                    level.continueWalk = false;
-                    return null;
+                if (laterPlaceholder()) {
+                    WalkDiagnostics.StopReason peekFail = advancePendingPeeks(templateLayout.level(walkLevel));
+                    if (peekFail != null) {
+                        level.continueWalk = false;
+                        return withdraw(peekFail);
+                    }
                 }
-                for (StorageEntry file : level.levelFiles) {
-                    collector.add(file);
+                WalkResult truncated = addLevelFiles(level.levelFiles);
+                if (truncated != null) {
+                    return truncated;
                 }
                 estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, level.listedDirs, Math.max(level.next.size(), 1));
-                dirs = level.next;
+                setDirs(level.next);
                 walkLevel++;
                 level.continueWalk = true;
                 return null;
@@ -1604,27 +2518,33 @@ final class PartitionPruningWalk {
             pendingPeeks = newPeeks != null ? newPeeks : List.of();
             if (level.hintedLevel == false) {
                 if (descendUnhintedKeyedLevel(level.levelKeys, pending, keyedGlobKeys)) {
-                    for (StorageEntry file : level.levelFiles) {
-                        collector.add(file);
+                    WalkResult truncated = addLevelFiles(level.levelFiles);
+                    if (truncated != null) {
+                        return truncated;
                     }
                     estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, level.listedDirs, level.shapedDirs.size());
-                    dirs = level.next;
+                    setDirs(level.next);
                     walkLevel++;
                     level.continueWalk = true;
                     return null;
                 }
                 if (anyLevelHinted == false) {
-                    dirs = List.of();
-                    return null;
+                    setDirs(List.of());
+                    return withdraw(WalkDiagnostics.StopReason.UNHINTED_LEVEL);
+                }
+                WalkResult truncated = resultIfTruncated();
+                if (truncated != null) {
+                    return truncated;
                 }
                 return finishSurvivors();
             }
-            for (StorageEntry file : level.levelFiles) {
-                collector.add(file);
+            WalkResult truncated = addLevelFiles(level.levelFiles);
+            if (truncated != null) {
+                return truncated;
             }
             anyLevelHinted = true;
             estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, level.listedDirs, level.shapedDirs.size());
-            dirs = level.next;
+            setDirs(level.next);
             walkLevel++;
             level.continueWalk = true;
             return null;
@@ -1638,6 +2558,7 @@ final class PartitionPruningWalk {
         final List<StoragePath> next;
         final List<StorageEntry> levelFiles;
         final Set<String> levelKeys;
+        final Set<String> survivorKeys;
         final boolean hintedLevel;
         final boolean newKeyLevel;
         final boolean withdraw;
@@ -1651,6 +2572,7 @@ final class PartitionPruningWalk {
                 new boolean[0],
                 new ArrayList<>(),
                 levelFiles,
+                Set.of(),
                 Set.of(),
                 false,
                 false,
@@ -1666,6 +2588,7 @@ final class PartitionPruningWalk {
             List<StoragePath> next,
             List<StorageEntry> levelFiles,
             Set<String> levelKeys,
+            Set<String> survivorKeys,
             boolean hintedLevel,
             boolean newKeyLevel,
             boolean withdraw,
@@ -1677,6 +2600,7 @@ final class PartitionPruningWalk {
             this.next = next;
             this.levelFiles = levelFiles;
             this.levelKeys = levelKeys;
+            this.survivorKeys = survivorKeys;
             this.hintedLevel = hintedLevel;
             this.newKeyLevel = newKeyLevel;
             this.withdraw = withdraw;
@@ -1701,6 +2625,10 @@ final class PartitionPruningWalk {
         private final int maxListedObjects;
         @Nullable
         private final FolderRangePredicate folderRange;
+        @Nullable
+        private final WalkLayout templateLayout;
+        private final int maxFiles;
+        private final Supplier<WalkDiagnostics> diagnostics;
         private final List<StorageEntry> matched = new ArrayList<>();
         @Nullable
         private StorageEntry fileKeepStash;
@@ -1709,6 +2637,7 @@ final class PartitionPruningWalk {
         private int listed = 0;
         private String excludedExample = null;
         private String excludedExampleEntry = null;
+        private boolean truncated = false;
 
         Collector(
             String prefixStr,
@@ -1717,7 +2646,10 @@ final class PartitionPruningWalk {
             int maxDiscoveredFiles,
             @Nullable Predicate<StorageEntry> fileKeep,
             int maxListedObjects,
-            @Nullable FolderRangePredicate folderRange
+            @Nullable FolderRangePredicate folderRange,
+            @Nullable WalkLayout templateLayout,
+            int maxFiles,
+            Supplier<WalkDiagnostics> diagnostics
         ) {
             this.prefixStr = prefixStr;
             this.matcher = matcher;
@@ -1726,16 +2658,52 @@ final class PartitionPruningWalk {
             this.fileKeep = fileKeep;
             this.maxListedObjects = maxListedObjects;
             this.folderRange = folderRange;
+            this.templateLayout = templateLayout;
+            this.maxFiles = maxFiles;
+            this.diagnostics = diagnostics;
+        }
+
+        boolean truncated() {
+            return truncated;
+        }
+
+        /**
+         * Listed-eligible objects the next merge slot may take, including the {@code listed > max}
+         * trip object sequential {@link #addRecursively} observes. Zero once truncated. A later slot
+         * is an upper bound: earlier unmerged folders can only consume more.
+         */
+        int remainingListedTripCap() {
+            if (truncated) {
+                return 0;
+            }
+            if (maxListedObjects == Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE;
+            }
+            return Math.max(0, maxListedObjects - listed) + 1;
+        }
+
+        boolean countsTowardListed(StorageEntry entry) {
+            String relativePath = relativePath(prefixStr, entry);
+            return relativePath.isEmpty() == false && relativePath.endsWith("/") == false;
         }
 
         void add(StorageEntry entry) {
-            String entryPath = entry.path().toString();
-            String relativePath = entryPath.startsWith(prefixStr) ? entryPath.substring(prefixStr.length()) : entry.path().objectName();
+            if (truncated) {
+                return;
+            }
+            String relativePath = relativePath(prefixStr, entry);
             if (relativePath.isEmpty() || relativePath.endsWith("/")) {
                 return; // directory placeholder key, skipped as in the flat listing
             }
             listed++;
-            GlobExpander.checkListedObjectsLimit(listed, maxListedObjects);
+            if (maxFiles != Integer.MAX_VALUE) {
+                if (listed > maxListedObjects) {
+                    truncated = true;
+                    return;
+                }
+            } else if (listed > maxListedObjects) {
+                GlobExpander.checkListedObjectsLimit(listed, maxListedObjects, diagnostics.get());
+            }
             if (matcher.matches(relativePath) == false) {
                 return;
             }
@@ -1755,19 +2723,44 @@ final class PartitionPruningWalk {
                 }
                 return;
             }
-            if (folderRange != null && folderRange.mayContain(PartitionValueMatcher.pathBindings(entry.path().path())) == false) {
+            if (folderRange != null && folderRange.mayContain(folderRangeBindings(entry.path().path())) == false) {
                 return;
             }
-            matched.add(entry);
-            GlobExpander.checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+            // Do not stop at maxFiles: GlobExpander proves types on the full matched set, then
+            // fileOrder.apply and subList. Capping here hides a later-ordered stray from detection.
+            // Bounded walks still stop at max_discovered_files; unbounded still throws there.
+            if (maxFiles != Integer.MAX_VALUE) {
+                if (matched.size() >= maxDiscoveredFiles) {
+                    truncated = true;
+                    return;
+                }
+                matched.add(entry);
+            } else {
+                matched.add(entry);
+                if (matched.size() > maxDiscoveredFiles) {
+                    GlobExpander.checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles, diagnostics.get());
+                }
+            }
+        }
+
+        private Map<String, String> folderRangeBindings(String path) {
+            if (templateLayout != null) {
+                return templateLayout.fileBindings(path);
+            }
+            return PartitionValueMatcher.pathBindings(path);
         }
 
         void addRecursively(StorageProvider provider, StoragePath dir) throws IOException {
             try (StorageIterator iterator = provider.listObjects(dir, true)) {
-                while (iterator.hasNext()) {
+                while (truncated == false && iterator.hasNext()) {
                     add(iterator.next());
                 }
             }
+        }
+
+        private static String relativePath(String prefixStr, StorageEntry entry) {
+            String entryPath = entry.path().toString();
+            return entryPath.startsWith(prefixStr) ? entryPath.substring(prefixStr.length()) : entry.path().objectName();
         }
 
         WalkResult result(Set<String> prunedColumns, Map<String, DataType> columnFullTypes, List<StoragePath> prunedDirs) {
@@ -1780,7 +2773,9 @@ final class PartitionPruningWalk {
                 columnFullTypes,
                 List.copyOf(prunedDirs),
                 fileKeepStash,
-                globKeptCount
+                globKeptCount,
+                listed,
+                truncated
             );
         }
     }

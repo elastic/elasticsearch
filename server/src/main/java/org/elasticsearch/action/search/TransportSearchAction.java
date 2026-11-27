@@ -430,10 +430,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             namedWriteableRegistry,
             searchRequest
         );
+        QueryScheduler.QueryPart coordination = searchService.coordinate(task);
         queryInterceptor.wrapAndRun(
-            listener,
+            ActionListener.releaseAfter(listener, coordination),
             searchCaptureContextBuilder,
-            l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
+            l -> ActionListener.run(
+                l,
+                inner -> executeRequest(
+                    (SearchTask) task,
+                    searchRequest,
+                    inner,
+                    responseListener -> new AsyncSearchActionProvider(responseListener, coordination),
+                    true,
+                    coordination.breaker()
+                )
+            )
         );
     }
 
@@ -443,7 +454,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> originalListener,
         Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider
     ) {
-        executeRequest(task, original, originalListener, searchPhaseProvider, false);
+        // Open point in time does not coordinate, so there is no query breaker. It does not minimize roundtrips.
+        executeRequest(task, original, originalListener, searchPhaseProvider, false, circuitBreaker);
     }
 
     private void executeRequest(
@@ -451,7 +463,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequest original,
         ActionListener<SearchResponse> originalListener,
         Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider,
-        boolean collectSearchTelemetry
+        boolean collectSearchTelemetry,
+        CircuitBreaker coordinationBreaker
     ) {
         boolean resolvesCrossProject = crossProjectModeDecider.resolvesCrossProject(original);
         final long relativeStartNanos = System.nanoTime();
@@ -528,7 +541,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             closePIT(client, original.source().pointInTimeBuilder(), () -> delegate.onFailure(e));
                         }
                     };
-                    executeRequest(task, original, pitListener, searchPhaseProvider, true);
+                    executeRequest(task, original, pitListener, searchPhaseProvider, true, coordinationBreaker);
                 })
             );
             return;
@@ -551,6 +564,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             allowPartialSearchResults
         );
         rewriteContext.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
+        rewriteContext.setCancellationCheck(task::ensureNotCancelled);
 
         // Searches run during the rewrite, such as those of compound retrievers, record their phase failures on the rewrite context.
         final ActionListener<SearchResponse> listenerWithRewriteFailures = originalListener.delegateFailureAndWrap((l, response) -> {
@@ -707,6 +721,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                     task.getProgressListener()
                                         .notifyListShards(Collections.emptyList(), Collections.emptyMap(), clusters, false, timeProvider);
                                 }
+                                // A multi-search keeps the merged response charged after the search completes, on the node's
+                                // breaker, so it charges that breaker from the start.
+                                CircuitBreaker responseBreaker = rewritten.bufferSubSearchResponseForMultiSearch()
+                                    ? circuitBreaker
+                                    : coordinationBreaker;
                                 ccsRemoteReduce(
                                     task,
                                     parentTaskId,
@@ -729,7 +748,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                     ),
                                     transportService,
                                     forceConnectTimeoutSecs,
-                                    circuitBreaker
+                                    responseBreaker
                                 );
                             }
                         })
@@ -2285,9 +2304,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private class AsyncSearchActionProvider implements SearchPhaseProvider {
         private final ActionListener<SearchResponse> listener;
+        private final QueryScheduler.QueryPart coordination;
 
-        AsyncSearchActionProvider(ActionListener<SearchResponse> listener) {
+        AsyncSearchActionProvider(ActionListener<SearchResponse> listener, QueryScheduler.QueryPart coordination) {
             this.listener = listener;
+            this.coordination = coordination;
         }
 
         @Override
@@ -2360,23 +2381,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             // the results charge the query's breaker. A multi-search keeps the results it buffers charged after the search
             // completes, on the node's breaker, so they charge that breaker from the start.
-            QueryScheduler.QueryPart coordination = searchService.coordinate(task);
-            final ActionListener<SearchResponse> listener = ActionListener.releaseAfter(this.listener, coordination);
-            final SearchPhaseResults<SearchPhaseResult> queryResultConsumer;
-            try {
-                queryResultConsumer = searchPhaseController.newSearchPhaseResults(
-                    executor,
-                    searchRequest.bufferSubSearchResponseForMultiSearch() ? circuitBreaker : coordination.breaker(),
-                    task::isCancelled,
-                    task.getProgressListener(),
-                    searchRequest,
-                    shardIterators.size(),
-                    exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
-                );
-            } catch (Exception e) {
-                coordination.close();
-                throw e;
-            }
+            final SearchPhaseResults<SearchPhaseResult> queryResultConsumer = searchPhaseController.newSearchPhaseResults(
+                executor,
+                searchRequest.bufferSubSearchResponseForMultiSearch() ? circuitBreaker : coordination.breaker(),
+                task::isCancelled,
+                task.getProgressListener(),
+                searchRequest,
+                shardIterators.size(),
+                exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
+            );
             boolean success = false;
             try {
                 final AbstractSearchAsyncAction<?> searchPhase;
@@ -2393,7 +2406,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         queryResultConsumer,
                         circuitBreaker,
                         searchRequest,
-                        listener,
+                        this.listener,
                         shardIterators,
                         skippedByClusterAlias,
                         timeProvider,
@@ -2419,7 +2432,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         queryResultConsumer,
                         circuitBreaker,
                         searchRequest,
-                        listener,
+                        this.listener,
                         shardIterators,
                         skippedByClusterAlias,
                         timeProvider,
@@ -2437,7 +2450,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchPhase.start();
             } finally {
                 if (success == false) {
-                    coordination.close();
                     queryResultConsumer.close();
                 }
             }

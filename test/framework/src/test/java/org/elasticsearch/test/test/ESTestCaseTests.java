@@ -11,11 +11,13 @@ package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,6 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -288,6 +291,22 @@ public class ESTestCaseTests extends ESTestCase {
 
     public void testRandomNonNegativeLong() {
         assertThat(randomNonNegativeLong(), greaterThanOrEqualTo(0L));
+    }
+
+    public void testRandomLongsBetween() {
+        long min = randomLongBetween(-1000, 1000);
+        long max = min + randomLongBetween(0, 1000);
+        int size = between(0, 100);
+        long[] values = randomLongsBetween(size, min, max).toArray();
+        assertThat(values.length, equalTo(size));
+        for (long value : values) {
+            assertThat(value, both(greaterThanOrEqualTo(min)).and(lessThanOrEqualTo(max)));
+        }
+    }
+
+    public void testRandomLongsBetweenDegenerate() {
+        long value = randomLong();
+        assertThat(randomLongsBetween(10, value, value).distinct().toArray(), equalTo(new long[] { value }));
     }
 
     public void testRandomNonNegativeInt() {
@@ -545,5 +564,10 @@ public class ESTestCaseTests extends ESTestCase {
         BytesRef withGarbage = embedInRandomBytes(v);
         assertThat(withGarbage, equalTo(v));
         assertThat(withGarbage.bytes.length, greaterThan(withGarbage.length));
+    }
+
+    public void testESCodecsUsed() {
+        // it should always be our codec class, not anything from Lucene
+        assertThat(Codec.getDefault(), instanceOf(PerFieldMapperCodec.class));
     }
 }

@@ -14,6 +14,7 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -166,6 +167,42 @@ public abstract class AbstractExternalAggregatePushdownMatrixIT extends Abstract
             List<Object> row = getValuesList(warm).get(0);
             assertThat("warm MIN(" + column + ") == cold", String.valueOf(row.get(0)), equalTo(String.valueOf(coldMin)));
             assertThat("warm MAX(" + column + ") == cold", String.valueOf(row.get(1)), equalTo(String.valueOf(coldMax)));
+        }
+    }
+
+    /**
+     * Filtered counts over a two-row double column {@code d} holding {@code 1.0} and {@code NaN} must equal what a
+     * scan returns, also after the statistics are harvested. The harvested bounds skip NaN, so they read
+     * "min = max = 1.0"; a filter that trusts them as covering every row miscounts the NaN row, because in ES|QL
+     * {@code NaN != 1.0} is true while {@code NaN >= 1.0} and {@code NaN < 5.0} are false.
+     */
+    protected void assertFilteredCountsOverNaNRowMatchAScan(String dataset, boolean statisticsAreServed) {
+        String harvest = "FROM " + dataset + " | STATS lo = MIN(d), hi = MAX(d)";
+        for (int pass = 0; pass < 2; pass++) {
+            try (var response = run(syncEsqlQueryRequest(harvest).profile(true), TIMEOUT)) {
+                assertThat("MIN skips NaN", ((Number) getValuesList(response).get(0).get(0)).doubleValue(), equalTo(1.0));
+                if (statisticsAreServed) {
+                    assertThat(
+                        "the second pass is served from the harvested statistics",
+                        response.documentsFound(),
+                        equalTo(pass == 0 ? 2L : 0L)
+                    );
+                }
+            }
+        }
+        Map<String, Long> expectedCounts = new LinkedHashMap<>();
+        expectedCounts.put("d != 1.0", 1L);
+        expectedCounts.put("d >= 1.0", 1L);
+        expectedCounts.put("d < 5.0", 1L);
+        expectedCounts.put("d > 5.0", 0L);
+        for (Map.Entry<String, Long> expected : expectedCounts.entrySet()) {
+            for (int pass = 0; pass < 2; pass++) {
+                String query = "FROM " + dataset + " | WHERE " + expected.getKey() + " | STATS c = COUNT(*)";
+                try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+                    long count = ((Number) getValuesList(response).get(0).get(0)).longValue();
+                    assertThat("[" + expected.getKey() + "] pass " + pass, count, equalTo(expected.getValue()));
+                }
+            }
         }
     }
 }

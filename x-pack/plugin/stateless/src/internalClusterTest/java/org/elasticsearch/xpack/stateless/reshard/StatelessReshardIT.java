@@ -4682,13 +4682,13 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         waitForReshardCompletion(indexName);
     }
 
-    public void testSourceSearchShardNotAwareOfSplit() throws InterruptedException {
-        String masterNode = startMasterOnlyNode(Settings.builder().put("cluster.publish.timeout", TimeValue.timeValueMillis(100)).build());
+    public void testSourceSearchShardNotAwareOfSplit() {
+        String masterNode = startMasterOnlyNode();
         startIndexNodes(2);
         startSearchNodes(2);
         ensureStableCluster(5);
 
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String indexName = randomIndexName();
         createIndex(
             indexName,
             indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
@@ -4715,7 +4715,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertHitCount(prepareSearchAll(indexName), numDocs);
 
         var splitAttempted = new CountDownLatch(1);
-        var splitBlocked = new CountDownLatch(1);
+        var unblockSplit = new SubscribableListener<>();
         // Shard 1 doesn't exist yet so we have to do this based on nodes.
         var targetIndexShardNode = clusterService().state()
             .nodes()
@@ -4730,14 +4730,23 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
                 TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
 
-                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
-                    if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
-                        splitAttempted.countDown();
-                        safeAwait(splitBlocked);
-                    }
+                if (actualRequest instanceof SplitStateRequest splitStateRequest
+                    && splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                    splitAttempted.countDown();
+                    unblockSplit.addListener(ActionListener.running((() -> {
+                        try {
+                            connection.sendRequest(requestId, action, request, options);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })));
+                } else {
+                    connection.sendRequest(requestId, action, request, options);
                 }
+            } else {
+                connection.sendRequest(requestId, action, request, options);
             }
-            connection.sendRequest(requestId, action, request, options);
+
         });
 
         client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
@@ -4749,20 +4758,24 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", coordinator));
         ensureStableCluster(6);
 
-        var clusterStateApplicationBlock = new CountDownLatch(1);
+        var shouldFailClusterStatePublication = new AtomicBoolean(true);
         var sourceSearchShardNodeTransportService = MockTransportService.getInstance(sourceSearchShardNode);
         sourceSearchShardNodeTransportService.addRequestHandlingBehavior(
             PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
             (handler, req, channel, task) -> {
-                safeAwait(clusterStateApplicationBlock);
-                handler.messageReceived(req, channel, task);
+                // Fail the cluster state publication so that it completes quickly and doesn't delay the test.
+                if (shouldFailClusterStatePublication.get()) {
+                    channel.sendResponse(new ElasticsearchException("fail"));
+                } else {
+                    handler.messageReceived(req, channel, task);
+                }
             }
         );
 
         try {
             // Unblock application of SPLIT state - it will not succeed because we are waiting for an ack from all nodes.
             // But it will be applied on the coordinator.
-            splitBlocked.countDown();
+            unblockSplit.onResponse(null);
 
             awaitClusterState(
                 coordinator,
@@ -4784,11 +4797,18 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 assertEquals(r.getHits().getHits().length, ids.size());
             });
         } finally {
-            // Unblock stuck node to receive the update.
-            clusterStateApplicationBlock.countDown();
+            // Unblock cluster state publication on a node.
+            shouldFailClusterStatePublication.set(false);
+            // Now perform any action that produces new cluster state so that the node that was isolated gets latest cluster state
+            // and is in a clean state for teardown.
+            bumpClusterStateVersion();
         }
 
-        waitForReshardCompletion(indexName);
+        // Wait for reshard completion via the previously isolated node which would also confirm that it has latest cluster state.
+        awaitClusterState(
+            sourceSearchShardNode,
+            (state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null
+        );
         ensureGreen(indexName);
     }
 

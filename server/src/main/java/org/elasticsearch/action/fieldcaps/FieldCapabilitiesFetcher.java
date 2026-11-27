@@ -24,7 +24,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -285,7 +284,7 @@ class FieldCapabilitiesFetcher {
                     reported == null ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP : reported.getPositionIncrementGap(ft.name()),
                     indexLocalAnalyzer,
                     ft.isStaticallySingleValued(),
-                    ft instanceof AbstractScriptFieldType<?>
+                    context.isRuntimeField(field)
                 );
                 responseMap.put(field, fieldCap);
             } else {

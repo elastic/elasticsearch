@@ -82,6 +82,28 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertThat(response.get("id").isRuntimeField(), is(false));
     }
 
+    public void testLookupRuntimeFieldIsFlagged() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "runtime" : {
+                "items.lookup" : {
+                  "type" : "lookup",
+                  "target_index" : "other",
+                  "input_field" : "id",
+                  "target_field" : "id",
+                  "fetch_fields" : [ "name" ]
+                }
+              },
+              "properties" : {
+                "id" : { "type" : "keyword" },
+                "items" : { "type" : "nested", "properties" : { "qty" : { "type" : "long" } } }
+              }
+            } }
+            """);
+
+        assertThat(retrieve(mapperService).get("items.lookup").isRuntimeField(), is(true));
+    }
+
     public void testRuntimeFieldAndMappedFieldOfTheSameNameInDifferentIndicesAreToldApart() throws IOException {
         MapperService runtime = createMapperService("""
             { "_doc" : {

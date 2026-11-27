@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ByteRegionInputStream;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -79,10 +80,11 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     private final long byteArrayBytesRead;
 
     /**
-     * Storage objects up to this size are eagerly slurped into a {@code byte[]} so the decoder can
-     * use Jackson's {@code createParser(byte[])} fast path instead of the {@code InputStream}
-     * dispatch. Streaming-parallel chunks are ~1 MiB, single-file reads are usually well under
-     * this; very large files fall back to streaming so they do not pin a multi-hundred-MiB array.
+     * Storage objects up to this size use Jackson's {@code createParser(byte[])} fast path.
+     * {@link ByteRegionInputStream} chunks wrap in place; other streams still copy via
+     * {@code readAllBytes()}. Streaming-parallel chunks are ~4 MiB, single-file reads are usually
+     * well under this; very large files fall back to streaming so they do not pin a
+     * multi-hundred-MiB array.
      */
     static final int BYTE_ARRAY_FAST_PATH_MAX_SIZE = 16 * 1024 * 1024;
 
@@ -300,22 +302,30 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // reads of huge unsplit NDJSON; above the cap, fall back to streaming and accept a
         // possible offset shift on lenient-mode recovery rather than risk unbounded allocation.
         if (canUseByteArrayFastPath(object)) {
-            // Slurp the bounded (≤16 MiB) segment in one pull. external_max_record_size is enforced per-record
-            // inside NdJsonPageDecoder on the pass Jackson already makes — no second walk over the buffer
-            // (the previous strict cap stream / lenient filter both re-scanned every byte before the
-            // decoder re-walked them). Splitter-side enforcement
-            // (NdJsonRecordSplitter.findLastRecordBoundary at split-discovery time) still bounds parallel
-            // chunks; the decoder cap protects whole-file and byte-range macro-split reads that bypass it.
+            // Pooled ByteArrayStorageObject chunks arrive as ByteRegionInputStream; wrap that region
+            // in place after skipToNextLine has advanced position(). Filter wrappers (trim) hide the
+            // type, so those still copy via readAllBytes(). external_max_record_size is enforced
+            // per-record inside NdJsonPageDecoder on the pass Jackson already makes.
             byte[] data;
+            int offset;
+            int length;
             try (InputStream toClose = inputStream) {
-                data = toClose.readAllBytes();
+                if (toClose instanceof ByteRegionInputStream region) {
+                    data = region.array();
+                    offset = region.position();
+                    length = region.limit() - region.position();
+                } else {
+                    data = toClose.readAllBytes();
+                    offset = 0;
+                    length = data.length;
+                }
             }
             this.byteCounter = null;
-            this.byteArrayBytesRead = data.length;
+            this.byteArrayBytesRead = length;
             this.pageDecoder = new NdJsonPageDecoder(
                 data,
-                0,
-                data.length,
+                offset,
+                length,
                 datetimeFormatter,
                 resolvedAttributes,
                 decodeColumns,
@@ -365,6 +375,11 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             // page-capping — a page may span stripes.
             this.pageDecoder.enableRecordOffsetTracking(statsStripeBaseOffset);
         }
+    }
+
+    /** Visible for tests: decoder this iterator wraps. */
+    NdJsonPageDecoder decoder() {
+        return pageDecoder;
     }
 
     /**

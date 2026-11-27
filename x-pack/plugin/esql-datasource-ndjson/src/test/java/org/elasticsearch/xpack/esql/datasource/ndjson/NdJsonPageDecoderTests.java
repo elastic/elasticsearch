@@ -44,6 +44,7 @@ import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -3328,6 +3329,88 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals(100000.0, block.getDouble(0), 0.0);
             assertEquals(5.0, block.getDouble(1), 0.0);
             assertTrue(Double.isNaN(block.getDouble(2)));
+        }
+    }
+
+    /**
+     * {@code tokenStartOffset} must subtract {@code initialSliceStart} so a non-zero sourceOffset
+     * (pooled chunk prefix) does not inflate stripe attribution. Without the subtract these offsets
+     * would be {@code statsBase + pad}.
+     */
+    public void testTokenStartOffsetIgnoresPooledBufferPrefix() throws IOException {
+        String ndjson = "{\"id\":1}\n{\"id\":22}\n";
+        byte[] payload = ndjson.getBytes(StandardCharsets.UTF_8);
+        int pad = 5;
+        byte[] padded = new byte[pad + payload.length];
+        Arrays.fill(padded, 0, pad, (byte) 'X');
+        System.arraycopy(payload, 0, padded, pad, payload.length);
+        long statsBase = 1000L;
+
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                padded,
+                pad,
+                payload.length,
+                null,
+                List.of(attribute("id", DataType.INTEGER)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://padded-offset",
+                new NdJsonReaderCounters()
+            )
+        ) {
+            decoder.enableRecordOffsetTracking(statsBase);
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+                assertEquals(2, page.getPositionCount());
+                assertEquals(2, decoder.lastPageRecordCount());
+                long[] offsets = decoder.lastPageRecordOffsets();
+                assertEquals("first record starts at statsBase, not statsBase+pad", statsBase, offsets[0]);
+                assertEquals("second record is 9 bytes after the first (\"{\\\"id\\\":1}\\n\")", statsBase + 9, offsets[1]);
+            }
+        }
+    }
+
+    /**
+     * After lenient recovery {@code parserSliceStart} moves to an absolute index in the padded
+     * buffer. The recovered record's stripe offset must still be file-relative.
+     */
+    public void testTokenStartOffsetAfterRecoveryIgnoresPooledBufferPrefix() throws IOException {
+        String ndjson = "{\"id\":1}\nNOT-JSON\n{\"id\":3}\n";
+        byte[] payload = ndjson.getBytes(StandardCharsets.UTF_8);
+        int pad = 5;
+        byte[] padded = new byte[pad + payload.length];
+        Arrays.fill(padded, 0, pad, (byte) 'X');
+        System.arraycopy(payload, 0, padded, pad, payload.length);
+        long statsBase = 1000L;
+        int secondRecordStart = "{\"id\":1}\nNOT-JSON\n".getBytes(StandardCharsets.UTF_8).length;
+
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                padded,
+                pad,
+                payload.length,
+                null,
+                List.of(attribute("id", DataType.INTEGER)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://padded-recovery",
+                new NdJsonReaderCounters()
+            )
+        ) {
+            decoder.enableRecordOffsetTracking(statsBase);
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+                assertEquals(2, page.getPositionCount());
+                assertEquals(2, decoder.lastPageRecordCount());
+                long[] offsets = decoder.lastPageRecordOffsets();
+                assertEquals(statsBase, offsets[0]);
+                assertEquals(statsBase + secondRecordStart, offsets[1]);
+            }
         }
     }
 

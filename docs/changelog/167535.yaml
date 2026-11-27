@@ -1,5 +1,5 @@
 area: Task Management
 issues: []
 pr: 167535
-summary: Charge the node replies of a task listing to the in-flight requests breaker
+summary: Make `GET _tasks` fail for a node with a circuit breaking exception, instead of risking an out-of-memory error, when its reply is too large to hold
 type: enhancement

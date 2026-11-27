@@ -437,8 +437,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * The format's name as a user-facing message spells it. This reader serves {@code tsv} as well as
-     * {@code csv}, so every message that names the format takes it from here rather than hard-coding one:
-     * a hard-coded {@code "CSV"} told someone querying a {@code .tsv} about a format they never mentioned.
+     * {@code csv}, so every message that names the format takes it from here rather than hard-coding one, and a
+     * {@code .tsv} read is never described as CSV.
      */
     static String displayName(String format) {
         return format.toUpperCase(Locale.ROOT);
@@ -462,10 +462,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@link #rowErrorReason} strips it from any message {@link #JACKSON_FIELD_TOO_LONG} does not match, so a reworded
      * Jackson message still does not name a Jackson class.
      */
+    private static final Pattern JACKSON_CONSTRAINT_REFERENCE = Pattern.compile(",?\\s*from\\s+`?StreamReadConstraints[\\w.()]*`?");
+
     /** Where Jackson's own location starts in its message; see {@link #rowErrorReason}. */
     private static final String JACKSON_LOCATION_SUFFIX = "\n at [Source: ";
-
-    private static final Pattern JACKSON_CONSTRAINT_REFERENCE = Pattern.compile(",?\\s*from\\s+`?StreamReadConstraints[\\w.()]*`?");
 
     /**
      * What a row narrower than the file's width is called, in the error that rejects it and in the warning that
@@ -2238,10 +2238,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@link #renderDuplicateNames} assembles, caps and escapes the list for this message and for the declared-read
      * sibling alike, and states what the cap costs the names and what the marker's width counts.
      * <p>
-     * The escape it applies covers the brackets and not the quote, so a column name holding {@code ', '} renders as
-     * two entries and this sentence names a column the file does not have. Left that way: an apostrophe is ordinary
-     * in a column name and quoting the quote would disfigure every {@code O'Brien} in a header to defend against a
-     * count the reader can check against the file. {@link #rejectDuplicateHeaderNames} inherits the same decision.
+     * It escapes the quote inside a name as well as the brackets, so a column named {@code a', 'b} is one entry and
+     * not two; see {@link #quoteSafe}.
      */
     private static void checkUniqueAttributeNames(List<Attribute> attributes, String format, String sourceLocation) {
         Set<String> seen = new HashSet<>(attributes.size());
@@ -2593,8 +2591,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * the resolver forwards only past {@code ExternalFailures.forwardableDetail}'s storage-path guard — which
      * matches a bare storage host anywhere in the text, so an object legitimately called
      * {@code logs.amazonaws.com.csv} loses the whole sentence and the remedy with it. An
-     * {@link ExternalClientException} is returned whole by that path, which is why all seven schema-path
-     * refusals use it; {@code testEverySchemaPathFailureNamesTheObject} walks the set.
+     * {@link ExternalClientException} is returned whole by that path, which is why the schema-path refusals
+     * {@code testEverySchemaPathFailureNamesTheObject} walks use it.
      * <p>
      * The read path applies the same predicate as an assertion. A refusal in this reader that quotes the read's
      * own input -- an object's basename, a column name, a row, a clause of the declared schema -- says so with
@@ -2762,8 +2760,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String sourceLocation
     ) {
         Exception cause = firstCause instanceof Exception ex ? ex : null;
-        // The object goes AFTER "failed" so that phrase stays contiguous: a test pinned it as one
-        // substring, and splitting it is a silent break for anything else matching the same way.
+        // The object goes after "failed" so "schema inference failed" stays one phrase, which anything matching the
+        // message by substring relies on.
         StringBuilder details = new StringBuilder(displayName(format)).append(" schema inference failed")
             .append(RowLocation.objectClause(" for", sourceLocation))
             .append(": no rows could be parsed; first errors: ");
@@ -5096,7 +5094,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             );
             this.padWarnings = options.padShortRows()
                 ? new SkipWarnings(
-                    "Some rows in [" + messageLocation + "] are " + MISSING_TRAILING_FIELDS + "; reading those fields as null",
+                    "Some rows"
+                        + RowLocation.objectClause(" in", messageLocation)
+                        + " are "
+                        + MISSING_TRAILING_FIELDS
+                        + "; reading those fields as null",
                     this.warningSink
                 )
                 : SkipWarnings.NOOP;
@@ -7137,13 +7139,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // inside a quoted value reaches the same fragment here, and padding it hides the cut behind a
                     // row of nulls rather than refusing it. So the reading that would have carried the hint is the
                     // one that most needs it, and it is the same clause on the same terms.
-                    pendingPadNotice = "row ["
-                        + totalRowCount
-                        + "]: "
-                        + MISSING_TRAILING_FIELDS
-                        + ", read as null: "
-                        + rowWidthClause(actualFields, rowWidthFloor, true)
-                        + cutQuotedValueClause();
+                    pendingPadNotice = describeRow(
+                        null,
+                        MISSING_TRAILING_FIELDS + ", read as null: " + rowWidthClause(actualFields, rowWidthFloor, true)
+                    ) + cutQuotedValueClause();
                 }
             } else if (pastCutTail == false) {
                 // A record of the width the file states, taken as evidence that whatever cut this split's start is
@@ -8413,17 +8412,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, RowFault fault) {
             // Described once, for the exception, the client warning and the node log alike, following
-            // NdJsonPageDecoder.onNdjsonLineParseError. Built separately per channel, the three drifted: the
-            // response named the row and the object while the log line kept a bare ordinal, so an operator
-            // reading the log could not tell which object of a glob, or which split of one, a failure came from.
+            // NdJsonPageDecoder.onNdjsonLineParseError, so the log line names the object and the window the response
+            // names, and an operator can tell which object of a glob, or which split of one, a failure came from.
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                 assert rowExcerpt != null : "fail_fast quotes the row, so a caller must supply its excerpt";
                 String description = describeRow(null, message);
-                String failure = Strings.capitalize(description) + "; row: " + rowExcerpt + fault.hint();
-                // A tokeniser fault's own message quotes the line, the same row content the failure quotes itself.
-                throw cause instanceof MalformedRowException
-                    ? ExternalFailures.rowErrorQuotingTheRow(cause, failure)
-                    : ExternalFailures.rowError(cause, failure);
+                throw rowFailure(cause, Strings.capitalize(description) + "; row: " + rowExcerpt + fault.hint());
             }
             if (fault.projectionIndependent() == false) {
                 // Reached only under SKIP_ROW: NULL_FIELD routes coercion failures to onFieldError and keeps the
@@ -8449,6 +8443,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 );
             }
             checkBudget(cause);
+        }
+
+        /**
+         * The 400 a row failure ends the read with. A tokeniser fault's own message quotes the line it could not read,
+         * the same row content the failure quotes, so its cause is held to the same rule; any other cause is checked
+         * for a storage location as {@link ExternalFailures#rowError} checks it.
+         */
+        private static ExternalClientException rowFailure(@Nullable Exception cause, String message) {
+            return cause instanceof MalformedRowException
+                ? ExternalFailures.rowErrorQuotingTheRow(cause, message)
+                : ExternalFailures.rowError(cause, message);
         }
 
         /** The row's location, and its column when one is named, followed by {@code message}. */
@@ -8513,7 +8518,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // The row count is this reader's own, so it takes the window clause the per-row details take:
                 // without it the aggregate reads as a statement about the whole object, which on a later split
                 // it is not.
-                throw ExternalFailures.rowError(
+                throw rowFailure(
                     cause,
                     "["
                         + errorCount

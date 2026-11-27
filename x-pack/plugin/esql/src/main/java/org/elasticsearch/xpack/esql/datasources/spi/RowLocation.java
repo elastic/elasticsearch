@@ -68,10 +68,9 @@ public final class RowLocation {
      * @param readStartByte  file-global byte offset of the first byte this reader was given, on the same axis as
      *                       its records: for compressed input, an offset into the decompressed stream. A
      *                       splittable compressed macro-split (bzip2, indexed zstd) has its offset on the
-     *                       COMPRESSED axis, and neither reader translates one: NDJSON passes
-     *                       {@link #BYTE_UNKNOWN}, and CSV passes it too except for the object's own first
-     *                       split, which it passes as zero. Both render no byte, so no caller reaches here with
-     *                       a cross-axis value.
+     *                       COMPRESSED axis, and neither reader translates one: both pass zero for the
+     *                       object's own first split and {@link #BYTE_UNKNOWN} for a later one, so no caller
+     *                       reaches here with a cross-axis value.
      */
     public static String of(long row, String objectName, long readStartByte) {
         return new StringBuilder("row [").append(row)
@@ -117,8 +116,8 @@ public final class RowLocation {
     }
 
     /**
-     * Reduces an object name to the token every message must use for it — escaped per
-     * {@link #escapeImpersonatingCharacters}, then cut to {@link #MAX_OBJECT_NAME_CHARS} keeping both ends.
+     * Reduces an object name to the token every message must use for it: cut to {@link #MAX_OBJECT_NAME_CHARS}
+     * keeping both ends, and escaped per {@link #escapeImpersonatingCharacters}, the escape counted against the cap.
      * <p>
      * A reader applies this where it assigns its message-location field, so the summary warning and the details
      * under it carry the same token; capping only inside {@link #of} would render one long name two ways in one

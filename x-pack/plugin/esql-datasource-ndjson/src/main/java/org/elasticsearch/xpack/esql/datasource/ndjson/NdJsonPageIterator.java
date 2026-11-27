@@ -371,7 +371,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         }
         // _rowPosition / _file.record_ref substrate: file-global per-record start offset.
         this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
-        // _rowPosition is unaffected by either arm: the operator factory null-splices its slot for a compressed-offset split.
+        // _rowPosition is unaffected by all three: the operator factory null-splices its slot for a compressed-offset split.
         switch (messageStartByte) {
             case RECORD_BOUNDARY -> {
             }

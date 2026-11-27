@@ -2557,6 +2557,15 @@ public class CsvFormatReaderTests extends ESTestCase {
             "the padded row must be reported, got: " + warnings,
             warnings.stream().anyMatch(w -> w.contains("missing trailing fields, read as null: [2] columns, the header has [3]"))
         );
+        // Named like every other per-row detail, so a glob's padded rows say which object each came from.
+        assertTrue(
+            "the padded row must name its object, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.startsWith("row [1] of [test.csv]: missing trailing fields, read as null"))
+        );
+        assertTrue(
+            "the summary must name its object, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.startsWith("Some rows in [test.csv] are missing trailing fields"))
+        );
     }
 
     /**
@@ -8260,6 +8269,29 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unclosed quoted field"));
         assertThat(e.getMessage(), containsString("of [test.csv]"));
         assertThat(e.getMessage(), containsString("https://example.com/data/x.csv"));
+    }
+
+    /**
+     * The error budget's refusal carries the row failure that spent it as its cause, and a tokeniser fault quotes its
+     * line there. A line holding a URL is still row content, so running out of budget on it is a 400, as it is under
+     * {@code fail_fast}.
+     */
+    public void testABudgetSpentOnAnUnclosedQuoteBesideAUrlIsAClientError() {
+        StorageObject object = createStorageObject("id:long,name:keyword\n1,\"https://example.com/data/x.csv");
+        CsvFormatReader reader = mvcReader(blockFactory);
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false)).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(e.getMessage(), containsString("errors in [1] rows of [test.csv]"));
     }
 
     /**

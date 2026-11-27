@@ -179,12 +179,10 @@ public class NdJsonPageDecoder implements Closeable {
      */
     private long recordOffsetBase = 0L;
     /**
-     * The byte a message may tell the user the ordinal was counted from, or {@link RowLocation#BYTE_UNKNOWN} once
-     * {@link #withholdMessageStartByte()} is called. Tracks {@link #recordOffsetBase} by default and diverges only
-     * on a later split that does not start at a record boundary, the block-aligned split of a compressed object among
-     * them, where the split offset is a boundary in the compressed file while this decoder counts decompressed
-     * records. {@code _rowPosition} keeps using
-     * {@link #recordOffsetBase} either way.
+     * The byte a message may tell the user the ordinal was counted from. Tracks {@link #recordOffsetBase} by default;
+     * {@link #countMessagesFromObjectStart()} sets it to zero for the first split, and {@link #withholdMessageStartByte()}
+     * to {@link RowLocation#BYTE_UNKNOWN} for a later split that does not start at a record boundary.
+     * {@code _rowPosition} keeps using {@link #recordOffsetBase} in every case.
      */
     private long messageOffsetBase = 0L;
 

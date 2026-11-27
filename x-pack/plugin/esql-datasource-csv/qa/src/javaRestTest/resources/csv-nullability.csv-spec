@@ -117,6 +117,7 @@ FROM ragged_short_padded
 ;
 warningRegex:Some rows in \[.+\] are missing trailing fields; reading those fields as null
 warningRegex:row \[2\]: missing trailing fields, read as null: \[2\] columns, the header has \[3\]
+warningRegex:row \[2\] of \[[^\]]+\]: missing trailing fields, read as null: \[2\] columns, the header has \[3\]
 
 id:integer | name:keyword | score:integer
 1          | alice        | 10

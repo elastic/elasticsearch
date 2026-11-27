@@ -1476,6 +1476,36 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
     }
 
+    /**
+     * A base only converts strings. On a field that is a long in one index and unmapped in another, which is loaded as a keyword where
+     * unmapped, it used to be dropped silently by {@code TO_LONG}, and failed with an internal error in {@code TO_INTEGER}.
+     */
+    public void testBaseConversionOnPartiallyMappedLongFails() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
+        TestAnalyzer ta = analyzer().minimumTransportVersion(CompactMultiTypeEsField.CompactMultiTypeEsField);
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
+            String conversion = function + "(message, 16)";
+            String statement = setUnmappedLoad("FROM foo, bar | EVAL x = " + conversion);
+            var e = expectThrows(VerificationException.class, () -> ta.statement(statement));
+            assertThat(
+                e.getMessage(),
+                containsString("Mapped types [long] of partially unmapped field [message] cannot be accepted in [" + conversion + "]")
+            );
+        }
+    }
+
     public void testTypeConflictLongKeywordUnmappedNoCast() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 

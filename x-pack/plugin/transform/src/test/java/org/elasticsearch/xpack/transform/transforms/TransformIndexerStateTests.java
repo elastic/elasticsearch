@@ -1080,12 +1080,17 @@ public class TransformIndexerStateTests extends ESTestCase {
         afterFinishLatch.countDown();
         indexer.waitUntilFinished();
 
+        // stop the next indexer thread once it kicks off, so that it is still running when the indexer is aborted
+        var nextStartLatch = indexer.createAwaitForStartLatch(1);
+
         // we should now (eventually) be able to schedule the next job
         assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())), 5, TimeUnit.SECONDS);
 
         // stop the indexer, equivalent to _stop?force=true
         assertFalse("Transform Indexer thread should still be running", indexer.abort());
         assertEquals(IndexerState.ABORTING, indexer.getState());
+
+        nextStartLatch.countDown();
     }
 
     private void setStopAtCheckpoint(

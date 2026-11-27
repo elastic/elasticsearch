@@ -105,7 +105,7 @@ public class TransportTsidPrefixHistogramAction extends HandledTransportAction<T
         ClusterState clusterState = clusterService.state();
         var project = projectResolver.getProjectState(clusterState);
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
-        // remote concrete indices may carry their cluster prefix, which this cluster's names do not
+        // trim cluster alias if exists
         Set<String> targets = Arrays.stream(request.concreteIndices)
             .map(index -> RemoteClusterAware.splitIndexName(index).indexExpression())
             .collect(Collectors.toSet());
@@ -123,7 +123,6 @@ public class TransportTsidPrefixHistogramAction extends HandledTransportAction<T
 
     private TsidPrefixHistogramNodeResponse collectNode(TsidPrefixHistogramNodeRequest request, CancellableTask task) {
         if (request.shards().isEmpty()) {
-            // the coordinator never sends an empty group, so security resolved none of the query's indices on this node
             throw new ElasticsearchSecurityException("no authorized indices on node for " + NODE_ACTION, RestStatus.FORBIDDEN);
         }
         TsidPrefixHistogram histogram = TsidPrefixHistogram.EMPTY;

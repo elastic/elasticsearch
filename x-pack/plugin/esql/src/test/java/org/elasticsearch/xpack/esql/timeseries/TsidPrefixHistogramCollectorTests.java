@@ -61,7 +61,6 @@ public class TsidPrefixHistogramCollectorTests extends MapperServiceTestCase {
 
     public void testRejectsEmptyMetricFields() {
         PlainActionFuture<TsidPrefixHistogramResponse> future = new PlainActionFuture<>();
-        // rejected before the transport service or the task is used
         TsidPrefixHistogramCollector.collect(null, null, Map.of(), Map.of(), List.of(), Long.MIN_VALUE, Long.MAX_VALUE, 0, future);
         expectThrows(IllegalArgumentException.class, future::actionGet);
     }

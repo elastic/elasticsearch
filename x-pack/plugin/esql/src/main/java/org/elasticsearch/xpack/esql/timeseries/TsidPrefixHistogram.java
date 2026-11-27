@@ -228,7 +228,7 @@ public final class TsidPrefixHistogram implements Writeable {
     }
 
     /**
-     * Cuts the prefix space into at most {@code numSplits} contiguous ranges of about equal series-milliseconds
+     * Splits the prefix space into at most {@code numSplits} contiguous ranges of about equal series-milliseconds
      */
     public List<TsidPrefixRange> splits(int numSplits) {
         final double total = totalSeriesMillis();

@@ -54,8 +54,8 @@ public final class TsidPrefixHistogramCollector {
     /**
      * Collects a {@link TsidPrefixHistogram} for the given indices.
      *
-     * @param concreteIndices resolved, authorized concrete index names by cluster
-     * @param originalIndices original index expressions by cluster, used for authorization
+     * @param concreteIndices resolved concrete index names grouped by cluster
+     * @param originalIndices original index expressions grouped by cluster, used for authorization
      * @param metricFields    metrics to match when selecting prefix cells; at least one metric must be specified
      */
     public static void collect(
@@ -140,9 +140,7 @@ public final class TsidPrefixHistogramCollector {
     ) throws IOException {
         var timestampType = (DateFieldMapper.DateFieldType) indexService.mapperService().fieldType(DataStream.TIMESTAMP_FIELD_NAME);
         TsidPrefixHistogram mergedHistogram = TsidPrefixHistogram.EMPTY;
-        // Use shard-wide planning statistics independent of DLS and alias filters.
-        // Field visibility follows the wrapped searcher.
-        try (Engine.Searcher searcher = indexService.getShard(shardId.id()).acquireSearcher("esql_tsid_prefix_histogram")) {
+        try (Engine.Searcher searcher = indexService.getShard(shardId.id()).acquireSearcher("tsid_prefix_histogram")) {
             SearchExecutionContext context = indexService.newSearchExecutionContext(
                 shardId.id(),
                 0,
@@ -234,7 +232,6 @@ public final class TsidPrefixHistogramCollector {
             if (doc >= endDoc) {
                 continue;
             }
-            // the next partition starts where this one ends, so walking partitions in order looks up each ordinal once
             final int startOrd = startDoc == lastDoc ? lastOrd : tsidOrd(tsid, startDoc, maxDoc);
             final int endOrd = tsidOrd(tsid, endDoc, maxDoc);
             lastDoc = endDoc;

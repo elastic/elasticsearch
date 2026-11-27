@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -50,6 +51,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.rank.vectors.LocalStateRankVectors;
 import org.junit.AssumptionViolatedException;
@@ -59,9 +61,11 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -72,6 +76,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests.convertToList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -273,6 +278,105 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.endArray();
         })));
         assertThat(e.getCause().getMessage(), containsString("different dimensions"));
+    }
+
+    /**
+     * The byte length of an encoded vector doesn't determine its dimensions, e.g. a float field accepts both float32 and
+     * bfloat16 encodings and a byte field both hex and base64, so a field without dimensions rejects a document with any
+     * encoded vector rather than guessing them.
+     */
+    public void testEncodedVectorWithoutDimensionsIsRejected() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::dimensionlessMapping));
+        String encoded = randomEncodedVector();
+        // getSampleValueForDocument returns a list of vectors, each a list of numbers
+        List<?> arrayVectors = (List<?>) getSampleValueForDocument();
+        // a vector given as an array of numbers before the encoded one doesn't make it acceptable
+        boolean arrayFirst = randomBoolean();
+
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapperService.documentMapper().parse(source(b -> {
+            b.startArray("field");
+            if (arrayFirst) {
+                b.value(arrayVectors.getFirst());
+            }
+            b.value(encoded);
+            b.endArray();
+        })));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Field [field] of type [rank_vectors] has no [dims] and cannot infer them from an encoded vector")
+        );
+    }
+
+    /**
+     * Indices created before encoded vectors required dimensions keep inferring them from the decoded byte length.
+     */
+    public void testEncodedVectorInfersDimensionsOnOlderIndices() throws IOException {
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.DENSE_VECTOR_ENCODED_VECTOR_REQUIRES_DIMS);
+        MapperService mapperService = createMapperService(version, fieldMapping(this::dimensionlessMapping));
+        String encoded = switch (elementType) {
+            // older indices infer the dimensions of float and bfloat16 fields assuming float32 values
+            case FLOAT, BFLOAT16 -> encodeFloat32(randomNormalizedVector(dims));
+            case BYTE, BIT -> Base64.getEncoder().encodeToString(randomByteArrayOfLength(elementType.vectorLength(dims)));
+        };
+
+        ParsedDocument doc = mapperService.documentMapper()
+            .parse(source(b -> b.startArray("field").value(encoded).value(encoded).endArray()));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, MapperService.MergeReason.MAPPING_AUTO_UPDATE, doc.dynamicMappingsUpdate().string());
+
+        assertThat(((RankVectorsFieldMapper.RankVectorsFieldType) mapperService.fieldType("field")).getVectorDimensions(), equalTo(dims));
+    }
+
+    /**
+     * Indexing arrays of numbers first, as the error for an encoded vector suggests, lets later documents use encoded vectors.
+     */
+    public void testEncodedVectorIsAcceptedOnceDimensionsAreInferredFromArrays() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::dimensionlessMapping));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", getSampleValueForDocument(false))));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, MapperService.MergeReason.MAPPING_AUTO_UPDATE, doc.dynamicMappingsUpdate().string());
+        assertThat(((RankVectorsFieldMapper.RankVectorsFieldType) mapperService.fieldType("field")).getVectorDimensions(), equalTo(dims));
+
+        String encoded = randomEncodedVector();
+        doc = mapperService.documentMapper().parse(source(b -> b.startArray("field").value(encoded).value(encoded).endArray()));
+        assertNull(doc.dynamicMappingsUpdate());
+        assertThat(doc.rootDoc().getFields("field"), hasSize(1));
+    }
+
+    /**
+     * A vector of {@link #dims} in any encoding the element type accepts: float and bfloat16 fields take both float32 and bfloat16
+     * values, byte and bit fields both base64 and hex.
+     */
+    private String randomEncodedVector() {
+        return switch (elementType) {
+            case FLOAT, BFLOAT16 -> randomBoolean()
+                ? encodeFloat32(randomNormalizedVector(dims))
+                : encodeBFloat16(randomNormalizedVector(dims));
+            case BYTE, BIT -> {
+                byte[] bytes = randomByteArrayOfLength(elementType.vectorLength(dims));
+                yield randomBoolean() ? Base64.getEncoder().encodeToString(bytes) : HexFormat.of().formatHex(bytes);
+            }
+        };
+    }
+
+    private void dimensionlessMapping(XContentBuilder b) throws IOException {
+        b.field("type", "rank_vectors");
+        if (elementType != ElementType.FLOAT) {
+            b.field("element_type", elementType.toString());
+        }
+    }
+
+    private static String encodeFloat32(float[] vector) {
+        ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * vector.length);
+        buffer.asFloatBuffer().put(vector);
+        return Base64.getEncoder().encodeToString(buffer.array());
+    }
+
+    private static String encodeBFloat16(float[] vector) {
+        byte[] bytes = new byte[BFloat16.BYTES * vector.length];
+        BFloat16.floatToBFloat16(vector, 0, bytes, 0, vector.length, ByteOrder.BIG_ENDIAN);
+        return Base64.getEncoder().encodeToString(bytes);
     }
 
     public void testDims() {

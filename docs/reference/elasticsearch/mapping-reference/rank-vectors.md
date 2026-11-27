@@ -127,6 +127,8 @@ $$$rank-vectors-element-type$$$
 `dims`
 :   (Optional, integer) Number of vector dimensions. Can’t exceed `4096`. If `dims` is not specified, it will be set to the length of the first vector added to the field.
 
+    {applies_to}`stack: preview 9.7` {applies_to}`serverless: preview` For indices created in 9.7 or later, `dims` can only be inferred from vectors provided as arrays of numbers.
+
 A single document can hold at most `8192` vectors in a `rank_vectors` field. Indexing a document with more vectors than that fails with an error. The same limit applies to the query vector of a max-sim function: passing more than `8192` query vectors fails the search request.
 
 ## Accessing `rank_vectors` fields in search responses

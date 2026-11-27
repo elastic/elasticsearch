@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -175,7 +176,8 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 ),
                 builderParams(this, context),
                 licenseState,
-                isExcludeSourceVectorsFinal
+                isExcludeSourceVectorsFinal,
+                indexCreatedVersion
             );
         }
     }
@@ -278,17 +280,20 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     private final XPackLicenseState licenseState;
     private final boolean isExcludeSourceVectors;
+    private final IndexVersion indexCreatedVersion;
 
     private RankVectorsFieldMapper(
         String simpleName,
         MappedFieldType fieldType,
         BuilderParams params,
         XPackLicenseState licenseState,
-        boolean isExcludeSourceVectors
+        boolean isExcludeSourceVectors,
+        IndexVersion indexCreatedVersion
     ) {
         super(simpleName, fieldType, params);
         this.licenseState = licenseState;
         this.isExcludeSourceVectors = isExcludeSourceVectors;
+        this.indexCreatedVersion = indexCreatedVersion;
     }
 
     @Override
@@ -327,6 +332,19 @@ public class RankVectorsFieldMapper extends FieldMapper {
             int currentDims = -1;
             int vectorCount = 0;
             while (XContentParser.Token.END_ARRAY != context.parser().nextToken()) {
+                // The byte length of an encoded vector doesn't determine its dimensions, e.g. float vectors accept both float32 and
+                // bfloat16 encodings, so only arrays of numbers can be used to infer them.
+                if (XContentParser.Token.VALUE_STRING == context.parser().currentToken()
+                    && indexCreatedVersion.onOrAfter(IndexVersions.DENSE_VECTOR_ENCODED_VECTOR_REQUIRES_DIMS)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + fullPath()
+                            + "] of type ["
+                            + typeName()
+                            + "] has no [dims] and cannot infer them from an encoded vector; set [dims] in the mapping or index the "
+                            + "vectors of the first document as arrays of numbers"
+                    );
+                }
                 int dims = fieldType().element.parseDimensionCount(context);
                 if (++vectorCount > MAX_VECTORS) {
                     throw tooManyVectors();

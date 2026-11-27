@@ -426,12 +426,12 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
 
     def "nested bwc builds of the same checkout do not run concurrently"() {
         given: "the start and end of each bwc build task is recorded"
-        buildFile << """
-        allprojects {
-            tasks.matching { it.name in ['buildBwcDarwinTar', 'buildBwcLinuxAarch64Tar'] }.configureEach {
-                doFirst { t -> println("bwcBuildStart " + t.name + " " + System.nanoTime()) }
-                doLast { t -> println("bwcBuildEnd " + t.name + " " + System.nanoTime()) }
-            }
+        // Configured in the bwc project's own build script rather than from the root project,
+        // to stay compatible with isolated projects.
+        file("cloned/distribution/bwc/major1/build.gradle") << """
+        tasks.named { it in ['buildBwcDarwinTar', 'buildBwcLinuxAarch64Tar'] }.configureEach {
+            doFirst { t -> println("bwcBuildStart " + t.name + " " + System.nanoTime()) }
+            doLast { t -> println("bwcBuildEnd " + t.name + " " + System.nanoTime()) }
         }
         """
 

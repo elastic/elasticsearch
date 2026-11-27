@@ -91,7 +91,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         // on a release build, verify with -Des.esql_datafeeds_feature_flag_enabled=false.
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
         // Does not throw: the feature flag is on and the cluster is fully upgraded.
@@ -100,7 +99,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
 
     public void testStoredEsqlDatafeedOnMixedVersionClusterShouldRejectStart() {
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
         ClusterState state = ClusterState.builder(new ClusterName("test"))
@@ -402,7 +400,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
 
     private static DatafeedConfig.Builder newEsqlDatafeed() {
         return new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM east:logs-*")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1));
     }
 
@@ -419,7 +416,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
 
@@ -445,7 +441,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
     public void testStartSkipsFactoryValidationOnlyForEsqlDatafeeds() {
         // The start action must not build an ES|QL extractor factory (it would run a second | DESCRIBE); the task node does.
         DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
         DatafeedConfig classicDatafeed = new DatafeedConfig.Builder("classic-datafeed", "job_id").setIndices(List.of("logs")).build();
@@ -460,7 +455,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         // The master skips its | DESCRIBE in cross-project mode, so the factory creation must validate or errors surface as a timeout.
         assumeTrue("cross-project ML is off in this build", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
         CrossProjectModeDecider crossProject = new CrossProjectModeDecider(

@@ -100,6 +100,11 @@ public class DatafeedJobBuilder {
         return restartTimeInfo.getLatestRecordTimeMs() == null ? -1 : restartTimeInfo.getLatestRecordTimeMs();
     }
 
+    private static long latencyMs(Job job) {
+        TimeValue latency = job.getAnalysisConfig().getLatency();
+        return latency == null ? 0 : latency.millis();
+    }
+
     private static long latestFinalBucketEndMs(Job job, RestartTimeInfo restartTimeInfo) {
         return restartTimeInfo.getLatestFinalBucketTimeMs() == null
             ? -1
@@ -287,7 +292,11 @@ public class DatafeedJobBuilder {
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
             crossClusterSearchStats,
-            lastEndTimeForRecord(datafeedConfig, dataExtractorFactory)
+            lastEndTimeForRecord(datafeedConfig, dataExtractorFactory),
+            // Only ES|QL datafeeds skip long empty gaps for now. Search-query datafeeds get the same fix in #167833.
+            datafeedConfig.getEsqlQuery() != null,
+            job.getAnalysisConfig().getBucketSpan().millis(),
+            latencyMs(job)
         );
         listener.onResponse(datafeedJob);
     }

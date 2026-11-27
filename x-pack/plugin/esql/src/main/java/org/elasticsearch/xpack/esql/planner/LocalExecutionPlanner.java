@@ -1088,7 +1088,8 @@ public class LocalExecutionPlanner {
                     blockFactory.breaker(),
                     target,
                     into.sourceAttributes(),
-                    indexing
+                    indexing,
+                    into.options()
                 );
                 yield source.with(
                     new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),

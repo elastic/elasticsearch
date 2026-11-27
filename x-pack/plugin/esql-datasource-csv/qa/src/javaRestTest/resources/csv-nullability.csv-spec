@@ -97,7 +97,7 @@ FROM ragged_short_skip
 ;
 warningRegex:Some rows in \[.+\] cannot be read; skipping them
 warningRegex:row \[2\]: missing trailing fields: \[2\] columns, the header has \[3\]
-warningRegex:row \[2\] of \[ragged_short_rows\.csv\]: missing trailing fields:\[2\] columns, the header has \[3\]
+warningRegex:row \[2\] of \[ragged_short_rows\.csv\]: missing trailing fields: \[2\] columns, the header has \[3\]
 
 id:integer | name:keyword | score:integer
 1          | alice        | 10

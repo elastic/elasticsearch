@@ -837,6 +837,18 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         return docValuesParameters.multiValue() == false;
     }
 
+    /**
+     * A BOOL or BINARY column takes the row path before any column is mapped.
+     */
+    @Override
+    public boolean supportsColumnKind(byte kind) {
+        return kind == EscfColumnKind.LONG
+            || kind == EscfColumnKind.DOUBLE
+            || kind == EscfColumnKind.STRING
+            || kind == EscfColumnKind.UNION
+            || kind == EscfColumnKind.ARRAY;
+    }
+
     @Override
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean recordsOffsets = offsetsFieldName != null && indexSettings.getMode().isStrictColumnar();

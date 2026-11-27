@@ -444,6 +444,18 @@ public class ScaledFloatFieldMapperColumnarCompatibilityTests extends AbstractCo
         assertFalse(mapper(mapperService).doSupportsColumnarParse(mapperService.getIndexSettings(), Set.of()));
     }
 
+    public void testBooleanColumnIsRefusedAtResolve() throws IOException {
+        final MapperService mapperService = createMapperService(columnarSettings(), scaledFloat(100));
+        assertEquals(
+            BatchRefusal.RESOLVE_MAPPERS,
+            assertBatchPathRefuses(mapperService, randomFrom(SourceEncoder.available()), "{\"f\":true}", "{\"f\":false}")
+        );
+        assertEquals(
+            BatchRefusal.MAP_COLUMN_BATCH,
+            assertBatchPathRefuses(mapperService, randomFrom(SourceEncoder.available()), "{\"f\":1.5}", "{\"f\":true}")
+        );
+    }
+
     public void testNonFiniteNullValueIsNotColumnar() throws IOException {
         final MapperService nonFinite = createMapperService(
             columnarSettings(),

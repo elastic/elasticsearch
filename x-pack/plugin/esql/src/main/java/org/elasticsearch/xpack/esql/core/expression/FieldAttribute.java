@@ -81,6 +81,17 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         "esql_timeseries_metadata_attribute"
     );
 
+    /**
+     * The name of an attribute under a parent is almost always {@code parentName + "." + leafName}. From this version on the
+     * name of such an attribute is sent as just the leaf name, which is usually shared with many other attributes and with the
+     * {@link EsField}, so it is cached. Sending the whole name repeated the parent's path for every attribute, which was close
+     * to half of the serialized size of plans over deeply nested mappings.
+     */
+    // Only public for testing
+    public static final TransportVersion ESQL_FIELD_ATTRIBUTE_NAME_WITHOUT_PARENT = TransportVersion.fromName(
+        "esql_field_attribute_name_without_parent"
+    );
+
     private final String parentName;
     private final EsField field;
     protected FieldName lazyFieldName;
@@ -135,7 +146,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         Source source = Source.readFrom((PlanStreamInput) in);
         String parentName = ((PlanStreamInput) in).readOptionalCachedString();
         String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
-        String name = ((PlanStreamInput) in).readCachedString();
+        String name = readName((PlanStreamInput) in, parentName);
         if (in.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
             DataType.readFrom(in);
         }
@@ -182,7 +193,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             Source.EMPTY.writeTo(out);
             ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
             checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
-            ((PlanStreamOutput) out).writeCachedString(name());
+            writeName((PlanStreamOutput) out);
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 dataType().writeTo(out);
             }
@@ -214,6 +225,38 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
 
     public static FieldAttribute readFrom(StreamInput in) throws IOException {
         return ((PlanStreamInput) in).readAttributeWithCache(FieldAttribute::innerReadFrom);
+    }
+
+    /**
+     * Writes the name of this attribute. If it is {@code parentName + "." + leafName} then only the leaf name is sent, see
+     * {@link #ESQL_FIELD_ATTRIBUTE_NAME_WITHOUT_PARENT}. Attributes without a parent are written exactly as before.
+     */
+    private void writeName(PlanStreamOutput out) throws IOException {
+        String name = name();
+        if (parentName == null || out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_NAME_WITHOUT_PARENT) == false) {
+            out.writeCachedString(name);
+            return;
+        }
+        int leafStart = parentName.length() + 1;
+        boolean underParent = name.length() > leafStart && name.charAt(leafStart - 1) == '.' && name.startsWith(parentName);
+        out.writeBoolean(underParent);
+        if (underParent == false) {
+            out.writeCachedString(name);
+            return;
+        }
+        // The leaf name is usually the name of the field, so prefer that instance to building a new string for every attribute.
+        String fieldName = field.getName();
+        boolean leafIsFieldName = name.length() == leafStart + fieldName.length() && name.endsWith(fieldName);
+        out.writeCachedString(leafIsFieldName ? fieldName : name.substring(leafStart));
+    }
+
+    private static String readName(PlanStreamInput in, @Nullable String parentName) throws IOException {
+        if (parentName == null || in.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_NAME_WITHOUT_PARENT) == false) {
+            return in.readCachedString();
+        }
+        boolean underParent = in.readBoolean();
+        String name = in.readCachedString();
+        return underParent ? parentName + "." + name : name;
     }
 
     @Override

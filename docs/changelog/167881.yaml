@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167881
+summary: Reduce size and memory cost of serializing wide plans
+type: enhancement

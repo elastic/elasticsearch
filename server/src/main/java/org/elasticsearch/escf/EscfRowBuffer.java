@@ -50,9 +50,6 @@ public final class EscfRowBuffer {
     private long[] scratchNumeric;
     private Object[] scratchVar;
     private FixedBitSet columnsSet;
-    /** The columns staged with a string or {@link #UTF8_STRING_ARRAY} in this row, in staging order. */
-    private int[] stringColumns = new int[INITIAL_CAPACITY];
-    private int stringColumnCount;
 
     private int[] parentStack;
     private int parentDepth;
@@ -87,7 +84,6 @@ public final class EscfRowBuffer {
         Arrays.fill(scratchType, 0, Math.min(columnCountBefore, scratchType.length), (byte) 0);
         Arrays.fill(scratchVar, 0, Math.min(columnCountBefore, scratchVar.length), null);
         columnsSet.clear();
-        stringColumnCount = 0;
         parentDepth = 0;
         predictedLeaf = 0;
         predictedNonLeaf = 1;
@@ -165,7 +161,6 @@ public final class EscfRowBuffer {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = SourceValueType.STRING;
         scratchVar[colIdx] = value;
-        addStringColumn(colIdx);
         return colIdx;
     }
 
@@ -178,15 +173,7 @@ public final class EscfRowBuffer {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = UTF8_STRING_ARRAY;
         scratchVar[colIdx] = elements;
-        addStringColumn(colIdx);
         return colIdx;
-    }
-
-    private void addStringColumn(int colIdx) {
-        if (stringColumnCount == stringColumns.length) {
-            stringColumns = Arrays.copyOf(stringColumns, ArrayUtil.oversize(stringColumnCount + 1, Integer.BYTES));
-        }
-        stringColumns[stringColumnCount++] = colIdx;
     }
 
     /** Stages a UTF-8 string value. Returns the leaf column index. */
@@ -266,15 +253,6 @@ public final class EscfRowBuffer {
 
     Object scratchVar(int col) {
         return scratchVar[col];
-    }
-
-    /** The columns staged with a string or {@link #UTF8_STRING_ARRAY} in this row are {@code stringColumns()[0, stringColumnCount())}. */
-    int[] stringColumns() {
-        return stringColumns;
-    }
-
-    int stringColumnCount() {
-        return stringColumnCount;
     }
 
     boolean isStarted() {

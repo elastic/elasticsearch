@@ -88,32 +88,26 @@ public final class EscfBatchBuilder implements Releasable {
         if (rowBuffer.isStarted() == false) {
             throw new IllegalStateException("commit called without a staged row");
         }
-        final boolean newPartition = hasPartition(partitionKey) == false;
         final Partition partition = getOrCreatePartition(partitionKey);
         final int leafCount = schema.leafCount();
         ensurePartitionBuilders(partition, leafCount);
         final int rowIndex = partition.docCount;
-        // The string columns go first: copying a string can still find it malformed, and only they then need undoing.
-        final int[] stringColumns = rowBuffer.stringColumns();
-        final int stringColumnCount = rowBuffer.stringColumnCount();
-        int drained = 0;
+        int c = 0;
         try {
-            for (; drained < stringColumnCount; drained++) {
-                drainStringValue(partition.builders.get(stringColumns[drained]), stringColumns[drained]);
+            for (; c < leafCount; c++) {
+                drainScratchValue(partition.builders.get(c), c);
             }
         } catch (JsonParsingException e) {
-            for (int i = 0; i <= drained; i++) {
-                partition.builders.get(stringColumns[i]).discardRow(rowIndex);
+            for (int i = 0; i <= c; i++) {
+                partition.builders.get(i).discardRow(rowIndex);
             }
-            if (newPartition) {
+            if (rowIndex == 0) {
+                // Partitions are only created here and have a row once a commit completes, so this commit created it.
                 Releasables.close(partition.builders);
                 partitions[partitionKey] = null;
             }
             rowBuffer.rowStarted = false;
             throw e;
-        }
-        for (int c = 0; c < leafCount; c++) {
-            drainScratchValue(partition.builders.get(c), c);
         }
         partition.docCount++;
         rowBuffer.rowStarted = false;
@@ -205,22 +199,12 @@ public final class EscfBatchBuilder implements Releasable {
                 Double.longBitsToDouble(rowBuffer.scratchNumeric(col)),
                 (XContentString.UTF8Bytes) rowBuffer.scratchVar(col) // the stored spelling, or null
             );
-            case SourceValueType.STRING, EscfRowBuffer.UTF8_STRING_ARRAY -> {
-                // drained by drainStringValue before the other columns
-            }
+            case SourceValueType.STRING -> builder.addUtf8String((Utf8Value) rowBuffer.scratchVar(col));
+            case EscfRowBuffer.UTF8_STRING_ARRAY -> builder.addUtf8StringArray((Utf8Value[]) rowBuffer.scratchVar(col));
             case SourceValueType.BINARY -> addBinary(builder, rowBuffer.scratchVar(col));
             case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) rowBuffer.scratchVar(col));
             case SourceValueType.KEY_VALUE -> builder.addKeyValue((byte[]) rowBuffer.scratchVar(col));
             default -> throw new IllegalStateException("unexpected scratch type [" + SourceValueType.name(type) + "]");
-        }
-    }
-
-    private void drainStringValue(EscfColumnBuilder builder, int col) {
-        final byte type = rowBuffer.scratchType(col);
-        switch (type) {
-            case SourceValueType.STRING -> builder.addUtf8String((Utf8Value) rowBuffer.scratchVar(col));
-            case EscfRowBuffer.UTF8_STRING_ARRAY -> builder.addUtf8StringArray((Utf8Value[]) rowBuffer.scratchVar(col));
-            default -> throw new AssertionError("column [" + col + "] was staged as a string, not [" + SourceValueType.name(type) + "]");
         }
     }
 

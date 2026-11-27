@@ -522,11 +522,14 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
         assumeTrue("strings are staged unread only on the simdjson path", EscfEncoder.isSimdEnabled());
         String longValue = "x".repeat(12_000);
         String before = "{\"s\":\"" + longValue + "\"," + """
-            "n":1,"t":["x","y\\n"],"u":"plain","o":{"v":"w"}}""";
+            "n":1,"b":true,"d":1.25,"t":["x","y\\n"],"u":"plain","o":{"v":"w"}}""";
         String malformed = randomFrom(
             // the second string column fails after the first was copied
             """
                 {"s":"c","u":"bad\\qescape"}""",
+            // a string fails after a boolean and a spelled double (1.50 is not how the double renders) were written
+            """
+                {"b":false,"d":1.50,"u":"bad\\qescape"}""",
             // a string array element fails after the elements before it were copied
             """
                 {"t":["ok","bad\\u12G4"]}""",
@@ -540,7 +543,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
             "{\"s\":\"" + longValue + "\",\"o\":{\"v\":\"bad\\qescape\"}}"
         );
         String after = """
-            {"s":"b","n":2,"t":["z"],"u":"more","o":{"v":"x"}}""";
+            {"s":"b","n":2,"b":false,"d":2.5,"t":["z"],"u":"more","o":{"v":"x"}}""";
 
         Recycler<BytesRef> recycler = newRecycler();
         try (EscfEncoder simdEncoder = new EscfEncoder(recycler, true); EscfEncoder jacksonEncoder = new EscfEncoder(recycler, false)) {

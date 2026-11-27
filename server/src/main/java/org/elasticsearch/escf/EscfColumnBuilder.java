@@ -86,8 +86,6 @@ public final class EscfColumnBuilder implements Releasable {
     private int leadingAbsents;
     /** Row index of the last written value (not an absent gap); {@code -1} before any value. */
     private int lastWrittenRow = -1;
-    /** {@link #lastWrittenRow} before the last {@link #addUtf8String} or {@link #addUtf8StringArray}; see {@link #discardRow}. */
-    private int previousWrittenRow = -1;
     /** Whether a string write threw and {@link #discardRow} has not repaired the column yet. Only maintained by assertions. */
     private boolean stringWriteFailed;
     /** {@code true} between {@link #beginArray} and {@link #endArray}. */
@@ -220,7 +218,6 @@ public final class EscfColumnBuilder implements Releasable {
         assert lockedKind == -1 || lockedKind == EscfColumnKind.STRING
             : "column locked to " + EscfColumnKind.name(lockedKind) + " but received STRING";
         assert row > lastWrittenRow : nonDecreasing(row);
-        previousWrittenRow = lastWrittenRow;
         assert setStringWriteFailed(true);
         fillGapTo(row);
         if (current == null) {
@@ -252,7 +249,6 @@ public final class EscfColumnBuilder implements Releasable {
     void addUtf8StringArray(Utf8Value[] values) {
         final int row = nextAppendRow();
         assert row > lastWrittenRow : nonDecreasing(row);
-        previousWrittenRow = lastWrittenRow;
         assert setStringWriteFailed(true);
         fillGapTo(row);
         ArrayBuilder ab = prepareColumnarArrayRow(EscfColumnKind.STRING);
@@ -286,18 +282,19 @@ public final class EscfColumnBuilder implements Releasable {
     }
 
     /**
-     * Restores the column to {@code row} rows after {@link #addUtf8String} or {@link #addUtf8StringArray} for {@code row} either
-     * wrote it or threw. Absent rows that write filled in before {@code row} stay, as do the kind changes it made, such as a
-     * promotion to a union; the rows they hold are unchanged.
+     * Restores the column to {@code row} rows after the write for {@code row}, of any value or an absent row, either completed
+     * or threw (only {@link #addUtf8String} and {@link #addUtf8StringArray} can). Absent rows that write filled in before
+     * {@code row} stay, as do the kind changes it made, such as a promotion to a union; the rows they hold are unchanged.
      */
     void discardRow(int row) {
-        assert row > previousWrittenRow && (lastWrittenRow == row || lastWrittenRow == previousWrittenRow)
-            : "row " + row + " is not the row of the last string write";
-        if (current != null) {
+        assert policy == CollisionPolicy.SPLIT : "absent rows are only told apart from present ones by validity under SPLIT";
+        assert arrayOpen == false : "discardRow while an array is open";
+        assert row == nextAppendRowUnchecked() || row == nextAppendRowUnchecked() - 1 : "row " + row + " is not the last row written";
+        if (current == null) {
+            leadingAbsents = Math.min(leadingAbsents, row);
+        } else {
             current.truncate(row);
-        }
-        if (lastWrittenRow == row) {
-            lastWrittenRow = previousWrittenRow;
+            lastWrittenRow = current.lastPresentRow();
         }
         assert setStringWriteFailed(false);
     }
@@ -721,6 +718,10 @@ public final class EscfColumnBuilder implements Releasable {
      */
     public int nextAppendRow() {
         assert stringWriteFailed == false : STRING_WRITE_FAILED;
+        return nextAppendRowUnchecked();
+    }
+
+    private int nextAppendRowUnchecked() {
         return current == null ? leadingAbsents : current.rowsConsumed();
     }
 
@@ -1074,6 +1075,9 @@ public final class EscfColumnBuilder implements Releasable {
          */
         void truncate(int rows);
 
+        /** The last present row, or {@code -1} if none; only meaningful under SPLIT, where validity marks every absent row. */
+        int lastPresentRow();
+
         /** Near-free promotion to a union (adopts the value buffer where the layout allows). */
         UnionBuilder promote(Recycler<BytesRef> recycler);
 
@@ -1182,6 +1186,14 @@ public final class EscfColumnBuilder implements Releasable {
             count += n;
         }
 
+        @Override
+        public final int lastPresentRow() {
+            if (count == 0) {
+                return -1;
+            }
+            return validity == null ? count - 1 : validity.prevSetBit(count - 1);
+        }
+
         /** Clears the validity bits of the rows from {@code rows} on, which later writes expect to be clear. */
         final void clearValidity(int rows) {
             if (validity != null) {
@@ -1225,11 +1237,6 @@ public final class EscfColumnBuilder implements Releasable {
 
         @Override
         public void discard() {}
-
-        @Override
-        public void truncate(int rows) {
-            throw new AssertionError("column kind " + EscfColumnKind.name(kind()) + " never receives the string writes truncate undoes");
-        }
 
         private AssertionError unsupported(String type) {
             return new AssertionError("column kind " + EscfColumnKind.name(kind()) + " cannot accept a " + type + " value");
@@ -1326,6 +1333,24 @@ public final class EscfColumnBuilder implements Releasable {
                 lexicalForms.repeatLastRow(additionalCopies);
             }
             bulkAdvancePresent(additionalCopies);
+        }
+
+        @Override
+        public void truncate(int rows) {
+            assert rows <= count : "cannot truncate " + count + " rows to " + rows;
+            if (rows < count) {
+                clearValidity(rows);
+                count = rows;
+            }
+            data.seek((long) rows * Long.BYTES);
+            if (lexicalForms != null) {
+                lexicalForms.truncate(rows);
+                if (lexicalForms.dataLen == 0) {
+                    // A stored spelling is never empty, so the sidecar holds none: it was created by a dropped row.
+                    lexicalForms.discard();
+                    lexicalForms = null;
+                }
+            }
         }
 
         @Override
@@ -1448,6 +1473,18 @@ public final class EscfColumnBuilder implements Releasable {
                 values.set(count, count + additionalCopies);
             }
             bulkAdvancePresent(additionalCopies);
+        }
+
+        @Override
+        public void truncate(int rows) {
+            assert rows <= count : "cannot truncate " + count + " rows to " + rows;
+            if (rows < count) {
+                if (values != null && rows < values.length()) {
+                    values.clear(rows, Math.min(count, values.length()));
+                }
+                clearValidity(rows);
+                count = rows;
+            }
         }
 
         @Override

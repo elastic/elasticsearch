@@ -73,21 +73,24 @@ public class LenientCastMixedClusterIT extends ESRestTestCase {
      * {@code id} is an {@code integer}, which {@code TO_IP} doesn't convert.
      */
     public void testCastOfASingleType() throws IOException {
+        String error = "found value [id] type [integer]";
         assertLenientOnlyWhenEveryNodeCan(
             "FROM " + INDEX + " | EVAL x = id::ip | KEEP x | LIMIT 10",
-            List.of(Collections.singletonList(null))
+            List.of(Collections.singletonList(null)),
+            error
         );
         assertLenientOnlyWhenEveryNodeCan(
             "FROM " + INDEX + " | EVAL x = TO_IP(id) | KEEP x | LIMIT 10",
-            List.of(Collections.singletonList(null))
+            List.of(Collections.singletonList(null)),
+            error
         );
     }
 
     /**
      * Runs {@code query} with each node as the coordinator. It returns {@code expectedValues} when every node has the lenient casts,
-     * and fails with a verification error otherwise.
+     * and fails with a verification error that contains {@code expectedError} otherwise.
      */
-    private void assertLenientOnlyWhenEveryNodeCan(String query, List<?> expectedValues) throws IOException {
+    private void assertLenientOnlyWhenEveryNodeCan(String query, List<?> expectedValues, String expectedError) throws IOException {
         List<String> nodes = httpAddresses();
         boolean everyNodeCan = true;
         for (String node : nodes) {
@@ -107,6 +110,7 @@ public class LenientCastMixedClusterIT extends ESRestTestCase {
                     ResponseException e = expectThrows(ResponseException.class, message, () -> coordinator.performRequest(request));
                     assertThat(message, e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
                     assertThat(message, e.getMessage(), containsString("verification_exception"));
+                    assertThat(message, e.getMessage(), containsString(expectedError));
                 }
             }
         }
@@ -116,17 +120,35 @@ public class LenientCastMixedClusterIT extends ESRestTestCase {
         if (indexExists(name)) {
             return;
         }
+        // The shard is on a node that has the lenient casts, while a node that doesn't is in the cluster, so the test fails if the
+        // coordinator only looks at the nodes that serve the query, and not at the whole cluster.
+        String node = nodeWithLenientCast();
+        String allocation = node == null ? "" : ", \"index.routing.allocation.include._name\": \"" + node + "\"";
         Request create = new Request("PUT", "/" + name);
         create.setJsonEntity("""
             {
-              "settings": {"number_of_shards": 1, "number_of_replicas": 0},
+              "settings": {"number_of_shards": 1, "number_of_replicas": 0%s},
               "mappings": {"properties": %s}
-            }""".formatted(properties));
+            }""".formatted(allocation, properties));
         client().performRequest(create);
         Request index = new Request("POST", "/" + name + "/_doc");
         index.addParameter("refresh", "true");
         index.setJsonEntity(document);
         client().performRequest(index);
+    }
+
+    /**
+     * The name of a node that has the lenient casts itself, or {@code null} if no node has them.
+     */
+    private String nodeWithLenientCast() throws IOException {
+        ObjectPath info = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")));
+        Map<String, Object> all = info.evaluate("nodes");
+        for (String id : all.keySet()) {
+            if (hasLenientCast(info.evaluate("nodes." + id + ".http.publish_address"))) {
+                return info.evaluate("nodes." + id + ".name");
+            }
+        }
+        return null;
     }
 
     /**

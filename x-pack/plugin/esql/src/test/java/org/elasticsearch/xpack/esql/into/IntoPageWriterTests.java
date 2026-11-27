@@ -690,15 +690,19 @@ public class IntoPageWriterTests extends ComputeTestCase {
         );
     }
 
-    /** Every refused row is counted, but only a sample of the reasons is reported. */
-    public void testKeepGoingCountsEveryInvalidIdButCapsTheDetails() {
+    /** Every refused row is counted, but only a sample of the reasons is reported, and it is the first reasons. */
+    public void testKeepGoingCountsEveryInvalidIdButKeepsTheFirstDetails() {
         IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
-        int invalid = IntoStats.MAX_FAILURE_DETAILS + 5;
-        String[] ids = new String[invalid + 2];
-        String[] hosts = new String[invalid + 2];
-        Arrays.fill(ids, "");
+        int cap = IntoStats.MAX_FAILURE_DETAILS;
+        int beyondCap = 5;
+        String tooLong = "x".repeat(IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES + 1);
+        // The empty ones fill the sample, and the ones that come after it have another reason, so that keeping the last ones shows
+        String[] ids = new String[cap + beyondCap + 2];
+        Arrays.fill(ids, 1, 1 + cap, "");
+        Arrays.fill(ids, 1 + cap, 1 + cap + beyondCap, tooLong);
         ids[0] = "first";
         ids[ids.length - 1] = "last";
+        String[] hosts = new String[ids.length];
         Arrays.setAll(hosts, i -> "h" + i);
         idWriter.consume(idPage(ids, hosts));
 
@@ -707,13 +711,10 @@ public class IntoPageWriterTests extends ComputeTestCase {
         idWriter.finish();
 
         IntoStats stats = idWriter.stats();
-        assertThat(stats.total(), equalTo((long) invalid + 2));
+        assertThat(stats.total(), equalTo((long) ids.length));
         assertThat(stats.created(), equalTo(2L));
-        assertThat(stats.failures(), equalTo((long) invalid));
-        assertThat(
-            stats.failureDetails(),
-            equalTo(Collections.nCopies(IntoStats.MAX_FAILURE_DETAILS, "[400] if _id is specified it must not be empty"))
-        );
+        assertThat(stats.failures(), equalTo((long) cap + beyondCap));
+        assertThat(stats.failureDetails(), equalTo(Collections.nCopies(cap, "[400] if _id is specified it must not be empty")));
     }
 
     public void testKeepGoingSendsNothingWhenEveryIdIsInvalid() {

@@ -121,15 +121,8 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
     }
     if (vVector.getClass() == IntArrowBufVector.class) {
       IntArrowBufVector specialized = (IntArrowBufVector) vVector;
-      MemorySegment bulkSegment = specialized.valuesSegment();
-      int bulkCount = specialized.getPositionCount();
-      long bulkAcc = state.longValue();
-      for (int p = 0; p < bulkCount; p++) {
-        int vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, p);
-        bulkAcc = SumIntAggregator.combine(bulkAcc, vValue);
-      }
-      state.longValue(bulkAcc);
       state.seen(true);
+      state.longValue(SumIntAggregator.combineBulk(state.longValue(), specialized.valuesSegment(), specialized.getPositionCount()));
       return;
     }
     if (vVector.getClass() == Int16ArrowBufVector.class) {

@@ -24,6 +24,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.lang.foreign.MemorySegment;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -122,6 +124,120 @@ public class BulkArrowAggregationTests extends ESTestCase {
                 agg.addRawInput(new Page(block), mask);
                 assertEquals(expected, evaluateLong(agg, ctx));
             }
+        }
+    }
+
+    /** Extreme values must not wrap inside the unchecked per-buffer accumulation. */
+    public void testSumIntOverArrowBufferExtremes() {
+        int positions = between(1, 5000);
+        int[] max = new int[positions];
+        int[] min = new int[positions];
+        Arrays.fill(max, Integer.MAX_VALUE);
+        Arrays.fill(min, Integer.MIN_VALUE);
+        assertEquals((long) positions * Integer.MAX_VALUE, sumIntArrow(max));
+        assertEquals((long) positions * Integer.MIN_VALUE, sumIntArrow(min));
+    }
+
+    public void testSumIntOverArrowBufferFullRange() {
+        int[] values = new int[between(1, 5000)];
+        long expected = 0;
+        for (int i = 0; i < values.length; i++) {
+            values[i] = randomInt();
+            expected += values[i];
+        }
+        assertEquals(expected, sumIntArrow(values));
+    }
+
+    /**
+     * Only the first {@code count} ints of the segment are summed, even if the buffer holds more. {@code count} is always
+     * strictly below the buffer length and every value past it is {@code Integer.MAX_VALUE}, so a loop that read the whole
+     * segment would change the sum.
+     */
+    public void testCombineBulkSegmentIgnoresValuesPastCount() {
+        int[] values = new int[between(2, 100)];
+        int count = between(0, values.length - 1);
+        long expected = 0;
+        for (int i = 0; i < values.length; i++) {
+            if (i < count) {
+                values[i] = between(-1000, 1000);
+                expected += values[i];
+            } else {
+                values[i] = Integer.MAX_VALUE;
+            }
+        }
+        long current = randomLongBetween(-1_000_000_000_000L, 1_000_000_000_000L);
+        try (IntBlock block = arrowBlock(values)) {
+            MemorySegment segment = ((IntArrowBufVector) block.asVector()).valuesSegment();
+            assertEquals(current + expected, SumIntAggregator.combineBulk(current, segment, count));
+        }
+    }
+
+    /** The single overflow check per buffer must still fire when adding the buffer's sum to {@code current} leaves the long range. */
+    public void testCombineBulkSegmentOverflow() {
+        try (IntBlock block = arrowBlock(new int[] { 1 })) {
+            MemorySegment segment = ((IntArrowBufVector) block.asVector()).valuesSegment();
+            expectThrows(ArithmeticException.class, () -> SumIntAggregator.combineBulk(Long.MAX_VALUE, segment, 1));
+        }
+        try (IntBlock block = arrowBlock(new int[] { -1 })) {
+            MemorySegment segment = ((IntArrowBufVector) block.asVector()).valuesSegment();
+            expectThrows(ArithmeticException.class, () -> SumIntAggregator.combineBulk(Long.MIN_VALUE, segment, 1));
+        }
+    }
+
+    /**
+     * Overflow is checked once per buffer, so a transient overflow that cancels <em>within one</em> unmasked 32-bit Arrow
+     * buffer does not throw, while a sum that leaves the {@code long} range after the buffer is added still does. The
+     * guarantee is per buffer only; see {@link #testRunningSumCarriesAcrossPages} for state carried across pages.
+     */
+    public void testAggregatorOverflowOverArrowBuffer() {
+        DriverContext ctx = driverContext();
+        try (
+            IntBlock block = arrowBlock(new int[] { 10, -10 });
+            BooleanVector mask = blockFactory.newConstantBooleanVector(true, 2);
+            SumIntAggregatorFunction agg = new SumIntAggregatorFunctionSupplier().aggregator(ctx, List.of(0, 1))
+        ) {
+            addIntermediate(agg, Long.MAX_VALUE - 5);
+            agg.addRawInput(new Page(block), mask);
+            assertEquals(Long.MAX_VALUE - 5, evaluateLong(agg, ctx));
+        }
+        try (
+            IntBlock block = arrowBlock(new int[] { 10 });
+            BooleanVector mask = blockFactory.newConstantBooleanVector(true, 1);
+            SumIntAggregatorFunction agg = new SumIntAggregatorFunctionSupplier().aggregator(ctx, List.of(0, 1))
+        ) {
+            addIntermediate(agg, Long.MAX_VALUE - 5);
+            Page page = new Page(block);
+            expectThrows(ArithmeticException.class, () -> agg.addRawInput(page, mask));
+        }
+    }
+
+    /**
+     * The running sum is carried across raw-input pages and every page is still checked once. The first page lands the
+     * sum exactly on {@code Long.MAX_VALUE}, which must not throw; the second page pushes it out of range and must.
+     */
+    public void testRunningSumCarriesAcrossPages() {
+        DriverContext ctx = driverContext();
+        try (
+            IntBlock first = arrowBlock(new int[] { 5 });
+            IntBlock second = arrowBlock(new int[] { 1 });
+            BooleanVector mask = blockFactory.newConstantBooleanVector(true, 1);
+            SumIntAggregatorFunction agg = new SumIntAggregatorFunctionSupplier().aggregator(ctx, List.of(0, 1))
+        ) {
+            addIntermediate(agg, Long.MAX_VALUE - 5);
+            agg.addRawInput(new Page(first), mask);
+            Page secondPage = new Page(second);
+            expectThrows(ArithmeticException.class, () -> agg.addRawInput(secondPage, mask));
+        }
+    }
+
+    private void addIntermediate(SumIntAggregatorFunction agg, long initial) {
+        try (
+            Page intermediate = new Page(
+                blockFactory.newConstantLongBlockWith(initial, 1),
+                blockFactory.newConstantBooleanBlockWith(true, 1)
+            )
+        ) {
+            agg.addIntermediateInput(intermediate);
         }
     }
 

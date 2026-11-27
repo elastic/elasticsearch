@@ -741,9 +741,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     /**
-     * A shard that cannot be allocated, and becomes allocatable because of a move made part-way through a batch, is allocated once the batch
-     * ends rather than between the moves. The desired balance is then not necessarily the one a single move per iteration gives, but it is
-     * complete and still has nothing left on the drained node.
+     * A shard that cannot be allocated, and becomes allocatable because of a move made part-way through a batch, is allocated once the
+     * batch ends rather than between the moves. The desired balance is then not necessarily the one a single move per iteration gives,
+     * but it is complete and still has nothing left on the drained node.
      */
     public void testShardsMadeAllocatableDuringABatchAreAllocatedAfterIt() {
         final int shards = between(20, 60);

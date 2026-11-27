@@ -1916,6 +1916,63 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(config.getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
     }
 
+    public void testUnsetDelayedDataCheckConfigShouldBeDisabledForEsqlAndEnabledForDsl() {
+        assertThat(
+            createEsqlDatafeedBuilder().build().getDelayedDataCheckConfig(),
+            equalTo(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+        );
+
+        DatafeedConfig.Builder dsl = new DatafeedConfig.Builder("datafeed1", "job1");
+        dsl.setIndices(Collections.singletonList("index"));
+        assertThat(dsl.build().getDelayedDataCheckConfig(), equalTo(DelayedDataCheckConfig.defaultDelayedDataCheckConfig()));
+    }
+
+    public void testExplicitDelayedDataCheckConfigShouldBeKeptForEsql() {
+        for (DelayedDataCheckConfig explicit : List.of(
+            DelayedDataCheckConfig.defaultDelayedDataCheckConfig(),
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(2)),
+            DelayedDataCheckConfig.disabledDelayedDataCheckConfig()
+        )) {
+            DatafeedConfig config = createEsqlDatafeedBuilder().setDelayedDataCheckConfig(explicit).build();
+            assertThat(config.getDelayedDataCheckConfig(), equalTo(explicit));
+        }
+    }
+
+    public void testUnsetDelayedDataCheckConfigWithEsqlQuerySetLastShouldBeDisabled() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setGroupingInterval(TimeValue.timeValueHours(1));
+        builder.setEsqlQuery("FROM logs");
+        assertThat(builder.build().getDelayedDataCheckConfig().isEnabled(), is(false));
+    }
+
+    public void testStoredEsqlConfigWithoutDelayedDataCheckConfigShouldBeDisabled() throws IOException {
+        DatafeedConfig config = createDatafeedConfigFromString("""
+            {"datafeed_id": "datafeed1", "job_id": "job1", "esql_query": "FROM logs", "grouping_interval": "1h"}""");
+        assertThat(config.getDelayedDataCheckConfig().isEnabled(), is(false));
+
+        BytesReference bytes = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+        assertThat(bytes.utf8ToString(), containsString("\"delayed_data_check_config\":{\"enabled\":false}"));
+    }
+
+    public void testUnsetDelayedDataCheckConfigBuilderWireRoundTripShouldEqualOriginal() throws IOException {
+        DatafeedConfig.Builder dsl = new DatafeedConfig.Builder("datafeed1", "job1");
+        dsl.setIndices(Collections.singletonList("index"));
+        for (DatafeedConfig.Builder original : List.of(createEsqlDatafeedBuilder(), dsl)) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                original.writeTo(out);
+                StreamInput in = out.bytes().streamInput();
+                in.setTransportVersion(TransportVersion.current());
+                try (StreamInput namedInput = new NamedWriteableAwareStreamInput(in, getNamedWriteableRegistry())) {
+                    DatafeedConfig.Builder copy = new DatafeedConfig.Builder(namedInput);
+                    assertThat(copy, equalTo(original));
+                    assertThat(copy.hashCode(), equalTo(original.hashCode()));
+                    assertThat(copy.build().getDelayedDataCheckConfig(), equalTo(original.build().getDelayedDataCheckConfig()));
+                }
+            }
+        }
+    }
+
     public void testToXContentEsqlQueryShouldIncludeEsqlQueryAndOmitDslQuery() throws IOException {
         DatafeedConfig config = createEsqlDatafeedBuilder().build();
 

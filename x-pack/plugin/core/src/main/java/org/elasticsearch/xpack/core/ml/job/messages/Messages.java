@@ -20,8 +20,9 @@ public final class Messages {
     public static final String DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD =
         "A job configured with a datafeed with aggregations must set summary_count_field_name; use doc_count or suitable alternative";
     public static final String DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD =
-        "A job configured with an ES|QL datafeed and delayed_data_check_config enabled must set "
-            + "summary_count_field_name; the field must be produced as a column by the esql_query";
+        "A job configured with an ES|QL datafeed and delayed_data_check_config enabled must set summary_count_field_name. "
+            + "The esql_query must produce that field as a column. "
+            + "To skip the delayed data check, set delayed_data_check_config to {\"enabled\": false}";
     public static final String DATAFEED_ESQL_DELAYED_DATA_MISSING_SUMMARY_COUNT_COLUMN =
         "The ES|QL query must produce the summary_count_field_name [{0}] as a numeric count column when delayed-data checking is "
             + "enabled; produce a numeric count column and set summary_count_field_name, or disable delayed-data checking";

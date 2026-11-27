@@ -448,6 +448,16 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         );
     }
 
+    public void testApplyUpdateWithoutDelayedDataCheckConfigOnEsqlDatafeedShouldKeepDisabled() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        assertThat(datafeed.getDelayedDataCheckConfig().isEnabled(), is(false));
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setQueryDelay(TimeValue.timeValueMinutes(5)).build();
+
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+
+        assertThat(updated.getDelayedDataCheckConfig(), equalTo(DelayedDataCheckConfig.disabledDelayedDataCheckConfig()));
+    }
+
     private static DatafeedConfig createEsqlDatafeed(String id) {
         return new DatafeedConfig.Builder(id, "esql-job").setEsqlQuery("FROM source-index")
             .setGroupingInterval(TimeValue.timeValueHours(1))

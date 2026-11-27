@@ -21,6 +21,8 @@ setup:
                 type: date
               event_time:
                 type: date
+              bytes:
+                type: long
               host:
                 type: keyword
 
@@ -229,3 +231,70 @@ setup:
             "delayed_data_check_config": {"enabled": true}
           }
   - match: { error.reason: "/doc_count/" }
+
+---
+"Test put raw ES|QL datafeed without delayed_data_check_config defaults it to disabled":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_job:
+        job_id: esql-feed-raw-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "mean", "field_name": "bytes"}]
+            },
+            "data_description": {
+              "time_field": "@timestamp"
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-feed-raw
+        body: >
+          {
+            "job_id": "esql-feed-raw-job",
+            "esql_query": "FROM esql-feed-data | KEEP @timestamp, bytes",
+            "grouping_interval": "1h"
+          }
+  - match: { datafeed_id: "esql-feed-raw" }
+  - match: { delayed_data_check_config.enabled: false }
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: esql-feed-raw
+  - match: { datafeeds.0.delayed_data_check_config.enabled: false }
+
+---
+"Test put raw ES|QL datafeed with delayed_data_check_config enabled but no summary count field":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_job:
+        job_id: esql-feed-raw-enabled-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "mean", "field_name": "bytes"}]
+            },
+            "data_description": {
+              "time_field": "@timestamp"
+            }
+          }
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-feed-raw-enabled
+        body: >
+          {
+            "job_id": "esql-feed-raw-enabled-job",
+            "esql_query": "FROM esql-feed-data | KEEP @timestamp, bytes",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": true}
+          }
+  - match: { error.reason: "/delayed_data_check_config/" }

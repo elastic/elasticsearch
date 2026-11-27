@@ -114,7 +114,10 @@ public class JobConfigProviderTests extends ESTestCase {
     }
 
     private static DatafeedConfig.Builder newEsqlDatafeed() {
-        return new DatafeedConfig.Builder("df", "job").setEsqlQuery(ESQL_QUERY).setGroupingInterval(TimeValue.timeValueHours(1));
+        // Explicit: these tests probe the summary count column, which only applies when the delayed data check is enabled.
+        return new DatafeedConfig.Builder("df", "job").setEsqlQuery(ESQL_QUERY)
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setDelayedDataCheckConfig(DelayedDataCheckConfig.defaultDelayedDataCheckConfig());
     }
 
     /** Completes the {@code validateQuery} probe with {@code failure}, or successfully when it is null. */

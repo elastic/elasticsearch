@@ -32,6 +32,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class DatafeedJobValidatorTests extends ESTestCase {
 
     @Override
@@ -311,6 +313,26 @@ public class DatafeedJobValidatorTests extends ESTestCase {
             () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry())
         );
         assertEquals(Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD), e.getMessage());
+        // The message must name the setting and the opt-out, so a user who never set the field knows how to proceed.
+        assertThat(e.getMessage(), containsString("delayed_data_check_config"));
+        assertThat(e.getMessage(), containsString("{\"enabled\": false}"));
+    }
+
+    public void testVerifyEsqlQueryWithUnsetDelayedDataAndNoSummaryCountFieldShouldSucceed() {
+        // Job and datafeed as in the first-try repro: raw ES|QL query, no summary_count_field_name, no delayed_data_check_config.
+        Job.Builder jobBuilder = buildJobBuilder("esql-job");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("mean", "bytes").build()));
+        ac.setBucketSpan(TimeValue.timeValueSeconds(60));
+        jobBuilder.setAnalysisConfig(ac);
+        Job job = jobBuilder.build(new Date());
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("esql-datafeed", "esql-job");
+        builder.setEsqlQuery("FROM kibana_sample_data_logs | KEEP @timestamp,bytes");
+        builder.setGroupingInterval(TimeValue.timeValueMinutes(1));
+        DatafeedConfig datafeedConfig = builder.build();
+
+        assertFalse(datafeedConfig.getDelayedDataCheckConfig().isEnabled());
+        DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry());
     }
 
     public void testVerifyEsqlQueryWithDelayedDataEnabledAndEmptySummaryCountFieldShouldThrow() {

@@ -180,7 +180,7 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
         );
     }
 
-    public void testBuilderGivenEsqlDatafeedAndDefaultDelayedDataCheckShouldReturnEsqlDetector() {
+    public void testBuilderGivenEsqlDatafeedAndUnsetDelayedDataCheckShouldReturnNullDetector() {
         Job job = createJob(TimeValue.timeValueSeconds(2), "event_count");
         DatafeedConfig datafeedConfig = createEsqlDatafeed(null);
 
@@ -191,7 +191,7 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
             xContentRegistry()
         );
 
-        assertThat(((DatafeedDelayedDataDetector) detector).getBucketEventCounter(), instanceOf(EsqlBucketEventCounter.class));
+        assertThat(detector, instanceOf(NullDelayedDataDetector.class));
     }
 
     public void testBuilderGivenEsqlDatafeedAndDelayedDataCheckDisabledShouldReturnNullDetector() {

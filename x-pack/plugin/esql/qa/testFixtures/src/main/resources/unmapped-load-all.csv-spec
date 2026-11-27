@@ -9133,3 +9133,17 @@ tx:long | cluster:keyword | _fork:keyword
 3015    | prod            | fork1
 3022    | qa              | fork2
 ;
+
+typoOfMappedFieldWarnsUnderLoadAll
+required_capability: optional_fields_load_all_single_source_column
+required_capability: unmapped_fields_typo_warning
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM employees
+| WHERE fist_name == "Georgi"
+| KEEP emp_no, first_name
+;
+warning:Field [fist_name] is not mapped and is loaded from _source as KEYWORD; did you mean [first_name]?
+
+emp_no:integer | first_name:keyword
+;

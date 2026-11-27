@@ -2018,3 +2018,34 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | missing
 2024-10-23T13:53:55.832Z | Connection error?
 ;
+
+// A near miss of a column that the query can see is almost certainly a typo, so the query that returns no rows because of it warns.
+// A query only sees the columns that it names or keeps: first_name is read because of the KEEP.
+typoOfMappedFieldWarnsUnderNullify
+required_capability: optional_fields_nullify_tech_preview
+required_capability: unmapped_fields_typo_warning
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| WHERE fist_name == "Georgi"
+| KEEP emp_no, first_name
+;
+warning:Field [fist_name] is not mapped and is null; did you mean [first_name]?
+
+emp_no:integer | first_name:keyword
+;
+
+typosOfMappedFieldsShareOneWarningUnderNullify
+required_capability: optional_fields_nullify_tech_preview
+required_capability: unmapped_fields_typo_warning
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| EVAL name = CONCAT(fist_name, lst_name)
+| WHERE name IS NOT NULL
+| KEEP emp_no, first_name, last_name, name
+;
+warning:Fields [fist_name], [lst_name] are not mapped and are null; did you mean [first_name], [last_name]?
+
+emp_no:integer | first_name:keyword | last_name:keyword | name:keyword
+;

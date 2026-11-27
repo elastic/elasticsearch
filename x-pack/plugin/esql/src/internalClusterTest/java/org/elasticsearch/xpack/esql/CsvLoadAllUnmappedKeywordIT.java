@@ -84,6 +84,9 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         "(?i)\\b(KQL|QSTR|MATCH_PHRASE|MATCH)\\s*\\(|\\bMATCH\\b|\\w+\\s*:\\s*\""
     );
     private static final Pattern SOURCE_OR_UNMAPPED_COLUMN_PATTERN = Pattern.compile("\\b_source\\b|\\b_unmapped_fields\\b");
+    private static final Pattern TYPO_WARNING_PATTERN = Pattern.compile(
+        "Fields? \\[.*\\] (?:is|are) not mapped and (?:is|are) (?:null|loaded from _source as KEYWORD); did you mean \\[.*\\]\\?"
+    );
     private static final Pattern WARNING_POSITION_PATTERN = Pattern.compile("(?i)\\bline (?:\\d+|\\\\d\\+):(?:\\d+|\\\\d\\+)");
 
     /**
@@ -595,6 +598,12 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         @Override
         public String normalizeWarning(String warning) {
             return WARNING_POSITION_PATTERN.matcher(warning).replaceAll("line");
+        }
+
+        @Override
+        public boolean ignoresWarning(String warning) {
+            // Unmapping the keyword fields makes a field that is named like another one look like a typo of it.
+            return TYPO_WARNING_PATTERN.matcher(warning).matches();
         }
     }
 

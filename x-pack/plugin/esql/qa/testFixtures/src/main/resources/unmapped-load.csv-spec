@@ -2156,6 +2156,7 @@ FROM partial_mapping_sample_data
 | EVAL msg_count = MV_COUNT(unmapped_message)
 | KEEP msg_count, unmapped_messag
 ;
+warningRegex:Field \[unmapped_message\] is not mapped and is loaded from _source as KEYWORD; did you mean \[unmapped_messag\]\?
 
 msg_count:integer | unmapped_messag:keyword
 5                 | foo
@@ -4819,4 +4820,19 @@ FROM unmapped_compound_outputs
 ;
 
 id:keyword | tag:keyword
+;
+
+// The warning is the same under LOAD and LOAD_ALL, so it does not depend on which one the query runs with.
+typoOfMappedFieldWarnsUnderLoad
+required_capability: optional_fields_v5
+required_capability: unmapped_fields_typo_warning
+
+SET unmapped_fields="load"\;
+FROM employees
+| WHERE fist_name == "Georgi"
+| KEEP emp_no, first_name
+;
+warning:Field [fist_name] is not mapped and is loaded from _source as KEYWORD; did you mean [first_name]?
+
+emp_no:integer | first_name:keyword
 ;

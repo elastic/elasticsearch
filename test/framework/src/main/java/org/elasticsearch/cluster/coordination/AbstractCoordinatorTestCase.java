@@ -1002,6 +1002,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private DisruptableMockTransport mockTransport;
             private final NodeHealthService nodeHealthService;
             List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
+            final Set<String> joinAttributes = new HashSet<>();
+            final List<JoinAttributeBarrier> extraJoinAttributeBarriers = new ArrayList<>();
             private ClearableRecycler clearableRecycler;
             private List<Runnable> blackholedRegisterOperations = new ArrayList<>();
 
@@ -1196,6 +1198,17 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     Cluster.this::provideSeedHosts,
                     clusterApplierService,
                     onJoinValidators,
+                    List.of(new JoinAttributeBarrier() {
+                        @Override
+                        public Set<String> joinAttributes() {
+                            return Set.copyOf(joinAttributes);
+                        }
+
+                        @Override
+                        public void check(DiscoveryNode node, Set<String> attributes, ClusterState state) {
+                            extraJoinAttributeBarriers.forEach(barrier -> barrier.check(node, attributes, state));
+                        }
+                    }),
                     Randomness.get(),
                     (s, p, r) -> {},
                     coordinationServices.getElectionStrategy(),

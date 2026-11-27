@@ -12,6 +12,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.coordination.JoinAttributeBarrier;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
@@ -39,6 +40,15 @@ public interface ClusterCoordinationPlugin {
      * {@link IllegalStateException} if the node and the cluster-state are incompatible.
      */
     default BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
+        return null;
+    }
+
+    /**
+     * Returns a barrier that sends join attributes with this node's join requests and, on the elected master, checks those of each node it
+     * adds to the cluster, or {@code null}. Unlike {@link #getJoinValidator()}, the check runs in the cluster state update that adds the
+     * node.
+     */
+    default JoinAttributeBarrier getJoinAttributeBarrier() {
         return null;
     }
 

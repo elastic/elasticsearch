@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +63,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.ObjLongConsumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -90,6 +92,7 @@ public class JoinHelper {
     private final ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier;
     private final CompatibilityVersions compatibilityVersions;
     private final Set<String> features;
+    private final Collection<JoinAttributeBarrier> joinAttributeBarriers;
 
     private final Map<Tuple<DiscoveryNode, JoinRequest>, PendingJoinInfo> pendingOutgoingJoins = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
@@ -110,12 +113,19 @@ public class JoinHelper {
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
         ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier,
         CompatibilityVersions compatibilityVersions,
-        FeatureService featureService
+        FeatureService featureService,
+        Collection<JoinAttributeBarrier> joinAttributeBarriers
     ) {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
             Priority.URGENT,
-            new NodeJoinExecutor(allocationService, rerouteService, featureService, maybeReconfigureAfterMasterElection)
+            new NodeJoinExecutor(
+                allocationService,
+                rerouteService,
+                featureService,
+                maybeReconfigureAfterMasterElection,
+                joinAttributeBarriers
+            )
         );
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
@@ -126,6 +136,7 @@ public class JoinHelper {
         this.latestStoredStateSupplier = latestStoredStateSupplier;
         this.compatibilityVersions = compatibilityVersions;
         this.features = featureService.getNodeFeatures().keySet();
+        this.joinAttributeBarriers = List.copyOf(joinAttributeBarriers);
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,
@@ -284,7 +295,8 @@ public class JoinHelper {
             compatibilityVersions,
             features,
             term,
-            optionalJoin
+            optionalJoin,
+            joinAttributeBarriers.stream().flatMap(barrier -> barrier.joinAttributes().stream()).collect(Collectors.toUnmodifiableSet())
         );
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         final var pendingJoinInfo = new PendingJoinInfo(transportService.getThreadPool().relativeTimeInMillis());
@@ -466,6 +478,7 @@ public class JoinHelper {
             DiscoveryNode sender,
             CompatibilityVersions compatibilityVersions,
             Set<String> features,
+            Set<String> joinAttributes,
             ActionListener<Void> joinListener
         );
 
@@ -478,12 +491,14 @@ public class JoinHelper {
             DiscoveryNode sender,
             CompatibilityVersions compatibilityVersions,
             Set<String> features,
+            Set<String> joinAttributes,
             ActionListener<Void> joinListener
         ) {
             final JoinTask task = JoinTask.singleNode(
                 sender,
                 compatibilityVersions,
                 features,
+                joinAttributes,
                 joinReasonService.getJoinReason(sender, Mode.LEADER),
                 joinListener,
                 currentTermSupplier.getAsLong()
@@ -503,6 +518,7 @@ public class JoinHelper {
             DiscoveryNode sender,
             CompatibilityVersions compatibilityVersions,
             Set<String> features,
+            Set<String> joinAttributes,
             ActionListener<Void> joinListener
         ) {
             assert false : "unexpected join from " + sender + " during initialisation";
@@ -521,6 +537,7 @@ public class JoinHelper {
             DiscoveryNode sender,
             CompatibilityVersions compatibilityVersions,
             Set<String> features,
+            Set<String> joinAttributes,
             ActionListener<Void> joinListener
         ) {
             joinListener.onFailure(new CoordinationStateRejectedException("join target is a follower"));
@@ -534,7 +551,12 @@ public class JoinHelper {
 
     class CandidateJoinAccumulator implements JoinAccumulator {
 
-        private record JoinInformation(CompatibilityVersions compatibilityVersions, Set<String> features, ActionListener<Void> listener) {}
+        private record JoinInformation(
+            CompatibilityVersions compatibilityVersions,
+            Set<String> features,
+            Set<String> joinAttributes,
+            ActionListener<Void> listener
+        ) {}
 
         private final Map<DiscoveryNode, JoinInformation> joinRequestAccumulator = new HashMap<>();
         boolean closed;
@@ -544,10 +566,14 @@ public class JoinHelper {
             DiscoveryNode sender,
             CompatibilityVersions compatibilityVersions,
             Set<String> features,
+            Set<String> joinAttributes,
             ActionListener<Void> joinListener
         ) {
             assert closed == false : "CandidateJoinAccumulator closed";
-            var prev = joinRequestAccumulator.put(sender, new JoinInformation(compatibilityVersions, features, joinListener));
+            var prev = joinRequestAccumulator.put(
+                sender,
+                new JoinInformation(compatibilityVersions, features, joinAttributes, joinListener)
+            );
             if (prev != null) {
                 prev.listener().onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
             }
@@ -566,6 +592,7 @@ public class JoinHelper {
                         discoveryNode,
                         data.compatibilityVersions(),
                         data.features(),
+                        data.joinAttributes(),
                         joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
                         data.listener()
                     );

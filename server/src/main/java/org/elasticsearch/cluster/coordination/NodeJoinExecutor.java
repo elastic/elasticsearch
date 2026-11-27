@@ -74,6 +74,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     private final RerouteService rerouteService;
     private final FeatureService featureService;
     private final Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection;
+    private final Collection<JoinAttributeBarrier> joinAttributeBarriers;
 
     public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService, FeatureService featureService) {
         this(allocationService, rerouteService, featureService, Function.identity());
@@ -85,10 +86,21 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         FeatureService featureService,
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection
     ) {
+        this(allocationService, rerouteService, featureService, maybeReconfigureAfterMasterElection, List.of());
+    }
+
+    public NodeJoinExecutor(
+        AllocationService allocationService,
+        RerouteService rerouteService,
+        FeatureService featureService,
+        Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
+        Collection<JoinAttributeBarrier> joinAttributeBarriers
+    ) {
         this.allocationService = allocationService;
         this.rerouteService = rerouteService;
         this.featureService = featureService;
         this.maybeReconfigureAfterMasterElection = maybeReconfigureAfterMasterElection;
+        this.joinAttributeBarriers = List.copyOf(joinAttributeBarriers);
     }
 
     @Override
@@ -121,19 +133,23 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         final DiscoveryNodes currentNodes = initialState.nodes();
         boolean nodesChanged = false;
         ClusterState.Builder newState;
+        final ClusterState stateToJoin;
+        final boolean electing = currentNodes.getMasterNode() == null && isBecomingMaster;
 
-        if (currentNodes.getMasterNode() == null && isBecomingMaster) {
+        if (electing) {
             assert initialState.term() < term : "there should be at most one become master task per election (= by term)";
             // use these joins to try and become the master.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
             // during the cluster state publishing guarantees that we have enough
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 // suppress deprecation warnings e.g. from reroute()
-                newState = becomeMasterAndTrimConflictingNodes(initialState, joinTaskContexts, term);
+                stateToJoin = becomeMasterAndTrimConflictingNodes(initialState, joinTaskContexts, term).build();
+                newState = ClusterState.builder(stateToJoin);
             }
             nodesChanged = true;
         } else if (currentNodes.isLocalNodeElectedMaster()) {
             assert initialState.term() == term : "term should be stable for the same master";
+            stateToJoin = initialState;
             newState = ClusterState.builder(initialState);
         } else {
             logger.trace("processing node joins, but we are not the master. current master: {}", currentNodes.getMasterNode());
@@ -160,6 +176,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         final boolean enforceVersionBarrier = initialState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
         // processing any joins
         Map<String, String> joinedNodeIdsByNodeName = new HashMap<>();
+        boolean anyJoinAccepted = false;
         for (final var joinTaskContext : joinTaskContexts) {
             final var joinTask = joinTaskContext.getTask();
             final List<Runnable> onTaskSuccess = new ArrayList<>(joinTask.nodeCount());
@@ -194,6 +211,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                             node.getMaxIndexVersion(),
                             initialState.getMetadata()
                         );
+                        checkJoinAttributeBarriers(nodeJoinTask, stateToJoin, electing);
 
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
@@ -212,6 +230,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         continue;
                     }
                 }
+                anyJoinAccepted = true;
                 onTaskSuccess.add(() -> {
                     final var reason = nodeJoinTask.reason();
                     if (reason.guidanceDocs() == null) {
@@ -282,10 +301,35 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + updatedState.nodes().getMinNodeVersion()
                     + "]";
             return updatedState;
-        } else {
+        } else if (anyJoinAccepted) {
             // we must return a new cluster state instance to force publishing. This is important
             // for the joining node to finalize its join and set us as a master
             return newState.build();
+        } else {
+            return initialState;
+        }
+    }
+
+    private void checkJoinAttributeBarriers(JoinTask.NodeJoinTask nodeJoinTask, ClusterState state, boolean electing) {
+        if (nodeJoinTask.compatibilityVersions().transportVersion().supports(JoinRequest.JOIN_REQUEST_ATTRIBUTES) == false) {
+            return;
+        }
+        final DiscoveryNode node = nodeJoinTask.node();
+        for (JoinAttributeBarrier barrier : joinAttributeBarriers) {
+            try {
+                barrier.check(node, nodeJoinTask.joinAttributes(), state);
+            } catch (IllegalStateException e) {
+                if (electing) {
+                    // if this election's publication fails, the joining node only gets the publication failure
+                    logger.info("rejecting join of [{}] in election: {}", node.descriptionWithoutAttributes(), e.getMessage());
+                }
+                throw e;
+            } catch (RuntimeException e) {
+                // rejects only this node: failing the batch would also fail an election
+                final String message = Strings.format("failed to check the join attributes of [%s]", node.descriptionWithoutAttributes());
+                logger.warn(message, e);
+                throw new IllegalStateException(message, e);
+            }
         }
     }
 

@@ -351,6 +351,6 @@
     "ROW values = [4]\n| EVAL greater = mv_greater(values, 4, {\"include_bound\": true})",
     "ROW words = [\"apple\", \"cherry\"]\n| EVAL greater = mv_greater(words, \"banana\")"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

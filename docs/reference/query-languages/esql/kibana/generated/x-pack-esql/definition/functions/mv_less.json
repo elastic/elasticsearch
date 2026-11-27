@@ -351,6 +351,6 @@
     "ROW values = [4]\n| EVAL less = mv_less(values, 4, {\"include_bound\": true})",
     "ROW words = [\"apple\", \"cherry\"]\n| EVAL less = mv_less(words, \"banana\")"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

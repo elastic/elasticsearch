@@ -94,6 +94,6 @@
     "ROW names = [\"Anna\", \"Bob\"]\n| EVAL has_bo = mv_like(names, \"Bo*\")",
     "ROW names = [\"Anna\", \"Bob\"]\n| EVAL no_carl = NOT mv_like(names, \"Carl*\")"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

@@ -49,8 +49,9 @@ public class MvLess extends MvCompare {
                 tag = "mv_less_include_bound"
             ),
             @Example(description = "Strings are compared by their UTF-8 bytes:", file = "mv_compare", tag = "mv_less_keyword") },
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.6.0") }
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "=9.6"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.7+") }
     )
     public MvLess(
         Source source,

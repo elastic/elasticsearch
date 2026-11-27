@@ -57,8 +57,9 @@ public class MvRLike extends MvRegexMatch {
         examples = {
             @Example(file = "string", tag = "mv_rlike"),
             @Example(description = "Character classes work as they do in `RLIKE`:", file = "string", tag = "mv_rlike_class") },
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.6.0") }
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "=9.6"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.7+") }
     )
     public MvRLike(
         Source source,

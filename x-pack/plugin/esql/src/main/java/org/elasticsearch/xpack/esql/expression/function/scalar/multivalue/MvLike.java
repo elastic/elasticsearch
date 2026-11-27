@@ -60,8 +60,9 @@ public class MvLike extends MvRegexMatch {
                 tag = "mv_like_prefix"
             ),
             @Example(description = "Because the result is never null, it composes under `NOT`:", file = "string", tag = "mv_like_not") },
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.6.0") }
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "=9.6"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.7+") }
     )
     public MvLike(
         Source source,

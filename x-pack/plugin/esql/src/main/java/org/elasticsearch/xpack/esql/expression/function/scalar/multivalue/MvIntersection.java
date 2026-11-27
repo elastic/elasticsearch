@@ -76,14 +76,15 @@ public class MvIntersection extends MvSetOperationFunction implements AnyNullIsN
             "version" },
         briefSummary = "Returns values present in both multi-value fields.",
         description = "Returns the values that appear in both input fields. Returns `null` if either field is null or if no values match.",
-        preview = true,
         examples = {
             @Example(file = "mv_intersection", tag = "testMvIntersectionWithIntValues"),
             @Example(file = "mv_intersection", tag = "testMvIntersectionWithLongValues"),
             @Example(file = "mv_intersection", tag = "testMvIntersectionWithBooleanValues"),
             @Example(file = "mv_intersection", tag = "testMvIntersectionWithDoubleValues"),
             @Example(file = "mv_intersection", tag = "testMvIntersectionWithBytesRefValues") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3-9.6"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.7+") }
     )
     public MvIntersection(
         Source source,

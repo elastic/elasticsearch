@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 167183
+summary: Ignore `synthetic_source_keep` on excluded `dense_vector` fields
+type: enhancement

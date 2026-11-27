@@ -9,10 +9,15 @@
 
 package org.elasticsearch.index.codec.columnar;
 
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.NonPruningSortField;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -22,22 +27,29 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.columnar.numeric.NumericBinaryValues;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.DocValuesSkippers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.fielddata.plain.ColumnarLongIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 import org.elasticsearch.index.mapper.FieldArrayContext;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -77,7 +89,11 @@ import static org.elasticsearch.columnar.numeric.NumericBinaryValues.INITIAL_DEC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * A {@code long} field of a strict columnar index that opts into
@@ -115,6 +131,234 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         assertNull("no offsets companion", fieldInfo(WITH_CODEC, FieldArrayContext.offsetsFieldName(FIELD)));
         assertEquals(DocValuesType.SORTED_NUMERIC, fieldInfo(WITH_CODEC, "i").getDocValuesType());
         assertEquals(DocValuesType.SORTED_NUMERIC, fieldInfo(WITHOUT_CODEC, FIELD).getDocValuesType());
+    }
+
+    /**
+     * {@link DocValuesSkippers} finds the skip index of a ColumNAR long column, which Lucene doesn't, with the bounds and counts of
+     * its values. A string column has none, and a field on {@code SORTED_NUMERIC} doc values gets Lucene's skipper.
+     */
+    public void testColumnarLongHasASkipper() throws IOException {
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final String mapping = "type=long,index=false";
+        createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, mapping, "k", "type=keyword");
+        createIndex(WITHOUT_CODEC, settings(mode, false), "@timestamp", "type=date", FIELD, mapping, "k", "type=keyword");
+        final int docs = between(1, 20_000);
+        long min = Long.MAX_VALUE;
+        long max = Long.MIN_VALUE;
+        int withValue = 0;
+        final BulkRequestBuilder withCodec = client().prepareBulk();
+        final BulkRequestBuilder withoutCodec = client().prepareBulk();
+        for (int i = 0; i < docs; i++) {
+            final String source;
+            if (randomInt(9) == 0) {
+                source = "{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"k\":\"a\"}";
+            } else {
+                final long value = randomLongBetween(-1_000_000, 1_000_000);
+                min = Math.min(min, value);
+                max = Math.max(max, value);
+                withValue++;
+                source = "{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"k\":\"a\",\"l\":" + value + "}";
+            }
+            withCodec.add(prepareIndex(WITH_CODEC).setId(Integer.toString(i)).setSource(source, XContentType.JSON));
+            withoutCodec.add(prepareIndex(WITHOUT_CODEC).setId(Integer.toString(i)).setSource(source, XContentType.JSON));
+        }
+        assertNoFailures(withCodec.get());
+        assertNoFailures(withoutCodec.get());
+        for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+            indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+            indicesAdmin().prepareRefresh(index).get();
+        }
+        final long expectedMin = min;
+        final long expectedMax = max;
+        final int expectedDocCount = withValue;
+        forEachLeaf(WITH_CODEC, leaf -> {
+            assertNull("Lucene has no skipper for binary doc values", leaf.reader().getDocValuesSkipper(FIELD));
+            final DocValuesSkipper skipper = DocValuesSkippers.get(leaf.reader(), FIELD);
+            if (expectedDocCount == 0) {
+                assertNull(skipper);
+                return;
+            }
+            assertNotNull(skipper);
+            assertEquals(expectedMin, skipper.minValue());
+            assertEquals(expectedMax, skipper.maxValue());
+            assertEquals(expectedDocCount, skipper.docCount());
+            // The intervals cover the documents with a value, in order, each within the column's bounds
+            int counted = 0;
+            int previousMax = -1;
+            skipper.advance(0);
+            while (skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
+                assertThat(skipper.minDocID(0), greaterThan(previousMax));
+                assertThat(skipper.minValue(0), greaterThanOrEqualTo(expectedMin));
+                assertThat(skipper.maxValue(0), lessThanOrEqualTo(expectedMax));
+                counted += skipper.docCount(0);
+                previousMax = skipper.maxDocID(0);
+                skipper.advance(previousMax + 1);
+            }
+            assertEquals(expectedDocCount, counted);
+            assertNull("a string column is not numeric", DocValuesSkippers.get(leaf.reader(), "k"));
+        });
+        forEachLeaf(WITHOUT_CODEC, leaf -> {
+            final DocValuesSkipper lucene = leaf.reader().getDocValuesSkipper(FIELD);
+            final DocValuesSkipper found = DocValuesSkippers.get(leaf.reader(), FIELD);
+            assertEquals("the Lucene skipper is the one found", lucene == null, found == null);
+            if (found != null) {
+                assertEquals(expectedMin, found.minValue());
+                assertEquals(expectedMax, found.maxValue());
+            }
+        });
+    }
+
+    /**
+     * A search sorted on a ColumNAR long column can skip: once its comparator holds a bottom, it leaves out the blocks the
+     * column's skip index shows can't beat it, and keeps a block that holds a better value.
+     */
+    public void testSearchSortPrunesWithTheColumnSkipIndex() throws IOException {
+        // Sorted on the insertion order, so a document's id in the merged segment is its position below
+        final Settings order = Settings.builder().put(settings(IndexMode.COLUMNAR, true)).put("index.sort.field", "seq").build();
+        createIndex(WITH_CODEC, order, "@timestamp", "type=date", "seq", "type=long,index=false", FIELD, "type=long,index=false");
+        final int docs = 50_000;
+        final boolean reverse = randomBoolean();
+        final int lateWinner = between(docs / 2, docs - 1);
+        final BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < docs; i++) {
+            // The best values come first, so the bottom of the first hits rules out every block after them but the late winner's
+            final long value = i == lateWinner ? (reverse ? Long.MAX_VALUE : Long.MIN_VALUE) : reverse ? docs - i : i;
+            bulk.add(
+                prepareIndex(WITH_CODEC).setId(Integer.toString(i))
+                    .setSource("{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"seq\":" + i + ",\"l\":" + value + "}", XContentType.JSON)
+            );
+        }
+        assertNoFailures(bulk.get());
+        indicesAdmin().prepareForceMerge(WITH_CODEC).setMaxNumSegments(1).get();
+        indicesAdmin().prepareRefresh(WITH_CODEC).get();
+        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(WITH_CODEC));
+        final SearchExecutionContext context = indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, Map.of(), null, null);
+        final IndexNumericFieldData fieldData = (IndexNumericFieldData) context.getForField(
+            context.getFieldType(FIELD),
+            MappedFieldType.FielddataOperation.SEARCH
+        );
+        final SortField sortField = fieldData.sortField(null, reverse ? MultiValueMode.MAX : MultiValueMode.MIN, null, reverse);
+        assertFalse("the sort can skip", sortField instanceof NonPruningSortField);
+        forEachLeaf(WITH_CODEC, leaf -> {
+            final int hits = 10;
+            final LeafFieldComparator comparator = sortField.getComparator(hits, Pruning.GREATER_THAN_OR_EQUAL_TO).getLeafComparator(leaf);
+            comparator.setHitsThresholdReached();
+            for (int doc = 0; doc < hits; doc++) {
+                comparator.copy(doc, doc);
+            }
+            comparator.setBottom(hits - 1);
+            final DocIdSetIterator competitive = comparator.competitiveIterator();
+            assertNotNull("the comparator prunes", competitive);
+            int competing = 0;
+            boolean lateWinnerCompetes = false;
+            while (competitive.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                competing++;
+                lateWinnerCompetes |= competitive.docID() == lateWinner;
+            }
+            assertThat("competing documents", competing, lessThan(docs / 2));
+            assertThat(competing, greaterThanOrEqualTo(hits));
+            assertTrue("the late winner's block competes", lateWinnerCompetes);
+        });
+        assertResponse(client().prepareSearch(WITH_CODEC).addSort(FIELD, reverse ? SortOrder.DESC : SortOrder.ASC).setSize(3), response -> {
+            assertEquals(Integer.toString(lateWinner), response.getHits().getHits()[0].getId());
+        });
+    }
+
+    /**
+     * A match all search sorted on {@code @timestamp} ascending, over an index sorted on it descending, collects only the end of
+     * each segment. On a ColumNAR {@code @timestamp} it returns the documents it does on {@code SORTED_NUMERIC} doc values.
+     */
+    public void testOldestFirstOnAnIndexSortedNewestFirst() throws IOException {
+        final int docs = between(100, 5_000);
+        createNewestFirstIndices(docs, -1);
+        final int size = between(1, 20);
+        final List<String> withCodec = oldestFirst(WITH_CODEC, size);
+        assertEquals(oldestFirst(WITHOUT_CODEC, size), withCodec);
+        assertEquals(size, withCodec.size());
+    }
+
+    /**
+     * With several values a document is sorted by its largest value in a newest first index, and by its smallest in an oldest
+     * first search, so the oldest one can be anywhere in the segment: here in the middle, far from the end the shortcut collects.
+     * The search finds it on either kind of doc values, and so does the comparator once it holds the end of the segment, which a
+     * search can't show since it collects the whole segment before the bottom is set.
+     */
+    public void testOldestFirstWithSeveralValues() throws IOException {
+        final int docs = between(100, 5_000);
+        final int multiValued = docs / 2;
+        createNewestFirstIndices(docs, multiValued);
+        final int size = between(1, 20);
+        final List<String> withCodec = oldestFirst(WITH_CODEC, size);
+        assertEquals(oldestFirst(WITHOUT_CODEC, size), withCodec);
+        assertEquals(Integer.toString(multiValued), withCodec.getFirst());
+        for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+            assertTailShortcutKeepsMultiValued(index, size);
+        }
+    }
+
+    /** Indices sorted on {@code @timestamp} newest first, where {@code multiValued}, if not negative, also holds the oldest value. */
+    private void createNewestFirstIndices(int docs, int multiValued) {
+        final Settings sort = Settings.builder().put("index.sort.field", "@timestamp").put("index.sort.order", "desc").build();
+        final String mapping = "type=long,index=false";
+        createIndex(WITH_CODEC, Settings.builder().put(settings(IndexMode.COLUMNAR, true)).put(sort).build(), "@timestamp", mapping);
+        createIndex(WITHOUT_CODEC, Settings.builder().put(settings(IndexMode.COLUMNAR, false)).put(sort).build(), "@timestamp", mapping);
+        for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+            final BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = 0; i < docs; i++) {
+                final String timestamp = i == multiValued ? "[" + (i * 7L) + ", -1]" : Long.toString(i * 7L);
+                bulk.add(prepareIndex(index).setId(Integer.toString(i)).setSource("{\"@timestamp\":" + timestamp + "}", XContentType.JSON));
+            }
+            assertNoFailures(bulk.get());
+            indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+            indicesAdmin().prepareRefresh(index).get();
+        }
+    }
+
+    private List<String> oldestFirst(String index, int size) {
+        final List<String> ids = new ArrayList<>();
+        assertResponse(client().prepareSearch(index).addSort("@timestamp", SortOrder.ASC).setSize(size), response -> {
+            for (SearchHit hit : response.getHits().getHits()) {
+                ids.add(hit.getId());
+            }
+        });
+        return ids;
+    }
+
+    /**
+     * The comparator of the oldest first search, with the shortcut a search turns on for it, keeps the document with several
+     * values competitive once it holds the end of the segment.
+     */
+    private void assertTailShortcutKeepsMultiValued(String index, int hits) throws IOException {
+        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index));
+        final SearchExecutionContext context = indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, Map.of(), null, null);
+        final IndexNumericFieldData fieldData = (IndexNumericFieldData) context.getForField(
+            context.getFieldType("@timestamp"),
+            MappedFieldType.FielddataOperation.SEARCH
+        );
+        final SortField sortField = fieldData.sortField(null, MultiValueMode.MIN, null, false);
+        ((LongValuesComparatorSource) sortField.getComparatorSource()).setMatchTailQuery();
+        forEachLeaf(index, leaf -> {
+            final SortedNumericLongValues values = fieldData.load(leaf).getLongValues();
+            final int maxDoc = leaf.reader().maxDoc();
+            int multiValuedDoc = -1;
+            for (int doc = 0; doc < maxDoc; doc++) {
+                if (values.advanceExact(doc) && values.docValueCount() > 1) {
+                    multiValuedDoc = doc;
+                }
+            }
+            assertThat("a document has several values", multiValuedDoc, greaterThanOrEqualTo(0));
+            assertThat("before the end the shortcut collects", multiValuedDoc, lessThan(maxDoc - hits - 1));
+            final LeafFieldComparator comparator = sortField.getComparator(hits, Pruning.GREATER_THAN_OR_EQUAL_TO).getLeafComparator(leaf);
+            comparator.setHitsThresholdReached();
+            // The end of a newest first segment holds the oldest single values, the first of them the newest
+            for (int slot = 0; slot < hits; slot++) {
+                comparator.copy(slot, maxDoc - hits + slot);
+            }
+            comparator.setBottom(0);
+            final DocIdSetIterator competitive = comparator.competitiveIterator();
+            assertNotNull(competitive);
+            assertEquals(index + ": the document with several values competes", multiValuedDoc, competitive.advance(multiValuedDoc));
+        });
     }
 
     /**

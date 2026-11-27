@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167905
+summary: Skip useless Parquet dictionary and bloom preload
+type: enhancement

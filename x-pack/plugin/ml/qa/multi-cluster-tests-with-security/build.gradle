@@ -23,6 +23,10 @@ restResources {
   }
 }
 
+// MultiClusterYamlTestSuiteIT runs remote_cluster tests first to create the data that the multi_cluster tests read,
+// so a passing remote_cluster test must still run when a multi_cluster test is retried.
+smartRetry.pruneIndividualTests.set(false)
+
 tasks.named("yamlRestTest").configure {
   usesDefaultDistribution("ML cross-cluster tests require security and a trial license from the default distribution")
   usesBwcDistribution(ccsCompatVersion)

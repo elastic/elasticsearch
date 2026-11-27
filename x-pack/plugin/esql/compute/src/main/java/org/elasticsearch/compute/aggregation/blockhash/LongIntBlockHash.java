@@ -126,7 +126,7 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
 
         while (offset < position) {
             final int batchSize = Math.min(batchIds.length, position - offset);
-            try (var groupIdsBuilder = blockFactory.newIntVectorFixedBuilder(batchSize)) {
+            try (var groupIdsBuilder = blockFactory.newIntVectorFixedBuilder(batchSize, true)) {
                 for (int i = 0; i < batchSize; i++) {
                     long longKey = longVector.getLong(offset + i);
                     long intValue = intVector.getInt(offset + i) & WIDEN;

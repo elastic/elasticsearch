@@ -95,6 +95,27 @@ public class EsqlDatafeedDescribeIntervalIT extends BaseMlIntegTestCase {
         );
     }
 
+    /** A bare {@code EVAL ... DATE_TRUNC} without {@code STATS} still rewrites the time column, so the rows are bucketed. */
+    public void testDateTruncEvalWithoutStatsShouldBeBucketed() throws Exception {
+        setUpCluster();
+
+        assertThat(
+            timeBucketMillis("FROM " + INDEX + " | EVAL @timestamp = DATE_TRUNC(15 minutes, @timestamp) | KEEP @timestamp"),
+            equalTo(TimeValue.timeValueMinutes(15).millis())
+        );
+    }
+
+    public void testBucketThatDoesNotDivideTheBucketSpanShouldBeRejected() throws Exception {
+        setUpCluster();
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> timeBucketMillis("FROM " + INDEX + " | STATS c = COUNT(*) BY @timestamp = BUCKET(@timestamp, 48 hours)")
+        );
+
+        assertThat(e.getMessage(), containsString("must be a divisor of the job bucket_span [1d]"));
+    }
+
     public void testCalendarMonthBucketShouldBeRejected() throws Exception {
         setUpCluster();
 
@@ -132,13 +153,12 @@ public class EsqlDatafeedDescribeIntervalIT extends BaseMlIntegTestCase {
         Job.Builder jobBuilder = new Job.Builder("esql-describe-interval-job");
         jobBuilder.setAnalysisConfig(
             new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("count", null).build())).setBucketSpan(
-                TimeValue.timeValueHours(1)
+                TimeValue.timeValueDays(1)
             )
         );
         jobBuilder.setDataDescription(new DataDescription.Builder().setTimeField("@timestamp").setTimeFormat(DataDescription.EPOCH_MS));
         Job job = jobBuilder.build(new Date());
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-describe-interval-datafeed", job.getId()).setEsqlQuery(esqlQuery)
-            .setGroupingInterval(TimeValue.timeValueHours(1))
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
             .build();
 

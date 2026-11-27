@@ -12,3 +12,5 @@ highlight:
 
     For example, `TS metrics | STATS AVG(rate(requests)) BY TSTEP(5m)` emits one bucket per 5‑minute
     step, aligned to the query end, providing a consistent time grid for visualizations.
+
+    Read more about these changes in the [PromQL in Elasticsearch](https://www.elastic.co/search-labs/blog/promql-elasticsearch-compute-engine) {{es-labs}} blog.

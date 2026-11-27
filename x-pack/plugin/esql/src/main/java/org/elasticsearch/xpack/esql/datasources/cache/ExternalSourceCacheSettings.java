@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.util.List;
@@ -188,6 +189,22 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
+     * The widest text extremum a CSV, TSV or NDJSON read publishes, in bytes. A wider one is withheld: the
+     * column keeps its counts and {@code MIN}/{@code MAX} over it scans.
+     * <p>
+     * Not part of stripe identity, so changing it invalidates no cached entry; what changes is what later
+     * reads publish. Restart-only for the reason
+     * {@link #STRIPE_COLUMNS} is: its consumer reads it from the node's startup {@code Settings}.
+     */
+    public static final Setting<ByteSizeValue> STATS_MAX_EXTREMUM_SIZE = Setting.byteSizeSetting(
+        "esql.external.cache.stats.max_extremum_size",
+        ByteSizeValue.ofBytes(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofMb(1),
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Rejects a non-positive footer cache budget at settings-parse time. Both footer caches are
      * built lazily, when a format reader is first constructed, so without this the node would
      * accept {@code 0b}/{@code 0%} at startup and only fail on the first Parquet or ORC query.
@@ -308,6 +325,7 @@ public final class ExternalSourceCacheSettings {
             LISTING_TTL_OLD,
             STRIPE_SIZE,
             STRIPE_COLUMNS,
+            STATS_MAX_EXTREMUM_SIZE,
             FOOTER_CACHE_SIZE,
             FOOTER_PARSED_CACHE_SIZE,
             FOOTER_CACHE_TTL,

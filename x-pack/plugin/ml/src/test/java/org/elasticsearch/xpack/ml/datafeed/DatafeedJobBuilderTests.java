@@ -276,7 +276,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs");
-        datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         long hour = TimeValue.timeValueHours(1).millis();
@@ -299,19 +298,47 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         assertBusy(() -> assertTrue(wasHandlerCalled.get()));
     }
 
-    public void testBuildGivenEsqlBucketShorterThanGroupingIntervalShouldResumeAfterTheGroupingIntervalBucket() throws Exception {
-        // The extractor floors the resume point on the 1 hour grouping_interval, so resuming 30 minutes in would re-read the bucket.
+    public void testBuildGivenEsqlBucketShorterThanBucketSpanShouldResumeAfterTheDescribeBucket() throws Exception {
         long hour = TimeValue.timeValueHours(1).millis();
-        assertEsqlRestartOffset(TimeValue.timeValueMinutes(30).millis(), TimeValue.timeValueHours(1), 9 * hour, 9 * hour + hour - 1);
+        long halfHour = TimeValue.timeValueMinutes(30).millis();
+        assertEsqlRestartOffset(halfHour, 9 * hour + halfHour, 9 * hour + 2 * halfHour - 1);
     }
 
-    public void testBuildGivenEsqlBucketLongerThanGroupingIntervalShouldResumeAfterTheDescribeBucket() throws Exception {
+    public void testBuildGivenEsqlBucketLongerThanAnHourShouldResumeAfterTheDescribeBucket() throws Exception {
         long hour = TimeValue.timeValueHours(1).millis();
-        assertEsqlRestartOffset(2 * hour, TimeValue.timeValueHours(1), 10 * hour, 10 * hour + 2 * hour - 1);
+        assertEsqlRestartOffset(2 * hour, 10 * hour, 10 * hour + 2 * hour - 1);
     }
 
-    private void assertEsqlRestartOffset(long timeBucketMillis, TimeValue groupingInterval, long recordStamp, long expectedLastEndTimeMs)
-        throws Exception {
+    public void testBuildGivenEsqlBucketAndNoFrequencyShouldScheduleOnMultipleOfDescribeBucket() throws Exception {
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
+        datafeed.setEsqlQuery("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 15 minutes)");
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
+            // a 15 minute frequency searches 96 times a day, the 10 minute default of a one hour job would search 144 times
+            assertThat(datafeedJob.numberOfSearchesIn24Hours(), equalTo(96L));
+            wasHandlerCalled.set(true);
+        });
+
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            new RestartTimeInfo(null, null, true),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
+
+        buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, TimeValue.timeValueMinutes(15).millis(), datafeedJobHandler);
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
+    private void assertEsqlRestartOffset(long timeBucketMillis, long recordStamp, long expectedLastEndTimeMs) throws Exception {
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
@@ -320,7 +347,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)");
-        datafeed.setGroupingInterval(groupingInterval);
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
@@ -349,7 +375,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)");
-        datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         long hour = TimeValue.timeValueHours(1).millis();
@@ -382,7 +407,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         assertEsqlLastEndTime("FROM logs", new RestartTimeInfo(5 * HOUR_MS, revertedRecord, true), revertedRecord, revertedRecord + 1);
     }
 
-    public void testBuildGivenAggregatingEsqlDatafeedAndEndStampedLatestRecordShouldAdvancePastGroupingInterval() throws Exception {
+    public void testBuildGivenAggregatingEsqlDatafeedAndEndStampedLatestRecordShouldAdvancePastTheBucket() throws Exception {
         // The record closes the 9:00 bucket (bucket start + span - 1ms). The resume point is one ms before 11:00, and the extractor
         // factory floors the window start to 10:00, the first bucket that was not emitted yet.
         long endStampedRecord = 10 * HOUR_MS - 1;
@@ -425,7 +450,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery(esqlQuery);
-        datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         DatafeedConfig datafeedConfig = datafeed.build();
@@ -475,7 +499,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs");
-        datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
         // Delayed-data check for ES|QL is wired separately; keep it off so this test covers routing only.
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
@@ -591,9 +614,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             CloudCredentialManager.Noop::new,
             DatafeedSearchTelemetry.NOOP
         );
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed1", "job1").setEsqlQuery("FROM logs")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
-            .build();
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed1", "job1").setEsqlQuery("FROM logs").build();
 
         datafeedJobBuilder.checkRemoteIndicesAreAvailable(newDatafeedTask("datafeed1", null), datafeed);
     }
@@ -685,7 +706,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM east:logs-*");
-        datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
         return new DatafeedContext(
             datafeed.build(),

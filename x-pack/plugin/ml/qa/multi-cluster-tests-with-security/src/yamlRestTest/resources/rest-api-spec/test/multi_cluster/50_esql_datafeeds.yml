@@ -20,6 +20,7 @@ setup:
         job_id: esql-ccs-job
         body: >
           {
+            "results_index_name": "esql-ccs-job",
             "analysis_config": {
               "bucket_span": "1h",
               "detectors": [{"function": "count"}]
@@ -66,7 +67,6 @@ teardown:
           {
             "job_id": "esql-ccs-job",
             "esql_query": "FROM my_remote_cluster:remote_test_index | KEEP date, user",
-            "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": false}
           }
   - match: { datafeed_id: "esql-ccs-feed" }
@@ -85,13 +85,11 @@ teardown:
   - do:
       ml.stop_datafeed:
         datafeed_id: esql-ccs-feed
-        force: true
   - match: { stopped: true }
 
   - do:
       ml.close_job:
         job_id: esql-ccs-job
-        force: true
 
 ---
 "Test preview ES|QL datafeed returns the rows of a remote cluster index":
@@ -102,7 +100,6 @@ teardown:
           {
             "job_id": "esql-ccs-job",
             "esql_query": "FROM my_remote_cluster:remote_test_index | KEEP date, user",
-            "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": false}
           }
 
@@ -124,7 +121,6 @@ teardown:
           {
             "job_id": "esql-ccs-job",
             "esql_query": "FROM my_remote_cluster:remote_test_* | KEEP date, user",
-            "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": false}
           }
   - match: { datafeed_id: "esql-ccs-wildcard-feed" }
@@ -143,13 +139,11 @@ teardown:
   - do:
       ml.stop_datafeed:
         datafeed_id: esql-ccs-wildcard-feed
-        force: true
   - match: { stopped: true }
 
   - do:
       ml.close_job:
         job_id: esql-ccs-job
-        force: true
 
 ---
 "Test start of ES|QL datafeed fails when the only source is on a skipped remote":
@@ -160,7 +154,6 @@ teardown:
           {
             "job_id": "esql-ccs-job",
             "esql_query": "FROM my_remote_cluster:does_not_exist",
-            "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": false}
           }
   - match: { datafeed_id: "esql-ccs-missing-feed" }
@@ -180,4 +173,3 @@ teardown:
   - do:
       ml.close_job:
         job_id: esql-ccs-job
-        force: true

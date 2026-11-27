@@ -129,7 +129,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
         if (useNativeSortField == false || sortRequiresCustomComparator()) {
             SortField sortField = new SortField(getFieldName(), source, reverse);
-            return maybeDisablePruning(sortField, optimizeSortWithPoints && canUseOptimizedSort(indexType()), indexSort);
+            return maybeDisablePruning(sortField, optimizeSortWithPoints && canUseOptimizedSort(), indexSort);
         }
 
         assert nested == null;
@@ -155,7 +155,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             selectorType,
             missingObject
         );
-        return maybeDisablePruning(sortField, optimizeSortWithPoints && canUseOptimizedSort(indexType()), indexSort);
+        return maybeDisablePruning(sortField, optimizeSortWithPoints && canUseOptimizedSort(), indexSort);
     }
 
     /**
@@ -169,8 +169,9 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         return SortField.withoutPruning(sortField);
     }
 
-    private static boolean canUseOptimizedSort(IndexType indexType) {
-        return indexType.hasPoints() || indexType.hasDocValuesSkipper();
+    /** Whether a sort on the field can skip the documents that can't compete, which takes points or a doc values skipper. */
+    protected boolean canUseOptimizedSort() {
+        return indexType().hasPoints() || indexType().hasDocValuesSkipper();
     }
 
     /**

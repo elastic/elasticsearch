@@ -20,9 +20,12 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -129,6 +132,62 @@ public class ColumnarLongEsqlIT extends AbstractEsqlIntegTestCase {
             | STATS smn = SUM(mn), smx = SUM(mx) BY k
             | SORT k
             | LIMIT 100""");
+    }
+
+    /**
+     * {@code SORT @timestamp ASC | LIMIT n} on an index sorted by descending {@code @timestamp} reads only the end of each segment
+     * when it can. A {@code long} {@code @timestamp} in binary doc values must work the same as in {@code SORTED_NUMERIC}.
+     */
+    public void testAscSortOnDescIndexSort() {
+        // Not LOGSDB_COLUMNAR, which requires a date @timestamp, and only long fields use binary doc values
+        final IndexMode mode = IndexMode.COLUMNAR;
+        final boolean binary = randomBoolean();
+        assertAcked(
+            prepareCreate(WITH_CODEC).setSettings(
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), mode.getName())
+                    .put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), binary)
+                    .put("index.number_of_shards", between(1, 3))
+                    .put("index.number_of_replicas", 0)
+                    .put("index.sort.field", "@timestamp")
+                    .put("index.sort.order", "desc")
+            ).setMapping("@timestamp", "type=long", "id", "type=integer")
+        );
+
+        // A document with a second, larger value is before the end of the segment, but its smaller value can be a top row
+        final boolean multiValued = randomBoolean();
+        final int numDocs = between(50, 500);
+        final List<Long> timestamps = new ArrayList<>();
+        for (long t = 0; t < numDocs; t++) {
+            timestamps.add(1_000 + t * 10);
+        }
+        Collections.shuffle(timestamps, random());
+        final Map<Integer, Long> minById = new HashMap<>();
+        for (int from = 0; from < numDocs;) {
+            final int to = Math.min(numDocs, from + between(1, 200));
+            final BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int id = from; id < to; id++) {
+                final long timestamp = timestamps.get(id);
+                final Object value = multiValued && rarely() ? List.of(timestamp, timestamp + 1_000_000) : timestamp;
+                bulk.add(prepareIndex(WITH_CODEC).setId(Integer.toString(id)).setSource(Map.of("@timestamp", value, "id", id)));
+                minById.put(id, timestamp);
+            }
+            assertNoFailures(bulk.get());
+            from = to;
+        }
+        if (randomBoolean()) {
+            indicesAdmin().prepareForceMerge(WITH_CODEC).setMaxNumSegments(1).get();
+            indicesAdmin().prepareRefresh(WITH_CODEC).get();
+        }
+
+        final int limit = between(1, 20);
+        final List<List<Object>> expected = minById.entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByValue())
+            .limit(limit)
+            .map(e -> List.<Object>of(e.getKey()))
+            .toList();
+        assertEquals(rows(WITH_CODEC, "| SORT @timestamp ASC | LIMIT " + limit + " | KEEP id"), expected);
     }
 
     private static String source(int doc, boolean singleValued) {

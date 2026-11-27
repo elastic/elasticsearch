@@ -1,0 +1,226 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.equalTo;
+
+/**
+ * {@code SORT @timestamp ASC | LIMIT n} on an index sorted by descending {@code @timestamp} reads only the end of each segment.
+ * The expected rows come from sorting the indexed documents in Java.
+ */
+public class EsqlAscTimestampSortOnDescIndexSortIT extends AbstractEsqlIntegTestCase {
+
+    private static final String INDEX = "asc_sort_on_desc_index";
+
+    private record Doc(int id, Long timestamp) {}
+
+    public void testAscSort() throws IOException {
+        List<Doc> docs = populate(false);
+        int limit = randomIntBetween(1, 20);
+        assertThat(timestamps("SORT @timestamp ASC | LIMIT " + limit), equalTo(expectedTimestamps(docs, limit, true)));
+    }
+
+    public void testAscSortWithMissingTimestamps() throws IOException {
+        List<Doc> docs = populate(true);
+        int limit = randomIntBetween(1, 20);
+        assertThat(timestamps("SORT @timestamp ASC | LIMIT " + limit), equalTo(expectedTimestamps(docs, limit, true)));
+    }
+
+    /** Documents without a timestamp are at the end of a segment, but the top n are the documents that have one. */
+    public void testAscSortWithManyMissingTimestamps() throws IOException {
+        List<Doc> docs = populate(0.5);
+        int limit = randomIntBetween(1, 5);
+        assertThat(timestamps("SORT @timestamp ASC | LIMIT " + limit), equalTo(expectedTimestamps(docs, limit, true)));
+    }
+
+    public void testAscSortNullsFirst() throws IOException {
+        List<Doc> docs = populate(true);
+        int limit = randomIntBetween(1, 20);
+        assertThat(timestamps("SORT @timestamp ASC NULLS FIRST | LIMIT " + limit), equalTo(expectedTimestamps(docs, limit, false)));
+    }
+
+    /** With a second key, the top n can include a document that is not at the end of the segment. */
+    public void testAscSortWithSecondKey() throws IOException {
+        List<Doc> docs = populate(randomBoolean());
+        int limit = randomIntBetween(1, 20);
+        List<List<Object>> expected = docs.stream()
+            .sorted(Comparator.comparing(Doc::timestamp, Comparator.nullsLast(Comparator.<Long>naturalOrder())).thenComparingInt(Doc::id))
+            .limit(limit)
+            .map(d -> List.<Object>of(d.id()))
+            .toList();
+        try (EsqlQueryResponse response = run("FROM " + INDEX + " | SORT @timestamp ASC, id ASC | LIMIT " + limit + " | KEEP id")) {
+            List<List<Object>> actual = new ArrayList<>();
+            getValuesList(response).forEach(row -> actual.add(List.of(((Number) row.get(0)).intValue())));
+            assertThat(actual, equalTo(expected));
+        }
+    }
+
+    /**
+     * The index sort orders a multi-valued document by its largest value, but the ascending sort uses its smallest value.
+     * So the first row can be at the start of the segment, not at the end.
+     */
+    public void testAscSortWithMultiValuedTimestamp() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(INDEX)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.sort.field", "@timestamp")
+                        .put("index.sort.order", "desc")
+                )
+                .setMapping("@timestamp", "type=date", "id", "type=integer")
+        );
+        BulkRequestBuilder bulk = client().prepareBulk();
+        bulk.add(client().prepareIndex(INDEX).setId("0").setSource(Map.of("id", 0, "@timestamp", List.of(1_000_000L, 90_000_000L))));
+        for (int id = 1; id <= 50; id++) {
+            bulk.add(client().prepareIndex(INDEX).setId(Integer.toString(id)).setSource(Map.of("id", id, "@timestamp", 2_000_000L + id)));
+        }
+        // These documents have larger values, so they come before document 0 in the segment and fill the first hits.
+        for (int id = 100; id < 120; id++) {
+            bulk.add(client().prepareIndex(INDEX).setId(Integer.toString(id)).setSource(Map.of("id", id, "@timestamp", 100_000_000L + id)));
+        }
+        assertNoFailures(bulk.get());
+        client().admin().indices().prepareRefresh(INDEX).get();
+        assertNoFailures(client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get());
+
+        try (EsqlQueryResponse response = run("FROM " + INDEX + " | SORT @timestamp ASC | LIMIT 10 | KEEP id")) {
+            List<Object> ids = new ArrayList<>();
+            getValuesList(response).forEach(row -> ids.add(row.get(0)));
+            assertThat(ids, equalTo(List.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)));
+        }
+    }
+
+    /** A filter means the query does not match all documents, so the top n can be anywhere in the segment. */
+    public void testAscSortWithFilter() throws IOException {
+        // Without missing timestamps, so the end of each segment is never skipped for another reason
+        List<Doc> docs = populate(false);
+        List<Long> sorted = docs.stream().map(Doc::timestamp).filter(Objects::nonNull).sorted().toList();
+        // The documents at the end of each segment have the smallest timestamps, so the filter removes them
+        long threshold = sorted.get(sorted.size() / 2);
+        int limit = randomIntBetween(1, 20);
+        List<Long> expected = sorted.stream().filter(t -> t > threshold).limit(limit).toList();
+        assertThat(
+            timestamps("WHERE @timestamp > TO_DATETIME(" + threshold + ") | SORT @timestamp ASC | LIMIT " + limit),
+            equalTo(expected)
+        );
+    }
+
+    /** Only the index that is sorted by descending {@code @timestamp} can read the end of its segments. */
+    public void testAscSortWithIndexWithOtherSort() throws IOException {
+        String otherIndex = "asc_sort_on_other_index";
+        List<Doc> docs = new ArrayList<>(populate(INDEX, "desc", 0.1));
+        docs.addAll(populate(otherIndex, randomFrom("asc", null), 0.1));
+        int limit = randomIntBetween(1, 20);
+        assertThat(
+            timestamps(INDEX + "," + otherIndex, "SORT @timestamp ASC | LIMIT " + limit),
+            equalTo(expectedTimestamps(docs, limit, true))
+        );
+    }
+
+    private List<Long> timestamps(String sortAndLimit) {
+        return timestamps(INDEX, sortAndLimit);
+    }
+
+    private List<Long> timestamps(String indices, String sortAndLimit) {
+        try (EsqlQueryResponse response = run("FROM " + indices + " | " + sortAndLimit + " | EVAL t = TO_LONG(@timestamp) | KEEP t")) {
+            List<Long> timestamps = new ArrayList<>();
+            getValuesList(response).forEach(row -> timestamps.add((Long) row.get(0)));
+            return timestamps;
+        }
+    }
+
+    private static List<Long> expectedTimestamps(List<Doc> docs, int limit, boolean nullsLast) {
+        Comparator<Long> order = nullsLast
+            ? Comparator.nullsLast(Comparator.<Long>naturalOrder())
+            : Comparator.nullsFirst(Comparator.<Long>naturalOrder());
+        return docs.stream().map(Doc::timestamp).sorted(order).limit(limit).toList();
+    }
+
+    private List<Doc> populate(boolean withMissing) throws IOException {
+        return populate(withMissing ? 0.1 : 0.0);
+    }
+
+    private List<Doc> populate(double missingFraction) throws IOException {
+        return populate(INDEX, "desc", missingFraction);
+    }
+
+    /**
+     * Creates {@code index} sorted by {@code @timestamp} in {@code sortOrder}, or without an index sort if {@code sortOrder} is null.
+     */
+    private List<Doc> populate(String index, @Nullable String sortOrder, double missingFraction) throws IOException {
+        Settings.Builder settings = Settings.builder()
+            .put("index.number_of_shards", randomIntBetween(1, 3))
+            .put("index.number_of_replicas", 0);
+        if (sortOrder != null) {
+            settings.put("index.sort.field", "@timestamp").put("index.sort.order", sortOrder);
+        }
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(settings)
+                .setMapping("@timestamp", "type=date", "id", "type=integer")
+        );
+        int distinctTimestamps = randomIntBetween(5, 60);
+        int docCount = randomIntBetween(200, 600);
+        int batches = randomIntBetween(2, 5);
+        List<Doc> docs = new ArrayList<>();
+        for (int batch = 0; batch < batches; batch++) {
+            BulkRequestBuilder bulk = client().prepareBulk();
+            int firstId = batch * docCount / batches;
+            int endId = (batch + 1) * docCount / batches;
+            for (int id = firstId; id < endId; id++) {
+                Long timestamp = randomDouble() < missingFraction ? null : 1_000_000L + randomInt(distinctTimestamps) * 1000L;
+                Map<String, Object> source = new HashMap<>();
+                source.put("id", id);
+                if (timestamp != null) {
+                    source.put("@timestamp", timestamp);
+                }
+                bulk.add(client().prepareIndex(index).setId(Integer.toString(id)).setSource(source));
+                docs.add(new Doc(id, timestamp));
+            }
+            assertNoFailures(bulk.get());
+            client().admin().indices().prepareRefresh(index).get();
+        }
+        BulkRequestBuilder deletes = client().prepareBulk();
+        List<Doc> remaining = new ArrayList<>();
+        for (Doc doc : docs) {
+            if (randomInt(9) == 0) {
+                deletes.add(client().prepareDelete(index, Integer.toString(doc.id())));
+            } else {
+                remaining.add(doc);
+            }
+        }
+        if (deletes.numberOfActions() > 0) {
+            assertNoFailures(deletes.get());
+        }
+        client().admin().indices().prepareRefresh(index).get();
+        if (randomBoolean()) {
+            assertNoFailures(client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get());
+        }
+        return remaining;
+    }
+}

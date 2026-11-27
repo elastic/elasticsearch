@@ -44,6 +44,14 @@ public interface ShardContext extends RefCounted {
     Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) throws IOException;
 
     /**
+     * Like {@link #buildSort(List)}, but when {@code matchesAllDocs} is true the sort may use optimizations that are only
+     * correct for a query that matches every document.
+     */
+    default Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts, boolean matchesAllDocs) throws IOException {
+        return buildSort(sorts);
+    }
+
+    /**
      * A "name" for the shard that you can look up against other APIs like
      * {@code _cat/shards}.
      */

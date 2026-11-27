@@ -9,7 +9,6 @@
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -29,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.fielddata.DenseLongValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -95,6 +95,23 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         this.alwaysMatchTailQuery = true;
     }
 
+    /**
+     * Enables the match tail optimization if {@code sort} is ascending on {@code @timestamp} and the index is sorted by
+     * descending {@code @timestamp}. The caller must check that the query matches all documents and has no {@code search_after}.
+     */
+    public static void maybeMarkAsMatchTail(IndexSortConfig indexSortConfig, @Nullable Sort sort) {
+        if (sort == null || sort.getSort().length == 0 || indexSortConfig.containsDescendingTimestampSort() == false) {
+            return;
+        }
+        SortField primarySort = sort.getSort()[0];
+        if (primarySort.getReverse() || Objects.equals(primarySort.getField(), "@timestamp") == false) {
+            return;
+        }
+        if (primarySort.getComparatorSource() instanceof LongValuesComparatorSource source) {
+            source.setMatchTailQuery();
+        }
+    }
+
     private SortedNumericLongValues loadDocValues(LeafReaderContext context) {
         final LeafNumericFieldData data = indexFieldData.load(context);
         SortedNumericLongValues values;
@@ -142,7 +159,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                         throws IOException {
                         if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false
                         // check that last document has a value to confirm that all documents have a value
-                            || lastDocumentHasValue(context.reader(), fieldname) == false) {
+                            || lastDocumentHasValue(context) == false
+                        // the segment order uses one value of a multi-valued document, the sort can use another
+                            || isSingleValued(context) == false) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }
                         int maxDoc = context.reader().maxDoc();
@@ -257,8 +276,13 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         };
     }
 
-    private static boolean lastDocumentHasValue(LeafReader reader, String field) throws IOException {
-        return DocValues.getSortedNumeric(reader, field).advanceExact(reader.maxDoc() - 1);
+    // Reads the field through its field data, so it works for SORTED_NUMERIC and for binary doc values
+    private boolean lastDocumentHasValue(LeafReaderContext context) throws IOException {
+        return loadDocValues(context).advanceExact(context.reader().maxDoc() - 1);
+    }
+
+    private boolean isSingleValued(LeafReaderContext context) {
+        return loadDocValues(context).isSingleton();
     }
 
     private static boolean firstAndLastDocumentsHaveValue(SortedSetDocValues values, int maxDoc) throws IOException {

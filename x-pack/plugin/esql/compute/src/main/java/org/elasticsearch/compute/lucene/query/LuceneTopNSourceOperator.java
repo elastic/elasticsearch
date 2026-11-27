@@ -17,6 +17,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
@@ -400,7 +401,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
             try {
                 if (perShardCollector == null || perShardCollector.shardContext.index() != scorer.shardContext().index()) {
-                    perShardCollector = perShardCollectorProvider.newPerShardCollector(scorer.shardContext());
+                    perShardCollector = perShardCollectorProvider.newPerShardCollector(
+                        scorer.shardContext(),
+                        LuceneSourceOperator.Factory.unwrapQuery(scorer.weight().getQuery()) instanceof MatchAllDocsQuery
+                    );
                     skipCurrentShard = cannotBeatBound(scorer.shardContext());
                 }
                 if (skipCurrentShard) {
@@ -740,7 +744,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
 
         PerShardCollector newPerShardCollector(ShardContext context) throws IOException {
-            Optional<SortAndFormats> sortAndFormats = context.buildSort(this.sorts);
+            return newPerShardCollector(context, false);
+        }
+
+        PerShardCollector newPerShardCollector(ShardContext context, boolean matchesAllDocs) throws IOException {
+            Optional<SortAndFormats> sortAndFormats = context.buildSort(this.sorts, matchesAllDocs);
             if (sortAndFormats.isEmpty()) {
                 throw new IllegalStateException("sorts must not be disabled in TopN");
             }

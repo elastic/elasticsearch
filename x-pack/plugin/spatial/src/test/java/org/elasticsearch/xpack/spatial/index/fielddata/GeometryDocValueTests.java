@@ -247,6 +247,15 @@ public class GeometryDocValueTests extends ESTestCase {
         }
     }
 
+    public void testSinglePointLabelPosition() throws IOException {
+        Point point = new Point(randomDoubleBetween(-179, 179, true), randomDoubleBetween(-89, 89, true));
+        for (GeometryDocValueFormat format : GeometryDocValueFormat.values()) {
+            SpatialPoint labelPosition = GeoTestUtils.geoShapeValue(point, format).labelPosition();
+            assertEquals("label x for " + format, point.getX(), labelPosition.getX(), 0.0000001);
+            assertEquals("label y for " + format, point.getY(), labelPosition.getY(), 0.0000001);
+        }
+    }
+
     public void testRandomGeometryReconstruction() throws IOException {
         for (int i = 0; i < 100; i++) {
             Geometry geometry = switch (i % 7) {

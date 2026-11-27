@@ -39,17 +39,22 @@ final class V2PointsWriter {
      */
     static void writeTo(StreamOutput out, List<IndexableField> fields) throws IOException {
         final int numPoints = fields.size();
-        final int[] xs = new int[numPoints];
-        final int[] ys = new int[numPoints];
         final Extent extent = new Extent();
         final byte[] scratch = new byte[7 * Integer.BYTES];
         final ShapeField.DecodedTriangle point = new ShapeField.DecodedTriangle();
+        if (numPoints == 1) {
+            // The table of a single point is just its count, since the point is the extent minimum
+            decodePoint(fields.get(0), scratch, point);
+            extent.addRectangle(point.aX, point.aY, point.aX, point.aY);
+            extent.writeCompressed(out);
+            out.writeVInt(0);
+            out.writeVInt(1);
+            return;
+        }
+        final int[] xs = new int[numPoints];
+        final int[] ys = new int[numPoints];
         for (int i = 0; i < numPoints; i++) {
-            final BytesRef bytesRef = fields.get(i).binaryValue();
-            assert bytesRef.length == 7 * Integer.BYTES;
-            System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
-            ShapeField.decodeTriangle(scratch, point);
-            assert point.type == ShapeField.DecodedTriangle.TYPE.POINT : "expected a point but got " + point.type;
+            decodePoint(fields.get(i), scratch, point);
             xs[i] = point.aX;
             ys[i] = point.aY;
             extent.addRectangle(point.aX, point.aY, point.aX, point.aY);
@@ -62,6 +67,14 @@ final class V2PointsWriter {
             builder.appendUnindexed(xs[i], ys[i]);
         }
         builder.writePointsTo(out, extent);
+    }
+
+    private static void decodePoint(IndexableField field, byte[] scratch, ShapeField.DecodedTriangle point) {
+        final BytesRef bytesRef = field.binaryValue();
+        assert bytesRef.length == 7 * Integer.BYTES;
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
+        ShapeField.decodeTriangle(scratch, point);
+        assert point.type == ShapeField.DecodedTriangle.TYPE.POINT : "expected a point but got " + point.type;
     }
 
     private static void mortonSort(int[] xs, int[] ys) {

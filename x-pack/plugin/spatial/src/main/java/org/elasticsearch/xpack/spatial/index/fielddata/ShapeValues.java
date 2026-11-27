@@ -177,6 +177,11 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
                 return pointMaker.apply(getX(), getY());
             }
             if (reader.isPointsOnly()) {
+                Extent extent = reader.getExtent();
+                if (extent.minX() == extent.maxX() && extent.minY() == extent.maxY()) {
+                    // A single point, or points that all coincide, which is the extent minimum and has no table to read
+                    return pointMaker.apply(encoder.decodeX(extent.minX()), encoder.decodeY(extent.minY()));
+                }
                 // Without a tree, the middle point in Morton order stands in for the root of the tree, near the middle
                 VertexLookupTable points = reader.getVertexTable();
                 long xy = points.getXY((points.size() - 1) / 2);

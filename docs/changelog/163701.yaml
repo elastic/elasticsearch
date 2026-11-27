@@ -1,0 +1,7 @@
+area: Infra/Core
+issues:
+  - 125723
+pr: 163701
+summary: Treat an explicitly null required constructor argument as provided when parsing
+  a `ConstructingObjectParser` target
+type: bug

@@ -44,7 +44,13 @@ public class StoredPagesServiceTests extends ESTestCase {
     private final List<ActionListener<Void>> running = new ArrayList<>();
     private final List<String> waiting = new ArrayList<>();
     private boolean executorFull;
-    private final StoredPagesService service = new StoredPagesService(queue.getThreadPool(), new Executor() {
+    private boolean schedulerShutDown;
+    private final StoredPagesService service = new StoredPagesService(queue.getThreadPool(r -> {
+        if (schedulerShutDown) {
+            throw new EsRejectedExecutionException("shut down", true);
+        }
+        return r;
+    }), new Executor() {
         @Override
         public void execute(Runnable command) {
             if (executorFull && (command instanceof AbstractRunnable r && r.isForceExecution()) == false) {
@@ -201,6 +207,25 @@ public class StoredPagesServiceTests extends ESTestCase {
         assertThat(service.waitingReads(), equalTo(0));
     }
 
+    /**
+     * A read whose timeout cannot be scheduled fails once and frees its slot, and nothing is left to wake.
+     */
+    public void testRejectedTimeoutFailsTheRead() throws Exception {
+        schedulerShutDown = true;
+        Answers answers = read(SHARD, TIMEOUT);
+        assertThat(answers.failure, instanceOf(EsRejectedExecutionException.class));
+        assertThat(service.waitingReads(), equalTo(0));
+        assertThat(refreshed, equalTo(List.of()));
+
+        schedulerShutDown = false;
+        service.wake(RESULT);
+        service.afterIndexShardClosed(SHARD, null, Settings.EMPTY);
+        completeRefreshes();
+        queue.runAllTasksInTimeOrder();
+        assertThat(answers.count, equalTo(1));
+        assertThat(unreleased, equalTo(0));
+    }
+
     public void testShardCloseFailsItsWaits() throws Exception {
         ShardId other = new ShardId(SHARD.getIndex(), 1);
         Answers closed = startWaiting(SHARD);
@@ -253,11 +278,16 @@ public class StoredPagesServiceTests extends ESTestCase {
 
     private Answers read(ShardId shardId, TimeValue timeout) throws Exception {
         Answers answers = new Answers();
-        service.read(shardId, RESULT, () -> {
-            reads++;
-            unreleased++;
-            return new Response(visible, ended, () -> unreleased--);
-        }, timeout, answers);
+        try {
+            service.read(shardId, RESULT, () -> {
+                reads++;
+                unreleased++;
+                return new Response(visible, ended, () -> unreleased--);
+            }, timeout, answers);
+        } catch (Exception e) {
+            // as the action does
+            answers.onFailure(e);
+        }
         return answers;
     }
 

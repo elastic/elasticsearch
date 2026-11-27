@@ -82,7 +82,8 @@ public final class RandomSamplingQuery extends Query {
         return new Weight(this) {
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                return true;
+                // The stream depends on where the segment is in the reader, and a cached segment can move.
+                return false;
             }
 
             @Override
@@ -98,7 +99,9 @@ public final class RandomSamplingQuery extends Query {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                final SplittableRandom random = new SplittableRandom(BitMixer.mix(hash ^ seed));
+                // Segments must not draw the same stream. The ordinal takes the high bits, so it cannot cancel out the hash and the seed.
+                final long segmentSalt = (long) BitMixer.mix(context.ord) << 32;
+                final SplittableRandom random = new SplittableRandom(BitMixer.mix(hash ^ seed) ^ segmentSalt);
                 int maxDoc = context.reader().maxDoc();
                 Scorer scorer = new ConstantScoreScorer(
                     boost,

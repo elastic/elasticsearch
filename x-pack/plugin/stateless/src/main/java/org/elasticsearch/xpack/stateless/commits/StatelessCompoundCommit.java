@@ -30,7 +30,6 @@ import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -226,7 +225,11 @@ public record StatelessCompoundCommit(
         PrimaryTermAndGeneration primaryTermAndGeneration = primaryTermAndGeneration(in);
         long translogRecoveryStartFile = in.readVLong();
         String nodeEphemeralId = in.readString();
-        Map<String, BlobLocation> commitFiles = in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport);
+        final var deduplicatedBlobs = new HashMap<Blob, Blob>();
+        Map<String, BlobLocation> commitFiles = in.readImmutableMap(
+            StreamInput::readString,
+            i -> deduplicateBlob(BlobLocation.readFromTransport(i), deduplicatedBlobs)
+        );
         long sizeInBytes = in.readVLong();
         Set<String> internalFiles = in.readCollectionAsImmutableSet(StreamInput::readString);
         long headerSizeInBytes;
@@ -235,7 +238,10 @@ public record StatelessCompoundCommit(
         replicatedRanges = InternalFilesReplicatedRanges.from(
             in.readCollectionAsImmutableList(InternalFilesReplicatedRanges.InternalFileReplicatedRange::fromStream)
         );
-        Map<String, BlobLocation> extraContent = in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport);
+        Map<String, BlobLocation> extraContent = in.readImmutableMap(
+            StreamInput::readString,
+            i -> deduplicateBlob(BlobLocation.readFromTransport(i), deduplicatedBlobs)
+        );
         TimestampFieldValueRange timestampFieldValueRange = in.readOptionalWriteable(TimestampFieldValueRange::new);
         return new StatelessCompoundCommit(
             shardId,
@@ -299,7 +305,9 @@ public record StatelessCompoundCommit(
         for (String internalFile : internalFiles) {
             BlobLocation location = commitFiles.get(internalFile);
             assert location != null : "internal file [" + internalFile + "] does not exist as a commit file [" + commitFiles + "]";
-            return location.bccBlob();
+            if (location.blob() instanceof BccBlob bccBlob) {
+                return bccBlob;
+            }
         }
         assert false : "a commit should always have at least one internal file";
         return null;
@@ -329,8 +337,8 @@ public record StatelessCompoundCommit(
         return commitBoundary;
     }
 
-    public Set<BccBlob> getBlobFiles() {
-        return commitFiles.values().stream().map(BlobLocation::bccBlob).collect(Collectors.toSet());
+    public Set<Blob> getBlobs() {
+        return commitFiles.values().stream().map(BlobLocation::blob).collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -372,12 +380,8 @@ public record StatelessCompoundCommit(
                 if (timestampFieldValueRange != null) {
                     // the CC XContentHeader is always serialized under the last version,
                     // so the timestamp field value range always has the right to be present
-                    b.startObject("timestamp_field_value_range");
-                    {
-                        b.field("min_millis", timestampFieldValueRange.minMillis);
-                        b.field("max_millis", timestampFieldValueRange.maxMillis);
-                    }
-                    b.endObject();
+                    b.field("timestamp_field_value_range");
+                    timestampFieldValueRange.toXContent(b, ToXContent.EMPTY_PARAMS);
                 }
                 b.startObject("commit_files");
                 {
@@ -470,9 +474,10 @@ public record StatelessCompoundCommit(
                     version
                 );
 
+                final var deduplicatedBlobs = new HashMap<Blob, Blob>();
                 Map<String, BlobLocation> referencedBlobLocations = input.readMap(
                     StreamInput::readString,
-                    (is) -> BlobLocation.readFromStore(is, version == VERSION_WITH_BLOB_LENGTH)
+                    (is) -> deduplicateBlob(readLegacyBlobLocationFromStore(is, version == VERSION_WITH_BLOB_LENGTH), deduplicatedBlobs)
                 );
                 List<InternalFile> internalFiles = input.readCollectionAsList(InternalFile::new);
                 long headerSize = input.readLong();
@@ -573,11 +578,10 @@ public record StatelessCompoundCommit(
                 PARSER.declareLong(constructorArg(), new ParseField("primary_term"));
                 PARSER.declareLong(optionalConstructorArg(), new ParseField(TRANSLOG_RECOVERY_START_FILE));
                 PARSER.declareString(constructorArg(), new ParseField("node_ephemeral_id"));
-                PARSER.declareObject(
-                    constructorArg(),
-                    (p, c) -> p.map(HashMap::new, BlobLocation::fromXContent),
-                    new ParseField("commit_files")
-                );
+                PARSER.declareObject(constructorArg(), (p, c) -> {
+                    final var deduplicatedBlobs = new HashMap<Blob, Blob>();
+                    return p.map(HashMap::new, xp -> deduplicateBlob(BlobLocation.fromXContent(xp), deduplicatedBlobs));
+                }, new ParseField("commit_files"));
                 PARSER.declareObjectArray(constructorArg(), InternalFile.PARSER, new ParseField("internal_files"));
                 PARSER.declareObjectArray(
                     optionalConstructorArg(),
@@ -618,6 +622,25 @@ public record StatelessCompoundCommit(
         }
     }
 
+    /**
+     * Reads a {@link BlobLocation} from the header of a compound commit written before xcontent encoding. Ancient commits (before
+     * {@link #VERSION_WITH_XCONTENT_ENCODING}) can still contain the length of the blob.
+     */
+    static BlobLocation readLegacyBlobLocationFromStore(StreamInput in, boolean includesBlobLength) throws IOException {
+        long primaryTerm = in.readVLong();
+        String blobName = in.readString();
+        if (includesBlobLength) {
+            in.readVLong(); // ignore blobLength
+        }
+        long offset = in.readVLong();
+        long length = in.readVLong();
+        try {
+            return new BlobLocation(new BccBlob(blobName, primaryTerm), offset, length);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("malformed blob name [" + blobName + ']', e);
+        }
+    }
+
     // visible for testing
     static StatelessCompoundCommit statelessCompoundCommit(
         ShardId shardId,
@@ -636,7 +659,15 @@ public record StatelessCompoundCommit(
         @Nullable TimestampFieldValueRange timestampFieldValueRange
     ) {
         PrimaryTermAndGeneration bccTermAndGen = new PrimaryTermAndGeneration(primaryTerm, bccGenSupplier.apply(generation));
-        var blobFile = new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation()), bccTermAndGen);
+        var blobFile = new BccBlob(bccTermAndGen);
+        for (BlobLocation referencedBlobLocation : referencedBlobLocations.values()) {
+            if (referencedBlobLocation.blob().equals(blobFile)) {
+                // reuse the instance already held by the referenced locations (if any)
+                // so that all the locations of this blob share a single object
+                blobFile = (BccBlob) referencedBlobLocation.blob();
+                break;
+            }
+        }
         final var combinedCommitFilesResult = combineCommitFiles(
             blobFile,
             replicatedContentRanges,
@@ -660,39 +691,6 @@ public record StatelessCompoundCommit(
             combinedCommitFilesResult.extraContent,
             timestampFieldValueRange
         );
-    }
-
-    public record TimestampFieldValueRange(long minMillis, long maxMillis) implements Writeable {
-
-        static final ConstructingObjectParser<TimestampFieldValueRange, Void> TIMESTAMP_FIELD_VALUE_RANGE_PARSER =
-            new ConstructingObjectParser<>(
-                "timestamp_field_value_range",
-                args -> new TimestampFieldValueRange((long) args[0], (long) args[1])
-            );
-        static {
-            TIMESTAMP_FIELD_VALUE_RANGE_PARSER.declareLong(constructorArg(), new ParseField("min_millis"));
-            TIMESTAMP_FIELD_VALUE_RANGE_PARSER.declareLong(constructorArg(), new ParseField("max_millis"));
-        }
-
-        public TimestampFieldValueRange {
-            if (minMillis > maxMillis) {
-                throw new IllegalArgumentException("Invalid millis timestamp range [" + minMillis + ", " + maxMillis + "]");
-            }
-        }
-
-        public TimestampFieldValueRange(StreamInput in) throws IOException {
-            this(in.readLong(), in.readLong());
-        }
-
-        public long midpointMillis() {
-            return minMillis + (maxMillis - minMillis) / 2;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(minMillis);
-            out.writeLong(maxMillis);
-        }
     }
 
     record CombinedCommitFilesResult(
@@ -760,41 +758,14 @@ public record StatelessCompoundCommit(
         return true;
     }
 
-    record InternalFile(String name, long length) implements Writeable, ToXContentObject, Comparable<InternalFile> {
-
-        private static final ConstructingObjectParser<InternalFile, Void> PARSER = new ConstructingObjectParser<>(
-            "internal_file",
-            true,
-            args -> new InternalFile((String) args[0], (long) args[1])
-        );
-
-        static {
-            PARSER.declareString(constructorArg(), new ParseField("name"));
-            PARSER.declareLong(constructorArg(), new ParseField("length"));
-        }
-
-        private InternalFile(StreamInput streamInput) throws IOException {
-            this(streamInput.readString(), streamInput.readLong());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeLong(length);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("name", name).field("length", length).endObject();
-        }
-
-        @Override
-        public int compareTo(InternalFile o) {
-            int cmp = Long.compare(length, o.length);
-            if (cmp != 0) {
-                return cmp;
-            }
-            return name.compareTo(o.name);
-        }
+    /**
+     * Returns a {@link BlobLocation} equal to the given one whose {@link Blob} is the canonical instance held in the given map, so that
+     * locations pointing to the same blob share a single {@link Blob} instance instead of each holding its own copy.
+     *
+     * @param deduplicatedBlobs a map of blobs, which is populated with the location's blob if it is not there yet
+     */
+    private static BlobLocation deduplicateBlob(BlobLocation location, Map<Blob, Blob> deduplicatedBlobs) {
+        final Blob canonical = deduplicatedBlobs.computeIfAbsent(location.blob(), Function.identity());
+        return canonical == location.blob() ? location : new BlobLocation(canonical, location.offset(), location.fileLength());
     }
 }

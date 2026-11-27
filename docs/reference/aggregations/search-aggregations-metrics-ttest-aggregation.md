@@ -2,6 +2,9 @@
 navigation_title: "T-test"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-ttest-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # T-test aggregation [search-aggregations-metrics-ttest-aggregation]

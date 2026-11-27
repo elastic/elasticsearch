@@ -2,6 +2,9 @@
 navigation_title: "Cartesian-bounds"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cartesian-bounds-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Cartesian-bounds aggregation [search-aggregations-metrics-cartesian-bounds-aggregation]

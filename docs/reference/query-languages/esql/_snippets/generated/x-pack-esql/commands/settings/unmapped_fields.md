@@ -25,7 +25,7 @@ Possible values are:
   absent from `_source`. Also loads partially mapped fields from `_source` in the indices where they are unmapped,
   even if the query doesn't reference them.
 {applies_to}`stack: preview =9.4, ga 9.5+`
-- `LOAD_ALL` : Does everything `LOAD` does, and also returns every unmapped field that the query does not name, in a
+- `LOAD_ALL` : Does everything `LOAD` does, and also returns all unmapped fields in a
   single `_unmapped_fields` column. That column holds, for each row, a JSON object of the row's unmapped `_source` fields.
   Refer to [Load all unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md#esql-unmapped-fields-load-all).
   {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
@@ -35,7 +35,7 @@ Possible values are:
 Special notes about the `LOAD` and `LOAD_ALL` options:
 - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD` or `LOAD_ALL`.
 - Referencing subfields of `flattened` parents is not supported.
-- `LOAD_ALL` supports a subset of commands, and notably not [`TS`](/reference/query-languages/esql/commands/ts.md).
+- `LOAD_ALL` supports a subset of commands.
   Other commands fail with an error that lists the supported ones.
   {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported,
@@ -57,6 +57,11 @@ either, the value is `DEFAULT`.
 
 
 **Type**: `keyword`
+
+**Can also be set in**:
+- the request body, as `settings.unmapped_fields` {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga`
+- a cluster setting, `esql.query.settings.unmapped_fields` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: unavailable`
+- a view definition {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
 
 #### Example
 

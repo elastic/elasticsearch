@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.telemetry.QueryCallerClassifier;
 import org.junit.Before;
 
 import java.util.List;
@@ -113,21 +112,21 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
 
     public void testClientOfReadsOriginHeaderFromCallingContext() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        assertThat(PlanExecutor.clientOf(QueryCallerClassifier.classify(threadContext)), equalTo(ExternalSourceMetrics.CLIENT_NONE));
+        assertThat(PlanExecutor.clientOf(threadContext), equalTo(ExternalSourceMetrics.CLIENT_NONE));
 
         threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
-        assertThat(PlanExecutor.clientOf(QueryCallerClassifier.classify(threadContext)), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
+        assertThat(PlanExecutor.clientOf(threadContext), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
     }
 
     public void testClientOfMapsUnknownOriginToOther() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "curl/8.4.0");
-        assertThat(PlanExecutor.clientOf(QueryCallerClassifier.classify(threadContext)), equalTo(ExternalSourceMetrics.CLIENT_OTHER));
+        assertThat(PlanExecutor.clientOf(threadContext), equalTo(ExternalSourceMetrics.CLIENT_OTHER));
     }
 
     /** A missing thread context, as supplied by callers and mocks that do not wire one, has no origin and so is {@code none}. */
     public void testClientOfNullContextIsNone() {
-        assertThat(PlanExecutor.clientOf(QueryCallerClassifier.classify(null)), equalTo(ExternalSourceMetrics.CLIENT_NONE));
+        assertThat(PlanExecutor.clientOf(null), equalTo(ExternalSourceMetrics.CLIENT_NONE));
     }
 
     public void testPartialSuccessBumpsPartialCounter() {

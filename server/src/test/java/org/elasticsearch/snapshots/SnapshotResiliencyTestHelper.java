@@ -153,7 +153,7 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
+import org.elasticsearch.plugins.internal.RestoreProjectCustomUpdater;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -172,6 +172,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -692,6 +693,7 @@ public class SnapshotResiliencyTestHelper {
                     null,
                     emptySet()
                 );
+                transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
                 indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext(), projectResolver);
                 bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 repositoriesService = new RepositoriesService(
@@ -1027,7 +1029,8 @@ public class SnapshotResiliencyTestHelper {
                     false,
                     IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
                     featureService,
-                    RestoreLifecycleListener.NOOP
+                    RestoreProjectCustomUpdater.NOOP,
+                    RestoreMetrics.NOOP
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

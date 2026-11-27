@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.BoundRange;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -32,6 +33,8 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -179,6 +182,373 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals(Operator.EQUALS, pathHints.get(0).operator());
         assertEquals("month", pathHints.get(1).columnName());
         assertEquals(Operator.IN, pathHints.get(1).operator());
+    }
+
+    public void testOrOnOneColumnBecomesIn() {
+        Expression condition = new Or(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 7));
+        assertEquals(List.of(new PartitionFilterHint("hour", Operator.IN, List.of(5, 7))), hintsOf(condition));
+    }
+
+    /**
+     * Two hours on two different days, the shape ES|QL can only write as an {@code OR}. Each column gets the union of
+     * the values its branches name: a superset of the two hours, but four folders rather than the whole dataset.
+     */
+    public void testOrAcrossColumnsBecomesOneInPerColumn() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 17), unresolvedEquals("hour", 23)),
+            new And(SRC, unresolvedEquals("day", 18), unresolvedEquals("hour", 0))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("day", Operator.IN, List.of(17, 18)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(23, 0))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    public void testOrWithOneValueAcrossBranchesKeepsEquals() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 18), unresolvedEquals("hour", 5)),
+            new And(SRC, unresolvedEquals("day", 18), unresolvedEquals("hour", 7))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("day", Operator.EQUALS, List.of(18)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(5, 7))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    /** A branch that leaves {@code hour} open can match any hour, so only {@code day} may narrow the listing. */
+    public void testOrColumnOpenInOneBranchGetsNoHint() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 17), unresolvedEquals("hour", 23)),
+            unresolvedEquals("day", 18)
+        );
+        assertEquals(List.of(new PartitionFilterHint("day", Operator.IN, List.of(17, 18))), hintsOf(condition));
+    }
+
+    /** No column is pinned by both branches, so nothing may narrow the listing. */
+    public void testOrWithBranchesOnDifferentColumnsEmitsNothing() {
+        Expression condition = new Or(SRC, unresolvedEquals("year", 2025), unresolvedEquals("id", 20240101));
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    /**
+     * A range is not a finite set of folders, so the column cannot become {@code IN}. It is still a bound:
+     * the {@code ==} branch is a point and the {@code >} branch is one-sided, so the hint is {@code RANGE}
+     * with no hull (the union is unbounded).
+     */
+    public void testOrWithARangeBranchEmitsRangeNotIn() {
+        Expression condition = new Or(SRC, unresolvedEquals("hour", 5), new GreaterThan(SRC, unresolved("hour"), intLiteral(20)));
+        assertEquals(
+            List.of(
+                new PartitionFilterHint(
+                    "hour",
+                    Operator.RANGE,
+                    List.of(new BoundRange(5, true, 5, true), new BoundRange(20, false, null, true))
+                )
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    /** Closed ranges in every branch also emit a hull the AND-of-hints matcher can apply to a plain column. */
+    public void testOrOfClosedRangesEmitsRangeAndHull() {
+        Expression condition = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(5)),
+                new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(6))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(8)),
+                new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(9))
+            )
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint(
+                    "hour",
+                    Operator.RANGE,
+                    List.of(new BoundRange(5, true, 6, true), new BoundRange(8, true, 9, true))
+                ),
+                new PartitionFilterHint("hour", Operator.GREATER_THAN_OR_EQUAL, List.of(5)),
+                new PartitionFilterHint("hour", Operator.LESS_THAN_OR_EQUAL, List.of(9))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    /** Wraparound is unbounded: {@code RANGE} only, no hull that would claim every hour. */
+    public void testOrWraparoundEmitsRangeWithoutHull() {
+        Expression condition = new Or(
+            SRC,
+            new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(22)),
+            new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(1))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint(
+                    "hour",
+                    Operator.RANGE,
+                    List.of(new BoundRange(null, true, 1, true), new BoundRange(22, true, null, true))
+                )
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    /** A branch that leaves {@code hour} open can match any hour, so the {@code OR} must not narrow it. */
+    public void testOrRangeWithAnOpenBranchEmitsNothingForThatColumn() {
+        Expression condition = new Or(SRC, new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(22)), unresolvedEquals("day", 18));
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    /**
+     * {@code (day==17 AND hour>=22) OR (day==18 AND hour<=1)} still unions {@code day}. Hour is wraparound:
+     * {@code RANGE} without a hull, so listing glob rewrite keeps only the day IN.
+     */
+    public void testOrMixedEqualsAndWraparoundKeepsDayIn() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 17), new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(22))),
+            new And(SRC, unresolvedEquals("day", 18), new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(1)))
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(new PartitionFilterHint("day", Operator.IN, List.of(17, 18)), hints.get(0));
+        assertEquals("hour", hints.get(1).columnName());
+        assertEquals(Operator.RANGE, hints.get(1).operator());
+        assertEquals(2, hints.size());
+    }
+
+    /** Same OR in either branch order yields the same RANGE (sorted BoundRanges). */
+    public void testOrRangeBranchOrderDoesNotChangeHint() {
+        Expression firstThenSecond = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(8)),
+                new LessThan(SRC, unresolved("hour"), intLiteral(10))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(4)),
+                new LessThan(SRC, unresolved("hour"), intLiteral(6))
+            )
+        );
+        Expression secondThenFirst = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(4)),
+                new LessThan(SRC, unresolved("hour"), intLiteral(6))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(8)),
+                new LessThan(SRC, unresolved("hour"), intLiteral(10))
+            )
+        );
+        assertEquals(hintsOf(firstThenSecond), hintsOf(secondThenFirst));
+    }
+
+    /**
+     * {@code Integer 5} and {@code Double 5.0} compare equal in the matcher but are not {@code equals}.
+     * RANGE keeps both spellings, sorted by class so branch order does not split FORK identity.
+     */
+    public void testOrRangeMixedNumericSpellingsStableIdentity() {
+        Expression intThenDouble = new Or(
+            SRC,
+            new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(5)),
+            new GreaterThanOrEqual(SRC, unresolved("hour"), new Literal(SRC, 5.0, DataType.DOUBLE))
+        );
+        Expression doubleThenInt = new Or(
+            SRC,
+            new GreaterThanOrEqual(SRC, unresolved("hour"), new Literal(SRC, 5.0, DataType.DOUBLE)),
+            new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(5))
+        );
+        List<PartitionFilterHint> expected = List.of(
+            new PartitionFilterHint(
+                "hour",
+                Operator.RANGE,
+                List.of(new BoundRange(5.0, true, null, true), new BoundRange(5, true, null, true))
+            )
+        );
+        assertEquals(expected, hintsOf(intThenDouble));
+        assertEquals(expected, hintsOf(doubleThenInt));
+    }
+
+    /**
+     * Closed mixed integral/float is still RANGE-only: a hull that kept the double exclusive
+     * bound at 2^53 would drop the matching long {@code 2^53+1} folder.
+     */
+    public void testOrClosedMixedNumericSpellingsOmitsHull() {
+        Expression condition = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("id"), new Literal(SRC, 9007199254740992L, DataType.LONG)),
+                new LessThan(SRC, unresolved("id"), new Literal(SRC, 9007199254740994L, DataType.LONG))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("id"), new Literal(SRC, 9007199254740992.0, DataType.DOUBLE)),
+                new LessThan(SRC, unresolved("id"), new Literal(SRC, 9007199254740994.0, DataType.DOUBLE))
+            )
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(Operator.RANGE, hints.get(0).operator());
+        assertEquals(1, hints.size());
+    }
+
+    /**
+     * An {@code OR} nested under {@code AND} is extracted as {@code RANGE} first; the outer {@code OR}
+     * copies those {@code BoundRange}s rather than dropping the column.
+     */
+    public void testOrNestedRangeDisjunctionUnionsBoundRanges() {
+        Expression inner = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(5)),
+                new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(6))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(8)),
+                new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(9))
+            )
+        );
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, inner, unresolvedEquals("day", 17)),
+            new And(
+                SRC,
+                unresolvedEquals("day", 18),
+                new And(
+                    SRC,
+                    new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(11)),
+                    new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(12))
+                )
+            )
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(new PartitionFilterHint("day", Operator.IN, List.of(17, 18)), hints.get(0));
+        assertEquals(
+            new PartitionFilterHint(
+                "hour",
+                Operator.RANGE,
+                List.of(new BoundRange(5, true, 6, true), new BoundRange(8, true, 9, true), new BoundRange(11, true, 12, true))
+            ),
+            hints.get(1)
+        );
+        assertEquals(new PartitionFilterHint("hour", Operator.GREATER_THAN_OR_EQUAL, List.of(5)), hints.get(2));
+        assertEquals(new PartitionFilterHint("hour", Operator.LESS_THAN_OR_EQUAL, List.of(12)), hints.get(3));
+    }
+
+    public void testOrMergesInValuesWithoutDuplicates() {
+        Expression condition = new Or(
+            SRC,
+            new Or(SRC, new In(SRC, unresolved("hour"), List.of(intLiteral(1), intLiteral(2))), unresolvedEquals("hour", 2)),
+            unresolvedEquals("hour", 3)
+        );
+        assertEquals(List.of(new PartitionFilterHint("hour", Operator.IN, List.of(1, 2, 3))), hintsOf(condition));
+    }
+
+    /** A branch is read like a whole condition, so an {@code OR} nested inside a branch contributes its own values. */
+    public void testOrNestedInsideABranch() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 17), new Or(SRC, unresolvedEquals("hour", 1), unresolvedEquals("hour", 2))),
+            new And(SRC, unresolvedEquals("day", 18), unresolvedEquals("hour", 3))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("day", Operator.IN, List.of(17, 18)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(1, 2, 3))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    public void testOrNextToOtherConjuncts() {
+        Expression condition = new And(
+            SRC,
+            unresolvedEquals("year", 2026),
+            new Or(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 7))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("year", Operator.EQUALS, List.of(2026)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(5, 7))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    /** A branch that pins a column twice contributes the smaller of its two sets; each one covers the branch. */
+    public void testOrBranchPinningAColumnTwiceKeepsTheSmallerSet() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, new In(SRC, unresolved("hour"), List.of(intLiteral(5), intLiteral(6))), unresolvedEquals("hour", 6)),
+            unresolvedEquals("hour", 7)
+        );
+        assertEquals(List.of(new PartitionFilterHint("hour", Operator.IN, List.of(6, 7))), hintsOf(condition));
+    }
+
+    /**
+     * {@code year == 2025 AND year == 2025.0} matches the {@code year=2025} folder, but {@code Integer 2025} and
+     * {@code Double 2025.0} are not {@code equals}. Intersecting them would empty the branch and list only 2024.
+     */
+    public void testOrBranchPinningAColumnWithTwoNumericSpellingsKeepsItsValue() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("year", 2025), new Equals(SRC, unresolved("year"), new Literal(SRC, 2025.0, DataType.DOUBLE))),
+            unresolvedEquals("year", 2024)
+        );
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.IN, List.of(2025, 2024))), hintsOf(condition));
+    }
+
+    /** A {@code == null} compares unknown against every row: it names no folder, and must not fail the query. */
+    public void testNullComparisonEmitsNothing() {
+        Expression condition = new Equals(SRC, unresolved("year"), Literal.NULL);
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    /** A branch that compares with {@code null} pins nothing, so the {@code OR} leaves the column open. */
+    public void testOrWithANullBranchEmitsNothing() {
+        Expression condition = new Or(SRC, unresolvedEquals("year", 2025), new Equals(SRC, unresolved("year"), Literal.NULL));
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    /** A null item never makes an {@code IN} true, so the hint keeps the other items. */
+    public void testOrWithANullInsideInDropsTheNull() {
+        Expression condition = new Or(
+            SRC,
+            new In(SRC, unresolved("year"), List.of(intLiteral(2025), Literal.NULL)),
+            unresolvedEquals("year", 2024)
+        );
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.IN, List.of(2025, 2024))), hintsOf(condition));
+    }
+
+    /** The same {@code OR} yields the same hint in every occurrence, so {@code FORK} branches that share it keep it. */
+    public void testForkBranchesWithTheSameOrKeepTheHint() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        Expression condition = new Or(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 7));
+        LogicalPlan fork = new Fork(SRC, List.of(new Filter(SRC, rel, condition), new Filter(SRC, rel, condition)), List.of());
+
+        assertEquals(
+            List.of(new PartitionFilterHint("hour", Operator.IN, List.of(5, 7))),
+            PartitionFilterHintExtractor.extract(fork).get(PATH)
+        );
     }
 
     public void testNoFilterReturnsEmpty() {
@@ -886,19 +1256,11 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         );
     }
 
-    public void testResolvedStartsWithFileNameEmitsRange() {
+    public void testResolvedStartsWithFileNameEmitsLike() {
         Expression filter = new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("2024-03-15"));
-        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
-            List.of(filter),
-            Set.of(FileMetadataColumns.NAME),
-            Set.of()
-        );
         assertEquals(
-            List.of(
-                new PartitionFilterHint(FileMetadataColumns.NAME, Operator.GREATER_THAN_OR_EQUAL, List.of("2024-03-15")),
-                new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LESS_THAN, List.of("2024-03-16"))
-            ),
-            hints
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("2024-03-15*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
         );
     }
 
@@ -942,21 +1304,115 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of()).isEmpty());
     }
 
-    public void testResolvedWildcardLikePrefixEmitsRange() {
+    public void testResolvedWildcardLikePrefixOnFileNameEmitsLike() {
         Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("a-*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedStartsWithAndLikeDropsSubsumedPrefix() {
+        Expression filter = new And(
+            SRC,
+            new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("a-")),
+            new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*z"))
+        );
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("a-*z"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedStartsWithMetacharLiteralNotDroppedByUnrelatedLike() {
+        Expression filter = new And(
+            SRC,
+            new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("a*")),
+            new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a*z"))
+        );
         List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
             List.of(filter),
             Set.of(FileMetadataColumns.NAME),
             Set.of()
         );
-        assertEquals(Operator.GREATER_THAN_OR_EQUAL, hints.get(0).operator());
-        assertEquals("a-", hints.get(0).values().get(0));
-        assertEquals(Operator.LESS_THAN, hints.get(1).operator());
+        assertEquals(2, hints.size());
+        assertEquals(Operator.LIKE, hints.get(0).operator());
+        assertEquals(Operator.LIKE, hints.get(1).operator());
+        assertEquals("a\\**", hints.get(0).values().get(0));
+        assertEquals("a*z", hints.get(1).values().get(0));
     }
 
-    public void testResolvedWildcardLikeNonPrefixEmitsNothing() {
+    public void testExtractFileNameLikeRequiresMetadataClause() {
+        Expression like = new WildcardLike(SRC, unresolved(FileMetadataColumns.NAME), new WildcardPattern("*_20261118T14*"));
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(like, PATH)).isEmpty());
+
+        NamedExpression requested = MetadataAttribute.create(SRC, FileMetadataColumns.NAME);
+        UnresolvedExternalRelation rel = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, PATH), Map.of(), List.of(requested));
+        LogicalPlan plan = new Filter(SRC, rel, like);
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
+        assertNotNull(hints);
+        assertEquals(1, hints.size());
+        assertEquals(FileMetadataColumns.NAME, hints.get(0).columnName());
+        assertEquals(Operator.LIKE, hints.get(0).operator());
+        assertEquals("*_20261118T14*", hints.get(0).values().get(0));
+    }
+
+    public void testResolvedWildcardLikeNonPrefixOnFileNameEmitsLike() {
         Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*z"));
-        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("a-*z"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedWildcardLikeContainsTimestampEmitsLike() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("*_20261118T14*"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("*_20261118T14*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedWildcardLikeEscapeEmitsLike() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("file\\*.parquet"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("file\\*.parquet"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedWildcardLikeSingleCharWildcardEmitsLike() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("file?.parquet"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("file?.parquet"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedWildcardLikeOnFilePathEmitsLike() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.PATH), new WildcardPattern("*/2026/11/18/*"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.PATH, Operator.LIKE, List.of("*/2026/11/18/*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.PATH), Set.of())
+        );
+    }
+
+    public void testUnrequestedFileNameLikeEmitsNothing() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("*_20261118T14*"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of()).isEmpty());
+    }
+
+    public void testResolvedWildcardLikeNonPrefixOnPartitionKeyEmitsNothing() {
+        Expression filter = new WildcardLike(SRC, keywordField("year"), new WildcardPattern("*24"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year")).isEmpty());
+    }
+
+    public void testResolvedWildcardLikePrefixOnPartitionKeyEmitsRange() {
+        Expression filter = new WildcardLike(SRC, keywordField("year"), new WildcardPattern("2024*"));
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year"));
+        assertEquals(Operator.GREATER_THAN_OR_EQUAL, hints.get(0).operator());
+        assertEquals("2024", hints.get(0).values().get(0));
+        assertEquals(Operator.LESS_THAN, hints.get(1).operator());
     }
 
     public void testResolvedEqualsOnAliasEmitsNothing() {
@@ -967,6 +1423,131 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
     public void testResolvedEmptyPrefixEmitsNothing() {
         Expression filter = new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral(""));
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedOrAcrossPartitionKeysBecomesOneInPerColumn() {
+        Expression filter = new Or(
+            SRC,
+            new And(SRC, new Equals(SRC, intField("day"), intLiteral(17)), new Equals(SRC, intField("hour"), intLiteral(23))),
+            new And(SRC, new Equals(SRC, intField("day"), intLiteral(18)), new Equals(SRC, intField("hour"), intLiteral(0)))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("day", Operator.IN, List.of(17, 18)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(23, 0))
+            ),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("day", "hour"))
+        );
+    }
+
+    /** A data column is not a listing key, so inside a branch it is ignored and the partition key still narrows. */
+    public void testResolvedOrIgnoresDataColumnsInsideBranches() {
+        Expression filter = new Or(
+            SRC,
+            new And(SRC, new Equals(SRC, intField("day"), intLiteral(17)), new Equals(SRC, intField("id"), intLiteral(1))),
+            new And(SRC, new Equals(SRC, intField("day"), intLiteral(18)), new Equals(SRC, intField("id"), intLiteral(2)))
+        );
+        assertEquals(
+            List.of(new PartitionFilterHint("day", Operator.IN, List.of(17, 18))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("day"))
+        );
+    }
+
+    /** A branch on a data column alone can match any file, so the {@code OR} must not narrow the listing. */
+    public void testResolvedOrWithADataColumnBranchEmitsNothing() {
+        Expression filter = new Or(SRC, new Equals(SRC, intField("day"), intLiteral(17)), new Equals(SRC, intField("id"), intLiteral(1)));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("day")).isEmpty());
+    }
+
+    public void testResolvedOrOfTimestampWindowsEmitsRange() {
+        Instant start1 = Instant.parse("2026-11-17T22:00:00Z");
+        Instant end1 = Instant.parse("2026-11-18T00:00:00Z");
+        Instant start2 = Instant.parse("2026-11-19T04:00:00Z");
+        Instant end2 = Instant.parse("2026-11-19T06:00:00Z");
+        Expression filter = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, datetimeField("ts"), datetimeLiteral(start1.toEpochMilli())),
+                new LessThan(SRC, datetimeField("ts"), datetimeLiteral(end1.toEpochMilli()))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, datetimeField("ts"), datetimeLiteral(start2.toEpochMilli())),
+                new LessThan(SRC, datetimeField("ts"), datetimeLiteral(end2.toEpochMilli()))
+            )
+        );
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(filter),
+            Set.of(),
+            Set.of("ts"),
+            PartitionFilterHintExtractor.TEMPORAL
+        );
+        assertEquals("ts", hints.get(0).columnName());
+        assertEquals(Operator.RANGE, hints.get(0).operator());
+        assertEquals(List.of(new BoundRange(start1, true, end1, false), new BoundRange(start2, true, end2, false)), hints.get(0).values());
+        assertEquals("temporal hull stays off extract so PartitionSpec cannot clip UTC windows with it", 1, hints.size());
+    }
+
+    /**
+     * Quoted offset windows whose text order is not UTC order. A string hull would invert and
+     * drop both; RANGE-only extract keeps Nov 17 10:00 UTC and Nov 18 10:00 UTC.
+     */
+    public void testQuotedOffsetWindowsSkipHullAndKeepBothFolders() {
+        Expression condition = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("ts"), keywordLiteral("2026-11-17T22:00:00-12:00")),
+                new LessThan(SRC, unresolved("ts"), keywordLiteral("2026-11-17T23:00:00-12:00"))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("ts"), keywordLiteral("2026-11-18T00:00:00+14:00")),
+                new LessThan(SRC, unresolved("ts"), keywordLiteral("2026-11-18T01:00:00+14:00"))
+            )
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(1, hints.size());
+        assertEquals("ts", hints.get(0).columnName());
+        assertEquals(Operator.RANGE, hints.get(0).operator());
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        assertTrue(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "17", "hour", "10")));
+        assertTrue(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "18", "hour", "10")));
+        assertFalse(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "17", "hour", "22")));
+        assertFalse(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "18", "hour", "0")));
+    }
+
+    /**
+     * Offset-less quoted {@code LocalDateTime} windows. Without the local-date-time check,
+     * extract would emit a lexical hull; RANGE-only keeps both UTC hours and the gap.
+     */
+    public void testQuotedOffsetlessWindowsSkipHullAndKeepBothFolders() {
+        Expression condition = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("ts"), keywordLiteral("2026-11-17T22:00:00")),
+                new LessThan(SRC, unresolved("ts"), keywordLiteral("2026-11-18T00:00:00"))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("ts"), keywordLiteral("2026-11-19T04:00:00")),
+                new LessThan(SRC, unresolved("ts"), keywordLiteral("2026-11-19T06:00:00"))
+            )
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(1, hints.size());
+        assertEquals("ts", hints.get(0).columnName());
+        assertEquals(Operator.RANGE, hints.get(0).operator());
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        assertTrue(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "17", "hour", "22")));
+        assertTrue(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "19", "hour", "4")));
+        assertFalse(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "18", "hour", "3")));
     }
 
     public void testResolvedOrOfTwoPrefixesEmitsNothing() {
@@ -982,6 +1563,61 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
     public void testResolvedCaseInsensitiveLikeEmitsNothing() {
         Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*"), true);
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedNotLikeEmitsNothing() {
+        Expression filter = new Not(SRC, new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("*_20261118T14*")));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedContainsFileNameEmitsLike() {
+        Expression filter = new Contains(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("_20261118T14"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("*_20261118T14*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedContainsEscapesWildcardMetacharacters() {
+        Expression filter = new Contains(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("file*.parquet"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("*file\\*.parquet*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedEndsWithFileNameEmitsLike() {
+        Expression filter = new EndsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral(".log.gz"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("*.log.gz"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testUnrequestedContainsFileNameEmitsNothing() {
+        Expression filter = new Contains(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("_20261118T14"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of()).isEmpty());
+    }
+
+    public void testTimeRangeDoesNotInventFileNameLike() {
+        Expression filter = new Range(
+            SRC,
+            datetimeField(MetadataAttribute.TIMESTAMP_FIELD),
+            datetimeLiteral(1L),
+            true,
+            datetimeLiteral(2L),
+            false,
+            ZoneOffset.UTC
+        );
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(filter),
+            Set.of(FileMetadataColumns.NAME),
+            Set.of()
+        );
+        for (PartitionFilterHint hint : hints) {
+            assertNotEquals(FileMetadataColumns.NAME, hint.columnName());
+            assertNotEquals(Operator.LIKE, hint.operator());
+        }
     }
 
     public void testPreprocessorFoldsNestedDateExtractOverDateTrunc() {
@@ -1070,6 +1706,15 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
     private static UnresolvedAttribute unresolved(String name) {
         return new UnresolvedAttribute(SRC, name);
+    }
+
+    private static Expression unresolvedEquals(String column, int value) {
+        return new Equals(SRC, unresolved(column), intLiteral(value));
+    }
+
+    /** The hints a single filter over {@link #PATH} yields. */
+    private static List<PartitionFilterHint> hintsOf(Expression condition) {
+        return PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).get(PATH);
     }
 
     private static FieldAttribute intField(String name) {

@@ -1,0 +1,98 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "Support for columnar index modes required"
+
+---
+"logsdb_columnar enables ignore_dynamic_beyond_limit by default":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_default
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+
+  - do:
+      indices.get_settings:
+        index: test_logsdb_columnar_default
+        include_defaults: true
+  - match: { test_logsdb_columnar_default.defaults.index.mapping.total_fields.ignore_dynamic_beyond_limit: "true" }
+
+---
+"logsdb_columnar drops a dynamic field beyond the limit and records it in _ignored by default":
+  # "@timestamp" and "known" use up the whole budget of total_fields.limit, so every dynamic field is beyond the limit.
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_beyond_limit
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.mapping.total_fields.limit: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              known:
+                type: keyword
+
+  - do:
+      index:
+        index: test_logsdb_columnar_beyond_limit
+        id: "1"
+        refresh: true
+        body:
+          "@timestamp": "2026-11-25T00:00:00Z"
+          known: "a"
+          beyond_limit: 42
+
+  - match: { result: created }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_beyond_limit
+        body:
+          query:
+            exists:
+              field: _ignored
+  - match: { hits.total.value: 1 }
+
+  - do:
+      get:
+        index: test_logsdb_columnar_beyond_limit
+        id: "1"
+  - match: { _source: { "@timestamp": "2026-11-25T00:00:00.000Z", known: "a" } }
+
+---
+"logsdb_columnar rejects a dynamic field beyond the limit when ignore_dynamic_beyond_limit is disabled":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_rejected
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.mapping.total_fields.limit: 2
+            index.mapping.total_fields.ignore_dynamic_beyond_limit: false
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              known:
+                type: keyword
+
+  - do:
+      catch: /Limit of total fields \[2\] has been exceeded/
+      index:
+        index: test_logsdb_columnar_rejected
+        body:
+          "@timestamp": "2026-11-25T00:00:00Z"
+          known: "a"
+          beyond_limit: 42

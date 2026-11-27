@@ -80,6 +80,7 @@ import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.snapshots.RestoreMetrics;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -257,6 +258,7 @@ public class Node implements Closeable {
         injector.getInstance(IndicesMetrics.class).start();
         injector.getInstance(AnalyzerMetrics.class).start();
         injector.getInstance(SnapshotMetrics.class).start();
+        injector.getInstance(RestoreMetrics.class).start();
         injector.getInstance(RecoveryMetricsCollector.class).start();
         injector.getInstance(HealthPeriodicLogger.class).start();
         injector.getInstance(PersistentTaskLifecycleManager.class).start();
@@ -462,6 +464,7 @@ public class Node implements Closeable {
         stopIfStarted(IndicesMetrics.class);
         stopIfStarted(AnalyzerMetrics.class);
         stopIfStarted(SnapshotMetrics.class);
+        stopIfStarted(RestoreMetrics.class);
         stopIfStarted(RecoveryMetricsCollector.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
@@ -538,6 +541,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(IndicesMetrics.class));
         toClose.add(injector.getInstance(AnalyzerMetrics.class));
         toClose.add(injector.getInstance(SnapshotMetrics.class));
+        toClose.add(injector.getInstance(RestoreMetrics.class));
         toClose.add(injector.getInstance(RecoveryMetricsCollector.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));

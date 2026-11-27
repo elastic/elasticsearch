@@ -62,3 +62,29 @@ profile:
   - match: { aggregations.g.t.buckets.0.key: two }
   - match: { aggregations.g.t.buckets.1.key: one }
   - match: { profile.shards.0.aggregations.0.description: g }
+
+---
+global under terms:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ global_under_adapting_agg_error ]
+      test_runner_features: [capabilities]
+      reason: "global under a terms aggregation returns a 400"
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            t:
+              terms:
+                field: name.keyword
+              aggs:
+                g:
+                  global: {}
+
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "Aggregation [t] cannot have a global sub-aggregation [g]. Global aggregations can only be defined as top level aggregations" }

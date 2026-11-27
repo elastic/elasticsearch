@@ -255,10 +255,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     }
 
     /**
-     * Records in {@code references} every name of {@code resolved} that is not there yet, with the in-scope column it is a likely typo
-     * of. The suggestion comes from a node that references the name, other than a {@code DROP}: dropping a missing field is harmless,
-     * so nothing would be gained by warning about it. {@code plan} is the plan before the names were added, so only earlier passes'
-     * additions are in its outputs; those are skipped like this pass's, so a missing field is never suggested.
+     * Records in {@code references} every name of {@code resolved}, with the in-scope column it is a likely typo of. The suggestion
+     * comes from a node that references the name, other than a {@code DROP}: dropping a missing field is harmless, so nothing would
+     * be gained by warning about it. {@code plan} is the plan before the names were added, so only earlier passes' additions are in
+     * its outputs; those are skipped like this pass's, so a missing field is never suggested.
      */
     private static void recordUnmappedReferences(
         LogicalPlan plan,
@@ -287,7 +287,12 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             });
         });
         for (String name : resolvedNames) {
-            references.putIfAbsent(name, new AnalyzerContext.UnmappedReference(loaded, suggestions.get(name)));
+            // A name that an earlier node resolved without a suggestion may have one here, where a similar column is in scope.
+            references.merge(
+                name,
+                new AnalyzerContext.UnmappedReference(loaded, suggestions.get(name)),
+                (recorded, now) -> recorded.suggestion() == null ? now : recorded
+            );
         }
     }
 

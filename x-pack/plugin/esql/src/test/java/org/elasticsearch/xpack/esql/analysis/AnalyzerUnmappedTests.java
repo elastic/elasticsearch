@@ -1437,6 +1437,19 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
+     * A name that is first resolved in a branch that has no similar column, and again in one that has, is still a likely typo.
+     */
+    public void testUnmappedTypoWarningFromLaterBranchAfterOneWithoutSuggestion() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        TestAnalyzer analyzer = analyzer().addIndex(standardIndex("idx_a", Map.of("emp_no", keywordField("emp_no"))))
+            .addIndex(standardIndex("idx_b", Map.of("first_name", keywordField("first_name"))));
+        analyzer.statement(
+            setUnmappedNullify("FROM (FROM idx_a | WHERE fist_name IS NULL), (FROM idx_b | WHERE fist_name IS NULL) | KEEP emp_no")
+        );
+        assertWarnings("Field [fist_name] is not mapped and is null; did you mean [first_name]?");
+    }
+
+    /**
      * A view body is not the caller's query to fix, so a typo in it is silent, whether the view SETs the mode itself or the caller
      * does. The caller's own typo of a column the view outputs still warns.
      */

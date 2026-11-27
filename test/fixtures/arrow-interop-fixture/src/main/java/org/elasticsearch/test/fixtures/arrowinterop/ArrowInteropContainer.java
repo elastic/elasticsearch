@@ -11,6 +11,7 @@ package org.elasticsearch.test.fixtures.arrowinterop;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerAvailability;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
+import org.testcontainers.Testcontainers;
 import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.ExecConfig;
 import org.testcontainers.images.builder.ImageFromDockerfile;
@@ -39,8 +40,9 @@ import java.util.Map;
  * The images are always built locally from the Dockerfiles in {@code docker/<language>/}; they are not
  * published. Docker's layer cache makes subsequent builds cheap.
  * <p>
- * Since the node under test runs on the Docker host, use {@link #HOST_ADDRESS} to reach it, and make sure it
- * listens on a non-loopback interface.
+ * Since the node under test runs on the Docker host, use {@link #HOST_ADDRESS} to reach it. This requires its port to be
+ * exposed with {@link #exposeHostPort} <em>before</em> the container starts. The port is relayed by Testcontainers, so the node
+ * can keep listening on the loopback interface only.
  */
 public final class ArrowInteropContainer extends DockerEnvironmentAwareTestContainer {
 
@@ -79,8 +81,11 @@ public final class ArrowInteropContainer extends DockerEnvironmentAwareTestConta
         }
     }
 
-    /** Host name under which a container reaches the Docker host (where the Elasticsearch node under test runs). */
-    public static final String HOST_ADDRESS = "host.docker.internal";
+    /**
+     * Host name under which a container reaches the ports of the Docker host (where the Elasticsearch node under test runs)
+     * that were exposed with {@link #exposeHostPort}.
+     */
+    public static final String HOST_ADDRESS = "host.testcontainers.internal";
 
     /** A client that doesn't terminate in this time is killed, and its {@link #fetch} fails. */
     private static final int CLIENT_TIMEOUT_SECONDS = 120;
@@ -101,10 +106,17 @@ public final class ArrowInteropContainer extends DockerEnvironmentAwareTestConta
     public ArrowInteropContainer(Language language) {
         super(image(language));
         this.language = language;
-        // On Linux, host.docker.internal is not defined by default (it is on Docker Desktop)
-        withExtraHost(HOST_ADDRESS, "host-gateway");
         // Keep the container running, as clients are run in it
         withCommand("sleep", "infinity");
+    }
+
+    /**
+     * Makes a port of the Docker host reachable from the containers that start after this call, as {@link #HOST_ADDRESS} and that
+     * port. Testcontainers relays it through a helper container, so that the service doesn't have to listen on a non-loopback
+     * interface and be reachable from the network.
+     */
+    public static void exposeHostPort(int port) {
+        Testcontainers.exposeHostPorts(port);
     }
 
     public Language language() {

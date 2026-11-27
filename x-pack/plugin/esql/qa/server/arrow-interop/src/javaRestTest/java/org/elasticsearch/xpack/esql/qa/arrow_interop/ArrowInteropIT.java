@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.qa.arrow_interop;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
@@ -18,15 +19,20 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.fixtures.arrowinterop.ArrowInteropContainer;
 import org.elasticsearch.test.fixtures.arrowinterop.ArrowInteropContainer.Language;
+import org.elasticsearch.test.fixtures.testcontainers.DockerAvailability;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,30 +58,50 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * <li>{@code expected/<scenario>.json} is the array of columns that clients must decode for a scenario.</li>
  * </ul>
  */
-@ThreadLeakFilters(filters = { TestClustersThreadFilter.class, TestContainersThreadFilter.class })
+@ThreadLeakFilters(
+    filters = { TestClustersThreadFilter.class, TestContainersThreadFilter.class, ArrowInteropIT.PortRelayThreadFilter.class }
+)
 public class ArrowInteropIT extends ESRestTestCase {
 
     private static final String INDEX = "arrow-interop";
 
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    /**
+     * The relay that Testcontainers sets up to expose the node to the containers has an unnamed thread, that is
+     * running for the whole JVM and that we can't stop. It is identified by its stack.
+     */
+    public static class PortRelayThreadFilter implements ThreadFilter {
+        @Override
+        public boolean reject(Thread t) {
+            return Arrays.stream(t.getStackTrace()).anyMatch(e -> e.getClassName().startsWith("org.testcontainers.shaded.com.trilead."));
+        }
+    }
+
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        // The Arrow clients run in Docker containers, which can't reach a node that only listens on loopback.
-        // This is acceptable as test nodes run on ephemeral hosts.
-        .setting("http.host", "0.0.0.0")
+        .setting("http.host", "127.0.0.1")
         .build();
 
     /**
-     * The Arrow clients are started once for all tests, as each test then only runs a client in its container.
+     * The Arrow clients run in Docker containers, that reach the node through a relay set up by Testcontainers: the node
+     * only listens on loopback, and isn't exposed to the network. The relay is set up once the node is started, and
+     * before the clients start, hence the explicit order of the rules.
+     * <p>
+     * The clients are started once for all tests, as each test then only runs a client in its container.
      * The tests are skipped if Docker is not available.
      */
-    @ClassRule
-    public static ArrowInteropContainer pythonClient = new ArrowInteropContainer(Language.PYTHON);
+    private static final ArrowInteropContainer pythonClient = new ArrowInteropContainer(Language.PYTHON);
+    private static final ArrowInteropContainer nodeClient = new ArrowInteropContainer(Language.NODE);
 
     @ClassRule
-    public static ArrowInteropContainer nodeClient = new ArrowInteropContainer(Language.NODE);
+    public static TestRule rules = RuleChain.outerRule(cluster).around(new ExternalResource() {
+        @Override
+        protected void before() {
+            DockerAvailability.assumeDockerIsAvailable();
+            ArrowInteropContainer.exposeHostPort(httpPort());
+        }
+    }).around(pythonClient).around(nodeClient);
 
     private static List<ArrowInteropContainer> clients() {
         return List.of(pythonClient, nodeClient);
@@ -309,7 +335,7 @@ public class ArrowInteropIT extends ESRestTestCase {
         return parseJson(client.fetch(url, body));
     }
 
-    private int httpPort() {
+    private static int httpPort() {
         String address = cluster.getHttpAddresses().split(",")[0];
         return Integer.parseInt(address.substring(address.lastIndexOf(':') + 1));
     }

@@ -578,7 +578,9 @@ public class InboundAggregatorTests extends ESTestCase {
 
     public void testResponseWithoutHandlerIsDroppedAsItArrives() throws IOException {
         final long requestId = randomNonNegativeLong();
-        aggregator = responseAggregator(circuitBreaker, requestId, new ReservingResponseHandler(newLimitedBreaker(ByteSizeValue.ofKb(1))));
+        final CircuitBreaker inFlightBreaker = newLimitedBreaker(ByteSizeValue.ofKb(1));
+        final ReservingResponseHandler responseHandler = new ReservingResponseHandler(newLimitedBreaker(ByteSizeValue.ofKb(1)));
+        aggregator = responseAggregator(inFlightBreaker, requestId, responseHandler);
 
         // No handler for this request ID, for instance because it timed out
         startAggregatingResponse(randomValueOtherThan(requestId, ESTestCase::randomNonNegativeLong), TransportStatus.setResponse((byte) 0));
@@ -587,11 +589,15 @@ public class InboundAggregatorTests extends ESTestCase {
             aggregator.aggregate(fragment);
             fragment.close();
             assertFalse(fragment.hasReferences());
+            assertThat(inFlightBreaker.getUsed(), equalTo(0L));
+            assertThat(responseHandler.breaker.getUsed(), equalTo(0L));
         }
         try (InboundMessage aggregated = aggregator.finishAggregation()) {
             assertTrue(aggregated.isShortCircuit());
             assertThat(aggregated.getException(), instanceOf(TransportException.class));
         }
+        assertThat(inFlightBreaker.getUsed(), equalTo(0L));
+        assertThat(responseHandler.breaker.getUsed(), equalTo(0L));
     }
 
     public void testResponseHandlerCancellationCutsResponseShort() throws IOException {

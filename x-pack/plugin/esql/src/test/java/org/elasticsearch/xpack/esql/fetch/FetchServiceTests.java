@@ -299,6 +299,22 @@ public class FetchServiceTests extends FetchContextsTestCase {
     }
 
     /**
+     * The drivers allocate through the breaker of the query, so the request reports the peak of the query on the node.
+     */
+    public void testReportsThePeakMemoryOfTheQuery() throws Exception {
+        List<OpenShard> shards = openEveryShard();
+        FetchRequest request = request(shards, allNs());
+
+        try (Fetched fetched = fetch(request)) {
+            assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, request)));
+            assertThat(fetched.info().peakMemoryBytes(), greaterThan(0L));
+        }
+        freeAndAssertAllFreed(shards);
+        // the query is forgotten once its pages are released
+        assertBusy(() -> assertThat(searchService().queryScheduler().queries(), equalTo(0)));
+    }
+
+    /**
      * A small fetch runs on one driver, even when its documents lie in many segments and so in many slices.
      */
     public void testASmallFetchRunsOnOneDriver() throws Exception {

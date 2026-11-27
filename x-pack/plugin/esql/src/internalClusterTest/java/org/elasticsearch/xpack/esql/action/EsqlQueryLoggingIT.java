@@ -26,8 +26,10 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -47,6 +49,8 @@ import org.junit.BeforeClass;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -93,6 +97,13 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         Loggers.removeAppender(queryLog, appender);
         appender.stop();
         Loggers.setLevel(queryLog, origQueryLogLevel);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(FailingFieldPlugin.class);
+        return plugins;
     }
 
     @Before
@@ -164,6 +175,35 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             Instant to = Instant.parse((String) getMessageField(event, EsqlLogProducer.TIME_RANGE_FILTER_TO_FIELD));
             assertThat(Duration.between(from, to), equalTo(Duration.ofHours(1)));
         }
+    }
+
+    /**
+     * A query that fails on a data node logs the peak memory the data node held before it failed, which the coordinator learns from
+     * the response header of the failed request. The coordinator holds no shard, so the peak can only come from the data node.
+     */
+    public void testLoggingFailureOnADataNodeLogsItsPeakMemory() {
+        assertAcked(indicesAdmin().prepareCreate("fail-on-data-node").setSettings(indexSettings(1, 0)).setMapping("""
+            {
+              "runtime": { "fail_me": { "type": "long", "script": { "source": "", "lang": "failing_field" } } },
+              "properties": { "foo": { "type": "long" } }
+            }"""));
+        int docs = between(1, 50);
+        for (int d = 0; d < docs; d++) {
+            prepareIndex("fail-on-data-node").setSource("foo", d).get();
+        }
+        indicesAdmin().prepareRefresh("fail-on-data-node").get();
+        appender.reset();
+
+        var request = syncEsqlQueryRequest("FROM fail-on-data-node | KEEP fail_me | LIMIT 100");
+        Exception e = expectThrows(
+            Exception.class,
+            () -> internalCluster().coordOnlyNodeClient().execute(EsqlQueryAction.INSTANCE, request).actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        assertThat(e.getMessage(), equalTo("Accessing failing field"));
+        var message = getMessageData(appender.getLastEventAndReset());
+        String peak = message.get(EsqlLogProducer.PROFILE_PREFIX + "search_peak_memory_bytes");
+        assertNotNull("the failed query logs the peak memory of the data node", peak);
+        assertThat(Long.parseLong(peak), greaterThan(0L));
     }
 
     public void testLoggingRequestedTimeRangeOnFailure() {

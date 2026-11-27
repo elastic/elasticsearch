@@ -228,11 +228,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 final AtomicLong pagesFetched = new AtomicLong();
                 final AtomicBoolean requestSent = new AtomicBoolean();
+                // what the data node did before it failed, as its response header reported it
+                final AtomicReference<DriverCompletionInfo> failedUsage = new AtomicReference<>(DriverCompletionInfo.EMPTY);
                 // A node that was sent an INTO may have written rows before it failed, without a page for the coordinator to have
                 // fetched, and another copy of the shard would write the same rows again
                 var listener = ActionListener.wrap(
                     nodeListener::onResponse,
-                    e -> nodeListener.onFailure(e, pagesFetched.get() > 0 || (writesInto && requestSent.get()))
+                    e -> nodeListener.onFailure(e, pagesFetched.get() > 0 || (writesInto && requestSent.get()), failedUsage.get())
                 );
                 final Transport.Connection connection;
                 try {
@@ -308,10 +310,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 groupTask,
                                 computeService.planRequestOptions(),
                                 new ActionListenerResponseHandler<>(
-                                    ComputeService.finishRemoteSinkIfNotSent(remoteSink, computeListener.acquireCompute().map(r -> {
-                                        nodeResponseRef.set(r);
-                                        return r.completionInfo();
-                                    })),
+                                    ComputeService.finishRemoteSinkIfNotSent(
+                                        remoteSink,
+                                        takingFailedUsage(threadContext, failedUsage, computeListener.acquireCompute().map(r -> {
+                                            nodeResponseRef.set(r);
+                                            return r.completionInfo();
+                                        }))
+                                    ),
                                     in -> new DataNodeComputeResponse(in, threadContext),
                                     searchExecutor
                                 )
@@ -336,6 +341,21 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             onFailureUsage,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );
+    }
+
+    /**
+     * Takes what a failed data node request did off the thread context, where its response header put it, into {@code usage}
+     * before {@code delegate} fails, so that it never reaches the client.
+     */
+    private static <T> ActionListener<T> takingFailedUsage(
+        ThreadContext threadContext,
+        AtomicReference<DriverCompletionInfo> usage,
+        ActionListener<T> delegate
+    ) {
+        return delegate.delegateResponse((l, e) -> {
+            usage.set(FailedComputeUsageHeader.take(threadContext));
+            l.onFailure(e);
+        });
     }
 
     void startExternalComputeOnDataNodes(
@@ -1508,7 +1528,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 ActionListener.runAfter(
                     listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures)),
                     () -> Releasables.close(sortBound)
-                )
+                ),
+                // Called just before the failure is delivered, on the thread that delivers it: the header is sent with that response.
+                usage -> FailedComputeUsageHeader.write(transportService.getThreadPool().getThreadContext(), usage)
             )
         ) {
             var parentListener = computeListener.acquireAvoid();

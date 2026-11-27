@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -260,6 +259,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
         // The metrics of the query are reported once, with the first outcome that is decided for it.
         AtomicBoolean metricsCollected = new AtomicBoolean();
+        // the completion info of the final compute, once it completed
+        AtomicReference<DriverCompletionInfo> finalWork = new AtomicReference<>();
 
         PlanRunner planRunner = new PlanRunner() {
             @Override
@@ -398,6 +399,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(versionedResult -> {
                 Result result = versionedResult.inner();
+                finalWork.set(result.completionInfo());
                 try {
                     TransportEsqlQueryAction.failIfCancelled(task, result);
                 } catch (TaskCancelledException cancelled) {
@@ -476,7 +478,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             }, ex -> {
                 computeDone.set(true);
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, ex);
-                DriverCompletionInfo workDone = workDoneBeforeFailure(executionInfo, resultRef.get());
+                DriverCompletionInfo workDone = TransportEsqlQueryAction.workDoneBeforeFailure(executionInfo, finalWork.get());
                 transportEsqlQueryAction.collectMetricsOnce(metricsCollected, executionInfo, workDone, PlanExecutor.outcomeOf(ex));
                 PageStreamPublisher.StreamFooter footer = failureFooter(
                     ex,
@@ -494,16 +496,6 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 listener.onFailure(ex);
             })
         );
-    }
-
-    /**
-     * What is known to have been done by a query that failed. If its final compute completed and the failure came after it, for
-     * example while the footer was written, that is everything the query did: its completion info includes the intermediate computes.
-     * Otherwise it is what the computes that failed and the sub-plans that completed before them did, see
-     * {@link EsqlExecutionInfo#addFailedWork}.
-     */
-    static DriverCompletionInfo workDoneBeforeFailure(EsqlExecutionInfo executionInfo, @Nullable Result finalResult) {
-        return finalResult != null ? finalResult.completionInfo() : executionInfo.failedWork();
     }
 
     static ToXContent footerClusters(EsqlExecutionInfo executionInfo) {

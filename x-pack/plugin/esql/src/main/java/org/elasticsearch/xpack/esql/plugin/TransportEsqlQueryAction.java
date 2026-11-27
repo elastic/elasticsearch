@@ -105,6 +105,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
@@ -425,6 +426,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
         // The metrics of the query are reported once, with the first outcome that is decided for it.
         AtomicBoolean metricsCollected = new AtomicBoolean();
+        // the completion info of the final compute, once it completed
+        AtomicReference<DriverCompletionInfo> finalWork = new AtomicReference<>();
         PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, maxResultSize, resultListener) -> computeService
             .execute(
                 sessionId,
@@ -459,6 +462,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
+                finalWork.set(result.inner().completionInfo());
                 try {
                     failIfCancelled(task, result.inner());
                 } catch (TaskCancelledException cancelled) {
@@ -500,9 +504,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             }, ex -> {
                 if (request.analyzeOnly() == false) {
                     recordCCSTelemetry(task, executionInfo, request, ex);
-                    DriverCompletionInfo failedWork = executionInfo.failedWork();
-                    collectMetricsOnce(metricsCollected, executionInfo, failedWork, PlanExecutor.outcomeOf(ex));
-                    request.setFailedPeakMemoryBytes(failedWork.peakMemoryBytes());
+                    DriverCompletionInfo workDone = workDoneBeforeFailure(executionInfo, finalWork.get());
+                    collectMetricsOnce(metricsCollected, executionInfo, workDone, PlanExecutor.outcomeOf(ex));
+                    request.setFailedPeakMemoryBytes(workDone.peakMemoryBytes());
                 }
                 listener.onFailure(ex);
             })
@@ -681,6 +685,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             clusterAlias -> remoteClusterService.shouldSkipOnFailure(clusterAlias, allowPartialResults),
             includeExecutionMetadata
         );
+    }
+
+    /**
+     * What is known to have been done by a query that failed. If its final compute completed and the failure came after it, such
+     * as a cancellation or a failure while the response was built, that is everything the query did: its completion info includes
+     * the intermediate computes. Otherwise it is what the computes that failed and the sub-plans that completed before them did, see
+     * {@link EsqlExecutionInfo#addFailedWork}.
+     */
+    static DriverCompletionInfo workDoneBeforeFailure(EsqlExecutionInfo executionInfo, @Nullable DriverCompletionInfo finalWork) {
+        return finalWork != null ? finalWork : executionInfo.failedWork();
     }
 
     /** Releases the pages here because the caller's {@link ActionListener#wrap} swallows the throw before any release path sees it. */

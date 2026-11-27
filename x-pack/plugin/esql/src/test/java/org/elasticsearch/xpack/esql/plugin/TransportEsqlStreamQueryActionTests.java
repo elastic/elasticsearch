@@ -854,12 +854,11 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
      */
     public void testWorkDoneBeforeFailure() {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
-        assertThat(TransportEsqlStreamQueryAction.workDoneBeforeFailure(executionInfo, null).bytesRead(), equalTo(0L));
+        assertThat(TransportEsqlQueryAction.workDoneBeforeFailure(executionInfo, null).bytesRead(), equalTo(0L));
         executionInfo.addFailedWork(usageWithBytesRead(1));
         executionInfo.addFailedWork(usageWithBytesRead(10));
-        Result finalResult = new Result(List.of(), List.of(), null, null, usageWithBytesRead(100), executionInfo, null);
 
-        assertThat(TransportEsqlStreamQueryAction.workDoneBeforeFailure(executionInfo, null).bytesRead(), equalTo(11L));
-        assertThat(TransportEsqlStreamQueryAction.workDoneBeforeFailure(executionInfo, finalResult).bytesRead(), equalTo(100L));
+        assertThat(TransportEsqlQueryAction.workDoneBeforeFailure(executionInfo, null).bytesRead(), equalTo(11L));
+        assertThat(TransportEsqlQueryAction.workDoneBeforeFailure(executionInfo, usageWithBytesRead(100)).bytesRead(), equalTo(100L));
     }
 }

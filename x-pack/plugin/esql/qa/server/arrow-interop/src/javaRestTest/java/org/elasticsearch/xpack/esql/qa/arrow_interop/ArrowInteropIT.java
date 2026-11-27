@@ -14,6 +14,7 @@ import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -84,7 +85,7 @@ public class ArrowInteropIT extends ESRestTestCase {
 
     private static String localhostAddress() {
         try {
-            return InetAddress.getByName("localhost").getHostAddress();
+            return NetworkAddress.format(InetAddress.getByName("localhost"));
         } catch (UnknownHostException e) {
             throw new IllegalStateException(e);
         }

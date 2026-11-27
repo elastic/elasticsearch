@@ -1,0 +1,5 @@
+area: Reindex
+issues: []
+pr: 166917
+summary: Charge local search hits to the request breaker in reindex/UBQ/DBQ
+type: enhancement

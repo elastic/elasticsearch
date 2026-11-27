@@ -60,6 +60,14 @@ public class StatelessThreadPools {
         int blobCopyCoreThreads,
         int blobCopyMaxThreads
     ) {
+        /// Returns the expected number of concurrent connections to blob store based on this config.
+        /// Not all pools are used on all node types, but we don't need an exact number here so that's okay.
+        ///
+        /// This is used to configure the maximum size of the connection pool in blob store clients.
+        public int expectedBlobStoreConcurrency() {
+            return shardReadMaxThreads + translogMaxThreads + shardWriteMaxThreads + clusterStateReadWriteMaxThreads + prewarmMaxThreads
+                + blobCopyMaxThreads;
+        }
 
         public static Builder builder() {
             return new Builder();

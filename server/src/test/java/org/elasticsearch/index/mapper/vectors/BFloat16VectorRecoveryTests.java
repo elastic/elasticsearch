@@ -70,6 +70,15 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
     private static final String BASE64_RECOVERED_SOURCE = """
         {"vec_bfloat16_dv":"P8BAAMBQ","vec_bfloat16_indexed":[1.4975724,2.0021021,-3.2514138]}""";
 
+    /** The indexed vector7 of {@link #ORIGINAL_SOURCE}. */
+    private static final String RAW7 = "[230.0,300.33,-34.8988,15.555,-200.0]";
+
+    /** {@link #RAW7} as an older node synthesizes it. */
+    private static final String SYNTHESIZED7 = "[229.90425,300.38586,-34.821266,15.522733,-199.69786]";
+
+    /** The non-indexed vector8 of {@link #ORIGINAL_SOURCE}, which an older node sends unchanged. */
+    private static final String RAW8 = "[130.0,115.0,-1.02,15.555,-100.0]";
+
     @Override
     protected String defaultMapping() {
         return """
@@ -157,20 +166,20 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
             """;
     }
 
-    /** vector7 as the client sends it, and as an older node synthesizes it. */
-    private static final String RAW7 = "[230.0,300.33,-34.8988,15.555,-200.0]";
-    private static final String SYNTHESIZED7 = "[229.90425,300.38586,-34.821266,15.522733,-199.69786]";
-    private static final String RAW8 = "[130.0,115.0,-1.02,15.555,-100.0]";
-
     /**
      * Each element of a nested array holds an indexed and a non-indexed vector, so the array differs in
-     * every pairing of whole forms and has to be compared element by element. The recovered sources
-     * follow the form an older node sends for an object, with only the indexed vector synthesized.
+     * every pairing of whole forms and has to be compared element by element. An older node synthesizes
+     * the indexed vector of each element in place.
      */
     public void testTranslogOperationAsserterAcceptsRecoveredSourceWithVectorsInNestedArray() throws IOException {
         assertSameOperation(
             "{\"nst\":[{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "}]}",
             "{\"nst\":[{\"vector8\":" + RAW8 + ",\"vector7\":" + SYNTHESIZED7 + "}]}"
+        );
+        // a nested field given as a single object
+        assertSameOperation(
+            "{\"nst\":{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "}}",
+            "{\"nst\":{\"vector8\":" + RAW8 + ",\"vector7\":" + SYNTHESIZED7 + "}}"
         );
         assertSameOperation(
             "{\"nst\":[{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "},{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "}]}",
@@ -212,13 +221,18 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
     }
 
     /**
-     * Under an object without subobjects the vectors keep their dotted names, and the client can also
-     * send them inside an object.
+     * Under an object without subobjects the vectors have dotted names, and the client can also send
+     * them inside an object. An older node keeps the spelling it received.
      */
     public void testTranslogOperationAsserterAcceptsRecoveredSourceWithoutSubobjects() throws IOException {
-        String recovered = "{\"flat\":{\"v.vector8\":" + RAW8 + ",\"v.vector7\":" + SYNTHESIZED7 + "}}";
-        assertSameOperation("{\"flat\":{\"v.vector7\":" + RAW7 + ",\"v.vector8\":" + RAW8 + "}}", recovered);
-        assertSameOperation("{\"flat\":{\"v\":{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "}}}", recovered);
+        assertSameOperation(
+            "{\"flat\":{\"v.vector7\":" + RAW7 + ",\"v.vector8\":" + RAW8 + "}}",
+            "{\"flat\":{\"v.vector8\":" + RAW8 + ",\"v.vector7\":" + SYNTHESIZED7 + "}}"
+        );
+        assertSameOperation(
+            "{\"flat\":{\"v\":{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "}}}",
+            "{\"flat\":{\"v\":{\"vector8\":" + RAW8 + ",\"vector7\":" + SYNTHESIZED7 + "}}}"
+        );
     }
 
     /**

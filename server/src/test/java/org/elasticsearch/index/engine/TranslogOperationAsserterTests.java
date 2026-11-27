@@ -370,6 +370,10 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
         }
     }
 
+    /**
+     * A disabled object accepts names that are empty before or after a dot. They have no prefix that
+     * is an object in the mapping, so they are compared as written.
+     */
     public void testFieldNamesMadeOfDots() throws Exception {
         TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
         var o1 = toIndexOp("""
@@ -419,6 +423,22 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
             assertTrue(asserter.assertSameIndexOperation(o1, o2));
             assertTrue(asserter.assertSameIndexOperation(o2, o1));
         }
+    }
+
+    /**
+     * A source can give one path twice, with a dotted name and inside an object. Two values that are
+     * not mapped objects stay two values, whatever their shape.
+     */
+    public void testPathGivenTwiceWithObjectValues() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        var o1 = toIndexOp("""
+            { "disabled.k": { "x": 1 }, "disabled": { "k": { "y": 2 } } }
+            """);
+        var o2 = toIndexOp("""
+            { "disabled.k": { "x": 1, "y": 2 }, "disabled": { "k": {} } }
+            """);
+        assertFalse(asserter.assertSameIndexOperation(o1, o2));
+        assertFalse(asserter.assertSameIndexOperation(o2, o1));
     }
 
     /**

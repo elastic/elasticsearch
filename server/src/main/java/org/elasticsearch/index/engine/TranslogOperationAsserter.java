@@ -14,7 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
@@ -184,11 +183,10 @@ public abstract class TranslogOperationAsserter {
      * operation can be compared field by field. A source can name the field {@code obj.a} as
      * {@code {"obj.a": 1}} or {@code {"obj": {"a": 1}}}, and synthesizing may switch between the two.
      * A dotted name is split where its prefix is an object in the mapping, and the rest of the name is
-     * resolved inside that object. The content of a disabled object and the value of any path that is
-     * not an object are returned as they are.
+     * resolved inside that object. The value of a path that is not an object is returned as it is.
      */
     private static Object canonical(SourceStructure structure, @Nullable String path, Object value) {
-        if (structure.isObject(path) == false || structure.isDisabled(path)) {
+        if (structure.isObject(path) == false) {
             return value;
         }
         if (value instanceof Map<?, ?> object) {
@@ -211,29 +209,33 @@ public abstract class TranslogOperationAsserter {
             if (structure.isObject(headPath)) {
                 final Map<String, Object> child = new HashMap<>();
                 child.put(name.substring(dot + 1), value);
-                merge(fields, head, canonical(structure, headPath, child));
+                merge(structure, path, fields, head, canonical(structure, headPath, child));
                 return;
             }
         }
-        merge(fields, name, canonical(structure, childPath(path, name), value));
+        merge(structure, path, fields, name, canonical(structure, childPath(path, name), value));
     }
 
     /**
-     * Adds a value to an object. A source can give the same path twice, with a dotted name and inside
-     * an object: two objects are merged, and any other two values are both kept.
+     * Adds a value to the object at the path. A source can give the same path twice, with a dotted name
+     * and inside an object. Two objects are merged if the path is an object in the mapping. Any other
+     * two values are both kept, so that the keys of a field value are never mixed.
      */
-    private static void merge(Map<String, Object> fields, String name, Object value) {
+    private static void merge(SourceStructure structure, @Nullable String path, Map<String, Object> fields, String name, Object value) {
         final Object existing = fields.get(name);
+        final String fieldPath = childPath(path, name);
         if (existing == null) {
             fields.put(name, value);
-        } else if (existing instanceof Map<?, ?> existingObject && value instanceof Map<?, ?> addedObject) {
-            final Map<String, Object> merged = new HashMap<>();
-            existingObject.forEach((k, v) -> merged.put(k.toString(), v));
-            addedObject.forEach((k, v) -> merge(merged, k.toString(), v));
-            fields.put(name, merged);
-        } else if (value != null) {
-            fields.put(name, Values.of(existing, value));
-        }
+        } else if (existing instanceof Map<?, ?> existingObject
+            && value instanceof Map<?, ?> addedObject
+            && structure.isObject(fieldPath)) {
+                final Map<String, Object> merged = new HashMap<>();
+                existingObject.forEach((k, v) -> merged.put(k.toString(), v));
+                addedObject.forEach((k, v) -> merge(structure, fieldPath, merged, k.toString(), v));
+                fields.put(name, merged);
+            } else if (value != null) {
+                fields.put(name, Values.of(existing, value));
+            }
     }
 
     /**
@@ -256,34 +258,29 @@ public abstract class TranslogOperationAsserter {
     /**
      * What the mapping says about the paths of a source.
      *
-     * @param objectMappers the object mappers of the index by full path
+     * @param objects the full paths of the mapped objects
      * @param fields the full paths of the mapped fields
-     * @param prefixes every proper dotted prefix of a mapped field or object. A prefix that is not a
-     *                 mapper itself comes from a dotted field name under an object without subobjects.
+     * @param prefixes every proper dotted prefix of a mapped field. A prefix that is not a mapper itself
+     *                 comes from a dotted field name under an object without subobjects.
      */
-    private record SourceStructure(Map<String, ObjectMapper> objectMappers, Set<String> fields, Set<String> prefixes) {
+    private record SourceStructure(Set<String> objects, Set<String> fields, Set<String> prefixes) {
         static SourceStructure of(MappingLookup mappingLookup) {
             final Set<String> fields = mappingLookup.getFullNameToFieldType().keySet();
             final Set<String> prefixes = new HashSet<>();
-            Stream.concat(fields.stream(), mappingLookup.objectMappers().keySet().stream()).forEach(mapped -> {
-                for (int dot = mapped.indexOf('.'); dot >= 0; dot = mapped.indexOf('.', dot + 1)) {
-                    prefixes.add(mapped.substring(0, dot));
+            for (String field : fields) {
+                for (int dot = field.indexOf('.'); dot >= 0; dot = field.indexOf('.', dot + 1)) {
+                    prefixes.add(field.substring(0, dot));
                 }
-            });
-            return new SourceStructure(mappingLookup.objectMappers(), fields, prefixes);
+            }
+            return new SourceStructure(mappingLookup.objectMappers().keySet(), fields, prefixes);
         }
 
         /**
          * Whether the values at the path hold fields: the root, a mapped object, or a prefix of a mapped
-         * path that is not a field itself. A field with multi-fields is a prefix of them and stays a field.
+         * field that is not a field itself. A field with multi-fields is a prefix of them and stays a field.
          */
         boolean isObject(@Nullable String path) {
-            return path == null || objectMappers.containsKey(path) || (prefixes.contains(path) && fields.contains(path) == false);
-        }
-
-        boolean isDisabled(@Nullable String path) {
-            final ObjectMapper mapper = path == null ? null : objectMappers.get(path);
-            return mapper != null && mapper.isEnabled() == false;
+            return path == null || objects.contains(path) || (prefixes.contains(path) && fields.contains(path) == false);
         }
     }
 

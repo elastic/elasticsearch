@@ -27,11 +27,10 @@ public class MvIntersectsSerializationTests extends AbstractExpressionSerializat
         Source source = instance.source();
         Expression left = instance.left();
         Expression right = instance.right();
-        if (randomBoolean()) {
-            left = randomValueOtherThan(left, AbstractExpressionSerializationTests::randomChild);
-        } else {
-            right = randomValueOtherThan(right, AbstractExpressionSerializationTests::randomChild);
-        }
-        return new MvIntersects(source, left, right);
+        return switch (between(0, 1)) {
+            case 0 -> new MvIntersects(source, randomValueOtherThan(left, AbstractExpressionSerializationTests::randomChild), right);
+            case 1 -> new MvIntersects(source, left, randomValueOtherThan(right, AbstractExpressionSerializationTests::randomChild));
+            default -> throw new AssertionError("illegal mutate branch");
+        };
     }
 }

@@ -126,17 +126,20 @@ public class RemoteClusterPermissionGroupTests extends AbstractXContentSerializi
 
     @Override
     protected RemoteClusterPermissionGroup mutateInstance(RemoteClusterPermissionGroup instance) throws IOException {
-        String[] privileges = instance.clusterPrivileges();
-        String[] clusters = instance.remoteClusterAliases();
-        if (randomBoolean()) {
-            privileges = randomArrayOtherThan(
-                privileges,
-                () -> new String[] { "monitor_enrich", randomAlphaOfLengthBetween(3, 8) }
+        return switch (between(0, 1)) {
+            case 0 -> new RemoteClusterPermissionGroup(
+                randomArrayOtherThan(
+                    instance.clusterPrivileges(),
+                    () -> new String[] { "monitor_enrich", randomAlphaOfLengthBetween(3, 8) }
+                ),
+                instance.remoteClusterAliases()
             );
-        } else {
-            clusters = randomArrayOtherThan(clusters, () -> new String[] { randomAlphaOfLengthBetween(3, 8) });
-        }
-        return new RemoteClusterPermissionGroup(privileges, clusters);
+            case 1 -> new RemoteClusterPermissionGroup(
+                instance.clusterPrivileges(),
+                randomArrayOtherThan(instance.remoteClusterAliases(), () -> new String[] { randomAlphaOfLengthBetween(3, 8) })
+            );
+            default -> throw new AssertionError("illegal mutate branch");
+        };
     }
 
     @Override

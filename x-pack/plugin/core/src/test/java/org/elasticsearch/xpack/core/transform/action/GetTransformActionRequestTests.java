@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Request;
 
@@ -29,30 +30,60 @@ public class GetTransformActionRequestTests extends AbstractBWCWireSerialization
 
     @Override
     protected Request mutateInstance(Request instance) {
-        if (Metadata.ALL.equals(instance.getId())) {
-            return new Request(
-                randomAlphaOfLengthBetween(1, 20),
-                instance.checkForDanglingTasks(),
-                instance.timeout()
-            );
-        }
-        return switch (between(0, 2)) {
-            case 0 -> new Request(
+        // Request.equals also includes pageParams and allowNoResources from AbstractGetResourcesRequest.
+        // The constructors hardcode PageParams.defaultParams() and allowNoResources == true, so those two
+        // are copied back on with the setters after each one-field change.
+        return switch (between(0, 4)) {
+            case 0 -> copy(
                 randomValueOtherThan(instance.getId(), () -> randomAlphaOfLengthBetween(1, 20)),
                 instance.checkForDanglingTasks(),
-                instance.timeout()
+                instance.timeout(),
+                instance.getPageParams(),
+                instance.isAllowNoResources()
             );
-            case 1 -> new Request(
+            case 1 -> copy(
                 instance.getId(),
                 randomValueOtherThan(instance.checkForDanglingTasks(), ESTestCase::randomBoolean),
-                instance.timeout()
+                instance.timeout(),
+                instance.getPageParams(),
+                instance.isAllowNoResources()
             );
-            default -> new Request(
+            case 2 -> copy(
                 instance.getId(),
                 instance.checkForDanglingTasks(),
-                randomValueOtherThan(instance.timeout(), ESTestCase::randomPositiveTimeValue)
+                randomValueOtherThan(instance.timeout(), ESTestCase::randomPositiveTimeValue),
+                instance.getPageParams(),
+                instance.isAllowNoResources()
             );
+            case 3 -> copy(
+                instance.getId(),
+                instance.checkForDanglingTasks(),
+                instance.timeout(),
+                randomValueOtherThan(instance.getPageParams(), () -> new PageParams(randomIntBetween(0, 5), randomIntBetween(1, 50))),
+                instance.isAllowNoResources()
+            );
+            case 4 -> copy(
+                instance.getId(),
+                instance.checkForDanglingTasks(),
+                instance.timeout(),
+                instance.getPageParams(),
+                instance.isAllowNoResources() == false
+            );
+            default -> throw new AssertionError("illegal mutate branch");
         };
+    }
+
+    private static Request copy(
+        String id,
+        boolean checkForDanglingTasks,
+        TimeValue timeout,
+        PageParams pageParams,
+        boolean allowNoResources
+    ) {
+        Request request = new Request(id, checkForDanglingTasks, timeout);
+        request.setPageParams(pageParams);
+        request.setAllowNoResources(allowNoResources);
+        return request;
     }
 
     @Override

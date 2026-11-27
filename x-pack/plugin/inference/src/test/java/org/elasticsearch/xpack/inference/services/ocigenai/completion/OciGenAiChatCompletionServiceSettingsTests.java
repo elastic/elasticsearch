@@ -217,33 +217,87 @@ public class OciGenAiChatCompletionServiceSettingsTests extends AbstractBWCWireS
     @Override
     protected OciGenAiChatCompletionServiceSettings mutateInstance(OciGenAiChatCompletionServiceSettings instance) throws IOException {
         var common = instance.common();
-        String region = common.region();
-        String compartmentId = common.compartmentId();
-        String modelId = common.modelId();
-        String endpointId = common.endpointId();
-        URI uri = common.uri();
-        String apiVersion = common.apiVersion();
-        RateLimitSettings rateLimitSettings = common.rateLimitSettings();
-
-        switch (between(0, 5)) {
-            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
-            case 1 -> compartmentId = randomValueOtherThan(compartmentId, () -> randomAlphaOfLength(10));
-            case 2 -> endpointId = randomValueOtherThan(endpointId, () -> randomBoolean() ? randomAlphaOfLength(10) : null);
-            case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> Strings.format("%08d", randomIntBetween(20200101, 20301231)));
-            case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
-            case 5 -> {
-                if (region != null) {
-                    region = randomValueOtherThan(region, () -> randomAlphaOfLength(8));
-                } else {
-                    uri = randomValueOtherThan(uri, () -> URI.create("https://" + randomAlphaOfLength(8) + ".example.com"));
-                }
-            }
+        return switch (between(0, 5)) {
+            case 0 -> new OciGenAiChatCompletionServiceSettings(
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    common.compartmentId(),
+                    randomValueOtherThan(common.modelId(), () -> randomAlphaOfLength(10)),
+                    common.endpointId(),
+                    common.uri(),
+                    common.apiVersion(),
+                    common.rateLimitSettings()
+                )
+            );
+            case 1 -> new OciGenAiChatCompletionServiceSettings(
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    randomValueOtherThan(common.compartmentId(), () -> randomAlphaOfLength(10)),
+                    common.modelId(),
+                    common.endpointId(),
+                    common.uri(),
+                    common.apiVersion(),
+                    common.rateLimitSettings()
+                )
+            );
+            case 2 -> new OciGenAiChatCompletionServiceSettings(
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    common.compartmentId(),
+                    common.modelId(),
+                    randomValueOtherThan(common.endpointId(), () -> randomBoolean() ? randomAlphaOfLength(10) : null),
+                    common.uri(),
+                    common.apiVersion(),
+                    common.rateLimitSettings()
+                )
+            );
+            case 3 -> new OciGenAiChatCompletionServiceSettings(
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    common.compartmentId(),
+                    common.modelId(),
+                    common.endpointId(),
+                    common.uri(),
+                    randomValueOtherThan(common.apiVersion(), () -> Strings.format("%08d", randomIntBetween(20200101, 20301231))),
+                    common.rateLimitSettings()
+                )
+            );
+            case 4 -> new OciGenAiChatCompletionServiceSettings(
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    common.compartmentId(),
+                    common.modelId(),
+                    common.endpointId(),
+                    common.uri(),
+                    common.apiVersion(),
+                    randomValueOtherThan(common.rateLimitSettings(), RateLimitSettingsTests::createRandom)
+                )
+            );
+            case 5 -> common.region() != null
+                ? new OciGenAiChatCompletionServiceSettings(
+                    new OciGenAiServiceSettings.CommonSettings(
+                        randomValueOtherThan(common.region(), () -> randomAlphaOfLength(8)),
+                        common.compartmentId(),
+                        common.modelId(),
+                        common.endpointId(),
+                        common.uri(),
+                        common.apiVersion(),
+                        common.rateLimitSettings()
+                    )
+                )
+                : new OciGenAiChatCompletionServiceSettings(
+                    new OciGenAiServiceSettings.CommonSettings(
+                        common.region(),
+                        common.compartmentId(),
+                        common.modelId(),
+                        common.endpointId(),
+                        randomValueOtherThan(common.uri(), () -> URI.create("https://" + randomAlphaOfLength(8) + ".example.com")),
+                        common.apiVersion(),
+                        common.rateLimitSettings()
+                    )
+                );
             default -> throw new AssertionError("Illegal randomisation branch");
-        }
-
-        return new OciGenAiChatCompletionServiceSettings(
-            new OciGenAiServiceSettings.CommonSettings(region, compartmentId, modelId, endpointId, uri, apiVersion, rateLimitSettings)
-        );
+        };
     }
 
     @Override

@@ -392,44 +392,146 @@ public class OciGenAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
     @Override
     protected OciGenAiEmbeddingsServiceSettings mutateInstance(OciGenAiEmbeddingsServiceSettings instance) throws IOException {
         var common = instance.common();
-        String region = common.region();
-        String compartmentId = common.compartmentId();
-        String modelId = common.modelId();
-        String endpointId = common.endpointId();
-        URI uri = common.uri();
-        String apiVersion = common.apiVersion();
-        RateLimitSettings rateLimitSettings = common.rateLimitSettings();
-        Boolean dimensionsSetByUser = instance.dimensionsSetByUser();
-        Integer dimensions = instance.dimensions();
-        Integer maxInputTokens = instance.maxInputTokens();
-        SimilarityMeasure similarity = instance.similarity();
-
-        switch (between(0, 9)) {
-            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
-            case 1 -> compartmentId = randomValueOtherThan(compartmentId, () -> randomAlphaOfLength(10));
-            case 2 -> endpointId = randomValueOtherThan(endpointId, () -> randomBoolean() ? randomAlphaOfLength(10) : null);
-            case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> Strings.format("%08d", randomIntBetween(20200101, 20301231)));
-            case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
-            case 5 -> {
-                if (region != null) {
-                    region = randomValueOtherThan(region, () -> randomAlphaOfLength(8));
-                } else {
-                    uri = randomValueOtherThan(uri, () -> URI.create("https://" + randomAlphaOfLength(8) + ".example.com"));
-                }
-            }
-            case 6 -> dimensionsSetByUser = randomValueOtherThan(dimensionsSetByUser, () -> randomBoolean());
-            case 7 -> dimensions = randomValueOtherThan(dimensions, () -> randomBoolean() ? randomIntBetween(1, 1024) : null);
-            case 8 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomBoolean() ? randomIntBetween(1, 512) : null);
-            case 9 -> similarity = randomValueOtherThan(similarity, () -> randomBoolean() ? randomFrom(SimilarityMeasure.values()) : null);
+        return switch (between(0, 9)) {
+            case 0 -> embeddings(
+                instance,
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    common.compartmentId(),
+                    randomValueOtherThan(common.modelId(), () -> randomAlphaOfLength(10)),
+                    common.endpointId(),
+                    common.uri(),
+                    common.apiVersion(),
+                    common.rateLimitSettings()
+                )
+            );
+            case 1 -> embeddings(
+                instance,
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    randomValueOtherThan(common.compartmentId(), () -> randomAlphaOfLength(10)),
+                    common.modelId(),
+                    common.endpointId(),
+                    common.uri(),
+                    common.apiVersion(),
+                    common.rateLimitSettings()
+                )
+            );
+            case 2 -> embeddings(
+                instance,
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    common.compartmentId(),
+                    common.modelId(),
+                    randomValueOtherThan(common.endpointId(), () -> randomBoolean() ? randomAlphaOfLength(10) : null),
+                    common.uri(),
+                    common.apiVersion(),
+                    common.rateLimitSettings()
+                )
+            );
+            case 3 -> embeddings(
+                instance,
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    common.compartmentId(),
+                    common.modelId(),
+                    common.endpointId(),
+                    common.uri(),
+                    randomValueOtherThan(common.apiVersion(), () -> Strings.format("%08d", randomIntBetween(20200101, 20301231))),
+                    common.rateLimitSettings()
+                )
+            );
+            case 4 -> embeddings(
+                instance,
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    common.compartmentId(),
+                    common.modelId(),
+                    common.endpointId(),
+                    common.uri(),
+                    common.apiVersion(),
+                    randomValueOtherThan(common.rateLimitSettings(), RateLimitSettingsTests::createRandom)
+                )
+            );
+            case 5 -> common.region() != null
+                ? embeddings(
+                    instance,
+                    new OciGenAiServiceSettings.CommonSettings(
+                        randomValueOtherThan(common.region(), () -> randomAlphaOfLength(8)),
+                        common.compartmentId(),
+                        common.modelId(),
+                        common.endpointId(),
+                        common.uri(),
+                        common.apiVersion(),
+                        common.rateLimitSettings()
+                    )
+                )
+                : embeddings(
+                    instance,
+                    new OciGenAiServiceSettings.CommonSettings(
+                        common.region(),
+                        common.compartmentId(),
+                        common.modelId(),
+                        common.endpointId(),
+                        randomValueOtherThan(common.uri(), () -> URI.create("https://" + randomAlphaOfLength(8) + ".example.com")),
+                        common.apiVersion(),
+                        common.rateLimitSettings()
+                    )
+                );
+            case 6 -> new OciGenAiEmbeddingsServiceSettings(
+                copyCommon(common),
+                randomValueOtherThan(instance.dimensionsSetByUser(), () -> randomBoolean()),
+                instance.dimensions(),
+                instance.maxInputTokens(),
+                instance.similarity()
+            );
+            case 7 -> new OciGenAiEmbeddingsServiceSettings(
+                copyCommon(common),
+                instance.dimensionsSetByUser(),
+                randomValueOtherThan(instance.dimensions(), () -> randomBoolean() ? randomIntBetween(1, 1024) : null),
+                instance.maxInputTokens(),
+                instance.similarity()
+            );
+            case 8 -> new OciGenAiEmbeddingsServiceSettings(
+                copyCommon(common),
+                instance.dimensionsSetByUser(),
+                instance.dimensions(),
+                randomValueOtherThan(instance.maxInputTokens(), () -> randomBoolean() ? randomIntBetween(1, 512) : null),
+                instance.similarity()
+            );
+            case 9 -> new OciGenAiEmbeddingsServiceSettings(
+                copyCommon(common),
+                instance.dimensionsSetByUser(),
+                instance.dimensions(),
+                instance.maxInputTokens(),
+                randomValueOtherThan(instance.similarity(), () -> randomBoolean() ? randomFrom(SimilarityMeasure.values()) : null)
+            );
             default -> throw new AssertionError("Illegal randomisation branch");
-        }
+        };
+    }
 
+    private static OciGenAiEmbeddingsServiceSettings embeddings(
+        OciGenAiEmbeddingsServiceSettings instance,
+        OciGenAiServiceSettings.CommonSettings common
+    ) {
         return new OciGenAiEmbeddingsServiceSettings(
-            new OciGenAiServiceSettings.CommonSettings(region, compartmentId, modelId, endpointId, uri, apiVersion, rateLimitSettings),
-            dimensionsSetByUser,
-            dimensions,
-            maxInputTokens,
-            similarity
+            common,
+            instance.dimensionsSetByUser(),
+            instance.dimensions(),
+            instance.maxInputTokens(),
+            instance.similarity()
+        );
+    }
+
+    private static OciGenAiServiceSettings.CommonSettings copyCommon(OciGenAiServiceSettings.CommonSettings common) {
+        return new OciGenAiServiceSettings.CommonSettings(
+            common.region(),
+            common.compartmentId(),
+            common.modelId(),
+            common.endpointId(),
+            common.uri(),
+            common.apiVersion(),
+            common.rateLimitSettings()
         );
     }
 

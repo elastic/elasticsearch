@@ -443,13 +443,29 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 randomBoolean() ? randomAlphaOfLengthBetween(10, 50) : null
             );
         }
+        // A managed response whose other equals fields are already the unmanaged defaults, so flipping
+        // managedByLifecycle is a one-field change. The random managed fixture usually sets those fields.
+        if (randomInt(4) == 0) {
+            return ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                randomAlphaOfLengthBetween(10, 30),
+                randomBoolean(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null
+            );
+        }
         return randomManagedIndexDataStreamLifecycleExplanation();
     }
 
     @Override
     protected ExplainIndexDataStreamLifecycle mutateInstance(ExplainIndexDataStreamLifecycle instance) throws IOException {
         if (instance.isManagedByLifecycle() == false) {
-            return switch (between(0, 1)) {
+            return switch (between(0, 2)) {
                 case 0 -> ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
                     randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(10, 30)),
                     instance.getUnmanagedReason()
@@ -458,6 +474,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                     instance.getIndex(),
                     randomValueOtherThan(instance.getUnmanagedReason(), () -> randomAlphaOfLengthBetween(10, 50))
                 );
+                case 2 -> unmanagedToManaged(instance);
                 default -> throw new AssertionError("illegal mutate branch");
             };
         }
@@ -466,7 +483,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         final CopiedNonEqualityFields copied = copyNonEqualityFields(instance);
         final boolean internalDataStream = copied.internalDataStream();
         final TimeValue generationDate = copied.generationDate();
-        return switch (between(0, 7)) {
+        return switch (between(0, 8)) {
             case 0 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(10, 30)),
                 internalDataStream,
@@ -576,8 +593,68 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 instance.isMinimumLifecycleEnabled(),
                 randomValueOtherThan(instance.getTailMergeDate(), () -> randomNonNegativeLong())
             );
+            case 8 -> managedToUnmanaged(instance, internalDataStream, generationDate);
             default -> throw new AssertionError("illegal mutate branch");
         };
+    }
+
+    /**
+     * Flip an unmanaged response to managed, changing only {@code managedByLifecycle}.
+     * A managed response cannot keep a non-null {@code unmanagedReason} ({@code equals} includes that field),
+     * so when a reason is set this changes the reason instead.
+     */
+    private static ExplainIndexDataStreamLifecycle unmanagedToManaged(ExplainIndexDataStreamLifecycle instance) {
+        if (instance.getUnmanagedReason() != null) {
+            return ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+                instance.getIndex(),
+                randomValueOtherThan(instance.getUnmanagedReason(), () -> randomAlphaOfLengthBetween(10, 50))
+            );
+        }
+        return ExplainIndexDataStreamLifecycle.managedIndexResponse(
+            instance.getIndex(),
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            null
+        );
+    }
+
+    /**
+     * Flip a managed response to unmanaged when every other {@code equals} field is already the unmanaged
+     * default. {@code writeTo} drops managed-only fields for an unmanaged index, and the unmanaged factory
+     * clears them, so flipping a populated managed response would change more than {@code managedByLifecycle}.
+     */
+    private static ExplainIndexDataStreamLifecycle managedToUnmanaged(
+        ExplainIndexDataStreamLifecycle instance,
+        boolean internalDataStream,
+        TimeValue generationDate
+    ) {
+        if (instance.getIndexCreationDate() == null
+            && instance.getRolloverDate() == null
+            && instance.getLifecycle() == null
+            && instance.getError() == null
+            && instance.getFrozenTransitionStatus() == null
+            && instance.isMinimumLifecycleEnabled() == false
+            && instance.getTailMergeDate() == null) {
+            return ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(instance.getIndex(), null);
+        }
+        return ExplainIndexDataStreamLifecycle.managedIndexResponse(
+            randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(10, 30)),
+            internalDataStream,
+            instance.getIndexCreationDate(),
+            instance.getRolloverDate(),
+            generationDate,
+            instance.getLifecycle(),
+            instance.getError(),
+            instance.getFrozenTransitionStatus(),
+            instance.isMinimumLifecycleEnabled(),
+            instance.getTailMergeDate()
+        );
     }
 
     /**

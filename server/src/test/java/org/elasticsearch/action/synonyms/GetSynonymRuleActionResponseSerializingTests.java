@@ -33,6 +33,7 @@ public class GetSynonymRuleActionResponseSerializingTests extends AbstractWireSe
 
     @Override
     protected GetSynonymRuleAction.Response mutateInstance(GetSynonymRuleAction.Response instance) throws IOException {
+        // Response does not expose the rule. The wire form is a single SynonymRule.
         SynonymRule rule;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             instance.writeTo(out);
@@ -40,14 +41,14 @@ public class GetSynonymRuleActionResponseSerializingTests extends AbstractWireSe
                 rule = new SynonymRule(in);
             }
         }
-        if (randomBoolean()) {
-            rule = new SynonymRule(
-                randomValueOtherThan(rule.id(), () -> randomAlphaOfLengthBetween(1, 10)),
-                rule.synonyms()
+        return switch (between(0, 1)) {
+            case 0 -> new GetSynonymRuleAction.Response(
+                new SynonymRule(randomValueOtherThan(rule.id(), () -> randomAlphaOfLengthBetween(1, 10)), rule.synonyms())
             );
-        } else {
-            rule = new SynonymRule(rule.id(), randomValueOtherThan(rule.synonyms(), () -> randomAlphaOfLengthBetween(1, 20)));
-        }
-        return new GetSynonymRuleAction.Response(rule);
+            case 1 -> new GetSynonymRuleAction.Response(
+                new SynonymRule(rule.id(), randomValueOtherThan(rule.synonyms(), () -> randomAlphaOfLengthBetween(1, 20)))
+            );
+            default -> throw new AssertionError("illegal mutate branch");
+        };
     }
 }

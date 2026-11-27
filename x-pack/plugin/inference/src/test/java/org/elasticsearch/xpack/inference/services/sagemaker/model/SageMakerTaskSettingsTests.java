@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredTaskSchema;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.SageMakerOpenAiTaskSettings;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,32 +36,68 @@ public class SageMakerTaskSettingsTests extends InferenceSettingsTestCase<SageMa
 
     @Override
     protected SageMakerTaskSettings mutateInstance(SageMakerTaskSettings instance) throws IOException {
-        String customAttributes = instance.customAttributes();
-        String enableExplanations = instance.enableExplanations();
-        String inferenceIdForDataCapture = instance.inferenceIdForDataCapture();
-        String sessionId = instance.sessionId();
-        String targetVariant = instance.targetVariant();
-
-        switch (between(0, 4)) {
-            case 0 -> customAttributes = randomValueOtherThan(customAttributes, InferenceSettingsTestCase::randomOptionalString);
-            case 1 -> enableExplanations = randomValueOtherThan(enableExplanations, InferenceSettingsTestCase::randomOptionalString);
-            case 2 -> inferenceIdForDataCapture = randomValueOtherThan(
-                inferenceIdForDataCapture,
-                InferenceSettingsTestCase::randomOptionalString
+        return switch (between(0, 5)) {
+            case 0 -> new SageMakerTaskSettings(
+                randomValueOtherThan(instance.customAttributes(), InferenceSettingsTestCase::randomOptionalString),
+                instance.enableExplanations(),
+                instance.inferenceIdForDataCapture(),
+                instance.sessionId(),
+                instance.targetVariant(),
+                instance.apiTaskSettings()
             );
-            case 3 -> sessionId = randomValueOtherThan(sessionId, InferenceSettingsTestCase::randomOptionalString);
-            case 4 -> targetVariant = randomValueOtherThan(targetVariant, InferenceSettingsTestCase::randomOptionalString);
+            case 1 -> new SageMakerTaskSettings(
+                instance.customAttributes(),
+                randomValueOtherThan(instance.enableExplanations(), InferenceSettingsTestCase::randomOptionalString),
+                instance.inferenceIdForDataCapture(),
+                instance.sessionId(),
+                instance.targetVariant(),
+                instance.apiTaskSettings()
+            );
+            case 2 -> new SageMakerTaskSettings(
+                instance.customAttributes(),
+                instance.enableExplanations(),
+                randomValueOtherThan(instance.inferenceIdForDataCapture(), InferenceSettingsTestCase::randomOptionalString),
+                instance.sessionId(),
+                instance.targetVariant(),
+                instance.apiTaskSettings()
+            );
+            case 3 -> new SageMakerTaskSettings(
+                instance.customAttributes(),
+                instance.enableExplanations(),
+                instance.inferenceIdForDataCapture(),
+                randomValueOtherThan(instance.sessionId(), InferenceSettingsTestCase::randomOptionalString),
+                instance.targetVariant(),
+                instance.apiTaskSettings()
+            );
+            case 4 -> new SageMakerTaskSettings(
+                instance.customAttributes(),
+                instance.enableExplanations(),
+                instance.inferenceIdForDataCapture(),
+                instance.sessionId(),
+                randomValueOtherThan(instance.targetVariant(), InferenceSettingsTestCase::randomOptionalString),
+                instance.apiTaskSettings()
+            );
+            case 5 -> new SageMakerTaskSettings(
+                instance.customAttributes(),
+                instance.enableExplanations(),
+                instance.inferenceIdForDataCapture(),
+                instance.sessionId(),
+                instance.targetVariant(),
+                differentApiTaskSettings(instance.apiTaskSettings())
+            );
             default -> throw new AssertionError("Illegal randomisation branch");
-        }
+        };
+    }
 
-        return new SageMakerTaskSettings(
-            customAttributes,
-            enableExplanations,
-            inferenceIdForDataCapture,
-            sessionId,
-            targetVariant,
-            instance.apiTaskSettings()
-        );
+    /**
+     * {@link SageMakerTaskSettings} is a record, so {@code apiTaskSettings} is an equals component.
+     * A non-empty OpenAI task settings object is a different named writeable from {@code NO_OP}.
+     */
+    private static SageMakerStoredTaskSchema differentApiTaskSettings(SageMakerStoredTaskSchema current) {
+        if (SageMakerStoredTaskSchema.NO_OP.equals(current)) {
+            return new SageMakerOpenAiTaskSettings(randomAlphaOfLength(8));
+        }
+        return SageMakerStoredTaskSchema.NO_OP;
     }
 
     @Override

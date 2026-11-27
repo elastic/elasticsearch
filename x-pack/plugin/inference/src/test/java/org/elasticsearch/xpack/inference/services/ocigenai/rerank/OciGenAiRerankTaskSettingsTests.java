@@ -78,16 +78,17 @@ public class OciGenAiRerankTaskSettingsTests extends AbstractBWCWireSerializatio
 
     @Override
     protected OciGenAiRerankTaskSettings mutateInstance(OciGenAiRerankTaskSettings instance) throws IOException {
-        Integer topN = instance.getTopN();
-        Boolean returnDocuments = instance.getReturnDocuments();
-
-        switch (between(0, 1)) {
-            case 0 -> topN = randomValueOtherThan(topN, () -> randomBoolean() ? null : randomIntBetween(1, 100));
-            case 1 -> returnDocuments = randomValueOtherThan(returnDocuments, () -> randomOptionalBoolean());
+        return switch (between(0, 1)) {
+            case 0 -> new OciGenAiRerankTaskSettings(
+                randomValueOtherThan(instance.getTopN(), () -> randomBoolean() ? null : randomIntBetween(1, 100)),
+                instance.getReturnDocuments()
+            );
+            case 1 -> new OciGenAiRerankTaskSettings(
+                instance.getTopN(),
+                randomValueOtherThan(instance.getReturnDocuments(), () -> randomOptionalBoolean())
+            );
             default -> throw new AssertionError("Illegal randomisation branch");
-        }
-
-        return new OciGenAiRerankTaskSettings(topN, returnDocuments);
+        };
     }
 
     @Override

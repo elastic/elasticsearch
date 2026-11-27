@@ -31,6 +31,64 @@ public class GpuVectorIndexingFeatureSetUsageTests extends AbstractWireSerializi
 
     @Override
     protected GpuVectorIndexingFeatureSetUsage mutateInstance(GpuVectorIndexingFeatureSetUsage instance) {
+        // indexBuildCount, nodesWithGpu, and nodes have no getters. Read them once, then return a new instance.
+        UsageFields fields = readFields(instance);
+        return switch (between(0, 4)) {
+            case 0 -> new GpuVectorIndexingFeatureSetUsage(
+                randomValueOtherThan(fields.available(), ESTestCase::randomBoolean),
+                fields.enabled(),
+                fields.indexBuildCount(),
+                fields.nodesWithGpu(),
+                fields.nodes()
+            );
+            case 1 -> new GpuVectorIndexingFeatureSetUsage(
+                fields.available(),
+                randomValueOtherThan(fields.enabled(), ESTestCase::randomBoolean),
+                fields.indexBuildCount(),
+                fields.nodesWithGpu(),
+                fields.nodes()
+            );
+            case 2 -> new GpuVectorIndexingFeatureSetUsage(
+                fields.available(),
+                fields.enabled(),
+                randomValueOtherThan(fields.indexBuildCount(), () -> randomLongBetween(0, 100_000)),
+                fields.nodesWithGpu(),
+                fields.nodes()
+            );
+            case 3 -> new GpuVectorIndexingFeatureSetUsage(
+                fields.available(),
+                fields.enabled(),
+                fields.indexBuildCount(),
+                randomValueOtherThan(fields.nodesWithGpu(), () -> randomIntBetween(0, 10)),
+                fields.nodes()
+            );
+            default -> {
+                if (fields.nodesWithGpu() == 0) {
+                    // Empty list is the only list when count is 0; flip a different field instead.
+                    yield new GpuVectorIndexingFeatureSetUsage(
+                        randomValueOtherThan(fields.available(), ESTestCase::randomBoolean),
+                        fields.enabled(),
+                        fields.indexBuildCount(),
+                        fields.nodesWithGpu(),
+                        fields.nodes()
+                    );
+                }
+                yield new GpuVectorIndexingFeatureSetUsage(
+                    fields.available(),
+                    fields.enabled(),
+                    fields.indexBuildCount(),
+                    fields.nodesWithGpu(),
+                    randomValueOtherThan(fields.nodes(), () -> randomNodesList(fields.nodesWithGpu()))
+                );
+            }
+        };
+    }
+
+    /**
+     * {@link GpuVectorIndexingFeatureSetUsage} keeps the three stats private. {@code writeTo} is name, available,
+     * enabled, then those stats, which is the same prefix {@link org.elasticsearch.xpack.core.XPackFeatureUsage} writes.
+     */
+    private static UsageFields readFields(GpuVectorIndexingFeatureSetUsage instance) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             instance.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
@@ -40,60 +98,14 @@ public class GpuVectorIndexingFeatureSetUsageTests extends AbstractWireSerializi
                 long indexBuildCount = in.readVLong();
                 int nodesWithGpu = in.readVInt();
                 List<GpuNodeStats> nodes = in.readCollectionAsList(GpuNodeStats::new);
-                return switch (between(0, 4)) {
-                    case 0 -> new GpuVectorIndexingFeatureSetUsage(
-                        randomValueOtherThan(available, ESTestCase::randomBoolean),
-                        enabled,
-                        indexBuildCount,
-                        nodesWithGpu,
-                        nodes
-                    );
-                    case 1 -> new GpuVectorIndexingFeatureSetUsage(
-                        available,
-                        randomValueOtherThan(enabled, ESTestCase::randomBoolean),
-                        indexBuildCount,
-                        nodesWithGpu,
-                        nodes
-                    );
-                    case 2 -> new GpuVectorIndexingFeatureSetUsage(
-                        available,
-                        enabled,
-                        randomValueOtherThan(indexBuildCount, () -> randomLongBetween(0, 100_000)),
-                        nodesWithGpu,
-                        nodes
-                    );
-                    case 3 -> new GpuVectorIndexingFeatureSetUsage(
-                        available,
-                        enabled,
-                        indexBuildCount,
-                        randomValueOtherThan(nodesWithGpu, () -> randomIntBetween(0, 10)),
-                        nodes
-                    );
-                    default -> {
-                        if (nodesWithGpu == 0) {
-                            // Empty list is the only list when count is 0; flip a different field instead.
-                            yield new GpuVectorIndexingFeatureSetUsage(
-                                randomValueOtherThan(available, ESTestCase::randomBoolean),
-                                enabled,
-                                indexBuildCount,
-                                nodesWithGpu,
-                                nodes
-                            );
-                        }
-                        yield new GpuVectorIndexingFeatureSetUsage(
-                            available,
-                            enabled,
-                            indexBuildCount,
-                            nodesWithGpu,
-                            randomValueOtherThan(nodes, () -> randomNodesList(nodesWithGpu))
-                        );
-                    }
-                };
+                return new UsageFields(available, enabled, indexBuildCount, nodesWithGpu, nodes);
             }
         } catch (IOException e) {
             throw new AssertionError(e);
         }
     }
+
+    private record UsageFields(boolean available, boolean enabled, long indexBuildCount, int nodesWithGpu, List<GpuNodeStats> nodes) {}
 
     static GpuVectorIndexingFeatureSetUsage randomUsage() {
         if (randomBoolean()) {

@@ -170,20 +170,33 @@ public class SageMakerElasticTextEmbeddingServiceSettingsTests extends Inference
     @Override
     protected ElasticTextEmbeddingPayload.ApiServiceSettings mutateInstance(ElasticTextEmbeddingPayload.ApiServiceSettings instance)
         throws IOException {
-        Integer dimensions = instance.dimensions();
-        Boolean dimensionsSetByUser = instance.dimensionsSetByUser();
-        SimilarityMeasure similarity = instance.similarity();
-        DenseVectorFieldMapper.ElementType elementType = instance.elementType();
-
-        switch (between(0, 3)) {
-            case 0 -> dimensions = randomValueOtherThan(dimensions, () -> randomIntBetween(1, 100));
-            case 1 -> dimensionsSetByUser = randomValueOtherThan(dimensionsSetByUser, () -> randomBoolean());
-            case 2 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
-            case 3 -> elementType = randomValueOtherThan(elementType, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()));
+        return switch (between(0, 3)) {
+            case 0 -> new ElasticTextEmbeddingPayload.ApiServiceSettings(
+                randomValueOtherThan(instance.dimensions(), () -> randomIntBetween(1, 100)),
+                instance.dimensionsSetByUser(),
+                instance.similarity(),
+                instance.elementType()
+            );
+            case 1 -> new ElasticTextEmbeddingPayload.ApiServiceSettings(
+                instance.dimensions(),
+                randomValueOtherThan(instance.dimensionsSetByUser(), () -> randomBoolean()),
+                instance.similarity(),
+                instance.elementType()
+            );
+            case 2 -> new ElasticTextEmbeddingPayload.ApiServiceSettings(
+                instance.dimensions(),
+                instance.dimensionsSetByUser(),
+                randomValueOtherThan(instance.similarity(), () -> randomFrom(SimilarityMeasure.values())),
+                instance.elementType()
+            );
+            case 3 -> new ElasticTextEmbeddingPayload.ApiServiceSettings(
+                instance.dimensions(),
+                instance.dimensionsSetByUser(),
+                instance.similarity(),
+                randomValueOtherThan(instance.elementType(), () -> randomFrom(DenseVectorFieldMapper.ElementType.values()))
+            );
             default -> throw new AssertionError("Illegal randomisation branch");
-        }
-
-        return new ElasticTextEmbeddingPayload.ApiServiceSettings(dimensions, dimensionsSetByUser, similarity, elementType);
+        };
     }
 
     static ElasticTextEmbeddingPayload.ApiServiceSettings randomInstance() {

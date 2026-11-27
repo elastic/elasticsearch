@@ -37,38 +37,81 @@ public class GetMigrationReindexStatusActionResponseTests extends AbstractWireSe
     }
 
     private ReindexDataStreamEnrichedStatus mutateEnrichedStatus(ReindexDataStreamEnrichedStatus instance) {
-        long startTime = instance.persistentTaskStartTime();
-        int totalIndices = instance.totalIndices();
-        int totalIndicesToBeUpgraded = instance.totalIndicesToBeUpgraded();
-        boolean complete = instance.complete();
-        Exception exception = instance.exception();
-        Map<String, Tuple<Long, Long>> inProgress = instance.inProgress();
-        int pending = instance.pending();
-        List<Tuple<String, Exception>> errors = instance.errors();
         // exception is always null (see testException) so it cannot be mutated here
-        switch (randomIntBetween(0, 6)) {
-            case 0 -> startTime = randomValueOtherThan(startTime, ESTestCase::randomLong);
-            case 1 -> totalIndices = randomValueOtherThan(totalIndices, ESTestCase::randomNegativeInt);
-            case 2 -> totalIndicesToBeUpgraded = randomValueOtherThan(totalIndicesToBeUpgraded, ESTestCase::randomNegativeInt);
-            case 3 -> complete = randomValueOtherThan(complete, ESTestCase::randomBoolean);
-            case 4 -> inProgress = randomValueOtherThan(inProgress, this::randomInProgressMap);
-            case 5 -> pending = randomValueOtherThan(pending, ESTestCase::randomNegativeInt);
-            case 6 -> {
-                final List<Tuple<String, Exception>> currentErrors = errors;
-                errors = randomValueOtherThan(currentErrors, () -> randomErrorList(currentErrors.size() + 1));
-            }
+        Exception exception = instance.exception();
+        return switch (randomIntBetween(0, 6)) {
+            case 0 -> new ReindexDataStreamEnrichedStatus(
+                randomValueOtherThan(instance.persistentTaskStartTime(), ESTestCase::randomLong),
+                instance.totalIndices(),
+                instance.totalIndicesToBeUpgraded(),
+                instance.complete(),
+                exception,
+                instance.inProgress(),
+                instance.pending(),
+                instance.errors()
+            );
+            case 1 -> new ReindexDataStreamEnrichedStatus(
+                instance.persistentTaskStartTime(),
+                randomValueOtherThan(instance.totalIndices(), ESTestCase::randomNegativeInt),
+                instance.totalIndicesToBeUpgraded(),
+                instance.complete(),
+                exception,
+                instance.inProgress(),
+                instance.pending(),
+                instance.errors()
+            );
+            case 2 -> new ReindexDataStreamEnrichedStatus(
+                instance.persistentTaskStartTime(),
+                instance.totalIndices(),
+                randomValueOtherThan(instance.totalIndicesToBeUpgraded(), ESTestCase::randomNegativeInt),
+                instance.complete(),
+                exception,
+                instance.inProgress(),
+                instance.pending(),
+                instance.errors()
+            );
+            case 3 -> new ReindexDataStreamEnrichedStatus(
+                instance.persistentTaskStartTime(),
+                instance.totalIndices(),
+                instance.totalIndicesToBeUpgraded(),
+                randomValueOtherThan(instance.complete(), ESTestCase::randomBoolean),
+                exception,
+                instance.inProgress(),
+                instance.pending(),
+                instance.errors()
+            );
+            case 4 -> new ReindexDataStreamEnrichedStatus(
+                instance.persistentTaskStartTime(),
+                instance.totalIndices(),
+                instance.totalIndicesToBeUpgraded(),
+                instance.complete(),
+                exception,
+                randomValueOtherThan(instance.inProgress(), this::randomInProgressMap),
+                instance.pending(),
+                instance.errors()
+            );
+            case 5 -> new ReindexDataStreamEnrichedStatus(
+                instance.persistentTaskStartTime(),
+                instance.totalIndices(),
+                instance.totalIndicesToBeUpgraded(),
+                instance.complete(),
+                exception,
+                instance.inProgress(),
+                randomValueOtherThan(instance.pending(), ESTestCase::randomNegativeInt),
+                instance.errors()
+            );
+            case 6 -> new ReindexDataStreamEnrichedStatus(
+                instance.persistentTaskStartTime(),
+                instance.totalIndices(),
+                instance.totalIndicesToBeUpgraded(),
+                instance.complete(),
+                exception,
+                instance.inProgress(),
+                instance.pending(),
+                randomValueOtherThan(instance.errors(), () -> randomErrorList(instance.errors().size() + 1))
+            );
             default -> throw new AssertionError("failure, got illegal switch case");
-        }
-        return new ReindexDataStreamEnrichedStatus(
-            startTime,
-            totalIndices,
-            totalIndicesToBeUpgraded,
-            complete,
-            exception,
-            inProgress,
-            pending,
-            errors
-        );
+        };
     }
 
     private ReindexDataStreamEnrichedStatus getRandomStatus() {

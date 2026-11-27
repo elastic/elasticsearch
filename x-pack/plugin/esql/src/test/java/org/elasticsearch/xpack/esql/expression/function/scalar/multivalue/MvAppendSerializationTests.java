@@ -27,12 +27,11 @@ public class MvAppendSerializationTests extends AbstractExpressionSerializationT
         Source source = instance.source();
         Expression field1 = instance.children().get(0);
         Expression field2 = instance.children().get(1);
-        if (randomBoolean()) {
-            field1 = randomValueOtherThan(field1, AbstractExpressionSerializationTests::randomChild);
-        } else {
-            field2 = randomValueOtherThan(field2, AbstractExpressionSerializationTests::randomChild);
-        }
-        return new MvAppend(source, field1, field2);
+        return switch (between(0, 1)) {
+            case 0 -> new MvAppend(source, randomValueOtherThan(field1, AbstractExpressionSerializationTests::randomChild), field2);
+            case 1 -> new MvAppend(source, field1, randomValueOtherThan(field2, AbstractExpressionSerializationTests::randomChild));
+            default -> throw new AssertionError("illegal mutate branch");
+        };
     }
 
     @Override

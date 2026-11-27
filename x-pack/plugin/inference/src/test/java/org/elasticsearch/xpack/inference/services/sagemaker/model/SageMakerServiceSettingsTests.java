@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemasTests;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic.ElasticTextEmbeddingPayload;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -80,41 +81,106 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
 
     @Override
     protected SageMakerServiceSettings mutateInstance(SageMakerServiceSettings instance) throws IOException {
-        String endpointName = instance.endpointName();
-        String region = instance.region();
-        String api = instance.api();
-        String targetModel = instance.targetModel();
-        String targetContainerHostname = instance.targetContainerHostname();
-        String inferenceComponentName = instance.inferenceComponentName();
-        Integer batchSize = instance.batchSize();
-
-        switch (between(0, 6)) {
-            case 0 -> endpointName = randomValueOtherThan(endpointName, () -> randomAlphaOfLength(8));
-            case 1 -> region = randomValueOtherThan(region, () -> randomAlphaOfLength(8));
-            case 2 -> api = randomValueOtherThan(api, () -> randomAlphaOfLength(8));
-            case 3 -> targetModel = randomValueOtherThan(targetModel, InferenceSettingsTestCase::randomOptionalString);
-            case 4 -> targetContainerHostname = randomValueOtherThan(
-                targetContainerHostname,
-                InferenceSettingsTestCase::randomOptionalString
+        return switch (between(0, 7)) {
+            case 0 -> new SageMakerServiceSettings(
+                randomValueOtherThan(instance.endpointName(), () -> randomAlphaOfLength(8)),
+                instance.region(),
+                instance.api(),
+                instance.targetModel(),
+                instance.targetContainerHostname(),
+                instance.inferenceComponentName(),
+                instance.batchSize(),
+                instance.apiServiceSettings()
             );
-            case 5 -> inferenceComponentName = randomValueOtherThan(
-                inferenceComponentName,
-                InferenceSettingsTestCase::randomOptionalString
+            case 1 -> new SageMakerServiceSettings(
+                instance.endpointName(),
+                randomValueOtherThan(instance.region(), () -> randomAlphaOfLength(8)),
+                instance.api(),
+                instance.targetModel(),
+                instance.targetContainerHostname(),
+                instance.inferenceComponentName(),
+                instance.batchSize(),
+                instance.apiServiceSettings()
             );
-            case 6 -> batchSize = randomValueOtherThan(batchSize, () -> randomBoolean() ? randomIntBetween(1, 1000) : null);
+            case 2 -> new SageMakerServiceSettings(
+                instance.endpointName(),
+                instance.region(),
+                randomValueOtherThan(instance.api(), () -> randomAlphaOfLength(8)),
+                instance.targetModel(),
+                instance.targetContainerHostname(),
+                instance.inferenceComponentName(),
+                instance.batchSize(),
+                instance.apiServiceSettings()
+            );
+            case 3 -> new SageMakerServiceSettings(
+                instance.endpointName(),
+                instance.region(),
+                instance.api(),
+                randomValueOtherThan(instance.targetModel(), InferenceSettingsTestCase::randomOptionalString),
+                instance.targetContainerHostname(),
+                instance.inferenceComponentName(),
+                instance.batchSize(),
+                instance.apiServiceSettings()
+            );
+            case 4 -> new SageMakerServiceSettings(
+                instance.endpointName(),
+                instance.region(),
+                instance.api(),
+                instance.targetModel(),
+                randomValueOtherThan(instance.targetContainerHostname(), InferenceSettingsTestCase::randomOptionalString),
+                instance.inferenceComponentName(),
+                instance.batchSize(),
+                instance.apiServiceSettings()
+            );
+            case 5 -> new SageMakerServiceSettings(
+                instance.endpointName(),
+                instance.region(),
+                instance.api(),
+                instance.targetModel(),
+                instance.targetContainerHostname(),
+                randomValueOtherThan(instance.inferenceComponentName(), InferenceSettingsTestCase::randomOptionalString),
+                instance.batchSize(),
+                instance.apiServiceSettings()
+            );
+            case 6 -> new SageMakerServiceSettings(
+                instance.endpointName(),
+                instance.region(),
+                instance.api(),
+                instance.targetModel(),
+                instance.targetContainerHostname(),
+                instance.inferenceComponentName(),
+                randomValueOtherThan(instance.batchSize(), () -> randomBoolean() ? randomIntBetween(1, 1000) : null),
+                instance.apiServiceSettings()
+            );
+            case 7 -> new SageMakerServiceSettings(
+                instance.endpointName(),
+                instance.region(),
+                instance.api(),
+                instance.targetModel(),
+                instance.targetContainerHostname(),
+                instance.inferenceComponentName(),
+                instance.batchSize(),
+                differentApiServiceSettings(instance.apiServiceSettings())
+            );
             default -> throw new AssertionError("Illegal randomisation branch");
-        }
+        };
+    }
 
-        return new SageMakerServiceSettings(
-            endpointName,
-            region,
-            api,
-            targetModel,
-            targetContainerHostname,
-            inferenceComponentName,
-            batchSize,
-            instance.apiServiceSettings()
-        );
+    /**
+     * {@link SageMakerServiceSettings} is a record, so {@code apiServiceSettings} is an equals component.
+     * {@code NO_OP} is what {@link #createTestInstance()} stores. A text-embedding settings object is a different
+     * named writeable and cannot compare equal to it.
+     */
+    private static SageMakerStoredServiceSchema differentApiServiceSettings(SageMakerStoredServiceSchema current) {
+        if (SageMakerStoredServiceSchema.NO_OP.equals(current)) {
+            return new ElasticTextEmbeddingPayload.ApiServiceSettings(
+                randomIntBetween(1, 100),
+                randomBoolean(),
+                randomFrom(SimilarityMeasure.values()),
+                randomFrom(DenseVectorFieldMapper.ElementType.values())
+            );
+        }
+        return SageMakerStoredServiceSchema.NO_OP;
     }
 
     @Override

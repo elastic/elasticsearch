@@ -250,26 +250,6 @@ public abstract class TransportTasksAction<
                 return;
             }
             breaker.addEstimateBytesAndMaybeBreak(bytes, NODE_RESPONSE_BREAKER_LABEL);
-            adopt(bytes);
-        }
-
-        /**
-         * Moves up to {@code bytesToMove} of what this charge holds to {@code other}, which releases them from then on, for instance
-         * because the data they account for is kept by the response that {@code other} goes with. The rest is released.
-         */
-        public void transferTo(NodeReplyCharge other, long bytesToMove) {
-            assert bytesToMove >= 0 : bytesToMove;
-            final long bytes = retained.getAndSet(RELEASED);
-            if (bytes != RELEASED) {
-                final long moved = Math.min(bytes, bytesToMove);
-                if (bytes > moved) {
-                    breaker.addWithoutBreaking(moved - bytes);
-                }
-                other.adopt(moved);
-            }
-        }
-
-        private void adopt(long bytes) {
             long current;
             do {
                 current = retained.get();

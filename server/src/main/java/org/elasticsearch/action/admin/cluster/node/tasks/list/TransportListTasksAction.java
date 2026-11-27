@@ -20,13 +20,10 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.CountingStreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -34,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
@@ -52,20 +50,15 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.toSet;
@@ -90,7 +83,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
-    private final Executor mergeExecutor;
 
     @Inject
     public TransportListTasksAction(
@@ -110,7 +102,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.client = new OriginSettingClient(Objects.requireNonNull(client, "client"), TASKS_ORIGIN);
-        this.mergeExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry, "xContentRegistry");
     }
 
@@ -137,54 +128,70 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     @Override
     protected void doExecute(final Task task, final ListTasksRequest request, final ActionListener<ListTasksResponse> listener) {
         assert task instanceof CancellableTask;
-        final NodeReplyCharge charge = newNodeReplyCharge(task);
+        final NodeReplyCharge firstPassCharge = newNodeReplyCharge(task);
         // Double-list is only needed for relocatable tasks (problem description further down in function comment).
         if (RELOCATABLE_ACTIONS.stream().noneMatch(request::canMatchAction)) {
-            executeCharged(task, request, charge, handOver(charge, listener));
+            executeCharged(task, request, firstPassCharge, handOver(listener, firstPassCharge));
             return;
         }
         // relocatable tasks might've relocated during listing, and depending on list fan-out response timing in realtime, might be missed.
         // example: Tasks are captured from the destination node before the relocation and from the source node after, so we miss both.
         // therefore, we double-list and de-dupe, which will ensure we see a task *at least* once.
         // elsewhere, we also prevent quick back-to-back relocations during shutdown, to make hitting the race twice vanishingly unlikely.
-        // the first pass stays charged while the second one runs. At the merge the bytes of the tasks and task failures of the first pass
-        // that the response keeps move to the charge of the second pass, which goes on with the response, and the rest is released.
-        final NodeReplyCharge firstPassCharge = newNodeReplyCharge(task);
-        final ActionListener<ListTasksResponse> merged = ActionListener.runBefore(handOver(charge, listener), firstPassCharge::close);
+        // both passes stay charged until the response is released, because the merged response may keep data of either of them.
+        final NodeReplyCharge secondPassCharge = newNodeReplyCharge(task);
+        final ActionListener<ListTasksResponse> handingOver = handOver(listener, firstPassCharge, secondPassCharge);
         if (request.getWaitForCompletion()) {
-            executeDoubleListWithWaitForCompletion(task, request, firstPassCharge, charge, merged);
+            executeDoubleListWithWaitForCompletion(task, request, firstPassCharge, secondPassCharge, handingOver);
         } else {
-            executeDoubleListWithoutWaitForCompletion(task, request, firstPassCharge, charge, merged);
+            executeDoubleListWithoutWaitForCompletion(task, request, firstPassCharge, secondPassCharge, handingOver);
         }
     }
 
-    private static ActionListener<ListTasksResponse> handOver(NodeReplyCharge charge, ActionListener<ListTasksResponse> listener) {
+    private static ActionListener<ListTasksResponse> handOver(ActionListener<ListTasksResponse> listener, NodeReplyCharge... charges) {
         return new ActionListener<>() {
             @Override
             public void onResponse(ListTasksResponse response) {
-                final Releasable retention = charge.retain();
-                if (retention == null) {
+                final Releasable[] retentions = retainAll(charges);
+                if (retentions == null) {
+                    closeAll(charges);
                     listener.onFailure(new TaskCancelledException("task cancelled before the response was handed over"));
                     return;
                 }
                 response.setNodeRepliesRetainer(() -> {
-                    final Releasable retainedByTheCaller = charge.retain();
-                    return retainedByTheCaller == null ? () -> {} : retainedByTheCaller;
+                    final Releasable[] retainedByTheCaller = retainAll(charges);
+                    return retainedByTheCaller == null ? () -> {} : () -> Releasables.close(retainedByTheCaller);
                 });
                 try {
                     listener.onResponse(response);
                 } finally {
-                    retention.close();
-                    charge.close();
+                    Releasables.close(retentions);
+                    closeAll(charges);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                charge.close();
+                closeAll(charges);
                 listener.onFailure(e);
             }
         };
+    }
+
+    private static Releasable[] retainAll(NodeReplyCharge[] charges) {
+        final Releasable[] retentions = new Releasable[charges.length];
+        for (int i = 0; i < charges.length; i++) {
+            retentions[i] = charges[i].retain();
+            if (retentions[i] == null) {
+                Releasables.close(retentions);
+                return null;
+            }
+        }
+        return retentions;
+    }
+
+    private static void closeAll(NodeReplyCharge[] charges) {
+        Releasables.close(charges);
     }
 
     /// `WFC=false` path: two quick lists, the second response takes precedence in de-duplication.
@@ -196,22 +203,9 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         final ActionListener<ListTasksResponse> listener
     ) {
         executeCharged(task, request, firstPassCharge, listener.delegateFailureAndWrap((l1, firstResponse) -> {
-            executeCharged(
-                task,
-                request,
-                secondPassCharge,
-                new ThreadedActionListener<>(mergeExecutor, l1.delegateFailureAndWrap((l2, secondResponse) -> {
-                    l2.onResponse(
-                        carryOver(
-                            firstResponse,
-                            deduplicateAndMerge(firstResponse, secondResponse),
-                            firstPassCharge,
-                            secondPassCharge,
-                            clusterService.localNode().getId()
-                        )
-                    );
-                }))
-            );
+            executeCharged(task, request, secondPassCharge, l1.delegateFailureAndWrap((l2, secondResponse) -> {
+                l2.onResponse(deduplicateAndMerge(firstResponse, secondResponse));
+            }));
         }));
     }
 
@@ -226,66 +220,10 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     ) {
         final ListTasksRequest firstPassRequest = copyWithoutWaitForCompletion(request);
         executeCharged(task, firstPassRequest, firstPassCharge, listener.delegateFailureAndWrap((l1, firstPass) -> {
-            executeCharged(
-                task,
-                request,
-                secondPassCharge,
-                new ThreadedActionListener<>(mergeExecutor, l1.delegateFailureAndWrap((l2, secondPass) -> {
-                    reconcileMissedRelocations(
-                        task,
-                        firstPass,
-                        secondPass,
-                        l2.map(
-                            merged -> carryOver(firstPass, merged, firstPassCharge, secondPassCharge, clusterService.localNode().getId())
-                        )
-                    );
-                }))
-            );
+            executeCharged(task, request, secondPassCharge, l1.delegateFailureAndWrap((l2, secondPass) -> {
+                reconcileMissedRelocations(task, firstPass, secondPass, l2);
+            }));
         }));
-    }
-
-    /// Moves to the charge of the second pass the bytes of the tasks and task failures of the first pass that the merged response keeps,
-    /// so that data stays accounted for as long as the response is held. Only what came from other nodes was charged, so the local node
-    /// does not count, and neither do node failures.
-    private static ListTasksResponse carryOver(
-        final ListTasksResponse firstPass,
-        final ListTasksResponse merged,
-        final NodeReplyCharge firstPassCharge,
-        final NodeReplyCharge secondPassCharge,
-        final String localNodeId
-    ) {
-        final long keptBytes = bytesKeptFrom(firstPass, merged, localNodeId);
-        if (keptBytes > 0) {
-            firstPassCharge.transferTo(secondPassCharge, keptBytes);
-        }
-        return merged;
-    }
-
-    // visible for testing
-    static long bytesKeptFrom(final ListTasksResponse firstPass, final ListTasksResponse merged, final String localNodeId) {
-        return serializedSizeOfKept(firstPass.getTasks(), merged.getTasks(), t -> t.taskId().getNodeId(), localNodeId)
-            + serializedSizeOfKept(firstPass.getTaskFailures(), merged.getTaskFailures(), TaskOperationFailure::getNodeId, localNodeId);
-    }
-
-    private static <T extends Writeable> long serializedSizeOfKept(
-        final List<T> firstPass,
-        final List<T> merged,
-        final Function<T, String> nodeId,
-        final String localNodeId
-    ) {
-        final Set<T> kept = Collections.newSetFromMap(new IdentityHashMap<>());
-        kept.addAll(merged);
-        final CountingStreamOutput out = new CountingStreamOutput();
-        try {
-            for (final T item : firstPass) {
-                if (kept.contains(item) && localNodeId.equals(nodeId.apply(item)) == false) {
-                    item.writeTo(out);
-                }
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return out.position();
     }
 
     /// Finds reindex tasks that appeared in the first pass but are missing from the second pass, perhaps because the operation relocated

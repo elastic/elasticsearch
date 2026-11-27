@@ -1250,49 +1250,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
     }
 
-    public void testTaskMissedByTheSecondPassKeepsItsShareOfTheFirstPassChargedAtDelivery() throws Exception {
-        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
-        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
-        final long usedBefore = breaker.getUsed();
-        final int descriptionLength = 5_000;
-        final String relocatable = TransportListTasksAction.RELOCATABLE_ACTIONS.iterator().next();
-        final AtomicReference<Task> vanishing = new AtomicReference<>();
-        final AtomicBoolean vanished = new AtomicBoolean();
-        vanishing.set(registerTask(testNodes[1], relocatable, descriptionLength, () -> {
-            if (vanished.compareAndSet(false, true)) {
-                testNodes[1].transportService.getTaskManager().unregister(vanishing.get());
-            }
-        }, () -> {}));
-        final Task stable = registerTaskWithDescription(testNodes[2], descriptionLength);
-        try {
-            final PlainActionFuture<Long> usedWhileDelivering = new PlainActionFuture<>();
-            final AtomicReference<ListTasksResponse> delivered = new AtomicReference<>();
-            testNodes[0].transportService.getTaskManager()
-                .registerAndExecute(
-                    "direct",
-                    testNodes[0].transportListTasksAction,
-                    doubleListRequest(),
-                    testNodes[0].transportService.getLocalNodeConnection(),
-                    ActionListener.wrap(r -> {
-                        delivered.set(r);
-                        usedWhileDelivering.onResponse(breaker.getUsed());
-                    }, usedWhileDelivering::onFailure)
-                );
-
-            final long usedAtDelivery = safeGet(usedWhileDelivering);
-            assertTrue(delivered.get().getTasks().stream().anyMatch(t -> t.action().equals(relocatable)));
-            assertThat(usedAtDelivery, greaterThanOrEqualTo(usedBefore + 2L * descriptionLength));
-            assertThat(usedAtDelivery, lessThan(usedBefore + 3L * descriptionLength));
-            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
-        } finally {
-            if (vanished.compareAndSet(false, true)) {
-                testNodes[1].transportService.getTaskManager().unregister(vanishing.get());
-            }
-            testNodes[2].transportService.getTaskManager().unregister(stable);
-        }
-    }
-
-    public void testOnlyTheSecondListingPassStaysChargedWhenTheMergedResponseIsDelivered() throws Exception {
+    public void testBothListingPassesStayChargedWhenTheMergedResponseIsDelivered() throws Exception {
         final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
         final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
         final long usedBefore = breaker.getUsed();
@@ -1311,8 +1269,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 );
 
             final long usedAtDelivery = safeGet(usedWhileDelivering);
-            assertThat(usedAtDelivery, greaterThanOrEqualTo(usedBefore + 2L * descriptionLength));
-            assertThat(usedAtDelivery, lessThan(usedBefore + 3L * descriptionLength));
+            assertThat(usedAtDelivery, greaterThanOrEqualTo(usedBefore + 4L * descriptionLength));
             assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
         } finally {
             testNodes[1].transportService.getTaskManager().unregister(task1);
@@ -1339,8 +1296,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 );
             final Releasable retention = safeGet(retained);
             try {
-                assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 2L * descriptionLength));
-                assertThat(breaker.getUsed(), lessThan(usedBefore + 3L * descriptionLength));
+                assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 4L * descriptionLength));
             } finally {
                 retention.close();
             }

@@ -240,20 +240,12 @@ $$$esql-external-cache-schema-ttl$$$
 $$$esql-external-cache-stats-max-extremum-size$$$
 
 `esql.external.cache.stats.max_extremum_size` {applies_to}`stack: preview 9.6+`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The widest minimum or maximum a CSV, TSV or NDJSON read stores for a `keyword`, `text` or `ip` column. A wider value isn't stored, and the `MIN` or `MAX` that needs it reads the file instead.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Maximum byte width of a cached minimum or maximum value collected from CSV, TSV, or NDJSON reads for `keyword`, `text`, and `ip` columns. Values wider than this limit aren't stored; queries that need a withheld bound (such as `MIN`, `MAX`, or range filters on that column) read the file instead, while counts and other columns remain usable. Columnar formats such as Parquet read statistics from the file footer and aren't affected. Refer to [caching](esql-data-federation-querying.md#caching) for how cached statistics affect query reads.
 
     - **Default:** `1kb`
-    - **Valid values:** A byte size from `0b` to `1mb`. `0b` is the strictest setting rather than an unset one: it withholds every minimum and maximum carrying any bytes.
+    - **Valid values:** A byte size from `0b` to `1mb`. `0b` withholds all non-empty bounds. Values below `16b` also withhold bounds for `ip` columns.
 
-    A column whose extremum isn't stored keeps its value and null counts, so an ungrouped `COUNT` over it is still answered from the record, and no other column's stored minimum or maximum is affected. The limit applies to each end on its own, so where only the maximum is too wide, `MIN` over that column is still answered from the stored record. One `STATS` asking for both a withheld extremum and a stored one still reads the file for both. A read also measures each part of a file separately, so a part's own minimum can exceed the limit even when the file's minimum fits under it.
-
-    A comparison filter on that column can read the file too, even when the query never asks for `MIN` or `MAX`. Stored bounds answer `WHERE note > "m" | STATS COUNT(*)` without reading a file whose stored maximum is at or below `"m"`, since nothing in it can match. They answer it the other way, where every row is above `"m"`, only for a column the record shows holds one value per row and no nulls. A file whose bounds straddle the value is read anyway, and a withheld bound on either end leaves the comparison unsettled whatever the other end holds, so that column's own bounds can never skip a file once one end is missing. Another condition helps only where the stored statistics settle the whole filter on their own: an `AND` needs one that rules the file out, so `WHERE note > "m" AND id < 0` still skips a file whose stored `id` bounds are all positive, and an `OR` needs one that matches every row.
-
-    The limit is on the stored byte width, and an `ip` is stored encoded at 16 bytes, so a node set below that stores no minimum or maximum for any `ip` column it reads. Set the same value on every node, so what a column can answer doesn't depend on which node read the file.
-
-    Changing this setting is not retroactive. It is not part of a cached entry's identity, so nothing already stored is rewritten or invalidated, and what a file answers afterwards is settled by its next read: that read can supply a minimum or maximum the record was missing, withdraw one it held, or leave it as it was. Evict the entry or rewrite the file to make a file's stored statistics reflect the current setting outright.
-
-    Raise it to answer `MIN` and `MAX` without reading files whose text columns hold long values, but not far: a measurement too large for the statistics cache's per-entry budget, a few hundred kilobytes on a small heap, is dropped whole and the file then caches no statistics at all, row counts included. Lower it to keep long values out of the statistics cache; the value is still held while the file is read, whatever this is set to. Columnar formats such as Parquet read their statistics from the file itself and aren't affected.
+    Configure the same value on every node; changes apply only to subsequent reads, not existing cache entries. Lower this setting to keep long values out of the statistics cache. Raise it to avoid re-reading files with long text values, but keep it well below the statistics cache's per-entry memory limit, or the entire statistics entry for a file (including row counts) is dropped.
 
 $$$esql-external-cache-footer-size$$$
 

@@ -106,10 +106,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     private static final int HALF_DAY_SECONDS = 12 * 60 * SECONDS_IN_MINUTE;
     public static final int DEFAULT_AGGREGATION_CHUNKING_BUCKETS = 1000;
     public static final TransportVersion ML_DATAFEED_ESQL_QUERY = TransportVersion.fromName("ml_datafeed_esql_query");
-    /** From this version the wire no longer carries {@code source_time_field}: ES|QL datafeeds filter on the job {@code time_field}. */
-    static final TransportVersion ML_DATAFEED_ESQL_SOURCE_TIME_FIELD_REMOVED = TransportVersion.fromName(
-        "ml_datafeed_esql_source_time_field_removed"
-    );
     private static final TimeValue MIN_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(1);
     private static final TimeValue MAX_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(2);
 
@@ -140,21 +136,19 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         "datafeed_max_consecutive_extraction_failures_readded"
     );
 
-    /** Skips the {@code source_time_field} that peers before {@link #ML_DATAFEED_ESQL_SOURCE_TIME_FIELD_REMOVED} still send. */
+    // TODO: drop the removed source_time_field slot together with grouping_interval under one transport version, in a single
+    // backportable clean-up PR (https://github.com/elastic/esql-planning/issues/2208). Until then the wire keeps the slot.
+    /** Skips the slot of the removed {@code source_time_field}, which the wire still carries. */
     static void readRemovedSourceTimeField(StreamInput in) throws IOException {
-        if (in.getTransportVersion().supports(ML_DATAFEED_ESQL_SOURCE_TIME_FIELD_REMOVED) == false) {
-            in.readOptionalString();
-        }
+        in.readOptionalString();
     }
 
     /**
-     * Fills the {@code source_time_field} slot that peers before {@link #ML_DATAFEED_ESQL_SOURCE_TIME_FIELD_REMOVED} still read. ES|QL
-     * datafeeds are behind a feature flag on those versions, so no released datafeed depends on the value.
+     * Fills the slot of the removed {@code source_time_field} with null. Nodes that still read it are behind the ES|QL datafeeds
+     * feature flag, so no released datafeed depends on the value.
      */
     static void writeRemovedSourceTimeField(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(ML_DATAFEED_ESQL_SOURCE_TIME_FIELD_REMOVED) == false) {
-            out.writeOptionalString(null);
-        }
+        out.writeOptionalString(null);
     }
 
     /**

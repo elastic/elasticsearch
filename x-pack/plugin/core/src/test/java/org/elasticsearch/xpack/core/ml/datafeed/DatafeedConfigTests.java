@@ -2167,21 +2167,6 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(config, equalTo(createEsqlDatafeedBuilder().build()));
     }
 
-    public void testWireBeforeSourceTimeFieldRemovalShouldKeepFieldsAligned() throws IOException {
-        // A peer that knows ES|QL datafeeds but not the removal still writes and reads the source_time_field slot.
-        DatafeedConfig original = createEsqlDatafeedBuilder().build();
-        TransportVersion peer = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_SOURCE_TIME_FIELD_REMOVED);
-        assertTrue(peer.supports(DatafeedConfig.ML_DATAFEED_ESQL_QUERY));
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(peer);
-            original.writeTo(out);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
-                in.setTransportVersion(peer);
-                assertThat(new DatafeedConfig(in), equalTo(mutateInstanceForVersion(original, peer)));
-            }
-        }
-    }
-
     public void testEsqlQueryWithoutGroupingIntervalShouldReject() {
         DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
         builder.setGroupingInterval(null);

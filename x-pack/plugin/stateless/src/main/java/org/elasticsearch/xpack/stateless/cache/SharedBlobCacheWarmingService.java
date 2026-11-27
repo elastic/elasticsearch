@@ -1129,6 +1129,7 @@ public class SharedBlobCacheWarmingService {
                     : "expected TIMEOUT || WARMING_COMPLETE; was " + outcome;
                 if (outcome == SearchRecoveryWaitOutcome.TIMEOUT) {
                     timedOut.set(true);
+                    logger.info("{} search recovery warming timed out, demoting its queued and future warming tasks", indexShard.shardId());
                     final long dataSetSizeInBytes = directory.estimateDataSetSizeInBytes();
                     final long bytesWarmed = directory.totalBytesWarmedFromObjectStore() - bytesWarmedAtStart;
                     final String contextDescription = timeoutTask.latestTimeoutContextDescription();
@@ -2035,6 +2036,11 @@ public class SharedBlobCacheWarmingService {
             }
 
             @Override
+            long blobOffset() {
+                return (long) blobRegion.region * cacheService.getRegionSize();
+            }
+
+            @Override
             public void onResponse(Releasable releasable) {
                 try (RefCountingRunnable refs = new RefCountingRunnable(() -> Releasables.close(releasable))) {
                     var cacheKey = new FileCacheKey(warmingRun.shardId(), blobRegion.blob.primaryTerm(), blobRegion.blob.blobName());
@@ -2196,6 +2202,11 @@ public class SharedBlobCacheWarmingService {
             }
 
             @Override
+            long blobOffset() {
+                return byteRangeToWarm.start();
+            }
+
+            @Override
             public void onResponse(Releasable releasable) {
                 runningBccBlobsMetric.add(1, bccSizeAttributes);
                 enqueuedBccBlobsMetric.add(-1, bccSizeAttributes);
@@ -2286,6 +2297,11 @@ public class SharedBlobCacheWarmingService {
         }
 
         @Override
+        long blobOffset() {
+            return task.blobOffset();
+        }
+
+        @Override
         public void onResponse(Releasable releasable) {
             if (demoted == false && task.hasTimedOut()) {
                 demoted = true;
@@ -2329,6 +2345,13 @@ public class SharedBlobCacheWarmingService {
             return false;
         }
 
+        /// The offset in its blob of the first byte this task warms. Among the tasks of the same priority and demotion, the tasks that
+        /// warm the start of a blob go before the ones deeper in a blob, so that a warming that has just started gets ahead of a warming
+        /// that has already progressed. Tasks that are not tied to a blob offset have 0.
+        long blobOffset() {
+            return 0;
+        }
+
         /// For two tasks x and y, x.compareTo(y) < 0 means that we need to warm x before y.
         @Override
         public int compareTo(AbstractWarmingTask that) {
@@ -2345,7 +2368,13 @@ public class SharedBlobCacheWarmingService {
                 return demoted ? 1 : -1;
             }
 
-            // Tasks with the same priority and demotion will be executed in FIFO order using provided task position.
+            // Then the tasks that warm the start of a blob go before the ones deeper in a blob.
+            final int byBlobOffset = Long.compare(blobOffset(), that.blobOffset());
+            if (byBlobOffset != 0) {
+                return byBlobOffset;
+            }
+
+            // Tasks with the same priority, demotion and blob offset will be executed in FIFO order using provided task position.
             // `position` can technically overflow but that would only result in a small amount of tasks having
             // wrong priorities for a short time period.
             // So we don't have any special logic for that.

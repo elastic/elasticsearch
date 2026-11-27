@@ -3108,6 +3108,33 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         );
     }
 
+    /**
+     * A warming that has just started has its tasks at the start of its blobs. They must go before the tasks that are deeper in the blobs
+     * of a warming that was created earlier, but never before the tasks of a higher priority type, and tasks at the same blob offset
+     * keep the FIFO order.
+     */
+    public void testAbstractWarmingTaskComparisonByBlobOffset() {
+        final var type = randomFrom(Type.SEARCH, Type.INDEXING_MERGE);
+        final var queue = new PriorityQueue<MyTask>();
+
+        // created first, but deep in its blob
+        final var olderDeep = new MyTask(type, 1, 4096);
+        // created later, at the start of its blob
+        final var newerStart = new MyTask(type, 2, 0);
+        // same blob offset as newerStart, created later, so it goes after it
+        final var newestStart = new MyTask(type, 3, 0);
+        final var middle = new MyTask(type, 4, 1024);
+        // a higher priority type goes first whatever its blob offset
+        final var highPriorityDeep = new MyTask(Type.INDEXING, 5, Long.MAX_VALUE);
+
+        queue.addAll(shuffledList(List.of(olderDeep, newerStart, newestStart, middle, highPriorityDeep)));
+
+        assertThat(
+            Stream.generate(queue::poll).takeWhile(Objects::nonNull).toList(),
+            equalTo(List.of(highPriorityDeep, newerStart, newestStart, middle, olderDeep))
+        );
+    }
+
     public void testPrioritizationOfWarmingTasks() throws IOException {
         var primaryTerm = 1;
         try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
@@ -4125,8 +4152,20 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     private class MyTask extends AbstractWarmingTask {
+        private final long blobOffset;
+
         MyTask(Type type, long position) {
+            this(type, position, 0L);
+        }
+
+        MyTask(Type type, long position, long blobOffset) {
             super(type, position);
+            this.blobOffset = blobOffset;
+        }
+
+        @Override
+        long blobOffset() {
+            return blobOffset;
         }
 
         @Override

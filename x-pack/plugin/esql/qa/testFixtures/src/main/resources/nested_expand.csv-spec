@@ -285,3 +285,56 @@ id:keyword | items.sku:keyword
 2          | null
 3          | c
 ;
+
+expandAfterKeepingTheAlias
+required_capability: nested_expand
+
+FROM nested_orders
+| EVAL o = items
+| KEEP id, o
+| NESTED_EXPAND o
+| KEEP id, o.sku
+| SORT id, o.sku
+;
+
+id:keyword | o.sku:keyword
+1          | a
+1          | b
+2          | null
+3          | c
+;
+
+expandAfterAFilterAfterFork
+required_capability: nested_expand
+required_capability: fork_v9
+
+FROM nested_orders
+| FORK (WHERE id == "1") (WHERE id == "2") (WHERE id == "3")
+| WHERE id != "2"
+| NESTED_EXPAND items
+| KEEP id, items.sku, _fork
+| SORT id, items.sku
+;
+
+id:keyword | items.sku:keyword | _fork:keyword
+1          | a                 | fork1
+1          | b                 | fork1
+3          | c                 | fork3
+;
+
+expandAfterAnEvalAfterSubqueries
+required_capability: nested_expand
+required_capability: subquery_in_from_command
+
+FROM (FROM nested_orders | WHERE id == "1"), (FROM nested_orders | WHERE id == "3")
+| EVAL z = 1
+| NESTED_EXPAND items
+| KEEP id, z, items.sku
+| SORT id, items.sku
+;
+
+id:keyword | z:integer | items.sku:keyword
+1          | 1         | a
+1          | 1         | b
+3          | 1         | c
+;

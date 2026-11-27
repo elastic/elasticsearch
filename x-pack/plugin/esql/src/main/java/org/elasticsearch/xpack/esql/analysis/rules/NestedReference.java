@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -86,6 +87,43 @@ public final class NestedReference {
             }
         }
         return null;
+    }
+
+    /**
+     * Adds to the projections of a {@code KEEP} the private nested schema of each collection column it keeps, so that the column can
+     * still be expanded or searched afterwards. Returns {@code projections} itself when nothing is added.
+     */
+    public static List<NamedExpression> withKeptSchema(List<NamedExpression> projections, LogicalPlan child, List<Attribute> input) {
+        Map<NameId, String> references = references(child);
+        if (references.isEmpty()) {
+            return projections;
+        }
+        Set<String> paths = new HashSet<>();
+        for (NamedExpression projection : projections) {
+            String path = references.get(projection.id());
+            if (path != null) {
+                paths.add(path);
+            }
+        }
+        if (paths.isEmpty()) {
+            return projections;
+        }
+        Set<NameId> kept = new HashSet<>();
+        projections.forEach(p -> kept.add(p.id()));
+        List<NamedExpression> result = new ArrayList<>(projections);
+        for (Attribute attribute : input) {
+            if (attribute instanceof FieldAttribute field
+                && field.field() instanceof NestedScopeField
+                && kept.contains(field.id()) == false
+                && paths.stream()
+                    .anyMatch(
+                        path -> field.name().equals(NestedScopeField.PREFIX + path)
+                            || field.name().startsWith(NestedScopeField.PREFIX + path + ".")
+                    )) {
+                result.add(field);
+            }
+        }
+        return result;
     }
 
     private static String sourceName(Alias field) {

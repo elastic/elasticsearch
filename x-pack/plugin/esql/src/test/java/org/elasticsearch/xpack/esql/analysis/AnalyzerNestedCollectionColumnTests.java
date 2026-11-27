@@ -264,6 +264,29 @@ public class AnalyzerNestedCollectionColumnTests extends AnalyzerTestCase {
         }
     }
 
+    public void testExpandAfterKeepingTheCollectionColumn() {
+        for (String keep : List.of("KEEP id, o", "KEEP o, id", "KEEP o")) {
+            LogicalPlan plan = nestedAnalyzer().query("FROM ne | EVAL o = items | " + keep + " | NESTED_EXPAND o | KEEP o.sku");
+            assertThat(keep, onlyExpand(plan).path(), equalTo("items"));
+        }
+    }
+
+    public void testAnyAfterKeepingTheCollectionColumn() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne | EVAL o = items | KEEP id, o | WHERE NESTED_ANY(o, o.qty > 1) | KEEP id");
+        assertThat(plan.output().stream().map(a -> a.name()).toList(), equalTo(List.of("id")));
+    }
+
+    public void testExpandAfterKeepingTheCollectionColumnWhenUnmappedFieldsAreNullified() {
+        LogicalPlan plan = nestedAnalyzer().statement(
+            "SET unmapped_fields=\"nullify\"; FROM ne | EVAL o = items | KEEP id, o | NESTED_EXPAND o | KEEP o.sku"
+        );
+        assertThat(onlyExpand(plan).path(), equalTo("items"));
+    }
+
+    public void testExpandAfterAKeepThatDropsTheCollectionColumn() {
+        nestedAnalyzer().error("FROM ne | EVAL o = items | KEEP id | NESTED_EXPAND o", containsString("Unknown column [o]"));
+    }
+
     public void testAliasIsNotAColumnOfAFork() {
         LogicalPlan plan = nestedAnalyzer().query(
             "FROM ne | EVAL o = items | FORK (WHERE id == \"a\") (WHERE id == \"b\") | KEEP id, _fork"

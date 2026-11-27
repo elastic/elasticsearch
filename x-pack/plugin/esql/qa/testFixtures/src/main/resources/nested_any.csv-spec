@@ -273,3 +273,36 @@ FROM nested_orders
 id:keyword | _fork:keyword
 1          | fork1
 ;
+
+anyAfterKeepingTheAlias
+required_capability: fn_nested_any
+
+FROM nested_orders
+| EVAL o = items
+| KEEP id, o
+| WHERE NESTED_ANY(o, o.qty > 1)
+| KEEP id
+| SORT id
+;
+
+id:keyword
+1
+3
+;
+
+anyAfterAFilterAfterFork
+required_capability: fn_nested_any
+required_capability: fork_v9
+
+FROM nested_orders
+| FORK (WHERE id == "1") (WHERE id == "2") (WHERE id == "3")
+| WHERE id != "2"
+| WHERE NESTED_ANY(items.qty > 1)
+| KEEP id, _fork
+| SORT id
+;
+
+id:keyword | _fork:keyword
+1          | fork1
+3          | fork3
+;

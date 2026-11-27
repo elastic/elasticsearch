@@ -26,6 +26,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.fi
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.index;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.resolution;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -143,6 +144,36 @@ public class AnalyzerNestedMergePlanTests extends AnalyzerTestCase {
             "FROM (FROM ne_x), (FROM ne) | WHERE NESTED_ANY(items.qty > 1) AND NESTED_ANY(items.qty < 9) | KEEP id"
         );
         assertThat(predicates(plan), hasSize(4));
+    }
+
+    public void testExpandAfterAFilterAfterAMerge() {
+        LogicalPlan plan = nestedAnalyzer().query(
+            "FROM (FROM ne), (FROM ne) | WHERE id != \"x\" | NESTED_EXPAND items | KEEP id, items.sku"
+        );
+        assertThat(expands(plan), hasSize(2));
+        assertThat(names(plan.output()), contains("id", "items.sku"));
+    }
+
+    public void testExpandAfterAnEvalAfterAMerge() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM (FROM ne), (FROM ne) | EVAL z = 1 | NESTED_EXPAND items | KEEP id, z, items.sku");
+        assertThat(expands(plan), hasSize(2));
+        assertThat(names(plan.output()), contains("id", "z", "items.sku"));
+    }
+
+    public void testAnyAfterAFilterAfterAFork() {
+        LogicalPlan plan = nestedAnalyzer().query(
+            "FROM ne | FORK (WHERE id == \"1\") (WHERE id == \"2\") | WHERE id != \"x\" | WHERE NESTED_ANY(items.qty > 1) | KEEP id"
+        );
+        assertThat(predicates(plan), hasSize(2));
+    }
+
+    public void testExpandAfterACommandThatDoesNotMoveIsRejectedWithAHint() {
+        for (String command : List.of("SORT id", "LIMIT 5")) {
+            nestedAnalyzer().error(
+                "FROM (FROM ne), (FROM ne) | " + command + " | NESTED_EXPAND items | KEEP id",
+                containsString("NESTED_EXPAND has to follow it directly, with only WHERE or EVAL commands in between")
+            );
+        }
     }
 
     private TestAnalyzer withColumnOnlyInOneBranch() {

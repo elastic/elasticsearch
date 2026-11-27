@@ -1939,7 +1939,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             if (root == null) {
                 if (childrenOutput.stream().anyMatch(a -> inNestedPath(a.name(), name) || inNestedPath(a.name(), rootName))) {
-                    throw nestedExpandError(target, "NESTED_EXPAND requires a mapped nested field, not [" + name + "]");
+                    String hint = expand.child().anyMatch(MergePlan.class::isInstance)
+                        ? "; if it is a nested field of the indices of a FORK or a subquery, NESTED_EXPAND has to follow it directly, "
+                            + "with only WHERE or EVAL commands in between"
+                        : "";
+                    throw nestedExpandError(target, "NESTED_EXPAND requires a mapped nested field, not [" + name + "]" + hint);
                 }
                 return resolveExpressions(expand, childrenOutput);
             }
@@ -3440,11 +3444,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     new ResolvingProject.Command(
                         ResolvingProject.Kind.KEEP,
                         keep.projections(),
-                        inputAttributes -> keepResolver(keep.projections(), inputAttributes, unmatchedPatterns)
+                        inputAttributes -> NestedReference.withKeptSchema(
+                            keepResolver(keep.projections(), inputAttributes, unmatchedPatterns),
+                            keep.child(),
+                            inputAttributes
+                        )
                     )
                 );
             }
-            List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output(), UnmatchedPatterns.FAIL);
+            List<NamedExpression> resolved = NestedReference.withKeptSchema(
+                keepResolver(keep.projections(), keep.child().output(), UnmatchedPatterns.FAIL),
+                keep.child(),
+                keep.child().output()
+            );
             // Provenance for the external-metadata surfacing rule: when a Keep projection lists an
             // engine-synthesized virtual column (ExternalMetadataAttribute), emit a Keep node, not
             // a bare Project, so planWithoutSyntheticAttributes can tell "the user kept this

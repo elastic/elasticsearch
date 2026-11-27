@@ -111,6 +111,12 @@ public class LenientUnionCastIT extends AbstractEsqlIntegTestCase {
                 try (EsqlQueryResponse response = run(query)) {
                     List<List<Object>> actual = getValuesList(response);
                     assertThat(query, actual.size(), equalTo(2));
+                    // One row of each index of the pair: a row of another index, or two of the same, would hide a wrong result
+                    assertThat(
+                        query,
+                        actual.stream().map(List::getFirst).toList(),
+                        equalTo(List.of(first.index(), second.index()).stream().sorted().toList())
+                    );
                     for (List<Object> row : actual) {
                         String index = (String) row.getFirst();
                         assertThat(query + ", index [" + index + "]", row.subList(1, row.size()), equalTo(expectedByIndex.get(index)));

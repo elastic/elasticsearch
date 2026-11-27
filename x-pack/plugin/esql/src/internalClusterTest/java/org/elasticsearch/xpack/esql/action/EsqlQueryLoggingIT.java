@@ -185,11 +185,22 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         assertRequestedTimeRange(appender.getLastEventAndReset(), "2026-01-01T00:00:00.000Z", "2026-01-01T04:00:00.000Z");
     }
 
+    public void testLoggingRequestedTimeRangeWithSingleBound() {
+        createTimestampIndex();
+        // A range in the query itself is logged too, and only the bounds it has.
+        try (var ignored = run(syncEsqlQueryRequest("FROM timestamp-index | WHERE @timestamp >= \"2026-01-01T00:00:00Z\" | LIMIT 1"))) {
+            assertRequestedTimeRange(appender.getLastEventAndReset(), "2026-01-01T00:00:00.000Z", null);
+        }
+        try (var ignored = run(syncEsqlQueryRequest("FROM timestamp-index | WHERE @timestamp <= \"2026-01-01T01:00:00Z\" | LIMIT 1"))) {
+            assertRequestedTimeRange(appender.getLastEventAndReset(), null, "2026-01-01T01:00:00.000Z");
+        }
+    }
+
     public void testLoggingNoRequestedTimeRange() {
         createTimestampIndex();
-        // A manual WHERE is deliberately not interpreted as the requested time range, and neither is a range with only one bound.
+        // A request filter range with only one bound is not interpreted.
         for (QueryBuilder filter : new QueryBuilder[] { null, new RangeQueryBuilder("@timestamp").gte("now-1h") }) {
-            var request = syncEsqlQueryRequest("FROM timestamp-index | WHERE @timestamp >= NOW() - 1 hour | LIMIT 1").filter(filter);
+            var request = syncEsqlQueryRequest("FROM timestamp-index | LIMIT 1").filter(filter);
             try (var ignored = run(request)) {
                 assertRequestedTimeRange(appender.getLastEventAndReset(), null, null);
             }

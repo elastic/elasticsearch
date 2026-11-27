@@ -1,0 +1,5 @@
+pr: 166797
+summary: "Sort indices on keys computed by ES|QL expressions, and make `DATE_TRUNC` on `date_nanos` return null with a warning, instead of failing, for buckets that start before 1970"
+area: Columnar
+type: enhancement
+issues: []

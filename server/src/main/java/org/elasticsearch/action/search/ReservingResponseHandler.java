@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.transport;
+package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -15,17 +15,19 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.util.concurrent.Executor;
 
 /**
- * Charges a response from another node from when it starts arriving until it is read, see {@link ResponseReservation}. A trip on
+ * Charges a response from another node from when it starts arriving until it is read, see {@link ShardResponseReservation}. A trip on
  * arrival reaches the listener as the {@link CircuitBreakingException} itself rather than wrapped in a transport exception, since it is
  * this node that has no room and not the other node that failed.
  */
 public class ReservingResponseHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
-    /** The response's reservation, whose {@link ResponseReservation#reservedTotal()} is the size it arrived with once read. */
-    protected final ResponseReservation reservation;
+    /** The response's reservation, whose {@link ShardResponseReservation#reservedTotal()} is the size it arrived with once read. */
+    protected final ShardResponseReservation reservation;
 
     /**
      * @param label breaker label for the reservation
@@ -38,7 +40,7 @@ public class ReservingResponseHandler<Response extends TransportResponse> extend
         String label
     ) {
         super(listener, reader, executor);
-        this.reservation = new ResponseReservation(circuitBreaker, label, listener::onFailure);
+        this.reservation = new ShardResponseReservation(circuitBreaker, label, listener::onFailure);
     }
 
     @Override

@@ -78,8 +78,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.BytesTransportResponse;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.RequestHandlerRegistry;
-import org.elasticsearch.transport.ResponseReservation;
-import org.elasticsearch.transport.ResponseReservationTests;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TestProxyConnections;
 import org.elasticsearch.transport.Transport;
@@ -167,7 +165,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -341,7 +339,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -356,11 +354,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 int shardId,
                 Transport.Connection connection,
                 ShardSearchRequest request,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener
             ) {
                 switch (shardId) {
-                    case 0 -> trip.set(ResponseReservationTests.tripWhileArriving(reservation, listener));
+                    case 0 -> trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener));
                     case 1 -> {
                         QuerySearchResult result = new QuerySearchResult(
                             new ShardSearchContextId("late", shardId),
@@ -497,7 +495,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -519,7 +517,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             ).start();
             assertThat(batches.keySet(), containsInAnyOrder("node1", "node2"));
 
-            CircuitBreakingException trip = ResponseReservationTests.tripWhileArriving(batches.get("node1"));
+            CircuitBreakingException trip = ShardResponseReservationTests.tripWhileArriving(batches.get("node1"));
             batches.get("node2")
                 .handleException(new SendRequestTransportException(lookup.get("node2").getNode(), "action", new IOException("boom")));
 
@@ -568,14 +566,14 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
             ) {
                 int shardId = request.shardId().id();
                 if (shardId == 0) {
-                    responses.put(shardId, () -> ResponseReservationTests.tripWhileArriving(reservation, listener));
+                    responses.put(shardId, () -> ShardResponseReservationTests.tripWhileArriving(reservation, listener));
                     return;
                 }
                 responses.put(shardId, () -> {
@@ -677,7 +675,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -686,7 +684,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 responses.put(
                     shardId,
                     shardId == 0
-                        ? () -> trip.set(ResponseReservationTests.tripWhileArriving(reservation, listener))
+                        ? () -> trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener))
                         : () -> listener.onFailure(new NoShardAvailableActionException(request.shardId()))
                 );
             }
@@ -749,13 +747,13 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
             ) {
                 sentShards.add(request.shardId().id());
-                tripFirst.compareAndSet(null, () -> trip.set(ResponseReservationTests.tripWhileArriving(reservation, listener)));
+                tripFirst.compareAndSet(null, () -> trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener)));
             }
         };
 
@@ -811,7 +809,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             sentNodes.add(connection.getNode().getId());
             // The first node answers while the coordinator is still sending, and trips
             if (sentNodes.size() == 1) {
-                trip.set(ResponseReservationTests.tripWhileArriving((TransportResponseHandler<?>) invocation.getArgument(4)));
+                trip.set(ShardResponseReservationTests.tripWhileArriving((TransportResponseHandler<?>) invocation.getArgument(4)));
             }
             return null;
         }).when(transportService)
@@ -878,7 +876,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -886,7 +884,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 int shardId = request.shardId().id();
                 failuresWhenSent.put(shardId, failures.size());
                 if (shardId == 0) {
-                    tripShard0.set(() -> trip.set(ResponseReservationTests.tripWhileArriving(reservation, listener)));
+                    tripShard0.set(() -> trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener)));
                 }
             }
         };
@@ -971,7 +969,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             @Override
             public Transport.Connection get(Object nodeId) {
                 if (sentBatches.size() == 1 && trip.get() == null) {
-                    trip.set(ResponseReservationTests.tripWhileArriving(sentBatches.getFirst()));
+                    trip.set(ShardResponseReservationTests.tripWhileArriving(sentBatches.getFirst()));
                 }
                 return super.get(nodeId);
             }
@@ -1076,7 +1074,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     /**
-     * Builds a search that charges shard responses to a breaker of {@link ResponseReservationTests#TRIPPING_LIMIT} and collects
+     * Builds a search that charges shard responses to a breaker of {@link ShardResponseReservationTests#TRIPPING_LIMIT} and collects
      * its failures. Its query phase must not finish.
      */
     private SearchQueryThenFetchAsyncAction newSearchThatMustNotFinish(
@@ -1100,7 +1098,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             Collections.emptyMap(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
-            newLimitedBreaker(ResponseReservationTests.TRIPPING_LIMIT),
+            newLimitedBreaker(ShardResponseReservationTests.TRIPPING_LIMIT),
             request,
             ActionListener.wrap(r -> fail("the search must fail"), failures::add),
             shardsIter,
@@ -1201,7 +1199,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer

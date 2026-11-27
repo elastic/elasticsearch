@@ -112,7 +112,7 @@ public class SearchShardResponseCircuitBreakerIT extends ESIntegTestCase {
                     .setSize(0)
                     .addAggregation(AggregationBuilders.terms("tags").field("tag").size(LARGE_DOCS)),
                 "query",
-                SearchResponseBreakerLabels.BREAKER_LABEL
+                ShardResponseReservation.BREAKER_LABEL
             );
         }
     }
@@ -125,7 +125,7 @@ public class SearchShardResponseCircuitBreakerIT extends ESIntegTestCase {
                 .setSize(0)
                 .addAggregation(AggregationBuilders.terms("tags").field("tag").size(LARGE_DOCS)),
             DfsQueryPhase.NAME,
-            SearchResponseBreakerLabels.BREAKER_LABEL
+            ShardResponseReservation.BREAKER_LABEL
         );
     }
 
@@ -137,7 +137,7 @@ public class SearchShardResponseCircuitBreakerIT extends ESIntegTestCase {
             assertTripsWhileArriving(
                 client(coordinator).prepareSearch(SMALL, LARGE).setSize(LARGE_DOCS).setFetchSource(true),
                 FetchSearchPhase.NAME,
-                SearchResponseBreakerLabels.FETCH_BREAKER_LABEL
+                ShardResponseReservation.FETCH_BREAKER_LABEL
             );
         }
     }

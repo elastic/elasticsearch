@@ -38,8 +38,6 @@ import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.ResponseReservation;
-import org.elasticsearch.transport.ResponseReservationTests;
 import org.elasticsearch.transport.TestProxyConnections;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -88,7 +86,7 @@ public class SearchTransportServiceTests extends ESTestCase {
      */
     public void testShardResponseHandlersReserveAndReportTripWhileArriving() {
         for (Map.Entry<String, TripRoute> route : shardResponseRoutes().entrySet()) {
-            CircuitBreaker breaker = newLimitedBreaker(ResponseReservationTests.TRIPPING_LIMIT);
+            CircuitBreaker breaker = newLimitedBreaker(ShardResponseReservationTests.TRIPPING_LIMIT);
             AtomicReference<TransportResponseHandler<?>> handler = new AtomicReference<>();
             SearchTransportService service = newHandlerCapturingService(handler);
             List<Exception> failures = new ArrayList<>();
@@ -109,7 +107,7 @@ public class SearchTransportServiceTests extends ESTestCase {
             piece.close();
             assertThat(route.getKey(), breaker.getUsed(), equalTo(0L));
 
-            CircuitBreakingException trip = ResponseReservationTests.tripWhileArriving(handler.get());
+            CircuitBreakingException trip = ShardResponseReservationTests.tripWhileArriving(handler.get());
             assertThat(route.getKey(), reportedTrip.get().get(), sameInstance(trip));
             assertThat(route.getKey(), reportedWhenFailed, contains(sameInstance(trip)));
             assertThat(route.getKey(), failures, hasSize(1));
@@ -127,7 +125,7 @@ public class SearchTransportServiceTests extends ESTestCase {
         Transport.Connection gateway = new SearchAsyncActionTests.MockConnection(DiscoveryNodeUtils.create("gateway"));
         Transport.Connection proxied = TestProxyConnections.newProxyConnection(gateway, DiscoveryNodeUtils.create("node"));
         for (Map.Entry<String, TripRoute> route : shardResponseRoutes().entrySet()) {
-            CircuitBreaker breaker = newLimitedBreaker(ResponseReservationTests.TRIPPING_LIMIT);
+            CircuitBreaker breaker = newLimitedBreaker(ShardResponseReservationTests.TRIPPING_LIMIT);
             AtomicReference<TransportResponseHandler<?>> handler = new AtomicReference<>();
             SearchTransportService service = newHandlerCapturingService(handler);
 
@@ -200,7 +198,7 @@ public class SearchTransportServiceTests extends ESTestCase {
         void send(
             SearchTransportService service,
             Transport.Connection connection,
-            ResponseReservation reservation,
+            ShardResponseReservation reservation,
             Consumer<Exception> onFailure
         );
     }
@@ -211,7 +209,7 @@ public class SearchTransportServiceTests extends ESTestCase {
             route.send(
                 service,
                 connection,
-                new ResponseReservation(breaker, SearchResponseBreakerLabels.BREAKER_LABEL, trips::add),
+                new ShardResponseReservation(breaker, ShardResponseReservation.BREAKER_LABEL, trips::add),
                 onFailure
             );
             return () -> trips.isEmpty() ? null : trips.getFirst();

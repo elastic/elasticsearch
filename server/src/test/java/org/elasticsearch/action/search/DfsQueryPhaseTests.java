@@ -35,8 +35,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.transport.ResponseReservation;
-import org.elasticsearch.transport.ResponseReservationTests;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
@@ -83,7 +81,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -184,7 +182,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -271,13 +269,13 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
             ) {
                 if (request.contextId().getId() == 1) {
-                    trip.set(ResponseReservationTests.tripWhileArriving(reservation, listener));
+                    trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener));
                 } else if (request.contextId().getId() == 2) {
                     listener.onFailure(new MockDirectoryWrapper.FakeIOException());
                 } else {
@@ -289,7 +287,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext = new MockSearchDfsQueryThenFetchAsyncAction(
             2,
             new SearchRequest().allowPartialSearchResults(true),
-            newLimitedBreaker(ResponseReservationTests.TRIPPING_LIMIT)
+            newLimitedBreaker(ShardResponseReservationTests.TRIPPING_LIMIT)
         );
         mockSearchPhaseContext.searchTransport = searchTransportService;
         try (
@@ -337,7 +335,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -439,7 +437,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ResponseReservation reservation,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer

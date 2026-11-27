@@ -119,7 +119,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
             connection,
             buildShardSearchRequest(shardIt, listener.requestIndex),
             getTask(),
-            newShardResponseReservation(getName(), SearchResponseBreakerLabels.BREAKER_LABEL),
+            newShardResponseReservation(getName(), ShardResponseReservation.BREAKER_LABEL),
             listener,
             this::trackPhaseResultBytesRead,
             this::trackPhaseRequestBytesWritten

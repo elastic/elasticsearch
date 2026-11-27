@@ -26,6 +26,30 @@ setup:
           - { "index": { "_index": "lenient_unsupported" } }
           - { "value": 3, "name": "a" }
 
+  - do:
+      indices.create:
+        index: lenient_unsupported_ts
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              value:
+                type: rank_feature
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "lenient_unsupported_ts" } }
+          - { "@timestamp": "2024-05-10T00:00:00Z", "host": "a", "value": 3 }
+
 ---
 "cast of an unsupported field":
   - do:
@@ -68,3 +92,14 @@ setup:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'column [value] must appear in the STATS BY clause or be used in an aggregate function' }
+
+---
+"a cast of an unsupported field in a time series query":
+  - do:
+      warnings_regex:
+        - "\\[value\\] of type \\[rank_feature\\] cannot be converted to \\[LONG\\] and will be null\\."
+      esql.query:
+        body:
+          query: 'TS lenient_unsupported_ts | STATS m = MAX(value::long) BY host | KEEP host, m'
+  - match: { columns: [ { name: host, type: keyword }, { name: m, type: long } ] }
+  - match: { values: [ [ "a", null ] ] }

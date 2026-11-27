@@ -2748,12 +2748,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * Same gated inter-chunk gap as {@link #testProducerLoopDoesNotDropRowsAcrossDeterministicPoisonGap}
      * but drained with production {@code tryAdvanceOrPark} (no {@code hasNext} fallback). A lone
-     * POISON must park, not declare EOF.
-     * <p>
-     * After drain, leftover {@code runParserOnce} tasks (inline steal) are started and parked after
-     * {@code tasksOutstanding.incrementAndGet}. A one-shot {@code isExhausted()} then matches #164484:
-     * drain already returned every row, but the counter is still non-zero. Wait until those empty-polls
-     * finish; do not count parser tasks at submit (a rejected {@code execute} would stick the counter).
+     * POISON must park, not declare EOF. Leftover empty-polls can start after drain; wait until
+     * {@code isExhausted()} is true rather than sampling it once (#164484).
      */
     public void testTryAdvanceOrParkDoesNotDropRowsAcrossDeterministicPoisonGap() throws Exception {
         int linesPerFile = 2000;
@@ -2763,33 +2759,22 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         CountDownLatch gate = new CountDownLatch(1);
         CountDownLatch gatedReached = new CountDownLatch(1);
-        CountDownLatch leftoverCounted = new CountDownLatch(1);
-        CountDownLatch leftoverHold = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(6);
-        AtomicReference<Runnable> segmentator = new AtomicReference<>();
-        List<Runnable> parserTasks = new CopyOnWriteArrayList<>();
-        Executor executor = command -> {
-            if (segmentator.compareAndSet(null, command)) {
-                pool.execute(command);
-                return;
-            }
-            parserTasks.add(command);
-        };
         PlainActionFuture<List<String>> done = new PlainActionFuture<>();
-        StreamingParallelParsingCoordinator.StreamingParallelIterator it = null;
+        CloseableIterator<Page> it = null;
         try {
             GatedLineFormatReader reader = new GatedLineFormatReader(chunkSize, 1, gate, gatedReached);
             InputStream s = new ByteArrayInputStream(buildContent(linesPerFile).getBytes(StandardCharsets.UTF_8));
-            it = (StreamingParallelParsingCoordinator.StreamingParallelIterator) StreamingParallelParsingCoordinator.parallelRead(
+            it = StreamingParallelParsingCoordinator.parallelRead(
                 reader,
                 s,
                 List.of("line"),
                 batchSize,
                 parsingParallelism,
-                executor,
+                pool,
                 ErrorPolicy.STRICT
             );
-            StreamingParallelParsingCoordinator.StreamingParallelIterator iter = it;
+            CloseableIterator<Page> iter = it;
             pool.execute(() -> {
                 try {
                     done.onResponse(drainLinesViaTryAdvanceOrPark(iter));
@@ -2804,6 +2789,61 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
             gate.countDown();
             List<String> rows = done.actionGet(TimeValue.timeValueSeconds(30));
+            assertBusy(() -> assertTrue("drain finished so the iterator must be exhausted", iter.isExhausted()));
+            assertEquals("every row across the gated gap must be delivered", linesPerFile, rows.size());
+            for (int i = 0; i < linesPerFile; i++) {
+                assertEquals("row order preserved across the gap", "line-" + String.format(Locale.ROOT, "%04d", i), rows.get(i));
+            }
+        } finally {
+            gate.countDown();
+            if (it != null) {
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Leftover {@code runParserOnce} after an inline steal is counted only when it runs. Drain can
+     * already have every row while that empty-poll has incremented {@code tasksOutstanding}, so a
+     * one-shot {@code isExhausted()} is false (#164484). Do not count at submit: a rejected
+     * {@code execute} would stick the counter.
+     */
+    public void testIsExhaustedIsFalseWhileLeftoverEmptyPollIsInFlight() throws Exception {
+        int linesPerFile = 2000;
+        int chunkSize = 64;
+        int batchSize = 8;
+        int parsingParallelism = 4;
+
+        CountDownLatch leftoverCounted = new CountDownLatch(1);
+        CountDownLatch leftoverHold = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(6);
+        AtomicReference<Runnable> segmentator = new AtomicReference<>();
+        List<Runnable> parserTasks = new CopyOnWriteArrayList<>();
+        Executor executor = command -> {
+            if (segmentator.compareAndSet(null, command)) {
+                pool.execute(command);
+                return;
+            }
+            parserTasks.add(command);
+        };
+        StreamingParallelParsingCoordinator.StreamingParallelIterator it = null;
+        try {
+            it = (StreamingParallelParsingCoordinator.StreamingParallelIterator) StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(chunkSize),
+                new ByteArrayInputStream(buildContent(linesPerFile).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                batchSize,
+                parsingParallelism,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            StreamingParallelParsingCoordinator.StreamingParallelIterator iter = it;
+            List<String> rows = drainLinesViaTryAdvanceOrPark(iter);
+            assertEquals(linesPerFile, rows.size());
             assertFalse("dispatch must have submitted leftover parser tasks", parserTasks.isEmpty());
             iter.afterConsumeChunkCount = () -> {
                 leftoverCounted.countDown();
@@ -2816,20 +2856,16 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     throw new AssertionError("interrupted holding leftover consumeChunk", e);
                 }
             };
-            for (Runnable parser : parserTasks) {
-                pool.execute(parser);
-            }
+            pool.execute(parserTasks.remove(0));
             assertTrue("leftover parser never incremented tasksOutstanding", leftoverCounted.await(30, TimeUnit.SECONDS));
+            assertFalse("in-flight leftover empty-poll is not EOF", iter.isExhausted());
+            iter.afterConsumeChunkCount = null;
             leftoverHold.countDown();
-            assertBusy(() -> assertTrue("drain finished so the iterator must be exhausted", iter.isExhausted()));
-            assertEquals("every row across the gated gap must be delivered", linesPerFile, rows.size());
-            for (int i = 0; i < linesPerFile; i++) {
-                assertEquals("row order preserved across the gap", "line-" + String.format(Locale.ROOT, "%04d", i), rows.get(i));
-            }
+            assertBusy(() -> assertTrue("leftover empty-poll finished so the iterator must be exhausted", iter.isExhausted()));
         } finally {
             leftoverHold.countDown();
-            gate.countDown();
             if (it != null) {
+                it.afterConsumeChunkCount = null;
                 try {
                     it.close();
                 } catch (IOException ignored) {}

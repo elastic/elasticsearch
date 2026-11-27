@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 164484
-pr: 167741
-summary: Wait out leftover parsers after drain
-type: enhancement

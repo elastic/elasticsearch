@@ -7,45 +7,128 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Pruning;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.TopFieldCollectorManager;
-import org.apache.lucene.search.TopScoreDocCollectorManager;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
+/**
+ * Tests how the collectors of {@link LuceneTopNSourceOperator} share their minimum competitive score.
+ */
 public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
+
+    /**
+     * A sort that a {@link LuceneSourceOperatorTests.MockShardContext}, which has no mappings, resolves the sort builders to.
+     *
+     * @param sharesScore whether its collectors skip documents by score
+     * @param skipsTies whether its collectors skip the documents that tie with the lowest score of a full top N
+     */
+    private record TestSort(String name, Function<List<SortBuilder<?>>, Sort> resolver, int keys, boolean sharesScore, boolean skipsTies) {
+        List<SortBuilder<?>> builders() {
+            // The operator reads the score from the sort values, at a position that depends on the number of sort keys
+            return keys == 1 ? List.of(new ScoreSortBuilder()) : List.of(new ScoreSortBuilder(), new FieldSortBuilder("s"));
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    private static final SortField VALUE_EQUAL_FIELD = new SortedNumericSortField("s", SortField.Type.LONG);
+
+    private static final TestSort SCORE = new TestSort("score", sorts -> Sort.RELEVANCE, 1, true, true);
+    /**
+     * The second key compares by value, like the sort field of a keyword.
+     */
+    private static final TestSort SCORE_THEN_VALUE_EQUAL_FIELD = new TestSort(
+        "score, value-equal field",
+        sorts -> new Sort(SortField.FIELD_SCORE, VALUE_EQUAL_FIELD),
+        2,
+        true,
+        false
+    );
+    /**
+     * The second key compares by identity and is built again every time the shard resolves the sort, like the sort fields
+     * of numeric and date fields, whose {@code IndexFieldData.XFieldComparatorSource} doesn't override {@code equals()}.
+     */
+    private static final TestSort SCORE_THEN_IDENTITY_EQUAL_FIELD = new TestSort("score, identity-equal field", sorts -> {
+        FieldComparatorSource source = new FieldComparatorSource() {
+            @Override
+            public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
+                return VALUE_EQUAL_FIELD.getComparator(numHits, pruning);
+            }
+        };
+        return new Sort(SortField.FIELD_SCORE, new SortField("s", source, false));
+    }, 2, true, false);
+    private static final TestSort SCORE_ASCENDING = new TestSort(
+        "score ascending",
+        sorts -> new Sort(new SortField(null, SortField.Type.SCORE, true)),
+        1,
+        false,
+        false
+    );
+    private static final TestSort FIELD = new TestSort("field", sorts -> new Sort(VALUE_EQUAL_FIELD), 1, false, false);
+    private static final TestSort FIELD_THEN_SCORE = new TestSort(
+        "field, score",
+        sorts -> new Sort(VALUE_EQUAL_FIELD, SortField.FIELD_SCORE),
+        2,
+        false,
+        false
+    );
+
+    private static final List<TestSort> SHARING = List.of(SCORE, SCORE_THEN_VALUE_EQUAL_FIELD, SCORE_THEN_IDENTITY_EQUAL_FIELD);
+    private static final List<TestSort> NOT_SHARING = List.of(SCORE_ASCENDING, FIELD, FIELD_THEN_SCORE);
 
     private final Directory directory = newDirectory();
     private IndexReader reader;
@@ -55,323 +138,227 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         IOUtils.close(reader, directory);
     }
 
-    public void testTopScoreDocCollectorManagerIsReused() throws IOException {
-        var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-        var manager1 = provider.getTopScoreDocCollectorManager();
-        assertThat(manager1, notNullValue());
+    /**
+     * Once a collector has a full top N, a collector of another driver starts with the lowest score of that top N as its
+     * minimum competitive score, on the same shard or on another one.
+     */
+    public void testFullTopNSharesItsLowestScore() throws IOException {
+        TestSort sort = randomFrom(SHARING);
+        int limit = between(5, 20);
+        setupIndex(100);
+        ShardContext ctx = createMockShardContext(0, sort);
+        var provider = new LuceneTopNSourceOperator.PerShardCollectorProvider(limit, true, sort.builders());
 
-        var manager2 = provider.getTopScoreDocCollectorManager();
-        assertThat(manager1, sameInstance(manager2));
-        manager1.newCollector();
-        manager1.newCollector();
-        var manager3 = provider.getTopScoreDocCollectorManager();
-        assertThat(manager1, sameInstance(manager3));
+        float lowest = collectIncreasingScores(provider.newPerShardCollector(ctx), limit + between(1, 30), limit);
+        float expected = sort.skipsTies ? Math.nextUp(lowest) : lowest;
+        assertThat(sort.toString(), provider.sharedMinCompetitiveScore.get(), equalTo(expected));
+
+        var other = provider.newPerShardCollector(randomBoolean() ? ctx : createMockShardContext(1, sort));
+        RecordingScorable scorer = new RecordingScorable();
+        other.getLeafCollector(reader.leaves().getFirst()).setScorer(scorer);
+        assertThat(sort.toString(), scorer.minCompetitiveScore, equalTo(expected));
     }
 
-    public void testTopFieldCollectorManagerReuseForSameSort() throws IOException {
-        List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
-        var factory = createFactory(randomBoolean(), sorts, DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-        Sort scoreSort = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
+    /**
+     * Collectors that don't skip by score, because their sort doesn't start with the descending score, share nothing.
+     */
+    public void testOtherSortsShareNothing() throws IOException {
+        TestSort sort = randomFrom(NOT_SHARING);
+        int limit = between(5, 20);
+        setupIndex(100);
+        ShardContext ctx = createMockShardContext(0, sort);
+        var provider = new LuceneTopNSourceOperator.PerShardCollectorProvider(limit, sort != FIELD || randomBoolean(), sort.builders());
 
-        var manager1 = provider.getTopFieldCollectorManager(scoreSort);
-        assertThat(manager1, notNullValue());
-        var manager2 = provider.getTopFieldCollectorManager(scoreSort);
-        assertThat(manager1, sameInstance(manager2));
-        manager1.newCollector();
-        var manager3 = provider.getTopFieldCollectorManager(scoreSort);
-        assertThat(manager1, sameInstance(manager3));
+        collectIncreasingScores(provider.newPerShardCollector(ctx), limit + between(1, 30), limit);
+        assertThat(sort.toString(), provider.sharedMinCompetitiveScore.get(), equalTo(0f));
+
+        provider.sharedMinCompetitiveScore.offer(randomFloat() + 1);
+        RecordingScorable scorer = new RecordingScorable();
+        LeafCollector leafCollector = provider.newPerShardCollector(ctx).getLeafCollector(reader.leaves().getFirst());
+        leafCollector.setScorer(scorer);
+        assertThat(sort.toString(), scorer.minCompetitiveScore, equalTo(0f));
     }
 
-    public void testDifferentSortsGetDifferentManagers() throws IOException {
-        var factory = createFactory(randomBoolean(), List.of(), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
+    /**
+     * A collector whose own top N is worse than another one's sets a lower minimum competitive score than the shared one.
+     * The scorer never sees it: its minimum competitive score must not go down.
+     */
+    public void testScorerNeverGetsALowerScore() throws IOException {
+        TestSort sort = randomFrom(SHARING);
+        int limit = between(5, 20);
+        int hits = limit + between(1, 30);
+        setupIndex(100);
+        ShardContext ctx = createMockShardContext(0, sort);
+        var provider = new LuceneTopNSourceOperator.PerShardCollectorProvider(limit, true, sort.builders());
+        float shared = hits + between(1, 100);
+        provider.sharedMinCompetitiveScore.offer(shared);
 
-        Sort sort1 = new Sort(SortField.FIELD_SCORE);
-        Sort sort2 = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
-
-        var manager1 = provider.getTopFieldCollectorManager(sort1);
-        var manager2 = provider.getTopFieldCollectorManager(sort2);
-
-        assertThat(manager1, not(sameInstance(manager2)));
-        var manager1Again = provider.getTopFieldCollectorManager(sort1);
-        assertThat(manager1, sameInstance(manager1Again));
-    }
-
-    public void testLazyInitializationOfTopScoreDocCollectorManager() throws IOException {
-        var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-
-        assertThat(provider.topScoreDocCollectorManager, nullValue());
-
-        var manager = provider.getTopScoreDocCollectorManager();
-        assertThat(provider.topScoreDocCollectorManager, notNullValue());
-        assertThat(provider.topScoreDocCollectorManager, sameInstance(manager));
-    }
-
-    public void testLazyInitializationOfTopFieldCollectorManager() throws IOException {
-        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-        assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(true));
-        Sort sort = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
-
-        var manager = provider.getTopFieldCollectorManager(sort);
-
-        assertThat(provider.topFieldCollectorManagers.size(), equalTo(1));
-        assertThat(provider.topFieldCollectorManagers.get(sort), sameInstance(manager));
-    }
-
-    public void testConcurrentAccessToTopScoreDocCollectorManager() throws Exception {
-        var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-
-        int numThreads = 20;
-        var barrier = new CyclicBarrier(numThreads);
-        var managers = new ArrayList<TopScoreDocCollectorManager>();
-        var errors = new ArrayList<Throwable>();
-
-        Thread[] threads = new Thread[numThreads];
-        for (int i = 0; i < numThreads; i++) {
-            threads[i] = new Thread(() -> {
-                try {
-                    barrier.await(); // Synchronize all threads to start at the same time
-                    var manager = provider.getTopScoreDocCollectorManager();
-                    synchronized (managers) {
-                        managers.add(manager);
-                    }
-                } catch (Exception e) {
-                    synchronized (errors) {
-                        errors.add(e);
-                    }
-                }
-            });
-            threads[i].start();
+        var collector = provider.newPerShardCollector(ctx);
+        RecordingScorable scorer = new RecordingScorable();
+        LeafReaderContext leaf = reader.leaves().getFirst();
+        LeafCollector leafCollector = collector.getLeafCollector(leaf);
+        leafCollector.setScorer(scorer);
+        for (int doc = 0; doc < Math.min(hits, leaf.reader().maxDoc()); doc++) {
+            scorer.score = doc + 1;
+            leafCollector.collect(doc);
         }
-
-        for (Thread thread : threads) {
-            thread.join();
-        }
-
-        // Check for errors
-        if (errors.isEmpty() == false) {
-            fail(errors.getFirst(), "Concurrent access failed");
-        }
-
-        // All threads should have gotten the SAME manager instance
-        assertThat(managers.size(), equalTo(numThreads));
-        TopScoreDocCollectorManager firstManager = managers.getFirst();
-        for (TopScoreDocCollectorManager manager : managers) {
-            assertThat(manager, sameInstance(firstManager));
-        }
+        assertThat(scorer.minCompetitiveScore, equalTo(shared));
+        assertThat(scorer.lowered, equalTo(false));
+        assertThat(provider.sharedMinCompetitiveScore.get(), equalTo(shared));
     }
 
-    public void testConcurrentAccessToCollectors() throws Exception {
-        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
+    /**
+     * A collector picks up a score that another collector shares while it is collecting, not only when it gets a scorer.
+     */
+    public void testSharedScoreIsReadWhileCollecting() throws IOException {
+        setupIndex(100);
+        ShardContext ctx = createMockShardContext(0, SCORE);
+        // The limit is above the number of documents collected, so the collector never sets a score itself
+        var provider = new LuceneTopNSourceOperator.PerShardCollectorProvider(10_000, true, SCORE.builders());
+        RecordingScorable scorer = new RecordingScorable();
+        scorer.score = 1;
+        LeafCollector leafCollector = provider.newPerShardCollector(ctx).getLeafCollector(reader.leaves().getFirst());
+        leafCollector.setScorer(scorer);
+        assertThat(scorer.minCompetitiveScore, equalTo(0f));
 
-        int numThreads = 100;
-        var barrier = new CyclicBarrier(numThreads);
-        var errors = new ArrayList<Throwable>();
-
-        Sort sort = switch (randomInt(2)) {
-            case 0 -> Sort.RELEVANCE;
-            case 1 -> new Sort(SortField.FIELD_DOC, SortField.FIELD_SCORE);
-            case 2 -> new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
-            default -> throw new IllegalStateException("Unexpected value");
-        };
-        Thread[] threads = new Thread[numThreads];
-        for (int i = 0; i < numThreads; i++) {
-            threads[i] = new Thread(() -> {
-                try {
-                    barrier.await();
-                    for (int j = 0; j < randomIntBetween(500, 1000); j++) {
-                        provider.newTopDocsCollector(sort);
-                    }
-                } catch (Exception e) {
-                    synchronized (errors) {
-                        errors.add(e);
-                    }
-                }
-            });
-            threads[i].start();
+        float shared = randomFloat() + 1;
+        provider.sharedMinCompetitiveScore.offer(shared);
+        for (int i = 0; i < 1024; i++) {
+            leafCollector.collect(0);
         }
-
-        for (Thread thread : threads) {
-            thread.join();
-        }
-
-        // Check for errors
-        if (errors.isEmpty() == false) {
-            fail(errors.getFirst(), "Concurrent access failed");
-        }
+        assertThat(scorer.minCompetitiveScore, equalTo(shared));
     }
 
-    public void testConcurrentAccessToTopFieldCollectorManager() throws Exception {
-        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
+    public void testFactoriesDoNotShare() throws IOException {
+        TestSort sort = randomFrom(SHARING);
+        int limit = between(5, 20);
+        setupIndex(100);
+        ShardContext ctx = createMockShardContext(0, sort);
+        var provider = new LuceneTopNSourceOperator.PerShardCollectorProvider(limit, true, sort.builders());
+        var otherProvider = new LuceneTopNSourceOperator.PerShardCollectorProvider(limit, true, sort.builders());
 
-        Sort sort = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
-        int numThreads = 20;
-        var barrier = new CyclicBarrier(numThreads);
-        var managers = new ArrayList<TopFieldCollectorManager>();
-        var errors = new ArrayList<Throwable>();
-
-        Thread[] threads = new Thread[numThreads];
-        for (int i = 0; i < numThreads; i++) {
-            threads[i] = new Thread(() -> {
-                try {
-                    barrier.await();
-                    var manager = provider.getTopFieldCollectorManager(sort);
-                    synchronized (managers) {
-                        managers.add(manager);
-                    }
-                } catch (Exception e) {
-                    synchronized (errors) {
-                        errors.add(e);
-                    }
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread thread : threads) {
-            thread.join();
-        }
-
-        // Check for errors
-        if (errors.isEmpty() == false) {
-            fail(errors.getFirst(), "Concurrent access failed");
-        }
-
-        // All threads should have gotten the SAME manager instance
-        assertThat(managers.size(), equalTo(numThreads));
-        TopFieldCollectorManager firstManager = managers.getFirst();
-        for (TopFieldCollectorManager manager : managers) {
-            assertThat(manager, sameInstance(firstManager));
-        }
+        collectIncreasingScores(provider.newPerShardCollector(ctx), limit + between(1, 30), limit);
+        assertThat(otherProvider.sharedMinCompetitiveScore.get(), equalTo(0f));
     }
 
-    public void testDifferentFactoriesHaveDifferentProviders() throws IOException {
-        var provider1 = new LuceneTopNSourceOperator.PerShardCollectorProvider(100, true, List.of());
-        var provider2 = new LuceneTopNSourceOperator.PerShardCollectorProvider(100, true, List.of());
-
-        assertThat(provider1, not(sameInstance(provider2)));
-
-        var manager1 = provider1.getTopScoreDocCollectorManager();
-        var manager2 = provider2.getTopScoreDocCollectorManager();
-        assertThat(manager1, not(sameInstance(manager2)));
-    }
-
-    public void testProviderWithoutScoreDoesNotCreateTopScoreDocCollectorManagerEagerly() throws IOException {
-        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-
-        assertThat(provider.topScoreDocCollectorManager, nullValue());
-
-        var manager = provider.getTopScoreDocCollectorManager();
-        assertThat(manager, notNullValue());
-        assertThat(provider.topScoreDocCollectorManager, sameInstance(manager));
-    }
-
-    public void testNewPerShardCollectorCreatesDifferentCollectorInstances() throws IOException {
-        var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-        var ctx = createMockShardContext(0);
-
-        var collector1 = provider.newPerShardCollector(ctx);
-        var collector2 = provider.newPerShardCollector(ctx);
-
-        assertThat(collector1, not(sameInstance(collector2)));
-        assertThat(collector1.collector, not(sameInstance(collector2.collector)));
-    }
-
-    public void testNewTopDocsCollectorReusesManagersButCreatesNewCollectors() throws IOException {
-        var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-        Sort relevanceSort = Sort.RELEVANCE;
-
-        var collector1 = provider.newTopDocsCollector(relevanceSort);
-        var collector2 = provider.newTopDocsCollector(relevanceSort);
-        var collector3 = provider.newTopDocsCollector(relevanceSort);
-
-        assertThat(collector1, not(sameInstance(collector2)));
-        assertThat(collector2, not(sameInstance(collector3)));
-        var manager1 = provider.getTopScoreDocCollectorManager();
-        var manager2 = provider.getTopScoreDocCollectorManager();
-        assertThat(manager1, sameInstance(manager2));
-    }
-
-    public void testMultipleOperatorsShareProvider() throws Exception {
-        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
-
-        int numOperators = 4;
-        var operators = new ArrayList<LuceneTopNSourceOperator>();
-
+    public void testOperatorsOfAFactoryShareTheProvider() throws IOException {
+        setupIndex(100);
+        var factory = new LuceneTopNSourceOperator.Factory(
+            new IndexedByShardIdFromSingleton<>(createMockShardContext(0, SCORE)),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
+            DataPartitioning.SHARD,
+            DataPartitioning.AutoStrategy.DEFAULT,
+            between(1, 10),
+            10000,
+            between(10, 100),
+            SCORE.builders(),
+            randomLongBetween(10, 20),
+            true,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        List<LuceneTopNSourceOperator> operators = new ArrayList<>();
         try {
-            for (int i = 0; i < numOperators; i++) {
+            for (int i = between(2, 10); i > 0; i--) {
                 operators.add((LuceneTopNSourceOperator) factory.get(createDriverContext()));
             }
-
-            var sharedProvider = operators.get(0).perShardCollectorProvider;
-            for (var op : operators) {
-                assertThat(op.perShardCollectorProvider, sameInstance(sharedProvider));
+            for (var operator : operators) {
+                assertThat(operator.perShardCollectorProvider, sameInstance(factory.perShardCollectorProvider));
             }
-
-            assertThat(sharedProvider, notNullValue());
-
-            var sort = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
-            var manager1 = sharedProvider.getTopFieldCollectorManager(sort);
-            var manager2 = sharedProvider.getTopFieldCollectorManager(sort);
-            assertThat(manager1, sameInstance(manager2));
+            ShardContext ctx = createMockShardContext(0, SCORE);
+            assertThat(
+                factory.perShardCollectorProvider.newPerShardCollector(ctx).collector,
+                not(sameInstance(factory.perShardCollectorProvider.newPerShardCollector(ctx).collector))
+            );
         } finally {
             IOUtils.close(operators);
         }
     }
 
     /**
-     * A manager keeps every collector it creates, so collectors of a field sort don't share one: nothing keeps a collector once
-     * its operator is done with it.
+     * Runs a top N by descending score over several shards with several drivers. Each driver skips the documents that score
+     * below a top N another driver has already filled. The best {@code limit} rows the drivers emit must still score exactly
+     * like the best {@code limit} documents of all shards. Rows that tie on the score are interchangeable, so only scores are
+     * compared.
      */
-    public void testFieldSortCollectorsDoNotShareAManager() throws IOException {
-        var factory = createFactory(false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-        Sort fieldSort = new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
-        int collectors = between(1, 10);
-        for (int i = 0; i < collectors; i++) {
-            provider.newTopDocsCollector(fieldSort);
-        }
-        assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(true));
-    }
+    public void testDriversSharingAScoreEmitTopN() throws IOException {
+        TestSort sort = randomFrom(SHARING);
+        int numShards = between(2, 4);
+        List<Directory> directories = new ArrayList<>();
+        List<IndexReader> readers = new ArrayList<>();
+        try {
+            List<ShardContext> contexts = new ArrayList<>();
+            for (int shard = 0; shard < numShards; shard++) {
+                Directory shardDirectory = newDirectory();
+                directories.add(shardDirectory);
+                try (RandomIndexWriter writer = new RandomIndexWriter(random(), shardDirectory)) {
+                    for (int d = between(500, 3000); d > 0; d--) {
+                        List<IndexableField> doc = new ArrayList<>();
+                        doc.add(new SortedNumericDocValuesField("s", d));
+                        // The frequency of "a" and the length of the field vary, so the scores do
+                        doc.add(new TextField("t", "a ".repeat(between(1, 20)) + "b ".repeat(between(0, 20)), Field.Store.NO));
+                        writer.addDocument(doc);
+                    }
+                    readers.add(writer.getReader());
+                }
+                contexts.add(createMockShardContext(readers.get(shard), shard, sort));
+            }
+            Query query = new TermQuery(new Term("t", "a"));
+            int limit = between(1, 50);
+            int taskConcurrency = between(1, 8);
+            var factory = new LuceneTopNSourceOperator.Factory(
+                new IndexedByShardIdFromList<>(contexts),
+                c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+                randomFrom(DataPartitioning.SHARD, DataPartitioning.SEGMENT),
+                DataPartitioning.AutoStrategy.DEFAULT,
+                taskConcurrency,
+                between(10, 100),
+                limit,
+                sort.builders(),
+                randomLongBetween(10, 20),
+                true,
+                () -> 0L,
+                QueryWarnings.EMIT
+            );
 
-    /**
-     * Collectors that sort by ascending score share nothing through a manager, Lucene only shares the minimum competitive score
-     * of a descending score sort, so they don't share one either.
-     */
-    public void testAscendingScoreSortCollectorsDoNotShareAManager() throws IOException {
-        var factory = createFactory(false, List.of(), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-        Sort ascendingScoreSort = new Sort(new SortField(null, SortField.Type.SCORE, true), SortField.FIELD_DOC);
-        int collectors = between(1, 10);
-        for (int i = 0; i < collectors; i++) {
-            provider.newTopDocsCollector(ascendingScoreSort);
-        }
-        assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(true));
-    }
+            List<Float> expected = new ArrayList<>();
+            for (ShardContext ctx : contexts) {
+                for (ScoreDoc scoreDoc : ctx.searcher().search(query, limit).scoreDocs) {
+                    expected.add(scoreDoc.score);
+                }
+            }
+            expected.sort(Collections.reverseOrder());
+            expected = expected.subList(0, limit);
 
-    /**
-     * Collectors that sort by descending score first share their manager, through which they share the minimum competitive score.
-     */
-    public void testScoreSortCollectorsShareAManager() throws IOException {
-        var factory = createFactory(false, List.of(), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-        Sort scoreSort = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
-        int collectors = between(1, 10);
-        for (int i = 0; i < collectors; i++) {
-            provider.newTopDocsCollector(scoreSort);
+            List<Page> results = new CopyOnWriteArrayList<>();
+            List<Driver> drivers = new ArrayList<>();
+            for (int i = 0; i < taskConcurrency; i++) {
+                DriverContext driverContext = createDriverContext();
+                drivers.add(
+                    TestDriverFactory.create(
+                        driverContext,
+                        factory.get(driverContext),
+                        List.of(),
+                        new TestResultPageSinkOperator(results::add)
+                    )
+                );
+            }
+            new TestDriverRunner().run(drivers);
+
+            List<Float> actual = new ArrayList<>();
+            for (Page page : results) {
+                DoubleBlock scores = page.getBlock(1);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    actual.add((float) scores.getDouble(p));
+                }
+            }
+            actual.sort(Collections.reverseOrder());
+            assertThat(sort.toString(), actual.size(), greaterThanOrEqualTo(limit));
+            assertThat(sort.toString(), actual.subList(0, limit), equalTo(expected));
+        } finally {
+            IOUtils.close(readers);
+            IOUtils.close(directories);
         }
-        assertThat(provider.topFieldCollectorManagers.size(), equalTo(1));
-        assertThat(provider.topFieldCollectorManagers.keySet(), contains(scoreSort));
     }
 
     private void setupIndex(int numDocs) throws IOException {
@@ -385,40 +372,61 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         }
     }
 
-    private ShardContext createMockShardContext(int shardId) {
+    private ShardContext createMockShardContext(int shardId, TestSort sort) {
+        return createMockShardContext(reader, shardId, sort);
+    }
+
+    private static ShardContext createMockShardContext(IndexReader reader, int shardId, TestSort sort) {
         return new LuceneSourceOperatorTests.MockShardContext(reader, shardId) {
             @Override
             public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) {
-                // Always return a simple field sort for testing purposes
-                // This matches the pattern from LuceneTopNSourceOperatorTests
-                SortField field = new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN);
-                return Optional.of(new SortAndFormats(new Sort(field), new DocValueFormat[] { DocValueFormat.RAW }));
+                Sort resolved = sort.resolver.apply(sorts);
+                DocValueFormat[] formats = new DocValueFormat[resolved.getSort().length];
+                Arrays.fill(formats, DocValueFormat.RAW);
+                return Optional.of(new SortAndFormats(resolved, formats));
             }
         };
     }
 
-    private LuceneTopNSourceOperator.Factory createFactory(boolean needsScore, List<SortBuilder<?>> sorts, DataPartitioning partitioning)
-        throws IOException {
-        setupIndex(100);
-        ShardContext ctx = createMockShardContext(0);
-        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> List.of(
-            new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())
-        );
+    /**
+     * Collects the first {@code hits} documents of the index with the scores 1, 2, 3, ... and returns the lowest score of
+     * the resulting top {@code limit}.
+     */
+    private float collectIncreasingScores(LuceneTopNSourceOperator.PerShardCollector collector, int hits, int limit) throws IOException {
+        int collected = 0;
+        for (LeafReaderContext leaf : reader.leaves()) {
+            LeafCollector leafCollector = collector.getLeafCollector(leaf);
+            RecordingScorable scorer = new RecordingScorable();
+            leafCollector.setScorer(scorer);
+            for (int doc = 0; doc < leaf.reader().maxDoc() && collected < hits; doc++) {
+                scorer.score = ++collected;
+                leafCollector.collect(doc);
+            }
+            if (collected == hits) {
+                return hits - limit + 1;
+            }
+        }
+        throw new AssertionError("index has fewer than [" + hits + "] documents");
+    }
 
-        return new LuceneTopNSourceOperator.Factory(
-            new IndexedByShardIdFromSingleton<>(ctx),
-            queryFunction,
-            partitioning,
-            DataPartitioning.AutoStrategy.DEFAULT,
-            randomIntBetween(1, 10),
-            10000,
-            randomIntBetween(10, 100),
-            sorts,
-            randomLongBetween(10, 20),
-            needsScore,
-            () -> 0L,
-            QueryWarnings.EMIT
-        );
+    /**
+     * A {@link Scorable} whose score the test sets, and that records the minimum competitive score it is given.
+     */
+    private static class RecordingScorable extends Scorable {
+        float score;
+        float minCompetitiveScore;
+        boolean lowered;
+
+        @Override
+        public float score() {
+            return score;
+        }
+
+        @Override
+        public void setMinCompetitiveScore(float minScore) {
+            lowered |= minScore < minCompetitiveScore;
+            minCompetitiveScore = minScore;
+        }
     }
 
     private DriverContext createDriverContext() {

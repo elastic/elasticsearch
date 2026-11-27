@@ -15,9 +15,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.FilterLeafCollector;
+import org.apache.lucene.search.FilterScorable;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -53,9 +57,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -627,25 +629,111 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     }
 
     static class PerShardCollector {
+        /**
+         * How many collected documents go by before a collector reads the shared score again. It also reads it every time
+         * it gets a scorer. Same interval as Lucene's collectors use for the score they share.
+         */
+        private static final int SHARED_SCORE_INTERVAL_MASK = 0x3ff;
+
         private final ShardContext shardContext;
         final TopDocsCollector<?> collector;
+        /**
+         * The score shared with the other collectors, or {@code null} if this collector doesn't skip by score.
+         */
+        @Nullable
+        private final SharedMinCompetitiveScore sharedMinCompetitiveScore;
 
         private int leafIndex;
         private LeafCollector leafCollector;
         private Thread currentThread;
 
-        PerShardCollector(ShardContext shardContext, TopDocsCollector<?> collector) {
+        PerShardCollector(
+            ShardContext shardContext,
+            TopDocsCollector<?> collector,
+            @Nullable SharedMinCompetitiveScore sharedMinCompetitiveScore
+        ) {
             this.shardContext = shardContext;
             this.collector = collector;
+            this.sharedMinCompetitiveScore = sharedMinCompetitiveScore;
         }
 
         LeafCollector getLeafCollector(LeafReaderContext leafReaderContext) throws IOException {
             if (currentThread != Thread.currentThread() || leafIndex != leafReaderContext.ord) {
                 leafCollector = collector.getLeafCollector(leafReaderContext);
+                if (sharedMinCompetitiveScore != null) {
+                    leafCollector = new SharingLeafCollector(leafCollector, sharedMinCompetitiveScore);
+                }
                 leafIndex = leafReaderContext.ord;
                 currentThread = Thread.currentThread();
             }
             return leafCollector;
+        }
+
+        /**
+         * Sits between a Lucene top N collector and its scorer to share the collector's minimum competitive score: what the
+         * collector sets on the scorer is offered to the other collectors, and what the other collectors offered is set on the
+         * scorer.
+         */
+        private static class SharingLeafCollector extends FilterLeafCollector {
+            private final SharedMinCompetitiveScore shared;
+            private SharingScorable scorer;
+            private int collected;
+
+            SharingLeafCollector(LeafCollector in, SharedMinCompetitiveScore shared) {
+                super(in);
+                this.shared = shared;
+            }
+
+            @Override
+            public void setScorer(Scorable scorer) throws IOException {
+                this.scorer = new SharingScorable(scorer, shared);
+                in.setScorer(this.scorer);
+                this.scorer.setSharedScore();
+            }
+
+            @Override
+            public void collect(int doc) throws IOException {
+                if ((++collected & SHARED_SCORE_INTERVAL_MASK) == 0) {
+                    scorer.setSharedScore();
+                }
+                in.collect(doc);
+            }
+
+            @Override
+            public DocIdSetIterator competitiveIterator() throws IOException {
+                return in.competitiveIterator();
+            }
+        }
+
+        private static class SharingScorable extends FilterScorable {
+            private final SharedMinCompetitiveScore shared;
+            /**
+             * The last score set on the scorer. The collector doesn't know about the scores of the other collectors, so it
+             * can set a lower one, which must not reach the scorer.
+             */
+            private float minCompetitiveScore;
+
+            SharingScorable(Scorable in, SharedMinCompetitiveScore shared) {
+                super(in);
+                this.shared = shared;
+            }
+
+            @Override
+            public void setMinCompetitiveScore(float minScore) throws IOException {
+                shared.offer(minScore);
+                raise(minScore);
+            }
+
+            void setSharedScore() throws IOException {
+                raise(shared.get());
+            }
+
+            private void raise(float minScore) throws IOException {
+                if (minScore > minCompetitiveScore) {
+                    minCompetitiveScore = minScore;
+                    in.setMinCompetitiveScore(minScore);
+                }
+            }
         }
     }
 
@@ -664,57 +752,37 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     private static final int FIELD_DOC_SIZE = Math.toIntExact(RamUsageEstimator.shallowSizeOf(FieldDoc.class));
 
     /**
-     * Provides collector instances for TopN operations.
-     * Lazily creates and caches collector managers to be shared across multiple operators.
-     * Thread-safe for concurrent access from multiple operators created by the same Factory
+     * Creates the top N collectors of the operators of a {@link Factory}, one per driver and shard.
+     * <p>
+     *     Every collector is created on its own, so nothing keeps it once its operator is done with it. The collectors that
+     *     skip documents by score, the ones Lucene gives {@link ScoreMode#TOP_SCORES} because their sort starts with
+     *     {@code _score} descending, share their minimum competitive score through a {@link SharedMinCompetitiveScore}:
+     *     a driver skips the documents that score below a top N another driver has already filled, in any shard.
+     * </p>
+     * <p>
+     *     For {@code SORT _score DESC} alone a collector sets the next score above the lowest one of its top N, so the other
+     *     collectors skip the documents that tie with it too. Which of the documents that tie on the last score of the top N
+     *     are returned is not defined. With more sort keys a collector sets the lowest score itself, and the documents that
+     *     tie with it are still collected and ordered by the other keys.
+     * </p>
      */
     static class PerShardCollectorProvider {
         private final int limit;
         private final boolean needsScore;
-
-        // Lazy, thread-safe holder for TopScoreDocCollectorManager
-        volatile TopScoreDocCollectorManager topScoreDocCollectorManager;
-
-        // Cache of TopFieldCollectorManager instances per Sort configuration, for the sorts that start with the descending score
-        final Map<Sort, TopFieldCollectorManager> topFieldCollectorManagers;
         private final List<SortBuilder<?>> sorts;
+        final SharedMinCompetitiveScore sharedMinCompetitiveScore = new SharedMinCompetitiveScore();
 
         PerShardCollectorProvider(int limit, boolean needsScore, List<SortBuilder<?>> sorts) {
             this.limit = limit;
             this.needsScore = needsScore;
             this.sorts = sorts;
-            this.topFieldCollectorManagers = new ConcurrentHashMap<>();
         }
 
-        /**
-         * Gets or creates a TopScoreDocCollectorManager.
-         * Uses double-checked locking for thread-safe lazy initialization.
-         */
-        TopScoreDocCollectorManager getTopScoreDocCollectorManager() {
-            if (topScoreDocCollectorManager == null) {
-                synchronized (this) {
-                    if (topScoreDocCollectorManager == null) {
-                        topScoreDocCollectorManager = new TopScoreDocCollectorManager(limit, null, 0);
-                    }
-                }
-            }
-            return topScoreDocCollectorManager;
-        }
-
-        /**
-         * Gets or creates a TopFieldCollectorManager for the given Sort.
-         * Uses ConcurrentHashMap.computeIfAbsent for thread-safe lazy creation.
-         */
-        TopFieldCollectorManager getTopFieldCollectorManager(Sort sort) {
-            return topFieldCollectorManagers.computeIfAbsent(sort, s -> new TopFieldCollectorManager(s, limit, null, 0));
-        }
-
-        TopDocsCollector<?> newTopDocsCollector(Sort sort) {
+        private TopDocsCollector<?> newTopDocsCollector(Sort sort) {
             if (needsScore) {
                 if (Sort.RELEVANCE.equals(sort)) {
                     // SORT _score DESC, use top score collector
-                    TopScoreDocCollectorManager manager = getTopScoreDocCollectorManager();
-                    return manager.newCollector();
+                    return new TopScoreDocCollectorManager(limit, null, 0).newCollector();
                 } else {
                     // Add doc and score to sort
                     var l = new ArrayList<>(Arrays.asList(sort.getSort()));
@@ -723,20 +791,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                     sort = new Sort(l.toArray(SortField[]::new));
                 }
             }
-
-            SortField first = sort.getSort()[0];
-            if (first.getType() != SortField.Type.SCORE || first.getReverse()) {
-                // A manager keeps every collector it creates, so a shared one would keep them all until the query ends.
-                // Only collectors that sort by descending score first share anything through it: the minimum competitive score.
-                return new TopFieldCollectorManager(sort, limit, null, 0).newCollector();
-            }
-            TopFieldCollectorManager topFieldCollectorManager = getTopFieldCollectorManager(sort);
-            synchronized (topFieldCollectorManager) {
-                // Need to synchronize on the manager to ensure that only one collector is created at a time for a given Sort,
-                // since TopFieldCollectorManager is not thread-safe.
-                return topFieldCollectorManager.newCollector();
-            }
-
+            return new TopFieldCollectorManager(sort, limit, null, 0).newCollector();
         }
 
         PerShardCollector newPerShardCollector(ShardContext context) throws IOException {
@@ -745,8 +800,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 throw new IllegalStateException("sorts must not be disabled in TopN");
             }
 
-            Sort sort = sortAndFormats.get().sort;
-            return new PerShardCollector(context, newTopDocsCollector(sort));
+            TopDocsCollector<?> collector = newTopDocsCollector(sortAndFormats.get().sort);
+            // TOP_SCORES is the score mode of the collectors that set a minimum competitive score on their scorer
+            boolean skipsByScore = collector.scoreMode() == ScoreMode.TOP_SCORES;
+            return new PerShardCollector(context, collector, skipsByScore ? sharedMinCompetitiveScore : null);
         }
     }
 }

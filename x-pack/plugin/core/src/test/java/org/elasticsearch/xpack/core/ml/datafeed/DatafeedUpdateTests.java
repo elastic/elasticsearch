@@ -48,8 +48,10 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.junit.Before;
 
@@ -60,6 +62,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
@@ -412,12 +415,12 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
             new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery("FROM different-index").build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setSourceTimeField("event.ingested").build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setGroupingInterval(TimeValue.timeValueMinutes(30)).build(),
-            new DatafeedUpdate.Builder(datafeed.getId()).setIndices(Collections.emptyList()).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setIndices(List.of("different-index")).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setQuery(QueryProvider.defaultQuery()).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setAggregations(AggProvider.fromParsedAggs(new AggregatorFactories.Builder()))
                 .build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setRuntimeMappings(Collections.emptyMap()).build(),
-            new DatafeedUpdate.Builder(datafeed.getId()).setScrollSize(DatafeedConfig.DEFAULT_SCROLL_SIZE).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setScrollSize(DatafeedConfig.DEFAULT_SCROLL_SIZE + 1).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED).build()
         );
 
@@ -450,6 +453,210 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
             updated.getDelayedDataCheckConfig(),
             equalTo(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(2)))
         );
+    }
+
+    public void testApplyIdenticalEsqlQueryOnEsqlDatafeedShouldBeNoop() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery(datafeed.getEsqlQuery()).build();
+
+        assertThat(update.isNoop(datafeed), is(true));
+        assertThat(update.apply(datafeed, Collections.emptyMap(), clusterState), equalTo(datafeed));
+    }
+
+    public void testApplyIdenticalEsqlQueryWithOperationalSettingShouldChangeOnlyOperationalSetting() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery(datafeed.getEsqlQuery())
+            .setQueryDelay(TimeValue.timeValueMinutes(3))
+            .build();
+
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+
+        assertThat(updated.getEsqlQuery(), equalTo(datafeed.getEsqlQuery()));
+        assertThat(updated.getQueryDelay(), equalTo(TimeValue.timeValueMinutes(3)));
+    }
+
+    public void testApplyStoredShapeValuesOnEsqlDatafeedShouldBeNoop() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = storedShapeValuesUpdate(datafeed).build();
+
+        assertThat(update.isNoop(datafeed), is(true));
+        assertThat(update.apply(datafeed, Collections.emptyMap(), clusterState), equalTo(datafeed));
+    }
+
+    public void testApplyStoredShapeValuesWithOperationalSettingShouldChangeOnlyOperationalSetting() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = storedShapeValuesUpdate(datafeed).setQueryDelay(TimeValue.timeValueMinutes(3)).build();
+
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+
+        assertThat(updated.getQueryDelay(), equalTo(TimeValue.timeValueMinutes(3)));
+        assertThat(new DatafeedConfig.Builder(updated).setQueryDelay(datafeed.getQueryDelay()).build(), equalTo(datafeed));
+    }
+
+    public void testApplyChangedShapeFieldOnEsqlDatafeedShouldReject() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate.Builder builder = storedShapeValuesUpdate(datafeed);
+        randomFrom(
+            (Consumer<DatafeedUpdate.Builder>) b -> b.setEsqlQuery("FROM other-index"),
+            b -> b.setSourceTimeField("other_time"),
+            b -> b.setGroupingInterval(TimeValue.timeValueHours(2)),
+            b -> b.setIndices(List.of("other-index")),
+            b -> b.setScrollSize(DatafeedConfig.DEFAULT_SCROLL_SIZE + 1),
+            b -> b.setQuery(createTestQueryProvider("field", "value")),
+            b -> b.setAggregations(createRandomValidAggProvider()),
+            b -> b.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED),
+            b -> b.setRuntimeMappings(Map.of("runtime_field", Map.of("type", "keyword")))
+        ).accept(builder);
+        DatafeedUpdate update = builder.build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("Recreate ES|QL datafeed [esql-datafeed]"));
+    }
+
+    private static DatafeedUpdate.Builder storedShapeValuesUpdate(DatafeedConfig datafeed) {
+        return new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery(datafeed.getEsqlQuery())
+            .setSourceTimeField(datafeed.getSourceTimeField())
+            .setGroupingInterval(datafeed.getGroupingInterval())
+            .setIndices(datafeed.getIndices())
+            .setScrollSize(datafeed.getScrollSize());
+    }
+
+    public void testApplyIdenticalEsqlQueryWithDifferentIndicesShouldReject() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery(datafeed.getEsqlQuery())
+            .setIndices(List.of("other-index"))
+            .build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("Recreate ES|QL datafeed [esql-datafeed]"));
+    }
+
+    public void testApplyFrequencyOnEsqlDatafeedShouldSucceed() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setFrequency(TimeValue.timeValueMinutes(10)).build();
+
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+
+        assertThat(updated.getFrequency(), equalTo(TimeValue.timeValueMinutes(10)));
+        assertThat(updated.getEsqlQuery(), equalTo(datafeed.getEsqlQuery()));
+    }
+
+    public void testApplyMaxEmptySearchesOnEsqlDatafeedShouldSucceed() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setMaxEmptySearches(4).build();
+
+        assertThat(update.apply(datafeed, Collections.emptyMap(), clusterState).getMaxEmptySearches(), equalTo(4));
+    }
+
+    public void testApplyMaxConsecutiveExtractionFailuresOnEsqlDatafeedShouldSucceed() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(9).build();
+
+        assertThat(update.apply(datafeed, Collections.emptyMap(), clusterState).getMaxConsecutiveExtractionFailures(), equalTo(9));
+    }
+
+    public void testApplyAutoAndManualChunkingOnEsqlDatafeedShouldSucceed() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        for (ChunkingConfig chunkingConfig : List.of(ChunkingConfig.newAuto(), ChunkingConfig.newManual(TimeValue.timeValueHours(6)))) {
+            DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setChunkingConfig(chunkingConfig).build();
+
+            assertThat(update.apply(datafeed, Collections.emptyMap(), clusterState).getChunkingConfig(), equalTo(chunkingConfig));
+        }
+    }
+
+    public void testApplyChunkingOffOnEsqlDatafeedShouldReject() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setChunkingConfig(ChunkingConfig.newOff()).build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), equalTo(Messages.DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED));
+    }
+
+    public void testApplyDelayedDataCheckOnEsqlDatafeedShouldSucceed() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(3));
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setDelayedDataCheckConfig(delayedDataCheckConfig).build();
+
+        assertThat(
+            update.apply(datafeed, Collections.emptyMap(), clusterState).getDelayedDataCheckConfig(),
+            equalTo(delayedDataCheckConfig)
+        );
+    }
+
+    public void testApplyScriptFieldsOnEsqlDatafeedShouldRejectWithGenericIncompatibleMessage() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setScriptFields(
+            List.of(new ScriptField("doubled", new Script("params.x * 2"), false))
+        ).build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), equalTo("script_fields cannot be used in combination with esql_query"));
+    }
+
+    public void testApplySameJobIdOnEsqlDatafeedShouldSucceed() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setJobId(datafeed.getJobId()).build();
+
+        assertThat(update.apply(datafeed, Collections.emptyMap(), clusterState), equalTo(datafeed));
+    }
+
+    public void testApplyDifferentJobIdOnEsqlDatafeedShouldReject() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setJobId("another-job").build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), equalTo(DatafeedUpdate.ERROR_MESSAGE_ON_JOB_ID_UPDATE));
+    }
+
+    public void testApplyProjectRoutingOnEsqlDatafeedShouldSucceed() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting("_alias:linked-project").build();
+
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+
+        assertThat(updated.getProjectRouting(), equalTo("_alias:linked-project"));
+        assertThat(updated.getEsqlQuery(), equalTo(datafeed.getEsqlQuery()));
+    }
+
+    public void testApplyOperationalUpdateOnEsqlDatafeedShouldStoreUpdaterPersistableSecurityHeaders() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder(createEsqlDatafeed("esql-datafeed")).setHeaders(
+            Map.of(AuthenticationServiceField.RUN_AS_USER_HEADER, "original-creator")
+        ).build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setQueryDelay(TimeValue.timeValueMinutes(3)).build();
+
+        DatafeedConfig updated = update.apply(
+            datafeed,
+            Map.of(AuthenticationServiceField.RUN_AS_USER_HEADER, "updater", "X-Opaque-Id", "not-persisted"),
+            clusterState
+        );
+
+        assertThat(updated.getHeaders(), equalTo(Map.of(AuthenticationServiceField.RUN_AS_USER_HEADER, "updater")));
+        assertThat(updated.getEsqlQuery(), equalTo(datafeed.getEsqlQuery()));
     }
 
     private static DatafeedConfig createEsqlDatafeed(String id) {

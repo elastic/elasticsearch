@@ -448,7 +448,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (id.equals(datafeedConfig.getId()) == false) {
             throw new IllegalArgumentException("Cannot apply update to datafeedConfig with different id");
         }
-        if (datafeedConfig.getEsqlQuery() != null && changesEsqlQueryShape()) {
+        if (datafeedConfig.getEsqlQuery() != null && changesEsqlQueryShape(datafeedConfig)) {
             throw ExceptionsHelper.badRequestException(
                 Messages.getMessage(Messages.DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE, datafeedConfig.getId())
             );
@@ -533,16 +533,22 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return builder.build();
     }
 
-    private boolean changesEsqlQueryShape() {
-        return esqlQuery != null
-            || sourceTimeField != null
-            || groupingInterval != null
-            || indices != null
-            || queryProvider != null
-            || aggProvider != null
-            || scrollSize != null
-            || indicesOptions != null
-            || runtimeMappings != null;
+    private boolean changesEsqlQueryShape(DatafeedConfig current) {
+        // A shape field resent with its stored value is a no-op, as in isNoop and in PUT, which accepts the defaults.
+        // Only a changed value needs the datafeed to be recreated.
+        return changes(esqlQuery, current.getEsqlQuery())
+            || changes(sourceTimeField, current.getSourceTimeField())
+            || changes(groupingInterval, current.getGroupingInterval())
+            || changes(indices, current.getIndices())
+            || changes(queryProvider == null ? null : queryProvider.getQuery(), current.getQuery())
+            || changes(aggProvider == null ? null : aggProvider.getAggs(), current.getAggregations())
+            || changes(scrollSize, current.getScrollSize())
+            || changes(indicesOptions, current.getIndicesOptions())
+            || changes(runtimeMappings, current.getRuntimeMappings());
+    }
+
+    private static boolean changes(Object updated, Object current) {
+        return updated != null && Objects.equals(updated, current) == false;
     }
 
     /**

@@ -86,6 +86,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
@@ -466,6 +467,13 @@ public class SharedBlobCacheWarmingService {
     /// Held in the service rather than passed down so as not to change the signatures of the many `warmCache` overrides.
     // package-private for tests
     final Set<IndexShard> shardsAwaitingRecoveryWarming = ConcurrentCollections.newConcurrentSet();
+
+    /// For each shard whose search recovery waits for its warming, whether the recovery has timed out waiting. An entry exists from the
+    /// moment [#searchRecoveryWarmingListener] is called until the warming completes, which is after the timeout if there is one, as the
+    /// warming goes on when the recovery has timed out. The warming tasks of a shard that has timed out run after the tasks of the
+    /// warmings that are still within their timeout, see [DemotableWarmingTask].
+    // package-private for tests
+    final ConcurrentMap<ShardId, AtomicBoolean> recoveryWarmingTimeouts = new ConcurrentHashMap<>();
 
     public SharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
@@ -1093,6 +1101,13 @@ public class SharedBlobCacheWarmingService {
         shardsAwaitingRecoveryWarming.add(indexShard);
         recoveryWait.addListener(ActionListener.running(() -> shardsAwaitingRecoveryWarming.remove(indexShard)));
 
+        // The warming tasks are only created after this listener is. They check this flag to learn that the recovery has timed out, and
+        // then give way to the tasks of the warmings that are still within their timeout. It is removed when the warming completes
+        // rather than when the wait is over, as the warming tasks outlive the wait if it times out.
+        final ShardId shardId = indexShard.shardId();
+        final var timedOut = new AtomicBoolean();
+        recoveryWarmingTimeouts.put(shardId, timedOut);
+
         final var timeoutTask = new ReevaluatingTimeoutTask(
             clusterStateSupplier,
             indexShard,
@@ -1113,6 +1128,7 @@ public class SharedBlobCacheWarmingService {
                 assert outcome == SearchRecoveryWaitOutcome.TIMEOUT || outcome == SearchRecoveryWaitOutcome.WARMING_COMPLETE
                     : "expected TIMEOUT || WARMING_COMPLETE; was " + outcome;
                 if (outcome == SearchRecoveryWaitOutcome.TIMEOUT) {
+                    timedOut.set(true);
                     final long dataSetSizeInBytes = directory.estimateDataSetSizeInBytes();
                     final long bytesWarmed = directory.totalBytesWarmedFromObjectStore() - bytesWarmedAtStart;
                     final String contextDescription = timeoutTask.latestTimeoutContextDescription();
@@ -1152,7 +1168,12 @@ public class SharedBlobCacheWarmingService {
         recoveryWait.addListener(ActionListener.runBefore(recordOutcomeThenForkResumeToGeneric, timeoutTask::cancel));
 
         // warming finishing wins with WARMING_COMPLETE; warming failures propagate (after recording the wait metric).
-        return recoveryWait.map(ignored -> SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+        // Warming completes, or fails, only once all its tasks are done, so none is left to look at the flag afterwards. The flag is
+        // only removed if it is still the one of this recovery, in case another recovery of the shard has started waiting meanwhile.
+        return ActionListener.runAfter(
+            recoveryWait.map(ignored -> SearchRecoveryWaitOutcome.WARMING_COMPLETE),
+            () -> recoveryWarmingTimeouts.remove(shardId, timedOut)
+        );
     }
 
     private class ReevaluatingTimeoutTask implements Runnable {
@@ -1416,7 +1437,7 @@ public class SharedBlobCacheWarmingService {
     }
 
     protected void scheduleWarmingTask(AbstractWarmingTask warmTask) {
-        warmingTaskRunner.enqueueTask(warmTask);
+        warmingTaskRunner.enqueueTask(new DemotableWarmingTask(warmTask));
     }
 
     /// Whether warming for the shard should stop because a direct recovery cancellation has been requested while the recovery is
@@ -1915,6 +1936,16 @@ public class SharedBlobCacheWarmingService {
             tasksCount.incrementAndGet();
         }
 
+        /// Whether the recovery that triggered this warming has timed out waiting for it. Only a recovery of a search shard waits for its
+        /// warming, so the other warmings never time out.
+        protected boolean hasTimedOut() {
+            if (warmingRun.type != Type.SEARCH) {
+                return false;
+            }
+            final var timedOut = recoveryWarmingTimeouts.get(warmingRun.shardId());
+            return timedOut != null && timedOut.get();
+        }
+
         /// Warms a single blob region. Holds the [#warmingTaskRunner] slot until the [SharedBlobCacheService#maybeFetchRegion] completes
         /// and so the number of the in flight to-read regions is bounded by the limit of [#warmingTaskRunner].
         protected class WarmBlobRegionTask extends AbstractWarmingTask {
@@ -1996,6 +2027,11 @@ public class SharedBlobCacheWarmingService {
                 this.queue = Objects.requireNonNull(queue);
                 this.blobRegion = queue.blobRegion;
                 logger.trace("{} {}: scheduled {}", warmingRun.shardId(), warmingRun.type(), blobRegion);
+            }
+
+            @Override
+            boolean hasTimedOut() {
+                return AbstractWarmer.this.hasTimedOut();
             }
 
             @Override
@@ -2155,6 +2191,11 @@ public class SharedBlobCacheWarmingService {
             }
 
             @Override
+            boolean hasTimedOut() {
+                return AbstractWarmer.this.hasTimedOut();
+            }
+
+            @Override
             public void onResponse(Releasable releasable) {
                 runningBccBlobsMetric.add(1, bccSizeAttributes);
                 enqueuedBccBlobsMetric.add(-1, bccSizeAttributes);
@@ -2220,6 +2261,52 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
+    /// Queues a warming task in [#warmingTaskRunner] and demotes it, once, when the recovery waiting for its warming has timed out.
+    ///
+    /// The tasks of a warming whose recovery has timed out must not delay the tasks of the warmings whose recoveries are still within
+    /// their timeout, which have no use for the warming once their timeout is over. The timed out warming goes on, as it still warms
+    /// the cache for searches, but with the lowest rank among tasks of its priority. The runner orders its queue when a task is
+    /// inserted, so the order of a queued task cannot change under it. The task is demoted when it is taken off the queue instead: it
+    /// gives up its slot and queues again behind the tasks that are not timed out. A recovery that has timed out never gets its
+    /// timeout back, so a task is demoted at most once and still runs eventually.
+    private final class DemotableWarmingTask extends AbstractWarmingTask {
+        private final AbstractWarmingTask task;
+        // only changed while the task is not in the queue, see onResponse
+        private boolean demoted;
+
+        DemotableWarmingTask(AbstractWarmingTask task) {
+            super(task.type, task.position);
+            this.task = task;
+            this.demoted = task.hasTimedOut();
+        }
+
+        @Override
+        boolean isDemoted() {
+            return demoted;
+        }
+
+        @Override
+        public void onResponse(Releasable releasable) {
+            if (demoted == false && task.hasTimedOut()) {
+                demoted = true;
+                releasable.close();
+                warmingTaskRunner.enqueueTask(this);
+                return;
+            }
+            task.onResponse(releasable);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            task.onFailure(e);
+        }
+
+        @Override
+        public String toString() {
+            return task.toString();
+        }
+    }
+
     /// Base class for warming tasks that establishes priority of warming tasks.
     abstract static class AbstractWarmingTask implements ActionListener<Releasable>, Comparable<AbstractWarmingTask> {
         protected final Type type;
@@ -2228,6 +2315,17 @@ public class SharedBlobCacheWarmingService {
         AbstractWarmingTask(Type warmingType, long position) {
             this.type = warmingType;
             this.position = position;
+        }
+
+        /// Whether the recovery waiting for the warming this task belongs to has timed out. The tasks of such a warming are ordered
+        /// behind the tasks of the same priority that are not timed out, see [DemotableWarmingTask].
+        boolean hasTimedOut() {
+            return false;
+        }
+
+        /// Whether this task is ordered behind the tasks of the same priority that are not demoted.
+        boolean isDemoted() {
+            return false;
         }
 
         /// For two tasks x and y, x.compareTo(y) < 0 means that we need to warm x before y.
@@ -2240,7 +2338,13 @@ public class SharedBlobCacheWarmingService {
                 return 1;
             }
 
-            // Tasks with the same priority will be executed in FIFO order using provided task position.
+            // Tasks of a warming that has timed out go after the tasks with the same priority that have not.
+            final boolean demoted = isDemoted();
+            if (demoted != that.isDemoted()) {
+                return demoted ? 1 : -1;
+            }
+
+            // Tasks with the same priority and demotion will be executed in FIFO order using provided task position.
             // `position` can technically overflow but that would only result in a small amount of tasks having
             // wrong priorities for a short time period.
             // So we don't have any special logic for that.

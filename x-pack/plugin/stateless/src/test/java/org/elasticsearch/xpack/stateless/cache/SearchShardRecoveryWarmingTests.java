@@ -729,6 +729,85 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         assertWaitOutcome(measurements.getFirst(), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
     }
 
+    /// The warming tasks of a shard whose recovery has timed out are told so, and go on to run behind the tasks of the recoveries that
+    /// have not, until the warming completes. The warming goes on after the timeout, so the timeout must be remembered until then.
+    public void testSearchRecoveryWarmingListenerRemembersTheTimeoutUntilTheWarmingCompletes() {
+        try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
+            var service = newWarmingService(threadPool, telemetryProvider(new RecordingMeterRegistry()));
+            var indexShard = randomMockIndexShard();
+            PlainActionFuture<Void> resume = new PlainActionFuture<>();
+            var warmingListener = service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(TimeValue.timeValueMillis(randomLongBetween(1, 100_000)), TimeoutContext.RESHARD_SPLIT_TARGET),
+                () -> null, // unused in this test case: re-evaluation is disabled, so the cluster state is never read
+                indexShard,
+                mockDirectory(),
+                randomNonNegativeLong(),
+                resume
+            );
+            // the recovery waits and has not timed out
+            assertFalse(service.recoveryWarmingTimeouts.get(indexShard.shardId()).get());
+
+            threadPool.scheduledCommand.get().run();
+            safeGet(resume);
+            // the recovery has timed out, but its warming goes on
+            assertTrue(service.recoveryWarmingTimeouts.get(indexShard.shardId()).get());
+
+            warmingListener.onResponse(null);
+            assertThat(service.recoveryWarmingTimeouts.isEmpty(), is(true));
+        }
+    }
+
+    /// A recovery whose warming completes within its timeout never times out, and nothing is remembered once the warming completes.
+    public void testSearchRecoveryWarmingListenerDoesNotTimeOutWhenWarmingCompletesFirst() {
+        try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
+            var service = newWarmingService(threadPool, telemetryProvider(new RecordingMeterRegistry()));
+            var indexShard = randomMockIndexShard();
+            PlainActionFuture<Void> resume = new PlainActionFuture<>();
+            var warmingListener = service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(TimeValue.timeValueMillis(randomLongBetween(1, 100_000)), TimeoutContext.RESHARD_SPLIT_TARGET),
+                () -> null, // unused in this test case: re-evaluation is disabled, so the cluster state is never read
+                indexShard,
+                mockDirectory(),
+                randomNonNegativeLong(),
+                resume
+            );
+            final var timedOut = service.recoveryWarmingTimeouts.get(indexShard.shardId());
+            assertFalse(timedOut.get());
+
+            warmingListener.onResponse(null);
+            safeGet(resume);
+            assertThat(service.recoveryWarmingTimeouts.isEmpty(), is(true));
+            // the timeout fires after losing the race: a discarded no-op that does not make the warming look timed out
+            threadPool.scheduledCommand.get().run();
+            assertFalse(timedOut.get());
+        }
+    }
+
+    /// Nothing is remembered about the shard either when its warming fails.
+    public void testSearchRecoveryWarmingListenerForgetsTheShardWhenWarmingFails() {
+        try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
+            var service = newWarmingService(threadPool, telemetryProvider(new RecordingMeterRegistry()));
+            var indexShard = randomMockIndexShard();
+            var failure = new ElasticsearchException(randomAlphaOfLength(10));
+            Exception thrown = safeAwaitFailure(
+                Void.class,
+                resumeListener -> service.searchRecoveryWarmingListener(
+                    new SearchRecoveryTimeout(
+                        TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
+                        TimeoutContext.RESHARD_SPLIT_TARGET
+                    ),
+                    () -> null, // unused in this test case: re-evaluation is disabled, so the cluster state is never read
+                    indexShard,
+                    mockDirectory(),
+                    randomNonNegativeLong(),
+                    resumeListener
+                ).onFailure(failure)
+            );
+            assertSame(failure, thrown);
+            assertThat(service.recoveryWarmingTimeouts.isEmpty(), is(true));
+        }
+    }
+
     /// [SharedBlobCacheWarmingService] whose [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout] calls are delegated to
     /// a supplied function, so re-evaluation loop tests can inject any sequence of plans without building cluster state. `warmCache` is
     /// a no-op; tests drive the listener directly via [SharedBlobCacheWarmingService#searchRecoveryWarmingListener].

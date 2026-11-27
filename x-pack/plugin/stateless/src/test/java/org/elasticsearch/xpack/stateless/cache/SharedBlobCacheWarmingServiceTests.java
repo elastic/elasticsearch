@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -57,6 +58,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.AbstractWarmingTask;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -100,6 +102,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -115,6 +118,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.function.UnaryOperator;
@@ -2197,12 +2201,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     private static IndexShard mockIndexShard(FakeStatelessNode node) {
+        return mockIndexShard(node, node.shardId);
+    }
+
+    private static IndexShard mockIndexShard(FakeStatelessNode node, ShardId shardId) {
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.shardId()).thenReturn(node.shardId);
+        when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.store()).thenReturn(node.indexingStore);
         when(indexShard.state()).thenReturn(IndexShardState.RECOVERING);
         when(indexShard.routingEntry()).thenReturn(
-            TestShardRouting.newShardRouting(node.shardId, node.node.getId(), true, ShardRoutingState.INITIALIZING)
+            TestShardRouting.newShardRouting(shardId, node.node.getId(), true, ShardRoutingState.INITIALIZING)
         );
         return indexShard;
     }
@@ -3731,6 +3739,299 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    /**
+     * Verifies that queued tasks of a warming whose recovery has timed out run after the tasks of warmings that have not, even if they
+     * were queued first, whether the recovery timed out while the task was queued or before it was. The demoted tasks are not dropped:
+     * they still run, after the others.
+     */
+    public void testTasksOfRecoveriesThatTimedOutRunAfterTheTasksOfRecoveriesWithinTheirTimeout() throws Exception {
+        final var started = Collections.synchronizedList(new ArrayList<String>());
+        // released as each task starts, so that the test waits for exactly the next task to start
+        final var startedSignal = new Semaphore(0);
+        final var blocker1 = new Semaphore(0);
+        final var blocker2 = new Semaphore(0);
+        final var demotedRelease = new Semaphore(0);
+        final var withinTimeoutRelease = new Semaphore(0);
+        final var timedOutFromTheStartRelease = new Semaphore(0);
+        final var demotedHasTimedOut = new AtomicBoolean(false);
+
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), 1) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    // warmingTaskRunner is set to have max running tasks of 1 + stateless_prewarm_thread_pool.max, so we set max to 1
+                    // here, so we execute at most 2 tasks at a time
+                    .put("stateless.stateless_prewarm_thread_pool.core", 1)
+                    .put("stateless.stateless_prewarm_thread_pool.max", 1)
+                    .build();
+            }
+        }) {
+            // Tasks hold their slot until the test releases them, so the runner picks the next task off its queue one slot at a time.
+            // The first two tasks take both slots of the runner.
+            fakeNode.warmingService.scheduleWarmingTask(blockingSearchTask("blocker-1", 1, () -> false, started, startedSignal, blocker1));
+            fakeNode.warmingService.scheduleWarmingTask(blockingSearchTask("blocker-2", 2, () -> false, started, startedSignal, blocker2));
+            safeAcquire(2, startedSignal);
+
+            // the three tasks are queued in this order, and the first one is the first in line: it was queued first and its recovery has
+            // not timed out when it is queued
+            fakeNode.warmingService.scheduleWarmingTask(
+                blockingSearchTask("demoted", 3, demotedHasTimedOut::get, started, startedSignal, demotedRelease)
+            );
+            fakeNode.warmingService.scheduleWarmingTask(
+                blockingSearchTask("within-timeout", 4, () -> false, started, startedSignal, withinTimeoutRelease)
+            );
+            fakeNode.warmingService.scheduleWarmingTask(
+                blockingSearchTask("timed-out-from-the-start", 5, () -> true, started, startedSignal, timedOutFromTheStartRelease)
+            );
+            // the recovery waiting for the first task times out while it is queued
+            demotedHasTimedOut.set(true);
+
+            blocker1.release();
+            safeAcquire(startedSignal);
+            assertThat(started.get(2), equalTo("within-timeout"));
+
+            blocker2.release();
+            safeAcquire(startedSignal);
+            assertThat("should be queued after 'within-timeout'", started.get(3), equalTo("demoted"));
+
+            withinTimeoutRelease.release();
+            safeAcquire(startedSignal);
+            assertThat(started.get(4), equalTo("timed-out-from-the-start"));
+
+            demotedRelease.release();
+            timedOutFromTheStartRelease.release();
+        }
+    }
+
+    /**
+     * Shows that the warming of a recovery that has timed out must not starve the warming of a recovery that is still within its
+     * timeout. Both recoveries use the real recovery warming listener and warm two blobs each with the real byte range tasks, which
+     * are queued behind tasks that keep the warming task runner busy. The timed out recovery warmed first, so its tasks were queued
+     * first, but when the runner frees a slot, the tasks of the other recovery must be the ones that run: the first one has no use for
+     * the warming any more, while the second one is still waiting for it. The tasks of the timed out recovery are not dropped, they run
+     * after the others.
+     */
+    public void testWarmingOfRecoveryThatTimedOutDoesNotStarveRecoveryWithinItsTimeout() throws Exception {
+        final long primaryTerm = 1;
+        final var started = Collections.synchronizedList(new ArrayList<String>());
+        // released as each task starts, so that the test waits for exactly the next task to start
+        final var startedSignal = new Semaphore(0);
+        final var releases = new ConcurrentHashMap<String, Semaphore>();
+        final var labelByBlobName = new ConcurrentHashMap<String, String>();
+
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    // warmingTaskRunner is set to have max running tasks of 1 + stateless_prewarm_thread_pool.max, so we set max to 1
+                    // here, so we execute at most 2 tasks at a time
+                    .put("stateless.stateless_prewarm_thread_pool.core", 1)
+                    .put("stateless.stateless_prewarm_thread_pool.max", 1)
+                    .build();
+            }
+
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider,
+                SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider,
+                    clusterSettings,
+                    searchRecoveryTimeoutCalculationService
+                ) {
+                    @Override
+                    protected void scheduleWarmingTask(AbstractWarmingTask task) {
+                        // The real tasks are replaced by tasks that record that they started and then hold their slot until the test
+                        // releases them, but they still answer to the real task whether its recovery has timed out.
+                        final String label = task instanceof AbstractWarmer.WarmBlobByteRangeTask byteRangeTask
+                            ? labelByBlobName.get(byteRangeTask.bccBlob.blobName())
+                            : "blocker-" + task.position;
+                        super.scheduleWarmingTask(new AbstractWarmingTask(task.type, task.position) {
+                            @Override
+                            boolean hasTimedOut() {
+                                return task.hasTimedOut();
+                            }
+
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                started.add(label);
+                                // after the label is recorded, so that the test sees it as soon as it is signalled
+                                startedSignal.release();
+                                try (releasable) {
+                                    safeAcquire(releases.computeIfAbsent(label, l -> new Semaphore(0)));
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                throw new AssertionError(e);
+                            }
+                        });
+                    }
+                };
+            }
+        }) {
+            final var service = fakeNode.warmingService;
+
+            // the first two tasks take both slots of the runner, and keep them until released
+            service.scheduleWarmingTask(inertSearchTask(1));
+            service.scheduleWarmingTask(inertSearchTask(2));
+            safeAcquire(2, startedSignal);
+
+            // The recovery of the first shard warms first, and times out while its tasks are queued. The recovery of the second shard
+            // warms after it, and has all the time it needs.
+            final var timedOutShard = new ShardId(fakeNode.shardId.getIndex(), fakeNode.shardId.id() + 1);
+            final var withinTimeoutShard = new ShardId(fakeNode.shardId.getIndex(), fakeNode.shardId.id() + 2);
+            final var timedOutResume = new SubscribableListener<Void>();
+            final var timedOutWarming = warmBlobsOfRecovery(
+                fakeNode,
+                timedOutShard,
+                TimeValue.timeValueMillis(50),
+                List.of("timed-out-1", "timed-out-2"),
+                labelByBlobName,
+                primaryTerm,
+                1,
+                timedOutResume
+            );
+            final var withinTimeoutWarming = warmBlobsOfRecovery(
+                fakeNode,
+                withinTimeoutShard,
+                TimeValue.timeValueHours(1),
+                List.of("within-timeout-1", "within-timeout-2"),
+                labelByBlobName,
+                primaryTerm,
+                3,
+                ActionListener.noop()
+            );
+            // The recovery resumes when it times out. It is marked as timed out before that, so it is by now.
+            safeAwait(timedOutResume);
+            assertTrue(service.recoveryWarmingTimeouts.get(timedOutShard).get());
+            assertFalse(service.recoveryWarmingTimeouts.get(withinTimeoutShard).get());
+
+            // each time the runner frees a slot, the next task to start is the first in line of the recovery that has not timed out,
+            // although the tasks of the other one were queued first
+            releases.computeIfAbsent("blocker-1", l -> new Semaphore(0)).release();
+            safeAcquire(startedSignal);
+            assertThat(started.get(2), equalTo("within-timeout-1"));
+
+            releases.computeIfAbsent("blocker-2", l -> new Semaphore(0)).release();
+            safeAcquire(startedSignal);
+            assertThat(started.get(3), equalTo("within-timeout-2"));
+
+            // the tasks of the recovery that timed out run once the others are done
+            releases.computeIfAbsent("within-timeout-1", l -> new Semaphore(0)).release();
+            safeAcquire(startedSignal);
+            assertThat(started.get(4), equalTo("timed-out-1"));
+
+            releases.computeIfAbsent("within-timeout-2", l -> new Semaphore(0)).release();
+            safeAcquire(startedSignal);
+            assertThat(started.get(5), equalTo("timed-out-2"));
+
+            // once the warming completes, the shards no longer have a timeout of their own to look at
+            releases.values().forEach(Semaphore::release);
+            timedOutWarming.onResponse(null);
+            withinTimeoutWarming.onResponse(null);
+            assertThat(service.recoveryWarmingTimeouts.isEmpty(), is(true));
+        }
+    }
+
+    /**
+     * Starts the warming of a search shard recovery that waits for it up to {@code timeout}, and schedules the warming of one blob per
+     * label of {@code blobLabels}, in that order. {@code resumeRecoveryListener} is completed when the recovery stops waiting, which
+     * is when it times out. Returns the listener to complete once the warming is done.
+     */
+    private ActionListener<Void> warmBlobsOfRecovery(
+        FakeStatelessNode fakeNode,
+        ShardId shardId,
+        TimeValue timeout,
+        List<String> blobLabels,
+        Map<String, String> labelByBlobName,
+        long primaryTerm,
+        long firstGeneration,
+        ActionListener<Void> resumeRecoveryListener
+    ) {
+        final var indexShard = mockIndexShard(fakeNode, shardId);
+        final var warmingListener = fakeNode.warmingService.searchRecoveryWarmingListener(
+            new SearchRecoveryTimeout(timeout, TimeoutContext.RESHARD_SPLIT_TARGET),
+            () -> null, // the cluster state is only read to extend a timeout, which fails and so does not extend it
+            indexShard,
+            fakeNode.searchDirectory,
+            0L,
+            resumeRecoveryListener
+        );
+        final var targets = new LinkedHashMap<BccBlob, SharedBlobCacheWarmingService.WarmTarget>();
+        long generation = firstGeneration;
+        for (var label : blobLabels) {
+            final var blobName = BccBlob.blobNameFromGeneration(generation);
+            labelByBlobName.put(blobName, label);
+            targets.put(
+                new BccBlob(blobName, new PrimaryTermAndGeneration(primaryTerm, generation++)),
+                SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(SharedBytes.PAGE_SIZE, SharedBytes.PAGE_SIZE)
+            );
+        }
+        fakeNode.warmingService.warmBlobOffsets(indexShard, fakeNode.searchDirectory, targets, ActionListener.noop());
+        return warmingListener;
+    }
+
+    /** A task that does no work: the warming service of the test replaces it with a task that holds its slot until released. */
+    private static AbstractWarmingTask inertSearchTask(long position) {
+        return new AbstractWarmingTask(SEARCH, position) {
+            @Override
+            public void onResponse(Releasable releasable) {
+                throw new AssertionError("the test replaces this task");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        };
+    }
+
+    /**
+     * A task that records its name in {@code started} and signals {@code startedSignal} when it starts, and then holds its slot until
+     * {@code release} is released.
+     */
+    private AbstractWarmingTask blockingSearchTask(
+        String name,
+        long position,
+        BooleanSupplier hasTimedOut,
+        List<String> started,
+        Semaphore startedSignal,
+        Semaphore release
+    ) {
+        return new AbstractWarmingTask(SEARCH, position) {
+            @Override
+            boolean hasTimedOut() {
+                return hasTimedOut.getAsBoolean();
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                started.add(name);
+                // after the name is recorded, so that the test sees it as soon as it is signalled
+                startedSignal.release();
+                try (releasable) {
+                    safeAcquire(release);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        };
     }
 
     public void testWarmingTaskRunnerRecordsMetrics() throws Exception {

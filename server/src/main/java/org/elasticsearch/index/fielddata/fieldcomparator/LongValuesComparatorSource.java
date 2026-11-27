@@ -143,7 +143,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                         throws IOException {
                         if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false
                         // check that last document has a value to confirm that all documents have a value
-                            || lastDocumentHasValue(context.reader(), fieldname) == false) {
+                            || lastDocumentHasValue(context, fieldname) == false) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }
                         int maxDoc = context.reader().maxDoc();
@@ -258,8 +258,12 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         };
     }
 
-    private static boolean lastDocumentHasValue(LeafReader reader, String field) throws IOException {
-        return DocValues.getSortedNumeric(reader, field).advanceExact(reader.maxDoc() - 1);
+    private boolean lastDocumentHasValue(LeafReaderContext context, String field) throws IOException {
+        final int last = context.reader().maxDoc() - 1;
+        if (indexFieldData != null) {
+            return indexFieldData.load(context).getLongValues().advanceExact(last);
+        }
+        return DocValues.getSortedNumeric(context.reader(), field).advanceExact(last);
     }
 
     private static boolean firstAndLastDocumentsHaveValue(SortedSetDocValues values, int maxDoc) throws IOException {

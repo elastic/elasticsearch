@@ -32,17 +32,22 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.ColumnarLongIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 import org.elasticsearch.index.mapper.FieldArrayContext;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -201,8 +206,11 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         });
     }
 
-    /** Once it holds a bottom, the comparator of a sort on a ColumNAR long column skips the blocks that can't beat it. */
-    public void testComparatorPrunesWithTheColumnSkipIndex() throws IOException {
+    /**
+     * A search sorted on a ColumNAR long column can skip: once its comparator holds a bottom, it leaves out the blocks the
+     * column's skip index shows can't beat it.
+     */
+    public void testSearchSortPrunesWithTheColumnSkipIndex() throws IOException {
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, "type=long,index=false");
         final int docs = 50_000;
@@ -219,7 +227,14 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         assertNoFailures(bulk.get());
         indicesAdmin().prepareForceMerge(WITH_CODEC).setMaxNumSegments(1).get();
         indicesAdmin().prepareRefresh(WITH_CODEC).get();
-        final SortField sortField = new ColumnarNumericSortField(FIELD, SortField.Type.LONG, reverse, reverse, null);
+        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(WITH_CODEC));
+        final SearchExecutionContext context = indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, Map.of(), null, null);
+        final IndexNumericFieldData fieldData = (IndexNumericFieldData) context.getForField(
+            context.getFieldType(FIELD),
+            MappedFieldType.FielddataOperation.SEARCH
+        );
+        final SortField sortField = fieldData.sortField(null, reverse ? MultiValueMode.MAX : MultiValueMode.MIN, null, reverse);
+        assertTrue("the sort can skip", sortField.getOptimizeSortWithPoints());
         forEachLeaf(WITH_CODEC, leaf -> {
             final int hits = 10;
             final LeafFieldComparator comparator = sortField.getComparator(hits, Pruning.GREATER_THAN_OR_EQUAL_TO).getLeafComparator(leaf);
@@ -237,6 +252,39 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
             assertThat("competing documents", competing, lessThan(docs / 2));
             assertThat(competing, greaterThanOrEqualTo(hits));
         });
+    }
+
+    /**
+     * A match all search sorted on {@code @timestamp} ascending, over an index sorted on it descending, collects only the end of
+     * each segment. On a ColumNAR {@code @timestamp} it returns the documents it does on {@code SORTED_NUMERIC} doc values.
+     */
+    public void testOldestFirstOnAnIndexSortedNewestFirst() throws IOException {
+        final Settings sort = Settings.builder().put("index.sort.field", "@timestamp").put("index.sort.order", "desc").build();
+        final String mapping = "type=long,index=false";
+        createIndex(WITH_CODEC, Settings.builder().put(settings(IndexMode.COLUMNAR, true)).put(sort).build(), "@timestamp", mapping);
+        createIndex(WITHOUT_CODEC, Settings.builder().put(settings(IndexMode.COLUMNAR, false)).put(sort).build(), "@timestamp", mapping);
+        final int docs = between(100, 5_000);
+        for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+            final BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = 0; i < docs; i++) {
+                bulk.add(prepareIndex(index).setId(Integer.toString(i)).setSource("{\"@timestamp\":" + (i * 7L) + "}", XContentType.JSON));
+            }
+            assertNoFailures(bulk.get());
+            indicesAdmin().prepareRefresh(index).get();
+        }
+        final int size = between(1, 20);
+        final List<List<String>> oldest = new ArrayList<>();
+        for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+            final List<String> ids = new ArrayList<>();
+            assertResponse(client().prepareSearch(index).addSort("@timestamp", SortOrder.ASC).setSize(size), response -> {
+                for (SearchHit hit : response.getHits().getHits()) {
+                    ids.add(hit.getId());
+                }
+            });
+            oldest.add(ids);
+        }
+        assertEquals(oldest.get(1), oldest.get(0));
+        assertEquals(size, oldest.get(0).size());
     }
 
     /**

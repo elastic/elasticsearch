@@ -15,8 +15,10 @@ import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
+import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.TraceState;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.ContextKey;
@@ -69,6 +71,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     /** Counter shared by all spans under the same local root to enforce {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_SPANS}. */
     private static final ContextKey<AtomicInteger> SPAN_LOCAL_COUNT_KEY = ContextKey.named("es.apm.span.local_count");
+
+    /** Tracestate entry with the depth of the span that a request starts on another node. */
+    private static final String DEPTH_TRACE_STATE_KEY = "es-depth";
 
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
@@ -260,19 +265,44 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             // Attempt to fetch a local parent context first, otherwise look for a remote parent
             final Context localParentContext = threadContext.getTransient(Task.PARENT_APM_TRACE_CONTEXT);
 
-            // max_depth and max_spans apply per local root: the first span of a request on this node, even if it continues a
-            // remote trace. A child gets its parent's depth + 1 and shares its parent's span counter, which excludes the root.
-            final int localDepth;
+            // max_depth applies per request across nodes, max_spans per local root: the first span of a request on this node.
+            // A child gets its parent's depth + 1 and shares its parent's span counter, which excludes the root.
+            Context parentContext;
+            int localDepth;
             final AtomicInteger localSpanCount;
             if (localParentContext != null) {
+                parentContext = localParentContext;
                 Integer parentDepth = localParentContext.get(SPAN_LOCAL_DEPTH_KEY);
                 localDepth = (parentDepth != null ? parentDepth : 0) + 1;
 
                 AtomicInteger parentSpanCount = localParentContext.get(SPAN_LOCAL_COUNT_KEY);
                 localSpanCount = parentSpanCount != null ? parentSpanCount : new AtomicInteger();
             } else {
+                parentContext = getRemoteParentContext(services);
                 localDepth = 0;
                 localSpanCount = new AtomicInteger();
+                if (traceable instanceof Task && parentContext != null) {
+                    // Task means internal call from another node rather than external request
+                    final SpanContext remoteParent = Span.fromContext(parentContext).getSpanContext();
+                    final String depth = remoteParent.getTraceState().get(DEPTH_TRACE_STATE_KEY);
+                    if (depth == null) {
+                        // nodes on older versions send no depth, so their requests stay untraced as before
+                        logger.trace("Skipping span [{}] [{}] as its remote parent sent no depth", spanId, spanName);
+                        return null;
+                    }
+                    localDepth = Integer.parseInt(depth);
+                    // a span inherits its parent's trace state, so remove the depth to keep it out of exported spans
+                    parentContext = parentContext.with(
+                        Span.wrap(
+                            SpanContext.createFromRemoteParent(
+                                remoteParent.getTraceId(),
+                                remoteParent.getSpanId(),
+                                remoteParent.getTraceFlags(),
+                                remoteParent.getTraceState().toBuilder().remove(DEPTH_TRACE_STATE_KEY).build()
+                            )
+                        )
+                    );
+                }
             }
 
             if (localDepth > maxTraceDepth) {
@@ -280,7 +310,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 return null;
             }
 
-            if (localDepth > 0 && (localSpanCount.get() > maxSpans || localSpanCount.incrementAndGet() > maxSpans)) {
+            if (localParentContext != null && (localSpanCount.get() > maxSpans || localSpanCount.incrementAndGet() > maxSpans)) {
                 logger.trace("Skipping span [{}] [{}] as the local root reached maxSpans={}", spanId, spanName, maxSpans);
                 return null;
             }
@@ -288,7 +318,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             logger.trace("Tracing [{}] [{}]", spanId, spanName);
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(spanName);
 
-            final Context parentContext = localParentContext != null ? localParentContext : getRemoteParentContext(services);
             if (parentContext != null) {
                 spanBuilder.setParent(parentContext);
             }
@@ -327,7 +356,15 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
         // ...whereas for tasks sent to other ES nodes, we need to put trace HTTP headers into the traceContext so
         // that they can be propagated.
-        services.openTelemetry.getPropagators().getTextMapPropagator().inject(context, threadContext, (tc, key, value) -> {
+        final SpanContext spanContext = Span.fromContext(context).getSpanContext();
+        final TraceState traceState = spanContext.getTraceState()
+            .toBuilder()
+            .put(DEPTH_TRACE_STATE_KEY, String.valueOf(context.get(SPAN_LOCAL_DEPTH_KEY) + 1))
+            .build();
+        final Context propagatedContext = context.with(
+            Span.wrap(SpanContext.create(spanContext.getTraceId(), spanContext.getSpanId(), spanContext.getTraceFlags(), traceState))
+        );
+        services.openTelemetry.getPropagators().getTextMapPropagator().inject(propagatedContext, threadContext, (tc, key, value) -> {
             if (isSupportedContextKey(key)) {
                 tc.putHeader(key, value);
             }

@@ -90,9 +90,8 @@ public class RemoteClusterSecurityWithApmTracingRestIT extends AbstractRemoteClu
 
     /**
      * Verifies that an externally supplied {@code traceparent} header is honoured by the REST controller and propagated through a
-     * cross-cluster request. Since #130607, transport actions are not auto-traced by {@link org.elasticsearch.tasks.TaskManager} unless
-     * a parent APM context already exists locally, so the fulfilling cluster does not produce its own transaction for the cross-cluster
-     * transport entry point. We therefore assert only on the query cluster's REST span, which captures the propagated trace id.
+     * cross-cluster request. With the default {@code telemetry.tracing.max_depth} of 0, the fulfilling cluster records no span.
+     * We therefore assert only on the query cluster's REST span, which captures the propagated trace id.
      */
     public void testTracingCrossCluster() throws Exception {
         assumeTrue("requires test-apm-integration which is only loaded in snapshot builds", Build.current().isSnapshot());

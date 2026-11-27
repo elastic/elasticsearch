@@ -348,6 +348,20 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     /**
+     * Check that a task with only a {@code traceparent} from another node, and no local span, is traced.
+     */
+    public void testRegisterTaskStartsTracingIfRemoteTraceParentExists() {
+        final Tracer mockTracer = mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        threadPool.getThreadContext().putHeader(Task.TRACE_PARENT_HTTP_HEADER, "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            final Task task = taskManager.register("transport", "testAction", makeTaskRequest(false, 1));
+            verify(mockTracer).startTrace(eq(task), eq("testAction"), anyMap());
+        }
+    }
+
+    /**
      * Check that registering a task also causes tracing to be started on that task.
      */
     public void testRegisterTaskSkipsTracingIfTraceParentMissing() {

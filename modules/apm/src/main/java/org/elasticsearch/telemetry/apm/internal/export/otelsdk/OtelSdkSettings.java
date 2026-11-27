@@ -180,8 +180,8 @@ public final class OtelSdkSettings {
 
     // --- Traces
 
-    /** Maximum depth of child spans per request. {@code 0} exports only the root span.
-     * Spans from an upstream {@code traceparent} are not counted.
+    /** Maximum depth of child spans per request, across nodes. {@code 0} exports only the root span.
+     * Spans from an upstream {@code traceparent} outside Elasticsearch are not counted.
      * Defaults to unlimited when a span limit is set, so that limit applies at any depth; otherwise {@code 0}. */
     public static final Setting<Integer> TELEMETRY_TRACING_MAX_DEPTH = Setting.intSetting(
         "telemetry.tracing.max_depth",

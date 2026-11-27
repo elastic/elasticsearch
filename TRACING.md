@@ -62,7 +62,12 @@ present) modelled by tasks.
 
 A span can be associated with a parent span, which allows all spans in, for
 example, a REST request to be grouped together. Spans can track work across
-different Elasticsearch nodes.
+different Elasticsearch nodes. Tasks without a parent, such as ones that
+reschedule themselves, are never traced.
+
+`telemetry.tracing.max_depth` applies per request, across nodes: a request to
+another node carries the next depth in `tracestate`. `telemetry.tracing.max_spans`
+applies on each node, to each request it receives.
 
 Elasticsearch also supports distributed tracing via [W3c Trace Context][w3c]
 headers. If clients of Elasticsearch send these headers with their requests,

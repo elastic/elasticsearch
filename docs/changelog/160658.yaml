@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160658
+summary: Share a TopN collector manager per shard for `_score` sorts with numeric or date tie-breakers
+type: enhancement

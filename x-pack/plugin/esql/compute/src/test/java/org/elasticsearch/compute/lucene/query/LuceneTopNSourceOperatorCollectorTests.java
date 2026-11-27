@@ -429,9 +429,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * Sorts backed by an {@code IndexFieldData.XFieldComparatorSource} (numeric, date, geo distance) compare by identity,
-     * because the comparator source doesn't override {@code equals()}. So for {@code SORT _score DESC, x} each shard gets
-     * its own manager, and creating collectors doesn't add more.
+     * Sorts backed by an {@code IndexFieldData.XFieldComparatorSource} (numeric, date, descending geo distance) compare by
+     * identity, because the comparator source doesn't override {@code equals()}. So for {@code SORT _score DESC, x} each
+     * shard gets its own manager, which every collector of that shard comes from.
      */
     public void testIdentityEqualSortsGetOneManagerPerShard() throws IOException {
         setupIndex(100);
@@ -458,7 +458,12 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         for (int i = 0; i < calls; i++) {
             assertThat(provider.newPerShardCollector(randomFrom(contexts)).collector, notNullValue());
         }
-        assertThat(provider.topFieldCollectorManagers.size(), equalTo(numShards));
+        // getCollectors() is deprecated, but nothing else shows which manager a collector came from
+        int fromSharedManagers = 0;
+        for (TopFieldCollectorManager manager : provider.topFieldCollectorManagers.values()) {
+            fromSharedManagers += manager.getCollectors().size();
+        }
+        assertThat(fromSharedManagers, equalTo(calls));
     }
 
     /**
@@ -599,10 +604,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
      * Resolves sorts against the test index. Score sorts match what {@link ScoreSortBuilder} builds exactly: a descending one
      * becomes {@link SortField#FIELD_SCORE} (so a lone one is {@link Sort#RELEVANCE}), an ascending one a reversed score field.
      * Field sorts become {@link #FIELD_SORT}, a value-equal {@link SortedNumericSortField}. That is what a keyword sort looks
-     * like on a real shard (a value-equal {@code SortedSetSortField} or {@code BinarySortField}). Numeric, date and geo
-     * distance sorts, and keyword sorts on binary doc values in the legacy separate-count format, build a {@link SortField}
-     * with an {@code IndexFieldData.XFieldComparatorSource} instead, which compares by identity, and
-     * {@link #testIdentityEqualSortsGetOneManagerPerShard} covers those.
+     * like on a real shard (a value-equal {@code SortedSetSortField} or {@code BinarySortField}). Numeric, date and descending
+     * geo distance sorts build a {@link SortField} with an {@code IndexFieldData.XFieldComparatorSource} instead, which
+     * compares by identity, and {@link #testIdentityEqualSortsGetOneManagerPerShard} covers those.
      */
     private static Sort resolveSort(List<SortBuilder<?>> sorts) {
         SortField[] fields = new SortField[sorts.size()];

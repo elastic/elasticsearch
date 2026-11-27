@@ -9,8 +9,12 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
@@ -20,6 +24,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -31,6 +36,7 @@ import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -39,6 +45,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItemInArray;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests that graceful shutdown of a data node waits for the ES|QL tasks it runs on behalf of a coordinator on another node.
@@ -195,9 +204,7 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
         scriptPermits.release(numberOfDocs());
         ActionFuture<EsqlQueryResponse> query = client(coordinator).execute(EsqlQueryAction.INSTANCE, request);
         safeAwait(openSent);
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", replacement), "test");
-        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").setWaitForGreenStatus().setWaitForNoRelocatingShards(true).get();
-        awaitTestIndexAppliedOn(coordinator, replacement);
+        moveTestIndexTo(replacement, coordinator);
         shardMoved.countDown();
 
         try (EsqlQueryResponse response = safeGet(query)) {
@@ -290,20 +297,10 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
             EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(allowPartialResults)
         );
         safeAwait(dataRequestSent);
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", replacement), "test");
-        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").setWaitForGreenStatus().setWaitForNoRelocatingShards(true).get();
-        awaitTestIndexAppliedOn(queryCoordinator, replacement);
+        moveTestIndexTo(replacement, queryCoordinator);
         if (inFlight) {
             coordinatorTransport.disconnectFromNode(dataNodeTransport.getLocalNode());
-            var dataNodeTasks = dataNodeTransport.getTaskManager();
-            assertBusy(
-                () -> assertTrue(
-                    dataNodeTasks.getCancellableTasks()
-                        .values()
-                        .stream()
-                        .anyMatch(t -> ComputeService.DATA_ACTION_NAME.equals(t.getAction()) && t.isCancelled())
-                )
-            );
+            awaitDataRequestCancelledOn(dataNodeTransport);
         }
         cutOff.countDown();
 
@@ -331,6 +328,104 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
         }
         // within the assertBusy timeout, far less than the inactive-sink interval
         assertBusy(() -> assertTrue(dataNodeExchanges.isEmpty()));
+    }
+
+    /**
+     * The data node rejects the page fetches of the coordinator before it returned a page, and the data node request then loses its
+     * connection. The rejection is a failure of the node's own, so the lost connection does not make the node count as unreachable:
+     * the shard is not resolved again, although it has moved to a node that could serve it, and the query reports the rejection.
+     * <p>
+     * The coordinator learns of the rejection through the remote sink it links for the data node, which is what this test covers
+     * and the unit tests cannot: they build that sink themselves.
+     */
+    public void testRejectedFetchBeforeDataRequestDisconnectedIsNotRetriedOnTheNodeTheShardMovedTo() throws Exception {
+        String queryCoordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        String replacement = internalCluster().startDataOnlyNode();
+        TransportService coordinatorTransport = internalCluster().getInstance(TransportService.class, queryCoordinator);
+        MockTransportService dataNodeTransport = MockTransportService.getInstance(dataNode);
+        ExchangeService dataNodeExchanges = internalCluster().getInstance(ExchangeService.class, dataNode);
+        AtomicInteger opensOnDataNode = countOpens(dataNode);
+        AtomicInteger opensOnReplacement = countOpens(replacement);
+
+        SubscribableListener<Void> dataRequestArrived = new SubscribableListener<>();
+        CountDownLatch cutOff = new CountDownLatch(1);
+        dataNodeTransport.addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+            dataRequestArrived.onResponse(null);
+            // held, so that the request has neither been answered nor failed when its connection is dropped
+            safeAwait(cutOff, TimeValue.timeValueSeconds(30));
+            handler.messageReceived(request, channel, task);
+        });
+        String rejection = "simulated rejection of a page fetch";
+        dataNodeTransport.addRequestHandlingBehavior(
+            ExchangeService.EXCHANGE_ACTION_NAME,
+            // Not before the data node request is here: the rejection has it cancelled, which must find its task. The fetch does
+            // not wait for that on its thread: the data node request needs one of the same pool to get here.
+            (handler, request, channel, task) -> dataRequestArrived.addListener(
+                ActionListener.running(() -> channel.sendResponse(new EsRejectedExecutionException(rejection)))
+            )
+        );
+
+        scriptPermits.drainPermits();
+        scriptPermits.release(numberOfDocs());
+        ActionFuture<EsqlQueryResponse> query = client(queryCoordinator).execute(
+            EsqlQueryAction.INSTANCE,
+            EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(true)
+        );
+        safeAwait(dataRequestArrived);
+        // The rejection fails the compute of the data node on the coordinator, which then cancels the data node request. Once the
+        // cancellation shows on the data node, the coordinator has taken note of the rejection, and only then is the connection dropped.
+        awaitDataRequestCancelledOn(dataNodeTransport);
+        moveTestIndexTo(replacement, queryCoordinator);
+        // In this order: the held request is released once its connection is gone, so that whatever the data node answers for its
+        // cancelled task cannot reach the coordinator, and the request fails there on the lost connection.
+        coordinatorTransport.disconnectFromNode(dataNodeTransport.getLocalNode());
+        cutOff.countDown();
+
+        try (EsqlQueryResponse response = safeGet(query)) {
+            // The query does not fail although its only shard did: a STATS without groups has a row also when it got no input
+            assertTrue("the shard was served although its node failed for a reason of its own", response.isPartial());
+            assertThat(getValuesList(response), equalTo(List.of(Collections.singletonList(null))));
+            List<ShardSearchFailure> failures = response.getExecutionInfo()
+                .getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY)
+                .getFailures();
+            assertThat(failures, hasSize(1));
+            // the rejection of the fetch, and not the lost connection of the data node request
+            Throwable reported = ExceptionsHelper.unwrap(failures.get(0).getCause(), EsRejectedExecutionException.class);
+            assertNotNull(failures.toString(), reported);
+            assertThat(reported.getMessage(), equalTo(rejection));
+            // which the data node request did fail on: the compute of the node hands it on next to the failure it picked
+            assertThat(reported.getSuppressed(), hasItemInArray(instanceOf(ConnectTransportException.class)));
+        }
+        assertThat(opensOnDataNode.get(), equalTo(1));
+        // the index has one copy, so the node it moved to is only known by resolving the shard again
+        assertThat("the shard is not retried", opensOnReplacement.get(), equalTo(0));
+        // within the assertBusy timeout, far less than the inactive-sink interval
+        assertBusy(() -> assertTrue(dataNodeExchanges.isEmpty()));
+    }
+
+    /**
+     * Waits until the task of a data node request shows as cancelled on the node that got the request.
+     */
+    private static void awaitDataRequestCancelledOn(TransportService dataNodeTransport) throws Exception {
+        var dataNodeTasks = dataNodeTransport.getTaskManager();
+        assertBusy(
+            () -> assertTrue(
+                dataNodeTasks.getCancellableTasks()
+                    .values()
+                    .stream()
+                    .anyMatch(t -> ComputeService.DATA_ACTION_NAME.equals(t.getAction()) && t.isCancelled())
+            )
+        );
+    }
+
+    /**
+     * Moves the test index to the given node, and waits until the node that coordinates the query knows, see
+     * {@link #awaitTestIndexAppliedOn}.
+     */
+    private static void moveTestIndexTo(String movedTo, String queryCoordinator) {
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", movedTo), "test");
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").setWaitForGreenStatus().setWaitForNoRelocatingShards(true).get();
+        awaitTestIndexAppliedOn(queryCoordinator, movedTo);
     }
 
     /**

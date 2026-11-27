@@ -305,6 +305,11 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         // persian and romanian fold the pre/post Lucene 10 chain split into their keys.
         analyzers.get("persian").gatedAt(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
         analyzers.get("romanian").gatedAt(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        // thai's chain changed in Lucene 10.6. Default stop words changed too, so the second probe sets explicit stop words to isolate the
+        // chain change.
+        analyzers.get("thai")
+            .gatedAt(IndexVersions.UPGRADE_TO_LUCENE_10_6_0)
+            .alsoWith(settings(Map.of("stopwords", List.of("bar"))).gatedAt(IndexVersions.UPGRADE_TO_LUCENE_10_6_0));
         analyzers.put(
             "fingerprint",
             settings().affects("separator", "+")
@@ -476,9 +481,11 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, FactorySettings> tokenizerSettings() {
         Map<String, FactorySettings> tokenizers = new HashMap<>();
-        for (String stateless : List.of("letter", "lowercase", "thai")) {
+        for (String stateless : List.of("letter", "lowercase")) {
             tokenizers.put(stateless, alwaysShares());
         }
+        // thai has no settings, but its behavior changed in Lucene 10.6.
+        tokenizers.put("thai", settings().gatedAt(IndexVersions.UPGRADE_TO_LUCENE_10_6_0));
         for (String maxTokenLength : List.of("classic", "uax_url_email", "whitespace")) {
             tokenizers.put(maxTokenLength, settings().affects("max_token_length", "10"));
         }

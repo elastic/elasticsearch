@@ -447,11 +447,18 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * One driver reads two shards in which every document scores the same. Once the first shard has filled the top N, no
-     * document of the second shard can beat it, so the driver collects none of them and emits {@code limit} rows in all.
-     * This fails if the score stops reaching the scorer of the second shard, which would not change the top N.
+     * One driver reads two shards, and no document of the second can enter the top N the first has filled. So the driver
+     * collects none of them and emits {@code limit} rows in all. This fails if the score stops reaching the scorer of the
+     * second shard, which would not change the top N.
+     * <p>
+     *     With more sort keys a document that ties on the score is still collected, so the documents of the second shard
+     *     score lower. With the score alone ties are skipped too, so they may also score the same.
+     * </p>
      */
     public void testSecondShardCollectsNothing() throws IOException {
+        TestSort sort = randomFrom(SHARING);
+        float firstShardScore = 2;
+        float secondShardScore = sort.skipsTies && randomBoolean() ? firstShardScore : 1;
         int limit = between(1, 20);
         List<Directory> directories = new ArrayList<>();
         List<IndexReader> readers = new ArrayList<>();
@@ -466,17 +473,25 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
                     }
                     readers.add(writer.getReader());
                 }
-                contexts.add(createMockShardContext(readers.get(shard), shard, SCORE));
+                contexts.add(createMockShardContext(readers.get(shard), shard, sort));
             }
             var factory = new LuceneTopNSourceOperator.Factory(
                 new IndexedByShardIdFromList<>(contexts),
-                c -> List.of(new LuceneSliceQueue.QueryAndTags(new ConstantScoreQuery(Queries.ALL_DOCS_INSTANCE), List.of())),
+                c -> List.of(
+                    new LuceneSliceQueue.QueryAndTags(
+                        new BoostQuery(
+                            new ConstantScoreQuery(Queries.ALL_DOCS_INSTANCE),
+                            c.index() == 0 ? firstShardScore : secondShardScore
+                        ),
+                        List.of()
+                    )
+                ),
                 DataPartitioning.SHARD,
                 DataPartitioning.AutoStrategy.DEFAULT,
                 1,
                 between(10, 100),
                 limit,
-                SCORE.builders(),
+                sort.builders(),
                 randomLongBetween(10, 20),
                 true,
                 () -> 0L,
@@ -487,7 +502,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             new TestDriverRunner().run(
                 TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), new TestResultPageSinkOperator(results::add))
             );
-            assertThat(results.stream().mapToInt(Page::getPositionCount).sum(), equalTo(limit));
+            assertThat(sort.toString(), results.stream().mapToInt(Page::getPositionCount).sum(), equalTo(limit));
         } finally {
             IOUtils.close(readers);
             IOUtils.close(directories);

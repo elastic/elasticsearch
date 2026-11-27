@@ -840,7 +840,8 @@ public class QuerySettingsTests extends ESTestCase {
                     "wildcards_match_datasets",
                     "wildcards_match_views",
                     "approximation",
-                    "exemplars"
+                    "exemplars",
+                    "param_any_value"
                 )
             )
         );

@@ -38,6 +38,14 @@ public interface DataExtractorFactory {
     default void includeProject(String projectAlias) {}
 
     /**
+     * The length in milliseconds of the bucket the extracted time values are floored to (aggregating ES|QL), or 0 when they are
+     * source timestamps. A restart then resumes after the last fully emitted bucket instead of at the last record time.
+     */
+    default long timeBucketMillis() {
+        return 0;
+    }
+
+    /**
      * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
      * <p>
      * Note: Callers should apply cross-project search (CPS) mode to the datafeed's IndicesOptions
@@ -45,32 +53,9 @@ public interface DataExtractorFactory {
      * <p>
      * When {@link DatafeedConfig#getEsqlQuery()} is set, routing uses {@link EsqlDataExtractorFactory}
      * before rollup index-cap lookup. That path does not apply {@code extraFilters}, does not record
-     * {@link DatafeedSearchTelemetry}, and
-     * does not run the DSL rollup/scroll factory probes used at start.
+     * {@link DatafeedSearchTelemetry}, and does not run the DSL rollup/scroll factory probes used at start. It runs one
+     * {@code DESCRIBE}.
      */
-    static void create(
-        Client client,
-        CloudCredentialManager cloudCredentialManager,
-        DatafeedConfig datafeed,
-        QueryBuilder extraFilters,
-        Job job,
-        NamedXContentRegistry xContentRegistry,
-        DatafeedTimingStatsReporter timingStatsReporter,
-        ActionListener<DataExtractorFactory> listener
-    ) {
-        create(
-            client,
-            cloudCredentialManager,
-            datafeed,
-            extraFilters,
-            job,
-            xContentRegistry,
-            timingStatsReporter,
-            DatafeedSearchTelemetry.NOOP,
-            listener
-        );
-    }
-
     static void create(
         Client client,
         CloudCredentialManager cloudCredentialManager,

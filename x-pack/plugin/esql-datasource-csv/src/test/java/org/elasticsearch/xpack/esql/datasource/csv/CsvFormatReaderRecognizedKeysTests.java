@@ -56,6 +56,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         expected.add("multi_value_syntax");
         expected.add("multiline_fields");
         expected.add("null_value");
+        expected.add("pad_short_rows");
         expected.add("quote");
         expected.add("schema_max_fields");
         expected.add("schema_sample_size");
@@ -196,6 +197,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             case "schema_max_fields" -> 500;
             case "schema_sample_size" -> 10;
             case "skip_rows" -> 2;
+            case "pad_short_rows" -> true;
             default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
         };
     }
@@ -413,6 +415,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             case "schema_max_fields" -> 600;
             case "schema_sample_size" -> 20;
             case "skip_rows" -> 3;
+            case "pad_short_rows" -> false;
             default -> throw new AssertionError("update otherSampleValueFor() for new recognised key: " + key);
         };
     }

@@ -520,6 +520,39 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(extractor.getLinkedClusterStates(), equalTo(skippedStates));
     }
 
+    public void testEsqlSummaryOnlyCycleShouldReturnTheSummaryClusterStates() throws IOException {
+        chunkSpan = null;
+        final long start = 1_000L;
+        final long end = 5_000L;
+        DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(start, end));
+        List<LinkedClusterState> recovered = List.of(new LinkedClusterState("east", LinkedClusterState.Status.AVAILABLE, null, 0L));
+        when(dataExtractorFactory.newExtractor(start, end)).thenReturn(
+            new StubSummaryExtractorWithClusterStates(new DataSummary(null, null, 0L), recovered)
+        );
+
+        DataExtractor.Result result = extractor.next();
+
+        assertThat(result.data().isPresent(), is(false));
+        assertThat(result.linkedClusterStates(), equalTo(recovered));
+    }
+
+    public void testEsqlFailedChunkShouldReplaceEarlierAvailableClusterStates() {
+        chunkSpan = null;
+        final long start = 100_000L;
+        final long end = 450_000L;
+        DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(start, end));
+        List<LinkedClusterState> available = List.of(new LinkedClusterState("east", LinkedClusterState.Status.AVAILABLE, null, 0L));
+        List<LinkedClusterState> skipped = List.of(new LinkedClusterState("east", LinkedClusterState.Status.SKIPPED, null, 0L));
+        DataExtractor summaryExtractor = new StubSummaryExtractorWithClusterStates(new DataSummary(100_000L, 400_000L, 3_000L), available);
+        // The first extractor is the summary probe; any later one is a chunk query, which fails.
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(summaryExtractor)
+            .thenReturn(new StubChunkExtractorThrowingWithClusterStates(skipped));
+
+        expectThrows(ResourceNotFoundException.class, extractor::next);
+
+        assertThat(extractor.getLinkedClusterStates(), equalTo(skipped));
+    }
+
     public void testNoDataSummaryHasNoData() {
         DataSummary summary = new DataSummary(null, null, 0L);
         assertFalse(summary.hasData());
@@ -835,7 +868,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     private ChunkedDataExtractorContext createRawEsqlContext(long start, long end) {
         // Raw rows keep source timestamps, so the factory gives them the identity aligner.
         ChunkedDataExtractorContext.TimeAligner timeAligner = ChunkedDataExtractorFactory.newIdentityTimeAligner();
-        return new ChunkedDataExtractorContext(jobId, scrollSize, start, end, chunkSpan, timeAligner, false, null, true, true);
+        return new ChunkedDataExtractorContext(jobId, scrollSize, start, end, chunkSpan, timeAligner, false, null, true, 0L);
     }
 
     private ChunkedDataExtractorContext createEsqlContext(long start, long end) {
@@ -843,10 +876,10 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     }
 
     private ChunkedDataExtractorContext createEsqlContext(long start, long end, long groupingIntervalMillis) {
-        return createEsqlContext(start, end, groupingIntervalMillis, true);
+        return createEsqlContext(start, end, groupingIntervalMillis, 0L);
     }
 
-    private ChunkedDataExtractorContext createEsqlContext(long start, long end, long groupingIntervalMillis, boolean rowLimitInjected) {
+    private ChunkedDataExtractorContext createEsqlContext(long start, long end, long groupingIntervalMillis, long singleChunkSpan) {
         ChunkedDataExtractorContext.TimeAligner timeAligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(groupingIntervalMillis);
         return new ChunkedDataExtractorContext(
             jobId,
@@ -858,7 +891,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             false,
             null,
             true,
-            rowLimitInjected
+            singleChunkSpan
         );
     }
 
@@ -879,7 +912,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             hasAggregations,
             histogramInterval,
             hasEsqlQuery,
-            false
+            0L
         );
     }
 
@@ -1123,6 +1156,132 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(shrunkEnd, chunkEnd);
     }
 
+    public void testEsqlWindowWithinSingleChunkSpanShouldSkipSummaryAndQueryOnce() throws IOException {
+        chunkSpan = null;
+        long start = 100_000L;
+        long end = 400_000L;
+        DataExtractor extractor = new ChunkedDataExtractor(
+            dataExtractorFactory,
+            createEsqlContext(start, end, ESQL_GROUPING_INTERVAL_MILLIS, 300_000L)
+        );
+        InputStream stream = mock(InputStream.class);
+        // A summary-less stub: a getSummary() call would return null and fail the extractor.
+        stubChunk(start, end, stream);
+
+        assertNextStream(extractor, stream);
+        assertNoMoreData(extractor);
+
+        verify(dataExtractorFactory, times(1)).newExtractor(start, end);
+        Mockito.verifyNoMoreInteractions(dataExtractorFactory);
+    }
+
+    public void testEsqlWindowWithinSingleChunkSpanShouldHonorManualChunkSpanWithoutSummary() throws IOException {
+        chunkSpan = TimeValue.timeValueSeconds(100);
+        long start = 0L;
+        long end = 300_000L;
+        DataExtractor extractor = new ChunkedDataExtractor(
+            dataExtractorFactory,
+            createEsqlContext(start, end, ESQL_GROUPING_INTERVAL_MILLIS, 300_000L)
+        );
+        InputStream first = mock(InputStream.class);
+        InputStream second = mock(InputStream.class);
+        InputStream third = mock(InputStream.class);
+        stubChunk(0L, 100_000L, first);
+        stubChunk(100_000L, 200_000L, second);
+        stubChunk(200_000L, 300_000L, third);
+
+        assertNextStream(extractor, first);
+        assertNextStream(extractor, second);
+        assertNextStream(extractor, third);
+        assertNoMoreData(extractor);
+
+        verify(dataExtractorFactory, times(1)).newExtractor(0L, 100_000L);
+        verify(dataExtractorFactory, times(1)).newExtractor(100_000L, 200_000L);
+        verify(dataExtractorFactory, times(1)).newExtractor(200_000L, 300_000L);
+        Mockito.verifyNoMoreInteractions(dataExtractorFactory);
+    }
+
+    public void testEsqlWindowEmptyWithinSingleChunkSpanShouldFinishWithoutFurtherQueries() throws IOException {
+        chunkSpan = null;
+        DataExtractor extractor = new ChunkedDataExtractor(
+            dataExtractorFactory,
+            createEsqlContext(0L, 60_000L, ESQL_GROUPING_INTERVAL_MILLIS, 60_000L)
+        );
+        stubChunk(0L, 60_000L);
+
+        assertNoMoreData(extractor);
+
+        verify(dataExtractorFactory, times(1)).newExtractor(0L, 60_000L);
+        Mockito.verifyNoMoreInteractions(dataExtractorFactory);
+    }
+
+    public void testEsqlConsecutiveWindowsOnlyFirstLongerThanSingleChunkSpanShouldUseSummary() throws IOException {
+        chunkSpan = TimeValue.timeValueSeconds(120);
+        long singleChunkSpan = 60_000L;
+        // First cycle after lookback: window (120s) > frequency (60s) goes through the summary path (2 queries).
+        InputStream firstStream = mock(InputStream.class);
+        stubChunkWithSummary(0L, 120_000L, new DataSummary(0L, 120_000L, 10L), firstStream);
+        DataExtractor first = new ChunkedDataExtractor(
+            dataExtractorFactory,
+            createEsqlContext(0L, 120_000L, ESQL_GROUPING_INTERVAL_MILLIS, singleChunkSpan)
+        );
+        assertNextStream(first, firstStream);
+        assertNoMoreData(first);
+        verify(dataExtractorFactory, times(2)).newExtractor(0L, 120_000L);
+
+        // Steady state: window == frequency == singleChunkSpan, one extractor and no summary (1 query).
+        InputStream secondStream = mock(InputStream.class);
+        stubChunk(120_000L, 180_000L, secondStream);
+        DataExtractor second = new ChunkedDataExtractor(
+            dataExtractorFactory,
+            createEsqlContext(120_000L, 180_000L, ESQL_GROUPING_INTERVAL_MILLIS, singleChunkSpan)
+        );
+        assertNextStream(second, secondStream);
+        assertNoMoreData(second);
+        verify(dataExtractorFactory, times(1)).newExtractor(120_000L, 180_000L);
+        Mockito.verifyNoMoreInteractions(dataExtractorFactory);
+    }
+
+    public void testEsqlTruncatedWindowWithinSingleChunkSpanShouldStillShrink() throws IOException {
+        chunkSpan = null;
+        long windowEnd = 64_000L;
+        long shrunkEnd = windowEnd / ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR;
+        DataExtractor extractor = new ChunkedDataExtractor(
+            dataExtractorFactory,
+            createEsqlContext(0L, windowEnd, ESQL_GROUPING_INTERVAL_MILLIS, windowEnd)
+        );
+        InputStream truncatedStream = mock(InputStream.class);
+        InputStream completeStream = mock(InputStream.class);
+        stubTruncatedChunk(0L, windowEnd, EsqlDataExtractor.INJECTED_ROW_LIMIT, truncatedStream);
+        stubTruncatedChunk(0L, shrunkEnd, 500L, completeStream);
+
+        DataExtractor.Result result = extractor.next();
+
+        assertThat(result.data().orElseThrow(), equalTo(completeStream));
+        assertThat(result.rowCount(), equalTo(500L));
+        verify(truncatedStream).close();
+        verify(dataExtractorFactory, times(1)).newExtractor(0L, windowEnd);
+        verify(dataExtractorFactory, times(1)).newExtractor(0L, shrunkEnd);
+    }
+
+    public void testEsqlWindowLargerThanSingleChunkSpanShouldStillRequestSummary() throws IOException {
+        chunkSpan = null;
+        long start = 100_000L;
+        long end = 450_000L;
+        DataExtractor extractor = new ChunkedDataExtractor(
+            dataExtractorFactory,
+            createEsqlContext(start, end, ESQL_GROUPING_INTERVAL_MILLIS, 300_000L)
+        );
+        InputStream stream = mock(InputStream.class);
+        stubChunkWithSummary(start, end, new DataSummary(100_000L, 400_000L, 3_000L), stream);
+
+        assertNextStream(extractor, stream);
+        assertNoMoreData(extractor);
+
+        // One extractor for the summary, one for the chunk.
+        verify(dataExtractorFactory, times(2)).newExtractor(start, end);
+    }
+
     public void testEsqlCompleteResultBelowInjectedLimitShouldBeAcceptedWithoutRetry() throws IOException {
         // Only the injected LIMIT truncates a result, so 1,000 to 9,999 rows are complete and must not be re-queried smaller.
         long rowCount = randomLongBetween(1_000L, EsqlDataExtractor.INJECTED_ROW_LIMIT - 1);
@@ -1178,28 +1337,6 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     private void assertNoMoreData(DataExtractor extractor) throws IOException {
         assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
-    }
-
-    public void testEsqlUserLimitAtOrAboveInjectedLimitShouldNotShrinkOrMarkWindowIncomplete() throws IOException {
-        long rowCount = randomFrom(EsqlDataExtractor.INJECTED_ROW_LIMIT, 2 * EsqlDataExtractor.INJECTED_ROW_LIMIT);
-        long chunkEnd = esqlChunkSpanMillis();
-        long windowEnd = esqlWindowSpanMillis();
-        chunkSpan = TimeValue.timeValueMillis(chunkEnd);
-        ChunkedDataExtractor extractor = new ChunkedDataExtractor(
-            dataExtractorFactory,
-            createEsqlContext(0L, windowEnd, ESQL_GROUPING_INTERVAL_MILLIS, false)
-        );
-        stubSummary(0L, windowEnd, new DataSummary(0L, windowEnd - 1, 3_000L));
-        InputStream stream = mock(InputStream.class);
-        stubTruncatedChunk(0L, chunkEnd, rowCount, stream);
-
-        DataExtractor.Result result = extractor.next();
-
-        assertThat(result.rowCount(), equalTo(rowCount));
-        assertThat(result.data().orElseThrow(), equalTo(stream));
-        assertThat(extractor.getIncompleteSearchInterval(), equalTo(Optional.empty()));
-        verify(stream, never()).close();
-        verify(dataExtractorFactory, never()).newExtractor(eq(0L), lt(chunkEnd));
     }
 
     public void testTruncatedChunkCancelledDuringNextShouldNotShrink() throws IOException {
@@ -1485,6 +1622,37 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         @Override
         public long getEndTime() {
             return 0;
+        }
+    }
+
+    private static class StubSummaryExtractorWithClusterStates extends StubSubExtractor {
+        private final List<LinkedClusterState> linkedClusterStates;
+
+        StubSummaryExtractorWithClusterStates(DataSummary summary, List<LinkedClusterState> linkedClusterStates) {
+            super(new SearchInterval(0L, 0L), summary);
+            this.linkedClusterStates = linkedClusterStates;
+        }
+
+        @Override
+        public List<LinkedClusterState> getLinkedClusterStates() {
+            return linkedClusterStates;
+        }
+    }
+
+    /** A chunk extractor whose query fails because a remote cluster was skipped. */
+    private static class StubChunkExtractorThrowingWithClusterStates extends StubSummaryExtractorThrowingWithClusterStates {
+        StubChunkExtractorThrowingWithClusterStates(List<LinkedClusterState> linkedClusterStates) {
+            super(linkedClusterStates);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return true;
+        }
+
+        @Override
+        public Result next() {
+            throw new ResourceNotFoundException("remote cluster skipped");
         }
     }
 }

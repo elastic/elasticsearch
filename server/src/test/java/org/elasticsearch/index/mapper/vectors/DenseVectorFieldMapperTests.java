@@ -3283,7 +3283,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
      * indices too, as the keep mode is only read when indexing.
      */
     public void testSyntheticSourceKeepOnExcludedVectorField() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT, IndexVersion.current());
+        // from the version that writes _ignored_source in the coalesced format decoded below, also without its feature flag
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.IGNORED_SOURCE_COALESCED_ENTRIES,
+            IndexVersion.current()
+        );
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
             .put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays")

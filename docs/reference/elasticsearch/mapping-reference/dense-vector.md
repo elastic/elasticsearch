@@ -646,7 +646,7 @@ $$$dense-vector-index-options$$$
 
 `dense_vector` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) .
 
-{applies_to}`stack: ga 9.7` When `index.mapping.exclude_source_vectors` is enabled, [`synthetic_source_keep`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-keep) set on a `dense_vector` field is ignored.
+{applies_to}`stack: ga 9.7` When `index.mapping.exclude_source_vectors` is enabled, [`synthetic_source_keep`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-keep) set on a `dense_vector` field is ignored. This means you can no longer avoid [synthetic `_source` modifications](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-modifications) for that field: the vector is [rehydrated](#rehydration-and-precision) from its internal format. To keep the original vector values, set `index.mapping.exclude_source_vectors` to `false` when you create the index.
 
 
 ## Indexing and searching bit vectors [dense-vector-index-bit]

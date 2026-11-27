@@ -299,12 +299,14 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
         assertEquals(Set.of(), DenseVectorFieldMapper.floatElementPaths(Map.of(), Mapper.SourceKeepMode.NONE));
     }
 
-    /** Vectors whose text {@code synthetic_source_keep} keeps are left out of the float element paths. */
+    /**
+     * Vectors whose text {@code synthetic_source_keep} keeps are left out of the float element paths. That set on the vector itself
+     * is ignored, as with {@code index.mapping.exclude_source_vectors} the vector's text is never kept.
+     */
     public void testFloatElementPathsSkipKeptVectors() throws IOException {
         Map<String, Object> mapping = XContentHelper.convertToMap(BytesReference.bytes(mapping(b -> {
             b.startObject("plain").field("type", "dense_vector").endObject();
             b.startObject("keep_all").field("type", "dense_vector").field("synthetic_source_keep", "all").endObject();
-            // a vector parses its own array, so keeping arrays doesn't keep its text
             b.startObject("keep_arrays").field("type", "dense_vector").field("synthetic_source_keep", "arrays").endObject();
             b.startObject("keep_none").field("type", "dense_vector").field("synthetic_source_keep", "none").endObject();
             for (String keep : new String[] { "all", "arrays", "none" }) {
@@ -328,12 +330,12 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
         @SuppressWarnings("unchecked") // the root of a mapping built by mapping(...) is {"_doc": {...}}
         Map<String, Object> root = (Map<String, Object>) mapping.get("_doc");
         assertEquals(
-            Set.of("plain", "keep_arrays", "keep_none", "obj_none.v", "obj.v"),
+            Set.of("plain", "keep_all", "keep_arrays", "keep_none", "obj_none.v", "obj.v"),
             DenseVectorFieldMapper.floatElementPaths(root, Mapper.SourceKeepMode.NONE)
         );
         // an object's own synthetic_source_keep overrides the index's
         assertEquals(
-            Set.of("plain", "keep_arrays", "keep_none", "obj_none.v"),
+            Set.of("plain", "keep_all", "keep_arrays", "keep_none", "obj_none.v"),
             DenseVectorFieldMapper.floatElementPaths(root, Mapper.SourceKeepMode.ARRAYS)
         );
         // a disabled root keeps the whole source verbatim
@@ -456,6 +458,8 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
     /**
      * In a time-series index, {@code synthetic_source_keep: all} on a vector is ignored when {@code index.mapping.exclude_source_vectors}
      * is on, the default, so the vector takes the batch path rather than falling back to the row path, and both write the same fields.
+     * The coordinating node parses its elements straight to float too, so one near the midpoint between two floats is indexed as the
+     * row path indexes it.
      */
     public void testTimeSeriesSyntheticSourceKeepAll() throws IOException {
         final BytesRef tsid = new BytesRef(new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 });
@@ -475,7 +479,19 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
             final String source = "{\"@timestamp\":" + (timestamp + i) + ",\"" + FIELD + "\":" + randomVectorJson(DIMS, false) + "}";
             docs.add(doc(TsidExtractingIdFieldMapper.createId(42, tsid, timestamp + i), routing, tsid, i, source));
         }
-        assertColumnarMatchesXContent(mapping(b -> {
+        final long midpointTimestamp = timestamp + docs.size();
+        // rounds to the other float when parsed to double and then narrowed, https://github.com/elastic/elasticsearch/issues/165790
+        final String midpointVector = "[1.0000001788139343261718749,1,2,3,4,5,6,7]";
+        docs.add(
+            doc(
+                TsidExtractingIdFieldMapper.createId(42, tsid, midpointTimestamp),
+                routing,
+                tsid,
+                docs.size(),
+                "{\"@timestamp\":" + midpointTimestamp + ",\"" + FIELD + "\":" + midpointVector + "}"
+            )
+        );
+        final XContentBuilder mapping = mapping(b -> {
             b.startObject("@timestamp").field("type", "date").endObject();
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject(FIELD)
@@ -484,16 +500,25 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
                 .field("similarity", "l2_norm")
                 .field("synthetic_source_keep", "all")
                 .endObject();
-        }), settings, batch("time series keep all", 1L, docs.toArray(Doc[]::new)));
+        });
+        for (SourceEncoder encoder : SourceEncoder.available()) {
+            assertColumnarMatchesXContent(
+                mapping,
+                settings,
+                encoder,
+                true,
+                batch("time series keep all, " + encoder, 1L, docs.toArray(Doc[]::new))
+            );
+        }
     }
 
     /**
      * A vector whose source the row path keeps word for word in {@code _ignored_source} must keep the client's text through the
      * batch path. That is a vector in an object with {@code synthetic_source_keep: all}, and one in an array of objects with
      * {@code synthetic_source_keep: arrays}, set on the object or for the whole index. {@code synthetic_source_keep} set on the vector
-     * itself is ignored, as {@code index.mapping.exclude_source_vectors} is on by default. The shard refuses such a batch and
-     * indexes its documents on the row path, but from the source the batch row is rebuilt into, so elements the coordinating node
-     * parsed to float would come back widened to double, {@code 0.0123} as {@code 0.012299999594688416}.
+     * itself is ignored, as {@code index.mapping.exclude_source_vectors} is on by default, and kept when it is off. The shard refuses
+     * such a batch and indexes its documents on the row path, but from the source the batch row is rebuilt into, so elements the
+     * coordinating node parsed to float would come back widened to double, {@code 0.0123} as {@code 0.012299999594688416}.
      */
     public void testKeptVectorKeepsElementText() throws IOException {
         final String vector = "[0.0123,0.1,-0.3,0.7,1.1,2.5,3,-4.2]";
@@ -506,6 +531,18 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
             keptVectorMapping(null),
             Settings.builder().put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays").build(),
             inObjectArray
+        );
+        // with index.mapping.exclude_source_vectors off, synthetic_source_keep on the vector itself keeps its text
+        assertKeepsSource(
+            mapping(
+                b -> b.startObject(FIELD)
+                    .field("type", "dense_vector")
+                    .field("dims", DIMS)
+                    .field("synthetic_source_keep", "all")
+                    .endObject()
+            ),
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false).build(),
+            "{\"" + FIELD + "\":" + vector + "}"
         );
         // a disabled object, or a disabled root, keeps its source verbatim
         assertKeepsSource(mapping(b -> {

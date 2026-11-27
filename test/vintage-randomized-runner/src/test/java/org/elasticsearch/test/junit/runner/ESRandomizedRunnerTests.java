@@ -572,6 +572,87 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
         assertThat(peerFailures, equalTo(plainPeerFailures));
     }
 
+    /** Registered with {@code @Listeners}, and throws when it is told about a failure, as an unlucky listener of the test class may. */
+    public static final class FailureRejectingListener extends RunListener {
+        @Override
+        public void testFailure(Failure failure) {
+            throw new IllegalStateException("rejects failure " + failure.getException().getMessage());
+        }
+    }
+
+    @Listeners({ RejectingListener.class, FailureRejectingListener.class, PeerListener.class })
+    @TestMethodProviders({ JUnit3MethodProvider.class })
+    public static class DoublyRejectedFixture {
+        public void testOne() {}
+    }
+
+    /**
+     * A listener that throws when it is told about the failure of another listener must not be told about its own failure again, which
+     * would make it throw again, and so on, until the stack is exhausted. A plain {@link RandomizedRunner} does not tell a listener
+     * about the failure it caused, and neither does the wrapper.
+     */
+    public void testListenerThatRejectsFailuresIsNotToldAboutItsOwn() throws Exception {
+        PEER_FAILURES.clear();
+        List<Failure> plainFailures = runAndCollectFailures(plainRunnerWithoutIterations(DoublyRejectedFixture.class));
+        List<String> plainPeerFailures = List.copyOf(PEER_FAILURES);
+
+        PEER_FAILURES.clear();
+        List<Failure> failures = runAndCollectFailures(runnerWithoutIterations(DoublyRejectedFixture.class, VINTAGE_LIKE_FILTER_PREFIX));
+        List<String> peerFailures = List.copyOf(PEER_FAILURES);
+
+        // the rejection of the test, and the rejection of that failure. They are not necessarily told in the same order, as the wrapper
+        // tells the actual notifier about a failure before the listeners, and a plain runner does not have a second notifier.
+        assertThat(plainFailures.size(), equalTo(2));
+        assertThat(
+            failures.stream().map(f -> f.getException().getMessage()).toList(),
+            containsInAnyOrder(plainFailures.stream().map(f -> f.getException().getMessage()).toArray(String[]::new))
+        );
+        assertThat(peerFailures, containsInAnyOrder(plainPeerFailures.toArray(String[]::new)));
+    }
+
+    /** The events the {@link OrderRecordingListener} was told about, in order. */
+    private static final List<String> RECORDED_ORDER = new CopyOnWriteArrayList<>();
+
+    /** Registered with {@code @Listeners} after {@link RejectingListener}, and records in which order it hears of the events. */
+    public static final class OrderRecordingListener extends RunListener {
+        @Override
+        public void testStarted(Description description) {
+            RECORDED_ORDER.add("started");
+        }
+
+        @Override
+        public void testFailure(Failure failure) {
+            RECORDED_ORDER.add("failure");
+        }
+
+        @Override
+        public void testFinished(Description description) {
+            RECORDED_ORDER.add("finished");
+        }
+    }
+
+    @Listeners({ RejectingListener.class, OrderRecordingListener.class })
+    @TestMethodProviders({ JUnit3MethodProvider.class })
+    public static class OrderedFixture {
+        public void testOne() {}
+    }
+
+    /**
+     * The failure of a listener is told to the other listeners once all of them have been told about the event that caused it, so a
+     * listener that sets something up when a test starts has done it by the time it hears about the failure.
+     */
+    public void testFailureOfAListenerIsToldToThePeersAfterTheEvent() throws Exception {
+        RECORDED_ORDER.clear();
+        runAndCollectFailures(plainRunnerWithoutIterations(OrderedFixture.class));
+        List<String> plainOrder = List.copyOf(RECORDED_ORDER);
+
+        RECORDED_ORDER.clear();
+        runAndCollectFailures(runnerWithoutIterations(OrderedFixture.class, VINTAGE_LIKE_FILTER_PREFIX));
+
+        assertThat(plainOrder, equalTo(List.of("started", "failure", "finished")));
+        assertThat(List.copyOf(RECORDED_ORDER), equalTo(plainOrder));
+    }
+
     private static List<Failure> runAndCollectFailures(Runner runner) {
         RecordedEvents events = new RecordedEvents();
         List<Failure> failures = new ArrayList<>();

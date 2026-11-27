@@ -17,5 +17,10 @@ dependencies {
 }
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution("ES|QL and its Arrow format are in the default distribution")
+  // Docker availability is only checked by a JUnit rule, which skips the whole suite when Docker is missing. Gradle
+  // must not reuse such a skipped run as an up-to-date result once Docker is available.
+  outputs.upToDateWhen { false }
+  usesDefaultDistribution(
+    "ES|QL plus the field types under test (spatial, analytics histograms and t-digest, unsigned_long, version, aggregate_metric_double) are x-pack modules; the default distribution avoids maintaining that list of modules and their dependencies here"
+  )
 }

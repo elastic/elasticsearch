@@ -1,10 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.esql.qa.arrow_interop;
@@ -137,7 +135,7 @@ public class ArrowInteropIT extends ESRestTestCase {
 
     /** Unsigned longs are unsigned 64-bit integers in Arrow, nanosecond dates keep their unit, and text is a string. */
     public void testNumericAndTextTypes() throws IOException {
-        assertColumns("FROM arrow-interop | SORT i | KEEP ul, dn, tx", "numeric_and_text");
+        assertColumns("FROM arrow-interop | SORT i | KEEP big, ul, dn, tx", "numeric_and_text");
     }
 
     /** Dense vectors are lists of {@code float32}, with no sign of the {@code dims} in the Arrow type. */
@@ -190,6 +188,15 @@ public class ArrowInteropIT extends ESRestTestCase {
 
         // The _tsid is a hash that is an implementation detail: only check that it is present
         assertColumns("TS arrow-interop-ts METADATA _tsid | SORT host | KEEP ci, cl, cd, _tsid", "time_series", Set.of("_tsid"));
+    }
+
+    /** Every other test asks for Arrow with {@code format=arrow}, which has precedence: this one only has the {@code Accept} header. */
+    public void testAcceptHeaderNegotiation() throws IOException {
+        List<?> expected = (List<?>) parseJson("{\"columns\":" + resource("expected/ip.json") + "}").get("columns");
+        for (ArrowInteropContainer client : clients()) {
+            Map<String, Object> result = fetch(client, "FROM arrow-interop | SORT i | KEEP ip", Map.of(), false);
+            assertEquals("Columns decoded by " + client.language(), expected, result.get("columns"));
+        }
     }
 
     /** The schema is sent even if there are no rows. */
@@ -245,7 +252,7 @@ public class ArrowInteropIT extends ESRestTestCase {
         }
         request = new Request("POST", "/_bulk?index=" + index + "&refresh=true");
         request.setJsonEntity(bulk.toString());
-        assertOK(client().performRequest(request));
+        assertBulkSuccess(client().performRequest(request));
     }
 
     /**
@@ -289,7 +296,13 @@ public class ArrowInteropIT extends ESRestTestCase {
 
     /** Same, with additional fields in the request body. */
     private Map<String, Object> fetch(ArrowInteropContainer client, String query, Map<String, Object> extraBody) throws IOException {
-        String url = "http://" + ArrowInteropContainer.HOST_ADDRESS + ":" + httpPort() + "/_query?format=arrow";
+        return fetch(client, query, extraBody, true);
+    }
+
+    /** Same, optionally leaving the {@code format} parameter out so that the format is chosen from the {@code Accept} header only. */
+    private Map<String, Object> fetch(ArrowInteropContainer client, String query, Map<String, Object> extraBody, boolean formatParam)
+        throws IOException {
+        String url = "http://" + ArrowInteropContainer.HOST_ADDRESS + ":" + httpPort() + "/_query" + (formatParam ? "?format=arrow" : "");
         String body = Strings.toString(
             JsonXContent.contentBuilder().startObject().field("query", query).mapContents(extraBody).endObject()
         );

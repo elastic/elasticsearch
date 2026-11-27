@@ -16,6 +16,7 @@
       "gs": { "type": "geo_shape" },
       "cp": { "type": "point" },
       "cs": { "type": "shape" },
+      "big": { "type": "double" },
       "ul": { "type": "unsigned_long" },
       "dn": { "type": "date_nanos" },
       "tx": { "type": "text" },

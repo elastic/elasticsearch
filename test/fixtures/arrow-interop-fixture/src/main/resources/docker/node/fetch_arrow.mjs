@@ -12,7 +12,7 @@
 //   (types we don't know are reported as "unknown:<native name>" so that they show up in tests);
 // - timestamps and dates are epoch milliseconds (sub-millisecond precision is truncated, the type name still
 //   carries the original unit);
-// - integers outside of the JS safe integer range are strings;
+// - 64-bit integers outside of the JS safe integer range are strings (doubles always stay numbers);
 // - floating point values that are integers are printed without a decimal part (JS makes no difference between 1.0 and 1);
 // - decimal values are not normalized (they are reported as unknown by Elasticsearch anyway);
 // - binary values are {"base64": "..."};
@@ -98,7 +98,6 @@ function toJson(_key, value) {
   if (typeof value === "number") {
     if (Number.isNaN(value)) return "NaN";
     if (!Number.isFinite(value)) return value > 0 ? "Infinity" : "-Infinity";
-    if (!Number.isSafeInteger(value) && Number.isInteger(value)) return value.toString();
     return value;
   }
   if (value instanceof Uint8Array) {

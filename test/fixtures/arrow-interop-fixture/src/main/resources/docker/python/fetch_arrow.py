@@ -13,7 +13,7 @@ lets tests keep a single table of expected values. Keep both scripts in sync. Th
   (types we don't know are reported as "unknown:<native name>" so that they show up in tests);
 - timestamps and dates are epoch milliseconds (sub-millisecond precision is truncated, the type name still
   carries the original unit);
-- integers outside of the JS safe integer range are strings;
+- 64-bit integers outside of the JS safe integer range are strings (doubles always stay numbers);
 - floating point values that are integers are printed without a decimal part (JS makes no difference between 1.0 and 1);
 - decimal values are not normalized (they are reported as unknown by Elasticsearch anyway);
 - binary values are {"base64": "..."};
@@ -22,6 +22,7 @@ lets tests keep a single table of expected values. Keep both scripts in sync. Th
   not the library knows the extension.
 """
 import base64
+import decimal
 import json
 import math
 import os
@@ -91,8 +92,9 @@ def to_millis(value, unit):
 def number(v):
     if isinstance(v, float) and not math.isfinite(v):
         return "NaN" if math.isnan(v) else ("Infinity" if v > 0 else "-Infinity")
-    if isinstance(v, float) and v.is_integer() and abs(v) <= MAX_SAFE_INTEGER:
-        return int(v)  # JS can't tell 1.0 from 1
+    if isinstance(v, float) and v.is_integer() and abs(v) < 1e21:
+        # JS can't tell 1.0 from 1, and prints whole numbers below 1e21 as the digits of their shortest representation
+        return int(decimal.Decimal(repr(v)))
     if isinstance(v, int) and abs(v) > MAX_SAFE_INTEGER:
         return str(v)
     return v

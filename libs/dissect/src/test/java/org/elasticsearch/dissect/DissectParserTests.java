@@ -316,7 +316,7 @@ public class DissectParserTests extends ESTestCase {
     }
 
     public void testAppendWithConsecutiveDelimiters() {
-        assertMatch("%{+a/1},%{+a/3}-%{+a/2} %{b}", "foo,bar----baz lol", Arrays.asList("a", "b"), Arrays.asList("foobar", ""));
+        assertMatch("%{+a/1},%{+a/3}-%{+a/2} %{b}", "foo,bar----baz lol", Arrays.asList("a", "b"), Arrays.asList("foo---bazbar", "lol"));
         assertMatch("%{+a/1},%{+a/3->}-%{+a/2} %{b}", "foo,bar----baz lol", Arrays.asList("a", "b"), Arrays.asList("foobazbar", "lol"));
     }
 
@@ -474,6 +474,12 @@ public class DissectParserTests extends ESTestCase {
         assertThat(new DissectParser("%{*a} %{&a}", "").referenceKeys(), contains("a"));
         assertThat(new DissectParser("%{a} %{b} %{*c} %{&c}", "").referenceKeys(), contains("c"));
         assertThat(new DissectParser("%{a} %{b} %{*c} %{&c} %{*d} %{&d}", "").referenceKeys(), contains("c", "d"));
+    }
+
+    // Test for elasticsearch#119264
+    public void testConcurrentDelimitersAdditional() {
+        assertMatch("%{a}-%{b}", "foo------bar", Arrays.asList("a", "b"), Arrays.asList("foo", "-----bar"));
+        assertMatch("%{}|%{}|foo=%{field}", "||foo=bar", Arrays.asList("field"), Arrays.asList("bar"));
     }
 
     private DissectException assertFail(String pattern, String input) {

@@ -228,9 +228,9 @@ public class RelocationOtherNodeShutdownTimeoutsTests extends ESTestCase {
         }
     }
 
-    /// The recoveries on the target that are not relocations, as the ones of unassigned shards, use its slots as well. With 3 relocating
-    /// shards, this shard and 1 such recovery, the slots (2) are split between 5 recoveries: the 4 competing shards get `2 * 4 / 5 = 1.6`
-    /// of them, so the equal share is `8s / 4 * 1.6 = 3.2s`, instead of 4s without the other recovery.
+    /// The recoveries on the target that are not relocations, as the ones of unassigned shards, compete for its slots as well. With 3
+    /// relocating shards, this shard and 1 such recovery, the 5 recoveries share the time left until the grace deadline (8s of the 10s
+    /// cap), 2 at a time: equal share = `8s / 5 * 2 = 3.2s`, instead of `8s / 4 * 2 = 4s` without the other recovery.
     public void testCountsTheOtherRecoveriesOnTheTargetAsUsingTheSlots() {
         try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
             final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, slotSharingSettings());

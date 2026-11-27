@@ -59,7 +59,7 @@ public final class PlacementAspects {
 
         @Override
         public void shardPlacedAtPoll(String nodeId, ShardId shardId, @Nullable ShardRouting currentOnNode) {
-            if (currentOnNode == null || currentOnNode.initializing()) {
+            if (currentOnNode == null) {
                 shardDeparted(nodeId);
             }
             apply(nodeId, shardId, -1);
@@ -109,8 +109,11 @@ public final class PlacementAspects {
         @Override
         public void shardPlacedAtPoll(String nodeId, ShardId shardId, @Nullable ShardRouting currentOnNode) {
             if (currentOnNode != null && currentOnNode.initializing()) {
-                // Sized exactly as it will be when it starts, so the two cancel and leave the reserved space (see the constructor).
-                usedBytesDelta.addTo(nodeId, -Math.max(0, expectedSize(currentOnNode)));
+                // Sized exactly as it will be when it starts, so the two cancel and leave the reserved space (see the constructor). A
+                // shard whose start adds nothing, because it is already on disk, has nothing to cancel.
+                if (chargedWhenStarted(currentOnNode)) {
+                    usedBytesDelta.addTo(nodeId, -Math.max(0, expectedSize(currentOnNode)));
+                }
                 return;
             }
             usedBytesDelta.addTo(nodeId, -size(shardId, pollTimeCopyIsPrimary(shardId, currentOnNode)));
@@ -136,10 +139,15 @@ public final class PlacementAspects {
             }
             if (target.relocatingNodeId() != null) {
                 usedBytesDelta.addTo(target.relocatingNodeId(), -size);
-                usedBytesDelta.addTo(target.currentNodeId(), size);
-            } else if (shouldReserveSpaceForInitializingShard(target, allocation.metadata())) {
+            }
+            if (chargedWhenStarted(target)) {
                 usedBytesDelta.addTo(target.currentNodeId(), size);
             }
+        }
+
+        /** Whether starting the initializing shard adds its size to its node: a relocation target, or a recovery that downloads it. */
+        private boolean chargedWhenStarted(ShardRouting initializing) {
+            return initializing.relocatingNodeId() != null || shouldReserveSpaceForInitializingShard(initializing, allocation.metadata());
         }
 
         @Override
@@ -152,17 +160,21 @@ public final class PlacementAspects {
          * every simulated shard, as {@code ClusterInfoSimulator} always did, so other paths are left as polled.
          */
         public Map<String, DiskUsage> adjust(Map<String, DiskUsage> polledUsage) {
-            final Map<String, DiskUsage> adjusted = new HashMap<>(polledUsage);
-            for (var entry : adjusted.entrySet()) {
+            Map<String, DiskUsage> adjusted = null;
+            for (var entry : polledUsage.entrySet()) {
+                final long delta = usedBytesDelta.get(entry.getKey());
                 final DiskUsage usage = entry.getValue();
                 final DiskUsage most = polled.getNodeMostAvailableDiskUsages().get(entry.getKey());
-                if (most == null || Objects.equals(most.path(), usage.path()) == false) {
+                if (delta == 0 || most == null || Objects.equals(most.path(), usage.path()) == false) {
                     continue;
                 }
-                final long free = Math.max(0, Math.min(usage.totalBytes(), usage.freeBytes() - usedBytesDelta.get(entry.getKey())));
-                entry.setValue(usage.copyWithFreeBytes(free));
+                if (adjusted == null) {
+                    adjusted = new HashMap<>(polledUsage);
+                }
+                final long free = Math.max(0, Math.min(usage.totalBytes(), usage.freeBytes() - delta));
+                adjusted.put(entry.getKey(), usage.copyWithFreeBytes(free));
             }
-            return adjusted;
+            return adjusted == null ? polledUsage : adjusted;
         }
 
         /**

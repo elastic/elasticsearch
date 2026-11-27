@@ -237,6 +237,35 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         );
     }
 
+    /**
+     * A shard that is already on disk when it starts adds no space, so an entry for it in the polled data path must not take any away.
+     */
+    public void testInitializePrimaryFromExistingStoreAlreadyOnDisk() {
+
+        var nodeId = "node-0";
+
+        var indexMetadata = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        var restartedPrimary = shardRoutingBuilder(new ShardId(indexMetadata.getIndex(), 0), nodeId, true, INITIALIZING).withRecoverySource(
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+        ).build();
+
+        var initialClusterInfo = new ClusterInfoTestBuilder() //
+            .withNode(nodeId, new DiskUsageBuilder("/data", 1000, 900))
+            .withShard(restartedPrimary, 100)
+            .withRecoveringShard(restartedPrimary)
+            .build();
+
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(restartedPrimary)))
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId)).build())
+            .build();
+        var simulator = new ClusterInfoSimulator(createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY));
+        simulator.simulateShardStarted(restartedPrimary);
+
+        assertThat(simulator.getClusterInfo(), equalTo(initialClusterInfo));
+    }
+
     public void testRelocateShard() {
 
         var fromNodeId = "node-0";

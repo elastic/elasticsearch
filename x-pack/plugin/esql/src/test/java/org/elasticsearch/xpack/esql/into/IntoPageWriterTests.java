@@ -655,6 +655,40 @@ public class IntoPageWriterTests extends ComputeTestCase {
         );
     }
 
+    /** The limit is in bytes of UTF-8, not in characters: it takes 512 bytes to be sent and 513 to be refused. */
+    public void testIdLengthLimitIsInUtf8Bytes() {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        int limit = IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES;
+        String ascii512 = "x".repeat(limit);
+        String twoByteChars512 = "é".repeat(limit / 2);
+        String twoByteChars600 = "é".repeat(300);
+        String twoByteChars513 = "é".repeat(limit / 2) + "x";
+        idWriter.consume(idPage(new String[] { ascii512, twoByteChars512, twoByteChars600, twoByteChars513 }, "h1", "h2", "h3", "h4"));
+
+        assertThat(
+            client.bulks.getFirst().requests().stream().map(DocWriteRequest::id).toList(),
+            equalTo(List.of(ascii512, twoByteChars512))
+        );
+        client.answer(CREATED, CREATED);
+        idWriter.finish();
+        assertThat(
+            idWriter.stats(),
+            equalTo(
+                IntoStats.builder()
+                    .total(4)
+                    .created(2)
+                    .failures(2)
+                    .failureDetails(
+                        List.of(
+                            "[400] _id is too long, must be no longer than 512 bytes but was: 600",
+                            "[400] _id is too long, must be no longer than 512 bytes but was: 513"
+                        )
+                    )
+                    .build()
+            )
+        );
+    }
+
     public void testKeepGoingSendsNothingWhenEveryIdIsInvalid() {
         IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
         idWriter.consume(idPage(new String[] { "", "" }, "h1", "h2"));

@@ -56,12 +56,29 @@ final class PageToEscfBatch {
      * {@link #NO_SKIPPED_COLUMN}.
      */
     static void append(EscfBatchBuilder batch, Page page, List<String> names, List<DataType> types, int skippedColumn) {
+        append(batch, page, names, types, skippedColumn, null);
+    }
+
+    /**
+     * As {@link #append(EscfBatchBuilder, Page, List, List, int)}, but appends only the rows at the positions {@code rows}, in that
+     * order, unless that is {@code null}, which appends all of them. Reads the page in place, with no copy of it.
+     */
+    static void append(
+        EscfBatchBuilder batch,
+        Page page,
+        List<String> names,
+        List<DataType> types,
+        int skippedColumn,
+        @Nullable int[] rows
+    ) {
         boolean[] absent = new boolean[names.size()];
         for (int c = 0; c < names.size(); c++) {
             absent[c] = c == skippedColumn || page.getBlock(c).areAllValuesNull();
         }
         BytesRef scratch = new BytesRef();
-        for (int row = 0; row < page.getPositionCount(); row++) {
+        int count = rows == null ? page.getPositionCount() : rows.length;
+        for (int i = 0; i < count; i++) {
+            int row = rows == null ? i : rows[i];
             EscfRowBuffer buffer = batch.beginRow();
             for (int c = 0; c < names.size(); c++) {
                 if (absent[c]) {

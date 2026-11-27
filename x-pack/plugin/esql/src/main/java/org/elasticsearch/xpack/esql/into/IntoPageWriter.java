@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -230,9 +231,9 @@ public final class IntoPageWriter {
          * Counts rows that were refused before they were sent, because the destination would have refused the whole bulk that carried
          * them, not only them.
          */
-        private void recordUnsentRefusals(List<String> reasons) {
-            total.addAndGet(reasons.size());
-            failures.addAndGet(reasons.size());
+        private void recordUnsentRefusals(long refused, List<String> reasons) {
+            total.addAndGet(refused);
+            failures.addAndGet(refused);
             for (String reason : reasons) {
                 recordFailureDetail(RestStatus.BAD_REQUEST, reason);
             }
@@ -389,24 +390,18 @@ public final class IntoPageWriter {
                 if (sink.idColumnPosition >= 0) {
                     requireSingleValuedIds(page);
                 }
-                Page rows = withoutInvalidIds(page);
-                try {
-                    if (rows.getPositionCount() > 0) {
-                        if (asyncAction.compareAndSet(false, true)) {
-                            driverContext.addAsyncAction();
-                        }
-                        producer.add(
-                            new PageRows(rows, sink.columns, sink.types, sink.destination, sink.idColumnPosition, sink.opType),
-                            false
-                        );
-                        Exception failed = sink.writer.failure();
-                        if (failed != null) {
-                            throw ExceptionsHelper.convertToRuntime(sink.recordWriterFailure(failed));
-                        }
+                int[] rows = rowsWithValidIds(page);
+                if (rows == null || rows.length > 0) {
+                    if (asyncAction.compareAndSet(false, true)) {
+                        driverContext.addAsyncAction();
                     }
-                } finally {
-                    if (rows != page) {
-                        rows.releaseBlocks();
+                    producer.add(
+                        new PageRows(page, sink.columns, sink.types, sink.destination, sink.idColumnPosition, sink.opType, rows),
+                        false
+                    );
+                    Exception failed = sink.writer.failure();
+                    if (failed != null) {
+                        throw ExceptionsHelper.convertToRuntime(sink.recordWriterFailure(failed));
                     }
                 }
             }
@@ -444,55 +439,55 @@ public final class IntoPageWriter {
     }
 
     /**
-     * The rows of {@code page} whose {@code _id} the destination can take, which is {@code page} itself when every row has one. The
-     * bulk fails as a whole, or reports the same failure against all its rows, for an {@code _id} that is empty or too long, so
-     * the valid rows next to it would be lost with it. A row like that fails the run, or, under {@code keep_going}, is counted as
-     * refused and left out, as it would be if the destination had refused it alone. The caller releases the result if it is not
-     * {@code page}.
+     * The positions of the rows of {@code page} whose {@code _id} the destination can take, or {@code null} when every row has one.
+     * The bulk fails as a whole, or reports the same failure against all its rows, for an {@code _id} that is empty or too long, so
+     * the valid rows next to it would be lost with it. A row like that fails the run, as soon as it is found, or, under
+     * {@code keep_going}, is counted as refused and left out, as it would be if the destination had refused it alone.
      */
-    private Page withoutInvalidIds(Page page) {
+    @Nullable
+    private int[] rowsWithValidIds(Page page) {
         if (sink.idColumnPosition < 0) {
-            return page;
+            return null;
         }
         BytesRefBlock ids = page.getBlock(sink.idColumnPosition);
         int[] valid = new int[page.getPositionCount()];
         int validCount = 0;
+        long refused = 0;
+        // Only the details that the stats can hold, as every refusal is counted but only a sample of them is reported
         List<String> reasons = new ArrayList<>();
         BytesRef scratch = new BytesRef();
         for (int row = 0; row < page.getPositionCount(); row++) {
-            String reason = null;
-            if (ids.isNull(row) == false) {
-                int length = ids.getBytesRef(ids.getFirstValueIndex(row), scratch).length;
-                if (length == 0) {
-                    reason = EMPTY_ID_REASON;
-                } else if (length > IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES) {
-                    reason = "_id is too long, must be no longer than "
-                        + IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES
-                        + " bytes but was: "
-                        + length;
-                }
-            }
-            if (reason == null) {
+            int length = ids.isNull(row) ? -1 : ids.getBytesRef(ids.getFirstValueIndex(row), scratch).length;
+            if (length != 0 && length <= IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES) {
                 valid[validCount++] = row;
-            } else {
-                reasons.add(reason);
+                continue;
+            }
+            if (sink.options.keepGoing() == false) {
+                var failed = new ElasticsearchStatusException(
+                    "INTO [{}] failed: {}",
+                    RestStatus.BAD_REQUEST,
+                    sink.destination,
+                    invalidIdReason(length)
+                );
+                sink.failure.compareAndSet(null, failed);
+                throw failed;
+            }
+            refused++;
+            if (reasons.size() < IntoStats.MAX_FAILURE_DETAILS) {
+                reasons.add(invalidIdReason(length));
             }
         }
-        if (reasons.isEmpty()) {
-            return page;
+        if (refused == 0) {
+            return null;
         }
-        if (sink.options.keepGoing() == false) {
-            var failed = new ElasticsearchStatusException(
-                "INTO [{}] failed: {}",
-                RestStatus.BAD_REQUEST,
-                sink.destination,
-                reasons.getFirst()
-            );
-            sink.failure.compareAndSet(null, failed);
-            throw failed;
-        }
-        sink.recordUnsentRefusals(reasons);
-        return page.filter(false, valid, 0, validCount);
+        sink.recordUnsentRefusals(refused, reasons);
+        return Arrays.copyOf(valid, validCount);
+    }
+
+    private static String invalidIdReason(int length) {
+        return length == 0
+            ? EMPTY_ID_REASON
+            : "_id is too long, must be no longer than " + IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES + " bytes but was: " + length;
     }
 
     public void finish() {
@@ -581,21 +576,23 @@ public final class IntoPageWriter {
         List<DataType> types,
         String destination,
         int idColumnPosition,
-        DocWriteRequest.OpType opType
+        DocWriteRequest.OpType opType,
+        @Nullable int[] rows
     ) implements EscfBulkWriter.Rows {
+        /** {@code rows} are the positions of the rows of {@code page} to write, or {@code null} for all of them. */
         @Override
         public int count() {
-            return page.getPositionCount();
+            return rows == null ? page.getPositionCount() : rows.length;
         }
 
         @Override
         public void append(EscfBatchBuilder batch) {
-            PageToEscfBatch.append(batch, page, columns, types, idColumnPosition);
+            PageToEscfBatch.append(batch, page, columns, types, idColumnPosition, rows);
         }
 
         @Override
         public IndexRequest request(int row) {
-            return new IndexRequest(destination).id(documentId(row)).opType(opType);
+            return new IndexRequest(destination).id(documentId(rows == null ? row : rows[row])).opType(opType);
         }
 
         /** The {@code _id} value of {@code row}, or {@code null} when the destination assigns the id. */

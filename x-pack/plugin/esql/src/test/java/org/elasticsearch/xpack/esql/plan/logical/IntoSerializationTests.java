@@ -38,7 +38,7 @@ public class IntoSerializationTests extends AbstractLogicalPlanSerializationTest
     }
 
     public static IntoOptions randomIntoOptions() {
-        return new IntoOptions(randomBoolean());
+        return IntoOptions.builder().refresh(randomBoolean()).keepGoing(randomBoolean()).build();
     }
 
     @Override

@@ -73,7 +73,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -91,7 +90,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
@@ -699,7 +697,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     public void testNodeFailureClassification() {
-        assertThat("refused by the target", DataNodeRequestSender.classifyNodeFailure(refusal(node1)), equalTo(NodeFailure.REFUSED));
         assertThat(
             DataNodeRequestSender.classifyNodeFailure(new NodeDisconnectedException(node1, ComputeService.DATA_ACTION_NAME)),
             equalTo(NodeFailure.UNREACHABLE)
@@ -720,8 +717,8 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             equalTo(NodeFailure.OTHER)
         );
         assertThat(
-            "already unwrapped",
-            DataNodeRequestSender.classifyNodeFailure(new NodeClosedException(node1)),
+            "a failure that the target sends back as it closes says nothing about whether it can be reached",
+            DataNodeRequestSender.classifyNodeFailure(new RemoteTransportException("remote", new NodeClosedException(node1))),
             equalTo(NodeFailure.OTHER)
         );
         assertThat(
@@ -739,12 +736,11 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     /**
-     * A refusal leaves the node out for every shard that is resolved again, for the rest of the query. A lost connection leaves the
-     * node out only for the shard that lost it: another one may be resolved onto that node, since the loss may have been transient.
+     * A lost connection leaves the node out only for the shard that lost it: another one may be resolved onto that node, since the
+     * loss may have been transient.
      */
-    public void testOnlyRefusalExcludesNodeForOtherShards() {
-        boolean refused = randomBoolean();
-        Exception unavailable = refused ? refusal(node1) : new NodeDisconnectedException(node1, ComputeService.DATA_ACTION_NAME);
+    public void testUnreachableNodeIsLeftOutOnlyForItsShard() {
+        Exception lostConnection = new NodeDisconnectedException(node1, ComputeService.DATA_ACTION_NAME);
         var resolved = ConcurrentCollections.<Set<ShardId>>newQueue();
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
         var node1Attempts = new AtomicInteger();
@@ -772,7 +768,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                     )
                 );
             } else if (node.equals(node1) && node1Attempts.incrementAndGet() == 1) {
-                runWithDelay(() -> listener.onFailure(unavailable, false));
+                runWithDelay(() -> listener.onFailure(lostConnection, false));
             } else {
                 if (shardIds.contains(shard1)) {
                     shard1Retried.onResponse(null);
@@ -783,25 +779,18 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var response = safeGet(future);
         assertThat(resolved, contains(Set.of(shard1.shardId()), Set.of(shard2.shardId())));
         assertThat(response.totalShards, equalTo(2));
-        assertThat("shard1 does not go back to the node that failed it", sent, hasItem(nodeRequest(node3, shard1)));
-        if (refused) {
-            assertThat("shard2 has no copy off the node that refused", response.failedShards, equalTo(1));
-            assertThat(response.successfulShards, equalTo(1));
-            assertThat(node1Attempts.get(), equalTo(1));
-        } else {
-            assertThat(
-                "shard2 goes to the node that was unreachable for shard1",
-                sent,
-                containsInAnyOrder(
-                    nodeRequest(node1, shard1),
-                    nodeRequest(node2, shard2),
-                    nodeRequest(node3, shard1),
-                    nodeRequest(node1, shard2)
-                )
-            );
-            assertThat(response.successfulShards, equalTo(2));
-            assertThat(response.failedShards, equalTo(0));
-        }
+        assertThat(
+            "shard1 does not go back to the node that failed it, and shard2 goes to the node that was unreachable for shard1",
+            sent,
+            containsInAnyOrder(
+                nodeRequest(node1, shard1),
+                nodeRequest(node2, shard2),
+                nodeRequest(node3, shard1),
+                nodeRequest(node1, shard2)
+            )
+        );
+        assertThat(response.successfulShards, equalTo(2));
+        assertThat(response.failedShards, equalTo(0));
     }
 
     /**
@@ -845,13 +834,13 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     /**
-     * A node that refuses the request or cannot be reached, before any page was received, makes the shard resolve again. The node
-     * is left out of the new copies, also when the routing still lists it, and before the other copy.
+     * A node that cannot be reached, before any page was received, makes the shard resolve again. The node is left out of the new
+     * copies, also when the routing still lists it, and before the other copy.
      */
-    public void testRetryRefusedOrDisconnectedNodeElsewhere() {
+    public void testRetryUnreachableNodeElsewhere() {
         var attempt = new AtomicInteger();
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
-        Exception unavailable = randomNodeUnavailableFailure(node1);
+        Exception lostConnection = randomLostConnection(node1);
         // the routing may still list the departing node
         boolean departingNodeListedFirst = randomBoolean();
         var response = safeGet(sendRequests(randomBoolean(), -1, List.of(targetShard(shard1, node1)), shardIds -> {
@@ -860,7 +849,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         }, (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
             if (node.equals(node1)) {
-                runWithDelay(() -> listener.onFailure(unavailable, false));
+                runWithDelay(() -> listener.onFailure(lostConnection, false));
             } else {
                 runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
             }
@@ -873,13 +862,13 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     /**
-     * If the only copy that resolving again finds is on the node that refused or could not be reached, the shard fails in the same
-     * pass, with that original failure: nothing waits for the routing to change, and the node is not asked again.
+     * If the only copy that resolving again finds is on the node that could not be reached, the shard fails in the same pass, with
+     * that original failure: nothing waits for the routing to change, and the node is not asked again.
      */
-    public void testRefusedNodeIsNotRetriedWhenItHoldsTheOnlyCopy() {
+    public void testUnreachableNodeIsNotRetriedWhenItHoldsTheOnlyCopy() {
         var attempt = new AtomicInteger();
         var sentTo = ConcurrentCollections.<DiscoveryNode>newQueue();
-        Exception unavailable = randomNodeUnavailableFailure(node1);
+        Exception lostConnection = randomLostConnection(node1);
         boolean allowPartialResults = randomBoolean();
         var future = sendRequests(allowPartialResults, -1, List.of(targetShard(shard1, node1), targetShard(shard2, node2)), shardIds -> {
             attempt.incrementAndGet();
@@ -887,7 +876,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         }, (node, shardIds, aliasFilters, listener) -> {
             sentTo.add(node);
             if (node.equals(node1)) {
-                runWithDelay(() -> listener.onFailure(unavailable, false));
+                runWithDelay(() -> listener.onFailure(lostConnection, false));
             } else {
                 runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
             }
@@ -898,10 +887,10 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             assertThat(response.successfulShards, equalTo(1));
             assertThat(response.failedShards, equalTo(1));
             assertThat(response.failures, hasSize(1));
-            assertThat(response.failures.get(0).getCause(), instanceOf(unavailable.getCause().getClass()));
+            assertThat(response.failures.get(0).getCause(), instanceOf(lostConnection.getCause().getClass()));
         } else {
             Exception e = expectThrows(Exception.class, future::actionGet);
-            assertThat(e, instanceOf(unavailable.getCause().getClass()));
+            assertThat(e, instanceOf(lostConnection.getCause().getClass()));
         }
         assertThat(attempt.get(), equalTo(1));
         assertThat("the node is asked once", sentTo.stream().filter(node1::equals).count(), equalTo(1L));
@@ -975,258 +964,54 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     /**
-     * Resolving a shard again after a refusal is not charged against the resolution attempts, and is not held back once they are
-     * spent. Here the attempts are spent by a shard that moved. A shard that is refused afterwards, and whose replacement copy only
-     * shows when it is resolved again, is still asked there, while a shard that fails as unavailable afterwards fails without being
-     * resolved again.
-     */
-    public void testRefusalIsNotChargedAgainstASpentBudget() {
-        var resolved = ConcurrentCollections.<ShardId>newQueue();
-        var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        // the other two nodes only answer once shard2 has used up the only attempt
-        var attemptsSpent = new SubscribableListener<Void>();
-        var response = safeGet(
-            sendRequests(
-                true,
-                -1,
-                List.of(targetShard(shard1, node1), targetShard(shard2, node2), targetShard(shard3, node3)),
-                1,
-                shardIds -> {
-                    resolved.addAll(shardIds);
-                    return shardIds.stream()
-                        .collect(toMap(Function.identity(), shardId -> List.of(shardId.equals(shard2.shardId()) ? node4 : node5)));
-                },
-                (node, shardIds, aliasFilters, listener) -> {
-                    sent.add(nodeRequest(node, shardIds));
-                    if (node.equals(node1)) {
-                        attemptsSpent.addListener(
-                            ActionListener.running(() -> runWithDelay(() -> listener.onFailure(refusal(node1), false)))
-                        );
-                    } else if (node.equals(node2)) {
-                        runWithDelay(() -> listener.onResponse(shardNotFound(shard2)));
-                    } else if (node.equals(node3)) {
-                        attemptsSpent.addListener(
-                            ActionListener.running(() -> runWithDelay(() -> listener.onResponse(shardNotFound(shard3))))
-                        );
-                    } else {
-                        if (node.equals(node4)) {
-                            attemptsSpent.onResponse(null);
-                        }
-                        runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
-                    }
-                }
-            )
-        );
-        assertThat("shard3 is not resolved again", resolved, containsInAnyOrder(shard2.shardId(), shard1.shardId()));
-        assertThat(sent, hasItem(nodeRequest(node4, shard2)));
-        assertThat("the refused shard is asked on the copy it resolved to", sent, hasItem(nodeRequest(node5, shard1)));
-        assertThat(response.totalShards, equalTo(3));
-        assertThat(response.successfulShards, equalTo(2));
-        assertThat(response.failedShards, equalTo(1));
-        assertThat(response.failures.get(0).shard().getShardId(), equalTo(shard3.shardId()));
-    }
-
-    /**
-     * A pass in which every shard that is resolved again was refused leaves the resolution attempts whole. The one attempt there is
-     * goes to a later retry after a failure that was not a refusal, and the next such failure ends the shard.
-     */
-    public void testRefusalPassesDoNotCountAgainstTheBudget() {
-        var resolutions = new AtomicInteger();
-        var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1)), 1, shardIds -> {
-            // the routing still lists the node that refused, which is left out
-            return Map.of(shard1.shardId(), resolutions.incrementAndGet() == 1 ? List.of(node1, node2) : List.of(node1, node3));
-        }, (node, shardIds, aliasFilters, listener) -> {
-            sent.add(nodeRequest(node, shardIds));
-            if (node.equals(node1)) {
-                runWithDelay(() -> listener.onFailure(refusal(node1), false));
-            } else {
-                runWithDelay(() -> listener.onResponse(shardNotFound(shard1)));
-            }
-        }));
-        assertThat("a third resolution would need a second attempt", resolutions.get(), equalTo(2));
-        assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1), nodeRequest(node3, shard1)));
-        assertThat(response.totalShards, equalTo(1));
-        assertThat(response.failedShards, equalTo(1));
-        assertThat("the first failure is the one reported", response.failures.get(0).getCause(), instanceOf(NodeClosedException.class));
-    }
-
-    /**
-     * A shard still lists a copy on a node that it was never sent to, when that node refuses another shard. The shard is refused
-     * there without another request: the node stays closed to the query, and a request could find it gone by now, which would
-     * count as an unreachable node and need a resolution attempt, of which there is none here. The refusal is what lets the shard
-     * be resolved again all the same, and reach the copy that replaced it. Dropping the node from the listed copies without it
-     * would end the shard on its earlier failure.
-     */
-    public void testQueuedShardOnRefuserIsRefusedWithoutAnotherRequest() {
-        var resolved = ConcurrentCollections.<ShardId>newQueue();
-        var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        var node1Requests = new AtomicInteger();
-        // node2 only answers for shard2 once node1 has refused shard1
-        var node1Refused = new SubscribableListener<Void>();
-        var response = safeGet(
-            sendRequests(
-                true,
-                -1,
-                List.of(targetShard(shard1, node1), targetShard(shard2, node2, node1)),
-                0,
-                // the replacement only shows when the shard is resolved again; the routing still lists the node that refused
-                shardIds -> {
-                    resolved.addAll(shardIds);
-                    return shardIds.stream().collect(toMap(Function.identity(), shardId -> List.of(node1, node3)));
-                },
-                (node, shardIds, aliasFilters, listener) -> {
-                    sent.add(nodeRequest(node, shardIds));
-                    if (node.equals(node1)) {
-                        if (node1Requests.incrementAndGet() == 1) {
-                            runWithDelay(() -> {
-                                listener.onFailure(refusal(node1), false);
-                                node1Refused.onResponse(null);
-                            });
-                        } else {
-                            // the node is gone by the time of a second request
-                            runWithDelay(() -> listener.onFailure(randomLostConnection(node1), false));
-                        }
-                    } else if (node.equals(node2)) {
-                        node1Refused.addListener(
-                            ActionListener.running(() -> runWithDelay(() -> listener.onResponse(shardNotFound(shard2))))
-                        );
-                    } else {
-                        runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
-                    }
-                }
-            )
-        );
-        assertThat("the node that refused shard1 gets no request for shard2", node1Requests.get(), equalTo(1));
-        assertThat(sent, hasItem(nodeRequest(node1, shard1)));
-        assertThat(sent, hasItem(nodeRequest(node3, shard2)));
-        assertThat(resolved, containsInAnyOrder(shard1.shardId(), shard2.shardId()));
-        assertThat(response.totalShards, equalTo(2));
-        assertThat(response.successfulShards, equalTo(2));
-        assertThat(response.failedShards, equalTo(0));
-    }
-
-    /**
-     * A query that needs no more results skips the requests it has not sent, also one to a node that refused: the shard is not
-     * failed for what is known about its node.
-     */
-    public void testFinishedQuerySkipsAShardOnARefuserInsteadOfRefusingIt() {
-        var finished = new AtomicBoolean();
-        var skipped = ConcurrentCollections.<NodeRequest>newQueue();
-        // node2 only answers for shard2 once node1 has refused shard1
-        var node1Refused = new SubscribableListener<Void>();
-        PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
-        newSender(
-            SliceSelection.UNSPECIFIED,
-            true,
-            -1,
-            List.of(targetShard(shard1, node1), targetShard(shard2, node2, node1)),
-            DEFAULT_RESOLUTION_ATTEMPTS,
-            newTask(),
-            finished::get,
-            // nothing but the node that refused holds the shards
-            shardIds -> shardIds.stream().collect(toMap(Function.identity(), shardId -> List.of(node1))),
-            (node, shardIds, aliasFilters, listener) -> {
-                if (finished.get()) {
-                    skipped.add(nodeRequest(node, shardIds));
-                    runWithDelay(listener::onSkip);
-                } else if (node.equals(node1)) {
-                    runWithDelay(() -> {
-                        // the query has its results before the refusal is handled
-                        finished.set(true);
-                        listener.onFailure(refusal(node1), false);
-                        node1Refused.onResponse(null);
-                    });
-                } else {
-                    node1Refused.addListener(ActionListener.running(() -> runWithDelay(() -> listener.onResponse(shardNotFound(shard2)))));
-                }
-            }
-        ).startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, usage -> {}, future);
-        var response = safeGet(future);
-        assertThat("shard2 is skipped on the node that refused shard1", skipped, contains(nodeRequest(node1, shard2)));
-        assertThat("shard1 has no copy off the node that refused it", response.failedShards, equalTo(1));
-        assertThat(response.failures.get(0).shard().getShardId(), equalTo(shard1.shardId()));
-    }
-
-    /**
      * A node that may have received data of the query fails its shards for good, whatever its failure says about the node and
      * whatever is left of the resolution attempts: another copy would produce the same data again.
      */
     public void testReceivedDataFailureIsNeverResolvedAgain() {
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        NodeFailure nodeFailure = randomFrom(NodeFailure.UNREACHABLE, NodeFailure.REFUSED);
+        NodeFailure nodeFailure = randomFrom(NodeFailure.UNREACHABLE, NodeFailure.OTHER);
         var response = safeGet(
             sendRequests(true, -1, List.of(targetShard(shard1, node1, node2)), randomFrom(-1, 0, DEFAULT_RESOLUTION_ATTEMPTS), shardIds -> {
                 throw new AssertionError("no shard resolution is expected here");
             }, (node, shardIds, aliasFilters, listener) -> {
                 sent.add(nodeRequest(node, shardIds));
-                runWithDelay(
-                    () -> listener.onFailure(new NodeDisconnectedException(node, ComputeService.DATA_ACTION_NAME), true, nodeFailure)
-                );
+                // either failure sends the shard to another copy, unless the node may have received data
+                Exception failure = switch (nodeFailure) {
+                    case UNREACHABLE -> new NodeDisconnectedException(node, ComputeService.DATA_ACTION_NAME);
+                    case OTHER -> new ShardNotFoundException(shard1.shardId());
+                };
+                runWithDelay(() -> listener.onFailure(failure, true, nodeFailure));
             })
         );
         assertThat("the other listed copy is not asked either", sent, contains(nodeRequest(node1, shard1)));
         assertThat(response.failedShards, equalTo(1));
-        assertThat(response.failures.get(0).getCause(), instanceOf(NodeDisconnectedException.class));
+        Class<? extends Exception> reported = switch (nodeFailure) {
+            case UNREACHABLE -> NodeDisconnectedException.class;
+            // a shard that is not available is reported as that, whichever failure said so
+            case OTHER -> NoShardAvailableActionException.class;
+        };
+        assertThat(response.failures.get(0).getCause(), instanceOf(reported));
     }
 
     /**
-     * Only the open is refused by a node that stopped admitting exchanges. A {@link NodeClosedException} that fails the data node
-     * request came from further down, a lookup for example, and is not read as a refusal. Passed to the sender classified so, the
-     * failure does not make the shard resolve again, and does not leave the node out for another shard that is resolved onto it
-     * later.
-     * <p>
-     * Without partial results no failure of the data node request is read as one of the node, a lost connection included: it has
-     * cancelled the query by the time the sender hears of it.
+     * With partial results the failure of the data node request says about the node what any failure of a request does. Without
+     * them no failure of it is read as one of the node, a lost connection included: it has cancelled the query by the time the sender
+     * hears of it.
      */
-    public void testDataRequestFailureIsNeverARefusal() {
-        Exception lookupFailure = new RemoteTransportException(
-            "remote",
-            new RemoteTransportException("lookup", new NodeClosedException(node3))
-        );
-        assertThat(DataNodeRequestSender.classifyNodeFailure(lookupFailure), equalTo(NodeFailure.REFUSED));
-        assertThat(DataNodeRequestSender.classifyDataRequestFailure(lookupFailure, true), equalTo(NodeFailure.OTHER));
-        assertThat(DataNodeRequestSender.classifyDataRequestFailure(refusal(node1), true), equalTo(NodeFailure.OTHER));
+    public void testDataRequestFailureClassification() {
         Exception disconnected = new NodeDisconnectedException(node1, ComputeService.DATA_ACTION_NAME);
         assertThat(DataNodeRequestSender.classifyDataRequestFailure(disconnected, true), equalTo(NodeFailure.UNREACHABLE));
         assertThat(DataNodeRequestSender.classifyDataRequestFailure(new IOException("io"), true), equalTo(NodeFailure.OTHER));
-        for (Exception e : List.of(lookupFailure, refusal(node1), disconnected, randomLostConnection(node1), new IOException("io"))) {
+        for (Exception e : List.of(disconnected, randomLostConnection(node1), new IOException("io"))) {
             assertThat(e.toString(), DataNodeRequestSender.classifyDataRequestFailure(e, false), equalTo(NodeFailure.OTHER));
         }
-
-        var resolved = ConcurrentCollections.<Set<ShardId>>newQueue();
-        var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        // shard2 is only resolved again once the failure of shard1 has been handled
-        var shard1Failed = new SubscribableListener<Void>();
-        var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1), targetShard(shard2, node2)), shardIds -> {
-            resolved.add(Set.copyOf(shardIds));
-            return Map.of(shard2.shardId(), List.of(node1));
-        }, (node, shardIds, aliasFilters, listener) -> {
-            sent.add(nodeRequest(node, shardIds));
-            if (node.equals(node1) && shardIds.contains(shard1)) {
-                runWithDelay(() -> {
-                    listener.onFailure(lookupFailure, false, DataNodeRequestSender.classifyDataRequestFailure(lookupFailure, true));
-                    shard1Failed.onResponse(null);
-                });
-            } else if (node.equals(node2)) {
-                shard1Failed.addListener(ActionListener.running(() -> runWithDelay(() -> listener.onResponse(shardNotFound(shard2)))));
-            } else {
-                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
-            }
-        }));
-        assertThat("shard1 is not resolved again", resolved, contains(Set.of(shard2.shardId())));
-        assertThat(response.totalShards, equalTo(2));
-        assertThat(response.failedShards, equalTo(1));
-        assertThat(response.failures.get(0).shard().getShardId(), equalTo(shard1.shardId()));
-        assertThat(response.successfulShards, equalTo(1));
-        assertThat("node1 still serves shard2", sent, hasItem(nodeRequest(node1, shard2)));
     }
 
     /**
-     * A coordinator that is closing fails its own requests with a {@link NodeClosedException}. That is not a refusal by the target: the
-     * shard is not resolved again and no node is left out.
+     * A coordinator that is closing fails its own requests with a {@link NodeClosedException}. That says nothing about the target:
+     * the shard is not resolved again.
      */
-    public void testLocalNodeClosedIsNotTreatedAsRefusal() {
+    public void testLocalNodeClosedIsNotResolvedAgain() {
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
         var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1)), (node, shardIds, aliasFilters, listener) -> {
             sent.add(nodeRequest(node, shardIds));
@@ -1249,7 +1034,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 if (node.equals(node1)) {
                     runWithDelay(() -> listener.onFailure(new IOException("not retryable elsewhere"), false));
                 } else {
-                    runWithDelay(() -> listener.onFailure(randomNodeUnavailableFailure(node), false));
+                    runWithDelay(() -> listener.onFailure(randomLostConnection(node), false));
                 }
             })
         );
@@ -1293,7 +1078,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             (node, shardIds, aliasFilters, listener) -> {
                 sent.add(nodeRequest(node, shardIds));
                 if (node.equals(node1)) {
-                    runWithDelay(() -> listener.onFailure(randomNodeUnavailableFailure(node1), false));
+                    runWithDelay(() -> listener.onFailure(randomLostConnection(node1), false));
                 } else {
                     runWithDelay(() -> listener.onFailure(disconnected, true, NodeFailure.UNREACHABLE));
                 }
@@ -1313,14 +1098,14 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     /**
-     * A query that is cancelled does not resolve its shards again, whatever their failure says about the node: nothing is started
-     * on another node for the cancellation to stop.
+     * A query that is cancelled before the lost connection to its data node arrives does not resolve the shard again: nothing is
+     * started on another node for the cancellation to stop.
      */
     public void testCancelledQueryIsNotResolvedAgain() {
         var resolutions = new AtomicInteger();
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
         CancellableTask task = newTask();
-        Exception unavailable = randomNodeUnavailableFailure(node1);
+        Exception lostConnection = randomLostConnection(node1);
         boolean allowPartialResults = randomBoolean();
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
         newSender(
@@ -1330,7 +1115,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             List.of(targetShard(shard1, node1)),
             DEFAULT_RESOLUTION_ATTEMPTS,
             task,
-            () -> false,
             shardIds -> {
                 resolutions.incrementAndGet();
                 return Map.of(shard1.shardId(), List.of(node2));
@@ -1340,7 +1124,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 if (node.equals(node1)) {
                     runWithDelay(() -> {
                         TaskCancelHelper.cancel(task, "test");
-                        listener.onFailure(unavailable, false);
+                        listener.onFailure(lostConnection, false);
                     });
                 } else {
                     runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
@@ -1350,10 +1134,10 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         if (allowPartialResults) {
             var response = safeGet(future);
             assertThat(response.failedShards, equalTo(1));
-            assertThat(response.failures.get(0).getCause(), instanceOf(unavailable.getCause().getClass()));
+            assertThat(response.failures.get(0).getCause(), instanceOf(lostConnection.getCause().getClass()));
         } else {
             Exception e = expectThrows(Exception.class, future::actionGet);
-            assertThat(e, instanceOf(unavailable.getCause().getClass()));
+            assertThat(e, instanceOf(lostConnection.getCause().getClass()));
         }
         assertThat("the shard is not resolved again", resolutions.get(), equalTo(0));
         assertThat(sent, contains(nodeRequest(node1, shard1)));
@@ -1448,20 +1232,9 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         }
     }
 
-    private static RemoteTransportException refusal(DiscoveryNode node) {
-        return new RemoteTransportException("[" + node.getName() + "][open_exchange]", new NodeClosedException(node));
-    }
-
     private static SendRequestTransportException localNodeClosed(DiscoveryNode target) {
         DiscoveryNode coordinator = DiscoveryNodeUtils.create("coordinator");
         return new SendRequestTransportException(target, ComputeService.DATA_ACTION_NAME, new NodeClosedException(coordinator));
-    }
-
-    /**
-     * A refusal or a lost connection; the cause is what the shard failure reports.
-     */
-    private static Exception randomNodeUnavailableFailure(DiscoveryNode node) {
-        return randomBoolean() ? refusal(node) : randomLostConnection(node);
     }
 
     /**
@@ -1587,7 +1360,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             shards,
             unavailableShardResolutionAttempts,
             newTask(),
-            () -> false,
             resolver,
             sender
         ).startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, onFailureUsage, future);
@@ -1602,17 +1374,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         Resolver resolver,
         Sender sender
     ) {
-        return newSender(
-            slices,
-            allowPartialResults,
-            concurrentRequests,
-            shards,
-            DEFAULT_RESOLUTION_ATTEMPTS,
-            newTask(),
-            () -> false,
-            resolver,
-            sender
-        );
+        return newSender(slices, allowPartialResults, concurrentRequests, shards, DEFAULT_RESOLUTION_ATTEMPTS, newTask(), resolver, sender);
     }
 
     private static CancellableTask newTask() {
@@ -1633,7 +1395,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         List<DataNodeRequestSender.TargetShard> shards,
         int unavailableShardResolutionAttempts,
         CancellableTask task,
-        BooleanSupplier noMoreResultsNeeded,
         Resolver resolver,
         Sender sender
     ) {
@@ -1657,11 +1418,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             concurrentRequests,
             unavailableShardResolutionAttempts
         ) {
-            @Override
-            boolean noMoreResultsNeeded() {
-                return noMoreResultsNeeded.getAsBoolean();
-            }
-
             @Override
             void searchShards(Set<String> concreteIndices, ActionListener<TargetShards> listener) {
                 runWithDelay(

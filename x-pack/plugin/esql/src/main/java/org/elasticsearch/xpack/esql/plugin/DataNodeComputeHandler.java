@@ -219,11 +219,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             configuration.pragmas().unavailableShardResolutionAttempts()
         ) {
             @Override
-            boolean noMoreResultsNeeded() {
-                return exchangeSource.isFinished();
-            }
-
-            @Override
             protected void sendRequest(
                 DiscoveryNode node,
                 List<DataNodeRequest.Shard> shards,
@@ -262,8 +257,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 var childSessionId = computeService.newChildSession(sessionId);
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
-                // A node that is shutting down may turn the open away, and this sender then retries the shards elsewhere (see
-                // DataNodeRequestSender).
                 ExchangeService.openExchange(
                     transportService,
                     connection,

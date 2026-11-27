@@ -17,21 +17,23 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -60,6 +62,16 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
 
     private static final String QUERY = "FROM test | STATS SUM(pause_me)";
 
+    /**
+     * How long a send behaviour holds a request on the thread that sends it, where it has to stay to fail there as a request that
+     * cannot be sent does. It has to cover every wait the test makes before it releases the request, which is the move of the test
+     * index, see {@link #moveTestIndexTo}: the settings update, which waits up to 30 seconds for the master and then up to 30 more
+     * for the acknowledgement, the health call and the wait for the coordinator to apply the routing, of up to 30 seconds each. That
+     * is about two minutes in the worst case, and this leaves room above it. The test releases the request also when one of these
+     * fails, so the timeout only ends a hold that nothing else would.
+     */
+    private static final TimeValue HELD_SEND_TIMEOUT = TimeValue.timeValueMinutes(3);
+
     private String coordinator;
     private String dataNode;
 
@@ -68,17 +80,7 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class);
         plugins.add(MockTransportService.TestPlugin.class);
-        plugins.add(AbstractEsqlIntegTestCase.InternalExchangePlugin.class);
         return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        // long enough that within a test only an explicit close removes a sink that no data node request claimed
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMinutes(10))
-            .build();
     }
 
     /**
@@ -149,30 +151,14 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
     }
 
     /**
-     * A node that is shutting down refuses an open; the coordinator resolves the shard again and gets the result from the node the
-     * shard moved to, also with no resolution attempts to spend. Nothing refuses an open yet, so the data node's handler is replaced
-     * by one that does, see {@link #refuseOpens}. That the node which refused is left out afterwards does not show here, since the
-     * routing no longer lists it once the shard has moved.
-     */
-    public void testRefusedOpenIsRetriedOnTheNodeTheShardMovedTo() throws Exception {
-        assertOpenRetriedOnTheNodeTheShardMovedTo(true);
-    }
-
-    /**
-     * Like {@link #testRefusedOpenIsRetriedOnTheNodeTheShardMovedTo}, for a node the coordinator cannot reach any more.
+     * The coordinator cannot reach the node a shard is leaving any more. Its open to that node is held until the shard has moved to a
+     * new node, so the coordinator still targets the data node, and then fails as if the node could not be reached. The coordinator
+     * resolves the shard again and gets the result from the node the shard moved to.
      */
     public void testOpenToUnreachableNodeIsRetriedOnTheNodeTheShardMovedTo() throws Exception {
-        assertOpenRetriedOnTheNodeTheShardMovedTo(false);
-    }
-
-    /**
-     * Holds the coordinator's open to the data node until the shard has moved to a new node, so the coordinator still targets the data
-     * node, then lets the data node refuse the open or fails it as if the node could not be reached.
-     */
-    private void assertOpenRetriedOnTheNodeTheShardMovedTo(boolean refuse) throws Exception {
         String replacement = internalCluster().startDataOnlyNode();
         ExchangeService dataNodeExchanges = internalCluster().getInstance(ExchangeService.class, dataNode);
-        AtomicInteger opensOnDataNode = refuse ? refuseOpens(dataNode) : countOpens(dataNode);
+        AtomicInteger opensOnDataNode = countOpens(dataNode);
         AtomicInteger opensOnReplacement = countOpens(replacement);
         AtomicInteger dataRequestsOnDataNode = countRequests(dataNode, ComputeService.DATA_ACTION_NAME);
 
@@ -184,37 +170,34 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
                 (connection, requestId, action, request, options) -> {
                     if (action.equals(ExchangeService.OPEN_EXCHANGE_ACTION_NAME)) {
                         openSent.countDown();
-                        safeAwait(shardMoved, TimeValue.timeValueSeconds(30));
-                        if (refuse == false) {
-                            throw new NodeNotConnectedException(connection.getNode(), "simulated");
-                        }
+                        safeAwait(shardMoved, HELD_SEND_TIMEOUT);
+                        throw new NodeNotConnectedException(connection.getNode(), "simulated");
                     }
                     connection.sendRequest(requestId, action, request, options);
                 }
             );
 
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(randomBoolean());
-        if (refuse) {
-            // A shard that was refused is resolved again whatever is left of the resolution attempts, one whose node could not be
-            // reached only while some are left. With none to begin with, a refusal that was read as "unreachable" fails the query.
-            request.acceptedPragmaRisks(true)
-                .pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS.getKey(), 0).build()));
+        final ActionFuture<EsqlQueryResponse> query;
+        try {
+            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(randomBoolean());
+            scriptPermits.drainPermits();
+            scriptPermits.release(numberOfDocs());
+            query = client(coordinator).execute(EsqlQueryAction.INSTANCE, request);
+            safeAwait(openSent);
+            moveTestIndexTo(replacement, coordinator);
+        } finally {
+            // also when a step above failed, so that the open is not left held
+            shardMoved.countDown();
         }
-        scriptPermits.drainPermits();
-        scriptPermits.release(numberOfDocs());
-        ActionFuture<EsqlQueryResponse> query = client(coordinator).execute(EsqlQueryAction.INSTANCE, request);
-        safeAwait(openSent);
-        moveTestIndexTo(replacement, coordinator);
-        shardMoved.countDown();
 
         try (EsqlQueryResponse response = safeGet(query)) {
             assertFalse(response.isPartial());
             assertThat(getValuesList(response), equalTo(List.of(List.of((long) numberOfDocs()))));
         }
-        assertThat(opensOnDataNode.get(), equalTo(refuse ? 1 : 0));
+        assertThat(opensOnDataNode.get(), equalTo(0));
         assertThat(opensOnReplacement.get(), equalTo(1));
         assertThat("no data node request reaches the node the shard left", dataRequestsOnDataNode.get(), equalTo(0));
-        assertTrue("an open that was refused or not sent leaves no sink", dataNodeExchanges.isEmpty());
+        assertTrue("an open that was not sent leaves no sink", dataNodeExchanges.isEmpty());
     }
 
     /**
@@ -269,40 +252,44 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
         AtomicInteger dataAnsweredOnReplacement = countAnswered(replacement, ComputeService.DATA_ACTION_NAME);
 
         CountDownLatch dataRequestSent = new CountDownLatch(1);
-        CountDownLatch cutOff = new CountDownLatch(1);
+        SubscribableListener<Void> cutOff = new SubscribableListener<>();
         if (inFlight) {
             MockTransportService.getInstance(dataNode)
                 .addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
                     dataRequestSent.countDown();
                     // the real handler, which adds the cancellation listener that finishes the sink, only runs after the disconnect
-                    safeAwait(cutOff, TimeValue.timeValueSeconds(30));
-                    handler.messageReceived(request, channel, task);
+                    handleDataRequestOnceReleased(cutOff, dataNodeTransport, handler, request, channel, task);
                 });
         } else {
             MockTransportService.getInstance(queryCoordinator)
                 .addSendBehavior(dataNodeTransport, (connection, requestId, action, request, options) -> {
                     if (action.equals(ComputeService.DATA_ACTION_NAME)) {
                         dataRequestSent.countDown();
-                        safeAwait(cutOff, TimeValue.timeValueSeconds(30));
+                        safeAwait(cutOff, HELD_SEND_TIMEOUT);
                         throw new NodeNotConnectedException(connection.getNode(), "simulated");
                     }
                     connection.sendRequest(requestId, action, request, options);
                 });
         }
 
-        scriptPermits.drainPermits();
-        scriptPermits.release(numberOfDocs());
-        ActionFuture<EsqlQueryResponse> query = client(queryCoordinator).execute(
-            EsqlQueryAction.INSTANCE,
-            EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(allowPartialResults)
-        );
-        safeAwait(dataRequestSent);
-        moveTestIndexTo(replacement, queryCoordinator);
-        if (inFlight) {
-            coordinatorTransport.disconnectFromNode(dataNodeTransport.getLocalNode());
-            awaitDataRequestCancelledOn(dataNodeTransport);
+        final ActionFuture<EsqlQueryResponse> query;
+        try {
+            scriptPermits.drainPermits();
+            scriptPermits.release(numberOfDocs());
+            query = client(queryCoordinator).execute(
+                EsqlQueryAction.INSTANCE,
+                EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(allowPartialResults)
+            );
+            safeAwait(dataRequestSent);
+            moveTestIndexTo(replacement, queryCoordinator);
+            if (inFlight) {
+                coordinatorTransport.disconnectFromNode(dataNodeTransport.getLocalNode());
+                awaitDataRequestCancelledOn(dataNodeTransport);
+            }
+        } finally {
+            // also when a step above failed, so that the data node request is not left held
+            cutOff.onResponse(null);
         }
-        cutOff.countDown();
 
         if (allowPartialResults) {
             try (EsqlQueryResponse response = safeGet(query)) {
@@ -348,12 +335,11 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
         AtomicInteger opensOnReplacement = countOpens(replacement);
 
         SubscribableListener<Void> dataRequestArrived = new SubscribableListener<>();
-        CountDownLatch cutOff = new CountDownLatch(1);
+        SubscribableListener<Void> cutOff = new SubscribableListener<>();
         dataNodeTransport.addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
             dataRequestArrived.onResponse(null);
             // held, so that the request has neither been answered nor failed when its connection is dropped
-            safeAwait(cutOff, TimeValue.timeValueSeconds(30));
-            handler.messageReceived(request, channel, task);
+            handleDataRequestOnceReleased(cutOff, dataNodeTransport, handler, request, channel, task);
         });
         String rejection = "simulated rejection of a page fetch";
         dataNodeTransport.addRequestHandlingBehavior(
@@ -365,21 +351,27 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
             )
         );
 
-        scriptPermits.drainPermits();
-        scriptPermits.release(numberOfDocs());
-        ActionFuture<EsqlQueryResponse> query = client(queryCoordinator).execute(
-            EsqlQueryAction.INSTANCE,
-            EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(true)
-        );
-        safeAwait(dataRequestArrived);
-        // The rejection fails the compute of the data node on the coordinator, which then cancels the data node request. Once the
-        // cancellation shows on the data node, the coordinator has taken note of the rejection, and only then is the connection dropped.
-        awaitDataRequestCancelledOn(dataNodeTransport);
-        moveTestIndexTo(replacement, queryCoordinator);
-        // In this order: the held request is released once its connection is gone, so that whatever the data node answers for its
-        // cancelled task cannot reach the coordinator, and the request fails there on the lost connection.
-        coordinatorTransport.disconnectFromNode(dataNodeTransport.getLocalNode());
-        cutOff.countDown();
+        final ActionFuture<EsqlQueryResponse> query;
+        try {
+            scriptPermits.drainPermits();
+            scriptPermits.release(numberOfDocs());
+            query = client(queryCoordinator).execute(
+                EsqlQueryAction.INSTANCE,
+                EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(true)
+            );
+            safeAwait(dataRequestArrived);
+            // The rejection fails the compute of the data node on the coordinator, which then cancels the data node request. Once
+            // the cancellation shows on the data node, the coordinator has taken note of the rejection, and only then is the
+            // connection dropped.
+            awaitDataRequestCancelledOn(dataNodeTransport);
+            moveTestIndexTo(replacement, queryCoordinator);
+            // In this order: the held request is released once its connection is gone, so that whatever the data node answers for
+            // its cancelled task cannot reach the coordinator, and the request fails there on the lost connection.
+            coordinatorTransport.disconnectFromNode(dataNodeTransport.getLocalNode());
+        } finally {
+            // also when a step above failed, so that the data node request is not left held
+            cutOff.onResponse(null);
+        }
 
         try (EsqlQueryResponse response = safeGet(query)) {
             // The query does not fail although its only shard did: a STATS without groups has a row also when it got no input
@@ -401,6 +393,28 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
         assertThat("the shard is not retried", opensOnReplacement.get(), equalTo(0));
         // within the assertBusy timeout, far less than the inactive-sink interval
         assertBusy(() -> assertTrue(dataNodeExchanges.isEmpty()));
+    }
+
+    /**
+     * Hands a data node request to its handler once the listener is completed, and holds no thread until then. The handler then
+     * runs in the thread context the request arrived in and on the search pool of its node: it is registered on that pool and
+     * asserts further down that it runs there, so the thread that completes the listener, one of the test, will not do. A failure
+     * of the handler, or of the pool to take it, is sent to the channel.
+     */
+    private static <R extends TransportRequest> void handleDataRequestOnceReleased(
+        SubscribableListener<Void> released,
+        TransportService dataNodeTransport,
+        TransportRequestHandler<R> handler,
+        R request,
+        TransportChannel channel,
+        Task task
+    ) {
+        ThreadPool threadPool = dataNodeTransport.getThreadPool();
+        released.addListener(
+            ActionListener.wrap(ignored -> handler.messageReceived(request, channel, task), channel::sendResponse),
+            threadPool.executor(ThreadPool.Names.SEARCH),
+            threadPool.getThreadContext()
+        );
     }
 
     /**
@@ -446,20 +460,6 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
 
     private static AtomicInteger countOpens(String nodeName) {
         return countRequests(nodeName, ExchangeService.OPEN_EXCHANGE_ACTION_NAME);
-    }
-
-    /**
-     * Makes the node answer every open the way a node that is shutting down would, with a {@link NodeClosedException}, and counts
-     * them. The real handler is not called, so a count taken around it, as {@link #countOpens} does, would stay at zero.
-     */
-    private static AtomicInteger refuseOpens(String nodeName) {
-        AtomicInteger opens = new AtomicInteger();
-        MockTransportService transport = MockTransportService.getInstance(nodeName);
-        transport.addRequestHandlingBehavior(ExchangeService.OPEN_EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
-            opens.incrementAndGet();
-            channel.sendResponse(new NodeClosedException(transport.getLocalNode()));
-        });
-        return opens;
     }
 
     /**

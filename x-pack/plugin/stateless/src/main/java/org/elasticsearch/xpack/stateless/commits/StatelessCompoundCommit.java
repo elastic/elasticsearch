@@ -334,6 +334,7 @@ public record StatelessCompoundCommit(
             }
         }
         assert commitBoundary != null : "commit must have at least the segments_N file in the current term and generation";
+        assert commitBoundary.blob() instanceof BccBlob : "internal files of a commit are only contained in BCC blobs";
         return commitBoundary;
     }
 

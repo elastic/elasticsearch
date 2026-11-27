@@ -404,6 +404,17 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             }
         }
 
+        /**
+         * Whether to render the in-place doc-values update counter in the stats response: while the feature is enabled, so the field
+         * ships with it, or whenever a nonzero count was aggregated, so a coordinating node that has the feature disabled still reports
+         * counts gathered from feature-enabled shard nodes rather than dropping them. On release builds the feature is off everywhere, so
+         * the count is always zero and the field stays absent, leaving the public stats response unchanged. Package-private so the gate can
+         * be tested for both flag states without toggling the JVM-wide feature flag.
+         */
+        static boolean includeInPlaceDocValuesUpdateStat(boolean featureEnabled, long inPlaceDocValuesUpdateCount) {
+            return featureEnabled || inPlaceDocValuesUpdateCount > 0;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.INDEX_TOTAL, indexCount);
@@ -418,12 +429,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             builder.field(Fields.DELETE_CURRENT, deleteCurrent);
 
             builder.field(Fields.NOOP_UPDATE_TOTAL, noopUpdateCount);
-            // Only expose the in-place doc-values update counter while the feature is enabled, so the public stats response is unchanged
-            // on release builds until updatable doc-values ships. A nonzero count is always exposed so that a coordinating node with the
-            // feature disabled still reports counts aggregated from feature-enabled shard nodes rather than dropping them. The wire format
-            // carries the value unconditionally. On release builds the feature is off everywhere, so the count is always zero and the
-            // field stays absent.
-            if (FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled() || inPlaceDocValuesUpdateCount > 0) {
+            if (includeInPlaceDocValuesUpdateStat(FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled(), inPlaceDocValuesUpdateCount)) {
                 builder.field(Fields.IN_PLACE_DOC_VALUES_UPDATE_TOTAL, inPlaceDocValuesUpdateCount);
             }
 

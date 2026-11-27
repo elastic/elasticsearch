@@ -24,7 +24,6 @@ import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class IndexingStatsTests extends ESTestCase {
 
@@ -41,17 +40,16 @@ public class IndexingStatsTests extends ESTestCase {
     }
 
     /**
-     * With the feature disabled the field is omitted when there is nothing to report, keeping the public stats response unchanged on
-     * release builds, but a nonzero count aggregated from feature-enabled shard nodes onto a feature-disabled coordinating node is still
-     * reported rather than silently dropped. Only runs in the feature-flag-disabled CI configuration.
+     * The rendering gate itself, exercised for both flag states in the normal unit suite (it takes the flag state as a parameter, so it
+     * does not depend on the JVM-wide feature flag): with the feature enabled the field is always rendered, and with it disabled the field
+     * is rendered only for a nonzero count, so a feature-disabled coordinating node still reports counts aggregated from feature-enabled
+     * shard nodes rather than dropping them. Reverting the nonzero clause would flip the {@code (false, 7)} case and fail here.
      */
-    public void testInPlaceDocValuesUpdateStatOnlyRenderedForNonzeroWhenFeatureDisabled() throws IOException {
-        assumeFalse(
-            "only meaningful when the updatable doc-values feature flag is disabled",
-            FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled()
-        );
-        assertThat(renderedInPlaceCount(statsWithInPlaceCount(0)), nullValue());
-        assertThat(renderedInPlaceCount(statsWithInPlaceCount(7)), equalTo(7L));
+    public void testInPlaceDocValuesUpdateStatRenderingGate() {
+        assertTrue(IndexingStats.Stats.includeInPlaceDocValuesUpdateStat(true, 0));
+        assertTrue(IndexingStats.Stats.includeInPlaceDocValuesUpdateStat(true, 7));
+        assertFalse(IndexingStats.Stats.includeInPlaceDocValuesUpdateStat(false, 0));
+        assertTrue(IndexingStats.Stats.includeInPlaceDocValuesUpdateStat(false, 7));
     }
 
     private static IndexingStats.Stats statsWithInPlaceCount(long inPlaceCount) {

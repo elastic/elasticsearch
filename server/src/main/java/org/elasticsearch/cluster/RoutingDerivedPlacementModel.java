@@ -32,6 +32,14 @@ public class RoutingDerivedPlacementModel {
         this.aspects = List.of(aspects);
         final ClusterInfo polled = allocation.clusterInfo();
 
+        // The poll only knows where shards were if it collected indices stats, which it skips when nothing needs them and loses if the
+        // request fails. Without that placement the polled node values cannot be reconciled with the routing table, so assuming
+        // they are would add every shard on top of totals that already include it. Fall back to applying only the shards that the
+        // computation starts.
+        if (polled.dataPath.isEmpty()) {
+            return;
+        }
+
         // current placement: everything except initializing shards, which are added by shardStarted()
         for (RoutingNode routingNode : allocation.routingNodes()) {
             for (ShardRouting shard : routingNode) {

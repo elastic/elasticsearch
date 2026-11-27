@@ -266,6 +266,39 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         assertThat(simulator.getClusterInfo(), equalTo(initialClusterInfo));
     }
 
+    /**
+     * Without a data path in the polled ClusterInfo (indices stats were not collected, or the request failed) nothing is known about
+     * where the polled node values came from, so the shards in the routing table must not be added on top of them.
+     */
+    public void testShardsInRoutingTableAreNotAddedWhenThePollHasNoDataPath() {
+
+        var nodeId0 = "node-0";
+        var nodeId1 = "node-1";
+
+        var indexMetadata = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        var shard0 = newShardRouting(new ShardId(indexMetadata.getIndex(), 0), nodeId0, true, STARTED);
+        var shard1 = newShardRouting(new ShardId(indexMetadata.getIndex(), 1), nodeId0, true, STARTED);
+
+        // the polled commitment on node-0 already includes both shards
+        var initialClusterInfo = new ClusterInfoTestBuilder() //
+            .withNode(nodeId0, new DiskUsageBuilder("/data", 1000, 900))
+            .withNode(nodeId1, new DiskUsageBuilder("/data", 1000, 1000))
+            .withNodeCacheSizeAndCommitments(nodeId0, 1000, 70, 700)
+            .withNodeCacheSizeAndCommitments(nodeId1, 1000, 0, 0)
+            .withShardCacheRequirement(shard0, 30, 300)
+            .withShardCacheRequirement(shard1, 40, 400)
+            .build();
+
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shard0).addShard(shard1)))
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId0)).add(DiscoveryNodeUtils.create(nodeId1)).build())
+            .build();
+        var simulator = new ClusterInfoSimulator(createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY));
+
+        assertThat(simulator.getClusterInfo(), equalTo(initialClusterInfo));
+    }
+
     public void testRelocateShard() {
 
         var fromNodeId = "node-0";

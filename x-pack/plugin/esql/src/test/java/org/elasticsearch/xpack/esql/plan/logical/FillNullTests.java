@@ -220,7 +220,11 @@ public class FillNullTests extends ESTestCase {
         assertEquals(Set.of("_foo"), filledNames(named));
     }
 
-    /** A wildcard pattern that matches columns with an underscore name puts them in scope, as naming them does. */
+    /**
+     * Columns that a wildcard pattern matched, which the targets are by the time {@link FillNull} sees them, are in scope, as naming
+     * them is, whatever their name starts with. That the pattern expands to them is covered by
+     * {@code fillNullPatternMatchingSeveralUnderscoreColumnsFillsThem} in {@code fillnull.csv-spec}.
+     */
     public void testPatternMatchingColumnsWithAnUnderscoreNameFillsThem() {
         Attribute foo = new ReferenceAttribute(Source.EMPTY, "_foo", DataType.KEYWORD);
         Attribute fox = new ReferenceAttribute(Source.EMPTY, "_fox", DataType.KEYWORD);

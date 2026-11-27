@@ -1606,7 +1606,6 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 ;
 
 fillNullPatternMatchingMetadataIndexFillsItAfterUnionOfSubqueries
-skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
 required_capability: fillnull
 required_capability: fillnull_all_columns_skips_underscore_columns
 required_capability: subquery_in_from_command
@@ -1622,6 +1621,23 @@ FROM (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, first_name),
 emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 10001          | Georgi             | null              | unknown
 10002          | null               | Simmel            | unknown
+;
+
+fillNullPatternMatchingSeveralUnderscoreColumnsFillsThem
+required_capability: fillnull
+required_capability: fillnull_all_columns_skips_underscore_columns
+
+// A pattern puts every column that it matches in scope: both columns with an underscore name are filled, and gender, which it does not
+// match, is not.
+FROM employees
+| WHERE emp_no == 10010
+| KEEP gender
+| EVAL _foo = gender, _fox = gender
+| FILLNULL "x" ON _fo*
+;
+
+gender:keyword | _foo:keyword | _fox:keyword
+null           | x            | x
 ;
 
 fillNullNamedMetadataIndexAlongsideAllColumnsIsFilledAfterUnionOfSubqueries

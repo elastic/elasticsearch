@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
@@ -41,9 +42,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -157,6 +161,8 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
     /**
      * A dense first page fills the observed limiter before K progress polls. Cap stays at 1
      * and parked producers never execute, even though the first unit has not EOFed.
+     * Overflow must be queued while remaining &gt; 0: charging first lets the producer discard
+     * the in-flight page and finish empty.
      */
     public void testFilteredLimitRampStaysParkedOnDenseFirstPage() throws Exception {
         int splitCount = 8;
@@ -181,8 +187,8 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
             CountDownLatch done = new CountDownLatch(drivers);
             List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
             pollQualifyingPages(operators.get(0), 1);
-            observed.tryAccumulateHits(1);
             waitForBufferedPage(operators.get(0));
+            observed.tryAccumulateHits(1);
             pollQualifyingPages(operators.get(0), 1);
             assertRampStayedAtOne(factory);
             assertThat(executeCount.get(), equalTo(1));
@@ -223,8 +229,8 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
             CountDownLatch done = new CountDownLatch(drivers);
             List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
             pollQualifyingPages(operators.get(0), 1);
-            observed.tryAccumulateHits(1);
             waitForBufferedPage(operators.get(0));
+            observed.tryAccumulateHits(1);
             pollQualifyingPages(operators.get(0), 1);
             assertRampStayedAtOne(factory);
             assertThat(executeCount.get(), equalTo(1));
@@ -481,6 +487,76 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
         assertThat(cpuNanos, greaterThanOrEqualTo(closeBurnNanos));
     }
 
+    /**
+     * Connectors build pages on the producer thread, so the request they see must carry the driver's per-query
+     * parent factory, never the driver-local child whose {@link LocalCircuitBreaker} is not thread-safe.
+     */
+    public void testRequestCarriesDriverParentFactory() throws Exception {
+        LocalCircuitBreaker local = new LocalCircuitBreaker(TEST_BLOCK_FACTORY.breaker(), 0, 0);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-factory"));
+        try {
+            BlockFactory child = TEST_BLOCK_FACTORY.newChildFactory(local);
+            AtomicReference<BlockFactory> seenFactory = new AtomicReference<>();
+            Connector connector = new Connector() {
+                @Override
+                public ResultCursor execute(QueryRequest request, Split split) {
+                    seenFactory.set(request.blockFactory());
+                    return singlePageCursor(request.blockFactory());
+                }
+
+                @Override
+                public ResultCursor execute(QueryRequest request, ExternalSplit split) {
+                    return execute(request, Split.SINGLE);
+                }
+
+                @Override
+                public void close() {}
+            };
+            // The registry supplies a null factory, so get() must bind the driver parent rather than forward the base request.
+            QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, null);
+            AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool);
+            DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, child, null);
+            SourceOperator operator = factory.get(ctx);
+            assertThat(drainRows(operator), equalTo(1));
+            operator.close();
+            ctx.finish();
+            PlainActionFuture<Void> producerDone = new PlainActionFuture<>();
+            ctx.waitForAsyncActions(producerDone);
+            producerDone.actionGet(30, TimeUnit.SECONDS);
+
+            assertSame("connector must allocate against the driver's parent factory", child.parent(), seenFactory.get());
+            assertNotSame(child, seenFactory.get());
+            assertThat(seenFactory.get().breaker(), not(instanceOf(LocalCircuitBreaker.class)));
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+            local.close();
+        }
+    }
+
+    private static ResultCursor singlePageCursor(BlockFactory blockFactory) {
+        return new ResultCursor() {
+            private boolean emitted;
+
+            @Override
+            public boolean hasNext() {
+                return emitted == false;
+            }
+
+            @Override
+            public Page next() {
+                if (hasNext() == false) {
+                    throw new NoSuchElementException();
+                }
+                emitted = true;
+                return new Page(blockFactory.newConstantIntBlockWith(1, 1));
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
     /** Drains {@code splitCount} splits from {@code connector} into a driver and returns the driver's CPU time. */
     private static long drainIntoDriver(Connector connector, int splitCount) throws Exception {
         List<ExternalSplit> splits = new ArrayList<>();
@@ -585,8 +661,20 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
         assertThat("remaining==0 must skip every parked producer", factory.filteredLimitParkedCount(), equalTo(0));
     }
 
+    /**
+     * Wait until an overflow page is queued. Must not call {@link SourceOperator#isBlocked()} or
+     * {@link SourceOperator#getOutput()}: both fire the deferred ramp hook. Finished-empty is a
+     * failure, not success — charging remaining after that discards the in-flight page. A pending
+     * producer failure is thrown immediately; {@link AsyncExternalSourceOperator#isFinished()} stays
+     * false while one is stored.
+     */
     private void waitForBufferedPage(SourceOperator operator) throws Exception {
-        assertBusy(() -> assertTrue(operator.isBlocked().listener().isDone()));
+        AsyncExternalSourceOperator source = (AsyncExternalSourceOperator) operator;
+        assertBusy(() -> {
+            source.throwIfFailed();
+            assertFalse("source finished before overflow page was buffered", operator.isFinished());
+            assertTrue("expected a queued overflow page", source.hasQueuedPage());
+        });
     }
 
     private static void pollQualifyingPages(SourceOperator operator, int pages) {

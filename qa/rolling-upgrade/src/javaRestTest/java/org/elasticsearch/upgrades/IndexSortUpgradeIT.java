@@ -36,7 +36,10 @@ public class IndexSortUpgradeIT extends AbstractRollingUpgradeTestCase {
 
         if (isOldCluster()) {
             int numShards = randomIntBetween(1, 3);
-            boolean useSortExpression = clusterHasCapability("PUT", "/{index}", List.of(), List.of("index_sort_expression")).orElse(false)
+            // Only use the index.sort expression when the old cluster advertises index_sort_esql. Older nodes advertise
+            // index_sort_expression, but they create the index before IndexVersions.INDEX_SORT_EXPRESSION, and upgraded nodes
+            // reject index.sort on such an index.
+            boolean useSortExpression = clusterHasCapability("PUT", "/{index}", List.of(), List.of("index_sort_esql")).orElse(false)
                 && randomBoolean();
             for (var config : configs) {
                 Settings.Builder settings = Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0);

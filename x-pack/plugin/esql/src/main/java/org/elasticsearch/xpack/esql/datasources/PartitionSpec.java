@@ -16,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.BoundRange;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
@@ -32,6 +33,7 @@ import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -1107,8 +1109,11 @@ public final class PartitionSpec {
     }
 
     public List<PartitionFilterHint> projectListingHints(List<PartitionFilterHint> hints, @Nullable Set<String> detectedKeys) {
-        if (isEmpty() || hints == null || hints.isEmpty()) {
+        if (hints == null || hints.isEmpty()) {
             return hints == null ? List.of() : hints;
+        }
+        if (isEmpty()) {
+            return List.copyOf(dropRangeHints(hints));
         }
         List<PartitionFilterHint> projected = new ArrayList<>(hints.size() + 2);
         boolean emittedYearIn = false;
@@ -1159,7 +1164,22 @@ public final class PartitionSpec {
             projected.add(new PartitionFilterHint(entry.getKey(), Operator.IN, List.copyOf(entry.getValue())));
             emittedYearIn = true;
         }
-        return List.copyOf(emittedYearIn ? dropTemporalSourceHints(projected) : projected);
+        List<PartitionFilterHint> listing = emittedYearIn ? dropTemporalSourceHints(projected) : projected;
+        return List.copyOf(dropRangeHints(listing));
+    }
+
+    /**
+     * {@link Operator#RANGE} is the per-branch temporal channel. Glob rewrite and the AND-of-hints
+     * matcher do not consume it; dropping it here keeps listing-cache identity on the hull / grain INs.
+     */
+    private static List<PartitionFilterHint> dropRangeHints(List<PartitionFilterHint> hints) {
+        List<PartitionFilterHint> kept = new ArrayList<>(hints.size());
+        for (PartitionFilterHint hint : hints) {
+            if (hint.operator() != Operator.RANGE) {
+                kept.add(hint);
+            }
+        }
+        return kept;
     }
 
     /**
@@ -1331,7 +1351,9 @@ public final class PartitionSpec {
      * Cache-key fragment for one temporal group. A range stores the quantized hull (same folder set as
      * {@link InstantRange#overlapsFolder} on grain-aligned folders). Points store each grain-truncated
      * instant: {@link SourceBounds#overlaps} tests membership, so a hull would let two IN lists that
-     * share a year IN and the same min-max collide after complete month/day INs are omitted.
+     * share a year IN and the same min-max collide after complete month/day INs are omitted. Disjuncts
+     * from an {@code OR} of ranges store each quantized interval, sorted, so branch order does not
+     * split the listing cache and a hull of two windows does not collide with the windows themselves.
      */
     private static void appendBoundIdentity(StringBuilder id, SourceBounds bounds, InstantRange covering, Transform grain) {
         if (bounds.points() != null) {
@@ -1346,11 +1368,37 @@ public final class PartitionSpec {
             }
             return;
         }
-        InstantRange quantized = quantizeRange(covering, grain);
+        if (bounds.disjuncts().isEmpty() == false) {
+            TreeSet<InstantRange> quantized = new TreeSet<>(INSTANT_RANGE_ORDER);
+            for (InstantRange disjunct : bounds.disjuncts()) {
+                InstantRange clipped = disjunct.intersect(bounds.range());
+                if (clipped.isEmpty()) {
+                    continue;
+                }
+                quantized.add(quantizeRange(clipped, grain));
+            }
+            if (quantized.isEmpty()) {
+                appendRangeIdentity(id, InstantRange.EMPTY);
+                return;
+            }
+            for (InstantRange range : quantized) {
+                appendRangeIdentity(id, range);
+            }
+            return;
+        }
+        appendRangeIdentity(id, quantizeRange(covering, grain));
+    }
+
+    private static void appendRangeIdentity(StringBuilder id, InstantRange quantized) {
         appendLengthPrefixed(id, "r");
         appendLengthPrefixed(id, quantized.startInclusiveMillis() == null ? "" : Long.toString(quantized.startInclusiveMillis()));
         appendLengthPrefixed(id, quantized.endExclusiveMillis() == null ? "" : Long.toString(quantized.endExclusiveMillis()));
     }
+
+    private static final Comparator<InstantRange> INSTANT_RANGE_ORDER = Comparator.comparing(
+        InstantRange::startInclusiveMillis,
+        Comparator.nullsFirst(Long::compareTo)
+    ).thenComparing(InstantRange::endExclusiveMillis, Comparator.nullsLast(Long::compareTo));
 
     /**
      * Round {@code range} to {@code grain}: lower down, exclusive upper up. Already-on-boundary values stay.
@@ -1706,6 +1754,20 @@ public final class PartitionSpec {
             }
             return new InstantRange(min, increment(max));
         }
+        if (bounds.disjuncts().isEmpty() == false) {
+            boolean usable = false;
+            for (InstantRange disjunct : bounds.disjuncts()) {
+                InstantRange clipped = disjunct.intersect(bounds.range());
+                if (clipped.isEmpty()) {
+                    continue;
+                }
+                if (clipped.startInclusiveMillis() == null && clipped.endExclusiveMillis() == null) {
+                    return null;
+                }
+                usable = true;
+            }
+            return usable ? InstantRange.ALL : InstantRange.EMPTY;
+        }
         InstantRange range = bounds.range();
         if (range.startInclusiveMillis() == null && range.endExclusiveMillis() == null) {
             return null;
@@ -1778,6 +1840,7 @@ public final class PartitionSpec {
         InstantRange range = InstantRange.ALL;
         Set<Long> equalsPoints = null;
         Set<Long> inPoints = null;
+        List<InstantRange> disjuncts = new ArrayList<>();
         for (PartitionFilterHint hint : hints) {
             if (hint.columnName().equals(column) == false) {
                 continue;
@@ -1833,9 +1896,142 @@ public final class PartitionSpec {
                 case NOT_EQUALS, LIKE -> {
                     // A single excluded instant cannot drop a folder. LIKE is a file-name pattern, not a time bound.
                 }
+                case RANGE -> {
+                    List<InstantRange> converted = convertBoundRanges(hint.values(), unit);
+                    if (converted != null) {
+                        if (disjuncts.isEmpty()) {
+                            disjuncts.addAll(converted);
+                        } else {
+                            List<InstantRange> intersected = intersectDisjuncts(disjuncts, converted);
+                            disjuncts.clear();
+                            disjuncts.addAll(intersected.isEmpty() ? List.of(InstantRange.EMPTY) : intersected);
+                        }
+                    }
+                }
             }
         }
-        return widen(new SourceBounds(range, combinePoints(equalsPoints, inPoints, range)), column);
+        return widen(new SourceBounds(range, combinePoints(equalsPoints, inPoints, range), List.copyOf(disjuncts)), column);
+    }
+
+    /**
+     * Every {@link BoundRange} converted, or {@code null} when any value is not a range or does not
+     * convert. Dropping only the values that convert would hide a branch that still matches rows.
+     * Overlapping clips are merged so later pairwise AND cannot grow the list exponentially.
+     */
+    @Nullable
+    private static List<InstantRange> convertBoundRanges(List<Object> values, Unit unit) {
+        List<InstantRange> converted = new ArrayList<>(values.size());
+        for (Object value : values) {
+            if (value instanceof BoundRange boundRange) {
+                InstantRange instantRange = toInstantRange(boundRange, unit);
+                if (instantRange == null) {
+                    return null;
+                }
+                converted.add(instantRange);
+            } else {
+                return null;
+            }
+        }
+        if (converted.isEmpty()) {
+            return null;
+        }
+        List<InstantRange> merged = mergeOverlapping(converted);
+        return merged.isEmpty() ? List.of(InstantRange.EMPTY) : merged;
+    }
+
+    /**
+     * AND of two ORs. Both inputs are sorted and non-overlapping ({@link #mergeOverlapping}
+     * on each RANGE hint), so a two-pointer sweep emits the same normalized clips without
+     * an all-pairs scan or a second merge. Unioning would keep folders each conjunct already
+     * excludes and can trip {@code max_discovered_files}.
+     */
+    private static List<InstantRange> intersectDisjuncts(List<InstantRange> left, List<InstantRange> right) {
+        List<InstantRange> out = new ArrayList<>();
+        int i = 0;
+        int j = 0;
+        while (i < left.size() && j < right.size()) {
+            InstantRange a = left.get(i);
+            InstantRange b = right.get(j);
+            InstantRange clipped = a.intersect(b);
+            if (clipped.isEmpty() == false) {
+                out.add(clipped);
+            }
+            if (endKey(a) <= endKey(b)) {
+                i++;
+            } else {
+                j++;
+            }
+        }
+        return out;
+    }
+
+    private static long endKey(InstantRange range) {
+        return range.endExclusiveMillis() != null ? range.endExclusiveMillis() : Long.MAX_VALUE;
+    }
+
+    /**
+     * Collapse overlapping or abutting half-open intervals. Pairwise AND of two unions is
+     * quadratic; without this, overlapping windows in each OR grow the list exponentially.
+     */
+    private static List<InstantRange> mergeOverlapping(List<InstantRange> ranges) {
+        List<InstantRange> live = new ArrayList<>(ranges.size());
+        for (InstantRange range : ranges) {
+            if (range.isEmpty() == false) {
+                live.add(range);
+            }
+        }
+        if (live.size() <= 1) {
+            return live;
+        }
+        live.sort(INSTANT_RANGE_ORDER);
+        List<InstantRange> merged = new ArrayList<>(live.size());
+        InstantRange current = live.get(0);
+        for (int i = 1; i < live.size(); i++) {
+            InstantRange next = live.get(i);
+            if (overlapsOrAbuts(current, next)) {
+                current = current.union(next);
+            } else {
+                merged.add(current);
+                current = next;
+            }
+        }
+        merged.add(current);
+        return merged;
+    }
+
+    private static boolean overlapsOrAbuts(InstantRange a, InstantRange b) {
+        long a0 = a.startInclusiveMillis() != null ? a.startInclusiveMillis() : Long.MIN_VALUE;
+        long a1 = a.endExclusiveMillis() != null ? a.endExclusiveMillis() : Long.MAX_VALUE;
+        long b0 = b.startInclusiveMillis() != null ? b.startInclusiveMillis() : Long.MIN_VALUE;
+        long b1 = b.endExclusiveMillis() != null ? b.endExclusiveMillis() : Long.MAX_VALUE;
+        return (a0 < b1 && b0 < a1) || a1 == b0 || b1 == a0;
+    }
+
+    @Nullable
+    private static InstantRange toInstantRange(BoundRange range, Unit unit) {
+        Long start = null;
+        if (range.lower() != null) {
+            start = range.includeLower() ? toUtcMillisForProjection(range.lower(), unit) : exclusiveLowerStartMillis(range.lower(), unit);
+            if (start == null) {
+                return null;
+            }
+        }
+        Long end = null;
+        if (range.upper() != null) {
+            if (range.includeUpper()) {
+                Long millis = toUtcMillisForProjection(range.upper(), unit);
+                if (millis == null) {
+                    return null;
+                }
+                end = increment(millis);
+            } else {
+                end = exclusiveUpperEndMillis(range.upper(), unit);
+                if (end == null) {
+                    return null;
+                }
+            }
+        }
+        return new InstantRange(start, end);
     }
 
     /**
@@ -1858,12 +2054,29 @@ public final class PartitionSpec {
             for (Long point : bounds.points()) {
                 union = union.union(widenRange(new InstantRange(point, increment(point)), lead, lag));
             }
-            return new SourceBounds(union, null);
+            return new SourceBounds(union, null, List.of());
         }
-        return new SourceBounds(widenRange(bounds.range(), lead, lag), null);
+        if (bounds.disjuncts().isEmpty() == false) {
+            List<InstantRange> widened = new ArrayList<>(bounds.disjuncts().size());
+            for (InstantRange disjunct : bounds.disjuncts()) {
+                InstantRange clipped = disjunct.intersect(bounds.range());
+                if (clipped.isEmpty()) {
+                    continue;
+                }
+                widened.add(widenRange(clipped, lead, lag));
+            }
+            if (widened.isEmpty()) {
+                return new SourceBounds(InstantRange.EMPTY, null, List.of());
+            }
+            return new SourceBounds(InstantRange.ALL, null, List.copyOf(widened));
+        }
+        return new SourceBounds(widenRange(bounds.range(), lead, lag), null, List.of());
     }
 
     private static InstantRange widenRange(InstantRange range, long leadMillis, long lagMillis) {
+        if (range.isEmpty()) {
+            return range;
+        }
         Long lo = range.startInclusiveMillis();
         Long hi = range.endExclusiveMillis();
         if (lo != null && leadMillis != 0) {
@@ -1925,6 +2138,21 @@ public final class PartitionSpec {
     }
 
     private static List<Integer> overlappingYears(SourceBounds bounds) {
+        if (bounds.disjuncts().isEmpty() == false) {
+            LinkedHashSet<Integer> years = new LinkedHashSet<>();
+            for (InstantRange disjunct : bounds.disjuncts()) {
+                InstantRange clipped = disjunct.intersect(bounds.range());
+                if (clipped.isEmpty()) {
+                    continue;
+                }
+                List<Integer> next = overlappingYears(new SourceBounds(clipped, null, List.of()));
+                if (next.isEmpty()) {
+                    return List.of();
+                }
+                years.addAll(next);
+            }
+            return years.size() > (WRONG_UNIT_YEAR_MAX - WRONG_UNIT_YEAR_MIN + 1) ? List.of() : List.copyOf(years);
+        }
         if (bounds.points != null) {
             if (bounds.points.isEmpty()) {
                 return List.of();
@@ -1958,6 +2186,24 @@ public final class PartitionSpec {
      * not narrow (a 3-day window hits all 24 hours).
      */
     private static List<Integer> overlappingParts(SourceBounds bounds, ChronoField field, ChronoUnit step, int completeSize) {
+        if (bounds.disjuncts().isEmpty() == false) {
+            LinkedHashSet<Integer> parts = new LinkedHashSet<>();
+            for (InstantRange disjunct : bounds.disjuncts()) {
+                InstantRange clipped = disjunct.intersect(bounds.range());
+                if (clipped.isEmpty()) {
+                    continue;
+                }
+                List<Integer> next = overlappingParts(new SourceBounds(clipped, null, List.of()), field, step, completeSize);
+                if (next.isEmpty()) {
+                    return List.of();
+                }
+                parts.addAll(next);
+                if (parts.size() >= completeSize) {
+                    return List.of();
+                }
+            }
+            return parts.size() > LISTING_IN_CAP ? List.of() : List.copyOf(parts);
+        }
         if (bounds.points != null) {
             if (bounds.points.isEmpty()) {
                 return List.of();
@@ -2210,9 +2456,10 @@ public final class PartitionSpec {
     }
 
     /**
-     * Exclusive {@code >} as an inclusive start. {@link Instant#toEpochMilli()} floors,
-     * so a DATE_NANOS bound inside a millisecond would otherwise skip the rest of that
-     * millisecond and drop a folder that still matches.
+     * Exclusive {@code >} as an inclusive start. Numeric epoch bounds are millisecond
+     * (or coarser) already, so start at the next millisecond: {@code ts >} the last
+     * millis of hour 21 must drop that hour. Instant and quoted bounds keep the
+     * containing millisecond so DATE_NANOS rows after an exact-ms Instant still match.
      */
     @Nullable
     private static Long exclusiveLowerStartMillis(Object raw, Unit unit) {
@@ -2220,7 +2467,7 @@ public final class PartitionSpec {
         if (millis == null) {
             return null;
         }
-        return hasSubMilliNanos(raw) ? millis : increment(millis);
+        return isNumericLiteral(raw) ? increment(millis) : millis;
     }
 
     /**
@@ -2237,14 +2484,51 @@ public final class PartitionSpec {
     }
 
     private static boolean hasSubMilliNanos(Object raw) {
-        return raw instanceof Instant instant && instant.getNano() % 1_000_000 != 0;
+        Instant instant = instantOf(raw);
+        return instant != null && instant.getNano() % 1_000_000 != 0;
+    }
+
+    @Nullable
+    private static Instant instantOf(Object raw) {
+        return switch (raw) {
+            case Instant instant -> instant;
+            case OffsetDateTime odt -> odt.toInstant();
+            case ZonedDateTime zdt -> zdt.toInstant();
+            case String s -> parseInstant(s);
+            case BytesRef bytesRef -> parseInstant(bytesRef.utf8ToString());
+            case null, default -> null;
+        };
+    }
+
+    @Nullable
+    private static Instant parseInstant(String text) {
+        try {
+            return Instant.parse(text);
+        } catch (DateTimeParseException ignored) {
+            // try offset / local forms below
+        }
+        try {
+            return OffsetDateTime.parse(text).toInstant();
+        } catch (DateTimeParseException ignored) {
+            // try local date-time below
+        }
+        try {
+            return LocalDateTime.parse(text).toInstant(ZoneOffset.UTC);
+        } catch (DateTimeParseException ignored) {
+            // try date-only below
+        }
+        try {
+            return LocalDate.parse(text).atStartOfDay().toInstant(ZoneOffset.UTC);
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 
     private static long increment(long millis) {
         return millis == Long.MAX_VALUE ? millis : millis + 1;
     }
 
-    private record SourceBounds(InstantRange range, @Nullable Set<Long> points) {
+    private record SourceBounds(InstantRange range, @Nullable Set<Long> points, List<InstantRange> disjuncts) {
         boolean overlaps(long folderStart, long folderEnd) {
             if (points != null) {
                 if (points.isEmpty()) {
@@ -2252,6 +2536,14 @@ public final class PartitionSpec {
                 }
                 for (Long point : points) {
                     if (point >= folderStart && point < folderEnd) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            if (disjuncts.isEmpty() == false) {
+                for (InstantRange disjunct : disjuncts) {
+                    if (disjunct.intersect(range).overlapsFolder(folderStart, folderEnd)) {
                         return true;
                     }
                 }

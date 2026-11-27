@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167543
+summary: Bind connector requests to query factory
+type: enhancement

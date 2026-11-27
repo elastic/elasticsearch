@@ -257,6 +257,9 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
                 if (stepOrBuckets.foldable() == false) {
                     return new TypeResolution("[" + sourceText() + "] target bucket count must be a constant");
                 }
+                if (stepOrBuckets.fold(foldContext) == null) {
+                    return new TypeResolution("[" + sourceText() + "] target bucket count must not be null");
+                }
                 long count = ((Number) stepOrBuckets.fold(foldContext)).longValue();
                 if (count <= 0 || count > Integer.MAX_VALUE) {
                     return new TypeResolution(
@@ -277,6 +280,9 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
                 return new TypeResolution("[" + sourceText() + "] target bucket count must be a constant");
             }
 
+            if (stepOrBuckets.fold(foldContext) == null) {
+                return new TypeResolution("[" + sourceText() + "] target bucket count must not be null");
+            }
             long count = ((Number) stepOrBuckets.fold(foldContext)).longValue();
             if (count <= 0 || count > Integer.MAX_VALUE) {
                 return new TypeResolution(
@@ -288,6 +294,9 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
                 return new TypeResolution("[" + sourceText() + "] `from` and `to` must be constant when using a target bucket count");
             }
 
+            if (from.fold(foldContext) == null || to.fold(foldContext) == null) {
+                return new TypeResolution("[" + sourceText() + "] `from` and `to` must not be null");
+            }
             if (DataType.isString(from.dataType()) || DataType.isString(to.dataType())) {
                 try {
                     temporalToLong(foldContext, Objects.requireNonNull(from));
@@ -316,6 +325,9 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         }
         if (from.foldable() == false || to.foldable() == false) {
             return new TypeResolution("[" + sourceText() + "] `from` and `to` must be constants");
+        }
+        if (from.fold(FoldContext.small()) == null || to.fold(FoldContext.small()) == null) {
+            return new TypeResolution("[" + sourceText() + "] `from` and `to` must not be null");
         }
         return boundsResolution;
     }

@@ -31,6 +31,8 @@ import java.util.List;
  * details, even if its rows were refused before those of the writer that reported first.
  */
 public record IntoStats(long total, long created, long failures, List<String> failureDetails) {
+    // TODO: keep the most frequent distinct reasons, with their counts, instead of the first ones. Identical reasons then stop using up
+    // the slots, and the merge no longer depends on which writer reports first.
     public static final int MAX_FAILURE_DETAILS = 20;
 
     public static final IntoStats EMPTY = new IntoStats(0, 0, 0, List.of());

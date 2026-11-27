@@ -102,10 +102,9 @@ tasks.register('generateParquetFixtures') {
   dependsOn generateParquetTasks
 }
 
-sourceSets.javaRestTest.resources.srcDir file("${buildDir}/parquet-fixtures")
-tasks.named('processJavaRestTestResources').configure {
-  dependsOn generateParquetFixtures
-}
+def generatedParquetFixtures = files(layout.buildDirectory.dir("parquet-fixtures"))
+generatedParquetFixtures.builtBy(tasks.named('generateParquetFixtures'))
+sourceSets.javaRestTest.runtimeClasspath += generatedParquetFixtures
 
 tasks.named('javaRestTest') {
   dependsOn generateParquetFixtures

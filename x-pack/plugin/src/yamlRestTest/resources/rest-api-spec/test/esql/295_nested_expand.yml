@@ -1635,3 +1635,53 @@ setup:
   - length: { values: 2 }
   - match: { values.0: ["a", "2024-01-02T03:04:05.000Z", true, 1.5, "POINT (1.0 2.0)", 18446744073709551615, ["x", "y"]] }
   - match: { values.1: ["a", null, false, null, null, null, null] }
+
+---
+"NESTED_EXPAND reads the lookup document's nested objects for rows of several shards":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [nested_expand_lookup_join]
+      reason: "NESTED_EXPAND over a LOOKUP JOIN is snapshot-only"
+  - do:
+      indices.create:
+        index: ne_orders_sharded
+        body:
+          settings:
+            number_of_shards: 3
+          mappings:
+            properties:
+              id:
+                type: keyword
+              n:
+                type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_orders_sharded" } }
+          - { "id": "a", "n": 1 }
+          - { "index": { "_index": "ne_orders_sharded" } }
+          - { "id": "a", "n": 2 }
+          - { "index": { "_index": "ne_orders_sharded" } }
+          - { "id": "a", "n": 3 }
+          - { "index": { "_index": "ne_orders_sharded" } }
+          - { "id": "a", "n": 4 }
+          - { "index": { "_index": "ne_orders_sharded" } }
+          - { "id": "a", "n": 5 }
+          - { "index": { "_index": "ne_orders_sharded" } }
+          - { "id": "zzz", "n": 6 }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM ne_orders_sharded | LOOKUP JOIN ne_lookup_items ON id | NESTED_EXPAND items | KEEP n, items.qty | SORT n, items.qty'
+  - length: { values: 11 }
+  - match: { values.0: [1, 1] }
+  - match: { values.1: [1, 2] }
+  - match: { values.9: [5, 2] }
+  - match: { values.10: [6, null] }

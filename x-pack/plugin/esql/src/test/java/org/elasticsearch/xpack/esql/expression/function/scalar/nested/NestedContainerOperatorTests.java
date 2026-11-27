@@ -8,13 +8,17 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -110,6 +114,32 @@ public class NestedContainerOperatorTests extends NestedIndexOperatorTestCase {
             page.releaseBlocks();
         }
         assertThat(context.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testPackingTripsTheBreakerWithoutLeaking() {
+        BlockFactory small = blockFactory(ByteSizeValue.ofBytes(2048));
+        DriverContext context = new DriverContext(small.bigArrays(), small, null);
+        Page input = parents(blockFactory(), 0, 200);
+        try (Operator operator = simple().get(context)) {
+            operator.addInput(input);
+            expectThrows(CircuitBreakingException.class, operator::getOutput);
+        }
+        assertThat(small.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testExpandingTripsTheBreakerWithoutLeaking() {
+        var big = driverContext();
+        List<Page> packed = new TestDriverRunner().builder(big).input(List.of(parents(big.blockFactory(), 0, 200))).run(simple().get(big));
+        BlockFactory small = blockFactory(ByteSizeValue.ofBytes(2048));
+        DriverContext context = new DriverContext(small.bigArrays(), small, null);
+        try (Operator operator = new NestedExpandFromContainerOperator.Factory(1, TYPES).get(context)) {
+            operator.addInput(packed.get(0));
+            expectThrows(CircuitBreakingException.class, operator::getOutput);
+        }
+        for (int i = 1; i < packed.size(); i++) {
+            packed.get(i).releaseBlocks();
+        }
+        assertThat(small.breaker().getUsed(), equalTo(0L));
     }
 
     public void testExpandingAConstantNullContainerKeepsEveryParentWithNullChildren() {

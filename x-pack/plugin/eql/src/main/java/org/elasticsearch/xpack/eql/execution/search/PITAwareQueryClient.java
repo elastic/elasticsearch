@@ -157,7 +157,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
         client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
             pitId = r.getPointInTimeId();
             clusterShards = EqlClusterShards.from(r);
-            pitUnavailableShards = SearchContextId.unavailableShardIds(pitId);
+            pitUnavailableShards = r.getFailedShards() == 0 ? Map.of() : SearchContextId.unavailableShardIds(pitId);
             runnable.run();
         }));
     }

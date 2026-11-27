@@ -630,15 +630,15 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     static class PerShardCollector {
         /**
-         * A collector reads the shared score every time it gets a scorer, and every 1024 documents it collects, when the
-         * count masked with this is zero. Lucene's collectors read the score they share at the same interval.
+         * A collector reads the shared bound when it gets a scorer and every 1024 documents it collects. Lucene's collectors
+         * use the same interval for the score they share.
          */
         private static final int SHARED_SCORE_INTERVAL_MASK = 0x3ff;
 
         private final ShardContext shardContext;
         final TopDocsCollector<?> collector;
         /**
-         * The score shared with the other collectors, or {@code null} if this collector doesn't skip by score.
+         * The bound shared with the other collectors, or {@code null} if this collector doesn't skip by score.
          */
         @Nullable
         private final SharedScoreBound sharedScoreBound;
@@ -666,9 +666,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
 
         /**
-         * Sits between a Lucene top N collector and its scorer to share the collector's minimum competitive score: what the
-         * collector sets on the scorer is offered to the other collectors, and what the other collectors offered is set on the
-         * scorer.
+         * Sits between a Lucene top N collector and its scorer. The minimum competitive score the collector sets is offered
+         * to the shared bound, and the shared bound is set on the scorer.
          */
         private static class SharingLeafCollector extends FilterLeafCollector {
             private final SharedScoreBound shared;
@@ -704,8 +703,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         private static class SharingScorable extends FilterScorable {
             private final SharedScoreBound shared;
             /**
-             * The last score set on the scorer. The collector doesn't know about the scores of the other collectors, so it
-             * can set a lower one, which must not reach the scorer.
+             * The last score set on the scorer. The collector can set a lower one, because it doesn't know the shared bound.
+             * That one must not reach the scorer.
              */
             private float minCompetitiveScore;
 
@@ -750,15 +749,15 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     /**
      * Creates the top N collectors of the operators of a {@link Factory}, one per driver and shard.
      * <p>
-     *     The collectors that skip documents by score, the ones Lucene gives {@link ScoreMode#TOP_SCORES} because their sort starts with
-     *     {@code _score} descending, share their minimum competitive score through a {@link SharedScoreBound}:
-     *     a driver skips the documents that score below a top N another driver has already filled, in any shard.
+     *     A collector whose sort starts with {@code _score} descending skips documents by score, and Lucene gives it
+     *     {@link ScoreMode#TOP_SCORES}. Those collectors share a {@link SharedScoreBound}: a driver skips the documents
+     *     that score below a top N another driver has already filled, in any shard.
      * </p>
      * <p>
-     *     For {@code SORT _score DESC} alone a collector sets the next score above the lowest one of its top N, so the other
-     *     collectors skip the documents that tie with it too. Which of the documents that tie on the last score of the top N
-     *     are returned is not defined. With more sort keys a collector sets the lowest score itself, and the documents that
-     *     tie with it are still collected and ordered by the other keys.
+     *     For {@code SORT _score DESC} alone a collector sets the next float above the lowest score of its top N, so the
+     *     other collectors also skip the documents that tie with that score. Which of the tied documents are returned is
+     *     not defined. With more sort keys a collector sets the lowest score itself, so ties are still collected and
+     *     ordered by the other keys.
      * </p>
      */
     static class PerShardCollectorProvider {

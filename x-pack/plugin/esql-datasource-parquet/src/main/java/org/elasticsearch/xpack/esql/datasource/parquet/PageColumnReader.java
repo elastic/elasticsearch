@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -1233,7 +1232,7 @@ final class PageColumnReader implements Releasable {
                 }
                 default -> throw new IllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
             };
-            values[offset + i] = new BigDecimal(unscaled, scale).doubleValue();
+            values[offset + i] = ParquetColumnDecoding.decimalToDouble(unscaled, scale);
         }
     }
 

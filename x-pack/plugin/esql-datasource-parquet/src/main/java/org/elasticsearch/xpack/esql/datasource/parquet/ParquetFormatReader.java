@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExpandRead;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -2379,7 +2380,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget(),
-            counters
+            counters,
+            context.expandRead()
         );
     }
 
@@ -2391,6 +2393,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     @Override
     public boolean supportsWholeFileCompression() {
         return false;
+    }
+
+    /** Both iterators and both read paths ({@code read} and {@code readRange}) expand through {@link ParquetExpansion}. */
+    @Override
+    public boolean supportsExpandRead() {
+        return true;
     }
 
     @Override
@@ -2903,7 +2911,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget(),
-            counters
+            counters,
+            context.expandRead()
         );
     }
 
@@ -2963,7 +2972,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ErrorPolicy errorPolicy,
         @Nullable Consumer<String> warningSink,
         @Nullable SharedErrorBudget sharedErrorBudget,
-        @Nullable ParquetReaderCounters counters
+        @Nullable ParquetReaderCounters counters,
+        @Nullable ExpandRead expandRead
     ) throws IOException {
         if (counters != null) {
             counters.setLateMaterializationEnabled(true);
@@ -3010,14 +3020,36 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // whole, so every block stays owned by its page and is released downstream with it.
             if (projectedColumns != null
                 && projectedColumns.isEmpty()
+                && expandRead == null
                 && filterPredicate == null
                 && pushedExpressions == null
                 && FilterCompat.isFilteringRequired(recordFilter) == false) {
                 return new ParquetCountOnlyIterator(reader, batchSize, rowLimit);
             }
-            List<Attribute> projectedAttributes = buildProjectedAttributes(projectedColumns, attributes);
+            ParquetExpansion.Spec expansion = null;
+            List<Attribute> projectedAttributes;
+            if (expandRead == null) {
+                projectedAttributes = buildProjectedAttributes(projectedColumns, attributes);
+            } else {
+                // An expanding read reads only the columns it names: no legacy full-schema fallback for an empty
+                // projection, whose every column would then be repeated per element
+                // Both read contexts refuse a row position beside an expand read, so none reaches here
+                List<String> parentColumns = projectedColumns == null ? List.of() : projectedColumns;
+                projectedAttributes = buildNamedAttributes(parentColumns, attributes);
+                String fileLocation = safeObjectName(object.path());
+                expansion = ParquetExpansion.Spec.of(
+                    parquetSchema,
+                    schemaMaxFields,
+                    expandRead,
+                    parentColumns.size(),
+                    batchSize,
+                    fileLocation,
+                    errorPolicy,
+                    warningSink
+                );
+            }
 
-            MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
+            MessageType projectedSchema = projectedSchema(parquetSchema, projectedAttributes, expansion);
             String createdBy = fileMetaData.getCreatedBy();
             boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
             recordPerColumnMaterialization(projectedAttributes, useOptimized, counters);
@@ -3038,7 +3070,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     errorPolicy,
                     warningSink,
                     sharedErrorBudget,
-                    counters
+                    counters,
+                    expansion
                 );
             }
             return new ParquetColumnIterator(
@@ -3058,7 +3091,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 declaredTypeColumns,
                 errorPolicy,
                 warningSink,
-                sharedErrorBudget
+                sharedErrorBudget,
+                expansion
             );
         } catch (Throwable t) {
             reader.close();
@@ -3082,7 +3116,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ErrorPolicy errorPolicy,
         @Nullable Consumer<String> warningSink,
         @Nullable SharedErrorBudget sharedErrorBudget,
-        @Nullable ParquetReaderCounters counters
+        @Nullable ParquetReaderCounters counters,
+        @Nullable ParquetExpansion.Spec expansion
     ) {
         if (inputFile instanceof ParquetStorageObjectAdapter == false) {
             throw new ElasticsearchException(
@@ -3091,7 +3126,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
         ParquetStorageObjectAdapter adapter = (ParquetStorageObjectAdapter) inputFile;
         ColumnInfo[] columnInfos = buildColumnInfos(projectedSchema, projectedAttributes, declaredDateFormats);
-        String[] absentColumnWarnings = buildAbsentColumnWarnings(projectedAttributes, columnInfos);
+        String[] absentColumnWarnings = withAbsentElements(buildAbsentColumnWarnings(projectedAttributes, columnInfos), expansion);
         String fileLocation = safeObjectName(storageObject.path());
         String dropReason = validatePlannerTypesAgainstFile(
             logger,
@@ -3313,7 +3348,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 counters,
                 errorPolicy,
                 warningSink,
-                sharedErrorBudget
+                sharedErrorBudget,
+                expansion
             );
             // Constructor succeeded — iterator now owns preloadedMetadata. Set the flag after
             // construction so that a throw inside the constructor does not suppress cleanup.
@@ -3666,6 +3702,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
+     * {@code columns} and the parts of an expanded collection this file lacks, the collection or some of its leaves:
+     * they read as null like an absent column, and are announced the same way, on the first page.
+     */
+    private static String[] withAbsentElements(String[] columns, @Nullable ParquetExpansion.Spec expansion) {
+        if (expansion == null || expansion.absent().isEmpty()) {
+            return columns;
+        }
+        List<String> names = new ArrayList<>(Arrays.asList(columns));
+        names.addAll(expansion.absent());
+        return names.toArray(String[]::new);
+    }
+
+    /**
      * Returns the names of declared columns that are absent from the file (null columnInfo) and
      * warrant an informational warning. Empty array when there is nothing to warn about.
      * Used by {@link DeferredWarnProducer} and {@link ParquetColumnIterator} to defer the warning
@@ -3866,6 +3915,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         if (projectedColumns == null || projectedColumns.isEmpty()) {
             return fileAttributes;
         }
+        return buildNamedAttributes(projectedColumns, fileAttributes);
+    }
+
+    /**
+     * The attributes of exactly {@code projectedColumns}, in that order, followed by the pushed filter's columns the
+     * projection does not name. Unlike {@link #buildProjectedAttributes}, an empty projection reads no column of the
+     * file beyond the filter's.
+     */
+    private List<Attribute> buildNamedAttributes(List<String> projectedColumns, List<Attribute> fileAttributes) {
         Map<String, Attribute> attributeMap = new HashMap<>();
         for (Attribute attr : fileAttributes) {
             attributeMap.put(attr.name(), attr);
@@ -3896,6 +3954,35 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             }
         }
         return result;
+    }
+
+    /**
+     * The schema a read decodes: the projected columns and, of an expanded collection, only the leaves it names, so a
+     * wide element costs the read only what is asked of it.
+     */
+    static MessageType projectedSchema(
+        MessageType fileSchema,
+        List<Attribute> projectedAttributes,
+        @Nullable ParquetExpansion.Spec expansion
+    ) {
+        List<Attribute> columns = projectedAttributes;
+        if (expansion != null) {
+            String path = expansion.read().path();
+            // The column-read store holds one stateful page reader per column, which a row column and an element leaf
+            // over the same column cannot share; checked here so both iterators refuse it
+            for (Attribute column : projectedAttributes) {
+                if (column.name().equals(path) || column.name().startsWith(path + ".")) {
+                    throw new IllegalArgumentException(
+                        "column [" + column.name() + "] cannot be read both as a column and as part of expanded [" + path + "]"
+                    );
+                }
+            }
+            columns = new ArrayList<>(columns);
+            for (String leaf : expansion.projectedColumns(fileSchema)) {
+                columns.add(new ReferenceAttribute(Source.EMPTY, null, leaf, DataType.NULL, Nullability.TRUE, null, false));
+            }
+        }
+        return buildProjectedSchema(fileSchema, columns);
     }
 
     private static MessageType buildProjectedSchema(MessageType fullSchema, List<Attribute> projectedAttributes) {
@@ -4552,6 +4639,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
         /** Per-attribute column metadata; null for attributes not present in the file. */
         private final ColumnInfo[] columnInfos;
+        /** The collection this read expands each batch's rows by, or {@code null} when it emits one row per file row. */
+        @Nullable
+        private final ParquetExpansion expansion;
         private final boolean hasListColumns;
         /**
          * File-global first-row offsets per row group; mirrors the field of the same name on
@@ -4676,7 +4766,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             Set<String> declaredTypeColumns,
             ErrorPolicy errorPolicy,
             @Nullable Consumer<String> warningSink,
-            @Nullable SharedErrorBudget sharedErrorBudget
+            @Nullable SharedErrorBudget sharedErrorBudget,
+            @Nullable ParquetExpansion.Spec expansion
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
@@ -4704,7 +4795,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             reader.setRequestedSchema(projectedSchema);
 
             this.columnInfos = buildColumnInfos(projectedSchema, attributes, declaredDateFormats);
-            String[] absentWarnings = buildAbsentColumnWarnings(attributes, this.columnInfos);
+            this.expansion = expansion == null
+                ? null
+                : ParquetExpansion.of(
+                    expansion,
+                    projectedSchema,
+                    blockFactory,
+                    path -> nullListElementWarnings().addOnce(ParquetColumnDecoding.nullListElementsMessage(path))
+                );
+            String[] absentWarnings = withAbsentElements(buildAbsentColumnWarnings(attributes, this.columnInfos), expansion);
             if (absentWarnings.length > 0 && warningSink != null) {
                 this.pendingAbsentWarnings = absentWarnings;
                 this.pendingAbsentWarnSink = warningSink;
@@ -4837,8 +4936,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 pageColumnReaders = null;
             }
 
+            ColumnReadStoreImpl store = null;
             if (hasRecordFilter || hasListColumns) {
-                ColumnReadStoreImpl store = new ColumnReadStoreImpl(
+                store = new ColumnReadStoreImpl(
                     rowGroup,
                     new ParquetColumnDecoding.NoOpGroupConverter(projectedSchema),
                     projectedSchema,
@@ -4890,6 +4990,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 listColumnReaders = null;
                 columnUncompressedBytes = null;
             }
+            if (this.expansion != null) {
+                // The same store as the row's repeated columns: it hands out each column's one page reader once
+                if (store == null) {
+                    store = new ColumnReadStoreImpl(
+                        rowGroup,
+                        new ParquetColumnDecoding.NoOpGroupConverter(projectedSchema),
+                        projectedSchema,
+                        createdBy
+                    );
+                }
+                this.expansion.bind(store, listCorruptionHandler, fileLocation, rowGroupOrdinal, rowsBeforeCurrentGroup);
+            }
             if (rowsRemainingInGroup == 0 && validateListExhaustion) {
                 validateListColumnsExhausted();
             }
@@ -4906,6 +5018,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 effectiveBatch = Math.min(effectiveBatch, rowBudget);
             }
             int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
+            if (expansion != null) {
+                // The elements are decoded first so a batch whose expanded rows reach the budget ends at that row
+                try {
+                    rowsToRead = expansion.decodeBatch(rowsToRead);
+                } catch (CircuitBreakingException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw ParquetReadFailures.wrap(e, expansion.failureContext(rowGroupOrdinal, pageBatchIndexInRowGroup, fileLocation));
+                }
+            }
             // Pre-decrement snapshot of the in-block index of this batch's first row. Used to
             // synthesise the {@code _rowPosition} block when present in the projection. The
             // baseline path requires hasRecordFilter==false (enforced in the constructor), so
@@ -4972,9 +5094,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     producedRows = rowsToRead - rowDropHelper.failedCount();
                 }
             } catch (CircuitBreakingException e) {
+                closeExpansion();
                 ParquetReadFailures.closePreservingCause(e, blocks);
                 throw e;
             } catch (Exception e) {
+                closeExpansion();
                 ParquetReadFailures.closePreservingCause(e, blocks);
                 throw ParquetReadFailures.wrap(
                     e,
@@ -4992,10 +5116,29 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // ParsingException (HTTP 400), not a Parquet read failure. LIST recoveries and row
             // drops share this one counter for the iterator.
             int droppedRows = rowDropHelper != null ? rowDropHelper.failedCount() : 0;
+            // An expanding read may project no parent column at all, so its page without blocks still counts its rows
+            Page page = blocks.length == 0 && expansion != null ? new Page(producedRows) : new Page(blocks);
+            if (expansion != null) {
+                // The drops above narrowed the parents; the elements follow the rows they kept. The expansion owns the
+                // parent page from here, and releases it if it fails.
+                int[] survivors = rowDropHelper != null && rowDropHelper.hasFailures() ? rowDropHelper.survivorPositions() : null;
+                ParquetExpansion.Batch expanded = expansion.expandBatch(
+                    page,
+                    survivors,
+                    rowGroupOrdinal,
+                    pageBatchIndexInRowGroup,
+                    fileLocation
+                );
+                page = expanded.page();
+                producedRows -= expanded.droppedParents();
+                droppedRows += expanded.droppedParents();
+            }
+            // LIST recoveries, row drops and the parents an element value dropped share this one counter for the read
             try {
                 listCorruptionHandler.completeBatch(rowsToRead, droppedRows);
             } catch (RuntimeException e) {
-                ParquetReadFailures.closePreservingCause(e, blocks);
+                closeExpansion();
+                ParquetReadFailures.closePreservingCause(e, page::releaseBlocks);
                 throw e;
             }
 
@@ -5005,10 +5148,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 try {
                     validateListColumnsExhausted();
                 } catch (RuntimeException e) {
-                    ParquetReadFailures.closePreservingCause(e, blocks);
+                    ParquetReadFailures.closePreservingCause(e, page::releaseBlocks);
                     throw e;
                 }
             }
+            // The row limit and the counters count the file's rows, the parents, before any expansion
             if (rowBudget != FormatReader.NO_LIMIT) {
                 rowBudget -= producedRows;
             }
@@ -5018,10 +5162,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // Emit only after the page is fully built: if any column read above threw, we
             // should not warn about absent columns — no data was produced for this batch.
             emitAbsentColumnWarningsOnce();
-            return new Page(blocks);
+            return page;
+        }
+
+        private void closeExpansion() {
+            if (expansion != null) {
+                expansion.close();
+            }
         }
 
         private void validateListColumnsExhausted() {
+            if (expansion != null) {
+                expansion.validateExhausted();
+            }
             if (listColumnReaders == null) {
                 return;
             }
@@ -5235,7 +5388,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         case BINARY, FIXED_LEN_BYTE_ARRAY -> ParquetColumnDecoding.unscaledToBigInteger(cr.getBinary().getBytes());
                         default -> throw new IllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
                     };
-                    values[i] = new java.math.BigDecimal(unscaled, scale).doubleValue();
+                    values[i] = ParquetColumnDecoding.decimalToDouble(unscaled, scale);
                 }
                 cr.consume();
             }
@@ -5393,6 +5546,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         @Override
         public void close() throws IOException {
             try {
+                // First, and it cannot throw: the batch in progress is released whatever the rest of the close does
+                closeExpansion();
                 if (rowGroup != null) {
                     rowGroup.close();
                 }

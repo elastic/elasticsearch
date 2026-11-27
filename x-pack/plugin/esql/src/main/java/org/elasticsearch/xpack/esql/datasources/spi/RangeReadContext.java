@@ -51,6 +51,8 @@ public final class RangeReadContext {
      */
     @Nullable
     private Object fileContext;
+    @Nullable
+    private final ExpandRead expandRead;
 
     public RangeReadContext(
         List<String> projectedColumns,
@@ -151,6 +153,43 @@ public final class RangeReadContext {
         @Nullable SharedErrorBudget sharedErrorBudget,
         @Nullable FormatReadCounters readCounters
     ) {
+        this(
+            projectedColumns,
+            batchSize,
+            rangeStart,
+            rangeEnd,
+            resolvedAttributes,
+            errorPolicy,
+            informationalWarningSink,
+            rowLimit,
+            sharedErrorBudget,
+            readCounters,
+            null
+        );
+    }
+
+    /**
+     * As the above, plus {@code expandRead} — the collection to read at element grain; see {@link #expandRead()}.
+     *
+     * @throws IllegalArgumentException when {@code projectedColumns} asks for a row position beside {@code expandRead}
+     */
+    public RangeReadContext(
+        List<String> projectedColumns,
+        int batchSize,
+        long rangeStart,
+        long rangeEnd,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> informationalWarningSink,
+        int rowLimit,
+        @Nullable SharedErrorBudget sharedErrorBudget,
+        @Nullable FormatReadCounters readCounters,
+        @Nullable ExpandRead expandRead
+    ) {
+        if (expandRead != null) {
+            FormatReadContext.requireNoRowPositions(expandRead, projectedColumns);
+        }
+        this.expandRead = expandRead;
         this.projectedColumns = projectedColumns;
         this.batchSize = batchSize;
         this.rangeStart = rangeStart;
@@ -223,6 +262,16 @@ public final class RangeReadContext {
     @Nullable
     public Object fileContext() {
         return fileContext;
+    }
+
+    /**
+     * As {@link FormatReadContext#expandRead()}: the collection to read at element grain, or {@code null}. With one,
+     * {@link #rowLimit()} counts the file's rows (the parents) before they are expanded. A range read harvests no
+     * statistics, so only the row-position refusal applies here.
+     */
+    @Nullable
+    public ExpandRead expandRead() {
+        return expandRead;
     }
 
     public void setFileContext(@Nullable Object fileContext) {

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -14,26 +15,27 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 
 /**
  * Parquet's collections: a {@code LIST} whose element is a group. A {@code LIST} of primitives is not one: it is already a
- * multivalued column. A {@code MAP} is not one either. Schema discovery describes them, so a dataset can tell its nested
- * columns from its other ones.
+ * multivalued column. A {@code MAP} is not one either. Schema discovery describes them, and {@link ParquetExpansion} reads
+ * one at element grain.
  */
 final class ParquetCollections {
     private ParquetCollections() {}
 
     /**
-     * A list of structures in a file's schema, with the fields each of its elements holds. A collection inside another's
-     * element is one of its own, at its dotted path, as an index's {@code nested} field inside another is: it is no leaf of
-     * the outer one.
+     * A list of structures in a file's schema, whose elements a {@code NESTED_EXPAND} reads as rows and whose leaves it
+     * reads as their columns. A collection inside another's element is one of its own, at its dotted path, as an index's
+     * {@code nested} field inside another is: it is no leaf of the outer one.
      *
      * @param path        the collection's dotted name in the file's schema
      * @param leaves      the element's leaves, by name relative to {@code path}, sorted by name
-     * @param unsupported why the collection cannot be read one element at a time, or {@code null} when it can. Set when an
+     * @param unsupported why the collection cannot be read at element grain, or {@code null} when it can. Set when an
      *                    element holds more fields than the reader's field cap.
      */
     record Collection(String path, List<Leaf> leaves, @Nullable String unsupported) {
@@ -192,5 +194,87 @@ final class ParquetCollections {
             return list;
         }
         return structureElement(list);
+    }
+
+    /**
+     * Where a collection's elements sit in the levels of its leaves: the repetition level that starts a new element, the
+     * definition level at which the list has an element at all, and the one at which that element is not null. Shared by
+     * every decode of a collection so they cannot disagree about what an element is.
+     *
+     * @param elementPath the path of the element group, whose descendants are the leaves
+     */
+    record Shape(Collection collection, String[] elementPath, int collectionRep, int existsDef, int elementDef) {
+
+        /** The leaf named {@code name} relative to the element, or {@code null} when this file's element lacks it. */
+        @Nullable
+        Leaf leaf(String name) {
+            return collection.leaves().stream().filter(c -> c.name().equals(name)).findFirst().orElse(null);
+        }
+
+        /** The descriptor of leaf {@code relative} in {@code schema}, which holds the collection at this shape's path. */
+        ColumnDescriptor descriptor(MessageType schema, String relative) {
+            return ParquetCollections.descriptor(schema, elementPath, relative);
+        }
+    }
+
+    /**
+     * The shape of the collection at {@code path} of {@code schema}, or {@code null} when the schema holds no readable
+     * collection there. The collection is described as discovery describes it, with no more than {@code maxLeaves} fields
+     * in an element, so one discovery could not read says so in {@link Collection#unsupported()} here too.
+     */
+    @Nullable
+    static Shape shape(MessageType schema, String path, int maxLeaves) {
+        Collection collection = describe(schema, name -> {}, maxLeaves).stream()
+            .filter(c -> c.path().equals(path))
+            .findFirst()
+            .orElse(null);
+        if (collection == null) {
+            return null;
+        }
+        String[] parts = path.split("\\.");
+        Type node = schema;
+        for (String part : parts) {
+            node = node.asGroupType().getType(part);
+        }
+        GroupType group = node.asGroupType();
+        GroupType element = element(group);
+        String[] repeatedPath = Arrays.copyOf(parts, parts.length + 1);
+        repeatedPath[parts.length] = group.getType(0).getName();
+        int collectionRep = schema.getMaxRepetitionLevel(repeatedPath);
+        int existsDef = schema.getMaxDefinitionLevel(repeatedPath);
+        int elementDef = existsDef;
+        String[] elementPath = repeatedPath;
+        if (element != group.getType(0)) {
+            elementPath = Arrays.copyOf(repeatedPath, repeatedPath.length + 1);
+            elementPath[repeatedPath.length] = element.getName();
+            elementDef = schema.getMaxDefinitionLevel(elementPath);
+        }
+        return new Shape(collection, elementPath, collectionRep, existsDef, elementDef);
+    }
+
+    /** The descriptor of the leaf under the element whose name, relative to the element, is {@code relative}. */
+    static ColumnDescriptor descriptor(MessageType schema, String[] elementPath, String relative) {
+        String[] relativeParts = relative.split("\\.");
+        for (ColumnDescriptor column : schema.getColumns()) {
+            String[] columnPath = column.getPath();
+            if (columnPath.length < elementPath.length + relativeParts.length
+                || Arrays.equals(columnPath, 0, elementPath.length, elementPath, 0, elementPath.length) == false) {
+                continue;
+            }
+            // A leaf that is itself a list holds its value further down; match the named groups only
+            int at = elementPath.length;
+            boolean matches = true;
+            for (String part : relativeParts) {
+                if (at >= columnPath.length || columnPath[at].equals(part) == false) {
+                    matches = false;
+                    break;
+                }
+                at++;
+            }
+            if (matches) {
+                return column;
+            }
+        }
+        throw new IllegalStateException("no Parquet column for collection leaf [" + relative + "]");
     }
 }

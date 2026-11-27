@@ -59,6 +59,12 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
      * per-record token.
      */
     private final int recordRefOutputIndex;
+    /**
+     * Blocks at the end of the incoming page that are no column of {@link #fullOutput}, carried after it as they are:
+     * the element columns and parent ordinals of an expanding read (see {@code ExpandRead}). {@code 0} for any other
+     * read, whose surplus blocks are released.
+     */
+    private final int trailingBlocks;
 
     VirtualColumnIterator(
         CloseableIterator<Page> delegate,
@@ -66,6 +72,17 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         BlockFactory blockFactory
+    ) {
+        this(delegate, fullOutput, partitionColumnNames, partitionValues, blockFactory, 0);
+    }
+
+    VirtualColumnIterator(
+        CloseableIterator<Page> delegate,
+        List<Attribute> fullOutput,
+        Set<String> partitionColumnNames,
+        Map<String, Object> partitionValues,
+        BlockFactory blockFactory,
+        int trailingBlocks
     ) {
         Check.notNull(delegate, "delegate cannot be null");
         Check.isTrue(fullOutput != null && fullOutput.isEmpty() == false, "fullOutput cannot be null or empty");
@@ -75,6 +92,7 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         this.fullOutput = fullOutput;
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.blockFactory = blockFactory;
+        this.trailingBlocks = trailingBlocks;
 
         List<Integer> dataIdxList = new ArrayList<>();
         List<Integer> partIdxList = new ArrayList<>();
@@ -107,6 +125,10 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
             recordRefIdx < 0 || rowPosChannelInData >= 0,
             "_file.record_ref requested but reader did not emit the _rowPosition channel"
         );
+        // As SchemaAdaptingIterator refuses it: a read with trailing blocks emits elements, which no row position addresses
+        if (trailingBlocks > 0 && (recordRefIdx >= 0 || rowPosChannelInData >= 0)) {
+            throw new IllegalArgumentException("a read with trailing blocks carries no row positions");
+        }
     }
 
     @Override
@@ -155,6 +177,9 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
      * clean up the input page separately.
      */
     Page inject(Page dataPage) {
+        if (trailingBlocks > 0) {
+            return injectBeforeTrailing(dataPage);
+        }
         if (partitionColumnIndices.length == 0) {
             // Any extra blocks the producer emitted beyond what we project would otherwise leak
             // when the dataPage reference is dropped without releaseBlocks(). Forward as-is when
@@ -221,6 +246,44 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
                     b.close();
                     released++;
                 }
+            }
+            dataPage.releaseBlocks();
+            throw t;
+        }
+    }
+
+    /**
+     * {@link #inject} for a page whose last {@link #trailingBlocks} blocks follow the output: the data blocks before them
+     * take their slots in {@link #fullOutput}, the constant columns fill the rest, and the trailing blocks are appended.
+     * An expanding read projects exactly its data columns, so there is no surplus to release.
+     */
+    private Page injectBeforeTrailing(Page dataPage) {
+        int positions = dataPage.getPositionCount();
+        int expectedBlocks = dataColumnIndices.length + trailingBlocks;
+        if (dataPage.getBlockCount() != expectedBlocks) {
+            int produced = dataPage.getBlockCount();
+            dataPage.releaseBlocks();
+            throw new IllegalStateException("format reader produced " + produced + " blocks, an expanding read expects " + expectedBlocks);
+        }
+        Block[] blocks = new Block[fullOutput.size() + trailingBlocks];
+        int dataBlockIdx = 0;
+        for (int idx : dataColumnIndices) {
+            blocks[idx] = dataPage.getBlock(dataBlockIdx++);
+        }
+        for (int t = 0; t < trailingBlocks; t++) {
+            blocks[fullOutput.size() + t] = dataPage.getBlock(dataColumnIndices.length + t);
+        }
+        int allocated = 0;
+        try {
+            for (int idx : partitionColumnIndices) {
+                Attribute attr = fullOutput.get(idx);
+                blocks[idx] = createConstantBlock(attr, partitionValues.get(attr.name()), positions);
+                allocated++;
+            }
+            return new Page(positions, blocks);
+        } catch (Throwable t) {
+            for (int i = 0; i < allocated; i++) {
+                blocks[partitionColumnIndices[i]].close();
             }
             dataPage.releaseBlocks();
             throw t;

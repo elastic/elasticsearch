@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.util.SearchHitUtils;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -161,7 +162,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
             pitId = r.getPointInTimeId();
             try {
                 EqlProjectScope.ensureSame(cfg.targetProjects(), request.getResolvedTargetProjects());
-                pitFailures = SearchHitUtils.skippedClusterFailures(r.getClusters());
+                pitFailures = cfg.crossProjectEnabled() ? SearchHitUtils.skippedClusterFailures(r.getClusters()) : List.of();
                 if (allowPartialSearchResults == false && pitFailures.isEmpty() == false) {
                     ShardSearchFailure failure = pitFailures.getFirst();
                     throw new EqlIllegalArgumentException(failure.reason(), failure.getCause());
@@ -194,7 +195,13 @@ public class PITAwareQueryClient extends BasicQueryClient {
     }
 
     @Override
-    public List<ShardSearchFailure> searchFailures() {
-        return pitFailures;
+    public List<ShardSearchFailure> searchFailures(SearchResponse response) {
+        List<ShardSearchFailure> failures = super.searchFailures(response);
+        if (pitFailures.isEmpty()) {
+            return failures;
+        }
+        List<ShardSearchFailure> combined = new ArrayList<>(pitFailures);
+        combined.addAll(failures);
+        return combined;
     }
 }

@@ -153,10 +153,10 @@ public class CrossProjectQueryClientTests extends ESTestCase {
                 queryClient.query(() -> SearchSourceBuilder.searchSource().query(matchAllQuery()), future);
                 assertSame(client.response, future.actionGet());
                 assertTrue(client.response.getShardFailures().isEmpty());
-                assertEquals(1, queryClient.searchFailures().size());
-                assertEquals("linked", queryClient.searchFailures().getFirst().shard().getClusterAlias());
+                assertEquals(1, queryClient.searchFailures(client.response).size());
+                assertEquals("linked", queryClient.searchFailures(client.response).getFirst().shard().getClusterAlias());
                 Map<String, ShardSearchFailure> failures = new HashMap<>();
-                SearchHitUtils.addShardFailures(failures, client.response, queryClient.searchFailures());
+                SearchHitUtils.addShardFailures(failures, queryClient.searchFailures(client.response));
                 assertEquals(1, failures.size());
             } finally {
                 queryClient.close(ActionListener.noop());

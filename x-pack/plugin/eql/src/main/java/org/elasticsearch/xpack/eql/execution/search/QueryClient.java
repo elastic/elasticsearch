@@ -29,8 +29,8 @@ public interface QueryClient {
 
     default void multiQuery(List<SearchRequest> searches, ActionListener<MultiSearchResponse> listener) {}
 
-    /** Failures from opening the search context must remain visible even if subsequent searches cannot revisit those projects. */
-    default List<ShardSearchFailure> searchFailures() {
-        return List.of();
+    /** Applies the query's failure policy, including failures from a PIT that subsequent searches cannot revisit. */
+    default List<ShardSearchFailure> searchFailures(SearchResponse response) {
+        return response.getShardFailures();
     }
 }

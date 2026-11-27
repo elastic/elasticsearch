@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 import org.elasticsearch.xpack.eql.execution.payload.EventPayload;
 import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.util.SearchHitUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -814,7 +815,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             .clusters(new SearchResponse.Clusters(Map.of("linked", skipped), false))
             .build();
         try {
-            Results results = Results.fromPayload(new EventPayload(searchResponse));
+            Results results = Results.fromPayload(new EventPayload(searchResponse, SearchHitUtils.shardFailures(searchResponse)));
             EsqlExecutionInfo executionInfo = executionInfo(LOCAL, "linked");
             pullEventPage(
                 executionInfo,

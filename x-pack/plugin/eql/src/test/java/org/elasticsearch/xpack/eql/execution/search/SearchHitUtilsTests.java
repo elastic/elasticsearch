@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.execution.payload.EventPayload;
 import org.elasticsearch.xpack.eql.session.Results;
@@ -31,14 +33,14 @@ public class SearchHitUtilsTests extends ESTestCase {
             .build();
         try {
             assertTrue(response.getShardFailures().isEmpty());
-            Results results = Results.fromPayload(new EventPayload(response));
+            Results results = Results.fromPayload(new EventPayload(response, SearchHitUtils.shardFailures(response)));
             assertEquals(1, results.shardFailures().size());
             ShardSearchFailure failure = results.shardFailures().getFirst();
             assertEquals("linked", failure.shard().getClusterAlias());
             assertEquals(-1, failure.shardId());
             assertSame(down, failure.getCause().getCause());
             Map<String, ShardSearchFailure> sequenceFailures = new HashMap<>();
-            SearchHitUtils.addShardFailures(sequenceFailures, response);
+            SearchHitUtils.addShardFailures(sequenceFailures, SearchHitUtils.shardFailures(response));
             assertEquals(1, sequenceFailures.size());
         } finally {
             response.decRef();
@@ -54,6 +56,64 @@ public class SearchHitUtilsTests extends ESTestCase {
         );
         assertEquals(1, failures.size());
         assertEquals("linked", failures.getFirst().shard().getClusterAlias());
+    }
+
+    /** A skipped project can report the same real shard failure in both response metadata lists. */
+    public void testReportedShardFailureIsNotReplacedOrDuplicated() {
+        ShardSearchFailure reported = new ShardSearchFailure(
+            new IllegalStateException("shard failed"),
+            new SearchShardTarget("node", new ShardId("logs", "_na_", 3), "linked")
+        );
+        SearchResponse response = SearchResponseUtils.response()
+            .shards(1, 0, 0)
+            .shardFailures(reported)
+            .clusters(new SearchResponse.Clusters(Map.of("linked", skippedCluster("linked", reported)), false))
+            .build();
+        try {
+            assertSame(response.getShardFailures(), SearchHitUtils.shardFailures(response));
+            assertSame(reported, SearchHitUtils.shardFailures(response).getFirst());
+            assertEquals(3, SearchHitUtils.shardFailures(response).getFirst().shardId());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /** Deduplication of one project's shard failure must not hide a different project's connection failure. */
+    public void testOnlyUnrepresentedSkippedProjectsAreAdded() {
+        ShardSearchFailure reported = new ShardSearchFailure(
+            new IllegalStateException("shard failed"),
+            new SearchShardTarget("node", new ShardId("logs", "_na_", 3), "linked")
+        );
+        SearchResponse response = SearchResponseUtils.response()
+            .shards(1, 0, 0)
+            .shardFailures(reported)
+            .clusters(
+                new SearchResponse.Clusters(
+                    Map.of(
+                        "linked",
+                        skippedCluster("linked", reported),
+                        "other",
+                        skippedCluster("other", new ShardSearchFailure(new IllegalStateException("connection failed")))
+                    ),
+                    false
+                )
+            )
+            .build();
+        try {
+            List<ShardSearchFailure> failures = SearchHitUtils.shardFailures(response);
+            assertEquals(2, failures.size());
+            assertSame(reported, failures.getFirst());
+            assertEquals("other", failures.get(1).shard().getClusterAlias());
+            assertEquals(-1, failures.get(1).shardId());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    private static SearchResponse.Cluster skippedCluster(String alias, ShardSearchFailure failure) {
+        return new SearchResponse.Cluster.Builder(new SearchResponse.Cluster(alias, "logs-*", true, null)).setStatus(
+            SearchResponse.Cluster.Status.SKIPPED
+        ).setFailures(List.of(failure)).build();
     }
 
     public void testTimeoutSurvivesEventPayloadAndResults() {

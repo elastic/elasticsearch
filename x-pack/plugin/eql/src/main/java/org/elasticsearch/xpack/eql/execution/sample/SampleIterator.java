@@ -156,7 +156,7 @@ public class SampleIterator implements Executable {
 
     private void queryForCompositeAggPage(ActionListener<Payload> listener, final SampleQueryRequest request) {
         client.query(request, listener.delegateFailureAndWrap((delegate, r) -> {
-            addShardFailures(shardFailures, r, client.searchFailures());
+            addShardFailures(shardFailures, client.searchFailures(r));
             // either the fields values or the fields themselves are missing
             // or the filter applied on the eql query matches no documents
             if (r.hasAggregations() == false) {
@@ -227,7 +227,7 @@ public class SampleIterator implements Executable {
         int initialSize = samples.size();
         client.multiQuery(searches, listener.delegateFailureAndWrap((delegate, r) -> {
             for (MultiSearchResponse.Item item : r) {
-                addShardFailures(shardFailures, item.getResponse(), client.searchFailures());
+                addShardFailures(shardFailures, client.searchFailures(item.getResponse()));
             }
             List<List<SearchHit>> sample = new ArrayList<>(maxCriteria);
             MultiSearchResponse.Item[] response = r.getResponses();

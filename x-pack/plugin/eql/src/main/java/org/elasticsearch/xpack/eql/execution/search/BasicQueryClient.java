@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -28,6 +29,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
+import org.elasticsearch.xpack.eql.util.SearchHitUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -69,7 +71,7 @@ public class BasicQueryClient implements QueryClient {
         // set query timeout
         searchSource.timeout(cfg.requestTimeout());
         SearchRequest search = prepareRequest(searchSource, false, allowPartialSearchResults, indices);
-        search(search, allowPartialSearchResults, searchLogListener(listener, log, allowPartialSearchResults));
+        search(search, allowPartialSearchResults, searchLogListener(listener, log, allowPartialSearchResults, this::searchFailures));
     }
 
     protected void search(SearchRequest search, boolean allowPartialSearchResults, ActionListener<SearchResponse> listener) {
@@ -112,7 +114,12 @@ public class BasicQueryClient implements QueryClient {
         if (usingPit() == false && cfg.crossProjectEnabled()) {
             search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
         }
-        ActionListener<MultiSearchResponse> downstream = multiSearchLogListener(listener, allowPartialSearchResults, log);
+        ActionListener<MultiSearchResponse> downstream = multiSearchLogListener(
+            listener,
+            allowPartialSearchResults,
+            log,
+            this::searchFailures
+        );
         client.multiSearch(search, downstream.delegateFailureAndWrap((delegate, response) -> {
             directoryMetricsConsumer.accept(response.mergeDirectoryMetrics());
             delegate.onResponse(response);
@@ -222,6 +229,11 @@ public class BasicQueryClient implements QueryClient {
             multiSearchBuilder.add(request);
         }
         search(multiSearchBuilder.request(), allowPartialSearchResults, listener);
+    }
+
+    @Override
+    public List<ShardSearchFailure> searchFailures(SearchResponse response) {
+        return cfg.crossProjectEnabled() ? SearchHitUtils.shardFailures(response) : response.getShardFailures();
     }
 
     protected boolean usingPit() {

@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -29,9 +30,11 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
@@ -40,6 +43,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
+import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
@@ -54,6 +58,8 @@ import org.elasticsearch.xpack.eql.optimizer.Optimizer;
 import org.elasticsearch.xpack.eql.planner.Planner;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
+import org.elasticsearch.xpack.eql.session.Payload;
+import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -68,7 +74,6 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -87,21 +92,29 @@ public class PITAwareQueryClientTests extends ESTestCase {
     private static final String[] INDICES = new String[] { "test1", "test2", "test3" };
 
     public void testQueryFilterUsedInPitAndSearches() {
-        executeSequence(false);
+        executeSequence(false, false, false);
     }
 
     public void testSkippedProjectDuringSecondaryStageSuppressesIncompleteSequence() {
-        executeSequence(true);
+        executeSequence(true, false, true);
+        executeSequence(true, true, true);
     }
 
-    private void executeSequence(boolean skipDuringSecondaryStage) {
+    /** An optional CCS remote must not suppress a sequence that completed on the reachable cluster. */
+    public void testSkippedCcsClusterDuringSecondaryStageKeepsCompleteSequence() {
+        executeSequence(true, true, false);
+    }
+
+    private void executeSequence(boolean boundedWindow, boolean skipDuringSecondaryStage, boolean crossProjectEnabled) {
         try (var threadPool = createThreadPool()) {
-            final var filter = frequently() ? randomFrom(FILTERS) : null;
-            int stages = randomIntBetween(2, 5);
+            final var filter = boundedWindow == false && frequently() ? randomFrom(FILTERS) : null;
+            int stages = boundedWindow ? 2 : randomIntBetween(2, 5);
             final var esClient = new ESMockClient(threadPool, filter, stages);
+            esClient.boundedWindow = boundedWindow;
             esClient.skipDuringSecondaryStage = skipDuringSecondaryStage;
 
             EqlConfiguration eqlConfiguration = new EqlConfiguration(
+                INDICES,
                 INDICES,
                 org.elasticsearch.xpack.ql.util.DateUtils.UTC,
                 "nobody",
@@ -113,8 +126,8 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 null,
                 123,
                 1,
-                skipDuringSecondaryStage || randomBoolean(),
-                randomBoolean(),
+                boundedWindow || randomBoolean(),
+                boundedWindow == false && randomBoolean(),
                 null,
                 "",
                 new TaskId("test", 123),
@@ -128,7 +141,10 @@ public class PITAwareQueryClientTests extends ESTestCase {
                     emptyMap(),
                     new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),
                     TimeValue.timeValueDays(5)
-                )
+                ),
+                crossProjectEnabled,
+                null,
+                null
             );
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());
             CircuitBreaker cb = NoopCircuitBreaker.INSTANCE;
@@ -151,7 +167,9 @@ public class PITAwareQueryClientTests extends ESTestCase {
                     for (List<HitReference> ref : refs) {
                         List<SearchHit> hits = new ArrayList<>(ref.size());
                         for (HitReference hitRef : ref) {
-                            hits.add(new SearchHit(-1, hitRef.id()));
+                            SearchHit hit = new SearchHit(-1, hitRef.id());
+                            hit.shard(new SearchShardTarget("node", new ShardId(hitRef.index(), "_na_", 0), null));
+                            hits.add(hit);
                         }
                         searchHits.add(hits);
                     }
@@ -166,10 +184,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                     new SequenceCriterion(
                         i,
                         new BoxedQueryRequest(
-                            () -> SearchSourceBuilder.searchSource()
-                                .size(skipDuringSecondaryStage ? 1 : 10)
-                                .query(matchAllQuery())
-                                .terminateAfter(j),
+                            () -> SearchSourceBuilder.searchSource().size(boundedWindow ? 2 : 10).query(matchAllQuery()).terminateAfter(j),
                             "@timestamp",
                             emptyList(),
                             emptySet()
@@ -184,23 +199,51 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 );
             }
 
-            SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, booleanArrayOf(stages, false), cb);
+            SequenceMatcher matcher = new SequenceMatcher(
+                stages,
+                false,
+                TimeValue.MINUS_ONE,
+                boundedWindow ? new Limit(1, 0) : null,
+                booleanArrayOf(stages, false),
+                cb
+            );
             TumblingWindow window = new TumblingWindow(
                 eqlClient,
                 criteria,
                 null,
                 matcher,
                 Collections.emptyList(),
-                skipDuringSecondaryStage || randomBoolean(),
-                skipDuringSecondaryStage == false && randomBoolean()
+                boundedWindow || randomBoolean(),
+                boundedWindow == false && randomBoolean()
             );
-            window.execute(wrap(response -> {
-                if (skipDuringSecondaryStage) {
-                    assertTrue(response.values().isEmpty());
-                    assertEquals(1, response.shardFailures().size());
-                    assertEquals("linked", response.shardFailures().getFirst().shard().getClusterAlias());
+            PlainActionFuture<Payload> future = new PlainActionFuture<>();
+            window.execute(future);
+            Results results = Results.fromPayload(future.actionGet(TimeValue.timeValueSeconds(10)));
+            EqlSearchResponse response = new EqlSearchResponse(
+                new EqlSearchResponse.Hits(null, results.sequences(), results.totalHits()),
+                results.tookTime().millis(),
+                results.timedOut(),
+                results.shardFailures()
+            );
+            try {
+                if (boundedWindow) {
+                    boolean suppressed = crossProjectEnabled && skipDuringSecondaryStage;
+                    assertEquals(suppressed ? 0 : 1, response.hits().sequences().size());
+                    assertEquals(suppressed ? 1 : 0, response.shardFailures().size());
+                    if (suppressed) {
+                        assertEquals("linked", response.shardFailures().getFirst().shard().getClusterAlias());
+                    } else {
+                        assertEquals(
+                            List.of("0", "1"),
+                            response.hits().sequences().getFirst().events().stream().map(EqlSearchResponse.Event::id).toList()
+                        );
+                    }
                 }
-            }, ex -> { fail("Shouldn't have failed"); }));
+                assertEquals(0, esClient.searchRequestsRemainingCount);
+                assertFalse(esClient.openedPIT);
+            } finally {
+                response.decRef();
+            }
         }
     }
 
@@ -214,6 +257,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
         private boolean openedPIT = false;
         private int searchRequestsRemainingCount;
         private boolean skipDuringSecondaryStage;
+        private boolean boundedWindow;
 
         ESMockClient(ThreadPool threadPool, QueryBuilder filter, int stages) {
             super(threadPool);
@@ -256,7 +300,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 assertEquals(3, actualQuery.filter().size());
                 assertTrue(actualQuery.filter().get(0) instanceof MatchAllQueryBuilder); // the match_all we used when building the criteria
                 assertTrue(actualQuery.filter().get(1) instanceof RangeQueryBuilder);
-                if (skipDuringSecondaryStage && searchRequest.source().terminateAfter() == 1) {
+                if (boundedWindow && searchRequest.source().terminateAfter() == 1) {
                     assertNotNull(
                         "secondary stage must remain bounded by the base window",
                         ((RangeQueryBuilder) actualQuery.filter().get(1)).to()
@@ -274,12 +318,10 @@ public class PITAwareQueryClientTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             int ordinal = searchRequest.source().terminateAfter();
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
-            searchHit.sortValues(
-                new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
-            );
-
-            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 0.0f);
+            SearchHit[] hits = boundedWindow && ordinal == 0
+                ? new SearchHit[] { searchHit(0), searchHit(100) }
+                : new SearchHit[] { searchHit(ordinal) };
+            SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
             SearchResponse.Clusters clusters = SearchResponse.Clusters.EMPTY;
             if (skipDuringSecondaryStage && ordinal == 1) {
                 SearchResponse.Cluster skipped = new SearchResponse.Cluster.Builder(
@@ -316,6 +358,15 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 searchHits.decRef();
             }
         }
+    }
+
+    private static SearchHit searchHit(int ordinal) {
+        SearchHit hit = new SearchHit(ordinal, String.valueOf(ordinal));
+        hit.shard(new SearchShardTarget("node", new ShardId(INDICES[0], "_na_", 0), null));
+        hit.sortValues(
+            new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
+        );
+        return hit;
     }
 
     private static class TimestampExtractor implements HitExtractor {

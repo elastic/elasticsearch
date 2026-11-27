@@ -16,8 +16,10 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
@@ -27,27 +29,16 @@ public final class SearchHitUtils {
         return buildRemoteIndexName(hit.getClusterAlias(), hit.getIndex());
     }
 
-    public static void addShardFailures(Map<String, ShardSearchFailure> shardFailures, SearchResponse r) {
-        addShardFailures(shardFailures, r, List.of());
-    }
-
-    /** Combines failures opening the PIT with failures from the current search before sequence completeness is decided. */
-    public static void addShardFailures(
-        Map<String, ShardSearchFailure> shardFailures,
-        SearchResponse r,
-        List<ShardSearchFailure> priorFailures
-    ) {
-        for (ShardSearchFailure failure : priorFailures) {
+    /** Deduplicates failures after the query client applies the appropriate CPS or CCS policy. */
+    public static void addShardFailures(Map<String, ShardSearchFailure> shardFailures, List<ShardSearchFailure> failures) {
+        for (ShardSearchFailure failure : failures) {
             shardFailures.put(failure.toString(), failure);
         }
-        for (ShardSearchFailure shardFailure : shardFailures(r)) {
-            shardFailures.put(shardFailure.toString(), shardFailure);
-        }
     }
 
-    /** Includes skipped projects, whose failures are absent from the search response's top-level shard failures. */
+    /** Includes skipped projects that are not already represented by top-level shard failures. */
     public static List<ShardSearchFailure> shardFailures(SearchResponse response) {
-        List<ShardSearchFailure> skipped = skippedClusterFailures(response.getClusters());
+        List<ShardSearchFailure> skipped = skippedClusterFailures(response.getClusters(), response.getShardFailures());
         if (skipped.isEmpty()) {
             return response.getShardFailures();
         }
@@ -58,13 +49,26 @@ public final class SearchHitUtils {
 
     /** Retains the project alias even when the failure occurred before any shard was selected. */
     public static List<ShardSearchFailure> skippedClusterFailures(SearchResponse.Clusters clusters) {
+        return skippedClusterFailures(clusters, List.of());
+    }
+
+    private static List<ShardSearchFailure> skippedClusterFailures(
+        SearchResponse.Clusters clusters,
+        List<ShardSearchFailure> reportedFailures
+    ) {
         if (clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED) == 0) {
             return List.of();
+        }
+        Set<String> reportedClusters = new HashSet<>();
+        for (ShardSearchFailure failure : reportedFailures) {
+            if (failure.shard() != null) {
+                reportedClusters.add(failure.shard().getClusterAlias());
+            }
         }
         List<ShardSearchFailure> failures = new ArrayList<>();
         for (String alias : clusters.getClusterAliases()) {
             SearchResponse.Cluster cluster = clusters.getCluster(alias);
-            if (cluster.getStatus() != SearchResponse.Cluster.Status.SKIPPED) {
+            if (cluster.getStatus() != SearchResponse.Cluster.Status.SKIPPED || reportedClusters.contains(alias)) {
                 continue;
             }
             SearchShardTarget target = new SearchShardTarget(null, new ShardId(cluster.getIndexExpression(), "_na_", -1), alias);

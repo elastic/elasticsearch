@@ -86,7 +86,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
@@ -542,7 +542,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         IndexEngine indexEngine,
         DeterministicTaskQueue deterministicTaskQueue,
         BiConsumer<SearchDirectory, StatelessCompoundCommit> commitUpdated,
-        BiConsumer<CacheBlobReaderService, BccBlob> getBlobReader
+        BiConsumer<CacheBlobReaderService, Blob> getBlobReader
     ) throws IOException {
         var primaryTermSupplier = indexEngine.getEngineConfig().getPrimaryTermSupplier();
         var shardId = indexEngine.getEngineConfig().getShardId();
@@ -579,7 +579,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 public CacheBlobReader getCacheBlobReader(
                     ShardId shardId,
                     LongFunction<BlobContainer> blobContainer,
-                    BccBlob blobFile,
+                    Blob blob,
                     MutableObjectStoreUploadTracker tracker,
                     LongConsumer totalBytesReadFromObjectStore,
                     LongConsumer totalBytesReadFromIndexing,
@@ -588,11 +588,11 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     String fileName,
                     boolean speculativeFill
                 ) {
-                    getBlobReader.accept(this, blobFile);
+                    getBlobReader.accept(this, blob);
                     return super.getCacheBlobReader(
                         shardId,
                         blobContainer,
-                        blobFile,
+                        blob,
                         tracker,
                         totalBytesReadFromObjectStore,
                         totalBytesReadFromIndexing,

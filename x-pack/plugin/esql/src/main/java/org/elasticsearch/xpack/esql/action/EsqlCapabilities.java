@@ -3197,6 +3197,12 @@ public class EsqlCapabilities {
         EQL_COMMAND_SIZE_INDEPENDENT_OF_LIMIT(Build.current().isSnapshot()),
 
         /**
+         * EQL source command errors give positions in both queries, a view named as its target is rejected pointing to {@code FROM},
+         * and its synthetic columns shadow mapped fields of the same name, with a warning. Part of #165570.
+         */
+        EQL_COMMAND_ERRORS_AND_SHADOWED_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,
@@ -3880,6 +3886,14 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/issues/157190">#157190</a>.
          */
         OPTIONAL_FIELDS_LOAD_ALL_TS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, {@code DEDUP} compares the {@code _unmapped_fields} column like any other, so two
+         * rows that differ only in unmapped fields are not duplicates. It used to leave the column out of the comparison, and returned
+         * the value of an arbitrary row of each group. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/165558">#165558</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_DEDUP_COMPARES_UNMAPPED_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
@@ -4954,9 +4968,11 @@ public class EsqlCapabilities {
         COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
 
         /**
-         * {@code column_metadata} reports the field a column reads as {@code _meta.field} and its unit as {@code _meta.unit}.
+         * {@code column_metadata} reports what {@code DESCRIBE} reports about a column, other than its name and type, as
+         * {@code _meta} entries of the same names: {@code role}, {@code field}, {@code origin}, {@code metric_type}, {@code unit},
+         * {@code interval}, {@code time_zone} and {@code description}.
          */
-        COLUMN_METADATA_FIELD_SEMANTICS(Build.current().isSnapshot()),
+        COLUMN_METADATA_DESCRIBE_COLUMNS,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which
@@ -5023,6 +5039,13 @@ public class EsqlCapabilities {
          * The {@code INTO} command, which writes a query's rows into an index and returns a summary row of total and created counts.
          */
         INTO_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support for {@code ROW} under {@code unmapped_fields="LOAD_ALL"}, alone or as a branch of a subquery next to an index. A
+         * {@code ROW} has no {@code _source}, so it adds no unmapped fields and its rows have a null {@code _unmapped_fields}. Only
+         * meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_ROW(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.

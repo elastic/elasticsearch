@@ -1219,20 +1219,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
     }
 
-    /**
-     * The {@code LOAD_ALL} command allow-list checks a view body under the view's own mode, not the caller's: a command that
-     * {@code LOAD_ALL} does not support, here {@code ROW}, is allowed in a view the caller reads with {@code LOAD_ALL}, but still
-     * rejected in a plain subquery next to it, which the caller's mode does reach. Use another command here when {@code ROW} is
-     * supported.
-     */
-    public void testLoadAllCommandAllowListStopsAtView() {
-        String body = "ROW a = 1";
-        analyzer().addK8s().addView("v", body).statement(setUnmappedLoadAll("FROM v"));
-        analyzer().addK8s()
-            .addView("v", body)
-            .statementError(setUnmappedLoadAll("FROM v, (" + body + ")"), containsString(Verifier.loadAllUnsupportedCommandMessage("ROW")));
-    }
-
     private static List<String> outputNames(LogicalPlan plan) {
         return plan.output().stream().map(Attribute::name).toList();
     }
@@ -2496,6 +2482,25 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("PROMQL index=test step=5m avg(network.bytes_in)"),
                 containsString("PROMQL is not supported with unmapped_fields=\"load_all\"")
             );
+    }
+
+    /**
+     * The setting ends at the boundary of a view, so a view that does not set it may use PROMQL, though the query that uses the view
+     * runs under LOAD_ALL. The same PROMQL written in the query itself is still rejected.
+     */
+    public void testLoadAllModeAllowsPromQlInsideAViewThatDoesNotLoad() {
+        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        String promql = "PROMQL index=test step=5m avg(network.bytes_in)";
+        // A range selector makes the plan carry the time-series dimension nodes, which LOAD_ALL has to admit too.
+        String promqlRate = "PROMQL index=test step=5m rate(network.bytes_in[5m])";
+        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .addView("promql_view", promql)
+            .addView("promql_rate_view", promqlRate);
+
+        analyzer.statement(setUnmappedLoadAll("FROM promql_view"));
+        analyzer.statement(setUnmappedLoadAll("FROM promql_view | LIMIT 10"));
+        analyzer.statement(setUnmappedLoadAll("FROM promql_rate_view"));
+        analyzer.statementError(setUnmappedLoadAll(promql), containsString("PROMQL is not supported with unmapped_fields=\"load_all\""));
     }
 
     /**

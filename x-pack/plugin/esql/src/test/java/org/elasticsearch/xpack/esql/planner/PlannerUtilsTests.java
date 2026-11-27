@@ -252,7 +252,7 @@ public class PlannerUtilsTests extends ESTestCase {
         List<Attribute> output = List.of(field("a"));
         MergeExec first = new MergeExec(Source.EMPTY, List.of(localSource(output), localSource(output)), output, MergeExec.Kind.UNION);
         MergeExec second = new MergeExec(Source.EMPTY, List.of(localSource(output), localSource(output)), output, MergeExec.Kind.UNION);
-        HashJoinExec siblingContainer = new HashJoinExec(Source.EMPTY, first, second, List.of(), List.of(), List.of());
+        HashJoinExec siblingContainer = new HashJoinExec(Source.EMPTY, first, second, List.of(), List.of(), List.of(), false);
 
         var exception = expectThrows(EsqlIllegalArgumentException.class, () -> PlannerUtils.buildSubPlan(siblingContainer));
         assertThat(exception.getMessage(), containsString("expected a single topmost MergeExec"));

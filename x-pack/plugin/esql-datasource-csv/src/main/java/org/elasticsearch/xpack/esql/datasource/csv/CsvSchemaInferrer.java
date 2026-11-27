@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -386,6 +387,9 @@ public class CsvSchemaInferrer {
     }
 
     private static boolean canParseInt(String value) {
+        if (DeclaredTypeCoercions.isPlainNumberText(value) == false) {
+            return false;
+        }
         try {
             Integer.parseInt(value);
             return true;
@@ -395,6 +399,9 @@ public class CsvSchemaInferrer {
     }
 
     private static boolean canParseLong(String value) {
+        if (DeclaredTypeCoercions.isPlainNumberText(value) == false) {
+            return false;
+        }
         try {
             Long.parseLong(value);
             return true;
@@ -405,7 +412,7 @@ public class CsvSchemaInferrer {
 
     private static boolean canParseDouble(String value) {
         try {
-            Double.parseDouble(value);
+            DeclaredTypeCoercions.parseDoubleText(value);
             return true;
         } catch (NumberFormatException e) {
             return false;

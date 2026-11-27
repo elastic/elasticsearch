@@ -277,7 +277,7 @@ public final class SimdJsonDirectWalker {
                         handler.arrayElemString(buffer, idx + 1, len);
                     } else {
                         int rawLen = scalarStringLength(buffer, idx + 1);
-                        byte[] unescaped = new byte[rawLen + StringParser.DESTINATION_PADDING];
+                        byte[] unescaped = new byte[rawLen + SimdJsonSupport.DESTINATION_PADDING];
                         int parsed = stringParser.parseString(buffer, idx, unescaped);
                         handler.arrayElemString(unescaped, 0, parsed);
                     }
@@ -339,7 +339,7 @@ public final class SimdJsonDirectWalker {
             boolean keyEscaped = containsBackslash(buffer, keyStart, keyLen);
             String fieldName;
             if (keyEscaped) {
-                int parsed = stringParser.parseString(buffer, keyIdx, ensureStringBuf(keyLen));
+                int parsed = stringParser.parseFieldName(buffer, keyIdx, ensureStringBuf(keyLen));
                 fieldName = new String(stringBuf, 0, parsed, StandardCharsets.UTF_8);
             } else {
                 fieldName = new String(buffer, keyStart, keyLen, StandardCharsets.UTF_8);
@@ -1053,7 +1053,7 @@ public final class SimdJsonDirectWalker {
             if (buffer[end] == '\\') end += 2;
             else end++;
         }
-        int parsed = stringParser.parseString(buffer, quoteIdx, ensureStringBuf(end - start));
+        int parsed = stringParser.parseFieldName(buffer, quoteIdx, ensureStringBuf(end - start));
         int h = FieldNameHash.hashName(stringBuf, 0, parsed);
         String s = nameCache.lookup(stringBuf, 0, parsed, h);
         return s != null ? s : nameCache.insert(stringBuf, 0, parsed, h);
@@ -1085,7 +1085,7 @@ public final class SimdJsonDirectWalker {
     /** Unescapes a string value into a new buffer, leaving the length in {@link #unescapedLength}. Kept out of the field loop. */
     private byte[] unescapeString(byte[] buffer, int valIdx) {
         int rawLen = scalarStringLength(buffer, valIdx + 1);
-        byte[] out = new byte[rawLen + StringParser.DESTINATION_PADDING];
+        byte[] out = new byte[rawLen + SimdJsonSupport.DESTINATION_PADDING];
         unescapedLength = stringParser.parseString(buffer, valIdx, out);
         return out;
     }
@@ -1110,8 +1110,8 @@ public final class SimdJsonDirectWalker {
      * A scratch buffer for unescaping values whose consumer copies the bytes out before the next call.
      */
     private byte[] ensureStringBuf(int minLen) {
-        if (stringBuf.length < minLen + StringParser.DESTINATION_PADDING) {
-            stringBuf = new byte[minLen + StringParser.DESTINATION_PADDING];
+        if (stringBuf.length < minLen + SimdJsonSupport.DESTINATION_PADDING) {
+            stringBuf = new byte[minLen + SimdJsonSupport.DESTINATION_PADDING];
         }
         return stringBuf;
     }

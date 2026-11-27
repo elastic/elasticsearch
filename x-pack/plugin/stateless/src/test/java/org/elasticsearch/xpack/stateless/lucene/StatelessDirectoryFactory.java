@@ -43,8 +43,8 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -339,11 +339,11 @@ public final class StatelessDirectoryFactory {
                 }
 
                 @Override
-                protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                protected CacheBlobReader getCacheBlobReader(String fileName, Blob blob) {
                     return cacheBlobReaderService.getCacheBlobReader(
                         shardId,
                         this::getBlobContainer,
-                        blobFile,
+                        blob,
                         MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                         totalBytesReadFromObjectStore::add,
                         bytesRead -> {},
@@ -355,8 +355,8 @@ public final class StatelessDirectoryFactory {
                 }
 
                 @Override
-                public CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile) {
-                    throw new UnsupportedOperationException("search-node benchmark directory does not warm [" + blobFile.blobName() + "]");
+                public CacheBlobReader getCacheBlobReaderForWarming(Blob blob) {
+                    throw new UnsupportedOperationException("search-node benchmark directory does not warm [" + blob.blobName() + "]");
                 }
 
                 @Override
@@ -410,9 +410,9 @@ public final class StatelessDirectoryFactory {
         private BlobFileRanges newBlobFileRanges(String name) throws IOException {
             long fileLength = fakeBlobStoreDirectory.fileLength(name);
             int generation = blobFileGenerationGenerator.incrementAndGet();
-            var blobName = BatchedCompoundCommit.PREFIX + generation;
+            var blobName = BccBlob.PREFIX + generation;
             blobNameToFileName.put(blobName, name);
-            return new BlobFileRanges(new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, generation)), 0, fileLength));
+            return new BlobFileRanges(new BlobLocation(new BccBlob(blobName, new PrimaryTermAndGeneration(1, generation)), 0, fileLength));
         }
 
         private void refreshMetadata() {

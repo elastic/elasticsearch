@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.RequestedTimeRange;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.session.QueryTimeRangeExtractor.TimeRange;
 
@@ -36,7 +40,10 @@ public class QueryTimeRangeExtractorTests extends ESTestCase {
         assertRanges("FROM logs", Map.of("logs", TimeRange.UNBOUNDED));
         assertRanges("FROM logs | WHERE level == \"error\"", Map.of("logs", TimeRange.UNBOUNDED));
         assertRanges("ROW a = 1", Map.of());
-        assertThat(QueryTimeRangeExtractor.extract(TEST_PARSER.parseQuery("FROM logs | LIMIT 1"), TEST_CFG), anEmptyMap());
+        assertThat(
+            QueryTimeRangeExtractor.extract(TEST_PARSER.parseQuery("FROM logs | LIMIT 1"), TEST_CFG, new EsqlFunctionRegistry()),
+            anEmptyMap()
+        );
     }
 
     public void testComparisons() {
@@ -448,11 +455,57 @@ public class QueryTimeRangeExtractorTests extends ESTestCase {
 
         Map<IndexPattern, QueryBuilder> filters = QueryTimeRangeExtractor.extract(
             TEST_PARSER.parseQuery("FROM logs, (FROM metrics | LIMIT 1) | WHERE @timestamp >= \"2024-05-01T00:00:00Z\""),
-            TEST_CFG
+            TEST_CFG,
+            new EsqlFunctionRegistry()
         );
         Map<String, QueryBuilder> byName = new HashMap<>();
         filters.forEach((pattern, filter) -> byName.put(pattern.indexPattern(), filter));
         assertThat(byName, equalTo(Map.of("logs", new RangeQueryBuilder("@timestamp").format("epoch_millis").gte(T1))));
+    }
+
+    public void testRequestedTimeRange() {
+        Instant now = Instant.ofEpochMilli(NOW);
+        Instant t1 = Instant.ofEpochMilli(T1);
+        Instant t2 = Instant.ofEpochMilli(T2);
+        TimestampBounds filter = new TimestampBounds(t1, t2);
+        assertRequestedTimeRange("ROW a = 1", null, null);
+        assertRequestedTimeRange("FROM logs", null, null);
+        assertRequestedTimeRange("FROM logs", filter, new RequestedTimeRange(t1, t2, now));
+        // A range in the query may have a single bound, and is resolved against the same now as the one that is kept with it.
+        assertRequestedTimeRange(
+            "FROM logs | WHERE @timestamp >= NOW() - 15 minutes",
+            null,
+            new RequestedTimeRange(now.minus(Duration.ofMinutes(15)), null, now)
+        );
+        assertRequestedTimeRange("FROM logs | WHERE @timestamp <= \"2024-05-02T00:00:00Z\"", null, new RequestedTimeRange(null, t2, now));
+        // The request filter and the query narrow each other.
+        Instant noon = t1.plus(Duration.ofHours(12));
+        assertRequestedTimeRange("FROM logs | WHERE @timestamp >= \"" + noon + "\"", filter, new RequestedTimeRange(noon, t2, now));
+        // A query that reads several relations asks for the range that covers them all, which is unbounded if one of them is.
+        String bounded = "FROM logs | WHERE @timestamp >= \"2024-05-01T00:00:00Z\" AND @timestamp <= \"2024-05-01T12:00:00Z\"";
+        assertRequestedTimeRange(
+            "FROM (" + bounded + "), (FROM metrics | WHERE @timestamp >= \"" + noon + "\" AND @timestamp <= \"2024-05-02T00:00:00Z\")",
+            null,
+            new RequestedTimeRange(t1, t2, now)
+        );
+        assertRequestedTimeRange("FROM (" + bounded + "), metrics", null, null);
+        // A request filter beyond the epoch millisecond range does not fail the query.
+        Instant farFuture = Instant.ofEpochMilli(Long.MAX_VALUE).plusSeconds(1);
+        assertRequestedTimeRange(
+            "ROW a = 1",
+            new TimestampBounds(t1, farFuture),
+            new RequestedTimeRange(t1, Instant.ofEpochMilli(Long.MAX_VALUE), now)
+        );
+    }
+
+    private static void assertRequestedTimeRange(String query, @Nullable TimestampBounds filter, @Nullable RequestedTimeRange expected) {
+        RequestedTimeRange actual = QueryTimeRangeExtractor.requestedTimeRange(
+            TEST_PARSER.parseQuery(query),
+            filter,
+            TEST_CFG,
+            new EsqlFunctionRegistry()
+        );
+        assertThat(query, actual, equalTo(expected));
     }
 
     private static void assertRange(String condition, Long from, Long to) {
@@ -461,7 +514,7 @@ public class QueryTimeRangeExtractorTests extends ESTestCase {
 
     private static void assertRanges(String query, Map<String, TimeRange> expected) {
         Map<String, TimeRange> ranges = new HashMap<>();
-        QueryTimeRangeExtractor.ranges(TEST_PARSER.parseQuery(query), TEST_CFG)
+        QueryTimeRangeExtractor.ranges(TEST_PARSER.parseQuery(query), TEST_CFG, new EsqlFunctionRegistry())
             .forEach((pattern, range) -> ranges.put(pattern.indexPattern(), range));
         assertThat(query, ranges, equalTo(expected));
     }

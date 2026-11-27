@@ -19,8 +19,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.MergeBlob;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.util.concurrent.Executor;
@@ -76,12 +78,15 @@ public class CacheBlobReaderService {
     }
 
     /**
-     * Returns a {@link CacheBlobReader} for the given shard and the blob specified by the given {@link BlobLocation}.
+     * Returns a {@link CacheBlobReader} for the given shard and blob.
      *
-     * @param shardId                       the shard id
+     * @param shardId                       the shard id to use when reading chunks from the indexing shard
      * @param blobContainer                 the blob container where the blob can be read from
-     * @param blobFile                      the blob file
-     * @param tracker                       the tracker to determine if the blob has been uploaded to the object store
+     * @param blob                          the blob file. A {@link BccBlob} may not be uploaded yet, in which case it can be read from the
+     *                                      indexing shard. A {@link MergeBlob} is uploaded on its own, so it is always read from the
+     *                                      object store.
+     * @param tracker                       the tracker to determine if the blob has been uploaded to the object store (ignored for
+     *                                      a {@link MergeBlob})
      * @param totalBytesReadFromObjectStore counts how many bytes were read from object store
      * @param totalBytesReadFromIndexing    counts how many bytes were read from indexing nodes
      * @param cachePopulationReason         The reason that we're reading from the data source
@@ -95,7 +100,7 @@ public class CacheBlobReaderService {
     public CacheBlobReader getCacheBlobReader(
         ShardId shardId,
         LongFunction<BlobContainer> blobContainer,
-        BlobFile blobFile,
+        Blob blob,
         MutableObjectStoreUploadTracker tracker,
         LongConsumer totalBytesReadFromObjectStore,
         LongConsumer totalBytesReadFromIndexing,
@@ -106,33 +111,33 @@ public class CacheBlobReaderService {
     ) {
         assert cachePopulationReason != BlobCacheMetrics.CachePopulationReason.CacheMiss || speculativeFill == false
             : "cache-miss reads serve blocked searches and can never be speculative";
-        final var locationPrimaryTermAndGeneration = blobFile.termAndGeneration();
         final long rangeSize = cacheService.getRangeSize();
         var objectStoreCacheBlobReader = new MeteringCacheBlobReader(
-            getObjectStoreCacheBlobReader(
-                blobContainer.apply(blobFile.primaryTerm()),
-                blobFile.blobName(),
-                rangeSize,
-                objectStoreFetchExecutor
-            ),
+            getObjectStoreCacheBlobReader(blobContainer.apply(blob.primaryTerm()), blob.blobName(), rangeSize, objectStoreFetchExecutor),
             createReadCompleteCallback(fileName, totalBytesReadFromObjectStore, CachePopulationSource.BlobStore, cachePopulationReason)
         );
-        var latestUploadInfo = tracker.getLatestUploadInfo(locationPrimaryTermAndGeneration);
-        final CacheBlobReader cacheBlobReader;
-        if (latestUploadInfo.isUploaded()) {
-            cacheBlobReader = objectStoreCacheBlobReader;
-        } else {
-            var indexingShardCacheBlobReader = new MeteringCacheBlobReader(
-                getIndexingShardCacheBlobReader(shardId, locationPrimaryTermAndGeneration, latestUploadInfo.preferredNodeId()),
-                createReadCompleteCallback(fileName, totalBytesReadFromIndexing, CachePopulationSource.Peer, cachePopulationReason)
-            );
-            cacheBlobReader = getSwitchingCacheBlobReader(
-                tracker,
-                locationPrimaryTermAndGeneration,
-                objectStoreCacheBlobReader,
-                indexingShardCacheBlobReader
-            );
-        }
+        final CacheBlobReader cacheBlobReader = switch (blob) {
+            // A merge blob is uploaded separately from any indexing shard's virtual BCC, so there is nothing to fetch from the
+            // indexing shard: it is always read from the object store.
+            case MergeBlob ignored -> objectStoreCacheBlobReader;
+            case BccBlob bccBlob -> {
+                final var locationPrimaryTermAndGeneration = bccBlob.termAndGeneration();
+                var latestUploadInfo = tracker.getLatestUploadInfo(locationPrimaryTermAndGeneration);
+                if (latestUploadInfo.isUploaded()) {
+                    yield objectStoreCacheBlobReader;
+                }
+                var indexingShardCacheBlobReader = new MeteringCacheBlobReader(
+                    getIndexingShardCacheBlobReader(shardId, locationPrimaryTermAndGeneration, latestUploadInfo.preferredNodeId()),
+                    createReadCompleteCallback(fileName, totalBytesReadFromIndexing, CachePopulationSource.Peer, cachePopulationReason)
+                );
+                yield getSwitchingCacheBlobReader(
+                    tracker,
+                    locationPrimaryTermAndGeneration,
+                    objectStoreCacheBlobReader,
+                    indexingShardCacheBlobReader
+                );
+            }
+        };
         if (speculativeFill == false) {
             return cacheBlobReader;
         }

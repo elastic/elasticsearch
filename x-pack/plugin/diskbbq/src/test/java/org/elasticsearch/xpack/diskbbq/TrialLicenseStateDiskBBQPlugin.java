@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.diskbbq;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 
-class TrialLicenseStateDiskBBQPlugin extends DiskBBQPlugin {
+public class TrialLicenseStateDiskBBQPlugin extends DiskBBQPlugin {
     // A license state constructed like this is considered a trial license
     XPackLicenseState licenseState = new XPackLicenseState(() -> 0L);
 
-    TrialLicenseStateDiskBBQPlugin(Settings settings) {
+    public TrialLicenseStateDiskBBQPlugin(Settings settings) {
         super(settings);
     }
 

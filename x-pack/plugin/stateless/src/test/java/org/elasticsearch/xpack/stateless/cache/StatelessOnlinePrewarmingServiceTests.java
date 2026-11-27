@@ -34,9 +34,9 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
@@ -266,7 +266,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
         final var capturingPolicy = new TimestampCapturingEvictionPolicy();
         try (FakeStatelessNode fakeNode = createCapturingFakeNode(primaryTerm, capturingPolicy)) {
             final int regionSize = fakeNode.sharedCacheService.getRegionSize();
-            final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+            final var range = new TimestampFieldValueRange(1000L, 2000L);
             final var siLocation = createBlobLocation(primaryTerm, 1L, 0L, regionSize * 2L);
             BlobStoreCacheDirectoryTestUtils.mergeMetadata(
                 fakeNode.searchDirectory,
@@ -356,7 +356,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
      */
     private static IndexShard prepareTwoRegionBlobAndMockShard(FakeStatelessNode fakeNode, long primaryTerm) {
         final int regionSize = fakeNode.sharedCacheService.getRegionSize();
-        final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+        final var range = new TimestampFieldValueRange(1000L, 2000L);
         final var siLocation = createBlobLocation(primaryTerm, 1L, 0L, regionSize * 2L);
         BlobStoreCacheDirectoryTestUtils.mergeMetadata(fakeNode.searchDirectory, Map.of("_0.si", new BlobFileRanges(siLocation, range)));
         fakeNode.searchDirectory.updateLatestUploadedBcc(new PrimaryTermAndGeneration(primaryTerm, 1L));
@@ -404,7 +404,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
-                        BlobFile blobFile,
+                        Blob blob,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer bytesReadFromObjectStore,
                         LongConsumer bytesReadFromIndexing,
@@ -416,7 +416,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                         var delegate = cacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             blobContainer,
-                            blobFile,
+                            blob,
                             objectStoreUploadTracker,
                             bytesReadFromObjectStore,
                             bytesReadFromIndexing,
@@ -523,7 +523,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
-                        BlobFile blobFile,
+                        Blob blob,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer bytesReadFromObjectStore,
                         LongConsumer bytesReadFromIndexing,
@@ -535,7 +535,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                         var originalCacheBlobReader = cacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             blobContainer,
-                            blobFile,
+                            blob,
                             // The test expects to go through the blob store always
                             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                             bytesReadFromObjectStore,
@@ -588,6 +588,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                             RangeMissingHandler writer,
                             Executor fetchExecutor,
                             long timestampMillis,
+                            boolean awaitPendingFill,
                             ActionListener<Boolean> listener
                         ) {
                             listener.onFailure(new IllegalStateException("oh no"));

@@ -53,8 +53,8 @@ libs/simdjson/
   - `org.elasticsearch.escf.EscfDocumentHandler` — `JsonDocumentHandler` implementation
   - `org.elasticsearch.escf.EscfEncoder` — feature flag, simdjson vs Jackson encode path; resolves
     its thread's `JsonDocumentParser` once at construction
-- **`libs/native/libraries`** — collects the built (or published) libsimdjson alongside the other
-  native libraries, for tests and the distribution.
+- **`distribution`** — the `:distribution:archives` and `:distribution:packages` projects copy the built
+  (or published) libsimdjson into `lib/platform`, with the other native libraries.
 
 ## Parsing pipeline
 
@@ -111,9 +111,6 @@ SIMDJSON_NATIVE_BUILD=docker ./gradlew :libs:simdjson:buildNativeLibrary
 
 When `SIMDJSON_NATIVE_BUILD` is unset (or set to `artifactory`), the binary is
 resolved from Artifactory like other elasticsearch-native artifacts.
-
-`make install` (without Gradle) still copies a locally built library into
-`libs/native/libraries/build/platform/<os>-<arch>/` for ad-hoc workflows.
 
 Inside the cross-compilation container, run `make verify-linux-abi` after `make all`
 to confirm Linux `.so` files meet the RHEL 8 baseline (GLIBCXX ≤ 3.4.25, GLIBC ≤ 2.28).

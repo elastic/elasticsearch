@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder<
     EsqlQueryRequest,
@@ -89,6 +90,15 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
     @Override
     public EsqlQueryRequestBuilder projectRouting(String projectRouting) {
         request.set(QuerySettings.PROJECT_ROUTING, projectRouting);
+        return this;
+    }
+
+    @Override
+    public EsqlQueryRequestBuilder executionMetadata(ExecutionMetadata mode) {
+        Objects.requireNonNull(mode, "mode");
+        // The server rejects a request with both flags set, even to false, so the flag not in use stays null.
+        request.includeCCSMetadata(mode == ExecutionMetadata.CCS_ONLY ? Boolean.TRUE : null);
+        request.includeExecutionMetadata(mode == ExecutionMetadata.ALWAYS ? Boolean.TRUE : null);
         return this;
     }
 

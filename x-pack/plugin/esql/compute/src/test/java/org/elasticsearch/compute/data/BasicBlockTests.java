@@ -84,6 +84,7 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.asVector(), nullValue());
                     assertThat(block.mayHaveNulls(), is(false));
                     assertThat(block.areAllValuesNull(), is(false));
+                    assertThat(block.nullValuesCount(), is(0));
                     assertThat(block.mayHaveMultivaluedFields(), is(false));
                     assertThat(block.doesHaveMultivaluedFields(), is(false));
                     for (int p = 0; p < 10; p++) {
@@ -142,12 +143,35 @@ public class BasicBlockTests extends ESTestCase {
         assertDeepCopy(initialBlock);
     }
 
+    /** Block types without a specialized implementation rely on the default one in {@link Block}, which counts null positions. */
+    public void testNullValuesCountAggregateMetricDouble() {
+        int positionCount = between(1, 100);
+        int expectedNulls = 0;
+        try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                if (randomBoolean()) {
+                    builder.appendNull();
+                    expectedNulls++;
+                } else {
+                    builder.min().appendDouble(i);
+                    builder.max().appendDouble(i + 1);
+                    builder.sum().appendDouble(i * 2);
+                    builder.count().appendInt(i);
+                }
+            }
+            try (AggregateMetricDoubleBlock block = builder.build()) {
+                assertThat(block.nullValuesCount(), is(expectedNulls));
+            }
+        }
+    }
+
     public void testConstantNullBlock() {
         for (int i = 0; i < 100; i++) {
             assertThat(breaker.getUsed(), is(0L));
             int positionCount = randomIntBetween(1, 16 * 1024);
             Block block = blockFactory.newConstantNullBlock(positionCount);
             assertTrue(block.areAllValuesNull());
+            assertThat(block.nullValuesCount(), is(positionCount));
             assertThat(block, instanceOf(BooleanBlock.class));
             assertThat(block, instanceOf(IntBlock.class));
             assertThat(block, instanceOf(LongBlock.class));

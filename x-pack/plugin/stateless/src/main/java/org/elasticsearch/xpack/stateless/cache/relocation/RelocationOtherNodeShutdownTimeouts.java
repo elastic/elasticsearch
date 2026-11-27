@@ -61,9 +61,12 @@ public class RelocationOtherNodeShutdownTimeouts {
     ///
     /// 1. The recoveries that compete for the slots up to the deadline are: this shard, the shards of the shutting-down nodes due by it and
     /// the other recoveries not related to shutting-down nodes on the target. The shards due later have time to spare, so they are not counted.
-    /// 2. The time left until the deadline is split equally between those recoveries, and scaled to the slots they can use at once.
+    /// 2. We estimate the wait of this shard as the time left until the deadline divided by the number of those recoveries, scaled to
+    /// the slots they can use at once. The estimate is only for this shard: the other recoveries are not timed by it, but by their own
+    /// plans.
     ///
-    /// The smallest of these shares is the wait, so that no deadline is missed.
+    /// The smallest of these shares is the wait. It is a fair heuristic, not a guarantee: it makes it less likely that this shard delays
+    /// the shards of the shutting-down nodes past their grace deadlines, but it does not rule it out.
     ///
     /// A re-evaluation (`previousPlan`) extends the wait only by the time that finished recoveries saved: the part of the fresh equal
     /// share above the one the previous plan gave.
@@ -86,7 +89,7 @@ public class RelocationOtherNodeShutdownTimeouts {
             );
         }
 
-        // Use the deadline with the smallest equal share, so that no deadline is missed.
+        // Use the deadline with the smallest equal share: as a fair heuristic, it is the one this shard is the most likely to delay.
         final var tightestDeadline = Collections.min(deadlineShares, comparingDouble(DeadlineShare::waitMs));
         if (tightestDeadline.remainingMs() == 0) {
             // the warming cap does not free a slot, so the shards of the passed deadline may still be queued for one
@@ -122,12 +125,16 @@ public class RelocationOtherNodeShutdownTimeouts {
             final long remainingMs = Math.max(0, nodeShards.graceDeadlineMillis() - now);
             // All the shards of the shutting-down nodes are recoveries on the target here, as none is pending. The shards with a later
             // deadline have time to spare, so they only count towards their own deadline, and the other recoveries, which include this
-            // shard, compete for every deadline.
-            deadlineShares.add(new DeadlineShare(remainingMs, recoveriesOnTarget - shardsWithLaterDeadline, slots));
+            // shard, compete for every deadline. The state may be newer than the routing this shard recovers with, and no longer have
+            // the shard among the recoveries if its relocation was cancelled, in which case it is not counted. This does not matter for
+            // the estimate.
+            //
+            // The recoveries of a deadline are never fewer than the shards of its own node, and there is at least one: they are among the
+            // non-critical recoveries on the target, as every relocation is, and only the shards with a later deadline are taken off. So
+            // the share, which divides by the recoveries, is well defined. The `max` only guards that, should a state ever break it.
+            deadlineShares.add(new DeadlineShare(remainingMs, Math.max(1, recoveriesOnTarget - shardsWithLaterDeadline), slots));
             shardsWithLaterDeadline += nodeShards.shards();
         }
-        assert recoveriesOnTarget - shardsWithLaterDeadline >= 1 || deadlineShares.isEmpty()
-            : "the relocation of this shard to [" + targetNodeId + "] is not among the recoveries on it";
         return deadlineShares;
     }
 

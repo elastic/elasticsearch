@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.stateless.cache.relocation.OtherNodeShutdownClusterStates.RELOCATION_TARGET_NODE;
+import static org.elasticsearch.xpack.stateless.cache.relocation.OtherNodeShutdownClusterStates.relocationCancelledWithOtherNodesShuttingDown;
 import static org.elasticsearch.xpack.stateless.cache.relocation.OtherNodeShutdownClusterStates.relocationWithOtherNodeShuttingDown;
 import static org.elasticsearch.xpack.stateless.cache.relocation.OtherNodeShutdownClusterStates.relocationWithOtherNodesShuttingDown;
 import static org.elasticsearch.xpack.stateless.cache.relocation.OtherNodeShutdownClusterStates.slotSharingSettings;
@@ -119,6 +120,79 @@ public class RelocationOtherNodeShutdownTimeoutsTests extends ESTestCase {
             final var plan = timeouts.timeout(state, RELOCATION_TARGET_NODE, null);
             assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
             assertThat(plan.timeout().millis(), equalTo(1000L));
+        }
+    }
+
+    /// The shards of a shutting-down node that relocate to another node do not use the slots of this target, so they do not compete with
+    /// this shard, however many they are and whenever their grace deadline falls: even after it has passed, the shard keeps the plain
+    /// timeout. This holds while other recoveries fill the slots of the target (4 here, for 2 slots), as nobody needs them before a
+    /// deadline.
+    public void testIgnoresShutdownsWhoseShardsRelocateElsewhere() {
+        try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
+            final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, slotSharingSettings());
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final var state = relocationWithOtherNodesShuttingDown(
+                new Index("idx", randomUUID()),
+                List.of(ShuttingDownNode.relocatingElsewhere("elsewhere-node", 50, threadPool.absoluteTimeInMillis())),
+                4
+            );
+
+            // the grace cap is 10s: once close to the deadline, and once after it
+            for (final long elapsedMillis : List.of(9_000L, 11_000L)) {
+                threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + elapsedMillis);
+                final var plan = timeouts.timeout(state, RELOCATION_TARGET_NODE, null);
+                assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE));
+                assertThat(plan.timeout(), equalTo(PLAIN_TIMEOUT));
+                assertThat(plan.extendable(), is(true));
+            }
+        }
+    }
+
+    /// A shutting-down node whose shards relocate elsewhere does not tighten the share: its deadline is the nearest, but none of its shards
+    /// compete for the slots of this target, so the share is that of the node that sends 3 shards here, as in
+    /// [#testSharesFreeSlotsWhenSlotsAreScarce]: `8s / 4 * 2 = 4s`.
+    public void testShutdownsWhoseShardsRelocateElsewhereDoNotTightenTheShare() {
+        try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
+            final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, slotSharingSettings());
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final long now = threadPool.absoluteTimeInMillis();
+            // the grace cap is 10s: the deadline of the node that relocates elsewhere is `now + 3s`, the one of the node that relocates
+            // here `now + 10s`
+            final var state = relocationWithOtherNodesShuttingDown(
+                new Index("idx", randomUUID()),
+                List.of(
+                    ShuttingDownNode.relocatingElsewhere("elsewhere-node", 50, now - 7000),
+                    new ShuttingDownNode("shutting-node", 3, now)
+                )
+            );
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 2000);
+
+            final var plan = timeouts.timeout(state, RELOCATION_TARGET_NODE, null);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+            assertThat(plan.timeout().millis(), equalTo(4000L));
+        }
+    }
+
+    /// The cluster state can be newer than the routing this shard recovers with: when the master has cancelled the relocation, the state
+    /// does not have the shard among the recoveries on the target any more. The plan is still computed, counting the recoveries that are
+    /// there: with 3 relocating shards and 2 slots, the equal share is `8s / 3 * 2 ≈ 5.3s`, instead of `8s / 4 * 2 = 4s` with this shard.
+    public void testComputesThePlanWhenTheRelocationOfThisShardIsNoLongerInTheState() {
+        try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
+            final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, slotSharingSettings());
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final var state = relocationCancelledWithOtherNodesShuttingDown(
+                new Index("idx", randomUUID()),
+                List.of(new ShuttingDownNode("shutting-node", 3, threadPool.absoluteTimeInMillis()))
+            );
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 2000);
+
+            final var plan = timeouts.timeout(state, RELOCATION_TARGET_NODE, null);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+            assertThat(plan.timeout().millis(), equalTo(Math.round(8000 / 3.0 * 2)));
+            assertThat(plan.perShardShareMs(), closeTo(8000 / 3.0, 1e-6));
         }
     }
 

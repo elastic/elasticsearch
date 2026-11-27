@@ -52,22 +52,39 @@ public final class OtherNodeShutdownClusterStates {
     private static final String PRIMARY_NODE = "primary-node";
     /// The node that the shard under test relocates from, which is not shutting down.
     private static final String RELOCATION_SOURCE_NODE = "healthy-source";
-    /// The node that all the relocations of the cluster states go to.
+    /// The node that the relocations of the cluster states go to, unless they are said to go elsewhere.
     static final String RELOCATION_TARGET_NODE = "target-node";
+    /// Another node that relocations go to, which is not the target of the shard under test.
+    private static final String OTHER_TARGET_NODE = "other-target-node";
 
     private OtherNodeShutdownClusterStates() {}
 
-    /// A node marked for REMOVE since `startedAtMillis`, with `relocatingShards` search shards relocating from it to the target, and
-    /// `pendingShards` search shards still STARTED on it, which the master has not begun to relocate.
-    record ShuttingDownNode(String nodeId, int relocatingShards, int pendingShards, long startedAtMillis) {
+    /// A node marked for REMOVE since `startedAtMillis`, with `relocatingShards` search shards relocating from it to the target,
+    /// `pendingShards` search shards still STARTED on it, which the master has not begun to relocate, and `elsewhereShards` search shards
+    /// relocating from it to another node than the target.
+    record ShuttingDownNode(String nodeId, int relocatingShards, int pendingShards, int elsewhereShards, long startedAtMillis) {
+
+        ShuttingDownNode(String nodeId, int relocatingShards, int pendingShards, long startedAtMillis) {
+            this(nodeId, relocatingShards, pendingShards, 0, startedAtMillis);
+        }
 
         ShuttingDownNode(String nodeId, int relocatingShards, long startedAtMillis) {
             this(nodeId, relocatingShards, 0, startedAtMillis);
         }
+
+        /// A node whose `shards` search shards all relocate to another node than the target, so none of them uses the target's slots.
+        static ShuttingDownNode relocatingElsewhere(String nodeId, int shards, long startedAtMillis) {
+            return new ShuttingDownNode(nodeId, 0, 0, shards, startedAtMillis);
+        }
     }
 
-    /// The search replica of a shard of the index: the node it is on, and, if it is `RELOCATING`, it goes to [#RELOCATION_TARGET_NODE].
-    private record SearchShardSpec(String nodeId, ShardRoutingState state, @Nullable RecoveryPriority priority) {
+    /// The search replica of a shard of the index: the node it is on, and, if it is `RELOCATING`, the node it goes to, which is
+    /// [#RELOCATION_TARGET_NODE] unless it is said to go elsewhere.
+    private record SearchShardSpec(String nodeId, ShardRoutingState state, @Nullable RecoveryPriority priority, String relocatingToNodeId) {
+
+        SearchShardSpec(String nodeId, ShardRoutingState state, @Nullable RecoveryPriority priority) {
+            this(nodeId, state, priority, RELOCATION_TARGET_NODE);
+        }
 
         SearchShardSpec(String nodeId, ShardRoutingState state) {
             this(nodeId, state, null);
@@ -117,15 +134,40 @@ public final class OtherNodeShutdownClusterStates {
         int otherRecoveriesOnTarget,
         int criticalRecoveriesOnTarget
     ) {
+        return relocationWithOtherNodesShuttingDown(index, shuttingDownNodes, otherRecoveriesOnTarget, criticalRecoveriesOnTarget, true);
+    }
+
+    /// The cluster state of [#relocationWithOtherNodesShuttingDown] once the master has cancelled the relocation of the shard under
+    /// test: the shard is not among the recoveries on the target any more, though the routing the shard was recovering with still showed
+    /// it relocating there.
+    static ClusterState relocationCancelledWithOtherNodesShuttingDown(Index index, List<ShuttingDownNode> shuttingDownNodes) {
+        return relocationWithOtherNodesShuttingDown(index, shuttingDownNodes, 0, 0, false);
+    }
+
+    private static ClusterState relocationWithOtherNodesShuttingDown(
+        Index index,
+        List<ShuttingDownNode> shuttingDownNodes,
+        int otherRecoveriesOnTarget,
+        int criticalRecoveriesOnTarget,
+        boolean shardUnderTestRelocating
+    ) {
         // shard 0 is the one under test, the relocating and the pending shards of each shutting-down node follow it
         final var searchShards = new ArrayList<SearchShardSpec>();
-        searchShards.add(new SearchShardSpec(RELOCATION_SOURCE_NODE, RELOCATING));
+        if (shardUnderTestRelocating) {
+            searchShards.add(new SearchShardSpec(RELOCATION_SOURCE_NODE, RELOCATING));
+        }
         for (final var shuttingDownNode : shuttingDownNodes) {
             searchShards.addAll(
                 Collections.nCopies(shuttingDownNode.relocatingShards(), new SearchShardSpec(shuttingDownNode.nodeId(), RELOCATING))
             );
             searchShards.addAll(
                 Collections.nCopies(shuttingDownNode.pendingShards(), new SearchShardSpec(shuttingDownNode.nodeId(), STARTED))
+            );
+            searchShards.addAll(
+                Collections.nCopies(
+                    shuttingDownNode.elsewhereShards(),
+                    new SearchShardSpec(shuttingDownNode.nodeId(), RELOCATING, null, OTHER_TARGET_NODE)
+                )
             );
         }
         searchShards.addAll(
@@ -187,7 +229,7 @@ public final class OtherNodeShutdownClusterStates {
             final var replicaBuilder = TestShardRouting.shardRoutingBuilder(shardId, searchShard.nodeId(), false, searchShard.state())
                 .withRole(ShardRouting.Role.SEARCH_ONLY);
             if (searchShard.state() == RELOCATING) {
-                replicaBuilder.withRelocatingNodeId(RELOCATION_TARGET_NODE);
+                replicaBuilder.withRelocatingNodeId(searchShard.relocatingToNodeId());
             }
             if (searchShard.priority() != null) {
                 // the builder would pick the priority at random
@@ -205,7 +247,8 @@ public final class OtherNodeShutdownClusterStates {
             .localNodeId(MASTER_NODE)
             .add(DiscoveryNodeUtils.create(PRIMARY_NODE))
             .add(DiscoveryNodeUtils.create(RELOCATION_SOURCE_NODE))
-            .add(DiscoveryNodeUtils.create(RELOCATION_TARGET_NODE));
+            .add(DiscoveryNodeUtils.create(RELOCATION_TARGET_NODE))
+            .add(DiscoveryNodeUtils.create(OTHER_TARGET_NODE));
         shuttingDownNodes.forEach(shuttingDownNode -> nodes.add(DiscoveryNodeUtils.create(shuttingDownNode.nodeId())));
         return nodes.build();
     }

@@ -104,9 +104,11 @@ public class ScoreSortTopNIT extends AbstractEsqlIntegTestCase {
 
     /**
      * All shards are on one data node and run in one batch, so their drivers share one bound, and the limit is below the
-     * documents of a shard, so the first shard to finish fills the top N. The profile shows that Lucene ran the top N.
+     * documents of a shard, so the first shard to finish fills the top N. The rows must match the unlimited query, and the
+     * profile shows that Lucene ran the top N. That a shard skips documents is not visible from here:
+     * {@code LuceneTopNSourceOperatorCollectorTests#testSecondShardCollectsNothing} covers it.
      */
-    public void testShardsOfOneNodeShareTheBound() {
+    public void testTopNOverShardsOfOneNode() {
         String dataNode = internalCluster().getRandomDataNodeName();
         int shards = between(2, 5);
         int docsPerShard = between(50, 200);

@@ -73,12 +73,18 @@ Row data itself is not cached. Unless cached statistics answer a query directly,
 To change cache sizes and TTLs, refer to [caching settings](esql-data-federation-cluster-settings.md#caching).
 
 #### Column statistics for text files
+```{applies_to}
+stack: preview 9.6+
+serverless: preview
+```
 
 As a CSV, TSV or NDJSON file is read, {{es}} records how many rows it has, and for each column the query itself uses, how many values and nulls that column has and its minimum and maximum. Only those columns are measured by default, so warming a file with `COUNT(*)` leaves a later `MIN` over one of its columns still reading it.
 
 Ungrouped `COUNT(*)`, which the row count alone answers, and ungrouped `COUNT`, `MIN` or `MAX` over a plain column are what these statistics answer directly. A query is answered from them, instead of reading its files, only where they answer every aggregate it asks for and settle whatever it filters on; otherwise its files are read, as for a query that groups, an aggregate wrapping the column such as `MIN(ABS(id))`, another aggregate such as `SUM(id)`, or a column whose statistics are incomplete. [Partition pruning](#partition-pruning) drops files by path before any of this, whatever the format.
 
-By default a minimum or maximum wider than 1 KB isn't stored, and a column whose bound is withheld keeps its counts. {applies_to}`stack: preview 9.6+` That width is configurable with [`esql.external.cache.stats.max_extremum_size`](esql-data-federation-cluster-settings.md#esql-external-cache-stats-max-extremum-size). The limit applies to each end on its own, so a `MIN` is still answered where only the maximum was too wide, while one `STATS` asking for both reads the file for both. A comparison filter on that column can no longer skip a file on that column's bounds, although another condition that rules the file out in an `AND`, or matches every row in an `OR`, still can. When several workers read one large file, each measures only the rows it reads, so a bound can be withheld even where the file's overall minimum or maximum would have fitted.
+By default a minimum or maximum wider than 1 KB isn't stored, and a column whose bound is withheld keeps its counts. The limit applies to each end on its own, so a `MIN` is still answered where only the maximum was too wide, while one `STATS` asking for both reads the file for both. A comparison filter on that column can no longer skip a file on that column's bounds, although another condition that rules the file out in an `AND`, or matches every row in an `OR`, still can. When several workers read one large file, each measures only the rows it reads, so a bound can be withheld even where the file's overall minimum or maximum would have fitted.
+
+{applies_to}`serverless: unavailable` You can configure this width limit with [`esql.external.cache.stats.max_extremum_size`](esql-data-federation-cluster-settings.md#esql-external-cache-stats-max-extremum-size).
 
 ### File discovery limits
 

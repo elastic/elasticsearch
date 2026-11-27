@@ -2,6 +2,9 @@
 navigation_title: "Reverse nested"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-reverse-nested-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Reverse nested aggregation [search-aggregations-bucket-reverse-nested-aggregation]

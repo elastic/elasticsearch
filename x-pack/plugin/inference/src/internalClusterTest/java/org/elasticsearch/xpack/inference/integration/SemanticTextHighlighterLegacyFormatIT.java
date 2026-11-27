@@ -8,21 +8,17 @@
 package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.license.License;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
-import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
+import org.elasticsearch.xpack.diskbbq.TrialLicenseStateDiskBBQPlugin;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.junit.After;
 import org.junit.Before;
@@ -54,20 +50,9 @@ public class SemanticTextHighlighterLegacyFormatIT extends SemanticTextLegacyFor
     private static final String DOC_2_TEXT =
         "Nothing travels faster than the speed of light with the possible exception of bad news, which obeys its own special laws.";
 
-    public static class DiskBBQPluginEnabler extends DiskBBQPlugin {
-        public DiskBBQPluginEnabler(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        protected XPackLicenseState getLicenseState() {
-            return new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
-        }
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), DiskBBQPluginEnabler.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TrialLicenseStateDiskBBQPlugin.class);
     }
 
     @Before

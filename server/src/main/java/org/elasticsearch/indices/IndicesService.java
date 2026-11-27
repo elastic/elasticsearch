@@ -465,15 +465,12 @@ public class IndicesService extends AbstractLifecycleComponent
         final CountDownLatch latch = new CountDownLatch(indices.size());
         for (final Index index : indices) {
             indicesStopExecutor.execute(
-                ActionRunnable.wrap(
-                    ActionListener.assertOnce(ActionListener.<Void>releasing(latch::countDown)),
-                    l -> removeIndex(
-                        index,
-                        IndexRemovalReason.SHUTDOWN,
-                        "shutdown",
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE /* node shutdown can be blocking */,
-                        l
-                    )
+                () -> removeIndex(
+                    index,
+                    IndexRemovalReason.SHUTDOWN,
+                    "shutdown",
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE /* node shutdown can be blocking */,
+                    latch::countDown
                 )
             );
         }
@@ -1136,13 +1133,12 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexRemovalReason reason,
         final String extraInfo,
         Executor shardCloseExecutor,
-        ActionListener<Void> shardsClosedListener
+        Releasable onShardsClosed
     ) {
         final String indexName = index.getName();
-        ActionListener.run(ActionListener.assertOnce(shardsClosedListener.delegateResponse((l, e) -> {
-            logger.warn(() -> format("failed to remove index %s ([%s][%s])", index, reason, extraInfo), e);
-            l.onResponse(null);
-        })), l -> {
+        // This may be closed on the failure path after IndexService#close has already closed it, so make sure it is only closed once.
+        final var onShardsClosedOnce = Releasables.releaseOnce(onShardsClosed);
+        try {
             final IndexService indexService;
             final IndexEventListener listener;
             synchronized (this) {
@@ -1161,22 +1157,33 @@ public class IndicesService extends AbstractLifecycleComponent
             assert (indexService == null) == (listener == null) : indexService + " vs " + listener;
 
             if (indexService == null) {
-                l.onResponse(null);
+                onShardsClosedOnce.close();
                 return;
             }
 
             listener.beforeIndexRemoved(indexService, reason);
             logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
-            indexService.close(extraInfo, reason == IndexRemovalReason.DELETED, shardCloseExecutor, ActionListener.runBefore(l, () -> {
-                logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
-                final IndexSettings indexSettings = indexService.getIndexSettings();
-                listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
-                if (reason == IndexRemovalReason.DELETED) {
-                    // now we are done - try to wipe data on disk if possible
-                    deleteIndexStore(extraInfo, indexService.index(), indexSettings, reason);
-                }
-            }));
-        });
+            indexService.close(
+                extraInfo,
+                reason == IndexRemovalReason.DELETED,
+                shardCloseExecutor,
+                ActionListener.runBefore(ActionListener.<Void>wrap(ignored -> onShardsClosedOnce.close(), e -> {
+                    logger.warn(() -> format("failed to remove index %s ([%s][%s])", index, reason, extraInfo), e);
+                    onShardsClosedOnce.close();
+                }), () -> {
+                    logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
+                    final IndexSettings indexSettings = indexService.getIndexSettings();
+                    listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
+                    if (reason == IndexRemovalReason.DELETED) {
+                        // now we are done - try to wipe data on disk if possible
+                        deleteIndexStore(extraInfo, indexService.index(), indexSettings, reason);
+                    }
+                })
+            );
+        } catch (Exception e) {
+            logger.warn(() -> format("failed to remove index %s ([%s][%s])", index, reason, extraInfo), e);
+            onShardsClosedOnce.close();
+        }
     }
 
     public IndicesFieldDataCache getIndicesFieldDataCache() {

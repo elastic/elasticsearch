@@ -47,8 +47,10 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * leave the index. Every shard must accept nested queries, which {@code search.allow_expensive_queries: false} refuses. Each shard
  * mapping must allow Lucene to compare the child values as their block loaders read them, including
  * having searchable doc values and no keyword normalizer that changes query literals. An exact translation replaces the
- * predicate; one that needs a recheck is pushed and still evaluated; anything else stays in memory. A {@code true} predicate, as
- * in {@code NESTED_ANY(items, true)}, matches any child document. {@code NOT NESTED_ANY(<predicate>)} is pushed as
+ * predicate; one that needs a recheck is pushed and still evaluated; anything else stays in memory. Only the conjuncts of the
+ * predicate that Lucene can run on every shard are pushed; with any left out the query is a superset and the predicate is still
+ * evaluated. A {@code true} predicate, as in {@code NESTED_ANY(items, true)}, matches any child document.
+ * {@code NOT NESTED_ANY(<predicate>)} is pushed as
  * {@code NOT nested(<predicate>)} only when the translation is exact: negating a superset would drop parents that match.
  */
 public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
@@ -106,15 +108,25 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
         if (stats.nestedQueriesAllowed() == false) {
             return null;
         }
-        Expression childPredicate = childPredicate(predicate, stats);
-        if (childPredicate == null) {
+        NestedPredicate.ChildConjuncts childConjuncts = predicate.childConjuncts();
+        List<Expression> conjuncts = childConjuncts.conjuncts();
+        List<Expression> pushable = new ArrayList<>();
+        Translatable translatable = Translatable.YES;
+        for (Expression conjunct : conjuncts) {
+            Translatable conjunctTranslatable = Literal.TRUE.equals(conjunct) ? Translatable.YES : translatable(conjunct, children);
+            if (conjunctTranslatable.finish() != FinishedTranslatable.NO && queryable(conjunct, stats)) {
+                pushable.add(conjunct);
+                translatable = translatable.merge(conjunctTranslatable);
+            }
+        }
+        if (pushable.isEmpty()) {
             return null;
         }
+        if (childConjuncts.complete() == false || pushable.size() < conjuncts.size()) {
+            translatable = translatable.merge(Translatable.RECHECK);
+        }
+        Expression childPredicate = Predicates.combineAnd(pushable);
         boolean matchAll = Literal.TRUE.equals(childPredicate);
-        Translatable translatable = matchAll ? Translatable.YES : translatable(childPredicate, children);
-        if (translatable.finish() == FinishedTranslatable.NO) {
-            return null;
-        }
         Query child = matchAll ? new MatchAll(predicate.source()) : TRANSLATOR_HANDLER.asQuery(children, childPredicate);
         QueryBuilder nested = new NestedQuery(predicate.source(), predicate.path(), child, ScoreMode.None).toQueryBuilder();
         return new Translation(nested, translatable);
@@ -134,14 +146,13 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
         return plan instanceof EsQueryExec query && query.limit() == null ? query : null;
     }
 
-    private static Expression childPredicate(NestedPredicate predicate, SearchStats stats) {
-        List<String> names = predicate.fieldNames();
-        for (int i = 0; i < names.size(); i++) {
-            if (stats.nestedFieldIsQueryable(new FieldAttribute.FieldName(names.get(i)), predicate.inputs().get(i).dataType()) == false) {
-                return null;
-            }
-        }
-        return predicate.childPredicate();
+    private static boolean queryable(Expression conjunct, SearchStats stats) {
+        return conjunct.references()
+            .stream()
+            .allMatch(
+                attribute -> attribute instanceof FieldAttribute field
+                    && stats.nestedFieldIsQueryable(new FieldAttribute.FieldName(field.name()), field.dataType())
+            );
     }
 
     static PhysicalPlan withQuery(PhysicalPlan plan, List<QueryBuilder> queries) {

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -157,25 +159,33 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
     }
 
     /**
-     * The predicate over the child fields themselves, for Lucene to match within each child document. {@code null} when
-     * it reads more than child fields or a child that a cast reads per index.
+     * The top-level conjuncts of the predicate that read only child fields, each rewritten over the child fields themselves
+     * for Lucene to match within each child document. A conjunct that reads anything else, or a child that a cast reads per
+     * index, is left out.
+     *
+     * @param complete whether no conjunct was left out, so matching all of {@code conjuncts} is matching the predicate
      */
-    @Nullable
-    public Expression childPredicate() {
+    public record ChildConjuncts(List<Expression> conjuncts, boolean complete) {}
+
+    public ChildConjuncts childConjuncts() {
         Map<NameId, FieldAttribute> fields = new HashMap<>();
         List<String> names = fieldNames();
         for (int i = 0; i < inputs.size(); i++) {
             Attribute input = inputs.get(i);
             if (EsPhysicalOperationProviders.findUnionTypes(input) != null) {
-                return null;
+                continue;
             }
             EsField field = new EsField(names.get(i), input.dataType(), Map.of(), true, EsField.TimeSeriesFieldType.NONE);
             fields.put(input.id(), new FieldAttribute(input.source(), names.get(i), field));
         }
-        if (body.references().stream().anyMatch(attribute -> fields.containsKey(attribute.id()) == false)) {
-            return null;
+        List<Expression> all = Predicates.splitAnd(body);
+        List<Expression> conjuncts = new ArrayList<>();
+        for (Expression conjunct : all) {
+            if (conjunct.references().stream().allMatch(attribute -> fields.containsKey(attribute.id()))) {
+                conjuncts.add(conjunct.transformUp(Attribute.class, attribute -> fields.get(attribute.id())));
+            }
         }
-        return body.transformUp(Attribute.class, attribute -> fields.get(attribute.id()));
+        return new ChildConjuncts(conjuncts, conjuncts.size() == all.size());
     }
 
     @Override

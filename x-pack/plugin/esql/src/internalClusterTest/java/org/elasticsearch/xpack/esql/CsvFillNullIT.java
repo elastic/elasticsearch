@@ -207,7 +207,7 @@ public class CsvFillNullIT extends CsvIT {
      * {@code keyword}) is an ordinary column that {@code *} does fill, so it is distinguished by type rather than name alone.
      */
     private static boolean leftAloneByAllFields(String name, String rawType) {
-        return MetadataAttribute.isSupported(name) || (name.equals("_unmapped_fields") && rawType.equals("_source"));
+        return MetadataAttribute.isSupported(name) || (name.equals("_unmapped_fields") && Type.asType(rawType) == Type.SOURCE);
     }
 
     private static Object defaultValue(Type type) {

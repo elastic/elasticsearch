@@ -891,6 +891,56 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         assertThat(nodeHeapUsages.get(nodeB).nodeHeapEstimates(), equalTo(new NodeHeapEstimates(180, 140, nonShardHeapUsage)));
     }
 
+    /** A newly allocated copy is not counted on its node while it is initializing, only once the simulation starts it. */
+    public void testNodeHeapOfNewShardIsIncludedOnceStarted() {
+        final String nodeA = "index-a";
+        final String nodeB = "index-b";
+        final IndexMetadata index = IndexMetadata.builder("test-index").settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final ShardId shardId = new ShardId(index.getIndex(), 0);
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.builder(nodeA).name(nodeA).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build())
+                    .add(DiscoveryNodeUtils.builder(nodeB).name(nodeB).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build())
+            )
+            .metadata(Metadata.builder().put(index, false))
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .add(
+                        IndexRoutingTable.builder(index.getIndex())
+                            .addShard(newShardRouting(shardId, nodeA, true, STARTED))
+                            .addShard(newShardRouting(shardId, null, false, ShardRoutingState.UNASSIGNED))
+                    )
+            )
+            .build();
+        final ClusterInfo clusterInfo = ClusterInfo.builder()
+            .nodeHeapMetrics(
+                Map.of(
+                    nodeA,
+                    new NodeHeapMetrics(nodeA, 10_000, new NodeHeapEstimates(0, 0, 40)),
+                    nodeB,
+                    new NodeHeapMetrics(nodeB, 10_000, new NodeHeapEstimates(0, 0, 40))
+                )
+            )
+            .estimatedShardHeapUsages(Map.of(shardId, new ShardAndIndexHeapUsage(50, 10, 5)))
+            .build();
+        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .clusterInfo(clusterInfo)
+            .build()
+            .mutableCloneForSimulation();
+        final var simulator = new ClusterInfoSimulator(allocation);
+
+        final var unassigned = allocation.routingNodes().unassigned().iterator();
+        unassigned.next();
+        final ShardRouting initializing = unassigned.initialize(nodeB, null, 0L, allocation.changes());
+        assertThat(simulator.getClusterInfo().getNodeHeapMetrics().get(nodeB).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(0L));
+
+        simulator.simulateShardStarted(initializing);
+        allocation.routingNodes().startShard(initializing, allocation.changes(), 0L);
+        // shard heap 50 plus index heap 10
+        assertThat(simulator.getClusterInfo().getNodeHeapMetrics().get(nodeB).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(60L));
+    }
+
     /**
      * Search nodes publish hosted-shards heap only. Nodes that are neither indexing nor search nodes keep the snapshot, because their
      * heap is not part of the routing-table calculation. A node with no snapshot entry is not given one: capacity lives on the snapshot.

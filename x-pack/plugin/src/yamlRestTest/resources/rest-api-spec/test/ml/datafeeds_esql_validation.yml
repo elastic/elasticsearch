@@ -296,3 +296,54 @@ setup:
             "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": false}
           }
+
+---
+"Test update ES|QL datafeed to a frequency that is not a multiple of the time bucket":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-feed-update-frequency
+        body: >
+          {
+            "job_id": "esql-feed-job",
+            "esql_query": "FROM esql-feed-data | EVAL @timestamp = DATE_TRUNC(15 minutes, @timestamp) | KEEP @timestamp",
+            "source_time_field": "@timestamp",
+            "frequency": "30m",
+            "delayed_data_check_config": {"enabled": false}
+          }
+  - match: { frequency: "30m" }
+
+  - do:
+      catch: /frequency \[10m\] must be a multiple of the interval \[15m\] of the time column \[@timestamp\]/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.update_datafeed:
+        datafeed_id: esql-feed-update-frequency
+        body: >
+          {
+            "frequency": "10m"
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.get_datafeeds:
+        datafeed_id: esql-feed-update-frequency
+  - match: { datafeeds.0.frequency: "30m" }
+
+---
+"Test put ES|QL datafeed with a weekly time bucket":
+  - do:
+      catch: /calendar interval \[1 week\]/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-feed-weekly
+        body: >
+          {
+            "job_id": "esql-feed-job",
+            "esql_query": "FROM esql-feed-data | EVAL @timestamp = DATE_TRUNC(1 week, @timestamp) | KEEP @timestamp",
+            "source_time_field": "@timestamp",
+            "delayed_data_check_config": {"enabled": false}
+          }

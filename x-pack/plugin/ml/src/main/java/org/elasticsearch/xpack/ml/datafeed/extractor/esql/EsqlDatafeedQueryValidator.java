@@ -348,6 +348,7 @@ public class EsqlDatafeedQueryValidator {
             return;
         }
         String subject = esqlDatafeedSubject(datafeedId);
+        // The interval has no configured unit, so toString() gives the readable form (15m), where getStringRep() gives 900000ms.
         String interval = TimeValue.timeValueMillis(timeBucketMillis).toString();
         if (bucketSpan.millis() % timeBucketMillis != 0) {
             throw ExceptionsHelper.badRequestException(
@@ -423,7 +424,8 @@ public class EsqlDatafeedQueryValidator {
 
     private static boolean isCalendarUnit(String interval) {
         ParsedInterval parsed = ParsedInterval.parse(interval);
-        return parsed != null && (parsed.unit.equals("month") || parsed.unit.equals("quarter") || parsed.unit.equals("year"));
+        return parsed != null
+            && (parsed.unit.equals("week") || parsed.unit.equals("month") || parsed.unit.equals("quarter") || parsed.unit.equals("year"));
     }
 
     /** The singular unit of an interval as {@code DESCRIBE} writes it, and its size, or -1 when the form is not {@code <size> <unit>}. */
@@ -446,7 +448,8 @@ public class EsqlDatafeedQueryValidator {
     /**
      * Parses an interval as {@code DESCRIBE} writes it, {@code <size> <unit>} with a plural unit when the size is not 1, for example
      * {@code 1 hour} or {@code 90 minutes}. Empty for a calendar interval ({@code month}, {@code quarter}, {@code year}) or a unit
-     * this parser does not know, because its length depends on the date. A {@code day} or {@code week} is fixed because
+     * this parser does not know, because its length depends on the date. A {@code week} is empty too: ES|QL rounds it to Monday, but
+     * the datafeed windows are multiples of the interval from the Unix epoch, which was a Thursday. A {@code day} is fixed because
      * {@link #timeBucketMillis} rejects a bucket that is not in UTC.
      */
     static OptionalLong fixedIntervalMillis(String interval) {
@@ -457,7 +460,6 @@ public class EsqlDatafeedQueryValidator {
             case "minute" -> TimeUnit.MINUTES.toMillis(1);
             case "hour" -> TimeUnit.HOURS.toMillis(1);
             case "day" -> TimeUnit.DAYS.toMillis(1);
-            case "week" -> TimeUnit.DAYS.toMillis(7);
             default -> 0;
         };
         return unitMillis == 0 || parsed.size <= 0 ? OptionalLong.empty() : OptionalLong.of(Math.multiplyExact(parsed.size, unitMillis));

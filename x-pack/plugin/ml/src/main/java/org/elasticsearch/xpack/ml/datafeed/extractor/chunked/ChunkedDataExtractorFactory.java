@@ -76,7 +76,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
      * most one frequency, so the summary would only cost a second query.
      */
     private long singleChunkSpan() {
-        return datafeedConfig.getFrequencyOrDefault(job.getAnalysisConfig().getBucketSpan(), xContentRegistry).millis();
+        return datafeedConfig.getFrequencyOrDefault(job.getAnalysisConfig().getBucketSpan(), xContentRegistry, timeBucketMillis()).millis();
     }
 
     @Override

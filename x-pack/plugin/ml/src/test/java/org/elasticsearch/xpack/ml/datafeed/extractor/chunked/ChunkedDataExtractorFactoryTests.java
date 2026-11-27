@@ -212,6 +212,27 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.getContext().singleChunkSpan(), equalTo(TimeValue.timeValueMinutes(1).millis()));
     }
 
+    public void testEsqlSingleChunkSpanShouldDefaultToDescribeIntervalWhenFrequencyIsUnset() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(
+            TimeValue.timeValueHours(1),
+            TimeValue.timeValueMinutes(15).millis(),
+            AGGREGATING_ESQL_QUERY,
+            null
+        );
+
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(0L, 5_000L);
+
+        assertThat(dataExtractor.getContext().singleChunkSpan(), equalTo(TimeValue.timeValueMinutes(15).millis()));
+    }
+
+    public void testRawEsqlSingleChunkSpanShouldNotSnapWhenFrequencyIsUnset() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1), 0L, "FROM logs", null);
+
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(0L, 5_000L);
+
+        assertThat(dataExtractor.getContext().singleChunkSpan(), equalTo(TimeValue.timeValueMinutes(10).millis()));
+    }
+
     public void testEsqlTimeBucketMillisShouldDelegateToInnerFactory() {
         ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueSeconds(1));
         when(dataExtractorFactory.timeBucketMillis()).thenReturn(3_600_000L);

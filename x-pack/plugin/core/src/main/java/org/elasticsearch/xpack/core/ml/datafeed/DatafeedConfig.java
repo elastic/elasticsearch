@@ -138,7 +138,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     /**
      * Reads the slot of the removed ES|QL {@code grouping_interval} setting. Nodes since {@link #ML_DATAFEED_ESQL_QUERY} still carry it
-     * after {@code source_time_field}; it is always empty because the setting never left the feature flag.
+     * after {@code source_time_field}. This node writes it empty; a value from an older snapshot peer is read and discarded.
      */
     static void skipRemovedGroupingInterval(StreamInput in) throws IOException {
         in.readOptionalTimeValue();
@@ -1105,25 +1105,37 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      *
      * If the datafeed has aggregations, the default frequency is the
      * closest multiple of the histogram interval based on the rules above.
-     * ES|QL datafeeds snap the default to a multiple of the bucket span the same way. The bucket span is a multiple of the time
-     * column's {@code DESCRIBE} interval.
+     * A bucketed ES|QL datafeed snaps to a multiple of the interval {@code DESCRIBE} reports for its time column the same way. Rows
+     * of a raw ES|QL datafeed keep their source timestamps, so the default is not snapped, as for a datafeed without aggregations.
      *
      * @param bucketSpan the bucket span
      * @return the default frequency
      */
     public TimeValue defaultFrequency(TimeValue bucketSpan, NamedXContentRegistry xContentRegistry) {
+        return defaultFrequency(bucketSpan, xContentRegistry, 0);
+    }
+
+    /**
+     * @param esqlTimeBucketMillis the interval {@code DESCRIBE} reports for the ES|QL time column, 0 when the column is not bucketed
+     */
+    public TimeValue defaultFrequency(TimeValue bucketSpan, NamedXContentRegistry xContentRegistry, long esqlTimeBucketMillis) {
         TimeValue defaultFrequency = defaultFrequencyTarget(bucketSpan);
         if (hasAggregations()) {
             defaultFrequency = snapDefaultFrequencyToInterval(defaultFrequency, getHistogramIntervalMillis(xContentRegistry));
-        } else if (getEsqlQuery() != null) {
-            defaultFrequency = snapDefaultFrequencyToInterval(defaultFrequency, bucketSpan.millis());
+        } else if (getEsqlQuery() != null && esqlTimeBucketMillis > 0) {
+            defaultFrequency = snapDefaultFrequencyToInterval(defaultFrequency, esqlTimeBucketMillis);
         }
         return defaultFrequency;
     }
 
     /** The configured frequency, or {@link #defaultFrequency} derived from the job's bucket span when none is configured. */
     public TimeValue getFrequencyOrDefault(TimeValue bucketSpan, NamedXContentRegistry xContentRegistry) {
-        return frequency != null ? frequency : defaultFrequency(bucketSpan, xContentRegistry);
+        return getFrequencyOrDefault(bucketSpan, xContentRegistry, 0);
+    }
+
+    /** As {@link #getFrequencyOrDefault(TimeValue, NamedXContentRegistry)}, for an ES|QL time column bucketed by the given interval. */
+    public TimeValue getFrequencyOrDefault(TimeValue bucketSpan, NamedXContentRegistry xContentRegistry, long esqlTimeBucketMillis) {
+        return frequency != null ? frequency : defaultFrequency(bucketSpan, xContentRegistry, esqlTimeBucketMillis);
     }
 
     private static TimeValue snapDefaultFrequencyToInterval(TimeValue defaultFrequency, long intervalMillis) {

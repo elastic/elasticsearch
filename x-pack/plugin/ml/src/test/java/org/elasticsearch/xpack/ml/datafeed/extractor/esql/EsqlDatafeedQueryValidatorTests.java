@@ -103,7 +103,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testCalendarIntervalTimeColumnShouldFailValidation() {
-        for (String interval : List.of("1 month", "3 months", "1 quarter", "1 year")) {
+        for (String interval : List.of("1 week", "2 weeks", "1 month", "3 months", "1 quarter", "1 year")) {
             Exception failure = assertValidationFails(harness(row("@timestamp", "date", interval)), validation());
             assertThat(failure, instanceOf(ElasticsearchStatusException.class));
             assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
@@ -142,11 +142,12 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("1 hour"), equalTo(OptionalLong.of(3_600_000L)));
         assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("1 day"), equalTo(OptionalLong.of(86_400_000L)));
         assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("2 days"), equalTo(OptionalLong.of(172_800_000L)));
-        assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("1 week"), equalTo(OptionalLong.of(604_800_000L)));
     }
 
     public void testFixedIntervalMillisShouldRejectCalendarAndUnknownIntervals() {
         for (String interval : List.of(
+            "1 week",
+            "2 weeks",
             "1 month",
             "6 months",
             "1 quarter",

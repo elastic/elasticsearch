@@ -824,15 +824,49 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(12), xContentRegistry()));
     }
 
-    public void testDefaultFrequencyGivenEsqlQueryShouldSnapToBucketSpan() {
+    public void testDefaultFrequencyGivenBucketedEsqlQueryShouldSnapToTimeBucket() {
         DatafeedConfig datafeed = createEsqlDatafeedBuilder().build();
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60), xContentRegistry()));
-        assertEquals(TimeValue.timeValueMinutes(4), datafeed.defaultFrequency(TimeValue.timeValueSeconds(240), xContentRegistry()));
-        assertEquals(TimeValue.timeValueMinutes(5), datafeed.defaultFrequency(TimeValue.timeValueMinutes(5), xContentRegistry()));
-        assertEquals(TimeValue.timeValueMinutes(20), datafeed.defaultFrequency(TimeValue.timeValueMinutes(20), xContentRegistry()));
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(1), xContentRegistry()));
-        assertEquals(TimeValue.timeValueHours(12), datafeed.defaultFrequency(TimeValue.timeValueHours(12), xContentRegistry()));
-        assertEquals(TimeValue.timeValueHours(48), datafeed.defaultFrequency(TimeValue.timeValueHours(48), xContentRegistry()));
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        assertEquals(
+            TimeValue.timeValueMinutes(15),
+            datafeed.defaultFrequency(bucketSpan, xContentRegistry(), TimeValue.timeValueMinutes(15).millis())
+        );
+        assertEquals(
+            TimeValue.timeValueMinutes(10),
+            datafeed.defaultFrequency(bucketSpan, xContentRegistry(), TimeValue.timeValueMinutes(1).millis())
+        );
+        assertEquals(
+            TimeValue.timeValueHours(1),
+            datafeed.defaultFrequency(bucketSpan, xContentRegistry(), TimeValue.timeValueHours(1).millis())
+        );
+    }
+
+    public void testDefaultFrequencyGivenRawEsqlQueryShouldNotSnap() {
+        DatafeedConfig datafeed = createEsqlDatafeedBuilder().build();
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(1), xContentRegistry(), 0));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60), xContentRegistry(), 0));
+    }
+
+    public void testSkipRemovedGroupingIntervalGivenValueFromOlderPeerShouldConsumeWholeSlot() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeOptionalTimeValue(TimeValue.timeValueHours(1));
+            out.writeString("next-field");
+            try (StreamInput in = out.bytes().streamInput()) {
+                DatafeedConfig.skipRemovedGroupingInterval(in);
+                assertThat(in.readString(), equalTo("next-field"));
+                assertThat(in.available(), equalTo(0));
+            }
+        }
+    }
+
+    public void testWriteRemovedGroupingIntervalShouldWriteEmptySlot() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            DatafeedConfig.writeRemovedGroupingInterval(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(in.readOptionalTimeValue(), nullValue());
+                assertThat(in.available(), equalTo(0));
+            }
+        }
     }
 
     public void testSerializationOfComplexAggs() throws IOException {

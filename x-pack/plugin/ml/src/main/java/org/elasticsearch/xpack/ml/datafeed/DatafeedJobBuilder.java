@@ -249,7 +249,11 @@ public class DatafeedJobBuilder {
         DataExtractorFactory dataExtractorFactory
     ) {
         final long latestRecordTimeMs = latestRecordTimeMs(context.restartTimeInfo());
-        TimeValue frequency = datafeedConfig.getFrequencyOrDefault(job.getAnalysisConfig().getBucketSpan(), xContentRegistry);
+        TimeValue frequency = datafeedConfig.getFrequencyOrDefault(
+            job.getAnalysisConfig().getBucketSpan(),
+            xContentRegistry,
+            dataExtractorFactory.timeBucketMillis()
+        );
         TimeValue queryDelay = datafeedConfig.getQueryDelay();
         DelayedDataDetector delayedDataDetector = DelayedDataDetectorFactory.buildDetector(
             job,

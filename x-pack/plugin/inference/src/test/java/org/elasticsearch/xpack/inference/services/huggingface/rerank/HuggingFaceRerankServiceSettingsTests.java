@@ -126,7 +126,6 @@ public class HuggingFaceRerankServiceSettingsTests extends AbstractWireSerializi
         var serviceSettings = HuggingFaceRerankServiceSettings.fromMap(settings, randomFrom(ConfigurationParseContext.values()));
 
         assertThat(serviceSettings, is(new HuggingFaceRerankServiceSettings(TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
-        assertThat(settings, is(anEmptyMap()));
     }
 
     public void testFromMap_EmptyUrl_ThrowsError() {

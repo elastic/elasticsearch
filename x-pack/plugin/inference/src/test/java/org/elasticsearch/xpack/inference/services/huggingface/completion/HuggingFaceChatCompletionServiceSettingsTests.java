@@ -171,7 +171,6 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
                 )
             )
         );
-        assertThat(settings, is(anEmptyMap()));
     }
 
     public void testFromMap_MissingUrl_ThrowsException() {

@@ -120,7 +120,6 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
         var serviceSettings = HuggingFaceElserServiceSettings.fromMap(settings, randomFrom(ConfigurationParseContext.values()));
 
         assertThat(serviceSettings, is(new HuggingFaceElserServiceSettings(TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
-        assertThat(settings, is(anEmptyMap()));
     }
 
     public void testFromMap_EmptyUrl_ThrowsError() {

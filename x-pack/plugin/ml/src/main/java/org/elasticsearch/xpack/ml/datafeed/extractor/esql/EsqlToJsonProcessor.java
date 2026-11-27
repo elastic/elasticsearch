@@ -60,11 +60,11 @@ class EsqlToJsonProcessor implements Releasable {
             if (value instanceof List<?> list) {
                 List<Long> epochMillis = new ArrayList<>(list.size());
                 for (Object element : list) {
-                    epochMillis.add(EsqlDatafeedColumnValues.toEpochMillis(element, true));
+                    epochMillis.add(EsqlDatafeedColumnValues.toEpochMillis(element));
                 }
                 jsonBuilder.field(name, epochMillis);
             } else {
-                jsonBuilder.field(name, EsqlDatafeedColumnValues.toEpochMillis(value, true));
+                jsonBuilder.field(name, EsqlDatafeedColumnValues.toEpochMillis(value));
             }
         } else if (value instanceof List<?> list) {
             jsonBuilder.field(name, list);

@@ -10,8 +10,14 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -29,14 +35,15 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlStreamQueryAction;
+import org.elasticsearch.xpack.esql.streaming.SystemIndexStreamWriter;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.List;
@@ -49,6 +56,9 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
+import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
+import static org.elasticsearch.xpack.esql.action.NdjsonRowWriter.NEWLINE;
+import static org.elasticsearch.xpack.esql.action.RestEsqlStreamQueryAction.NDJSON_MEDIA_TYPE;
 
 /**
  * REST listener for the streaming ES|QL query endpoint. Subscribes to a {@link PageStreamPublisher}
@@ -99,11 +109,15 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
 public class EsqlStreamResponseListener implements ActionListener<ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(EsqlStreamResponseListener.class);
-    private static final String NDJSON_CONTENT_TYPE = "application/x-ndjson";
-    private static final byte[] NEWLINE = "\n".getBytes(StandardCharsets.UTF_8);
 
     private final RestChannel channel;
     private final ThreadContext threadContext;
+    private final Client client;
+    private final ProjectId projectId;
+    private final EscfBulkService escfBulkService;
+    private final CircuitBreaker breaker;
+    private final StreamOptions options;
+
     private final long startNanos = System.nanoTime();
     private final AtomicBoolean terminalEmitted = new AtomicBoolean(false);
     private volatile boolean subscribed = false;
@@ -123,19 +137,33 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private final AtomicReference<Page> inFlightPage = new AtomicReference<>();
     private final AtomicLong rowsWritten = new AtomicLong();
     private final AtomicLong bytesWritten = new AtomicLong();
-    private final StreamOptions options;
+    private volatile SystemIndexStreamWriter writer;
+    private volatile Exception storeFailure;
+    private volatile String streamId;
+    private final AtomicLong pagesSeen = new AtomicLong();
+    private final AtomicLong rowsSeen = new AtomicLong();
+    private volatile long currentSeq;
+    private volatile long currentOffset;
     private volatile Supplier<ThreadContext.StoredContext> contextRestorer;
     private boolean responseSent = false;
 
     private volatile PageStreamPublisher.StreamFooter preHeaderFailureFooter;
 
-    public EsqlStreamResponseListener(RestChannel channel, ThreadContext threadContext) {
-        this(channel, threadContext, StreamOptions.NONE);
-    }
-
-    EsqlStreamResponseListener(RestChannel channel, ThreadContext threadContext, StreamOptions options) {
+    EsqlStreamResponseListener(
+        RestChannel channel,
+        ThreadContext threadContext,
+        Client client,
+        ProjectId projectId,
+        EscfBulkService escfBulkService,
+        CircuitBreaker breaker,
+        StreamOptions options
+    ) {
         this.channel = channel;
         this.threadContext = threadContext;
+        this.client = client;
+        this.projectId = projectId;
+        this.escfBulkService = escfBulkService;
+        this.breaker = breaker;
         this.options = options;
     }
 
@@ -150,6 +178,10 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
      * captured context, so the line is the same whichever thread ends the response.
      */
     private ChunkedRestResponseBodyPart limitFooterPart() {
+        Exception failure = storeFailure;
+        if (failure != null) {
+            return new NdjsonFooterBodyPart(fallbackFailureFooter(failure), false);
+        }
         long elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000L;
         PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
             RestStatus.OK.getStatus(),
@@ -262,7 +294,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         assert subscribed : "the transport action completed successfully without ever initializing the stream";
     }
 
-    private void initializeStream(EsqlStreamQueryAction.ResultStream resultStream) throws IOException {
+    private void initializeStream(EsqlStreamQueryAction.ResultStream resultStream) {
         this.publisher = resultStream.publisher();
         this.columns = resultStream.columns();
         this.nullColumns = resultStream.nullColumns();
@@ -270,21 +302,65 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         this.isPartial = resultStream.isPartial();
         assert zoneId != null : "ResultStream must carry the resolved query time zone";
         this.contextRestorer = threadContext.newRestorableContext(false);
+        if (client != null && options.store() != StreamOptions.Store.NONE) {
+            writer = new SystemIndexStreamWriter(
+                new OriginSettingClient(client.projectClient(projectId), ESQL_ORIGIN),
+                escfBulkService,
+                breaker,
+                TransportVersion.current(),
+                this::onStoreFailure
+            );
+            streamId = writer.createStarted(resultStream.taskId(), null, List.copyOf(columns), Map.of(), List.of());
+        }
         resultStream.publisher().subscribe(subscriber);
         subscribed = true;
-        subscriber.subscription.request(1);
+        requestNextPage();
+    }
+
+    void onStoreFailure(Exception e) {
+        logger.warn("Failed to store stream data", e);
+        storeFailure = e;
+        if (limitReached()) {
+            finishAtLimit();
+            Flow.Subscription subscription = subscriber.subscription;
+            if (subscription != null) {
+                subscription.cancel();
+            }
+        }
+    }
+
+    private void storePage(Page page) {
+        if (writer != null && page.getPositionCount() > 0) {
+            writer.appendPage((int) currentSeq, currentOffset, page);
+        }
+    }
+
+    private void requestNextPage() {
+        Flow.Subscription subscription = subscriber.subscription;
+        if (storeFailure != null && limitReached()) {
+            finishAtLimit();
+            subscription.cancel();
+        } else if (writer == null) {
+            subscription.request(1);
+        } else {
+            writer.onCapacity(() -> subscription.request(1));
+        }
     }
 
     private void release() {
         Flow.Subscription subscription = subscriber.subscription;
         try {
-            if (subscription != null) {
+            if (subscription != null && writer == null) {
                 subscription.cancel();
             }
         } finally {
             Page page = inFlightPage.getAndSet(null);
             if (page != null) {
+                storePage(page);
                 page.releaseBlocks();
+                if (writer != null) {
+                    requestNextPage();
+                }
             }
         }
     }
@@ -378,7 +454,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             // direction but publisher-monitor → continuationMonitor in deliverPages(), creating a deadlock.
             Flow.Subscription subscription = subscriber.subscription;
             assert subscription != null : "requestNextChunk before onSubscribe; initializeStream must subscribe before sendResponse";
-            subscription.request(1);
+            requestNextPage();
         }
     }
 
@@ -392,16 +468,23 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public void onNext(Page page) {
+            int positions = page.getPositionCount();
+            if (positions > 0) {
+                currentSeq = pagesSeen.getAndIncrement();
+                currentOffset = rowsSeen.getAndAdd(positions);
+            }
             if (limitReached()) {
                 // The last page filled the limit exactly and this page shows that the result goes on, so the response
                 // ends here, incomplete. (If the result had ended instead, onComplete would have run.) The Driver drops empty
                 // pages, but one that got here would prove nothing, so it is skipped and the next signal decides.
-                boolean moreRows = page.getPositionCount() > 0;
+                boolean moreRows = positions > 0;
+                storePage(page);
                 page.releaseBlocks();
                 if (moreRows) {
                     finishAtLimit();
-                } else {
-                    subscription.request(1);
+                }
+                if (moreRows == false || writer != null) {
+                    requestNextPage();
                 }
                 return;
             }
@@ -421,7 +504,11 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 nextBodyPartListener = null;
             }
             if (next == null) {
+                storePage(page);
                 page.releaseBlocks();
+                if (writer != null) {
+                    requestNextPage();
+                }
                 return;
             }
             Page previous = inFlightPage.getAndSet(page);
@@ -431,8 +518,15 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public void onError(Throwable throwable) {
+            Exception e = throwable instanceof Exception ex ? ex : new RuntimeException(throwable);
+            if (writer != null) {
+                if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
+                    writer.markCanceled();
+                } else {
+                    writer.markFailed(isPartial.getAsBoolean(), (System.nanoTime() - startNanos) / 1_000_000L, e);
+                }
+            }
             if (terminalEmitted.compareAndSet(false, true)) {
-                Exception e = throwable instanceof Exception ex ? ex : new RuntimeException(throwable);
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
                 if (footer == null) {
                     footer = fallbackFailureFooter(e);
@@ -453,9 +547,16 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public void onComplete() {
+            if (writer != null) {
+                PageStreamPublisher.StreamFooter completed = publisher.footer();
+                writer.markComplete(completed.isPartial(), completed.tookMillis(), pagesSeen.get(), rowsSeen.get());
+            }
             if (terminalEmitted.compareAndSet(false, true)) {
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
-                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer, true);
+                Exception failure = storeFailure;
+                ChunkedRestResponseBodyPart footerPart = failure == null
+                    ? new NdjsonFooterBodyPart(footer, true)
+                    : new NdjsonFooterBodyPart(footerWithError(footer, failure), false);
                 if (responseSent == false) {
                     responseSent = true;
                     synchronized (continuationMonitor) {
@@ -500,6 +601,9 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             try {
                 writeJson(out, builder -> {
                     builder.startObject();
+                    if (streamId != null) {
+                        builder.field("stream_id", streamId);
+                    }
                     if (nullColumns != null) {
                         builder.startArray("all_columns");
                         for (ColumnInfoImpl col : cols) {
@@ -535,41 +639,24 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public String getResponseContentTypeString() {
-            return NDJSON_CONTENT_TYPE;
+            return NDJSON_MEDIA_TYPE;
         }
     }
 
     private class NdjsonPageBodyPart implements ChunkedRestResponseBodyPart {
         private final Page page;
-        private final List<ColumnInfoImpl> cols;
-        private final boolean[] nullColumns;
-        private final ZoneId zoneId;
-
-        // Resume state across encodeChunk calls.
-        // target is the current chunk's output stream; set at the top of each encodeChunk and nulled
-        // before returning so that out never writes to a stream that has already been moved/closed.
-        private RecyclerBytesStreamOutput target;
-        private final OutputStream out = new OutputStream() {
-            @Override
-            public void write(int b) throws IOException {
-                target.write(b);
-            }
-
-            @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                target.write(b, off, len);
-            }
-        };
-        private PositionToXContent[] converters;   // built once on the first encodeChunk
-        private BytesRef scratch;                  // built once on the first encodeChunk
-        private int nextRow = 0;                   // resume cursor into the page
-        private boolean encoded = false;           // true only after the last row has been written
+        // Holds the resume state across encodeChunk calls: the converters and the next row of the page.
+        private final NdjsonRowWriter rows;
+        private boolean encoded = false;           // true once the part is done: last row written, limit reached, or failure
+        // The totals of the response only include a chunk once it is done, so the limit adds the chunk being written to them.
+        private final NdjsonRowWriter.RowLimit limit = (rowsInChunk, bytesInChunk) -> options.reached(
+            rowsWritten.get() + rowsInChunk,
+            bytesWritten.get() + bytesInChunk
+        );
 
         NdjsonPageBodyPart(Page page, List<ColumnInfoImpl> cols, boolean[] nullColumns, ZoneId zoneId) {
             this.page = page;
-            this.cols = cols;
-            this.nullColumns = nullColumns;
-            this.zoneId = zoneId;
+            this.rows = new NdjsonRowWriter(page, cols, nullColumns, zoneId);
         }
 
         @Override
@@ -593,73 +680,35 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 throw new IllegalStateException("in-flight page was already released; the response is torn down");
             }
             final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
-            target = chunkStream;
             try {
-                final int rowCount = page.getPositionCount();
-                final int colCount = cols.size();
-                if (converters == null) {
-                    // First chunk: build the converters once; they are reused for every row of the page.
-                    scratch = new BytesRef();
-                    converters = new PositionToXContent[colCount];
-                    for (int c = 0; c < colCount; c++) {
-                        if (nullColumns == null || nullColumns[c] == false) {
-                            converters[c] = PositionToXContent.positionToXContent(cols.get(c), page.getBlock(c), zoneId, scratch);
-                        }
-                    }
-                }
-                // Emit rows until the chunk reaches sizeHint. Each row is its own JSON value followed by a
-                // newline, so it gets its own builder (a builder cannot write two top-level values without
-                // a separator). Closing it flushes Jackson's internal write buffer through out into
-                // chunkStream, so size() is accurate to the row just written; without that it would only
-                // advance in ~8 KB steps. Measuring after the row (not before) guarantees at least one row
-                // per call, so a part with a tiny sizeHint still makes forward progress.
-                //
-                // The limits are checked after each row, which is the same as checking before the next one, except that
-                // it never produces an empty chunk. A limit that falls on the last row of the page is not acted on here:
-                // whether the result goes on is only known when the next signal arrives (see onNext and onComplete).
-                final long rowsBefore = rowsWritten.get();
-                final long bytesBefore = bytesWritten.get();
-                int rowsInChunk = 0;
-                boolean limitInsidePage = false;
-                while (nextRow < rowCount) {
-                    try (XContentBuilder builder = XContentFactory.jsonBuilder(out)) {
-                        builder.startArray();
-                        for (int col = 0; col < colCount; col++) {
-                            if (converters[col] != null) {
-                                converters[col].positionToXContent(builder, channel.request(), nextRow);
-                            }
-                        }
-                        builder.endArray();
-                    }
-                    chunkStream.write(NEWLINE);
-                    nextRow++;
-                    rowsInChunk++;
-                    if (nextRow < rowCount && options.reached(rowsBefore + rowsInChunk, bytesBefore + chunkStream.size())) {
-                        limitInsidePage = true;
-                        break;
-                    }
-                    if (chunkStream.size() >= sizeHint) {
-                        break;
-                    }
-                }
-                rowsWritten.addAndGet(rowsInChunk);
+                // The writer writes rows until the chunk reaches sizeHint, the page ends or a limit is reached. It checks the limit
+                // before each row, and once more when the chunk is full, so a reached limit is reported by the call that wrote the
+                // last row and never costs an extra, empty chunk. A limit that falls on the last row of the page is not acted on
+                // here: whether the result goes on is only known when the next signal arrives (see onNext and onComplete).
+                final int written = rows.writeRows(chunkStream, channel.request(), sizeHint, limit);
+                assert written > 0 || rows.allRowsWritten() : "a page part is only created while the limit is not reached (see onNext)";
+                final boolean limitInsidePage = rows.stoppedAtLimit();
+                rowsWritten.addAndGet(written);
                 bytesWritten.addAndGet(chunkStream.size());
-                if (nextRow == rowCount || limitInsidePage) {
+                if (rows.allRowsWritten() || limitInsidePage) {
                     encoded = true;
+                    if (limitInsidePage || options.store() == StreamOptions.Store.ALL) {
+                        storePage(page);
+                    }
                 }
                 if (limitInsidePage) {
                     // Rows of this page remain unsent, so the result goes on: end the response here. The rows are counted
                     // first so that next_offset in the last line includes this chunk.
                     finishAtLimit();
+                    if (writer != null) {
+                        requestNextPage();
+                    }
                 }
-                final var result = chunkStream.moveToBytesReference();
-                target = null;
-                return result;
+                return chunkStream.moveToBytesReference();
             } catch (Exception e) {
                 logger.error("failure encoding page chunk", e);
                 encoded = true; // part is dead; never re-enter it
                 IOUtils.closeWhileHandlingException(chunkStream);
-                target = null;
                 releasePage();
                 throw e;
             } finally {
@@ -677,7 +726,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public String getResponseContentTypeString() {
-            return NDJSON_CONTENT_TYPE;
+            return NDJSON_MEDIA_TYPE;
         }
     }
 
@@ -801,7 +850,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public String getResponseContentTypeString() {
-            return NDJSON_CONTENT_TYPE;
+            return NDJSON_MEDIA_TYPE;
         }
     }
 

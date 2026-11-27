@@ -77,8 +77,41 @@ record ComputeContext(
             exchangeSourceSupplier,
             exchangeSinkSupplier,
             singleNodeOptimizations,
+            null
+        );
+    }
+
+    /**
+     * For computes whose plans never fetch and share no sort bound, with an explicit inner load.
+     */
+    ComputeContext(
+        String sessionId,
+        TaskId queryId,
+        String description,
+        String clusterAlias,
+        EsqlFlags flags,
+        IndexedByShardId<ComputeSearchContext> searchContexts,
+        Configuration configuration,
+        FoldContext foldCtx,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        boolean singleNodeOptimizations,
+        @Nullable TaskLoadAttribution.Target load
+    ) {
+        this(
+            sessionId,
+            queryId,
+            description,
+            clusterAlias,
+            flags,
+            searchContexts,
+            configuration,
+            foldCtx,
+            exchangeSourceSupplier,
+            exchangeSinkSupplier,
+            singleNodeOptimizations,
             null,
-            null,
+            load,
             FetchOperatorProvider.UNSUPPORTED,
             null,
             new QueryLoad()

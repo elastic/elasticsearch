@@ -1,0 +1,6 @@
+area: Search
+issues: 
+ - 166396
+pr: 166739
+summary: Add breaker accounting for search queries building bitsets
+type: enhancement

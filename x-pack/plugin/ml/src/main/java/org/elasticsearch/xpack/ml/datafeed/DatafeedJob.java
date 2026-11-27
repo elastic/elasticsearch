@@ -312,6 +312,7 @@ class DatafeedJob {
     /**
      * For ES|QL datafeeds, moves the model clock over the empty gap between the last posted record and {@code timeMs} when the gap
      * holds more than {@link #MAX_EMPTY_BUCKETS_TO_MATERIALISE} buckets, so autodetect does not write one empty bucket result per span.
+     * Known limitation: only the gap before a chunk is checked. A gap between two records of the same posted batch is not skipped.
      */
     private void skipLongEmptyGapBefore(long timeMs) {
         long lastRecordMs = latestPostedRecordTimeMs;
@@ -349,6 +350,9 @@ class DatafeedJob {
                 advanceRequest.setWaitForNormalization(false);
                 advanceRequest.setRefreshRequired(false);
                 recordFinalizedBucketEnd(flushJob(advanceRequest));
+            }
+            if (isRunning() == false || isIsolated) {
+                return;
             }
             FlushJobAction.Request skipRequest = new FlushJobAction.Request(jobId);
             skipRequest.setSkipTime(String.valueOf(skipEndMs));
@@ -688,6 +692,10 @@ class DatafeedJob {
                 if (flushRequest.getAdvanceTime() != null) {
                     // A catch-up window can end long after its last record, for example after an extraction failure.
                     skipLongEmptyGapBefore(end);
+                }
+                // The gap flushes block, so the datafeed may have stopped or been isolated meanwhile.
+                if (isRunning() == false || isIsolated) {
+                    return;
                 }
                 recordFinalizedBucketEnd(flushJob(flushRequest));
 

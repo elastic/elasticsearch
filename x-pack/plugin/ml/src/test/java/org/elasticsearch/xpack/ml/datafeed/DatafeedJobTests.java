@@ -1915,6 +1915,43 @@ public class DatafeedJobTests extends ESTestCase {
         verify(postDataFuture, times(1)).actionGet();
     }
 
+    public void testDatafeedIsolatedDuringPreservationAdvanceShouldNotSendSkipOrFinalAdvance() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        int[] flushCount = { 0 };
+        when(flushJobFuture.actionGet()).thenAnswer(invocation -> {
+            // The first real-time flush is the preservation advance: isolate while it is in flight.
+            if (++flushCount[0] == 1) {
+                datafeedJob.isolate();
+            }
+            return flushAck(11 * MINUTE_MS);
+        });
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000")));
+    }
+
+    public void testGapInsideOneChunkShouldNotSkip() throws Exception {
+        // Known limitation: only the gap before a chunk is checked, so a gap between records of one posted batch is written.
+        DatafeedJob datafeedJob = jobAfterLookback(12 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        when(dataExtractor.hasNext()).thenReturn(true, false);
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(
+                new SearchInterval(12 * MINUTE_MS, SPARSE_NOW),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            )
+        );
+        when(dataExtractor.getEndTime()).thenReturn(SPARSE_NOW);
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(countsWithLatestRecord(SPARSE_NOW - 500)));
+        when(flushJobFuture.actionGet()).thenReturn(flushAck(11 * MINUTE_MS), flushAck(SPARSE_NOW));
+
+        currentTime = SPARSE_NOW;
+        datafeedJob.runRealtime();
+
+        assertThat(flushes().stream().noneMatch(f -> f.startsWith("skip")), equalTo(true));
+    }
+
     private DatafeedJob jobAfterLookback(
         long nowMs,
         long queryDelayMs,

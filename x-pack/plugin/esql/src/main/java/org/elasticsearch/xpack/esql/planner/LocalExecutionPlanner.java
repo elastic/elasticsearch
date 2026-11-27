@@ -92,6 +92,7 @@ import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
@@ -1066,9 +1067,13 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planInto(IntoExec into, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(into.child(), context);
         Layout outputLayout = new Layout.Builder().append(into.output()).build();
+        IntoPageWriter.Factory.Indexing indexing = configuration.explainOnly()
+            ? IntoPageWriter.Factory.Indexing.DISCARD
+            : IntoPageWriter.Factory.Indexing.INDEX;
+        // Resolved once, so the refresh targets the index that was written to, not one that date math resolves to a moment later
+        String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
         return switch (into.mode()) {
             case WRITE -> {
-                String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
                 boolean discard = configuration.explainOnly();
                 if (discard == false) {
                     IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
@@ -1079,14 +1084,15 @@ public class LocalExecutionPlanner {
                     blockFactory.breaker(),
                     target,
                     into.sourceAttributes(),
-                    discard ? IntoPageWriter.Factory.Indexing.DISCARD : IntoPageWriter.Factory.Indexing.INDEX
+                    indexing,
+                    into.options()
                 );
                 yield source.with(
                     new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),
                     outputLayout
                 );
             }
-            case MERGE_STATS -> source.with(new IntoMergeStatsOperator.Factory(), outputLayout);
+            case MERGE_STATS -> source.with(IntoMergeStatsOperator.Factory.create(client, target, into.options(), indexing), outputLayout);
         };
     }
 
@@ -1895,7 +1901,12 @@ public class LocalExecutionPlanner {
         }
 
         // Load the "positions" of each match
-        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
+        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping, join.repeatedKeys(), join.source()), layout);
+        if (join.repeatedKeys()) {
+            // A probe row gets one position for each build row it matches: give each match a row of its own before loading its values.
+            // Pages hold as many matches as LOOKUP JOIN's lookup pages, so a probe row with many matches doesn't make one huge page.
+            source = source.with(new MvExpandOperator.Factory(positionsChannel, LookupQueryOperator.DEFAULT_MAX_PAGE_SIZE), layout);
+        }
 
         // Load the "values" from each match
         int loadedFields = 0;

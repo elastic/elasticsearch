@@ -17,8 +17,11 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
+import org.junit.After;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -39,8 +42,9 @@ import static org.hamcrest.Matchers.lessThan;
 
 /**
  * {@code field IN (subquery)} over an indexed field stays an IN list, which is pushed to Lucene as a {@code terms} query that reads only
- * the matching rows, however many values the subquery returns, up to the most terms the index accepts. Past that, or when the limit is
- * pinned, it becomes a hash join that reads every row. Both shapes return the same rows.
+ * the matching rows. With cost-based routing ({@code -1}, set for most tests here) it does so however many values the subquery returns,
+ * up to the most terms the index accepts. Past that, or with a pinned limit such as the default of {@code 100}, it becomes a hash join
+ * that reads every row. Both shapes return the same rows.
  * <p>
  * The rows the Lucene sources emit tell the two shapes apart: the subquery adds the same rows to both, so the main query reads
  * fewer than the rows of its outer source in total only when the IN list was pushed.
@@ -73,6 +77,45 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(VersionFieldPlugin.class);
         return plugins;
+    }
+
+    @Before
+    public void chooseByCost() {
+        updateClusterSettings(Settings.builder().put(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey(), -1));
+    }
+
+    @After
+    public void resetThreshold() {
+        updateClusterSettings(Settings.builder().putNull(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey()));
+    }
+
+    /**
+     * A shard rejects a {@code terms} query longer than its {@code index.max_terms_count}, so the default threshold of 100 is capped by
+     * a lower limit and the join becomes a hash join rather than a failed query.
+     */
+    public void testDefaultThresholdIsCappedByMaxTermsCount() {
+        updateClusterSettings(Settings.builder().putNull(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey()));
+        int values = 75;
+        createEvents("events", values - 25, "type=keyword");
+
+        QueryResult result = query("events", values, getPragmas());
+
+        assertThat(result.matches(), equalTo((long) values));
+        assertThat(result.rowsRead(), greaterThanOrEqualTo((long) DOCS));
+    }
+
+    public void testDefaultThresholdUsesHashJoinAboveLimit() {
+        updateClusterSettings(Settings.builder().putNull(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey()));
+        createEvents("events", null, "type=keyword,index=false");
+        int limit = 100;
+
+        QueryResult atLimit = query("events", limit, getPragmas());
+        assertThat(atLimit.matches(), equalTo((long) limit));
+        assertThat("the IN list is kept at the limit", atLimit.rowsRead(), lessThan((long) DOCS));
+
+        QueryResult aboveLimit = query("events", limit + 1, getPragmas());
+        assertThat(aboveLimit.matches(), equalTo((long) limit + 1));
+        assertThat("a hash join reads every row", aboveLimit.rowsRead(), greaterThanOrEqualTo((long) DOCS));
     }
 
     public void testManyValuesOnIndexedFieldArePushedToLucene() {

@@ -30,12 +30,13 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.CCS_STABILIZATION_CYCLES;
@@ -95,6 +96,36 @@ public class DatafeedJobBuilder {
             .addSettingsUpdateConsumer(CCS_STABILIZATION_FLOOR, v -> this.ccsStabilizationFloorMs = v.millis());
     }
 
+    private static long latestRecordTimeMs(RestartTimeInfo restartTimeInfo) {
+        return restartTimeInfo.getLatestRecordTimeMs() == null ? -1 : restartTimeInfo.getLatestRecordTimeMs();
+    }
+
+    private static long latencyMs(Job job) {
+        TimeValue latency = job.getAnalysisConfig().getLatency();
+        return latency == null ? 0 : latency.millis();
+    }
+
+    private static long latestFinalBucketEndMs(Job job, RestartTimeInfo restartTimeInfo) {
+        return restartTimeInfo.getLatestFinalBucketTimeMs() == null
+            ? -1
+            : restartTimeInfo.getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
+    }
+
+    /**
+     * Maps the latest posted record time to the last time the datafeed has fully read. Rows of a bucketed ES|QL query carry the bucket
+     * start, so the whole bucket has been posted. The bucket length is the larger of the DESCRIBE interval and the grouping interval,
+     * because the chunked extractor still floors the window start on the grouping interval. That term goes away when the aligner uses
+     * the DESCRIBE interval.
+     */
+    private static LongUnaryOperator lastEndTimeForRecord(DatafeedConfig datafeedConfig, DataExtractorFactory dataExtractorFactory) {
+        long describedBucketMs = dataExtractorFactory.timeBucketMillis();
+        if (describedBucketMs <= 0) {
+            return LongUnaryOperator.identity();
+        }
+        long bucketMs = Math.max(describedBucketMs, datafeedConfig.getGroupingInterval().millis());
+        return recordMs -> recordMs + bucketMs - 1;
+    }
+
     private void setDelayedDataCheckFreq(TimeValue value) {
         this.delayedDataCheckFreq = value.millis();
     }
@@ -103,27 +134,13 @@ public class DatafeedJobBuilder {
         final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
         final DatafeedConfig datafeedConfig = context.datafeedConfig();
         final Job job = context.job();
-        final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
-            ? -1
-            : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
-        final long latestRecordTimeMs;
-        if (context.restartTimeInfo().getLatestRecordTimeMs() == null) {
-            latestRecordTimeMs = -1;
-        } else {
-            long recordMs = context.restartTimeInfo().getLatestRecordTimeMs();
-            if (datafeedConfig.getEsqlQuery() != null && EsqlDataExtractor.hasAggregation(datafeedConfig.getEsqlQuery())) {
-                // Aggregating ES|QL emits bucket-floor timestamps; {@link ChunkedDataExtractorFactory} floors the window start on
-                // restart, so advance past the last fully emitted grouping bucket. Raw {@code FROM} rows keep source timestamps.
-                recordMs += datafeedConfig.getGroupingInterval().millis() - 1;
-            }
-            latestRecordTimeMs = recordMs;
-        }
+        final long latestFinalBucketEndMs = latestFinalBucketEndMs(job, context.restartTimeInfo());
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
         );
 
-        if (failListenerOnPreflightValidation(datafeedConfig, job, listener)) {
+        if (failListenerOnPreflightValidation(task, datafeedConfig, job, listener)) {
             return;
         }
 
@@ -155,7 +172,6 @@ public class DatafeedJobBuilder {
                 parentTaskAssigningClient,
                 cloudCredentialId,
                 latestFinalBucketEndMs,
-                latestRecordTimeMs,
                 timingStatsReporter,
                 dataExtractorFactory
             );
@@ -194,24 +210,12 @@ public class DatafeedJobBuilder {
         final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
         final DatafeedConfig datafeedConfig = context.datafeedConfig();
         final Job job = context.job();
-        final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
-            ? -1
-            : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
-        final long latestRecordTimeMs;
-        if (context.restartTimeInfo().getLatestRecordTimeMs() == null) {
-            latestRecordTimeMs = -1;
-        } else {
-            long recordMs = context.restartTimeInfo().getLatestRecordTimeMs();
-            if (datafeedConfig.getEsqlQuery() != null && EsqlDataExtractor.hasAggregation(datafeedConfig.getEsqlQuery())) {
-                recordMs += datafeedConfig.getGroupingInterval().millis() - 1;
-            }
-            latestRecordTimeMs = recordMs;
-        }
+        final long latestFinalBucketEndMs = latestFinalBucketEndMs(job, context.restartTimeInfo());
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
         );
-        if (failListenerOnPreflightValidation(datafeedConfig, job, listener)) {
+        if (failListenerOnPreflightValidation(task, datafeedConfig, job, listener)) {
             return;
         }
         var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(crossProjectModeDecider, null);
@@ -235,7 +239,6 @@ public class DatafeedJobBuilder {
             parentTaskAssigningClient,
             cloudCredentialId,
             latestFinalBucketEndMs,
-            latestRecordTimeMs,
             timingStatsReporter,
             dataExtractorFactory
         );
@@ -250,11 +253,11 @@ public class DatafeedJobBuilder {
         ParentTaskAssigningClient parentTaskAssigningClient,
         String cloudCredentialId,
         long latestFinalBucketEndMs,
-        long latestRecordTimeMs,
         DatafeedTimingStatsReporter timingStatsReporter,
         DataExtractorFactory dataExtractorFactory
     ) {
-        TimeValue frequency = getFrequencyOrDefault(datafeedConfig, job, xContentRegistry);
+        final long latestRecordTimeMs = latestRecordTimeMs(context.restartTimeInfo());
+        TimeValue frequency = datafeedConfig.getFrequencyOrDefault(job.getAnalysisConfig().getBucketSpan(), xContentRegistry);
         TimeValue queryDelay = datafeedConfig.getQueryDelay();
         DelayedDataDetector delayedDataDetector = DelayedDataDetectorFactory.buildDetector(
             job,
@@ -288,14 +291,24 @@ public class DatafeedJobBuilder {
             latestRecordTimeMs,
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
-            crossClusterSearchStats
+            crossClusterSearchStats,
+            lastEndTimeForRecord(datafeedConfig, dataExtractorFactory),
+            // Only ES|QL datafeeds skip long empty gaps for now. Search-query datafeeds get the same fix in #167833.
+            datafeedConfig.getEsqlQuery() != null,
+            job.getAnalysisConfig().getBucketSpan().millis(),
+            latencyMs(job)
         );
         listener.onResponse(datafeedJob);
     }
 
-    private boolean failListenerOnPreflightValidation(DatafeedConfig datafeedConfig, Job job, ActionListener<DatafeedJob> listener) {
+    private boolean failListenerOnPreflightValidation(
+        TransportStartDatafeedAction.DatafeedTask task,
+        DatafeedConfig datafeedConfig,
+        Job job,
+        ActionListener<DatafeedJob> listener
+    ) {
         try {
-            checkRemoteIndicesAreAvailable(datafeedConfig);
+            checkRemoteIndicesAreAvailable(task, datafeedConfig);
             DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
@@ -305,13 +318,15 @@ public class DatafeedJobBuilder {
     }
 
     // visible for testing
-    void checkRemoteIndicesAreAvailable(DatafeedConfig datafeedConfig) {
+    void checkRemoteIndicesAreAvailable(TransportStartDatafeedAction.DatafeedTask task, DatafeedConfig datafeedConfig) {
         if (remoteClusterClient == false) {
-            // ES|QL sources are in esql_query, not indices; remote checks live in EsqlDatafeedQueryValidator (#160858).
-            if (datafeedConfig.getIndices() == null) {
+            // ES|QL sources are not in the config: the master stores the probed remote sources in the start parameters. A DSL datafeed
+            // keeps its loaded config, because an update that races the start may have changed the indices after the master read them.
+            List<String> sources = datafeedConfig.getEsqlQuery() != null ? task.getDatafeedIndices() : datafeedConfig.getIndices();
+            if (sources == null) {
                 return;
             }
-            List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(datafeedConfig.getIndices());
+            List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(sources);
             if (remoteIndices.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(
@@ -323,15 +338,6 @@ public class DatafeedJobBuilder {
                 );
             }
         }
-    }
-
-    private static TimeValue getFrequencyOrDefault(DatafeedConfig datafeed, Job job, NamedXContentRegistry xContentRegistry) {
-        TimeValue frequency = datafeed.getFrequency();
-        if (frequency == null) {
-            TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
-            return datafeed.defaultFrequency(bucketSpan, xContentRegistry);
-        }
-        return frequency;
     }
 
     private static DataDescription buildDataDescription(Job job) {

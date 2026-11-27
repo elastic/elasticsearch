@@ -46,6 +46,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -413,7 +414,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> queryListener) {
-        ActionListener<EsqlQueryResponse> listener = computeService.coordinate(task, queryListener);
+        // The coordination part lives until the query completes, so planning charges the query's breaker too.
+        QueryScheduler.QueryPart coordination = computeService.coordinate(task);
+        ActionListener<EsqlQueryResponse> listener = ActionListener.releaseAfter(queryListener, coordination);
         if (request.allowPartialResults() == null) {
             request.defaultAllowPartialResults(defaultAllowPartialResults);
         }
@@ -458,6 +461,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalBlobStoreExecutor(),
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
+            coordination.breaker(),
             ActionListener.wrap(result -> {
                 try {
                     failIfCancelled(task, result.inner());
@@ -740,6 +744,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.completionInfo().readCpuNanos(),
                 result.completionInfo().cpuNanos(),
                 result.completionInfo().driverNanos(),
+                result.completionInfo().searchLoad(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
@@ -763,6 +768,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             result.completionInfo().readCpuNanos(),
             result.completionInfo().cpuNanos(),
             result.completionInfo().driverNanos(),
+            result.completionInfo().searchLoad(),
             profile,
             request.columnar(),
             null,

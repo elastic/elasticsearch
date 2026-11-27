@@ -307,7 +307,9 @@ public class IndexVersions {
     public static final IndexVersion DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS = def(9_132_0_00, Version.LUCENE_10_5_2);
     public static final IndexVersion COLUMNAR_PLAIN_SKIP_INDEX = def(9_133_0_00, Version.LUCENE_10_5_2);
     public static final IndexVersion ROUTING_DOC_VALUES_NO_OP_IN_COLUMNAR = def(9_134_0_00, Version.LUCENE_10_5_2);
-    public static final IndexVersion DENSE_VECTOR_ENCODED_VECTOR_REQUIRES_DIMS = def(9_135_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion COLUMNAR_REJECTS_NESTED_INCLUDE_IN_PARENT = def(9_135_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion INDEX_SORT_EXPRESSION = def(9_136_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion DENSE_VECTOR_ENCODED_VECTOR_REQUIRES_DIMS = def(9_137_0_00, Version.LUCENE_10_5_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

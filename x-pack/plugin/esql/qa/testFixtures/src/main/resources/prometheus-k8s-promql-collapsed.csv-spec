@@ -11,13 +11,14 @@ required_capability: ts_collapse
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_round_to_nearest
 PROMQL index=prometheus-k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" (
-  sum(avg_over_time(network.cost[5m]))
+  round(sum(avg_over_time(network.cost[5m])), 0.000001)
 )
 | TS_COLLAPSE;
 
-sum(avg_over_time(network.cost[5m])):double | step:datetime
-[51.958333333333336, 51.59375]             | [2024-05-10T00:20:00.000Z, 2024-05-10T00:25:00.000Z]
+round(sum(avg_over_time(network.cost[5m])), 0.000001):double | step:datetime
+[51.958333, 51.59375]                                        | [2024-05-10T00:20:00.000Z, 2024-05-10T00:25:00.000Z]
 ;
 
 // Single step, per-cluster — mirrors nested_within_series_sum_by_cluster_avg_over_time.

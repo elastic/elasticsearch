@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeCacheSizeAndCommitments;
 import org.elasticsearch.cluster.NodeHeapEstimates;
 import org.elasticsearch.cluster.NodeHeapMetrics;
+import org.elasticsearch.cluster.NodeSearchCapacity;
+import org.elasticsearch.cluster.SearchCopyDemand;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -30,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -840,7 +843,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 allocation.routingNodes().node(nodeA).getByShardId(shard1),
                 nodeB,
                 0L,
-                "relocating shard in test",
+                MoveReason.CANNOT_REMAIN,
                 allocation.changes(),
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
@@ -861,7 +864,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 allocation.routingNodes().node(nodeA).getByShardId(shard0),
                 nodeB,
                 0L,
-                "relocating shard in test",
+                MoveReason.CANNOT_REMAIN,
                 allocation.changes(),
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
@@ -1019,7 +1022,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 allocation.routingNodes().node(nodeA).getByShardId(shardId),
                 nodeB,
                 0L,
-                "relocating shard in test",
+                MoveReason.CANNOT_REMAIN,
                 allocation.changes(),
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
@@ -1046,6 +1049,67 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             TestRoutingAllocationFactory.forClusterState(clusterState).build().mutableCloneForSimulation()
         );
         assertThat(simulator.getClusterInfo().getNodeHeapMetrics().isEmpty(), equalTo(true));
+    }
+
+    public void testSearchLoadMetricsAreUnchangedBySimulation() {
+        final String sourceNodeId = randomIdentifier();
+        final String targetNodeId = randomValueOtherThan(sourceNodeId, ESAllocationTestCase::randomIdentifier);
+        final long shardSize = randomLongBetween(1, 1_000);
+        final long sourceTotal = randomLongBetween(shardSize, 10_000);
+        final long targetTotal = randomLongBetween(shardSize, 10_000);
+        final long sourceFree = randomLongBetween(0, sourceTotal - shardSize);
+        final long targetFree = randomLongBetween(shardSize, targetTotal);
+        final String sourcePath = "/" + randomAlphaOfLength(8);
+        final String targetPath = "/" + randomAlphaOfLength(8);
+
+        final ShardId shardId = new ShardId(randomIdentifier(), "_na_", 0);
+        final ShardRouting relocatingSource = shardRoutingBuilder(shardId, sourceNodeId, true, STARTED).build()
+            .relocate(targetNodeId, shardSize, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+        final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands = Map.of(
+            new ClusterInfo.NodeAndShard(sourceNodeId, shardId),
+            new SearchCopyDemand(randomDouble(), randomDouble())
+        );
+        final Map<String, NodeSearchCapacity> nodeSearchCapacities = Map.of(
+            sourceNodeId,
+            new NodeSearchCapacity(randomDoubleBetween(0.1, 64.0, true), randomDoubleBetween(0.1, 64.0, true)),
+            targetNodeId,
+            new NodeSearchCapacity(randomDoubleBetween(0.1, 64.0, true), randomDoubleBetween(0.1, 64.0, true))
+        );
+
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        addIndex(metadataBuilder, routingTableBuilder, relocatingSource);
+        final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode(sourceNodeId)).add(newNode(targetNodeId)))
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+        final ClusterInfo initialClusterInfo = new ClusterInfoTestBuilder() //
+            .withNode(sourceNodeId, new DiskUsageBuilder(sourcePath, sourceTotal, sourceFree))
+            .withNode(targetNodeId, new DiskUsageBuilder(targetPath, targetTotal, targetFree))
+            .withShard(relocatingSource, shardSize)
+            .searchCopyDemands(searchCopyDemands)
+            .nodeSearchCapacities(nodeSearchCapacities)
+            .build();
+
+        final RoutingAllocation allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
+        final ClusterInfoSimulator simulator = new ClusterInfoSimulator(allocation);
+        final ShardRouting target = allocation.routingNodes().node(sourceNodeId).getByShardId(shardId).getTargetRelocatingShard();
+        simulator.simulateShardStarted(target);
+        allocation.routingNodes().startShard(target, allocation.changes(), shardSize);
+
+        assertThat(
+            simulator.getClusterInfo(),
+            equalTo(
+                new ClusterInfoTestBuilder() //
+                    .withNode(sourceNodeId, new DiskUsageBuilder(sourcePath, sourceTotal, sourceFree + shardSize))
+                    .withNode(targetNodeId, new DiskUsageBuilder(targetPath, targetTotal, targetFree - shardSize))
+                    .withShard(relocatingSource, shardSize)
+                    .searchCopyDemands(searchCopyDemands)
+                    .nodeSearchCapacities(nodeSearchCapacities)
+                    .build()
+            )
+        );
     }
 
     private static ClusterState clusterStateWithRoles(
@@ -1115,6 +1179,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         private final Map<NodeAndPath, ReservedSpace> reservedSpace = new HashMap<>();
         private final Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = new HashMap<>();
         private final Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = new HashMap<>();
+        private Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands = Map.of();
+        private Map<String, NodeSearchCapacity> nodeSearchCapacities = Map.of();
 
         public ClusterInfoTestBuilder withNode(String name, DiskUsageBuilder diskUsageBuilderBuilder) {
             leastAvailableSpaceUsage.put(name, diskUsageBuilderBuilder.toDiskUsage(name));
@@ -1163,6 +1229,16 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             return this;
         }
 
+        public ClusterInfoTestBuilder searchCopyDemands(Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands) {
+            this.searchCopyDemands = searchCopyDemands;
+            return this;
+        }
+
+        public ClusterInfoTestBuilder nodeSearchCapacities(Map<String, NodeSearchCapacity> nodeSearchCapacities) {
+            this.nodeSearchCapacities = nodeSearchCapacities;
+            return this;
+        }
+
         public ClusterInfo build() {
             return ClusterInfo.builder()
                 .leastAvailableSpaceUsage(leastAvailableSpaceUsage)
@@ -1171,6 +1247,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 .reservedSpace(reservedSpace)
                 .nodeCacheSizeAndCommitments(nodeCacheSizeAndCommitments)
                 .shardCacheRequirements(shardCacheRequirements)
+                .searchCopyDemands(searchCopyDemands)
+                .nodeSearchCapacities(nodeSearchCapacities)
                 .build();
         }
     }

@@ -7,11 +7,20 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
+import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.random.RandomGeneratorFactory;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.TreeMap;
+import java.util.stream.DoubleStream;
+
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests for {@link EventDetector}, the top-level entry point. Focus areas: de-duplication of coincident
@@ -122,6 +131,32 @@ public class EventDetectorTests extends ESTestCase {
         assertTrue(
             "a low-high-low variance bump should yield a DistributionChange at a boundary: " + events,
             events.stream().anyMatch(e -> e instanceof ChangeType.DistributionChange && e.changePoint() >= 35 && e.changePoint() <= 135)
+        );
+    }
+
+    public void testReportsMostVarianceIncreasesAsADistributionChange() {
+        // Mean constant, noise scale 1 then 5. About 0.75% of such random series are reported as something else,
+        // e.g. a step change when the noisier half's mean is offset by chance. So test many series and require
+        // most to be a distribution change. With 100 series and at least 87 distribution changes, a false
+        // failure has probability ~4e-14, i.e. a 50% chance of one in about 2M years at 10M runs per year.
+        NormalDistribution first = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
+        NormalDistribution second = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 5);
+        Map<String, Integer> changeTypeCounts = new TreeMap<>();
+        for (int series = 0; series < 100; series++) {
+            double[] values = DoubleStream.concat(
+                DoubleStream.generate(first::sample).limit(50),
+                DoubleStream.generate(second::sample).limit(50)
+            ).toArray();
+            List<ChangeType> events = new EventDetector().detect(buckets(values));
+            // Select the reported event the same way the aggregation does.
+            ChangeType reported = new InternalChangePointAggregation("change_point", null, Collections.nCopies(events.size(), null), events)
+                .getChangeType();
+            changeTypeCounts.merge(reported.getName(), 1, Integer::sum);
+        }
+        assertThat(
+            changeTypeCounts.toString(),
+            changeTypeCounts.getOrDefault(ChangeType.DistributionChange.NAME, 0),
+            greaterThanOrEqualTo(87)
         );
     }
 

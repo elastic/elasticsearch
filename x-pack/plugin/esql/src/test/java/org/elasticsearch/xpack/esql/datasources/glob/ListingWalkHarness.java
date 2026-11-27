@@ -130,6 +130,29 @@ public final class ListingWalkHarness implements StorageProvider {
      */
     public static final int WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS = WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES - WIDE_HIVE_PREFIXES;
 
+    /**
+     * Compact 10-prefix × 90-day Hive tree for the min-sample walk pin. First account's 1 Jan folder
+     * has {@link #RETENTION_HIVE_QUIET_FILES} objects; other accounts' 1 Jan folders are dense. Remaining
+     * days have one file so {@code estimatedPrefixWidth} lands in the 90-day band. One {@code _temporary}
+     * junk dir sits next to 1 Jan under the first account so {@code indexOfFirstShapedDir} is not 0.
+     */
+    public static final int RETENTION_HIVE_ACCOUNTS = 10;
+    public static final int RETENTION_HIVE_DAYS = 90;
+    public static final int RETENTION_HIVE_QUIET_FILES = 2;
+    public static final int RETENTION_HIVE_DENSE_FILES = 40;
+    public static final int RETENTION_HIVE_MATCHING_FILES = RETENTION_HIVE_QUIET_FILES + (RETENTION_HIVE_ACCOUNTS - 1)
+        * RETENTION_HIVE_DENSE_FILES;
+    public static final String RETENTION_HIVE_PREFIX = "s3://bucket/ret";
+    /**
+     * Globstar so grain-IN cannot splice a day folder and skip the walk. Listing hints still prune
+     * month/day by folder value; folder-range on a directory path drops the leaf name. The globstar
+     * is concatenated so checkstyle does not read it as an empty javadoc.
+     */
+    public static final String RETENTION_HIVE_GLOB = RETENTION_HIVE_PREFIX + "/" + "**/*.parquet";
+    /** Matching day of {@link #retentionHiveTree()}: 1 January 2026 UTC. */
+    public static final Instant RETENTION_HIVE_DAY_START = Instant.parse("2026-01-01T00:00:00Z");
+    public static final Instant RETENTION_HIVE_DAY_END = Instant.parse("2026-01-02T00:00:00Z");
+
     private static final String[] WIDE_HIVE_REGIONS = {
         "us-east-1",
         "us-east-2",
@@ -187,6 +210,8 @@ public final class ListingWalkHarness implements StorageProvider {
     volatile boolean failListChildrenRuntime;
     /** Return {@code null} from {@link #listChildren} after this many successful calls. {@code -1} disables. */
     volatile int nullListChildrenAfter = -1;
+    /** Return {@code null} from {@link #listChildren} when the prefix contains this fragment. */
+    volatile String nullListChildrenContaining;
     boolean childrenUnsupported;
     boolean listsInKeyOrder = true;
 
@@ -270,6 +295,10 @@ public final class ListingWalkHarness implements StorageProvider {
         this.nullListChildrenAfter = successfulBeforeNull;
     }
 
+    public void setNullListChildrenContaining(String fragment) {
+        this.nullListChildrenContaining = fragment;
+    }
+
     public void setListsInKeyOrder(boolean listsInKeyOrder) {
         this.listsInKeyOrder = listsInKeyOrder;
     }
@@ -315,6 +344,48 @@ public final class ListingWalkHarness implements StorageProvider {
         }
     }
 
+    /** Quiet first matching day, dense siblings. See {@link #RETENTION_HIVE_ACCOUNTS}. */
+    public static List<StorageEntry> retentionHiveTree() {
+        return retentionHiveTree(RETENTION_HIVE_QUIET_FILES, RETENTION_HIVE_DENSE_FILES);
+    }
+
+    /**
+     * Same 10-prefix × 90-day layout as {@link #retentionHiveTree()} with {@code firstMatchingFiles} under
+     * account a00's 1 Jan folder and {@code otherMatchingFiles} under the other accounts' 1 Jan folders.
+     */
+    public static List<StorageEntry> retentionHiveTree(int firstMatchingFiles, int otherMatchingFiles) {
+        LocalDate start = LocalDate.of(2026, 1, 1);
+        LocalDate end = LocalDate.of(2026, 3, 31);
+        List<StorageEntry> entries = new ArrayList<>();
+        int days = 0;
+        for (LocalDate day = start; day.isAfter(end) == false; day = day.plusDays(1)) {
+            days++;
+            for (int a = 0; a < RETENTION_HIVE_ACCOUNTS; a++) {
+                String account = String.format(Locale.ROOT, "a%02d", a);
+                String prefix = RETENTION_HIVE_PREFIX + "/account=" + account;
+                int files;
+                if (day.equals(start)) {
+                    files = a == 0 ? firstMatchingFiles : otherMatchingFiles;
+                } else {
+                    files = 1;
+                }
+                addRetentionDay(entries, prefix, day, files);
+            }
+        }
+        assert days == RETENTION_HIVE_DAYS : days;
+        // Unshaped, sorts before {@code day=*}. {@code .txt} misses the parquet glob so finish does not
+        // keep it and the name-filter tally stays 0.
+        entries.add(entry(RETENTION_HIVE_PREFIX + "/account=a00/year=2026/month=01/_temporary/x.txt"));
+        return entries;
+    }
+
+    private static void addRetentionDay(List<StorageEntry> entries, String prefix, LocalDate day, int files) {
+        String folder = prefix + "/year=" + day.getYear() + "/month=" + pad2(day.getMonthValue()) + "/day=" + pad2(day.getDayOfMonth());
+        for (int n = 0; n < files; n++) {
+            entries.add(entry(folder + "/f-" + n + ".parquet"));
+        }
+    }
+
     /**
      * 154-prefix Hive VPC tree: padded {@code month}/{@code day}/{@code hour}, 1 June (match), 2 June and 1 July
      * (prune siblings), {@link #WIDE_HIVE_HOURS} hours × {@link #WIDE_HIVE_FILES_PER_LEAF} files per leaf.
@@ -330,6 +401,18 @@ public final class ListingWalkHarness implements StorageProvider {
     public static List<StorageEntry> wideHiveSevenDayTree() {
         List<LocalDate> days = new ArrayList<>(WIDE_HIVE_SEVEN_DAYS + 1);
         for (int d = 1; d <= WIDE_HIVE_SEVEN_DAYS; d++) {
+            days.add(LocalDate.of(2026, 6, d));
+        }
+        days.add(LocalDate.of(2026, 7, 1));
+        return wideHiveTree(days);
+    }
+
+    /** June 1–30 plus 1 July. Hour-grain peeks of pruned June days exceed the 3000 directory ceiling. */
+    public static final int WIDE_HIVE_JUNE_DAYS = 30;
+
+    public static List<StorageEntry> wideHiveJuneTree() {
+        List<LocalDate> days = new ArrayList<>(WIDE_HIVE_JUNE_DAYS + 1);
+        for (int d = 1; d <= WIDE_HIVE_JUNE_DAYS; d++) {
             days.add(LocalDate.of(2026, 6, d));
         }
         days.add(LocalDate.of(2026, 7, 1));
@@ -817,6 +900,7 @@ public final class ListingWalkHarness implements StorageProvider {
         }
         String p = withTrailingSlash(prefix.toString());
         if (failListChildrenContaining != null && p.contains(failListChildrenContaining)) {
+            delayListChildren(p, true);
             if (failListChildrenUnavailable) {
                 throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "HTTP 503", "", false, 0L);
             }
@@ -824,6 +908,18 @@ public final class ListingWalkHarness implements StorageProvider {
                 throw new RuntimeException("injected listing failure");
             }
             throw new IOException("injected listing failure");
+        }
+        if (nullListChildrenContaining != null && p.contains(nullListChildrenContaining)) {
+            childListedPrefixes.add(p);
+            listChildrenRequests.incrementAndGet();
+            int inFlight = listChildrenInFlight.incrementAndGet();
+            maxListChildrenInFlight.accumulateAndGet(inFlight, Math::max);
+            try {
+                delayListChildren(p, false);
+                return null;
+            } finally {
+                listChildrenInFlight.decrementAndGet();
+            }
         }
         childListedPrefixes.add(p);
         listChildrenRequests.incrementAndGet();
@@ -833,12 +929,7 @@ public final class ListingWalkHarness implements StorageProvider {
             if (nullListChildrenAfter >= 0 && listChildrenRequests.get() > nullListChildrenAfter) {
                 return null;
             }
-            if (delayListChildrenContaining == null || p.contains(delayListChildrenContaining)) {
-                long delay = listChildrenDelayNanos.getAsLong();
-                if (delay > 0) {
-                    LockSupport.parkNanos(delay);
-                }
-            }
+            delayListChildren(p, false);
             List<StorageEntry> files = new ArrayList<>();
             Set<String> dirs = new LinkedHashSet<>();
             for (StorageEntry e : allEntries) {
@@ -865,6 +956,24 @@ public final class ListingWalkHarness implements StorageProvider {
             return new StorageChildren(files, dirPaths);
         } finally {
             listChildrenInFlight.decrementAndGet();
+        }
+    }
+
+    /**
+     * @param matchingFragmentOnly when {@code true}, delay only if {@link #delayListChildrenContaining} is set
+     *                             and matches — injected failures stay instant unless a test names that prefix
+     */
+    private void delayListChildren(String prefix, boolean matchingFragmentOnly) {
+        if (matchingFragmentOnly) {
+            if (delayListChildrenContaining == null || prefix.contains(delayListChildrenContaining) == false) {
+                return;
+            }
+        } else if (delayListChildrenContaining != null && prefix.contains(delayListChildrenContaining) == false) {
+            return;
+        }
+        long delay = listChildrenDelayNanos.getAsLong();
+        if (delay > 0) {
+            LockSupport.parkNanos(delay);
         }
     }
 

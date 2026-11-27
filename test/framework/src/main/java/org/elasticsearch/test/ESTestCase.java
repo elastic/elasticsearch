@@ -33,6 +33,7 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
@@ -40,7 +41,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
@@ -101,6 +101,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.Maps;
@@ -137,6 +138,7 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -219,6 +221,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -262,25 +265,6 @@ import static org.hamcrest.Matchers.startsWith;
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class, JnaCleanerThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-// we suppress pretty much all the lucene codecs for now, except asserting
-// assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
-@SuppressCodecs(
-    {
-        "SimpleText",
-        "Memory",
-        "CheapBastard",
-        "Direct",
-        "Compressing",
-        "FST50",
-        "FSTOrd50",
-        "TestBloomFilteredLucenePostings",
-        "MockRandom",
-        "BlockTreeOrds",
-        "LuceneFixedGap",
-        "LuceneVarGapFixedInterval",
-        "LuceneVarGapDocFreqInterval",
-        "Lucene50" }
-)
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
 
@@ -584,6 +568,13 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @ClassRule
     public static final TestRule SUITE_UUID_SOURCE = new TestUUIDSourceRule();
+
+    @BeforeClass
+    @SuppressForbidden(reason = "This replaces SuppressCodecs(\"*\")")
+    public static void setDefaultCodec() {
+        // this is not exhaustive - test that need something from MapperService should define the codec/format explicitly
+        Codec.setDefault(CodecService.createESDefaultCodec(null, BigArrays.NON_RECYCLING_INSTANCE, null));
+    }
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -1332,6 +1323,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * A stream of {@code streamSize} random longs from min..max (inclusive), as drawn by {@link #randomLongBetween}.
+     */
+    public static LongStream randomLongsBetween(long streamSize, long min, long max) {
+        return LongStream.generate(() -> randomLongBetween(min, max)).limit(streamSize);
+    }
+
+    /**
      * Returns a random BigInteger uniformly distributed over the range 0 to (2^64 - 1) inclusive
      * Currently BigIntegers are only used for unsigned_long field type, where the max value is 2^64 - 1.
      * Modify this random generator if a wider range for BigIntegers is necessary.
@@ -1803,6 +1801,16 @@ public abstract class ESTestCase extends LuceneTestCase {
             randomValue = randomSupplier.get();
         } while (input.test(randomValue));
         return randomValue;
+    }
+
+    /**
+     * Keeps the current thread running for at least {@code nanos}, so the time charged for it is never zero.
+     */
+    public static void spin(long nanos) {
+        long start = System.nanoTime();
+        while (System.nanoTime() - start < nanos) {
+            Thread.onSpinWait();
+        }
     }
 
     /**
@@ -3143,6 +3151,30 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeJoin: interrupted waiting for Thread to die");
+        }
+    }
+
+    /**
+     * Retrieve and remove the head of the given {@link BlockingQueue}, waiting up to {@link #SAFE_AWAIT_TIMEOUT} for an element to become
+     * available, preserving the thread's interrupt status flag and asserting that an element was indeed available before the timeout.
+     */
+    public static <T> T safePoll(BlockingQueue<T> queue) {
+        return safePoll(queue, SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Retrieve and remove the head of the given {@link BlockingQueue}, waiting up to the given timeout for an element to become
+     * available, preserving the thread's interrupt status flag and asserting that an element was indeed available before the timeout.
+     */
+    public static <T> T safePoll(BlockingQueue<T> queue, TimeValue timeout) {
+        try {
+            final var element = queue.poll(timeout.millis(), TimeUnit.MILLISECONDS);
+            assertNotNull("safePoll: no element available within the timeout", element);
+            return element;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safePoll: interrupted waiting for an element of the queue");
+            return null;
         }
     }
 

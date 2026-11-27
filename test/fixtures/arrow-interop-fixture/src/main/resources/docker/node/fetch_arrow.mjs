@@ -17,6 +17,8 @@
 // - decimal values are not normalized (they are reported as unknown by Elasticsearch anyway);
 // - binary values are {"base64": "..."};
 // - NaN and infinities are the strings "NaN", "Infinity" and "-Infinity".
+// - extension types are reported as their storage type, and the field metadata has "ARROW:extension:name" and "ARROW:extension:metadata" whether or
+//   not the library knows the extension.
 import { DateUnit, RecordBatchReader, TimeUnit, Type } from "apache-arrow";
 
 const TIME_UNITS = {

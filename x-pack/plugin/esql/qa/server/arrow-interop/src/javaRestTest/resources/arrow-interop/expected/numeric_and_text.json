@@ -1,0 +1,11 @@
+[
+  { "name": "ul", "type": "uint64", "nullable": true,
+    "metadata": {"elastic:type": "unsigned_long"},
+    "values": ["18446744073709551615", null, 0] },
+  { "name": "dn", "type": "timestamp[ns]", "nullable": true,
+    "metadata": {"elastic:type": "date_nanos"},
+    "values": [1700000000123, null, 0] },
+  { "name": "tx", "type": "string", "nullable": true,
+    "metadata": {"elastic:type": "text"},
+    "values": ["some text", null, "tëxt"] }
+]

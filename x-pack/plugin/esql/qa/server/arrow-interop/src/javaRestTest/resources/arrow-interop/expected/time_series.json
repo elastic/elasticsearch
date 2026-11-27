@@ -1,0 +1,14 @@
+[
+  { "name": "ci", "type": "int32", "nullable": true,
+    "metadata": {"elastic:type": "counter_integer"},
+    "values": [1, 2] },
+  { "name": "cl", "type": "int64", "nullable": true,
+    "metadata": {"elastic:type": "counter_long"},
+    "values": [10000000000, 20000000000] },
+  { "name": "cd", "type": "double", "nullable": true,
+    "metadata": {"elastic:type": "counter_double"},
+    "values": [1.5, 2.5] },
+  { "name": "_tsid", "type": "binary", "nullable": true,
+    "metadata": {"elastic:type": "_tsid"},
+    "values": [true, true] }
+]

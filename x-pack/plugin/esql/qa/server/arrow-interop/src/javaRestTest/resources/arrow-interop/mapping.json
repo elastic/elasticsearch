@@ -15,7 +15,17 @@
       "gp": { "type": "geo_point" },
       "gs": { "type": "geo_shape" },
       "cp": { "type": "point" },
-      "cs": { "type": "shape" }
+      "cs": { "type": "shape" },
+      "ul": { "type": "unsigned_long" },
+      "dn": { "type": "date_nanos" },
+      "tx": { "type": "text" },
+      "dv": { "type": "dense_vector", "dims": 3, "index": false },
+      "hi": { "type": "histogram" },
+      "eh": { "type": "exponential_histogram" },
+      "fl": { "type": "flattened" },
+      "dr": { "type": "date_range" },
+      "dbr": { "type": "double_range" },
+      "bin": { "type": "binary" }
     }
   }
 }

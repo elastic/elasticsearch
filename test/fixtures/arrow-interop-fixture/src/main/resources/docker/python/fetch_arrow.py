@@ -18,6 +18,8 @@ lets tests keep a single table of expected values. Keep both scripts in sync. Th
 - decimal values are not normalized (they are reported as unknown by Elasticsearch anyway);
 - binary values are {"base64": "..."};
 - NaN and infinities are the strings "NaN", "Infinity" and "-Infinity".
+- extension types are reported as their storage type, and the field metadata has "ARROW:extension:name" and "ARROW:extension:metadata" whether or
+  not the library knows the extension.
 """
 import base64
 import json
@@ -34,6 +36,10 @@ MAX_SAFE_INTEGER = 2**53 - 1
 
 
 def type_name(t):
+    if isinstance(t, pa.BaseExtensionType):
+        # Registered extension types (e.g. arrow.json) are reported as their storage type, like other clients that
+        # don't know the extension: the extension is described by the field metadata.
+        return type_name(t.storage_type)
     if pa.types.is_integer(t):
         return ("u" if pa.types.is_unsigned_integer(t) else "") + "int%d" % t.bit_width
     if pa.types.is_float16(t):
@@ -97,6 +103,8 @@ def convert(scalar):
     if not scalar.is_valid:
         return None
     t = scalar.type
+    if isinstance(t, pa.BaseExtensionType):
+        return convert(scalar.value)
     if pa.types.is_timestamp(t):
         return number(to_millis(scalar.value, t.unit))
     if pa.types.is_date32(t):
@@ -147,6 +155,11 @@ def main():
     columns = []
     for i, field in enumerate(schema):
         metadata = {k.decode(): v.decode() for k, v in (field.metadata or {}).items()}
+        if isinstance(field.type, pa.BaseExtensionType):
+            # pyarrow consumes the extension metadata of the extension types it knows: put it back
+            metadata.setdefault("ARROW:extension:name", field.type.extension_name)
+            # Built-in canonical extension types don't expose their serialized metadata, which is empty for arrow.json
+            metadata.setdefault("ARROW:extension:metadata", "")
         columns.append(
             {
                 "name": field.name,

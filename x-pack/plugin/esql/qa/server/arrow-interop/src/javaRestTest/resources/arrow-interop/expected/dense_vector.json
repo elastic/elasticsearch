@@ -1,0 +1,5 @@
+[
+  { "name": "dv", "type": "list<float>", "nullable": true,
+    "metadata": {"elastic:type": "dense_vector"},
+    "values": [[0.5, -1.5, 2], null, [1, 0.25, -0.5]] }
+]

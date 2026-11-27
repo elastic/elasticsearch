@@ -1,0 +1,8 @@
+[
+  { "name": "dr", "type": "struct<from: timestamp[ms], to: timestamp[ms]>", "nullable": true,
+    "metadata": {"elastic:type": "date_range"},
+    "values": [{ "from": 1700000000000, "to": 1700006400000 }, null, { "from": -86400000, "to": 0 }] },
+  { "name": "dbr", "type": "struct<from: double, to: double>", "nullable": true,
+    "metadata": {"elastic:type": "double_range"},
+    "values": [{ "from": 1.5, "to": 2.5 }, null, { "from": -1, "to": 0 }] }
+]

@@ -12,6 +12,7 @@ package org.elasticsearch.xpack.esql.qa.arrow_interop;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -28,8 +29,10 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -93,7 +96,7 @@ public class ArrowInteropIT extends ESRestTestCase {
 
         request = new Request("POST", "/_bulk?index=" + INDEX + "&refresh=true");
         request.setJsonEntity(resource("bulk.ndjson"));
-        assertOK(client().performRequest(request));
+        assertBulkSuccess(client().performRequest(request));
     }
 
     public void testBasicTypes() throws IOException {
@@ -132,6 +135,63 @@ public class ArrowInteropIT extends ESRestTestCase {
         assertColumns("FROM arrow-interop | SORT i | KEEP gp, gs, cp, cs", "geo");
     }
 
+    /** Unsigned longs are unsigned 64-bit integers in Arrow, nanosecond dates keep their unit, and text is a string. */
+    public void testNumericAndTextTypes() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP ul, dn, tx", "numeric_and_text");
+    }
+
+    /** Dense vectors are lists of {@code float32}, with no sign of the {@code dims} in the Arrow type. */
+    public void testDenseVector() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP dv", "dense_vector");
+    }
+
+    /** Classic histograms are structs of parallel values and counts lists. */
+    public void testHistogram() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP hi", "histogram");
+    }
+
+    /** Exponential histograms are structs with summary values, a zero bucket and positive and negative buckets. */
+    public void testExponentialHistogram() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP eh", "exponential_histogram");
+    }
+
+    /** {@code _source} and {@code flattened} are JSON text, tagged with the {@code arrow.json} extension type. */
+    public void testJson() throws IOException {
+        assertColumns("FROM arrow-interop METADATA _source | SORT i | KEEP fl, _source", "json");
+    }
+
+    /** Ranges are structs with a {@code from} and a {@code to} field. */
+    public void testRanges() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP dr, dbr", "ranges");
+    }
+
+    /** Geohash and geohex are integers, and geotile is a struct of its zoom, x and y components. */
+    public void testGeoGrids() throws IOException {
+        assertColumns(
+            "FROM arrow-interop | SORT i | EVAL gh = ST_GEOHASH(gp, 4), gx = ST_GEOHEX(gp, 3), gt = ST_GEOTILE(gp, 3) | KEEP gh, gx, gt",
+            "geo_grids"
+        );
+    }
+
+    /** Fields that ES|QL can't handle are reported as the {@code null} type, as is a literal {@code null}. */
+    public void testNullAndUnsupported() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP bin | EVAL n = null", "null_and_unsupported");
+    }
+
+    /** Counters have the type of their underlying number, and time series IDs are binary. */
+    public void testTimeSeries() throws IOException {
+        Request request = new Request("PUT", "/arrow-interop-ts");
+        request.setJsonEntity(resource("time_series_mapping.json"));
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/_bulk?index=arrow-interop-ts&refresh=true");
+        request.setJsonEntity(resource("time_series_bulk.ndjson"));
+        assertBulkSuccess(client().performRequest(request));
+
+        // The _tsid is a hash that is an implementation detail: only check that it is present
+        assertColumns("TS arrow-interop-ts METADATA _tsid | SORT host | KEEP ci, cl, cd, _tsid", "time_series", Set.of("_tsid"));
+    }
+
     /** The schema is sent even if there are no rows. */
     public void testEmptyResult() throws IOException {
         assertColumns("FROM arrow-interop | WHERE i > 100 | KEEP i", "empty_result");
@@ -165,6 +225,13 @@ public class ArrowInteropIT extends ESRestTestCase {
         }
     }
 
+    /** A bulk request that has failing items still returns HTTP 200, which would silently drop test documents. */
+    private static void assertBulkSuccess(Response response) throws IOException {
+        assertOK(response);
+        Map<String, Object> body = entityAsMap(response);
+        assertEquals(body.toString(), false, body.get("errors"));
+    }
+
     /** Creates an index with an integer field {@code n} that has the values {@code 0..count-1}. */
     private void indexNumbers(String index, int count) throws IOException {
         Request request = new Request("PUT", "/" + index);
@@ -188,11 +255,31 @@ public class ArrowInteropIT extends ESRestTestCase {
      *                        in the format printed by the clients
      */
     private void assertColumns(String query, String expectedColumns) throws IOException {
+        assertColumns(query, expectedColumns, Set.of());
+    }
+
+    /**
+     * Same, where the values of the columns named in {@code presenceOnly} are not compared. Instead, the column
+     * is compared with a list of booleans that tell for each row if it has a value.
+     */
+    private void assertColumns(String query, String expectedColumns, Set<String> presenceOnly) throws IOException {
         // Parsed the same way as the clients' output, so that numbers have the same Java types
         List<?> expected = (List<?>) parseJson("{\"columns\":" + resource("expected/" + expectedColumns + ".json") + "}").get("columns");
         for (ArrowInteropContainer client : clients()) {
-            assertEquals("Columns decoded by " + client.language(), expected, fetch(client, query).get("columns"));
+            List<?> actual = (List<?>) fetch(client, query).get("columns");
+            actual = actual.stream().map(c -> presenceOnly(c, presenceOnly)).toList();
+            assertEquals("Columns decoded by " + client.language(), expected, actual);
         }
+    }
+
+    private static Object presenceOnly(Object column, Set<String> names) {
+        Map<?, ?> map = (Map<?, ?>) column;
+        if (names.contains(map.get("name")) == false) {
+            return column;
+        }
+        Map<Object, Object> copy = new LinkedHashMap<>(map);
+        copy.put("values", ((List<?>) map.get("values")).stream().map(Objects::nonNull).toList());
+        return copy;
     }
 
     /** Runs the query with the given Arrow client, and returns the JSON it printed. */

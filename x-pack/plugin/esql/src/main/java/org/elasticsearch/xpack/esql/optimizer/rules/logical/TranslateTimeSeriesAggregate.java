@@ -29,9 +29,12 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -51,6 +54,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -163,6 +167,16 @@ import java.util.stream.Collectors;
  * | STATS rate_$1=rate(post_requests), rate_$2=rate(post_requests) BY _tsid, time_bucket=bucket(@timestamp, 1minute)
  * | STATS max(rate_$1 + rate_$2) BY host_values, time_bucket
  * </pre>
+ *
+ * A {@code STATS} without aggregate functions that groups only by {@code _tsid} needs no per-time-series pass:
+ *
+ * <pre>
+ * TS k8s METADATA _tsid | STATS BY _tsid
+ *
+ * becomes
+ *
+ * FROM k8s METADATA _tsid | STATS BY _tsid
+ * </pre>
  */
 public final class TranslateTimeSeriesAggregate extends AnalyzerRules.ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
 
@@ -192,6 +206,13 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         findTimeSeriesSourceTsid(aggregate, tsid);
         if (tsid.get() == null) {
             tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
+        } else if (onlyGroupsByTsid(aggregate, tsid.get())) {
+            return new Aggregate(
+                aggregate.source(),
+                TranslateTimeSeriesUtils.transformTimeSeriesSource(aggregate.child(), r -> r.withIndexMode(IndexMode.STANDARD)),
+                aggregate.groupings(),
+                aggregate.aggregates()
+            );
         }
         Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
@@ -200,30 +221,21 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         TemporaryNameGenerator internalNames = new TemporaryNameGenerator.Monotonic();
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof Function function) {
-                final Expression inlineFilter;
-                if (function instanceof AggregateFunction af && af.hasFilter()) {
-                    inlineFilter = af.filter();
-                    function = af.withFilter(Literal.TRUE);
-                } else {
-                    inlineFilter = null;
-                }
                 // due to InsertDefaultInnerTimeSeriesAggregate, we'll always have a TimeSeriesAggregateFunction here
-                Expression outerAgg = function.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
-                    if (inlineFilter != null) {
-                        if (tsAgg.hasFilter() == false) {
-                            throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");
+                Expression outerAgg = function.transformDown(AggregateFunction.class, af -> {
+                    if (af instanceof TimeSeriesAggregateFunction tsAgg) {
+                        if (tsAgg.requiredTimeSeriesSource()) {
+                            requiredTimeSeriesSource.set(Boolean.TRUE);
                         }
+                        AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
+                        Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
+                            Alias firstStageAlias = new Alias(tsAgg.source(), internalNames.next(tsAgg.functionName()), firstStageFn);
+                            firstPassAggs.add(firstStageAlias);
+                            return firstStageAlias;
+                        });
+                        return newAgg.toAttribute();
                     }
-                    if (tsAgg.requiredTimeSeriesSource()) {
-                        requiredTimeSeriesSource.set(Boolean.TRUE);
-                    }
-                    AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
-                    Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
-                        Alias firstStageAlias = new Alias(tsAgg.source(), internalNames.next(tsAgg.functionName()), firstStageFn);
-                        firstPassAggs.add(firstStageAlias);
-                        return firstStageAlias;
-                    });
-                    return newAgg.toAttribute();
+                    return withLossySummation(withoutInlineFilter(af));
                 });
                 secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
             } else if (agg instanceof Alias alias && alias.child() instanceof Literal) {
@@ -234,7 +246,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         List<Expression> firstPassGroupings = new ArrayList<>();
         firstPassGroupings.add(tsid.get());
         List<Attribute> packDimensions = new ArrayList<>();
-        List<Attribute> unpackDimensions = new ArrayList<>();
+        Map<NameId, Attribute> unpackDimensions = new LinkedHashMap<>();
         List<Expression> secondPassGroupings = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
         Holder<Bucket> timeBucketSpecRef = new Holder<>();
@@ -291,7 +303,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             .map(NamedExpression.class::cast)
             .forEach(extractTimeBucket);
         NamedExpression timeBucket = timeBucketRef.get();
-        boolean[] packPositions = new boolean[aggregate.groupings().size()];
         for (int i = 0; i < aggregate.groupings().size(); i++) {
             var group = aggregate.groupings().get(i);
             if (group instanceof Attribute || group instanceof Alias) {
@@ -310,10 +321,13 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                     }
                     firstPassGroupings.add(firstPassBucket);
                     secondPassGroupings.add(new Alias(group.source(), g.name(), firstPassBucket.toAttribute(), g.id()));
+                } else if (Alias.unwrap(g).semanticEquals(tsid.get())) {
+                    // The first pass already groups by _tsid, so regroup on it directly instead of wrapping it in VALUES
+                    secondPassGroupings.add(new Alias(group.source(), g.name(), tsid.get(), g.id()));
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
-                        addAttribute(g, a, firstPassAggs, secondPassGroupings, context, packDimensions, unpackDimensions, packPositions, i);
+                        addAttribute(g, a, firstPassAggs, secondPassGroupings, context, packDimensions, unpackDimensions);
                     } else {
                         assert g instanceof Alias : "g must be an Alias at this point";
                         if (unwrapped instanceof Bucket bucket && bucket.field().dataType().isHistogram()) {
@@ -380,22 +394,93 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 secondPassGroupings,
                 mergeExpressions(secondPassAggs, secondPassGroupings)
             );
-            UnpackDims unpackDims = new UnpackDims(aggregate.source(), secondPhase, packedGrouping.toAttribute(), unpackDimensions);
+            UnpackDims unpackDims = new UnpackDims(
+                aggregate.source(),
+                secondPhase,
+                packedGrouping.toAttribute(),
+                List.copyOf(unpackDimensions.values())
+            );
             List<NamedExpression> projects = new ArrayList<>();
             for (NamedExpression agg : secondPassAggs) {
                 projects.add(Expressions.attribute(agg));
             }
             int groupPos = 0;
-            int dimPos = 0;
-            for (int i = 0; i < aggregate.groupings().size(); i++) {
-                if (packPositions[i]) {
-                    projects.add(unpackDimensions.get(dimPos++));
+            for (Expression group : aggregate.groupings()) {
+                NamedExpression g = (NamedExpression) group;
+                if (Alias.unwrap(g) instanceof Attribute a && unpackDimensions.get(a.id()) instanceof Attribute unpacked) {
+                    projects.add(unpacked.id().equals(g.id()) ? unpacked : new Alias(g.source(), g.name(), unpacked, g.id()));
                 } else {
                     projects.add(Expressions.attribute(secondPassGroupings.get(groupPos++)));
                 }
             }
             return new Project(newChild.source(), unpackDims, projects);
         }
+    }
+
+    /**
+     * A {@code STATS} without aggregate functions that groups only by the source's {@code _tsid} already yields one row per time series.
+     * Splitting it into a per-time-series pass and a regrouping pass adds nothing, so it runs as a single regular aggregation, as if the
+     * query started with {@code FROM}. Any other grouping key keeps the two passes: for example, a non-dimension field that is null on
+     * some documents of a series is wrapped in {@code VALUES} in the first pass, which drops those nulls.
+     */
+    private static boolean onlyGroupsByTsid(TimeSeriesAggregate aggregate, Attribute tsid) {
+        if (aggregate.groupings().isEmpty()) {
+            return false;
+        }
+        for (Expression grouping : aggregate.groupings()) {
+            if (Alias.unwrap(grouping).semanticEquals(tsid) == false) {
+                return false;
+            }
+        }
+        for (NamedExpression agg : aggregate.aggregates()) {
+            if (agg.anyMatch(AggregateFunction.class::isInstance)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * An inline filter is pushed onto every aggregate function of the expression it applies to, including those nested in
+     * expressions such as {@code max(...) - min(...)}. It can only be evaluated per time-series, because the fields it references
+     * are not available after the first pass. So drop it from the second-pass aggregate once the nested time-series aggregates
+     * carry it.
+     */
+    private static AggregateFunction withoutInlineFilter(AggregateFunction secondPassAgg) {
+        if (secondPassAgg.hasFilter() == false) {
+            return secondPassAgg;
+        }
+        secondPassAgg.forEachDown(TimeSeriesAggregateFunction.class, tsAgg -> {
+            if (tsAgg.hasFilter() == false) {
+                throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");
+            }
+        });
+        return secondPassAgg.withFilter(Literal.TRUE);
+    }
+
+    /**
+     * Use lossy summation for time-series aggregations
+     */
+    private static AggregateFunction withLossySummation(AggregateFunction secondPassAgg) {
+        return switch (secondPassAgg) {
+            case Sum sum when sum.field().dataType() == DataType.DOUBLE -> new Sum(
+                sum.source(),
+                sum.field(),
+                sum.filter(),
+                sum.window(),
+                SummationMode.LOSSY_LITERAL,
+                sum.longOverflowMode()
+            );
+            case Avg avg when avg.field().dataType() == DataType.DOUBLE -> new Avg(
+                avg.source(),
+                avg.field(),
+                avg.filter(),
+                avg.window(),
+                SummationMode.LOSSY_LITERAL,
+                avg.allowNonFinite()
+            );
+            default -> secondPassAgg;
+        };
     }
 
     private static Bucket histogramBucketForSecondPass(Bucket bucket, List<NamedExpression> firstPassAggs) {
@@ -467,18 +552,19 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         List<Expression> secondPassGroupings,
         AnalyzerContext context,
         List<Attribute> packDimensions,
-        List<Attribute> unpackDimensions,
-        boolean[] packPositions,
-        int position
+        Map<NameId, Attribute> unpackDimensions
     ) {
+        if (attribute.isDimension() && unpackDimensions.containsKey(attribute.id())) {
+            return;
+        }
         var valuesAgg = new Alias(group.source(), group.name(), valuesAggregate(context, attribute));
         firstPassAggs.add(valuesAgg);
         if (attribute.isDimension()) {
             packDimensions.add(valuesAgg.toAttribute());
-            unpackDimensions.add(
+            unpackDimensions.put(
+                attribute.id(),
                 new ReferenceAttribute(group.source(), null, group.name(), attribute.dataType(), Nullability.TRUE, group.id(), false)
             );
-            packPositions[position] = true;
         } else {
             // VALUES turns TEXT into KEYWORD. Keep the original type on the grouping so that the output type does not drift
             // from what parent plans (e.g. a Project created by DROP/KEEP) resolved against before this translation.

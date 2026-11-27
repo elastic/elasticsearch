@@ -1,0 +1,569 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.mapper.vectors;
+
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RowSource;
+import org.elasticsearch.index.mapper.ShardBatchMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.sourcebatch.SourceRowXContentParser;
+import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomNormalizedFloatVector;
+
+/**
+ * Verifies that the columnar batch path of {@code dense_vector} produces the same Lucene fields as the row path, and that the
+ * configurations and documents it does not handle are refused so that the batch falls back to the row path.
+ */
+public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
+
+    private static final String FIELD = "v";
+    private static final int DIMS = 8;
+
+    private static Settings vectordbColumnarSettings() {
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName()).build();
+    }
+
+    /** A {@code dense_vector} mapping; a {@code null} element type or similarity leaves that parameter to its default. */
+    private static XContentBuilder vectorMapping(String elementType, String similarity) throws IOException {
+        return mapping(b -> {
+            b.startObject(FIELD).field("type", "dense_vector").field("dims", DIMS);
+            if (similarity != null) {
+                b.field("similarity", similarity);
+            }
+            if (elementType != null) {
+                b.field("element_type", elementType);
+            }
+            b.endObject();
+        });
+    }
+
+    /** A random non-zero vector, normalized to unit length when {@code unit} is set, as {@code dot_product} requires. */
+    private static float[] randomVector(int dims, boolean unit) {
+        return unit ? randomNormalizedFloatVector(dims) : randomFloatVector(dims);
+    }
+
+    /**
+     * A vector as a JSON string holding its base64 encoding: big-endian float32 elements, or, when {@code bfloat16} is set,
+     * big-endian bfloat16 elements (the upper 16 bits of each float), the two encodings a float or bfloat16 field accepts.
+     */
+    private static String base64VectorJson(float[] vector, boolean bfloat16) {
+        final ByteBuffer encoded = ByteBuffer.allocate(vector.length * (bfloat16 ? Short.BYTES : Float.BYTES));
+        for (float value : vector) {
+            if (bfloat16) {
+                encoded.putShort((short) (Float.floatToIntBits(value) >>> 16));
+            } else {
+                encoded.putFloat(value);
+            }
+        }
+        return "\"" + Base64.getEncoder().encodeToString(encoded.array()) + "\"";
+    }
+
+    /** A random vector, normalized to unit length when {@code unit} is set, rendered as a JSON array of floats. */
+    private static String randomVectorJson(int dims, boolean unit) {
+        final float[] vector = randomVector(dims, unit);
+        final StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < dims; i++) {
+            if (i > 0) {
+                json.append(',');
+            }
+            json.append(vector[i]);
+        }
+        return json.append(']').toString();
+    }
+
+    private static String vectorDoc(String vectorJson) {
+        return "{\"" + FIELD + "\":" + vectorJson + "}";
+    }
+
+    private static Batch randomBatch(String name, boolean unit) {
+        final int docCount = between(1, 20);
+        final List<Doc> docs = new ArrayList<>(docCount);
+        for (int i = 0; i < docCount; i++) {
+            final String source = switch (between(0, 5)) {
+                case 0 -> "{}";
+                case 1 -> vectorDoc("null");
+                default -> vectorDoc(randomVectorJson(DIMS, unit));
+            };
+            docs.add(doc("d" + i, i, source));
+        }
+        return batch(name, 1L, docs.toArray(Doc[]::new));
+    }
+
+    public void testFloatDotProduct() throws IOException {
+        assertColumnarMatchesXContent(
+            vectorMapping("float", "dot_product"),
+            vectordbColumnarSettings(),
+            batch(
+                "float dot_product",
+                1L,
+                doc("d1", 1L, vectorDoc(randomVectorJson(DIMS, true))),
+                doc("d2", 2L, vectorDoc(randomVectorJson(DIMS, true)))
+            ),
+            randomBatch("random float dot_product", true)
+        );
+    }
+
+    /** {@code bfloat16} is the {@code vectordb_columnar} default element type; it indexes the same float vector as {@code float}. */
+    public void testDefaultBFloat16DotProduct() throws IOException {
+        assertColumnarMatchesXContent(
+            vectorMapping(null, "dot_product"),
+            vectordbColumnarSettings(),
+            randomBatch("random bfloat16 dot_product", true)
+        );
+    }
+
+    public void testL2Norm() throws IOException {
+        assertColumnarMatchesXContent(
+            vectorMapping(randomFrom("float", "bfloat16"), "l2_norm"),
+            vectordbColumnarSettings(),
+            randomBatch("random l2_norm", false)
+        );
+    }
+
+    public void testMaxInnerProduct() throws IOException {
+        assertColumnarMatchesXContent(
+            vectorMapping(randomFrom("float", "bfloat16"), "max_inner_product"),
+            vectordbColumnarSettings(),
+            randomBatch("random max_inner_product", false)
+        );
+    }
+
+    public void testAbsentAndNullDocs() throws IOException {
+        assertColumnarMatchesXContent(
+            vectorMapping("float", "l2_norm"),
+            vectordbColumnarSettings(),
+            batch(
+                "absent and null",
+                1L,
+                doc("d1", 1L, "{}"),
+                doc("d2", 2L, vectorDoc(randomVectorJson(DIMS, false))),
+                doc("d3", 3L, vectorDoc("null")),
+                doc("d4", 4L, vectorDoc(randomVectorJson(DIMS, false)))
+            )
+        );
+    }
+
+    /**
+     * Normalized {@code cosine} indexes a non-unit vector normalized and keeps its length in the {@code ._magnitude} doc values field,
+     * while a unit vector is indexed as-is with no magnitude, so a batch mixing both exercises the sparse magnitude column.
+     */
+    public void testCosineMixedUnitAndNonUnitVectors() throws IOException {
+        assertColumnarMatchesXContent(
+            vectorMapping(randomFrom("float", "bfloat16"), "cosine"),
+            vectordbColumnarSettings(),
+            batch(
+                "cosine unit and non-unit",
+                1L,
+                doc("d1", 1L, vectorDoc(randomVectorJson(DIMS, false))),
+                doc("d2", 2L, vectorDoc(randomVectorJson(DIMS, true))),
+                doc("d3", 3L, "{}"),
+                doc("d4", 4L, vectorDoc("[1,2,3,4,5,6,7,8]"))
+            ),
+            batch("cosine all unit", 1L, doc("d1", 1L, vectorDoc(randomVectorJson(DIMS, true)))),
+            randomBatch("random cosine", randomBoolean())
+        );
+    }
+
+    /** Without an explicit similarity, a {@code vectordb_columnar} vector is a {@code bfloat16} field with {@code cosine}. */
+    public void testDefaultMapping() throws IOException {
+        assertColumnarMatchesXContent(
+            vectorMapping(null, null),
+            vectordbColumnarSettings(),
+            randomBatch("random default mapping", false),
+            randomBatch("random default mapping, unit vectors", true)
+        );
+    }
+
+    /**
+     * Elements whose text is within a hair of the midpoint between two floats, such as {@code 1.0000001788139343261718749} from
+     * https://github.com/elastic/elasticsearch/issues/165790: parsed to double and then narrowed, they would round to the other
+     * float than the row path, which parses them straight to float. The coordinating node parses the elements of a vector its
+     * mapping knows straight to float as well, on either encode path, so both index the same vector.
+     */
+    public void testElementsNearFloatMidpoints() throws IOException {
+        final List<Doc> docs = new ArrayList<>();
+        docs.add(doc("d0", 0, vectorDoc("[1.0000001788139343261718749, 1, 2, 3, 4, 5, 6, 7]")));
+        for (int i = 1; i < 20; i++) {
+            final StringBuilder json = new StringBuilder("[");
+            for (int d = 0; d < DIMS; d++) {
+                if (d > 0) {
+                    json.append(',');
+                }
+                json.append(nearFloatMidpoint());
+            }
+            docs.add(doc("d" + i, i, vectorDoc(json.append(']').toString())));
+        }
+        for (SourceEncoder encoder : SourceEncoder.available()) {
+            assertColumnarMatchesXContent(
+                vectorMapping(randomFrom("float", "bfloat16"), "l2_norm"),
+                vectordbColumnarSettings(),
+                encoder,
+                true,
+                batch("elements near float midpoints, " + encoder, 1L, docs.toArray(Doc[]::new))
+            );
+        }
+    }
+
+    /** A decimal text a few units of its 40th decimal digit off the midpoint between a random float and the next one. */
+    private static String nearFloatMidpoint() {
+        final float f = randomFloat() * 2 - 1;
+        final BigDecimal midpoint = new BigDecimal((double) f).add(new BigDecimal((double) Math.nextUp(f))).divide(BigDecimal.TWO);
+        return midpoint.add(BigDecimal.valueOf(randomIntBetween(-3, 3), 40)).toPlainString();
+    }
+
+    /**
+     * Whole-number elements reach the batch path as longs, and elements mixing whole and fractional numbers as a union, when the
+     * coordinating node does not know the vector; when it does, they reach it as floats.
+     */
+    public void testIntegerAndMixedElements() throws IOException {
+        assertColumnarMatchesXContent(
+            vectorMapping("float", "l2_norm"),
+            vectordbColumnarSettings(),
+            batch("integer elements", 1L, doc("d1", 1L, vectorDoc("[1,2,3,4,5,6,7,8]")), doc("d2", 2L, vectorDoc("[0,0,0,0,0,0,0,1]"))),
+            batch("mixed elements", 1L, doc("d1", 1L, vectorDoc("[1,0.5,3,-0.25,5,6.75,7,8]")))
+        );
+    }
+
+    /** The paths the coordinating node parses as float elements: float and bfloat16 vectors, also under objects and nested. */
+    public void testFloatElementPaths() throws IOException {
+        Map<String, Object> mapping = XContentHelper.convertToMap(BytesReference.bytes(mapping(b -> {
+            b.startObject("plain").field("type", "dense_vector").field("dims", 3).endObject();
+            b.startObject("f").field("type", "dense_vector").field("element_type", "float").endObject();
+            b.startObject("bf").field("type", "dense_vector").field("element_type", "bfloat16").endObject();
+            b.startObject("b").field("type", "dense_vector").field("element_type", "byte").endObject();
+            b.startObject("bits").field("type", "dense_vector").field("element_type", "bit").endObject();
+            b.startObject("num").field("type", "float").endObject();
+            b.startObject("obj").startObject("properties");
+            {
+                b.startObject("v").field("type", "dense_vector").endObject();
+                b.startObject("inner").field("type", "nested").startObject("properties");
+                b.startObject("v").field("type", "dense_vector").endObject();
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+            b.startObject("dotted.v").field("type", "dense_vector").endObject();
+        })), false, XContentType.JSON).v2();
+        @SuppressWarnings("unchecked") // the root of a mapping built by mapping(...) is {"_doc": {...}}
+        Map<String, Object> root = (Map<String, Object>) mapping.get("_doc");
+        assertEquals(
+            Set.of("plain", "f", "bf", "obj.v", "obj.inner.v", "dotted.v"),
+            DenseVectorFieldMapper.floatElementPaths(root, Mapper.SourceKeepMode.NONE)
+        );
+        // with an index that keeps arrays, every object may be an array that keeps its source
+        assertEquals(Set.of("plain", "f", "bf", "dotted.v"), DenseVectorFieldMapper.floatElementPaths(root, Mapper.SourceKeepMode.ARRAYS));
+        assertEquals(Set.of(), DenseVectorFieldMapper.floatElementPaths(Map.of(), Mapper.SourceKeepMode.NONE));
+    }
+
+    /** Vectors whose text {@code synthetic_source_keep} keeps are left out of the float element paths. */
+    public void testFloatElementPathsSkipKeptVectors() throws IOException {
+        Map<String, Object> mapping = XContentHelper.convertToMap(BytesReference.bytes(mapping(b -> {
+            b.startObject("plain").field("type", "dense_vector").endObject();
+            b.startObject("keep_all").field("type", "dense_vector").field("synthetic_source_keep", "all").endObject();
+            // a vector parses its own array, so keeping arrays doesn't keep its text
+            b.startObject("keep_arrays").field("type", "dense_vector").field("synthetic_source_keep", "arrays").endObject();
+            b.startObject("keep_none").field("type", "dense_vector").field("synthetic_source_keep", "none").endObject();
+            for (String keep : new String[] { "all", "arrays", "none" }) {
+                b.startObject("obj_" + keep).field("synthetic_source_keep", keep).startObject("properties");
+                b.startObject("v").field("type", "dense_vector").endObject();
+                b.endObject().endObject();
+            }
+            b.startObject("obj").startObject("properties");
+            {
+                b.startObject("v").field("type", "dense_vector").endObject();
+                b.startObject("inner").field("synthetic_source_keep", "all").startObject("properties");
+                b.startObject("v").field("type", "dense_vector").endObject();
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+            // a disabled object keeps its source verbatim
+            b.startObject("disabled").field("enabled", false).startObject("properties");
+            b.startObject("v").field("type", "dense_vector").endObject();
+            b.endObject().endObject();
+        })), false, XContentType.JSON).v2();
+        @SuppressWarnings("unchecked") // the root of a mapping built by mapping(...) is {"_doc": {...}}
+        Map<String, Object> root = (Map<String, Object>) mapping.get("_doc");
+        assertEquals(
+            Set.of("plain", "keep_arrays", "keep_none", "obj_none.v", "obj.v"),
+            DenseVectorFieldMapper.floatElementPaths(root, Mapper.SourceKeepMode.NONE)
+        );
+        // an object's own synthetic_source_keep overrides the index's
+        assertEquals(
+            Set.of("plain", "keep_arrays", "keep_none", "obj_none.v"),
+            DenseVectorFieldMapper.floatElementPaths(root, Mapper.SourceKeepMode.ARRAYS)
+        );
+        // a disabled root keeps the whole source verbatim
+        Map<String, Object> disabledRoot = new HashMap<>(root);
+        disabledRoot.put("enabled", randomFrom(false, "false"));
+        assertEquals(Set.of(), DenseVectorFieldMapper.floatElementPaths(disabledRoot, Mapper.SourceKeepMode.NONE));
+    }
+
+    public void testSupportedConfigurations() throws IOException {
+        for (String elementType : new String[] { "float", "bfloat16" }) {
+            for (String similarity : new String[] { "l2_norm", "dot_product", "max_inner_product", "cosine" }) {
+                assertTrue(elementType + "/" + similarity, supportsColumnarParse(vectorMapping(elementType, similarity)));
+            }
+        }
+        assertTrue("default mapping", supportsColumnarParse(vectorMapping(null, null)));
+    }
+
+    public void testUnsupportedConfigurations() throws IOException {
+        // byte and bit vectors are indexed as KnnByteVectorField
+        assertFalse(supportsColumnarParse(vectorMapping("byte", "l2_norm")));
+        assertFalse(
+            supportsColumnarParse(
+                mapping(b -> b.startObject(FIELD).field("type", "dense_vector").field("dims", 64).field("element_type", "bit").endObject())
+            )
+        );
+        // unindexed vectors are binary doc values
+        assertFalse(
+            supportsColumnarParse(
+                mapping(b -> b.startObject(FIELD).field("type", "dense_vector").field("dims", DIMS).field("index", false).endObject())
+            )
+        );
+        // the dimensions still have to be learned from the first document
+        assertFalse(supportsColumnarParse(mapping(b -> b.startObject(FIELD).field("type", "dense_vector").endObject())));
+    }
+
+    public void testWrongDimensionsFallsBack() throws IOException {
+        final MapperService mapperService = createMapperService(vectordbColumnarSettings(), vectorMapping("float", "l2_norm"));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc(randomVectorJson(DIMS - 1, false)))
+        );
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc(randomVectorJson(DIMS + 1, false)))
+        );
+    }
+
+    /** The row path rejects a zero vector for {@code cosine}, so the batch path must refuse it too. */
+    public void testZeroCosineVectorFallsBack() throws IOException {
+        final MapperService mapperService = createMapperService(vectordbColumnarSettings(), vectorMapping("float", "cosine"));
+        expectThrows(IllegalArgumentException.class, () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc("[0,0,0,0,0,0,0,0]")));
+    }
+
+    /**
+     * Base64-encoded vectors, in the float32 and the bfloat16 encoding, index the same vectors as the row path, alone and in a batch
+     * that mixes them with arrays, absent and {@code null} vectors, which makes the source column a union.
+     */
+    public void testBase64Vectors() throws IOException {
+        final String similarity = randomFrom("l2_norm", "max_inner_product", "cosine");
+        final List<Doc> mixed = new ArrayList<>();
+        final int docCount = between(1, 20);
+        for (int i = 0; i < docCount; i++) {
+            final String source = switch (between(0, 4)) {
+                case 0 -> "{}";
+                case 1 -> vectorDoc("null");
+                case 2 -> vectorDoc(randomVectorJson(DIMS, randomBoolean()));
+                default -> vectorDoc(base64VectorJson(randomVector(DIMS, randomBoolean()), randomBoolean()));
+            };
+            mixed.add(doc("d" + i, i, source));
+        }
+        assertColumnarMatchesXContent(
+            vectorMapping(randomFrom("float", "bfloat16"), similarity),
+            vectordbColumnarSettings(),
+            batch(
+                "base64 float32 and bfloat16",
+                1L,
+                doc("d1", 1L, vectorDoc(base64VectorJson(randomVector(DIMS, false), false))),
+                doc("d2", 2L, vectorDoc(base64VectorJson(randomVector(DIMS, false), true)))
+            ),
+            batch("base64 mixed with arrays", 1L, mixed.toArray(Doc[]::new))
+        );
+    }
+
+    /** {@code dot_product} needs unit vectors; the float32 encoding keeps a unit vector unit length. */
+    public void testBase64DotProduct() throws IOException {
+        assertColumnarMatchesXContent(
+            vectorMapping(randomFrom("float", "bfloat16"), "dot_product"),
+            vectordbColumnarSettings(),
+            batch(
+                "base64 dot_product",
+                1L,
+                doc("d1", 1L, vectorDoc(base64VectorJson(randomVector(DIMS, true), false))),
+                doc("d2", 2L, vectorDoc(randomVectorJson(DIMS, true)))
+            )
+        );
+    }
+
+    /** A string that is not a base64 vector of the mapped dimensions is left for the row path to reject. */
+    public void testInvalidBase64VectorFallsBack() throws IOException {
+        final MapperService mapperService = createMapperService(vectordbColumnarSettings(), vectorMapping("float", "l2_norm"));
+        final String wrongDims = base64VectorJson(randomVector(DIMS - 1, false), randomBoolean());
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc(wrongDims)));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc("\"not a vector!\"")));
+    }
+
+    public void testNonNumericElementFallsBack() throws IOException {
+        final MapperService mapperService = createMapperService(vectordbColumnarSettings(), vectorMapping("float", "l2_norm"));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc("[\"a\",\"b\",\"c\",\"d\",\"e\",\"f\",\"g\",\"h\"]"))
+        );
+    }
+
+    /** A vector the row path rejects is rejected by the batch path as well, so that the row path can report the error. */
+    public void testNonUnitDotProductVectorFallsBack() throws IOException {
+        final MapperService mapperService = createMapperService(vectordbColumnarSettings(), vectorMapping("float", "dot_product"));
+        expectThrows(IllegalArgumentException.class, () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc("[1,2,3,4,5,6,7,8]")));
+    }
+
+    /**
+     * A vector whose source the row path keeps word for word in {@code _ignored_source} must keep the client's text through the
+     * batch path. That is a vector with {@code synthetic_source_keep: all}, one in an object with it, and one in an array of objects
+     * with {@code synthetic_source_keep: arrays}, set on the object or for the whole index. The shard refuses such a batch and
+     * indexes its documents on the row path, but from the source the batch row is rebuilt into, so elements the coordinating node
+     * parsed to float would come back widened to double, {@code 0.0123} as {@code 0.012299999594688416}.
+     */
+    public void testKeptVectorKeepsElementText() throws IOException {
+        final String vector = "[0.0123,0.1,-0.3,0.7,1.1,2.5,3,-4.2]";
+        final String inObject = "{\"obj\":{\"" + FIELD + "\":" + vector + "}}";
+        final String inObjectArray = "{\"obj\":[{\"" + FIELD + "\":" + vector + "}]}";
+        assertKeepsSource(keptVectorMapping(null, "all"), Settings.EMPTY, inObject);
+        assertKeepsSource(keptVectorMapping("all", null), Settings.EMPTY, inObject);
+        assertKeepsSource(keptVectorMapping("all", null), Settings.EMPTY, inObjectArray);
+        assertKeepsSource(keptVectorMapping("arrays", null), Settings.EMPTY, inObjectArray);
+        assertKeepsSource(
+            keptVectorMapping(null, null),
+            Settings.builder().put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays").build(),
+            inObjectArray
+        );
+        // a disabled object, or a disabled root, keeps its source verbatim
+        assertKeepsSource(mapping(b -> {
+            b.startObject("obj").field("enabled", false).startObject("properties");
+            b.startObject(FIELD).field("type", "dense_vector").field("dims", DIMS).endObject();
+            b.endObject().endObject();
+        }), Settings.EMPTY, inObject);
+        assertKeepsSource(topMapping(b -> {
+            b.field("enabled", false).startObject("properties");
+            b.startObject(FIELD).field("type", "dense_vector").field("dims", DIMS).endObject();
+            b.endObject();
+        }), Settings.EMPTY, "{\"" + FIELD + "\":" + vector + "}");
+    }
+
+    /** A vector in an object, with the given {@code synthetic_source_keep} on the object and on the vector, {@code null} for none. */
+    private static XContentBuilder keptVectorMapping(String objectKeep, String vectorKeep) throws IOException {
+        return mapping(b -> {
+            b.startObject("obj");
+            if (objectKeep != null) {
+                b.field("synthetic_source_keep", objectKeep);
+            }
+            b.startObject("properties").startObject(FIELD).field("type", "dense_vector").field("dims", DIMS);
+            if (vectorKeep != null) {
+                b.field("synthetic_source_keep", vectorKeep);
+            }
+            b.endObject().endObject().endObject();
+        });
+    }
+
+    private void assertKeepsSource(XContentBuilder mapping, Settings settings, String source) throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(settings)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+                .build(),
+            mapping
+        );
+        for (SourceEncoder encoder : SourceEncoder.available()) {
+            assertEquals(
+                Strings.toString(mapping) + " " + settings + " " + encoder,
+                source,
+                syntheticSourceThroughBatch(mapperService, source, encoder)
+            );
+        }
+    }
+
+    /**
+     * The synthetic {@code _source} of {@code source} indexed through the batch path as production does it: encoded with the float
+     * element paths the coordinating node uses, refused by the shard, and indexed on the row path from the batch row.
+     */
+    private String syntheticSourceThroughBatch(MapperService mapperService, String source, SourceEncoder encoder) throws IOException {
+        final Settings settings = mapperService.getIndexSettings().getSettings();
+        final Set<String> floatElementPaths = DenseVectorFieldMapper.sourceMayKeepVectorText(settings)
+            ? Set.of()
+            : DenseVectorFieldMapper.floatElementPaths(
+                new MappingMetadata(mapperService.documentMapper()).sourceAsMap(),
+                mapperService.getIndexSettings().sourceKeepMode()
+            );
+        final DocumentMapper mapper = mapperService.documentMapper();
+        try (
+            EscfEncoder escfEncoder = new EscfEncoder(
+                BytesRefRecycler.NON_RECYCLING_INSTANCE,
+                encoder == SourceEncoder.SIMD,
+                floatElementPaths
+            )
+        ) {
+            escfEncoder.addDocument(new BytesArray(source), XContentType.JSON, 0);
+            try (EscfBatch batch = escfEncoder.buildPartition(0); Directory directory = newDirectory()) {
+                assertNull(
+                    "the shard refuses the batch and indexes it on the row path",
+                    ShardBatchMapper.resolveMappers(batch, mapperService.mappingLookup(), mapperService.getIndexSettings())
+                );
+                // as TransportShardBulkAction#sourceToParse does for the row path: the row is parsed in place, while the batch is open
+                final RowSource row = new RowSource(
+                    SourceRowXContentParser.buildSchemaTree(batch.schema()),
+                    batch.row(0),
+                    XContentType.JSON
+                );
+                final ParsedDocument doc = mapper.parse(
+                    new SourceToParse("1", row, null, Map.of(), Map.of(), XContentMeteringParserDecorator.NOOP, null)
+                );
+                doc.updateSeqID(0, 0);
+                doc.version().setLongValue(0);
+                try (RandomIndexWriter iw = indexWriterForSyntheticSource(directory)) {
+                    iw.addDocuments(doc.docs());
+                }
+                try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                    return syntheticSource(mapper, reader, doc.docs().size() - 1);
+                }
+            }
+        }
+    }
+
+    private boolean supportsColumnarParse(XContentBuilder mapping) throws IOException {
+        final MapperService mapperService = createMapperService(vectordbColumnarSettings(), mapping);
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        return mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of());
+    }
+}

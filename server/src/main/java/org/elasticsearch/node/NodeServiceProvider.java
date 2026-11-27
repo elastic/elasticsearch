@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.PartitionSizeCollector;
 import org.elasticsearch.cluster.SearchLaneRequirementsCollector;
+import org.elasticsearch.cluster.SearchLoadMetricsCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
@@ -38,6 +39,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -61,6 +63,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * Provides various service implementations to {@link NodeConstruction}
@@ -118,6 +121,10 @@ class NodeServiceProvider {
             SearchLaneRequirementsCollector.class,
             () -> SearchLaneRequirementsCollector.EMPTY
         );
+        final SearchLoadMetricsCollector searchLoadMetricsCollector = pluginsService.loadSingletonServiceProvider(
+            SearchLoadMetricsCollector.class,
+            () -> SearchLoadMetricsCollector.EMPTY
+        );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
             writeLoadConstraintSettings,
@@ -128,7 +135,8 @@ class NodeServiceProvider {
             cacheSizesAndCommitmentCollector,
             partitionSizeCollector,
             new NodeUsageStatsForThreadPoolsCollector(),
-            searchLaneRequirementsCollector
+            searchLaneRequirementsCollector,
+            searchLoadMetricsCollector
         );
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
@@ -196,7 +204,6 @@ class NodeServiceProvider {
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer,
         OnlinePrewarmingService onlinePrewarmingService,
         TaskManager taskManager
     ) {
@@ -209,7 +216,6 @@ class NodeServiceProvider {
             fetchPhase,
             circuitBreakerService,
             executorSelector,
-            tracer,
             onlinePrewarmingService,
             taskManager
         );
@@ -230,6 +236,19 @@ class NodeServiceProvider {
         TransportService transportService,
         TerminationHandler terminationHandler
     ) {
-        return new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
+        return new ShutdownPrepareService(
+            settings,
+            httpServerTransport,
+            transportService,
+            terminationHandler,
+            actionsToAwaitOnShutdown(pluginsService)
+        );
+    }
+
+    /** The actions whose tasks graceful shutdown waits for, see {@link ShutdownAwarePlugin#getActionsToAwaitOnShutdown()}. */
+    static Set<String> actionsToAwaitOnShutdown(PluginsService pluginsService) {
+        return pluginsService.filterPlugins(ShutdownAwarePlugin.class)
+            .flatMap(p -> p.getActionsToAwaitOnShutdown().stream())
+            .collect(Collectors.toUnmodifiableSet());
     }
 }

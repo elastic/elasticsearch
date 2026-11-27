@@ -1,1 +1,3 @@
 org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT$CapturingCollector
+org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT$SuccessOnlyCollector
+org.elasticsearch.xpack.esql.action.ExternalAsyncStopAndCancelIT$OutcomeCollector

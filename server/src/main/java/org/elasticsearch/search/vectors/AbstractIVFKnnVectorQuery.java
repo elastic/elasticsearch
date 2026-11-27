@@ -31,9 +31,11 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
+import org.elasticsearch.lucene.store.ThreadConfinedArena;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -184,6 +186,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         // Sharing a cutoff only helps when more than one leaf can search.
         final SharedMinCompetitiveScore sharedScore = leavesWithField > 1 ? new SharedMinCompetitiveScore() : null;
+        // Also shared by the named slices a sliced query searches within a single leaf, so created even when only one
+        // leaf has the field. Formats that do not transform the query, and byte queries, leave it unused, which costs
+        // only this allocation.
+        final QueryTransformCache queryTransformCache = QueryTransformCache.perQuery();
         final int maxLeafBudget = leafCollectorBudget(maxRescoreOversampleAcrossLeaves);
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
@@ -205,7 +211,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             SharedMinCompetitiveScore leafSharedScore = sharedScore == null || leafBudget >= maxLeafBudget
                 ? sharedScore
                 : sharedScore.readOnly();
-            IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(leafBudget, leafSharedScore);
+            IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(leafBudget, leafSharedScore, queryTransformCache);
 
             // Preconditioning might differ per segment when they are calibrated, so, potentially,
             // each carries its own preconditioner. The transform is therefore applied inside
@@ -287,13 +293,19 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         float visitRatio,
         boolean usePrecondition
     ) throws IOException {
-        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, usePrecondition);
+        TopDocs results = ThreadConfinedArena.withConfinedArena(
+            () -> getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, usePrecondition)
+        );
         IntObjectHashMap<ScoreDoc> dedupByDoc = new IntObjectHashMap<>(results.scoreDocs.length * 4 / 3);
         for (ScoreDoc scoreDoc : results.scoreDocs) {
             int globalDoc = scoreDoc.doc + ctx.docBase;
-            if (dedupByDoc.containsKey(globalDoc) == false) {
+            ScoreDoc existing = dedupByDoc.get(globalDoc);
+            if (existing == null) {
                 scoreDoc.doc = globalDoc;
                 dedupByDoc.put(globalDoc, scoreDoc);
+            } else if (scoreDoc.score > existing.score) {
+                // SOAR overspill copies of a doc score differently; keep the best
+                existing.score = scoreDoc.score;
             }
         }
         ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[dedupByDoc.size()];
@@ -416,8 +428,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return numCands;
     }
 
-    protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
-        return new IVFCollectorManager(k, sharedScore);
+    protected IVFCollectorManager getKnnCollectorManager(
+        int k,
+        SharedMinCompetitiveScore sharedScore,
+        QueryTransformCache queryTransformCache
+    ) {
+        return new IVFCollectorManager(k, sharedScore, queryTransformCache);
     }
 
     /** Per-leaf collector size for a segment with the given rescore oversample. */
@@ -433,15 +449,36 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     static class IVFCollectorManager implements KnnCollectorManager {
         private final int k;
         private final SharedMinCompetitiveScore sharedScore;
+        private final QueryTransformCache queryTransformCache;
 
-        IVFCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
+        /**
+         * @param sharedScore minimum competitive score shared across leaves, or {@code null} when there is nothing to share
+         * @param queryTransformCache cache of transformations of the query vector shared across leaves, or
+         *                              {@link QueryTransformCache#NONE} when there is nothing to share. Only handed to
+         *                              the search strategies of leaves that search with the query's own vector, see
+         *                              {@link #newSearchStrategy}.
+         */
+        IVFCollectorManager(int k, @Nullable SharedMinCompetitiveScore sharedScore, QueryTransformCache queryTransformCache) {
             this.k = k;
             this.sharedScore = sharedScore;
+            this.queryTransformCache = Objects.requireNonNull(queryTransformCache);
         }
 
-        /** Creates the search strategy for this leaf, wired to the cross-leaf shared score. */
-        IVFKnnSearchStrategy newSearchStrategy(float visitRatio, int numCands, int queryK) {
-            return new IVFKnnSearchStrategy(visitRatio, numCands, queryK, sharedScore);
+        /**
+         * Creates the search strategy for this leaf, wired to the cross-leaf shared score and, if the leaf searches with the
+         * query's own vector, the query transform cache. A leaf that searches with another vector, such as one preconditioned
+         * for its segment, cannot share the transformations of the query's vector.
+         *
+         * @param searchesQueryVector whether the leaf searches with the query's own vector
+         */
+        IVFKnnSearchStrategy newSearchStrategy(float visitRatio, int numCands, int queryK, boolean searchesQueryVector) {
+            return new IVFKnnSearchStrategy(
+                visitRatio,
+                numCands,
+                queryK,
+                sharedScore,
+                searchesQueryVector ? queryTransformCache : QueryTransformCache.NONE
+            );
         }
 
         @Override

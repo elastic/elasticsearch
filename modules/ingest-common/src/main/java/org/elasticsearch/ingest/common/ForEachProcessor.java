@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.FieldPath;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.WrappingProcessor;
@@ -42,13 +43,13 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
 
     public static final String TYPE = "foreach";
 
-    private final String field;
+    private final FieldPath field;
     private final Processor processor;
     private final boolean ignoreMissing;
 
     ForEachProcessor(String tag, String description, String field, Processor processor, boolean ignoreMissing) {
         super(tag, description);
-        this.field = field;
+        this.field = FieldPath.of(field);
         this.processor = processor;
         this.ignoreMissing = ignoreMissing;
     }
@@ -219,7 +220,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
         return TYPE;
     }
 
-    String getField() {
+    FieldPath getField() {
         return field;
     }
 

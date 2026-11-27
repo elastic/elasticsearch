@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -171,7 +170,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             task.getExecutionId().getEncoded(),
             true,
             true,
-            ShardSearchFailure.EMPTY_ARRAY
+            List.of()
         );
     }
 
@@ -298,7 +297,10 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 new TaskId(nodeId, task.getId()),
                 task,
                 transportService.getRemoteClusterService().crossProjectEnabled(),
-                request.getResolvedIndexExpressions()
+                request.getResolvedIndexExpressions(),
+                // Reuse the coordinator's already-resolved field-caps if the caller (e.g. the ES|QL EQL source command)
+                // supplied it, so the engine skips its own resolution; null (every other caller) means self-resolve.
+                request.takePreResolvedFieldCaps()
             );
             planExecutor.eql(cfg, request.query(), params, wrap(r -> {
                 EqlSearchResponse response = createResponse(r, task.getExecutionId());

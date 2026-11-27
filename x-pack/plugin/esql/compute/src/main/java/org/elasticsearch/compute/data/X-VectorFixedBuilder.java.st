@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final $type$[] values;
+    private final int size;
     private final long preAdjustedBytes;
     /**
      * The next value to write into. {@code -1} means the vector has already
@@ -27,12 +28,33 @@ public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder
 
     private boolean closed;
 
+$if(int||long||double)$
+    private final boolean enablePooling;
+
+    $Type$VectorFixedBuilder(int size, BlockFactory blockFactory, boolean enablePooling) {
+        this.blockFactory = blockFactory;
+        this.size = size;
+        this.enablePooling = enablePooling;
+        if (enablePooling) {
+            // a pooled array can be longer than size and is not zeroed
+            values = blockFactory.acquire$Type$s(size);
+            preAdjustedBytes = LocalArrayPool.usedBytesFor$Type$s(values.length);
+        } else {
+            preAdjustedBytes = ramBytesUsed(size);
+            blockFactory.adjustBreaker(preAdjustedBytes);
+            values = new $type$[size];
+        }
+    }
+
+$else$
     $Type$VectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
         blockFactory.adjustBreaker(preAdjustedBytes);
         this.blockFactory = blockFactory;
+        this.size = size;
         this.values = new $type$[size];
     }
+$endif$
 
     @Override
     public $Type$VectorFixedBuilder append$Type$($type$ value) {
@@ -56,7 +78,7 @@ public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder
 
     @Override
     public long estimatedBytes() {
-        return ramBytesUsed(values.length);
+        return ramBytesUsed(size);
     }
 
     @Override
@@ -64,13 +86,19 @@ public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder
         if (closed) {
             throw new IllegalStateException("already closed");
         }
-        closed = true;
         $Type$Vector vector;
-        if (values.length == 1) {
+        if (size == 1) {
             vector = blockFactory.newConstant$Type$Vector(values[0], 1, preAdjustedBytes);
         } else {
-            vector = blockFactory.new$Type$ArrayVector(values, values.length, preAdjustedBytes);
+            vector = blockFactory.new$Type$ArrayVector(values, size, preAdjustedBytes);
         }
+        closed = true;
+$if(int||long||double)$
+        if (enablePooling) {
+            vector.enablePooling();
+            return vector;
+        }
+$endif$
         assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
         return vector;
     }
@@ -80,6 +108,12 @@ public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder
         if (closed == false) {
             // If nextIndex < 0 we've already built the vector
             closed = true;
+$if(int||long||double)$
+            if (enablePooling) {
+                blockFactory.recycle$Type$s(values);
+                return;
+            }
+$endif$
             blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }

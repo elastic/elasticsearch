@@ -24,8 +24,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
@@ -392,11 +394,23 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
     }
 
     public void testOrphanedSnapshot_soleIndexIsOrphaned_snapshotDeleted() {
+        if (randomBoolean()) {
+            setClusterState(List.of(), List.of(), REPO_NAME);
+        } else {
+            // A repository set only in elasticsearch.yml is a node setting, and is absent from the cluster state metadata settings
+            clusterService.close();
+            Settings nodeSettings = Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), REPO_NAME).build();
+            clusterService = createClusterService(
+                threadPool,
+                DiscoveryNodeUtils.create("node", "node"),
+                nodeSettings,
+                new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            setClusterState(List.of(), List.of(), null);
+        }
         String orphanedIndex = randomAlphaOfLength(10);
         String snapshotName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + orphanedIndex;
         SnapshotInfo orphanedSnapshot = createSnapshotInfo(snapshotName, List.of(orphanedIndex));
-
-        setClusterState(List.of(), List.of(), REPO_NAME);
         mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(orphanedSnapshot), null, 1, 0));
         mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
 

@@ -34,3 +34,21 @@ name:keyword | field:keyword | origin:keyword | role:keyword
 emp_no       | emp_no        | dataset        | null
 _file.path   | _file.path    | metadata       | metadata
 ;
+
+describeDatasetTimeColumn
+required_capability: dataset_in_from_command
+required_capability: describe_time_columns
+dataset: employees_by_hire: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "true", "properties": {"@timestamp": {"type": "date", "path": "hire_date"}}}}
+
+FROM employees_by_hire
+| KEEP emp_no, @timestamp
+| EVAL year = DATE_TRUNC(1 year, @timestamp)
+| DESCRIBE
+| KEEP name, field, origin, role
+;
+
+name:keyword | field:keyword | origin:keyword | role:keyword
+emp_no       | emp_no        | dataset        | null
+@timestamp   | @timestamp    | dataset        | time
+year         | null          | computed       | time
+;

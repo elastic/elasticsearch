@@ -15,8 +15,10 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.internal.checks.ValidateBuildGradleScriptsTask
+import org.elasticsearch.gradle.internal.info.DevelopmentBranchesValueSource
 import org.elasticsearch.gradle.util.GradleUtils
 
 import groovy.xml.XmlParser;
@@ -90,6 +92,13 @@ tasks.named('nmcpZipAggregation').configure {
 
   dependsOn gradle.includedBuild('build-tools').task(':nmcpZipAllPublications')
   from(zipTree("build-tools/build/nmcp/zip/allPublications.zip"))
+}
+
+tasks.named('prepareDraSnapshotMavenAggregation').configure {
+  // This task reuses nmcpZipAggregation's copy-spec source, which includes the build-tools
+  // zip above via a plain file path. That path carries no task dependency, and the dependsOn
+  // declared on nmcpZipAggregation is not inherited, so wire the build-tools zip task explicitly.
+  dependsOn gradle.includedBuild('build-tools').task(':nmcpZipAllPublications')
 }
 
 /**
@@ -228,48 +237,64 @@ tasks.register("updateCIBwcVersions") {
 }
 
 tasks.register("verifyVersions") {
-  def verifyCiYaml = { File file, List<Version> versions ->
-    String ciYml = file.text
-    versions.each {
-      if (ciYml.contains("\"$it\"\n") == false) {
-        throw new Exception("${file} is outdated, run `./gradlew updateCIBwcVersions` and check in the results")
-      }
-    }
-  }
+  // Capture everything needed at execution time during configuration to stay compatible with the configuration cache
+  boolean offline = gradle.startParameter.offline
+  // BwcVersions does not serialize its full version list, so capture the plain version data. Use the version list that does not
+  // depend on branches.json, as this task loads the development branches itself below.
+  Version currentVersion = VersionProperties.elasticsearchVersion
+  def allVersionsProvider = buildParams.allVersionsProvider
+  // branches.json is a remote file that can change without any local change. Querying this provider only at execution time
+  // makes Gradle fetch it on every run, also when reusing the configuration cache, so we always validate the latest state.
+  def developmentBranchesProvider = DevelopmentBranchesValueSource.developmentBranches(project)
+  File bwcVersionsFile = file(".ci/bwcVersions")
+  File snapshotBwcVersionsFile = file(".ci/snapshotBwcVersions")
+  File backportConfigFile = file(".backportrc.json")
+  String elasticsearchVersion = VersionProperties.elasticsearch
   doLast {
-    if (gradle.startParameter.isOffline()) {
+    if (offline) {
       throw new GradleException("Must run in online mode to verify versions")
     }
+    def bwcVersions = new BwcVersions(currentVersion, allVersionsProvider.get(), developmentBranchesProvider.get())
     // Read the list from maven central.
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-      buildParams.bwcVersions.compareToAuthoritative(
+      bwcVersions.compareToAuthoritative(
         new XmlParser().parse(s)
           .versioning.versions.version
           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
           .collect { Version.fromString(it) }
       )
     }
-    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.indexCompatible))
-    verifyCiYaml(file(".ci/snapshotBwcVersions"), buildParams.bwcVersions.unreleasedIndexCompatible)
+    [
+      (bwcVersionsFile): filterIntermediatePatches(bwcVersions.indexCompatible),
+      (snapshotBwcVersionsFile): bwcVersions.unreleasedIndexCompatible
+    ].each { File ciFile, List<Version> expectedVersions ->
+      String ciYml = ciFile.text
+      expectedVersions.each {
+        if (ciYml.contains("\"$it\"\n") == false) {
+          throw new GradleException("${ciFile} is outdated, run `./gradlew updateCIBwcVersions` and check in the results")
+        }
+      }
+    }
 
     // Make sure backport bot config file is up to date
-    JsonNode backportConfig = new ObjectMapper().readTree(file(".backportrc.json"))
-    buildParams.bwcVersions.forPreviousUnreleased { unreleasedVersion ->
+    JsonNode backportConfig = new ObjectMapper().readTree(backportConfigFile)
+    bwcVersions.forPreviousUnreleased { unreleasedVersion ->
+      String unreleasedBranch = unreleasedVersion.branch
       boolean valid = backportConfig.get("targetBranchChoices").elements().any { branchChoice ->
         if (branchChoice.isObject()) {
-          return branchChoice.get("name").textValue() == unreleasedVersion.branch
+          return branchChoice.get("name").textValue() == unreleasedBranch
         } else {
-          return branchChoice.textValue() == unreleasedVersion.branch
+          return branchChoice.textValue() == unreleasedBranch
         }
       }
       if (valid == false) {
-        throw new GradleException("No branch choice exists for development branch ${unreleasedVersion.branch} in .backportrc.json.")
+        throw new GradleException("No branch choice exists for development branch ${unreleasedBranch} in .backportrc.json.")
       }
     }
     String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == 'main' }.key
-    String expectedMapping = "^v${versions.elasticsearch.replaceAll('-SNAPSHOT', '')}\$"
+    String expectedMapping = "^v${elasticsearchVersion.replaceAll('-SNAPSHOT', '')}\$"
     if (versionMapping != expectedMapping) {
       throw new GradleException(
         "Backport label mapping for branch 'main' is '${versionMapping}' but should be " +
@@ -540,7 +565,12 @@ tasks.named("checkPart1").configure {
 
 tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).configure {
   scriptFiles.from(fileTree(project.layout.settingsDirectory) {
-    include "**/build.gradle"
+    // all Gradle scripts (build, settings and precompiled script plugins); most rules only apply to build.gradle files
+    include "**/*.gradle"
+    // Groovy build logic, where dynamic Ant calls are invisible to the ArchUnit checks
+    include "build-conventions/src/main/**/*.groovy"
+    include "build-tools/src/main/**/*.groovy"
+    include "build-tools-internal/src/main/**/*.groovy"
     exclude "**/build/**"
     // Fixture build scripts under test resources model external repositories rather than this repository's build logic.
     exclude "**/src/**/resources/**"
@@ -563,12 +593,9 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
       'x-pack/qa/smoke-test-plugins/build.gradle',
       'x-pack/qa/smoke-test-plugins-ssl/build.gradle',
     ],
-    'distribution-closure-assignment': [
-      'distribution/build.gradle::6',
-    ],
     // Measured on main ff3ed1ce5a62. Counts are direct model references, not action counts.
     'execution-closure-project-reference': [
-      'build.gradle::6',
+      'build.gradle::2',
       'modules/lang-painless/build.gradle::4',
       'qa/vector/build.gradle::1',
     ],

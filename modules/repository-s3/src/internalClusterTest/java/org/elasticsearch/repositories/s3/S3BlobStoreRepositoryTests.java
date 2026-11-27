@@ -167,6 +167,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         if (randomBoolean()) {
             builder.put(S3ClientSettings.LEGACY_CONTENT_MD5.getConcreteSettingForNamespace("test").getKey(), randomBoolean());
         }
+        if (randomBoolean()) {
+            builder.put(
+                S3ClientSettings.UNSAFELY_OMIT_REQUEST_BODY_CHECKSUMS.getConcreteSettingForNamespace("test").getKey(),
+                randomBoolean()
+            );
+        }
         if (region != null) {
             builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
         }
@@ -593,11 +599,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
      * S3RepositoryPlugin that allows to disable chunked encoding and to set a low threshold between single upload and multipart upload.
      */
     public static class TestS3RepositoryPlugin extends S3RepositoryPlugin {
-
-        public TestS3RepositoryPlugin(final Settings settings) {
-            super(settings);
-        }
-
         @Override
         protected S3Repository createRepository(
             ProjectId projectId,

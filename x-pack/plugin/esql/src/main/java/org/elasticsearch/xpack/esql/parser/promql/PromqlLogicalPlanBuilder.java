@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.parser.promql;
 
-import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -87,8 +87,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     public static final Duration GLOBAL_EVALUATION_INTERVAL = Duration.ofMinutes(1);
     public static final Duration IMPLICIT_RANGE_PLACEHOLDER = Duration.ofMillis(-1);
 
-    PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
-        super(start, end, startLine, startColumn, params);
+    PromqlLogicalPlanBuilder(Literal start, Literal end, QueryParams params, @Nullable String viewName) {
+        super(start, end, params, viewName);
     }
 
     /**
@@ -218,26 +218,12 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         };
     }
 
-    private Literal unwrapLiteral(ParserRuleContext ctx) {
-        Object o = visit(ctx);
-        return switch (o) {
-            case Literal literal -> literal;
-            case Expression expression -> {
-                if (expression.foldable()) {
-                    yield Literal.of(FoldContext.small(), expression);
-                }
-                throw new ParsingException(source(ctx), "Constant expression required, found [{}]", expression.sourceText());
-            }
-            case LiteralSelector selector -> selector.literal();
-            default -> throw new ParsingException(source(ctx), "Constant expression required, found [{}]", ctx.getText());
-        };
-    }
-
     @Override
     public LogicalPlan visitSelector(PromqlBaseParser.SelectorContext ctx) {
         Source source = source(ctx);
         PromqlBaseParser.SeriesMatcherContext seriesMatcher = ctx.seriesMatcher();
-        String id = visitIdentifier(seriesMatcher.identifier());
+        PromqlBaseParser.MetricNameContext metricName = seriesMatcher.metricName();
+        String id = metricName == null ? null : metricName.getText();
         List<LabelMatcher> labels = new ArrayList<>();
         Expression series = null;
         List<Expression> labelExpressions = new ArrayList<>();
@@ -247,7 +233,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         if (id != null) {
             labels.add(new LabelMatcher(NAME, id, LabelMatcher.Matcher.EQ));
             // TODO: metric/ts name can be missing (e.g. {label=~"value"})
-            series = new UnresolvedAttribute(source(seriesMatcher.identifier()), id);
+            series = new UnresolvedAttribute(source(metricName), id);
         }
 
         boolean nonEmptyMatcher = id != null;
@@ -431,30 +417,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
         BinaryOp binaryOperator = binaryOp(ctx.op);
 
-        // Handle scalar folding once validation passes
-        if (le instanceof LiteralSelector leftSel && re instanceof LiteralSelector rightSel) {
-            Literal leftLiteral = leftSel.literal();
-            Literal rightLiteral = rightSel.literal();
-
-            // Extract values
-            Object leftValue = leftLiteral.value();
-            Object rightValue = rightLiteral.value();
-
-            // arithmetics
-            if (binaryOperator instanceof ArithmeticOp arithmeticOp) {
-                Object result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, arithmeticOp);
-                DataType resultType = determineResultType(result);
-                return new LiteralSelector(source, new Literal(source, result, resultType));
-            }
-
-            // With the bool modifier, scalar-scalar comparisons fold to 0 or 1.
-            // Without it, fall through to the general case so postAnalysisVerification can reject it.
-            if (binaryOperator instanceof ComparisonOp compOp && bool) {
-                int result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, compOp) ? 1 : 0;
-                return new LiteralSelector(source, Literal.integer(source, result));
-            }
-        }
-
         VectorMatch modifier = VectorMatch.NONE;
 
         PromqlBaseParser.ModifierContext modifierCtx = ctx.modifier();
@@ -477,7 +439,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 // label declared in ON cannot appear in grouping
                 if (modifierCtx.ON() != null) {
                     List<String> repeatedLabels = new ArrayList<>(groupingList);
-                    if (filterList.isEmpty() == false && repeatedLabels.retainAll(filterList) && repeatedLabels.isEmpty() == false) {
+                    repeatedLabels.retainAll(filterList);
+                    if (repeatedLabels.isEmpty() == false) {
                         throw new ParsingException(
                             source(modifierCtx.ON()),
                             "Label{} {} must not occur in ON and GROUP clause at once",
@@ -490,6 +453,39 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             }
 
             modifier = new VectorMatch(filter, new LinkedHashSet<>(filterList), joining, new LinkedHashSet<>(groupingList));
+        }
+
+        if (modifier != VectorMatch.NONE
+            && (PromqlPlan.getType(le) == PromqlDataType.SCALAR || PromqlPlan.getType(re) == PromqlDataType.SCALAR)) {
+            if (modifier.filterLabels().isEmpty() == false) {
+                throw new ParsingException(source, "Vector matching only allowed between instant vectors");
+            }
+            // Prometheus discards matching with an empty matching-label list for scalar operands.
+            modifier = VectorMatch.NONE;
+        }
+
+        // Handle scalar folding once validation passes
+        if (le instanceof LiteralSelector leftSel && re instanceof LiteralSelector rightSel) {
+            Literal leftLiteral = leftSel.literal();
+            Literal rightLiteral = rightSel.literal();
+
+            // Extract values
+            Object leftValue = leftLiteral.value();
+            Object rightValue = rightLiteral.value();
+
+            // arithmetics
+            if (binaryOperator instanceof ArithmeticOp arithmeticOp) {
+                Object result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, arithmeticOp);
+                DataType resultType = determineResultType(result);
+                return new LiteralSelector(source, new Literal(source, result, resultType));
+            }
+
+            // With the bool modifier, scalar-scalar comparisons fold to 0 or 1.
+            // Without it, fall through to the general case so postAnalysisVerification can reject it.
+            if (binaryOperator instanceof ComparisonOp compOp && bool) {
+                int result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, compOp) ? 1 : 0;
+                return new LiteralSelector(source, Literal.integer(source, result));
+            }
         }
 
         return switch (binaryOperator) {
@@ -608,43 +604,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             return Literal.NULL;
         }
 
-        // Case 1: COLON (resolution=duration)?
-        // Examples: ":5m", ":(5m + 1m)", etc.
-        // This reuses visitDuration which already handles arithmetic through expression folding
+        // COLON (resolution=duration)?, such as ":5m", ":1.5" or ":(5m + 1m)"; visitDuration folds the arithmetic
         if (ctx.resolution != null) {
             return visitDuration(ctx.resolution);
-        }
-
-        // Case 2-5: TIME_VALUE_WITH_COLON cases
-        // Examples: ":5m", ":5m * 2", ":5m ^ 2", ":5m + 1m", etc.
-        var timeCtx = ctx.TIME_VALUE_WITH_COLON();
-        if (timeCtx != null) {
-            // Parse the base time value (e.g., ":5m" -> "5m")
-            String timeString = timeCtx.getText().substring(1).trim();
-            Source timeSource = source(timeCtx);
-            Duration baseValue = PromqlParserUtils.parseDuration(timeSource, timeString);
-
-            if (ctx.op == null || ctx.expression() == null) {
-                return Literal.timeDuration(source(timeCtx), baseValue);
-            }
-
-            // Evaluate right expression
-            Object rightValue = unwrapLiteral(ctx.expression()).value();
-
-            // Perform arithmetic using utility
-            BinaryOp binaryOp = binaryOp(ctx.op);
-            Object result;
-            if (binaryOp instanceof ArithmeticOp operation) {
-                result = PromqlFoldingUtils.evaluate(source(ctx), baseValue, rightValue, operation);
-            } else {
-                throw new ParsingException(source(ctx), "Unsupported binary operator [{}] in time duration", binaryOp);
-            }
-            // Result should be Duration
-            if (result instanceof Duration duration) {
-                return Literal.timeDuration(source(timeCtx), duration);
-            }
-
-            throw new ParsingException(source(ctx), "Expected duration result, got [{}]", result.getClass().getSimpleName());
         }
 
         // Just COLON with no resolution - use default

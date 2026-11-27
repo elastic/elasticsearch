@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RelocationFailureInfo;
@@ -591,7 +592,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             routingNodes.node("node-1").getByShardId(shardId),
             "node-3",
             0L,
-            "test",
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
@@ -599,7 +600,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             routingNodes.node("node-2").getByShardId(shardId),
             "node-4",
             0L,
-            "test",
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
@@ -640,7 +641,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
                 RecoveryPriority.UNASSIGNED_UNEXPECTED,
                 RecoveryPriority.UNASSIGNED_EXPECTED,
                 RecoveryPriority.UNASSIGNED_RESTORING,
-                RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+                RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING,
+                RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET
             )
             : randomFrom(
                 RecoveryPriority.UNASSIGNED_UNEXPECTED,
@@ -710,7 +712,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             .addShard(
                 shardRoutingBuilder(targetShardId, "node-2", true, INITIALIZING).withRecoverySource(
                     new RecoverySource.ReshardSplitRecoverySource(sourceShardId)
-                ).withRecoveryPriority(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING).build()
+                ).withRecoveryPriority(RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET).build()
             )
             .build();
 
@@ -734,7 +736,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         assertThat(unassignedShard.primary(), equalTo(true));
         assertThat(unassignedShard.recoverySource().getType(), equalTo(RecoverySource.Type.RESHARD_SPLIT));
         final var expectedRecoveryPriority = targetShardState == IndexReshardingState.Split.TargetShardState.CLONE
-            ? RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+            ? RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET
             : RecoveryPriority.UNASSIGNED_UNEXPECTED;
         assertThat(unassignedShard.recoveryPriority(), equalTo(expectedRecoveryPriority));
     }
@@ -771,7 +773,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             routingNodes.node("node-1").getByShardId(shardId),
             "node-3",
             0L,
-            "test",
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
             recoveryPriority
         );

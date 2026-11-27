@@ -9,50 +9,83 @@
 
 package org.elasticsearch.gradle.internal.conventions.problems;
 
-import org.gradle.api.problems.ProblemGroup;
+import org.gradle.api.problems.ProblemId;
+import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 
 /**
- * Centralized problem group hierarchy for Elasticsearch build problems.
- * These groups are used with the Gradle Problems API to provide structured,
- * categorized error reporting that integrates with the Tooling API and the
- * local problems report ({@code build/reports/problems/problems-report.html}).
+ * Problem groups for Elasticsearch build problems reported through the Gradle Problems API. These problems show up in
+ * the Tooling API and in the local problems report ({@code build/reports/problems/problems-report.html}).
+ *
+ * <p>Since Gradle 9.9, problem groups hang off the predefined hierarchy provided by {@link Problems#getGroups()}.
+ * Our checks verify the build and its sources, so they are reported under the predefined {@code Verification} root,
+ * in one of two Elasticsearch specific second-level groups ({@link Category}). Each constant is a third-level group
+ * for one check, e.g. {@code Verification > Elasticsearch Precommit > Forbidden Patterns}.
+ *
+ * <p>Problem ids are named after the <em>kind</em> of problem (the name is also its display name). Put details
+ * that vary per occurrence (file, class, rule, ...) in the contextual label instead of the problem name.
  */
-public final class ElasticsearchBuildProblems {
+public enum ElasticsearchBuildProblems {
 
-    private ElasticsearchBuildProblems() {}
+    FORBIDDEN_PATTERNS(Category.PRECOMMIT, "Forbidden Patterns"),
+    LICENSE_HEADERS(Category.PRECOMMIT, "License Headers"),
+    TESTING_CONVENTIONS(Category.PRECOMMIT, "Testing Conventions"),
+    FORBIDDEN_APIS(Category.PRECOMMIT, "Forbidden APIs"),
+    MISSING_CLASSES(Category.PRECOMMIT, "Missing Classes"),
+    JAR_HELL(Category.PRECOMMIT, "JDK Jar Hell"),
+    DEPENDENCY_LICENSES(Category.PRECOMMIT, "Dependency Licenses"),
+    SPLIT_PACKAGES(Category.PRECOMMIT, "Split Packages"),
+    JAVA_MODULE(Category.PRECOMMIT, "Java Module"),
+    POM_VALIDATION(Category.PRECOMMIT, "POM Validation"),
+    JSON_VALIDATION(Category.PRECOMMIT, "JSON Validation"),
 
-    // Root group
-    public static final ProblemGroup ROOT = ProblemGroup.create("elasticsearch-build", "Elasticsearch Build");
+    BUILD_GRADLE_SCRIPTS(Category.BUILD_LOGIC, "Build Gradle Scripts");
 
-    // Second-level groups
-    public static final ProblemGroup PRECOMMIT = ProblemGroup.create("precommit", "Precommit Checks", ROOT);
-    public static final ProblemGroup BUILD_LOGIC = ProblemGroup.create("build-logic", "Build Logic", ROOT);
+    /**
+     * Elasticsearch specific second-level groups below the predefined {@code Verification} root group.
+     */
+    public enum Category {
+        PRECOMMIT("Elasticsearch Precommit"),
+        BUILD_LOGIC("Elasticsearch Build Logic");
 
-    // Leaf groups under PRECOMMIT
-    public static final ProblemGroup FORBIDDEN_PATTERNS = ProblemGroup.create("forbidden-patterns", "Forbidden Patterns", PRECOMMIT);
-    public static final ProblemGroup LICENSE_HEADERS = ProblemGroup.create("license-headers", "License Headers", PRECOMMIT);
-    public static final ProblemGroup TESTING_CONVENTIONS = ProblemGroup.create(
-        "testing-conventions",
-        "Testing Conventions",
-        PRECOMMIT
-    );
-    public static final ProblemGroup FORBIDDEN_APIS = ProblemGroup.create("forbidden-apis", "Forbidden APIs", PRECOMMIT);
-    public static final ProblemGroup MISSING_CLASSES = ProblemGroup.create("missing-classes", "Missing Classes", PRECOMMIT);
-    public static final ProblemGroup JAR_HELL = ProblemGroup.create("jar-hell", "JDK Jar Hell", PRECOMMIT);
-    public static final ProblemGroup DEPENDENCY_LICENSES = ProblemGroup.create(
-        "dependency-licenses",
-        "Dependency Licenses",
-        PRECOMMIT
-    );
-    public static final ProblemGroup SPLIT_PACKAGES = ProblemGroup.create("split-packages", "Split Packages", PRECOMMIT);
-    public static final ProblemGroup JAVA_MODULE = ProblemGroup.create("java-module", "Java Module", PRECOMMIT);
-    public static final ProblemGroup POM_VALIDATION = ProblemGroup.create("pom-validation", "POM Validation", PRECOMMIT);
-    public static final ProblemGroup JSON_VALIDATION = ProblemGroup.create("json-validation", "JSON Validation", PRECOMMIT);
+        private final String groupName;
 
-    // Leaf groups under BUILD_LOGIC
-    public static final ProblemGroup BUILD_GRADLE_SCRIPTS = ProblemGroup.create(
-        "build-gradle-scripts",
-        "Build Gradle Scripts",
-        BUILD_LOGIC
-    );
+        Category(String groupName) {
+            this.groupName = groupName;
+        }
+
+        public String groupName() {
+            return groupName;
+        }
+    }
+
+    private final Category category;
+    private final String groupName;
+
+    ElasticsearchBuildProblems(Category category, String groupName) {
+        this.category = category;
+        this.groupName = groupName;
+    }
+
+    public Category category() {
+        return category;
+    }
+
+    public String groupName() {
+        return groupName;
+    }
+
+    /**
+     * Resolves this group in the predefined problem group hierarchy of the given {@link Problems} service.
+     */
+    public ThirdLevelProblemGroup group(Problems problems) {
+        return problems.getGroups().getVerification().group(category.groupName).group(groupName);
+    }
+
+    /**
+     * Shorthand for {@code group(problems).problemId(name)}.
+     */
+    public ProblemId problemId(Problems problems, String name) {
+        return group(problems).problemId(name);
+    }
 }

@@ -26,8 +26,8 @@ libs/simdvec/
 
 - **`libs/foreign-library`** — the FFM binding framework. `SimdVecLibrary` (in this module) declares
   libvec's functions with its annotations, and the build generates the implementation.
-- **`libs/native/libraries`** — collects the built (or published) libvec alongside the other native
-  libraries, for tests and the distribution.
+- **`distribution`** — the `:distribution:archives` and `:distribution:packages` projects copy the built
+  (or published) libvec into `lib/platform`, with the other native libraries.
 - **`libs/native-toolchain`** — the cross-compilation toolchain image used to build libvec.
 
 ## Native code tiers
@@ -96,7 +96,7 @@ fetched from Artifactory (no compiler or Docker required).
 
 Building from source **replaces** the published artifact rather than
 complementing it.
-In `host` mode that means `libs/native/libraries/build/platform/` holds libvec
+In `host` mode that means `libs/simdvec/build/native-libs/` holds libvec
 for your platform only. Anything that needs other platforms (e.g. assembling
 a distribution for a different OS or architecture) needs `docker` mode or the
 published artifact.

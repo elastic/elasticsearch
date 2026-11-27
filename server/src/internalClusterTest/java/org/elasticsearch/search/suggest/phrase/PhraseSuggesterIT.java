@@ -19,14 +19,17 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 public class PhraseSuggesterIT extends ESIntegTestCase {
 
@@ -55,7 +58,7 @@ public class PhraseSuggesterIT extends ESIntegTestCase {
                 // We didn't fail all shards - we get a response with failed shards
                 assertThat(response.status(), equalTo(RestStatus.OK));
                 assertThat(response.getFailedShards(), greaterThan(0));
-                assertThat(response.getShardFailures().length, greaterThan(0));
+                assertThat(response.getShardFailures(), not(empty()));
                 checkShardFailures(response.getShardFailures());
             });
         } catch (SearchPhaseExecutionException e) {
@@ -64,7 +67,7 @@ public class PhraseSuggesterIT extends ESIntegTestCase {
         }
     }
 
-    private static void checkShardFailures(ShardSearchFailure[] shardFailures) {
+    private static void checkShardFailures(List<ShardSearchFailure> shardFailures) {
         for (ShardSearchFailure shardFailure : shardFailures) {
             assertTrue(shardFailure.getCause() instanceof IllegalArgumentException);
             assertEquals("At least one unigram is required but all tokens were ngrams", shardFailure.getCause().getMessage());

@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.column.ValuesType;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
@@ -30,9 +34,11 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.LocalInputFile;
 import org.apache.parquet.io.LocalOutputFile;
 import org.apache.parquet.io.OutputFile;
+import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.ColumnOrder;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
@@ -52,6 +58,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -80,6 +88,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
@@ -105,6 +114,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
@@ -145,6 +155,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.allOf;
@@ -2100,6 +2111,16 @@ public class ParquetFormatReaderTests extends ESTestCase {
         );
         derived.discoverSplitRanges(file);
         assertSame("derived copy must hit the root's parsed-footer cache", rootSeeded, derived.parsedFooterForTests(key));
+
+        BlockFactory otherFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        ParquetFormatReader perRead = root.withBlockFactory(otherFactory);
+        assertSame(
+            "withBlockFactory copy must share the root's footer byte cache",
+            root.footerByteCacheForTests(),
+            perRead.footerByteCacheForTests()
+        );
+        perRead.discoverSplitRanges(file);
+        assertSame("withBlockFactory copy must hit the root's parsed-footer cache", rootSeeded, perRead.parsedFooterForTests(key));
     }
 
     /** {@link ParquetFormatReader#cachedSplitRanges} is a hash-get after a parse, never a GET. */
@@ -3161,6 +3182,56 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
         // After close everything allocated during open is released and the breaker returns to its initial level.
         assertEquals("count-only path must release all allocations on close", beforeRead, trackingBreaker.getUsed());
+    }
+
+    /**
+     * A node-singleton reader stays on its construction factory. {@code withBlockFactory} copies
+     * decode onto a per-read factory and keeps the footer caches. The node breaker is one byte, so
+     * any page that still hit it would trip; success plus live usage on the per-read breaker, with
+     * the footer cache still the node instance, is the proof.
+     */
+    public void testWithBlockFactoryChargesThePerReadBreakerNotTheFooterCache() throws Exception {
+        LimitedBreaker nodeBreaker = new LimitedBreaker("node", ByteSizeValue.ofBytes(1));
+        CircuitBreaker[] readBreaker = new CircuitBreaker[1];
+        BlockFactory nodeFactory = new BlockFactory(nodeBreaker, BigArrays.NON_RECYCLING_INSTANCE);
+        BlockFactory readFactory = trackingBlockFactory(readBreaker);
+        ParquetFormatReader nodeReader = new ParquetFormatReader(nodeFactory);
+        assertSame("same factory is a no-op so the node singleton is unchanged", nodeReader, nodeReader.withBlockFactory(nodeFactory));
+        ParquetFormatReader perRead = nodeReader.withBlockFactory(readFactory);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+        assertSame("footer byte cache stays the node instance", nodeReader.footerBytes(), perRead.footerBytes());
+        assertSame("I/O watermark stays the node instance", nodeReader.ioWatermark(), perRead.ioWatermark());
+        assertSame("heap buffer pool stays the node instance", nodeReader.heapBufferPool(), perRead.heapBufferPool());
+
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group group = factory.newGroup();
+            group.add("id", 1L);
+            group.add("name", "Alice");
+            return List.of(group);
+        });
+        try (CloseableIterator<Page> iterator = perRead.read(createStorageObject(parquetData), List.of("id", "name"), 8)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertThat("per-read page allocations must hit the bound factory", readBreaker[0].getUsed(), greaterThan(0L));
+            assertEquals("the node singleton must not see those allocations", 0L, nodeBreaker.getUsed());
+            page.releaseBlocks();
+        }
+        assertEquals(0L, readBreaker[0].getUsed());
+        assertEquals(0L, nodeBreaker.getUsed());
+    }
+
+    private static BlockFactory trackingBlockFactory(CircuitBreaker[] outBreaker) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        outBreaker[0] = breaker;
+        return BlockFactory.builder(bigArrays).breaker(breaker).build();
     }
 
     public void testCircuitBreaker() throws IOException {
@@ -6003,6 +6074,70 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader.validateFooterIntegrity(schema, List.of(block));
     }
 
+    public void testValidateFooterIntegrityRejectsUnsupportedCodec() {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        CompressionCodecName codec = randomBoolean() ? CompressionCodecName.BROTLI : CompressionCodecName.LZO;
+        org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(0);
+        PrimitiveType type = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+            org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+            type,
+            codec,
+            null,
+            java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ParquetFormatReader.validateFooterIntegrity(schema, List.of(block))
+        );
+        assertThat(ex.getMessage(), containsString("column [id]"));
+        assertThat(ex.getMessage(), containsString(codec.name()));
+        assertThat(ex.getMessage(), containsString("LZ4_RAW"));
+        assertThat(ex.getMessage(), containsString("Could not read the Parquet file"));
+        RuntimeException classified = ExternalFailures.classify(ex);
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        assertThat(classified.getMessage(), containsString(codec.name()));
+    }
+
+    public void testValidateFooterIntegrityAcceptsEverySupportedCodec() {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        for (CompressionCodecName codec : PlainCompressionCodecFactory.supportedDecompressionCodecs()) {
+            org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+            stats.setMinMax(1L, 100L);
+            stats.setNumNulls(0);
+            PrimitiveType type = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+            org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+                org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+                type,
+                codec,
+                null,
+                java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+                stats,
+                0L,
+                0L,
+                100L,
+                0L,
+                0L
+            );
+            org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+            block.setRowCount(100);
+            block.addColumn(ccm);
+            ParquetFormatReader.validateFooterIntegrity(schema, List.of(block));
+        }
+    }
+
     public void testValidParquetZeroRowsMetadata() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
         byte[] parquetData = createParquetFile(schema, factory -> List.of());
@@ -6656,8 +6791,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * vectorized {@link PageColumnReader} (production), the row-at-a-time arms of {@code ParquetColumnIterator}, and
      * the deferred late-materialization extractor -- and asserts all three produce {@code expectedMillis}. The routes
      * are separate implementations of the same coercion, so a per-route answer is a wrong answer that depends on the
-     * query's plan shape; the extractor is the one that decodes at the file's own type and coerces through
-     * {@code castBlock}, which is the oracle the fused arms are written against.
+     * query's plan shape.
      *
      * <p>The row-at-a-time decoder is selected with {@link ParquetFormatReader#withBaselinePath()}. The iterator
      * flag does not reach it: {@code ParquetColumnIterator} builds a {@link PageColumnReader} per flat column
@@ -6687,7 +6821,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertDeferredDatetimeReads(parquetData, storageObject, column, expectedMillis);
     }
 
-    /** The deferred late-materialization route of {@link #assertDeclaredDatetimeReads}: decode at the file's type, coerce. */
+    /** The deferred late-materialization route of {@link #assertDeclaredDatetimeReads}. */
     private void assertDeferredDatetimeReads(byte[] parquetData, StorageObject storageObject, String column, long... expectedMillis)
         throws Exception {
         ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of(column));
@@ -6702,53 +6836,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 assertEquals("deferred", expectedMillis.length, l.getPositionCount());
                 for (int i = 0; i < expectedMillis.length; i++) {
                     assertEquals("deferred position " + i, expectedMillis[i], l.getLong(i));
-                }
-            } finally {
-                Releasables.close(blocks);
-            }
-        }
-    }
-
-    /**
-     * The null side of {@link #assertDeclaredDatetimeReads}: every position null, on all three routes. A value the
-     * file holds and {@code date} represents, but which the decode cannot carry, has to be refused the same way
-     * whichever route produces the column -- the eager vectorized reader, the row-at-a-time reader, or the deferred
-     * extractor. Asserting it on all three is the point: a fix applied to the eager readers alone makes them
-     * disagree with the deferred one, which is a wrong answer that depends on the plan's shape rather than on the
-     * data, and this is what fails when that happens.
-     */
-    private void assertDeclaredDatetimeNulls(byte[] parquetData, String column, int positionCount) throws Exception {
-        StorageObject storageObject = createStorageObject(parquetData);
-        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, column, DataType.DATETIME));
-        for (String decoder : List.of("pageReader", "rowAtATime")) {
-            ParquetFormatReader base = new ParquetFormatReader(blockFactory);
-            ParquetFormatReader r = (ParquetFormatReader) (decoder.equals("rowAtATime") ? base.withBaselinePath() : base)
-                .withDeclaredTypeColumns(Set.of(column));
-            try (
-                CloseableIterator<Page> it = r.readRange(
-                    storageObject,
-                    new RangeReadContext(List.of(column), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
-                )
-            ) {
-                LongBlock l = (LongBlock) it.next().getBlock(0);
-                assertEquals(decoder, positionCount, l.getPositionCount());
-                for (int i = 0; i < positionCount; i++) {
-                    assertTrue(decoder + " position " + i + " must be null", l.isNull(i));
-                }
-            }
-        }
-        ParquetFormatReader deferred = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of(column));
-        long[] positions = new long[positionCount];
-        for (int i = 0; i < positionCount; i++) {
-            positions[i] = i;
-        }
-        try (ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, deferred, footerOf(storageObject), ErrorPolicy.STRICT)) {
-            Block[] blocks = extractor.extract(new String[] { column }, new DataType[] { DataType.DATETIME }, positions, blockFactory);
-            try {
-                LongBlock l = (LongBlock) blocks[0];
-                assertEquals("deferred", positionCount, l.getPositionCount());
-                for (int i = 0; i < positionCount; i++) {
-                    assertTrue("deferred position " + i + " must be null", l.isNull(i));
                 }
             } finally {
                 Releasables.close(blocks);
@@ -8059,6 +8146,60 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     Map.of(DataType.LONG, 41L)
                 )
             );
+            // Every physical shape that renders DATE_NANOS. A TIME unit's value is a time of day, so its expected
+            // millis are one too. The out-of-range TIMESTAMP(MICROS) shape is the one the two-step route nulled.
+            case DATE_NANOS -> List.of(
+                new FusedShape(
+                    "INT64 TIMESTAMP(MICROS)",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, isoMillis * 1_000L),
+                    Map.of(DataType.DATETIME, isoMillis)
+                ),
+                new FusedShape(
+                    "INT64 TIMESTAMP(MICROS) below the nanosecond floor",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, -14_831_769_600_000_000L), // 1500-01-01T00:00:00Z
+                    Map.of(DataType.DATETIME, -14_831_769_600_000L)
+                ),
+                new FusedShape(
+                    "INT64 TIMESTAMP(NANOS)",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, isoMillis * 1_000_000L),
+                    Map.of(DataType.DATETIME, isoMillis)
+                ),
+                new FusedShape(
+                    "INT64 TIME(MICROS)",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, 45_296_000_000L),
+                    Map.of(DataType.DATETIME, 45_296_000L)
+                ),
+                new FusedShape(
+                    "INT64 TIME(NANOS)",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, 45_296_000_000_000L),
+                    Map.of(DataType.DATETIME, 45_296_000L)
+                )
+            );
             case LONG -> List.of(
                 new FusedShape(
                     "INT64",
@@ -8152,34 +8293,15 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Guard: every {@code DeclaredTypeCoercions.fusedInDecode} pair must decode NATIVELY in this reader -- a fused pair
-     * is never routed through {@code castBlock}, so a pair wired into only one reader's decode loops would silent-null
-     * (or garbage-decode) in the other. It must do so for every PHYSICAL shape that renders the pair's {@code from}
-     * type: the predicate is keyed on ESQL types while the decode arms see Parquet primitives, and nothing else forces
-     * the two keyings to agree. Both decoders are exercised, since each carries its own copy of the dispatch, and the
-     * axis that reaches the second one is {@link ParquetFormatReader#withBaselinePath()} rather than the iterator
-     * flag: every shape here is flat, and {@code ParquetColumnIterator} builds a {@link PageColumnReader} for every
-     * flat column of a row group it reads without a record filter, so the flag alone would run the vectorized
-     * dispatch twice and leave the row-at-a-time copy -- the one this guard exists to protect -- unentered.
-     *
-     * <p>Enumerates the fused pairs mechanically, from {@code DataType.values()} crossed with itself, so a NEW fused
-     * pair fails loudly until its author wires the native arm (in BOTH readers -- the ORC suite carries the twin of
-     * this guard) and gives it a shape in {@link #fusedShapesFor}. The shapes themselves are enumerated by hand, with
-     * the consequences stated there.
-     */
-    /**
      * Guard: for every {@code fusedInDecode} pair and physical shape, the three routes that can produce a column
      * must produce the same value. There are three -- the vectorized reader, the row-at-a-time reader, and the
-     * deferred extractor a plan uses when it materializes a column only for the rows a TopN kept -- and only the
-     * first two consult {@code fusedInDecode}. {@code ParquetColumnExtractor.coerceToTarget} decodes at the FILE's
-     * type and calls {@code castBlock} unconditionally, so a fused pair whose one-step decode differs from its
-     * two-step equivalent answers differently depending on the plan's shape rather than on the data.
+     * deferred extractor a plan uses when it materializes a column only for the rows a TopN kept. All three honour
+     * {@code fusedInDecode}: the first two consult it directly, the extractor by retyping its column view. A pair
+     * one route decodes in one step and another in two answers by plan shape rather than by data.
      * <p>
-     * That is not hypothetical. A {@code date_nanos -> date} pair was added to the table in this change and
-     * withdrawn: the one-step scale carried values outside the nanosecond domain that the two-step route nulled,
-     * so the eager readers returned an instant where the deferred route returned null, for the same file and the
-     * same query. Nothing failed, because the sibling guard below exercises only the two eager decoders. This
-     * test is what fails.
+     * It varies the physical shape only: one required row, a declared column, no format, a strict policy. The
+     * formatter, the policy and the declared-vs-inferred gate are pinned by the tests at the end of this
+     * class instead.
      * <p>
      * It asserts agreement rather than a particular value, so it stays true of whatever the pairs become; the
      * values themselves are the sibling guard's job.
@@ -8197,41 +8319,13 @@ public class ParquetFormatReaderTests extends ESTestCase {
                         shape.writer().accept(g, "x");
                         return List.of(g);
                     });
-                    StorageObject storageObject = createStorageObject(parquetData);
-                    List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
-                    List<Object> perRoute = new ArrayList<>();
-                    for (String decoder : List.of("pageReader", "rowAtATime")) {
-                        ParquetFormatReader engine = decoder.equals("rowAtATime")
-                            ? new ParquetFormatReader(blockFactory).withBaselinePath()
-                            : new ParquetFormatReader(blockFactory);
-                        ParquetFormatReader r = (ParquetFormatReader) engine.withDeclaredTypeColumns(Set.of("x"));
-                        try (
-                            CloseableIterator<Page> it = r.readRange(
-                                storageObject,
-                                new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
-                            )
-                        ) {
-                            perRoute.add(cellOf(it.next().getBlock(0), to, pair + " (" + decoder + ")"));
-                        }
-                    }
-                    ParquetFormatReader deferred = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(
-                        Set.of("x")
+                    // A distinct location per shape: footerOf goes through a class-level FooterByteCache, so a
+                    // shared one makes a later shape decode against an earlier shape's footer.
+                    StorageObject storageObject = createStorageObject(
+                        parquetData,
+                        "memory://" + shape.label().replace(' ', '_') + ".parquet"
                     );
-                    try (
-                        ColumnExtractor extractor = new ParquetColumnExtractor(
-                            storageObject,
-                            deferred,
-                            footerOf(storageObject),
-                            ErrorPolicy.STRICT
-                        )
-                    ) {
-                        Block[] blocks = extractor.extract(new String[] { "x" }, new DataType[] { to }, new long[] { 0L }, blockFactory);
-                        try {
-                            perRoute.add(cellOf(blocks[0], to, pair + " (deferred)"));
-                        } finally {
-                            Releasables.close(blocks);
-                        }
-                    }
+                    List<Object> perRoute = cellsOnEveryRoute(storageObject, parquetData.length, to, ErrorPolicy.STRICT, pair);
                     assertEquals(
                         "fused pair "
                             + pair
@@ -8245,6 +8339,316 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Reads column {@code x} of {@code storageObject} as {@code to} on each of the three routes that can produce a
+     * column -- the vectorized reader, the row-at-a-time reader, and the deferred extractor a plan uses when it
+     * materializes a column only for the rows a TopN kept -- and returns one cell per route, in that order.
+     *
+     * <p>The column is DECLARED on every route, which is what makes a {@link DeclaredTypeCoercions#supports} pair
+     * admissible rather than null-filled. The axis that reaches the row-at-a-time copy is
+     * {@link ParquetFormatReader#withBaselinePath()} and not the iterator flag: every shape these guards write is
+     * flat, and {@code ParquetColumnIterator} builds a {@link PageColumnReader} for every flat column of a row group
+     * it reads without a record filter, so the flag alone would run the vectorized dispatch twice and leave the
+     * row-at-a-time dispatch unentered.
+     *
+     * <p>Both route guards call this, so a change to how one of them reads cannot quietly stop applying to the other.
+     */
+    private List<Object> cellsOnEveryRoute(StorageObject storageObject, int length, DataType to, ErrorPolicy policy, String pair)
+        throws Exception {
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
+        List<Object> perRoute = new ArrayList<>();
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader engine = decoder.equals("rowAtATime")
+                ? new ParquetFormatReader(blockFactory).withBaselinePath()
+                : new ParquetFormatReader(blockFactory);
+            ParquetFormatReader r = (ParquetFormatReader) engine.withDeclaredTypeColumns(Set.of("x"));
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("x"), 10, 0, length, plannerTypes, policy)
+                )
+            ) {
+                perRoute.add(cellOf(it.next().getBlock(0), to, pair + " (" + decoder + ")"));
+            }
+        }
+        ParquetFormatReader deferred = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("x"));
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, deferred, footerOf(storageObject), policy)) {
+            Block[] blocks = extractor.extract(new String[] { "x" }, new DataType[] { to }, new long[] { 0L }, blockFactory);
+            try {
+                perRoute.add(cellOf(blocks[0], to, pair + " (deferred)"));
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+        return perRoute;
+    }
+
+    /**
+     * Guard: the DEFUSED counterpart of {@link #testEveryFusedInDecodePairAgreesAcrossReadRoutes}. For every pair
+     * {@link DeclaredTypeCoercions#supports} admits that {@link DeclaredTypeCoercions#fusedInDecode} does NOT, the
+     * three routes must still agree. Such a pair reaches its target by decoding at the file's own type and casting
+     * the block, and each route carries its own copy of the decision to do that rather than decode natively:
+     * {@code PageColumnReader#readBatch} for the vectorized reader, {@code ParquetColumnDecoding#readListColumn} for
+     * the list decode, and the retyped column view {@code ParquetColumnExtractor#extract} builds for the deferred
+     * one. A pair one route casts and another decodes natively answers by PLAN SHAPE rather than by data, silently.
+     *
+     * <p>This is the divergence class the fused guard cannot see: that one varies the pair only inside the fused
+     * set, so it is blind to a defused pair handled on one route and not another.
+     *
+     * <p><b>It is a standing guard, not evidence for any one change.</b> A green here means the routes agree on the
+     * defused pairs it reaches; it says nothing about whether any particular commit is correct.
+     *
+     * <p>What it does NOT reach, measured rather than supposed:
+     * <ul>
+     *   <li>One required row, one row group, position {@code {0}} -- so {@code readBatchSparse} takes its
+     *       {@code survivorCount == sourceRows} early return and the multi-run path, {@code BlockChunks.concat} over
+     *       cast chunks, multi-bucket stitching and replayed positions are never entered.</li>
+     *   <li>Of its cells, the ones whose only sample value cannot convert are null on all three routes and so cannot
+     *       tell a correct route from one that null-fills; every {@code keyword} target below {@code date} is such a
+     *       cell, the sample being an ISO date string. Count them with
+     *       {@code cellsOnEveryRoute(...).get(0) == null} if the proportion matters.</li>
+     *   <li>{@link ErrorPolicy#PERMISSIVE} only, so it says nothing about a strict read -- see
+     *       {@link #testDeferredDefusedPairFailsTheReadUnderAStrictPolicy}.</li>
+     *   <li>Flat shapes only, {@code fusedShapesFor} writing no list: the LIST decode loop's own copy of the
+     *       decision is pinned by {@link #testDeferredDefusedListPairAgreesWithTheEagerRoutes} instead.</li>
+     *   <li>Agreement, not values. A mutation that breaks all three routes identically passes.</li>
+     * </ul>
+     *
+     * <p>The {@code from} types are named here rather than taken from {@code DataType.values()} because
+     * {@link #fusedShapesFor} throws for a source it has no shape for; the four named are the ones it knows, and
+     * {@code DOUBLE}, {@code BOOLEAN}, {@code DATETIME} and {@code UNSIGNED_LONG} are rendered by Parquet and not
+     * covered. The pair count is asserted non-zero so the enumeration cannot go vacuous if the two predicates move
+     * together.
+     */
+    public void testEveryDefusedSupportedPairAgreesAcrossReadRoutes() throws Exception {
+        List<DataType> shapedSources = List.of(DataType.INTEGER, DataType.LONG, DataType.DATE_NANOS, DataType.KEYWORD);
+        int pairsChecked = 0;
+        for (DataType from : shapedSources) {
+            for (DataType to : DataType.values()) {
+                if (from == to || DeclaredTypeCoercions.supports(from, to) == false || DeclaredTypeCoercions.fusedInDecode(from, to)) {
+                    continue;
+                }
+                for (FusedShape shape : fusedShapesFor(from)) {
+                    String pair = from.typeName() + "->" + to.typeName() + " as " + shape.label();
+                    byte[] parquetData = createParquetFile(shape.schema(), factory -> {
+                        Group g = factory.newGroup();
+                        shape.writer().accept(g, "x");
+                        return List.of(g);
+                    });
+                    // A distinct location per shape: footerOf goes through a class-level FooterByteCache, so a
+                    // shared one makes a later shape decode against an earlier shape's footer.
+                    StorageObject storageObject = createStorageObject(
+                        parquetData,
+                        "memory://defused_" + shape.label().replace(' ', '_') + ".parquet"
+                    );
+                    List<Object> perRoute = cellsOnEveryRoute(storageObject, parquetData.length, to, ErrorPolicy.PERMISSIVE, pair);
+                    String message = "defused pair "
+                        + pair
+                        + ": the eager vectorized, row-at-a-time and deferred routes must agree; a pair one route "
+                        + "casts and another decodes natively answers by plan shape";
+                    // Pairwise rather than through List.of, which rejects the nulls a genuinely uncoercible value
+                    // produces under PERMISSIVE.
+                    assertEquals(message + " (rowAtATime vs pageReader)", perRoute.get(0), perRoute.get(1));
+                    assertEquals(message + " (deferred vs pageReader)", perRoute.get(0), perRoute.get(2));
+                    pairsChecked++;
+                }
+            }
+        }
+        assertThat(
+            "no defused supported pair was exercised, so this guard asserted nothing; supports and fusedInDecode "
+                + "have converged or the shaped-source list reaches neither",
+            pairsChecked,
+            greaterThan(0)
+        );
+    }
+
+    /**
+     * The LIST decode loop carries its own copy of the fuse-or-cast decision, and the deferred route reaches it
+     * through a retyped view exactly as the flat one does. A declared {@code LIST<int64>} read as {@code integer} is
+     * defused -- {@code supports(LONG, INTEGER)} holds, {@code fusedInDecode} rejects it -- so
+     * {@code readListColumn} must recurse at the file's element type and cast, on the deferred route as on the eager
+     * ones, element by element.
+     *
+     * <p>Skipping the retype for a repeated column leaves every flat case in this class passing, so that half of
+     * it is pinned by the list tests alone -- three others here red on the same mutation. What this one adds is the
+     * assertion on the decoded elements rather than on agreement between the routes, so a mutation that breaks all
+     * three routes alike still fails it.
+     */
+    public void testDeferredDefusedListPairAgreesWithTheEagerRoutes() throws Exception {
+        Type listType = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT64).named("v");
+        MessageType schema = new MessageType("test_schema", listType);
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            Group l1 = g1.addGroup("v");
+            l1.addGroup("list").append("element", 7L);
+            l1.addGroup("list").append("element", -9L);
+            Group g2 = factory.newGroup();
+            Group l2 = g2.addGroup("v");
+            l2.addGroup("list").append("element", 11L);
+            return List.of(g1, g2);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://defused_list_int64.parquet");
+        List<Attribute> asInteger = List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.INTEGER));
+
+        List<List<Integer>> perRoute = new ArrayList<>();
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader engine = decoder.equals("rowAtATime")
+                ? new ParquetFormatReader(blockFactory).withBaselinePath()
+                : new ParquetFormatReader(blockFactory);
+            ParquetFormatReader r = (ParquetFormatReader) engine.withDeclaredTypeColumns(Set.of("v"));
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("v"), 10, 0, parquetData.length, asInteger, ErrorPolicy.PERMISSIVE)
+                )
+            ) {
+                perRoute.add(intElementsOf(it.next().getBlock(0), decoder));
+            }
+        }
+        ParquetFormatReader deferred = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, deferred, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "v" },
+                new DataType[] { DataType.INTEGER },
+                new long[] { 0L, 1L },
+                blockFactory
+            );
+            try {
+                perRoute.add(intElementsOf(blocks[0], "deferred"));
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+        List<Integer> expected = List.of(7, -9, 11);
+        for (int i = 0; i < perRoute.size(); i++) {
+            assertEquals("route " + i + " must narrow every element of the declared list: " + perRoute, expected, perRoute.get(i));
+        }
+    }
+
+    /** Every element of an {@code IntBlock}, flattened across positions, for comparing one route against another. */
+    private static List<Integer> intElementsOf(Block block, String where) {
+        assertTrue(where + ": expected an IntBlock, got " + block.getClass().getSimpleName(), block instanceof IntBlock);
+        IntBlock ints = (IntBlock) block;
+        List<Integer> out = new ArrayList<>();
+        for (int p = 0; p < ints.getPositionCount(); p++) {
+            int first = ints.getFirstValueIndex(p);
+            for (int v = 0; v < ints.getValueCount(p); v++) {
+                out.add(ints.getInt(first + v));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * A defused pair on the deferred route follows the error policy, and under a STRICT policy a value the target
+     * cannot hold FAILS the read rather than nulling the cell. The sink the decode loop is handed decides this:
+     * {@code castBlockWarnings()} is null under strict so {@code castBlock} propagates, where the always-live
+     * {@code coercionWarnings()} would null and continue -- a difference invisible to any permissive test, which is
+     * why the route-agreement guards cannot see it.
+     *
+     * <p>{@code 2_147_483_648} is one past {@code Integer.MAX_VALUE}, so the narrowing fails on that value alone.
+     */
+    public void testDeferredDefusedPairFailsTheReadUnderAStrictPolicy() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("v", 2_147_483_648L);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://defused_strict_int64.parquet");
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(
+                storageObject,
+                declaredReader("v"),
+                footerOf(storageObject),
+                ErrorPolicy.STRICT
+            )
+        ) {
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
+                () -> Releasables.close(
+                    extractor.extract(new String[] { "v" }, new DataType[] { DataType.INTEGER }, new long[] { 0L }, blockFactory)
+                )
+            );
+            assertThat(e.getMessage(), containsString("column [v]"));
+            assertThat(e.getMessage(), containsString("cannot read [long] as [integer]"));
+            assertThat(e.getMessage(), containsString("out of range for an integer"));
+        }
+    }
+
+    /**
+     * The deferred route's multi-run, multi-bucket path, with a two-step conversion on it. This is the code whose
+     * behaviour the retype moved: the cast used to run once on the stitched column and now runs inside each
+     * contiguous run, with the pieces joined by {@code BlockChunks.concat}.
+     *
+     * <p>Every other deferred test here asks for one row, two adjacent rows, or one row three times, which takes
+     * {@code readBatchSparse}'s {@code survivorCount == sourceRows} return or its contiguous fast path and a single
+     * bucket. This one spans row groups with gaps between the survivors, so the general run loop and the
+     * cross-bucket stitch both run, and two of the requested values do not fit {@code integer} -- so one run's cast
+     * yields a null and {@code concat} has to join a nulled chunk to populated ones. One position is requested
+     * twice, which exercises the gather replay.
+     */
+    public void testDeferredDefusedPairAcrossRunsAndRowGroups() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("v")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("pad")
+            .named("test_schema");
+
+        int rows = 2000;
+        long tooBig = 2_147_483_648L;
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        String padding = "x".repeat(200);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(4 * 1024L)
+                .withPageSize(512)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("v", i == 700 || i == 1500 ? tooBig : (long) i);
+                g.add("pad", padding);
+                writer.write(g);
+            }
+        }
+        byte[] parquetData = outputStream.toByteArray();
+        StorageObject storageObject = createStorageObject(parquetData, "memory://defused_multirun.parquet");
+
+        // More than one row group, or the cross-bucket half of this test is vacuous.
+        ParquetMetadata footer = footerOf(storageObject);
+        assertThat("need several row groups for the multi-bucket path", footer.getBlocks().size(), greaterThan(1));
+
+        ParquetFormatReader reader = declaredReader("v");
+        // Gaps between survivors, spanning row groups, with 701 asked for twice.
+        long[] positions = new long[] { 5L, 700L, 701L, 701L, 1500L, 1990L };
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footer, ErrorPolicy.PERMISSIVE)) {
+            Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { DataType.INTEGER }, positions, blockFactory);
+            try {
+                IntBlock out = (IntBlock) blocks[0];
+                assertEquals("one output position per requested position", positions.length, out.getPositionCount());
+                List<Object> actual = new ArrayList<>();
+                for (int p = 0; p < out.getPositionCount(); p++) {
+                    actual.add(out.isNull(p) ? null : out.getInt(out.getFirstValueIndex(p)));
+                }
+                // 700 and 1500 hold 2^31, which `integer` cannot take, so those cells null under PERMISSIVE.
+                assertEquals(Arrays.asList(5, null, 701, 701, null, 1990), actual);
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
     /** The single cell of a one-row block, as a comparable value, or {@code null} when the position is null. */
     private static Object cellOf(Block block, DataType type, String where) {
         assertEquals(where, 1, block.getPositionCount());
@@ -8252,12 +8656,31 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return null;
         }
         return switch (type) {
-            case LONG, DATETIME, DATE_NANOS -> ((LongBlock) block).getLong(0);
+            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG -> ((LongBlock) block).getLong(0);
+            case INTEGER -> ((IntBlock) block).getInt(0);
+            case DOUBLE -> ((DoubleBlock) block).getDouble(0);
+            case BOOLEAN -> ((BooleanBlock) block).getBoolean(0);
             case KEYWORD, TEXT -> ((BytesRefBlock) block).getBytesRef(0, new BytesRef()).utf8ToString();
             default -> throw new AssertionError(where + ": no cell arm for " + type.typeName());
         };
     }
 
+    /**
+     * Guard: every {@code DeclaredTypeCoercions.fusedInDecode} pair must decode NATIVELY in this reader -- a fused pair
+     * is never routed through {@code castBlock}, so a pair wired into only one reader's decode loops would silent-null
+     * (or garbage-decode) in the other. It must do so for every PHYSICAL shape that renders the pair's {@code from}
+     * type: the predicate is keyed on ESQL types while the decode arms see Parquet primitives, and nothing else forces
+     * the two keyings to agree. Both decoders are exercised, since each carries its own copy of the dispatch, and the
+     * axis that reaches the second one is {@link ParquetFormatReader#withBaselinePath()} rather than the iterator
+     * flag: every shape here is flat, and {@code ParquetColumnIterator} builds a {@link PageColumnReader} for every
+     * flat column of a row group it reads without a record filter, so the flag alone would run the vectorized
+     * dispatch twice and leave the row-at-a-time copy -- the one this guard exists to protect -- unentered.
+     *
+     * <p>Enumerates the fused pairs mechanically, from {@code DataType.values()} crossed with itself, so a NEW fused
+     * pair fails loudly until its author wires the native arm (in BOTH readers -- the ORC suite carries the twin of
+     * this guard) and gives it a shape in {@link #fusedShapesFor}. The shapes themselves are enumerated by hand, with
+     * the consequences stated there.
+     */
     public void testEveryFusedInDecodePairDecodesNatively() throws Exception {
         for (DataType from : DataType.values()) {
             for (DataType to : DataType.values()) {
@@ -8277,7 +8700,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
                         return List.of(g);
                     });
                     List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
-                    StorageObject storageObject = createStorageObject(parquetData);
+                    // Per-shape location, for the footer-cache reason given on the agreement guard above.
+                    StorageObject storageObject = createStorageObject(
+                        parquetData,
+                        "memory://" + shape.label().replace(' ', '_') + ".parquet"
+                    );
                     for (String decoder : List.of("pageReader", "rowAtATime")) {
                         ParquetFormatReader engine = decoder.equals("rowAtATime")
                             ? new ParquetFormatReader(blockFactory).withBaselinePath()
@@ -8842,6 +9269,34 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
         }
 
+        return outputStream.toByteArray();
+    }
+
+    /**
+     * Writes {@code schema} with the given writer version and no dictionary. Under {@code PARQUET_2_0} parquet-java
+     * stores a FIXED_LEN_BYTE_ARRAY column as DELTA_BYTE_ARRAY without checking a value's width, which is how a test
+     * puts a value of the wrong width in a file.
+     */
+    private byte[] createParquetFileWithoutDictionary(
+        MessageType schema,
+        ParquetProperties.WriterVersion version,
+        GroupCreator groupCreator
+    ) throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        List<Group> groups = groupCreator.create(new SimpleGroupFactory(schema));
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withWriterVersion(version)
+                .withDictionaryEncoding(false)
+                .build()
+        ) {
+            for (Group group : groups) {
+                writer.write(group);
+            }
+        }
         return outputStream.toByteArray();
     }
 
@@ -9691,6 +10146,92 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testLiteralDottedNameFilterKeepsMatchingRows() throws Exception {
+        // Flat leaf named source.ip. WHERE source.ip == "188.166.20.77" (quotes not required;
+        // `source.ip` parses to the same name) must keep the two matching rows. Splitting the
+        // name into source → ip makes RowGroupFilter drop every group and return zero rows.
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named("source.ip"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT32).named("destination.port")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group a = factory.newGroup();
+            a.append("source.ip", "188.166.20.77");
+            a.append("destination.port", 443);
+            Group b = factory.newGroup();
+            b.append("source.ip", "1.2.3.4");
+            b.append("destination.port", 443);
+            Group c = factory.newGroup();
+            c.append("source.ip", "188.166.20.77");
+            c.append("destination.port", 22);
+            return List.of(a, b, c);
+        });
+
+        ParquetFormatReader baseline = new ParquetFormatReader(blockFactory);
+        assertEquals(3, countRows(baseline, parquetData, List.of("source.ip")));
+
+        Equals ipEq = new Equals(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "source.ip", DataType.KEYWORD),
+            new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, new BytesRef("188.166.20.77"), DataType.KEYWORD),
+            null
+        );
+        int ipMatches = countRows(
+            new ParquetFormatReader(blockFactory).withPushedFilter(new ParquetPushedExpressions(List.of(ipEq))),
+            parquetData,
+            List.of("source.ip")
+        );
+        assertEquals("flat dotted equality must not drop matching row groups", 2, ipMatches);
+
+        Equals portEq = new Equals(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "destination.port", DataType.INTEGER),
+            new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 443, DataType.INTEGER),
+            null
+        );
+        int portMatches = countRows(
+            new ParquetFormatReader(blockFactory).withPushedFilter(new ParquetPushedExpressions(List.of(portEq))),
+            parquetData,
+            List.of("destination.port")
+        );
+        assertEquals("flat dotted integer equality must not drop matching row groups", 2, portMatches);
+    }
+
+    public void testNestedDottedNameFilterStillMatches() throws Exception {
+        // Nested source { ip } is also queried as source.ip, still without extra quotes.
+        // Pushdown must keep the multi-segment path source → ip.
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalGroup()
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("ip")
+                .named("source")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group a = factory.newGroup();
+            a.addGroup("source").append("ip", "188.166.20.77");
+            Group b = factory.newGroup();
+            b.addGroup("source").append("ip", "1.2.3.4");
+            Group c = factory.newGroup();
+            c.addGroup("source").append("ip", "188.166.20.77");
+            return List.of(a, b, c);
+        });
+        Equals ipEq = new Equals(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "source.ip", DataType.KEYWORD),
+            new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, new BytesRef("188.166.20.77"), DataType.KEYWORD),
+            null
+        );
+        int matches = countRows(
+            new ParquetFormatReader(blockFactory).withPushedFilter(new ParquetPushedExpressions(List.of(ipEq))),
+            parquetData,
+            List.of("source.ip")
+        );
+        assertEquals(2, matches);
+    }
+
     public void testNestedStructDepthCap() throws Exception {
         // Synthesize a struct that exceeds MAX_STRUCT_FLATTENING_DEPTH; assert the over-cap group
         // surfaces as a single UNSUPPORTED attribute (no infinite loop).
@@ -10276,6 +10817,24 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * the shape pyarrow produces when a value exceeds the statistics size threshold.
      */
     private static byte[] stripBoundsFromColumn(byte[] parquetBytes, int rowGroupIndex, String columnName) throws IOException {
+        return rewriteColumnStats(parquetBytes, rowGroupIndex, columnName, stats -> {
+            stats.unsetMin();
+            stats.unsetMax();
+            stats.unsetMin_value();
+            stats.unsetMax_value();
+        });
+    }
+
+    /**
+     * Rewrites the Parquet footer of {@code parquetBytes}, handing the Thrift statistics of column {@code columnName}
+     * in row group {@code rowGroupIndex} to {@code patch}. Fails if that column chunk records no statistics.
+     */
+    private static byte[] rewriteColumnStats(
+        byte[] parquetBytes,
+        int rowGroupIndex,
+        String columnName,
+        Consumer<org.apache.parquet.format.Statistics> patch
+    ) throws IOException {
         int len = parquetBytes.length;
         int footerLen = ByteBuffer.wrap(parquetBytes, len - 8, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
         int footerStart = len - 8 - footerLen;
@@ -10285,20 +10844,17 @@ public class ParquetFormatReaderTests extends ESTestCase {
             thriftMeta = Util.readFileMetaData(in);
         }
 
+        boolean patched = false;
         for (ColumnChunk cc : thriftMeta.getRow_groups().get(rowGroupIndex).getColumns()) {
-            if (cc.getMeta_data() != null) {
-                String dotPath = String.join(".", cc.getMeta_data().getPath_in_schema());
-                if (dotPath.equals(columnName)) {
-                    org.apache.parquet.format.Statistics stats = cc.getMeta_data().getStatistics();
-                    if (stats != null) {
-                        stats.unsetMin();
-                        stats.unsetMax();
-                        stats.unsetMin_value();
-                        stats.unsetMax_value();
-                    }
+            if (cc.getMeta_data() != null && String.join(".", cc.getMeta_data().getPath_in_schema()).equals(columnName)) {
+                org.apache.parquet.format.Statistics stats = cc.getMeta_data().getStatistics();
+                if (stats != null) {
+                    patch.accept(stats);
+                    patched = true;
                 }
             }
         }
+        assertTrue("no statistics for column [" + columnName + "] in row group [" + rowGroupIndex + "]", patched);
 
         ByteArrayOutputStream newFooterBuf = new ByteArrayOutputStream();
         Util.writeFileMetaData(thriftMeta, newFooterBuf);
@@ -11129,6 +11685,456 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testZeroMinimumOfFloat16IsNotServedAndZeroMinimumOfBinaryDecimalIs() throws Exception {
+        assertFloat16AndDecimalZeroMinimum(ColumnOrder.typeDefined(), null);
+    }
+
+    public void testZeroMinimumOfFloat16IsServedUnderTotalOrder() throws Exception {
+        assertFloat16AndDecimalZeroMinimum(ColumnOrder.ieee754TotalOrder(), 0.0);
+    }
+
+    private void assertFloat16AndDecimalZeroMinimum(ColumnOrder float16Order, Double expectedFloat16Min) throws Exception {
+        MessageType schema = Types.buildMessage()
+            .addField(
+                Types.required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+                    .length(2)
+                    .as(LogicalTypeAnnotation.float16Type())
+                    .columnOrder(float16Order)
+                    .named("f16")
+            )
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.decimalType(2, 10))
+            .named("dec")
+            .named("test_schema");
+        float[] halves = { 0.0f, 1.5f, 2.0f };
+        long[] decimals = { 0, 250, 700 };
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int i = 0; i < halves.length; i++) {
+                Group g = factory.newGroup();
+                g.add("f16", Binary.fromConstantByteArray(toFloat16Bytes(halves[i])));
+                g.add("dec", Binary.fromConstantByteArray(BigInteger.valueOf(decimals[i]).toByteArray()));
+                rows.add(g);
+            }
+            return rows;
+        });
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        var colStats = reader.metadata(createStorageObject(parquetData)).statistics().get().columnStatistics().get();
+        assertEquals(Optional.ofNullable(expectedFloat16Min), colStats.get("f16").minValue());
+        assertEquals(Optional.of(2.0), colStats.get("f16").maxValue());
+        assertEquals(Optional.of(0.0), colStats.get("dec").minValue());
+        assertEquals(Optional.of(7.0), colStats.get("dec").maxValue());
+
+        Map<String, Object> stats = reader.discoverSplitRanges(createStorageObject(parquetData)).getFirst().statistics();
+        assertEquals(expectedFloat16Min, stats.get("_stats.columns.f16.min"));
+        assertEquals(2.0, stats.get("_stats.columns.f16.max"));
+        assertEquals(0.0, stats.get("_stats.columns.dec.min"));
+        assertEquals(7.0, stats.get("_stats.columns.dec.max"));
+    }
+
+    /**
+     * An empty unscaled value in a BINARY-backed DECIMAL column (which no valid writer emits) is ordered as 0 by
+     * parquet-java when it computes the footer min/max, so such a stat must decode as 0, the value the scan reads
+     * for it. Before the fix the stat failed in {@link BigInteger}. Bounds that bracket every scanned value are
+     * what keep split pruning from dropping matching rows, so this also checks the bounds equal the scan's extremes.
+     * {@code dec_max} holds the empty value as its max (above a negative value), {@code dec_min} as its min (below
+     * a positive value).
+     */
+    public void testBinaryDecimalEmptyStatDecodesAsZero() throws Exception {
+        int scale = 2;
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.decimalType(scale, 9))
+            .named("dec_max")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.decimalType(scale, 9))
+            .named("dec_min")
+            .named("test_schema");
+        byte[] empty = new byte[0];
+        byte[] negative = BigInteger.valueOf(-678).toByteArray(); // -6.78
+        byte[] positive = BigInteger.valueOf(12345).toByteArray(); // 123.45
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("dec_max", Binary.fromConstantByteArray(negative));
+            g1.add("dec_min", Binary.fromConstantByteArray(empty));
+            Group g2 = factory.newGroup();
+            g2.add("dec_max", Binary.fromConstantByteArray(empty));
+            g2.add("dec_min", Binary.fromConstantByteArray(positive));
+            return List.of(g1, g2);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        // The fixture must really carry empty stats: parquet-java orders the empty value as 0.
+        List<BlockMetaData> rowGroups = footerOf(storageObject).getBlocks();
+        assertEquals(1, rowGroups.size());
+        Statistics<?> maxColStats = rowGroups.getFirst().getColumns().get(0).getStatistics();
+        Statistics<?> minColStats = rowGroups.getFirst().getColumns().get(1).getStatistics();
+        assertEquals(Binary.fromConstantByteArray(negative), maxColStats.genericGetMin());
+        assertEquals(0, ((Binary) maxColStats.genericGetMax()).length());
+        assertEquals(0, ((Binary) minColStats.genericGetMin()).length());
+        assertEquals(Binary.fromConstantByteArray(positive), minColStats.genericGetMax());
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        double[][] expectedBounds = { { -6.78, 0.0 }, { 0.0, 123.45 } };
+        List<String> columns = List.of("dec_max", "dec_min");
+
+        // --- extractStatistics path (metadata) ---
+        var colStats = reader.metadata(storageObject).statistics().get().columnStatistics().get();
+        for (int c = 0; c < columns.size(); c++) {
+            var stats = colStats.get(columns.get(c));
+            assertEquals(columns.get(c) + " min", Optional.of(expectedBounds[c][0]), stats.minValue());
+            assertEquals(columns.get(c) + " max", Optional.of(expectedBounds[c][1]), stats.maxValue());
+        }
+
+        // --- buildRowGroupStats path (discoverSplitRanges), which split pruning reads ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            for (int c = 0; c < columns.size(); c++) {
+                assertEquals(expectedBounds[c][0], range.statistics().get("_stats.columns." + columns.get(c) + ".min"));
+                assertEquals(expectedBounds[c][1], range.statistics().get("_stats.columns." + columns.get(c) + ".max"));
+            }
+        }
+
+        // --- scan-vs-stats parity: the bounds are exactly the scanned extremes ---
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            try {
+                for (int c = 0; c < columns.size(); c++) {
+                    DoubleBlock block = page.getBlock(c);
+                    assertEquals(2, block.getPositionCount());
+                    double scanMin = Math.min(block.getDouble(0), block.getDouble(1));
+                    double scanMax = Math.max(block.getDouble(0), block.getDouble(1));
+                    assertEquals(columns.get(c) + " scan min", expectedBounds[c][0], scanMin, 0.0);
+                    assertEquals(columns.get(c) + " scan max", expectedBounds[c][1], scanMax, 0.0);
+                }
+            } finally {
+                page.releaseBlocks();
+            }
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    /**
+     * A FIXED_LEN_BYTE_ARRAY DECIMAL value always has the declared width, and parquet-java never truncates such bounds,
+     * so a footer statistic of any other length is corrupt. Unlike the empty BINARY case above it must not be decoded:
+     * a short (or empty) DECIMAL reads as a value the column never holds, which could prune a split or answer MIN/MAX
+     * from stats. The file has two row groups and only one carries the corrupt bound, so the test also catches a bound
+     * refilled from the intact sibling: the corrupt row group's min and max are withheld from its split statistics,
+     * and the file-level and merged min and max are withheld too. Null counts and an intact sibling column are kept.
+     * No writer produces this shape, so the footer is rewritten by hand.
+     */
+    public void testFixedLenDecimalStatOfWrongWidthIsWithheld() throws Exception {
+        int scale = 2;
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(4)
+            .as(LogicalTypeAnnotation.decimalType(scale, 9))
+            .named("dec")
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(4)
+            .as(LogicalTypeAnnotation.decimalType(scale, 9))
+            .named("ok")
+            .named("test_schema");
+        int[] unscaled = { -678, 12345 }; // -6.78, 123.45
+        double[] decimals = { -6.78, 123.45 };
+        // One single-row row group per value, so the corrupt row group has an intact sibling that could refill its bounds.
+        Path[] rowGroupFiles = new Path[2];
+        for (int rg = 0; rg < 2; rg++) {
+            byte[] decimal = ByteBuffer.allocate(4).putInt(unscaled[rg]).array();
+            rowGroupFiles[rg] = createTempFile();
+            Files.write(rowGroupFiles[rg], createParquetFile(schema, factory -> {
+                Group g = factory.newGroup();
+                g.add("dec", Binary.fromConstantByteArray(decimal));
+                g.add("ok", Binary.fromConstantByteArray(decimal));
+                return List.of(g);
+            }));
+        }
+        int corruptRowGroup = randomIntBetween(0, 1);
+        boolean corruptMin = randomBoolean();
+        byte[] corruptBound = randomByteArrayOfLength(randomIntBetween(0, 3));
+        byte[] data = rewriteColumnStats(
+            mergeRowGroups(schema, rowGroupFiles),
+            corruptRowGroup,
+            "dec",
+            stats -> setStatBound(stats, corruptMin, corruptBound)
+        );
+        StorageObject storageObject = createStorageObject(data);
+
+        // The fixture must really carry the corrupt stat, as parquet-java reads it back.
+        List<BlockMetaData> rowGroups = footerOf(storageObject).getBlocks();
+        assertEquals(2, rowGroups.size());
+        Statistics<?> decColStats = rowGroups.get(corruptRowGroup).getColumns().get(0).getStatistics();
+        assertTrue(decColStats.hasNonNullValue());
+        assertEquals(corruptBound.length, ((Binary) (corruptMin ? decColStats.genericGetMin() : decColStats.genericGetMax())).length());
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // --- extractStatistics path (metadata), which MIN/MAX pushdown reads: nothing is refilled from the sibling ---
+        var colStats = reader.metadata(storageObject).statistics().get().columnStatistics().get();
+        assertEquals("dec min withheld", Optional.empty(), colStats.get("dec").minValue());
+        assertEquals("dec max withheld", Optional.empty(), colStats.get("dec").maxValue());
+        assertEquals("dec null count kept", OptionalLong.of(0L), colStats.get("dec").nullCount());
+        assertEquals(Optional.of(decimals[0]), colStats.get("ok").minValue());
+        assertEquals(Optional.of(decimals[1]), colStats.get("ok").maxValue());
+
+        // --- buildRowGroupStats path (discoverSplitRanges), which split pruning reads ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertEquals("one split range per row group", 2, ranges.size());
+        for (int rg = 0; rg < 2; rg++) {
+            Map<String, Object> stats = ranges.get(rg).statistics();
+            Object expectedBound = rg == corruptRowGroup ? null : decimals[rg];
+            assertEquals("dec min in row group " + rg, expectedBound, stats.get("_stats.columns.dec.min"));
+            assertEquals("dec max in row group " + rg, expectedBound, stats.get("_stats.columns.dec.max"));
+            assertEquals("dec null count kept", 0L, stats.get("_stats.columns.dec.null_count"));
+            assertEquals(decimals[rg], stats.get("_stats.columns.ok.min"));
+            assertEquals(decimals[rg], stats.get("_stats.columns.ok.max"));
+        }
+        // Folding the splits must not refill the corrupt row group's bounds from its sibling either.
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(
+            ranges.stream().map(RangeAwareFormatReader.SplitRange::statistics).toList()
+        );
+        assertNull("dec merged min withheld", merged.get("_stats.columns.dec.min"));
+        assertNull("dec merged max withheld", merged.get("_stats.columns.dec.max"));
+        assertEquals(decimals[0], merged.get("_stats.columns.ok.min"));
+        assertEquals(decimals[1], merged.get("_stats.columns.ok.max"));
+
+        // The scan is unaffected: it reads the declared width, never the footer.
+        List<Double> scanned = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                try {
+                    DoubleBlock block = page.getBlock(0);
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        scanned.add(block.getDouble(p));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertEquals(List.of(decimals[0], decimals[1]), scanned);
+    }
+
+    /**
+     * A FLOAT16 footer statistic shorter than its two bytes is withheld rather than decoded past its end. It cannot
+     * reach the reader through a file today, as parquet-java's own footer parser rejects it, so the check is exercised
+     * directly; the parser's rejection is pinned too, so the end-to-end case can be covered should parquet-java ever
+     * let the shape through.
+     */
+    public void testShortFloat16StatIsWithheld() throws Exception {
+        PrimitiveType f16 = Types.required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(2)
+            .as(LogicalTypeAnnotation.float16Type())
+            .named("f16");
+        byte[] shortBound = randomByteArrayOfLength(randomIntBetween(0, 1));
+        byte[] value = toFloat16Bytes(1.5f);
+        assertFalse(ParquetColumnDecoding.isUsableStatBound(Binary.fromConstantByteArray(shortBound), f16));
+        assertTrue(ParquetColumnDecoding.isUsableStatBound(Binary.fromConstantByteArray(value), f16));
+
+        MessageType schema = Types.buildMessage().addField(f16).named("test_schema");
+        byte[] written = createParquetFile(
+            schema,
+            factory -> List.of(factory.newGroup().append("f16", Binary.fromConstantByteArray(value)))
+        );
+        boolean corruptMin = randomBoolean();
+        StorageObject storageObject = createStorageObject(
+            rewriteColumnStats(written, 0, "f16", stats -> setStatBound(stats, corruptMin, shortBound))
+        );
+        expectThrows(IllegalArgumentException.class, () -> footerOf(storageObject));
+    }
+
+    /**
+     * A UUID footer statistic is published as the hex text the scan renders, not as its raw bytes decoded as UTF-8,
+     * which no scanned value matches. One that is not 16 bytes is withheld, as for FIXED_LEN_BYTE_ARRAY DECIMAL and
+     * FLOAT16, since it has no text at all. parquet-java's V2 writer folds a wrong-width UUID value into the
+     * statistics and its footer parser accepts them, so the corrupt bound comes from a real write; the scan reads that
+     * value as empty text.
+     */
+    public void testUuidStatIsHexAndWrongWidthIsWithheld() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(16)
+            .as(LogicalTypeAnnotation.uuidType())
+            .named("u")
+            .named("test_schema");
+        // Unsigned byte order: low < high, an all-zero value shorter than 16 bytes sorts first and 0xFF bytes past 16 last.
+        UUID low = UUID.fromString("00000000-0000-0000-0000-0000000000ff");
+        UUID high = UUID.fromString("ff000000-0000-0000-0000-00000000000a");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        StorageObject valid = createStorageObject(
+            createParquetFileWithoutDictionary(
+                schema,
+                ParquetProperties.WriterVersion.PARQUET_2_0,
+                factory -> List.of(
+                    factory.newGroup().append("u", Binary.fromConstantByteArray(toUuidBytes(high))),
+                    factory.newGroup().append("u", Binary.fromConstantByteArray(toUuidBytes(low)))
+                )
+            )
+        );
+        var validStats = reader.metadata(valid).statistics().get().columnStatistics().get().get("u");
+        assertEquals(Optional.of(low.toString()), validStats.minValue());
+        assertEquals(Optional.of(high.toString()), validStats.maxValue());
+        Map<String, Object> validSplit = reader.discoverSplitRanges(valid).getFirst().statistics();
+        assertEquals(low.toString(), validSplit.get("_stats.columns.u.min"));
+        assertEquals(high.toString(), validSplit.get("_stats.columns.u.max"));
+
+        boolean corruptMin = randomBoolean();
+        byte[] corrupt = corruptMin ? new byte[between(0, 15)] : bytesOf((byte) 0xFF, between(17, 32));
+        StorageObject storageObject = createStorageObject(
+            createParquetFileWithoutDictionary(
+                schema,
+                ParquetProperties.WriterVersion.PARQUET_2_0,
+                factory -> List.of(
+                    factory.newGroup().append("u", Binary.fromConstantByteArray(toUuidBytes(high))),
+                    factory.newGroup().append("u", Binary.fromConstantByteArray(corrupt)),
+                    factory.newGroup().append("u", Binary.fromConstantByteArray(toUuidBytes(low)))
+                )
+            )
+        );
+        // The fixture must really carry the corrupt bound, as parquet-java reads it back.
+        Statistics<?> footerStats = footerOf(storageObject).getBlocks().getFirst().getColumns().getFirst().getStatistics();
+        assertEquals(corrupt.length, ((Binary) (corruptMin ? footerStats.genericGetMin() : footerStats.genericGetMax())).length());
+
+        var colStats = reader.metadata(storageObject).statistics().get().columnStatistics().get().get("u");
+        assertEquals("u min withheld", Optional.empty(), colStats.minValue());
+        assertEquals("u max withheld", Optional.empty(), colStats.maxValue());
+        assertEquals("u null count kept", OptionalLong.of(0L), colStats.nullCount());
+        Map<String, Object> split = reader.discoverSplitRanges(storageObject).getFirst().statistics();
+        assertNull("u split min withheld", split.get("_stats.columns.u.min"));
+        assertNull("u split max withheld", split.get("_stats.columns.u.max"));
+        assertEquals("u split null count kept", 0L, split.get("_stats.columns.u.null_count"));
+
+        for (ParquetFormatReader scan : List.of(reader, new ParquetFormatReader(blockFactory).withBaselinePath())) {
+            try (CloseableIterator<Page> iterator = scan.read(storageObject, null, 10)) {
+                Page page = iterator.next();
+                try {
+                    BytesRefBlock block = page.getBlock(0);
+                    assertEquals(3, block.getPositionCount());
+                    assertEquals(new BytesRef(high.toString()), block.getBytesRef(0, new BytesRef()));
+                    assertEquals(new BytesRef(), block.getBytesRef(1, new BytesRef()));
+                    assertEquals(new BytesRef(low.toString()), block.getBytesRef(2, new BytesRef()));
+                } finally {
+                    page.releaseBlocks();
+                }
+                assertFalse(iterator.hasNext());
+            }
+        }
+    }
+
+    /**
+     * A LIST&lt;UUID&gt; element that is not 16 bytes reads as an empty-text element, as the scalar read does, in both
+     * readers; its neighbours keep their hex text.
+     */
+    public void testWrongWidthUuidListElementReadsAsEmpty() throws Exception {
+        Type listType = Types.optionalList()
+            .optionalElement(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(16)
+            .as(LogicalTypeAnnotation.uuidType())
+            .named("ids");
+        MessageType schema = new MessageType("test_schema", listType);
+        UUID uuid1 = new UUID(randomLong(), randomLong());
+        UUID uuid2 = new UUID(randomLong(), randomLong());
+        byte[] corrupt = randomBoolean() ? randomByteArrayOfLength(between(0, 15)) : randomByteArrayOfLength(between(17, 32));
+        byte[] data = createParquetFileWithoutDictionary(schema, ParquetProperties.WriterVersion.PARQUET_2_0, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("ids");
+            list.addGroup("list").append("element", Binary.fromConstantByteArray(toUuidBytes(uuid1)));
+            list.addGroup("list").append("element", Binary.fromConstantByteArray(corrupt));
+            list.addGroup("list").append("element", Binary.fromConstantByteArray(toUuidBytes(uuid2)));
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(data);
+        for (ParquetFormatReader reader : List.of(
+            new ParquetFormatReader(blockFactory),
+            new ParquetFormatReader(blockFactory).withBaselinePath()
+        )) {
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+                Page page = iterator.next();
+                try {
+                    BytesRefBlock block = page.getBlock(0);
+                    assertEquals(3, block.getValueCount(0));
+                    int start = block.getFirstValueIndex(0);
+                    assertEquals(new BytesRef(uuid1.toString()), block.getBytesRef(start, new BytesRef()));
+                    assertEquals(new BytesRef(), block.getBytesRef(start + 1, new BytesRef()));
+                    assertEquals(new BytesRef(uuid2.toString()), block.getBytesRef(start + 2, new BytesRef()));
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    /**
+     * The wrong-width shapes the readers leave alone (see the ParquetColumnDecoding class Javadoc), pinned on the
+     * parquet-java checks that rule them out, so a parquet-java upgrade that drops one fails here. FLOAT16 and UUID
+     * annotate only FIXED_LEN_BYTE_ARRAY(2) and (16): the schema builder, which the footer parser builds the schema
+     * with, rejects any other shape. An INT96 value is always 12 bytes: the writer rejects another width under either
+     * writer version, no variable-width encoding reads INT96, and its footer min/max are dropped on read, so no INT96
+     * statistic needs a width check either.
+     */
+    public void testWrongWidthShapesRejectedByParquetJava() throws Exception {
+        var flba = PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
+        var binary = PrimitiveType.PrimitiveTypeName.BINARY;
+        expectThrows(IllegalStateException.class, () -> Types.required(flba).length(3).as(LogicalTypeAnnotation.float16Type()).named("f"));
+        expectThrows(IllegalStateException.class, () -> Types.required(binary).as(LogicalTypeAnnotation.float16Type()).named("f"));
+        expectThrows(IllegalStateException.class, () -> Types.required(flba).length(15).as(LogicalTypeAnnotation.uuidType()).named("u"));
+        expectThrows(IllegalStateException.class, () -> Types.required(binary).as(LogicalTypeAnnotation.uuidType()).named("u"));
+
+        MessageType int96 = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT96).named("t").named("test_schema");
+        for (ParquetProperties.WriterVersion version : ParquetProperties.WriterVersion.values()) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> createParquetFileWithoutDictionary(
+                    int96,
+                    version,
+                    factory -> List.of(factory.newGroup().append("t", Binary.fromConstantByteArray(new byte[11])))
+                )
+            );
+        }
+        ColumnDescriptor int96Column = int96.getColumnDescription(new String[] { "t" });
+        expectThrows(ParquetDecodingException.class, () -> Encoding.DELTA_BYTE_ARRAY.getValuesReader(int96Column, ValuesType.VALUES));
+        expectThrows(
+            ParquetDecodingException.class,
+            () -> Encoding.DELTA_LENGTH_BYTE_ARRAY.getValuesReader(int96Column, ValuesType.VALUES)
+        );
+
+        byte[] written = createParquetFile(
+            int96,
+            factory -> List.of(
+                factory.newGroup().append("t", new NanoTime(2_451_545, 0L)),
+                factory.newGroup().append("t", new NanoTime(2_451_546, 1L))
+            )
+        );
+        Statistics<?> stats = footerOf(createStorageObject(written)).getBlocks().getFirst().getColumns().getFirst().getStatistics();
+        assertFalse("parquet-java drops INT96 min/max", stats.hasNonNullValue());
+    }
+
+    private static byte[] bytesOf(byte b, int length) {
+        byte[] bytes = new byte[length];
+        Arrays.fill(bytes, b);
+        return bytes;
+    }
+
+    /** Records {@code bound} as the min (when {@code min} is set) or max statistic, in both the current and the legacy fields. */
+    private static void setStatBound(org.apache.parquet.format.Statistics stats, boolean min, byte[] bound) {
+        if (min) {
+            stats.setMin_value(bound);
+            if (stats.isSetMin()) {
+                stats.setMin(bound);
+            }
+        } else {
+            stats.setMax_value(bound);
+            if (stats.isSetMax()) {
+                stats.setMax(bound);
+            }
+        }
+    }
+
     /**
      * Verifies that Parquet footer statistics for INT32/INT64-backed DECIMAL columns are scale-decoded
      * to {@code double}, matching the scan-path decode.
@@ -11395,6 +12401,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertSame(pool, reader.withPushedFilter(FilterCompat.NOOP).heapBufferPool());
         assertSame(pool, ((ParquetFormatReader) reader.withDeclaredDateFormats(Map.of("ts", "epoch_second"))).heapBufferPool());
         assertSame(pool, ((ParquetFormatReader) reader.withDeclaredTypeColumns(Set.of("x"))).heapBufferPool());
+        BlockFactory otherFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        assertSame(pool, reader.withBlockFactory(otherFactory).heapBufferPool());
         PoolingHeapByteBufferAllocator other = new PoolingHeapByteBufferAllocator(1024);
         assertSame(other, reader.withHeapBufferPool(other).heapBufferPool());
         assertSame("withHeapBufferPool must not mutate the original reader", pool, reader.heapBufferPool());
@@ -11594,12 +12602,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * A microsecond timestamp outside the nanosecond domain, read as a declared {@code date}. {@code date} is
-     * milliseconds and represents 1500-01-01 exactly, but the decode materialises nanoseconds before narrowing, so
-     * the value is refused -- and refused on every route, which is what this pins. Closing that gap means decoding
-     * straight to milliseconds, and doing it only in the eager readers splits them from the deferred extractor,
-     * which is why this asserts all three rather than one.
+     * milliseconds and represents both of these exactly, and the decode materialises no nanoseconds on the
+     * way. Asserted on every route: the eager readers consult {@code fusedInDecode} themselves while the extractor
+     * retypes its column view, so fixing one without the other makes the answer depend on the plan's shape.
      */
-    public void testOutOfNanosRangeMicrosTimestampDeclaredDatetimeNullsOnEveryRoute() throws Exception {
+    public void testOutOfNanosRangeMicrosTimestampDeclaredDatetimeReadsOnEveryRoute() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
@@ -11612,14 +12619,77 @@ public class ParquetFormatReaderTests extends ESTestCase {
             afterCeiling.add("ts", 32_503_680_000_000_000L); // 3000-01-01T00:00:00Z
             return List.of(beforeFloor, afterCeiling);
         });
-        assertDeclaredDatetimeNulls(parquetData, "ts", 2);
+        assertDeclaredDatetimeReads(parquetData, "ts", -14_831_769_600_000L, 32_503_680_000_000L);
     }
 
     /**
-     * A {@code TIMESTAMP(MICROS)} column — Arrow's and Spark's default timestamp unit — infers {@code date_nanos}, so
-     * declaring it {@code date} narrows through {@code castBlock}. A value before 1970 is an ordinary instant for
+     * The same read with a {@code format} declared beside the type. {@code date_nanos -> datetime} is the one fused
+     * pair a declared format does not defuse, because {@code castBlock}'s arm for it is a unit scale that never
+     * consults the formatter -- the annotation has already stated the unit. Defusing on the format would route this
+     * column back through nanoseconds and null both values, which is the original defect surviving for exactly the
+     * declaration people copy over from an index mapping. All three routes, since the extractor decides whether to
+     * retype from the same predicate.
+     */
+    public void testDeclaredDateWithAFormatStillReadsTheWholeMicrosRange() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group beforeFloor = factory.newGroup();
+            beforeFloor.add("ts", -14_831_769_600_000_000L); // 1500-01-01T00:00:00Z
+            Group afterCeiling = factory.newGroup();
+            afterCeiling.add("ts", 32_503_680_000_000_000L); // 3000-01-01T00:00:00Z
+            return List.of(beforeFloor, afterCeiling);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://declared_micros_with_format.parquet");
+        ParquetFormatReader formatted = (ParquetFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        long[] expected = { -14_831_769_600_000L, 32_503_680_000_000L };
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader r = decoder.equals("rowAtATime") ? formatted.withBaselinePath() : formatted;
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+                )
+            ) {
+                LongBlock l = (LongBlock) it.next().getBlock(0);
+                assertEquals(decoder, expected.length, l.getPositionCount());
+                for (int i = 0; i < expected.length; i++) {
+                    assertFalse(decoder + " position " + i + " is null", l.isNull(i));
+                    assertEquals(decoder + " position " + i, expected[i], l.getLong(i));
+                }
+            }
+        }
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, formatted, footerOf(storageObject), ErrorPolicy.STRICT)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L, 1L },
+                blockFactory
+            );
+            try {
+                LongBlock l = (LongBlock) blocks[0];
+                assertEquals("deferred", expected.length, l.getPositionCount());
+                for (int i = 0; i < expected.length; i++) {
+                    assertFalse("deferred position " + i + " is null", l.isNull(i));
+                    assertEquals("deferred position " + i, expected[i], l.getLong(i));
+                }
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    /**
+     * A {@code TIMESTAMP(MICROS)} column — the unit pyarrow writes for a {@code datetime64[us]} column — infers {@code date_nanos}, so
+     * declaring it {@code date} decodes straight to millis. A value before 1970 is an ordinary instant for
      * {@code date}, and it must read rather than fail the whole column: the 1970 floor belongs to the source type.
-     * The coercion is shared, but the {@code date_nanos} decode beneath it is not -- one decoder scales its batch
+     * The scaling is shared, but the decode beneath it is not -- one decoder scales its batch
      * array, the other reads value by value -- so the case runs both, selected with
      * {@link ParquetFormatReader#withBaselinePath()}.
      */
@@ -11977,6 +13047,775 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 assertTrue(decoder + ": a UUID's hex form is not a timestamp, so the scalar value is refused", l.isNull(0));
             }
         }
+    }
+
+    public void testFileStatisticsForDoubleColumnsFollowSkipNaNRule() throws Exception {
+        PrimitiveType.PrimitiveTypeName dbl = PrimitiveType.PrimitiveTypeName.DOUBLE;
+        MessageType schema = Types.buildMessage()
+            .addField(Types.optional(dbl).columnOrder(ColumnOrder.typeDefined()).named("zeros"))
+            .addField(Types.optional(dbl).columnOrder(ColumnOrder.ieee754TotalOrder()).named("zeros_total_order"))
+            .addField(Types.optional(dbl).columnOrder(ColumnOrder.typeDefined()).named("mixed"))
+            .addField(Types.optional(dbl).columnOrder(ColumnOrder.typeDefined()).named("only_nan"))
+            .named("test");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            double[] zeros = { 0.0, 0.0 };
+            double[] mixed = { 1.0, Double.NaN, 2.0 };
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                if (r < zeros.length) {
+                    g.add("zeros", zeros[r]);
+                    g.add("zeros_total_order", zeros[r]);
+                }
+                g.add("mixed", mixed[r]);
+                g.add("only_nan", Double.NaN);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+
+        assertEquals(Optional.empty(), cols.get("zeros").minValue());
+        assertEquals(Optional.empty(), cols.get("zeros").maxValue());
+        assertEquals(Optional.of(0.0), cols.get("zeros_total_order").minValue());
+        assertEquals(Optional.of(0.0), cols.get("zeros_total_order").maxValue());
+        assertEquals(Optional.of(1.0), cols.get("mixed").minValue());
+        assertEquals(Optional.of(2.0), cols.get("mixed").maxValue());
+        assertEquals(Optional.empty(), cols.get("only_nan").minValue());
+        assertEquals(Optional.empty(), cols.get("only_nan").maxValue());
+    }
+
+    public void testFloatingBoundsThatCannotMatchAScanAreUnservable() {
+        for (PrimitiveType.PrimitiveTypeName name : new PrimitiveType.PrimitiveTypeName[] {
+            PrimitiveType.PrimitiveTypeName.DOUBLE,
+            PrimitiveType.PrimitiveTypeName.FLOAT }) {
+            boolean isFloat = name == PrimitiveType.PrimitiveTypeName.FLOAT;
+            Object nan = isFloat ? (Object) Float.NaN : (Object) Double.NaN;
+            Object zero = isFloat ? (Object) 0.0f : (Object) 0.0d;
+            Object negZero = isFloat ? (Object) (-0.0f) : (Object) (-0.0d);
+            Object finite = isFloat ? (Object) 1.5f : (Object) 1.5d;
+
+            PrimitiveType typeDefined = Types.optional(name).columnOrder(ColumnOrder.typeDefined()).named("x");
+            assertTrue(ParquetFormatReader.isUnservableFloatingBound(nan, typeDefined));
+            assertTrue(ParquetFormatReader.isUnservableFloatingBound(zero, typeDefined));
+            assertTrue(ParquetFormatReader.isUnservableFloatingBound(negZero, typeDefined));
+            assertFalse(ParquetFormatReader.isUnservableFloatingBound(finite, typeDefined));
+
+            PrimitiveType totalOrder = Types.optional(name).columnOrder(ColumnOrder.ieee754TotalOrder()).named("x");
+            assertTrue(ParquetFormatReader.isUnservableFloatingBound(nan, totalOrder));
+            assertFalse(ParquetFormatReader.isUnservableFloatingBound(zero, totalOrder));
+            assertFalse(ParquetFormatReader.isUnservableFloatingBound(negZero, totalOrder));
+            assertFalse(ParquetFormatReader.isUnservableFloatingBound(finite, totalOrder));
+        }
+        PrimitiveType longType = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("x");
+        assertFalse(ParquetFormatReader.isUnservableFloatingBound(0L, longType));
+    }
+
+    public void testFileBoundsOfMultiRowGroupColumnWithAllNaNRowGroupAreNotServedUnderDefaultOrder() throws Exception {
+        assertAllNaNRowGroupColumnHasNoFileBounds();
+    }
+
+    public void testFileBoundsServeTheMaximumWhenOnlyAnEarlyRowGroupHasAZeroMinimum() throws Exception {
+        double[] values = new double[3000];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), values);
+        assertThat("the fixture must span several row groups", rowGroupRowCounts(parquetData).size(), greaterThan(2));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.empty(), d.minValue());
+        assertEquals(Optional.of(2999.0), d.maxValue());
+    }
+
+    public void testFileBoundsServeTheMinimumWhenOnlyALateRowGroupHasAZeroMaximum() throws Exception {
+        double[] values = new double[3000];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i - 2999.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), values);
+        assertThat("the fixture must span several row groups", rowGroupRowCounts(parquetData).size(), greaterThan(2));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(-2999.0), d.minValue());
+        assertEquals(Optional.empty(), d.maxValue());
+    }
+
+    public void testFileBoundsOfMultiRowGroupColumnSkipAllNaNRowGroupUnderTotalOrder() throws Exception {
+        int rowsPerGroup = rowGroupRowCounts(createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), new double[4800])).get(0).intValue();
+        int phase = 2 * rowsPerGroup;
+        double[] values = new double[3 * phase];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i >= phase && i < 2 * phase ? Double.NaN : i + 1.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+        assertThat("row groups must align with the phases", rowGroupRowCounts(parquetData), everyItem(equalTo((long) rowsPerGroup)));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(1.0), d.minValue());
+        assertEquals(Optional.of((double) values.length), d.maxValue());
+    }
+
+    public void testFileBoundsOfMultiRowGroupColumnSkipLeadingAllNaNRowGroupUnderTotalOrder() throws Exception {
+        int rowsPerGroup = rowGroupRowCounts(createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), new double[4800])).get(0).intValue();
+        int nanRows = 2 * rowsPerGroup;
+        double[] values = new double[3 * nanRows];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i < nanRows ? Double.NaN : i + 1.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+        assertThat("row groups must align with the NaN rows", rowGroupRowCounts(parquetData), everyItem(equalTo((long) rowsPerGroup)));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(nanRows + 1.0), d.minValue());
+        assertEquals(Optional.of((double) values.length), d.maxValue());
+    }
+
+    public void testFileBoundsOfTotalOrderColumnOfOnlyNaNAreNotServed() throws Exception {
+        double[] values = new double[2400];
+        Arrays.fill(values, Double.NaN);
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+        assertThat("the fixture must span several row groups", rowGroupRowCounts(parquetData).size(), greaterThan(2));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.empty(), d.minValue());
+        assertEquals(Optional.empty(), d.maxValue());
+    }
+
+    public void testSplitBoundsOfTotalOrderColumnOfOnlyNaNAreNotPublished() throws Exception {
+        double[] values = new double[2400];
+        Arrays.fill(values, Double.NaN);
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+
+        List<RangeAwareFormatReader.SplitRange> ranges = new ParquetFormatReader(blockFactory).discoverSplitRanges(
+            createStorageObject(parquetData)
+        );
+
+        assertThat(ranges.size(), greaterThan(0));
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            assertFalse(stats.containsKey("_stats.columns.d.min"));
+            assertFalse(stats.containsKey("_stats.columns.d.max"));
+            assertNotNull(stats.get("_stats.columns.d.null_count"));
+        }
+    }
+
+    public void testSplitBoundsOfAnAllNaNRowGroupDoNotPoisonTheFiniteSplitsUnderTotalOrder() throws Exception {
+        int rowsPerGroup = rowGroupRowCounts(createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), new double[4800])).get(0).intValue();
+        int phase = 2 * rowsPerGroup;
+        double[] values = new double[3 * phase];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i >= phase && i < 2 * phase ? Double.NaN : i + 1.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+        assertThat("row groups must align with the phases", rowGroupRowCounts(parquetData), everyItem(equalTo((long) rowsPerGroup)));
+
+        List<RangeAwareFormatReader.SplitRange> ranges = new ParquetFormatReader(blockFactory).discoverSplitRanges(
+            createStorageObject(parquetData)
+        );
+
+        List<RangeAwareFormatReader.SplitRange> byOffset = ranges.stream()
+            .sorted(Comparator.comparingLong(RangeAwareFormatReader.SplitRange::offset))
+            .toList();
+        assertThat("one split per row group", byOffset.size(), equalTo(rowGroupRowCounts(parquetData).size()));
+        for (int i = 0; i < byOffset.size(); i++) {
+            Map<String, Object> stats = byOffset.get(i).statistics();
+            Object min = stats.get("_stats.columns.d.min");
+            Object max = stats.get("_stats.columns.d.max");
+            assertNotNull(stats.get("_stats.columns.d.null_count"));
+            boolean allNaN = i * rowsPerGroup >= phase && (i + 1) * rowsPerGroup <= 2 * phase;
+            if (allNaN) {
+                assertNull("an all-NaN row group publishes no minimum", min);
+                assertNull("an all-NaN row group publishes no maximum", max);
+            } else {
+                assertEquals("minimum of row group " + i, i * (double) rowsPerGroup + 1.0, min);
+                assertEquals("maximum of row group " + i, (i + 1) * (double) rowsPerGroup, max);
+            }
+        }
+    }
+
+    public void testFileBoundsServeTheMaximumWhenOnlyTheMinimumIsAZero() throws Exception {
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { 0.0, 5.0, 100.0 });
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.empty(), d.minValue());
+        assertEquals(Optional.of(100.0), d.maxValue());
+    }
+
+    public void testFileBoundsServeTheMinimumWhenOnlyTheMaximumIsAZero() throws Exception {
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { -100.0, -5.0, 0.0 });
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(-100.0), d.minValue());
+        assertEquals(Optional.empty(), d.maxValue());
+    }
+
+    public void testSplitBoundsServeTheMaximumWhenOnlyTheMinimumIsAZero() throws Exception {
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { 0.0, 5.0, 100.0 });
+
+        Map<String, Object> stats = new ParquetFormatReader(blockFactory).discoverSplitRanges(createStorageObject(parquetData))
+            .getFirst()
+            .statistics();
+
+        assertFalse(stats.containsKey("_stats.columns.d.min"));
+        assertEquals(100.0, stats.get("_stats.columns.d.max"));
+        assertEquals(0L, stats.get("_stats.columns.d.null_count"));
+    }
+
+    public void testSplitBoundsServeTheMinimumWhenOnlyTheMaximumIsAZero() throws Exception {
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { -100.0, -5.0, 0.0 });
+
+        Map<String, Object> stats = new ParquetFormatReader(blockFactory).discoverSplitRanges(createStorageObject(parquetData))
+            .getFirst()
+            .statistics();
+
+        assertEquals(-100.0, stats.get("_stats.columns.d.min"));
+        assertFalse(stats.containsKey("_stats.columns.d.max"));
+        assertEquals(0L, stats.get("_stats.columns.d.null_count"));
+    }
+
+    public void testZeroBoundOfADecimalColumnIsServable() {
+        PrimitiveType decimal = Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.decimalType(2, 10))
+            .named("x");
+
+        assertFalse(ParquetFormatReader.isUnservableFloatingBound(0.0, decimal));
+        assertFalse(ParquetFormatReader.isUnservableMinBound(0.0, 5.0, decimal));
+        assertFalse(ParquetFormatReader.isUnservableMaxBound(-5.0, 0.0, decimal));
+    }
+
+    public void testRowGroupBoundsOfOnlyNaNAreServableOnlyUnderTotalOrderAndOneSign() {
+        double negativeNaN = Double.longBitsToDouble(0xfff8000000000000L);
+        float negativeFloatNaN = Float.intBitsToFloat(0xffc00000);
+        PrimitiveType totalOrder = Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .columnOrder(ColumnOrder.ieee754TotalOrder())
+            .named("x");
+        PrimitiveType typeDefined = Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .columnOrder(ColumnOrder.typeDefined())
+            .named("x");
+
+        assertUnservable(Double.NaN, Double.NaN, totalOrder, false, false);
+        assertUnservable(negativeNaN, negativeNaN, totalOrder, false, false);
+        assertUnservable(Float.NaN, Float.NaN, totalOrder, false, false);
+        assertUnservable(negativeFloatNaN, negativeFloatNaN, totalOrder, false, false);
+        assertUnservable(negativeNaN, Double.NaN, totalOrder, true, true);
+        assertUnservable(negativeFloatNaN, Float.NaN, totalOrder, true, true);
+        assertUnservable(1.0, Double.NaN, totalOrder, false, true);
+        assertUnservable(Double.NaN, 1.0, totalOrder, true, false);
+        assertUnservable(Double.NaN, Double.NaN, typeDefined, true, true);
+        assertUnservable(1.0, Double.NaN, typeDefined, false, true);
+        assertUnservable(1.0, 2.0, totalOrder, false, false);
+        assertUnservable(1.0, 2.0, typeDefined, false, false);
+        assertUnservable(0.0, 2.0, typeDefined, true, false);
+        assertUnservable(-2.0, 0.0, typeDefined, false, true);
+        assertUnservable(0.0, 2.0, totalOrder, false, false);
+    }
+
+    private static void assertUnservable(Object min, Object max, PrimitiveType type, boolean minUnservable, boolean maxUnservable) {
+        String label = "min=" + min + " max=" + max + " order=" + type.columnOrder();
+        assertEquals("min of " + label, minUnservable, ParquetFormatReader.isUnservableMinBound(min, max, type));
+        assertEquals("max of " + label, maxUnservable, ParquetFormatReader.isUnservableMaxBound(min, max, type));
+    }
+
+    public void testFileBoundsSkipNaNWhenEveryRowGroupHoldsAFiniteValue() throws Exception {
+        double[] values = new double[2400];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i % 2 == 0 ? Double.NaN : i;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), values);
+        assertThat("the fixture must span several row groups", rowGroupRowCounts(parquetData).size(), greaterThan(2));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(1.0), d.minValue());
+        assertEquals(Optional.of(2399.0), d.maxValue());
+    }
+
+    public void testFileBoundsOfFloatColumnWithNaNAreNotServedWhenEveryValueIsNaN() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .addField(Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).columnOrder(ColumnOrder.typeDefined()).named("f"))
+            .named("test");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("f", Float.NaN);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData));
+        SourceStatistics.ColumnStatistics f = metadata.statistics().get().columnStatistics().get().get("f");
+
+        assertEquals(Optional.empty(), f.minValue());
+        assertEquals(Optional.empty(), f.maxValue());
+    }
+
+    private void assertAllNaNRowGroupColumnHasNoFileBounds() throws Exception {
+        int phase = 1200;
+        double[] values = new double[3 * phase];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i >= phase && i < 2 * phase ? Double.NaN : i + 1.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), values);
+
+        long start = 0;
+        boolean sawAllNaNRowGroup = false;
+        boolean sawFiniteRowGroup = false;
+        for (long rows : rowGroupRowCounts(parquetData)) {
+            sawAllNaNRowGroup |= start >= phase && start + rows <= 2 * phase;
+            sawFiniteRowGroup |= start + rows <= phase || start >= 2 * phase;
+            start += rows;
+        }
+        assertTrue("the fixture must hold a row group of only NaN", sawAllNaNRowGroup);
+        assertTrue("the fixture must hold a row group of only finite values", sawFiniteRowGroup);
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.empty(), d.minValue());
+        assertEquals(Optional.empty(), d.maxValue());
+    }
+
+    private SourceStatistics.ColumnStatistics fileColumnStatistics(byte[] parquetData) throws IOException {
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData));
+        return metadata.statistics().get().columnStatistics().get().get("d");
+    }
+
+    private List<Long> rowGroupRowCounts(byte[] parquetData) throws IOException {
+        try (
+            ParquetFileReader pfr = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(createStorageObject(parquetData), footerByteCache, blockFactory.breaker()),
+                ParquetReadOptions.builder(new PlainParquetConfiguration()).build()
+            )
+        ) {
+            List<Long> counts = new ArrayList<>();
+            for (BlockMetaData rowGroup : pfr.getRowGroups()) {
+                counts.add(rowGroup.getRowCount());
+            }
+            return counts;
+        }
+    }
+
+    private byte[] createDoubleColumnFile(ColumnOrder order, double[] values) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .addField(Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).columnOrder(order).named("d"))
+            .named("test");
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(1024L)
+                .withMinRowCountForPageSizeCheck(1)
+                .withMaxRowCountForPageSizeCheck(1)
+                .build()
+        ) {
+            for (double value : values) {
+                Group group = groupFactory.newGroup();
+                group.add("d", value);
+                writer.write(group);
+            }
+        }
+        return outputStream.toByteArray();
+    }
+
+    // The deferred route decodes a fused pair natively, so it has to carry what the eager readers' view carries:
+    // the formatter, the error policy, and the declared-vs-inferred gate. One test per thing, flat and list.
+
+    /** A declared {@code format} reaches the deferred native decode: with it the token parses, without it the cell nulls. */
+    public void testDeferredNativeDecodeHonorsTheDeclaredDateFormat() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", "1704067200");
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://declared_format_deferred.parquet");
+        ParquetFormatReader reader = (ParquetFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        // eager, for the oracle
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        long eager;
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            LongBlock l = (LongBlock) it.next().getBlock(0);
+            eager = l.isNull(0) ? Long.MIN_VALUE : l.getLong(0);
+        }
+        assertEquals("the eager route is the oracle, so pin it too", 1704067200000L, eager);
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                LongBlock l = (LongBlock) blocks[0];
+                Object deferred = l.isNull(0) ? null : l.getLong(0);
+                assertEquals("eager=" + eager + " deferred=" + deferred, (Object) 1704067200000L, deferred);
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    /**
+     * The numeric half of the same contract, and the one the string tests above cannot reach. A bare {@code INT64}
+     * declared {@code date} with a {@code format} is <b>defused</b> -- {@code fusedInDecode(LONG, DATETIME, true)}
+     * is false, because the native epoch-millis loop cannot honor a format -- so the decode has to recurse at the
+     * file's type and let {@code castBlock} parse through the format, which reads 1704067200 as SECONDS.
+     *
+     * <p>Drop the formatter from the retyped view and the decode loop sees {@code hasDeclaredFormat == false},
+     * fuses the pair, and reinterprets the same number as epoch MILLIS: 1704067200 instead of 1704067200000, a
+     * silently wrong instant rather than a failure. The deferred format tests beside this one all read BINARY
+     * string columns, which take {@code STRING_PARSE} and carry the formatter by a different route, so none of
+     * them observes the numeric defuse.
+     */
+    public void testDeferredDefusedLongWithAFormatCoercesThroughCastBlock() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("ts").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", 1704067200L);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://defused_long_format_deferred.parquet");
+        ParquetFormatReader reader = (ParquetFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        // The eager scan is the oracle: it has always defused this pair.
+        long eager;
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            LongBlock l = (LongBlock) it.next().getBlock(0);
+            eager = l.isNull(0) ? Long.MIN_VALUE : l.getLong(0);
+        }
+        assertEquals("the eager route must read the format as seconds", 1704067200000L, eager);
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                LongBlock l = (LongBlock) blocks[0];
+                Object deferred = l.isNull(0) ? null : l.getLong(0);
+                assertEquals("eager=" + eager + " deferred=" + deferred, (Object) 1704067200000L, deferred);
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    /**
+     * Contract: a per-value coercion failure costs the warning budget once per DECODED value, however many caller
+     * slots replay that value. {@code stitchAndGather} filters with {@code mayContainDuplicates}, so one bucket
+     * position can serve several requested positions, and {@code SkipWarnings.MAX_ADDED_WARNINGS} must not be spent
+     * at the rate a caller happens to repeat a row.
+     */
+    public void testDeferredCoercionWarnsOncePerDecodedValueNotPerCallerSlot() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", "not-a-date");
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://dup_slot_warnings.parquet");
+        List<String> warnings = new ArrayList<>();
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(
+                storageObject,
+                declaredReader("ts"),
+                footerOf(storageObject),
+                ErrorPolicy.PERMISSIVE,
+                warnings::add
+            )
+        ) {
+            // The one row of the file, requested three times: the gather replays bucket position 0 into three slots.
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L, 0L, 0L },
+                blockFactory
+            );
+            try {
+                assertEquals("three requested positions", 3, blocks[0].getPositionCount());
+                for (int p = 0; p < 3; p++) {
+                    assertTrue("null_field nulls every replayed slot, position " + p, blocks[0].isNull(p));
+                }
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+        assertEquals(
+            "one summary and one detail; a cast after the gather would charge the detail once per caller slot: " + warnings,
+            2,
+            warnings.size()
+        );
+    }
+
+    /** The deferred native decode follows the error policy: an unparseable token nulls the cell under null_field. */
+    public void testDeferredNativeDecodeFollowsTheErrorPolicyOnABadToken() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", "not-a-date");
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://bad_token_deferred.parquet");
+        ParquetFormatReader reader = declaredReader("ts");
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                assertTrue("null_field must null the cell", blocks[0].isNull(0));
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    /**
+     * An INFERRED {@code date} over a file rendering {@code date_nanos} is not a widening pair, so both routes null
+     * the column. Reachable under first_file_wins, where a later file's drift is left to the readers.
+     */
+    public void testInferredDatetimeOverADateNanosFileNullsOnEveryRoute() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", 971211336000L * 1_000L);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://inferred_date_nanos.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory); // NOT declared: inferred planner type
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        Object eager;
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            Block b = it.next().getBlock(0);
+            eager = b.isNull(0) ? null : ((LongBlock) b).getLong(0);
+        }
+        Object deferred;
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                deferred = blocks[0].isNull(0) ? null : ((LongBlock) blocks[0]).getLong(0);
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+        assertNull("the eager scan must null an inferred narrowing", eager);
+        assertEquals("eager vs deferred for an inferred date over a date_nanos file", eager, deferred);
+    }
+
+    /** The LIST twin: the sink reaches {@code decodeList} too. Reverting that argument to {@code null} throws. */
+    public void testDeferredNativeListDecodeFollowsTheErrorPolicy() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named("ts")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.addGroup("ts").addGroup("list").append("element", "not-a-date");
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://bad_token_list_deferred.parquet");
+        ParquetFormatReader reader = declaredReader("ts");
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                assertTrue("null_field must null the element", blocks[0].isNull(0));
+            } finally {
+                Releasables.close(blocks);
+            }
+            drainWarnings();
+        }
+    }
+
+    /** The LIST twin of the declared-format case: the retyped view carries the formatter into the list arms too. */
+    public void testDeferredNativeListDecodeHonorsTheDeclaredDateFormat() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named("ts")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.addGroup("ts").addGroup("list").append("element", "1704067200");
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://declared_format_list_deferred.parquet");
+        ParquetFormatReader reader = (ParquetFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                assertEquals(1704067200000L, ((LongBlock) blocks[0]).getLong(0));
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    /** A LIST of {@code TIMESTAMP(MICROS)} declared {@code date}, outside the nanosecond domain, on both routes. */
+    public void testDeclaredDateOverListOfMicrosTimestampReadsOutsideTheNanosecondDomain() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                .named("ts")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("ts");
+            list.addGroup("list").append("element", -14_831_769_600_000_000L); // 1500-01-01, no nanosecond form
+            list.addGroup("list").append("element", 1_704_067_200_123_456L);   // 2024-01-01, inside the domain
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://micros_list_declared.parquet");
+        ParquetFormatReader reader = declaredReader("ts");
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            LongBlock eager = (LongBlock) it.next().getBlock(0);
+            assertEquals(2, eager.getValueCount(0));
+            assertEquals(-14_831_769_600_000L, eager.getLong(eager.getFirstValueIndex(0)));
+            assertEquals(1_704_067_200_123L, eager.getLong(eager.getFirstValueIndex(0) + 1));
+        }
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                LongBlock deferred = (LongBlock) blocks[0];
+                assertEquals("deferred must agree with the eager scan", 2, deferred.getValueCount(0));
+                assertEquals(-14_831_769_600_000L, deferred.getLong(deferred.getFirstValueIndex(0)));
+                assertEquals(1_704_067_200_123L, deferred.getLong(deferred.getFirstValueIndex(0) + 1));
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    /** The same, for {@code long -> date} over a bare INT64 column. */
+    public void testInferredDatetimeOverABareInt64NullsOnEveryRoute() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("ts").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", 971211336000L);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://inferred_bare_int64.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        Object eager;
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            Block b = it.next().getBlock(0);
+            eager = b.isNull(0) ? null : ((LongBlock) b).getLong(0);
+        }
+        Object deferred;
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                deferred = blocks[0].isNull(0) ? null : ((LongBlock) blocks[0]).getLong(0);
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+        assertNull("the eager scan must null an inferred narrowing", eager);
+        assertEquals("eager vs deferred for an inferred date over a bare INT64 file", eager, deferred);
     }
 
 }

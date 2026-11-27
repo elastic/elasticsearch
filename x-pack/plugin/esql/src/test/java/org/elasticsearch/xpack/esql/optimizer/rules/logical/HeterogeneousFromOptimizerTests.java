@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -1376,7 +1377,9 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
             Map.of()
         );
         var analyzed = analyzer().addIndex(employeesIndex)
-            .externalSourceResolution(new ExternalSourceResolution(Map.of(EXT_EMPS_RESOURCE, extEmpsSource)))
+            .externalSourceResolution(
+                new ExternalSourceResolution(Map.of(new ExternalSourceSpec(EXT_EMPS_RESOURCE, Map.of()), extEmpsSource))
+            )
             .buildAnalyzer()
             .analyze(rewritten);
         return optimize(analyzed);

@@ -119,6 +119,36 @@ public class ExternalFailuresTests extends ESTestCase {
         expectThrows(AssertionError.class, () -> ExternalFailures.classify(leaking));
     }
 
+    public void testClassifyKeepsSuppressedStoreFaultOnARefusal() {
+        var refused = new EsRejectedExecutionException("retry start rejected", true);
+        var store = new ExternalUnavailableException(
+            ExternalException.Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "HTTP 503",
+            "",
+            false,
+            0L
+        );
+        ExternalFailures.attachRecorded(refused, store);
+
+        RuntimeException classified = ExternalFailures.classify(refused);
+        assertThat(classified, instanceOf(EsRejectedExecutionException.class));
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(classified));
+        assertEquals(1, classified.getSuppressed().length);
+        assertThat(classified.getSuppressed()[0], instanceOf(ExternalUnavailableException.class));
+        assertNull(classified.getCause());
+    }
+
+    public void testClassifyDropsSuppressedRawIoOnARefusal() {
+        var refused = new EsRejectedExecutionException("retry start rejected", true);
+        ExternalFailures.attachRecorded(refused, new IOException("read timed out for s3://secret-bucket/k"));
+
+        RuntimeException classified = ExternalFailures.classify(refused);
+        assertThat(classified, instanceOf(EsRejectedExecutionException.class));
+        assertSame("raw I/O is not attached, so there is nothing to detach", refused, classified);
+        assertEquals(0, classified.getSuppressed().length);
+    }
+
     public void testRejectedExecutionIsBackpressureNotServerError() {
         // A saturated thread pool (or the node shutting down) can reject work as an EsRejectedExecutionException.
         // That is load-shed backpressure (429), not a broken invariant in our reading code (500): classify must

@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
@@ -211,10 +212,33 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
      * {@code BigDecimal}, which grows with its digits.
      */
     private long numberBytes() throws IOException {
+        if (delegate().contentType().canonical() == XContentType.JSON && fitsPrimitive()) {
+            return NUMBER_VALUE_BYTES;
+        }
         return switch (delegate().numberType()) {
             case INT, LONG, FLOAT, DOUBLE -> NUMBER_VALUE_BYTES;
             case BIG_INTEGER, BIG_DECIMAL -> STRING_VALUE_BYTES + textBytes();
         };
+    }
+
+    /**
+     * Whether the current JSON number is read as a {@code long} or {@code double}, told from its text since {@code numberType()} parses
+     * a decimal on its own. Up to 18 characters always fit a {@code long}, and a decimal or exponent is always read as a {@code double}.
+     */
+    private boolean fitsPrimitive() throws IOException {
+        final int length = delegate().textLength();
+        if (length <= 18) {
+            return true;
+        }
+        final char[] chars = delegate().textCharacters();
+        final int offset = delegate().textOffset();
+        for (int i = offset; i < offset + length; i++) {
+            final char c = chars[i];
+            if (c == '.' || c == 'e' || c == 'E') {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -251,6 +275,15 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
             reservation.reserveWithoutBreaking(pending);
             pending = 0;
         }
+    }
+
+    /**
+     * Gives the wrapped parser's {@code objectBytes()} a call site of its own. Through the inherited one, which other wrappers share, the
+     * JIT no longer keeps the {@code CharBuffer} it returns for a string off the heap, and {@code terms} parsing allocates one per value.
+     */
+    @Override
+    public Object objectBytes() throws IOException {
+        return delegate().objectBytes();
     }
 
     @Override

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -49,6 +50,9 @@ public class WildcardLike extends RegexMatch<WildcardPattern> implements AnyNull
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "boolean",
+        signatures = {
+            @Signature(params = { "STRING", "keyword" }, returnType = "boolean"),
+            @Signature(params = { "STRING", "keyword", "boolean" }, returnType = "boolean") },
         briefSummary = "Filters data based on string patterns using wildcards.",
         description = """
             Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
@@ -173,15 +177,17 @@ public class WildcardLike extends RegexMatch<WildcardPattern> implements AnyNull
     }
 
     /**
-     * Fast path for prefix, suffix, and contains wildcard shapes (e.g.
-     * {@code LIKE "foo*"}, {@code LIKE "*foo"}, {@code LIKE "*foo*"}):
-     * dispatch to byte-comparison / byte-substring-search evaluators instead
-     * of building an {@link org.apache.lucene.util.automaton.Automaton} and
-     * running {@code RunAutomaton.step} per row. The general path (other
+     * Fast path for prefix, suffix, contains, and affix wildcard shapes (e.g.
+     * {@code LIKE "foo*"}, {@code LIKE "*foo"}, {@code LIKE "*foo*"},
+     * {@code LIKE "foo*bar"}): dispatch to byte-comparison / byte-substring-search
+     * evaluators instead of building an {@link org.apache.lucene.util.automaton.Automaton}
+     * and running {@code RunAutomaton.step} per row. The general path (other
      * patterns, case-insensitive matching) still goes through
      * {@code AutomataMatch}. Prefix and suffix reuse the
      * {@code STARTS_WITH}/{@code ENDS_WITH} evaluators; contains delegates to
-     * the SIMD-backed {@link #processContains} below.
+     * the SIMD-backed {@link #processContains} below; affix delegates to
+     * {@link #processAffix}, which parses the three segments once at factory
+     * time so the per-row path is allocation-free.
      */
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
@@ -197,6 +203,13 @@ public class WildcardLike extends RegexMatch<WildcardPattern> implements AnyNull
                 source(),
                 toEvaluator.apply(field()),
                 new BytesRef(literal)
+            );
+            case WildcardPattern.Shape.Affix(String prefix, String middle, String suffix) -> new WildcardLikeAffixEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                new BytesRef(prefix),
+                new BytesRef(middle),
+                new BytesRef(suffix)
             );
             case WildcardPattern.Shape.General ignored -> super.toEvaluator(toEvaluator);
         };
@@ -216,6 +229,18 @@ public class WildcardLike extends RegexMatch<WildcardPattern> implements AnyNull
     @Evaluator(extraName = "Contains")
     static boolean processContains(BytesRef str, @Fixed BytesRef pattern) {
         return ByteMatchers.containsLiteral(str, pattern);
+    }
+
+    /**
+     * Composite affix predicate emulating {@code LIKE "prefix*middle*suffix"}
+     * (and the two-star degenerates). Prefix/middle/suffix {@link BytesRef}s
+     * are built once at factory time; the per-row path calls
+     * {@link ByteMatchers#affixContains} with those fixed slices and allocates
+     * nothing.
+     */
+    @Evaluator(extraName = "Affix")
+    static boolean processAffix(BytesRef str, @Fixed BytesRef prefix, @Fixed BytesRef middle, @Fixed BytesRef suffix) {
+        return ByteMatchers.affixContains(str, prefix, middle, suffix);
     }
 
     @Override

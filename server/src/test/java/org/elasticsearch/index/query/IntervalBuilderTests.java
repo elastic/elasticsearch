@@ -22,7 +22,7 @@ import java.io.IOException;
 
 public class IntervalBuilderTests extends ESTestCase {
 
-    private static final IntervalBuilder BUILDER = new IntervalBuilder("field1", new StandardAnalyzer()) {
+    private static final IntervalBuilder BUILDER = new IntervalBuilder("field1", new StandardAnalyzer(), null) {
 
         @Override
         protected IntervalsSource termIntervals(BytesRef term) {

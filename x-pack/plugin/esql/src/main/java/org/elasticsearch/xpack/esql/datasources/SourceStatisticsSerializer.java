@@ -300,8 +300,8 @@ public final class SourceStatisticsSerializer {
     /**
      * Copies fold-level unservability onto a per-file or per-range harvest so split merge cannot
      * serve a column the coordinator fold already dropped or poisoned. Only columns the fold
-     * mentions are touched. When {@code folded} marks extrema unservable, harvest extrema are
-     * poisoned. When {@code folded} has neither a value count nor a null count for that column,
+     * mentions are touched. When {@code folded} marks the minimum or the maximum unservable, the harvest's
+     * same extremum is poisoned and the other one is kept. When {@code folded} has neither a value count nor a null count for that column,
      * harvest counts are dropped. Returns {@code harvest} when nothing changes. {@code harvest}
      * is not mutated.
      */
@@ -312,8 +312,9 @@ public final class SourceStatisticsSerializer {
         }
         Map<String, Object> out = null;
         for (String column : columnNamesIn(harvest)) {
-            boolean foldPoisoned = Boolean.TRUE.equals(folded.get(columnMinUnservableKey(column)))
-                || Boolean.TRUE.equals(folded.get(columnMaxUnservableKey(column)));
+            boolean foldMinPoisoned = Boolean.TRUE.equals(folded.get(columnMinUnservableKey(column)));
+            boolean foldMaxPoisoned = Boolean.TRUE.equals(folded.get(columnMaxUnservableKey(column)));
+            boolean foldPoisoned = foldMinPoisoned || foldMaxPoisoned;
             boolean foldHasCounts = folded.containsKey(columnValueCountKey(column)) || folded.containsKey(columnNullCountKey(column));
             boolean foldHasExtrema = folded.containsKey(columnMinKey(column)) || folded.containsKey(columnMaxKey(column)) || foldPoisoned;
             if (foldHasCounts == false && foldHasExtrema == false) {
@@ -327,8 +328,13 @@ public final class SourceStatisticsSerializer {
             if (out == null) {
                 out = new HashMap<>(harvest);
             }
-            if (foldPoisoned) {
-                poisonColumnExtrema(out, column);
+            if (foldMinPoisoned) {
+                out.remove(columnMinKey(column));
+                out.put(columnMinUnservableKey(column), Boolean.TRUE);
+            }
+            if (foldMaxPoisoned) {
+                out.remove(columnMaxKey(column));
+                out.put(columnMaxUnservableKey(column), Boolean.TRUE);
             }
             if (foldDroppedCounts) {
                 out.remove(columnValueCountKey(column));
@@ -525,7 +531,7 @@ public final class SourceStatisticsSerializer {
         if (entryReadConfig == null || Objects.equals(entryReadConfig, expectedReadConfig)) {
             return stats;
         }
-        boolean countSurvives = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        boolean countSurvives = ExternalStats.rowCountCrossesReadConfigs(stats);
         Map<String, Object> restricted = new HashMap<>(stats.size());
         for (Map.Entry<String, Object> entry : stats.entrySet()) {
             String key = entry.getKey();
@@ -871,7 +877,7 @@ public final class SourceStatisticsSerializer {
             } else if (Objects.equals(agreed, fingerprint) == false) {
                 mixed = true;
             }
-            allLicensed &= Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+            allLicensed &= ExternalStats.rowCountCrossesReadConfigs(stats);
         }
         attachFoldedReadConfigIdentity(mixed, agreed, allLicensed, merged);
     }
@@ -897,7 +903,7 @@ public final class SourceStatisticsSerializer {
             merged.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, agreed);
         }
         if (allLicensed) {
-            merged.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            merged.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
         }
     }
 

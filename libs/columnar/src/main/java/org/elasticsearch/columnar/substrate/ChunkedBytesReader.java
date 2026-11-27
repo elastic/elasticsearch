@@ -177,6 +177,29 @@ public final class ChunkedBytesReader {
         }
     }
 
+    /**
+     * Prefetches what reading {@code length} bytes at {@code offset} of the stream reads: the chunks holding them, or just
+     * those bytes when the chunks are stored as they are and there are several.
+     */
+    public void prefetch(long offset, long length) throws IOException {
+        if (length == 0) {
+            return;
+        }
+        if (codec.isIdentity() && numChunks > 1) {
+            data.prefetch(dataOffset + offset, length);
+            return;
+        }
+        final long first = chunkContaining(offset);
+        final long last = chunkContaining(offset + length - 1);
+        final long fileStart = fileOffsets.get(first);
+        data.prefetch(dataOffset + fileStart, fileOffsets.get(last + 1) - fileStart);
+    }
+
+    /** How many bytes the uncompressed stream holds. */
+    public long length() {
+        return numChunks == 0 ? 0 : starts.get(numChunks);
+    }
+
     /** Copies {@code length} bytes at {@code offset} out of however many chunks hold them. */
     private void gather(long offset, int length, byte[] dst) throws IOException {
         int written = 0;

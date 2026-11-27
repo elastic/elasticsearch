@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -28,6 +29,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -47,7 +49,9 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -436,6 +440,19 @@ public class InnerHitBuilderTests extends ESTestCase {
                 }
               ]
             }"""));
+    }
+
+    public void testParseScriptFieldWithoutScript() {
+        for (String scriptField : List.of("{}", "{ \"ignore_failure\": true }")) {
+            // the object parser wraps the exception thrown when parsing the script field
+            XContentParseException e = expectThrows(
+                XContentParseException.class,
+                "script field " + scriptField,
+                () -> parse("{ \"script_fields\": { \"field\": " + scriptField + " } }")
+            );
+            assertThat(e.getCause(), instanceOf(ParsingException.class));
+            assertThat(e.getCause().getMessage(), containsString("script"));
+        }
     }
 
     private InnerHitBuilder parse(String json) throws IOException {

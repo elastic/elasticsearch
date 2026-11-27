@@ -132,6 +132,14 @@ If a dashboard already runs against another {{prom}}-compatible backend, switch 
 3. In the query editor, write a {{promql}} query (for example, `sum(up)`). Autocompletion and the metric browser are backed by the {{es}} [metadata and discovery endpoints](promql-http-api.md#promql-http-api-metadata).
 4. Choose a visualization, then save the dashboard.
 
+## Show exemplars [promql-grafana-exemplars]
+
+{applies_to}`stack: preview 9.7` {applies_to}`serverless: preview`
+
+Grafana can display [exemplars](https://grafana.com/docs/grafana/latest/fundamentals/exemplars/) on time series panels, so you can jump from a spike in a metric to the trace of a request behind it.
+{{es}} serves them through the [`query_exemplars`](promql-http-api.md#promql-http-api-query-exemplars) endpoint from the `exemplars-*` data streams that {{prom}} remote write fills next to the metrics.
+The API key from [Before you begin](#promql-grafana-prerequisites) already grants access to them.
+
 ## Troubleshooting [promql-grafana-troubleshooting]
 
 When a panel shows an error, returns no data, or renders something unexpected, the cause is in one of two layers:
@@ -193,7 +201,7 @@ For metric discovery, autocompletion, or template-variable problems, check the r
 | `401`/`403` errors | API key missing, invalid, or lacking privileges | Verify the `Authorization: ApiKey <key>` header and that the key grants `read` and `view_index_metadata` on `metrics-*.prometheus-*` and `exemplars-*.prometheus-*`                              |
 | Empty results, no error | No matching data in the time range or index scope | Confirm metrics exist in the queried [index scope](promql-http-api.md#promql-http-api-index-scope) and time window by reproducing the request directly                                           |
 | `bad_data` error on a specific expression | Unsupported {{promql}} construct | Compare the expression against [{{prom}} compatibility](prometheus-compatibility.md)                                                                         |
-| Recurring errors related to exemplar queries | `/api/v1/query_exemplars` is not implemented | In Grafana, go to **Data sources → Elasticsearch → Exemplars** and disable all configured exemplar links                                                                                         |
+| Recurring errors related to exemplar queries {applies_to}`stack: preview 9.4, ga 9.5-9.6` | `/api/v1/query_exemplars` is not implemented in these versions | Upgrade to 9.7 or later, or in Grafana, go to **Data sources → Elasticsearch → Exemplars** and disable all configured exemplar links |
 
 ## Further reading
 

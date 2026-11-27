@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.ExchangeRef;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,10 +37,14 @@ public class ExchangeExec extends UnaryExec {
         this(source, emptyList(), false, child);
     }
 
+    // initExchange only stores a field. A subclass cannot observe the node before it has an exchange.
+    @SuppressWarnings("this-escape")
     public ExchangeExec(Source source, List<Attribute> output, boolean inBetweenAggs, PhysicalPlan child) {
         super(source, child);
         this.output = output;
         this.inBetweenAggs = inBetweenAggs;
+        // A new ExchangeExec is a new hop. A rewrite of an existing one gets the original's ref back from the copy of its identity.
+        initExchange(ExchangeRef.newExchange());
     }
 
     private ExchangeExec(StreamInput in) throws IOException {
@@ -49,6 +54,7 @@ public class ExchangeExec extends UnaryExec {
             in.readBoolean(),
             in.readNamedWriteable(PhysicalPlan.class)
         );
+        initExchange(ExchangeRef.readOptionalFrom(in));
     }
 
     @Override
@@ -57,6 +63,7 @@ public class ExchangeExec extends UnaryExec {
         out.writeNamedWriteableCollection(output);
         out.writeBoolean(inBetweenAggs());
         out.writeNamedWriteable(child());
+        ExchangeRef.writeOptionalTo(out, exchange());
     }
 
     @Override
@@ -81,7 +88,9 @@ public class ExchangeExec extends UnaryExec {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new ExchangeExec(source(), output, inBetweenAggs, newChild);
+        // The same hop with a different child. Callers of replaceChild do not go through the transforms that copy identity, and
+        // without this the hop would be a new one, with another exchange id, from here on.
+        return passIdentityTo(new ExchangeExec(source(), output, inBetweenAggs, newChild));
     }
 
     @Override

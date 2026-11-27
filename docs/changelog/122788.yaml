@@ -1,0 +1,13 @@
+area: Ranking
+issues:
+ - 116796
+pr: 122788
+summary: Add an `allow_rerank_failures` option to retrievers that allows reranking to fail without failing the search itself
+type: enhancement
+highlight:
+  title: Add an `allow_rerank_failures` option to retrievers that allows reranking to fail without failing the search itself
+  body: >-
+    Previously, any failure to call a reranking inference service cause the search as a whole to fail.
+    Specifying the new `allow_rerank_failures: true` option on the retriever now lets the search continue,
+    without reranking the responses from previous phases. In such cases, the errors encountered during reranking
+    will be in a new `phase_failures` section in the response.

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166055
+summary: Hold parsed request charge until async ES|QL query ends
+type: enhancement

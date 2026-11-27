@@ -81,6 +81,12 @@ public interface ShardContext extends RefCounted {
     default void addUnfinishedSlices(int delta) {}
 
     /**
+     * Counts {@code rows} the sources emitted from this shard, to charge the work shared by several shards in proportion to
+     * their rows. The drivers that read this shard share its context, so this is called from several threads at once.
+     */
+    default void addRowsEmitted(long rows) {}
+
+    /**
      * Whether this shard has the {@code _tsid} prefix partitions
      */
     default boolean canPartitionByTsidPrefix() {

@@ -77,7 +77,10 @@ public class StatelessRestoringShardSearchIT extends AbstractStatelessRestoringS
                 prepareSearch(RESTORED_INDEX).setAllowPartialSearchResults(true)
             );
             assertServiceUnavailableException(e);
-            assertThat(ExceptionsHelper.unwrapCause(e.shardFailures()[0].getCause()), instanceOf(NoShardAvailableActionException.class));
+            assertThat(
+                ExceptionsHelper.unwrapCause(e.shardFailures().getFirst().getCause()),
+                instanceOf(NoShardAvailableActionException.class)
+            );
         });
     }
 
@@ -91,7 +94,7 @@ public class StatelessRestoringShardSearchIT extends AbstractStatelessRestoringS
                 assertThat(response.getFailedShards(), equalTo(1));
                 assertThat(response.getSuccessfulShards(), equalTo(1));
                 assertHitCount(response, 100);
-                final var failure = response.getShardFailures()[0];
+                final var failure = response.getShardFailures().getFirst();
                 assertThat(failure.status(), equalTo(RestStatus.FORBIDDEN));
                 assertShardRestoringException(failure.getCause(), restoreUuid);
             });
@@ -104,7 +107,7 @@ public class StatelessRestoringShardSearchIT extends AbstractStatelessRestoringS
                 assertThat(response.getFailedShards(), equalTo(1));
                 assertThat(response.getSuccessfulShards(), equalTo(1));
                 assertHitCount(response, 100);
-                final var failure = response.getShardFailures()[0];
+                final var failure = response.getShardFailures().getFirst();
                 assertThat(failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
                 assertThat(ExceptionsHelper.unwrapCause(failure.getCause()), instanceOf(NoShardAvailableActionException.class));
             });

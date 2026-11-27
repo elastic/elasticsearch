@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -493,11 +494,8 @@ public class ThreadPoolTests extends ESTestCase {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final BuiltInExecutorBuilders builtInExecutorBuilders = new DefaultBuiltInExecutorBuilders();
 
-        final ThreadPool threadPool = new ThreadPool(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
-            meterRegistry,
-            builtInExecutorBuilders
-        );
+        Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build();
+        final ThreadPool threadPool = new ThreadPool(new ThreadContext(settings), settings, meterRegistry, builtInExecutorBuilders);
         try {
             // write thread pool is tracked
             final String threadPoolName = ThreadPool.Names.WRITE;
@@ -573,11 +571,8 @@ public class ThreadPoolTests extends ESTestCase {
     public void testThreadCountMetrics() throws Exception {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final BuiltInExecutorBuilders builtInExecutorBuilders = new DefaultBuiltInExecutorBuilders();
-        final ThreadPool threadPool = new ThreadPool(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
-            meterRegistry,
-            builtInExecutorBuilders
-        );
+        Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build();
+        final ThreadPool threadPool = new ThreadPool(new ThreadContext(settings), settings, meterRegistry, builtInExecutorBuilders);
         try {
             final String threadPoolName = randomFrom(
                 ThreadPool.Names.GENERIC,

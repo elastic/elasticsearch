@@ -362,6 +362,9 @@ abstract class AbstractGradleFuncTest extends Specification {
           new DevelopmentBranch('7.16', Version.fromString("$maintenance")),
         ])
         buildParams.setBwcVersions(project.provider { versions } )
+        // otherwise the default provider would read Version.java from the test workspace when buildParams is serialized
+        // to the configuration cache
+        buildParams.setAllVersions(project.provider { versionList } )
         """
     }
 

@@ -46,8 +46,8 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     private final Integer defaultParallel;
     private final Boolean snapshotBuild;
 
-    private final Provider<List<Version>> allVersions;
     // not final for testing
+    private Provider<List<Version>> allVersions;
     private Provider<BwcVersions> bwcVersions;
     private Provider<String> gitOrigin;
 
@@ -254,6 +254,11 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     // for testing; not part of public api
     public void setBwcVersions(Provider<BwcVersions> bwcVersions) {
         this.bwcVersions = bwcVersions;
+    }
+
+    // for testing; not part of public api
+    public void setAllVersions(Provider<List<Version>> allVersions) {
+        this.allVersions = allVersions;
     }
 
     // for testing; not part of public api

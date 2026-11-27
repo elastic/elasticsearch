@@ -397,6 +397,17 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(previewDatafeed.getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
     }
 
+    /** Like a raw DSL datafeed, an ES|QL datafeed previews one auto-sized chunk whatever chunking was persisted. */
+    public void testBuildPreviewDatafeedForEsqlDatafeedWithManualChunkingShouldForceAutoChunking() {
+        DatafeedConfig.Builder datafeed = esqlDatafeedBuilder("esql_feed", "job_foo");
+        datafeed.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueMinutes(10)));
+        assertThat(datafeed.build().hasAggregations(), is(false));
+
+        DatafeedConfig previewDatafeed = TransportPreviewDatafeedAction.buildPreviewDatafeed(datafeed.build()).build();
+
+        assertThat(previewDatafeed.getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
+    }
+
     public void testBuildPreviewDatafeed_GivenAggregations() {
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("no_aggs_feed", "job_foo");
         datafeed.setIndices(Collections.singletonList("my_index"));

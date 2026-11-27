@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
@@ -86,6 +87,90 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         indexDocuments(index, 1_500, BASE_TIME + 1_000L);
 
         assertPreviewAndLookbackRowCount("esql-user-limit", "FROM " + index + " | KEEP event_time, value | LIMIT 20", 20);
+    }
+
+    /**
+     * A 6h window is longer than the datafeed frequency, so preview sizes its chunk from the row count instead of taking the
+     * single-chunk shortcut of a window no longer than the frequency. The 1,500 rows fit in that first chunk.
+     */
+    public void testPreviewOfRawWindowSpreadOverSixHoursShouldReturnEveryRowInTimeOrder() throws Exception {
+        String index = "esql-preview-six-hours";
+        String jobId = "esql-preview-six-hours-job";
+        String datafeedId = jobId + "-datafeed";
+        long window = TimeValue.timeValueHours(6).millis();
+        int docs = 1_500;
+        long step = window / docs;
+        createSourceIndex(index);
+        indexDocumentsEvenly(index, docs, step);
+        putJob(createJob(jobId));
+        putDatafeed(
+            createDatafeed(datafeedId, jobId, "FROM " + index + " | KEEP event_time, value", ChunkingConfig.newManual(BUCKET_SPAN))
+        );
+
+        List<Map<String, Object>> rows = previewRows(datafeedId, BASE_TIME, BASE_TIME + window);
+
+        assertThat(rows.size(), equalTo(docs));
+        assertEvenlySpreadPrefix(rows, step);
+    }
+
+    /**
+     * Like DSL preview, ES|QL preview reads one auto-sized chunk from the start of the window. With more rows than one chunk
+     * holds, the response is the earliest rows by time, with no gap, and well above the 500 rows of the old chunk sizing.
+     */
+    public void testPreviewOfWindowLargerThanOneChunkShouldReturnEarliestRowsWithoutGaps() throws Exception {
+        String index = "esql-preview-two-chunks";
+        String jobId = "esql-preview-two-chunks-job";
+        String datafeedId = jobId + "-datafeed";
+        long window = TimeValue.timeValueHours(8).millis();
+        int docs = 12_000;
+        long step = window / docs;
+        createSourceIndex(index);
+        indexDocumentsEvenly(index, docs, step);
+        putJob(createJob(jobId));
+        putDatafeed(
+            createDatafeed(datafeedId, jobId, "FROM " + index + " | KEEP event_time, value", ChunkingConfig.newManual(BUCKET_SPAN))
+        );
+
+        List<Map<String, Object>> rows = previewRows(datafeedId, BASE_TIME, BASE_TIME + window);
+
+        assertThat(rows.size(), greaterThan(1_000));
+        assertThat(rows.size(), lessThan(docs));
+        assertThat(rows.size(), lessThanOrEqualTo(ROW_LIMIT));
+        assertEvenlySpreadPrefix(rows, step);
+    }
+
+    /** 720 hourly buckets over 30 days fit in one chunk, so the aggregated preview returns every bucket row. */
+    public void testPreviewOfAggregatedWindowOf720BucketsShouldReturnEveryBucketInTimeOrder() throws Exception {
+        String index = "esql-preview-aggregated";
+        String jobId = "esql-preview-aggregated-job";
+        String datafeedId = jobId + "-datafeed";
+        int buckets = 720;
+        createSourceIndex(index);
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < buckets; i++) {
+            bulk.add(new IndexRequest(index).source("event_time", BASE_TIME + i * BUCKET_SPAN.millis() + 1_000L, "value", i));
+        }
+        BulkResponse bulkResponse = bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        for (BulkItemResponse item : bulkResponse) {
+            assertFalse(item.getFailureMessage(), item.isFailed());
+        }
+        putJob(createJob(jobId));
+        putDatafeed(
+            createDatafeed(
+                datafeedId,
+                jobId,
+                "FROM " + index + " | STATS docs = COUNT(*) BY event_time = BUCKET(event_time, 1 hour)",
+                ChunkingConfig.newManual(BUCKET_SPAN)
+            )
+        );
+
+        List<Map<String, Object>> rows = previewRows(datafeedId, BASE_TIME, BASE_TIME + buckets * BUCKET_SPAN.millis());
+
+        assertThat(rows.size(), equalTo(buckets));
+        for (int i = 0; i < buckets; i++) {
+            assertThat(((Number) rows.get(i).get("event_time")).longValue(), equalTo(BASE_TIME + i * BUCKET_SPAN.millis()));
+            assertThat(((Number) rows.get(i).get("docs")).longValue(), equalTo(1L));
+        }
     }
 
     public void testEsqlDatafeedWithUnshrinkableChunkShouldPostCappedRowsAndAuditIncompleteChunk() throws Exception {
@@ -363,6 +448,26 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             .prepareCreate(index)
             .setMapping("event_time", "type=date,format=epoch_millis", "value", "type=long")
             .get();
+    }
+
+    /** Row {@code i} has {@code event_time = BASE_TIME + i * step} and {@code value = i}, so the expected rows are known by formula. */
+    private void indexDocumentsEvenly(String index, int count, long step) {
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < count; i++) {
+            bulk.add(new IndexRequest(index).source("event_time", BASE_TIME + i * step, "value", i));
+        }
+        BulkResponse response = bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        for (BulkItemResponse item : response) {
+            assertFalse(item.getFailureMessage(), item.isFailed());
+        }
+    }
+
+    /** The rows are the first {@code rows.size()} rows of {@link #indexDocumentsEvenly}: in time order, with no gap or repeat. */
+    private static void assertEvenlySpreadPrefix(List<Map<String, Object>> rows, long step) {
+        for (int i = 0; i < rows.size(); i++) {
+            assertThat("row " + i, ((Number) rows.get(i).get("event_time")).longValue(), equalTo(BASE_TIME + i * step));
+            assertThat("row " + i, ((Number) rows.get(i).get("value")).longValue(), equalTo((long) i));
+        }
     }
 
     private void indexDocuments(String index, int count, long eventTime) {

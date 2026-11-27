@@ -13,6 +13,7 @@ import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -28,6 +29,7 @@ import java.util.function.Supplier;
  *                       them.
  * @param executionInfo  the query's execution info, to which a coordinator-local source reports the shards it lost. Only
  *                       the coordinator of the query has it.
+ * @param queryLoad      what the compute charged outside its drivers, and its waiting
  */
 record ComputeContext(
     String sessionId,
@@ -44,7 +46,8 @@ record ComputeContext(
     @Nullable SharedSortBound sortBound,
     @Nullable TaskLoadAttribution.Target load,
     FetchOperatorProvider fetchOperators,
-    @Nullable EsqlExecutionInfo executionInfo
+    @Nullable EsqlExecutionInfo executionInfo,
+    QueryLoad queryLoad
 ) {
     /**
      * For computes whose plans never fetch and share no sort bound.
@@ -74,10 +77,44 @@ record ComputeContext(
             exchangeSourceSupplier,
             exchangeSinkSupplier,
             singleNodeOptimizations,
-            null,
-            null,
-            FetchOperatorProvider.UNSUPPORTED,
             null
+        );
+    }
+
+    /**
+     * For computes whose plans never fetch and share no sort bound, with an explicit inner load.
+     */
+    ComputeContext(
+        String sessionId,
+        TaskId queryId,
+        String description,
+        String clusterAlias,
+        EsqlFlags flags,
+        IndexedByShardId<ComputeSearchContext> searchContexts,
+        Configuration configuration,
+        FoldContext foldCtx,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        boolean singleNodeOptimizations,
+        @Nullable TaskLoadAttribution.Target load
+    ) {
+        this(
+            sessionId,
+            queryId,
+            description,
+            clusterAlias,
+            flags,
+            searchContexts,
+            configuration,
+            foldCtx,
+            exchangeSourceSupplier,
+            exchangeSinkSupplier,
+            singleNodeOptimizations,
+            null,
+            load,
+            FetchOperatorProvider.UNSUPPORTED,
+            null,
+            new QueryLoad()
         );
     }
 }

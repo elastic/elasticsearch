@@ -2,6 +2,9 @@
 navigation_title: "Max"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-max-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Max aggregation [search-aggregations-metrics-max-aggregation]

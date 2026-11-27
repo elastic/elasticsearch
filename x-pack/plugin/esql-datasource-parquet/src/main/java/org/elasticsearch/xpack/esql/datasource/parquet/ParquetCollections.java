@@ -72,7 +72,9 @@ final class ParquetCollections {
             out.add(collection(path, element));
             return;
         }
-        if (group.getLogicalTypeAnnotation() == null) {
+        // A repeated group with no annotation is a list in Parquet's older layout, not a structure: a list of structures below
+        // it would have its elements merged across the outer list's entries, so neither it nor anything under it is described
+        if (group.getLogicalTypeAnnotation() == null && group.isRepetition(Type.Repetition.REPEATED) == false) {
             for (Type child : group.getFields()) {
                 describe(child, path + "." + child.getName(), out);
             }

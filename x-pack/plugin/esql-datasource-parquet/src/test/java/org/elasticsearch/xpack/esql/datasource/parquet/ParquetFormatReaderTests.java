@@ -9411,6 +9411,32 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A repeated group with no annotation is a list in Parquet's older layout. A list of structures below it is not described:
+     * its elements would merge across the outer list's entries.
+     */
+    public void testListOfStructsUnderLegacyRepeatedGroupIsNotDescribed() {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              repeated group legacy {
+                optional group tags (LIST) {
+                  repeated group list { optional group element { optional binary t (UTF8); optional int64 n; } }
+                }
+              }
+              optional group plain {
+                optional group tags (LIST) {
+                  repeated group list { optional group element { optional binary t (UTF8); } }
+                }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(schema).stream().map(ParquetCollections.Collection::path).toList(),
+            equalTo(List.of("plain.tags"))
+        );
+    }
+
+    /**
      * The footer's metadata says which columns are lists of structures and what each element holds, so the dataset's schema
      * carries the nested type from discovery; a file without one records none.
      */

@@ -94,9 +94,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
          * This pool is for instance used for recovery-related work, which is a mix of CPU-bound and IO-bound work and does not block on
          * futures. The recovery subsystem bounds its own concurrency, and therefore the amount of recovery work done on the {@code
          * #GENERIC} pool, via {@link org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider} and related classes,
-         * and/or via {@link org.elasticsearch.indices.recovery.ThrottlingRecoveryService}. This pool is a good choice for recovery work
-         * because the threads used by recovery will be used by other {@code #GENERIC} work too rather than mostly sitting idle until
-         * cleaned up. Idle threads are surprisingly costly sometimes.
+         * and/or via {@link org.elasticsearch.indices.recovery.ThrottlingRecoveryService},
+         * {@link org.elasticsearch.indices.recovery.PeerRecoverySourceService}, and related classes. This pool is a good choice for
+         * recovery work because the threads used by recovery will be used by other {@code #GENERIC} work too rather than mostly sitting
+         * idle until cleaned up. Idle threads are surprisingly costly sometimes.
          * <p>
          * This pool does not reject any task. Tasks you submit to this executor after the pool starts to shut down may simply never run.
          */

@@ -105,6 +105,21 @@ event_duration | long         | mapped         | null                   | null
 message        | keyword      | mapped         | null                   | null
 ;
 
+describePartiallyMappedFieldHasNoOriginalTypes
+required_capability: describe_original_types
+required_capability: optional_fields_unmapped_load_null_fallback
+
+SET unmapped_fields="load"\;
+FROM colors, colors_unmapped
+| DESCRIBE
+| WHERE name == "rgb_vector"
+| KEEP name, type, original_types, suggested_cast
+;
+
+name:keyword | type:keyword | original_types:keyword | suggested_cast:keyword
+rgb_vector   | dense_vector | null                   | null
+;
+
 describeAfterStats
 required_capability: describe_command
 required_capability: describe_time_columns

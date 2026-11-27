@@ -134,6 +134,9 @@ public record ColumnDescription(
      * The types the response reports as {@code original_types} for this column, sorted, or empty if it is supported.
      */
     private static List<String> originalTypes(Attribute column) {
+        if (column.dataType() != DataType.UNSUPPORTED) {
+            return List.of();
+        }
         Collection<String> types;
         if (column instanceof UnsupportedAttribute unsupported) {
             types = unsupported.originalTypes();

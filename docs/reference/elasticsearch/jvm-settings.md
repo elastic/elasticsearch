@@ -214,15 +214,18 @@ If these default values are not suitable, you can edit them:
 The values [`networkaddress.cache.ttl=<timeout>`](https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.md) and [`networkaddress.cache.negative.ttl=<timeout>`](https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.md) in the [Java security policy](https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.md) are ignored by {{es}} unless you remove the settings for `es.networkaddress.cache.ttl` and `es.networkaddress.cache.negative.ttl`.
 
 ## glibc malloc settings [glibc-malloc-settings]
+```{applies_to}
+stack: ga 9.7
+```
 
-{applies_to}`stack: ga 9.7+` On Linux with glibc, you can tune native memory allocation with environment variables such as `MALLOC_ARENA_MAX`, but glibc reads them only at process start.
-{{es}} allows you to set them as JVM options (e.g. from a custom `.options` file in `jvm.options.d/`, or `ES_JAVA_OPTS`) with prefix `es.glibc.env.` (e.g. `es.glibc.env.MALLOC_ARENA_MAX`). The {{es}} launcher will set the corresponding variable in the environment of the server process. For example:
+On Linux with `glibc`, you can tune native memory allocation with environment variables such as `MALLOC_ARENA_MAX`. `glibc` reads these variables once, during the early stages of process startup.
+{{es}} lets you set them as JVM options with the prefix `es.glibc.env.`;  the {{es}} launcher then sets the corresponding variable in the environment of the server process before it starts.
 
 ```
 -Des.glibc.env.MALLOC_ARENA_MAX=96
 ```
 
-Supported variables and their allowed values:
+The following variables are supported:
 - `MALLOC_ARENA_MAX` (1 or more),
 - `MALLOC_ARENA_TEST` (1 or more),
 - `MALLOC_MMAP_THRESHOLD_` (0 to 33554432, corresponding to 32MB),
@@ -232,4 +235,16 @@ Supported variables and their allowed values:
 
 {{es}} fails to start if the name is not supported or the value is not a decimal number in the allowed range. An option without a value (no `=`) is ignored.
 
-Setting either threshold turns off glibc's automatic adjustment of both, so it is advisable to set `MALLOC_MMAP_THRESHOLD_` and `MALLOC_TRIM_THRESHOLD_` together.
+By default, glibc can retain gigabytes of freed native memory. This memory competes with the page cache and can lead to out-of-memory kills, especially in memory-limited containers. To limit this retention, {{es}} on Linux with glibc sets the following defaults:
+
+- `MALLOC_ARENA_MAX`: equal to the number of allocated processors. Refer to [`node.processors`](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#node.processors).
+- `MALLOC_MMAP_THRESHOLD_` and `MALLOC_TRIM_THRESHOLD_`: both set to 1 MB, which is 1048576 bytes.
+- `-XX:TrimNativeHeapInterval=3600000`: makes the JVM trim the native heap every hour. This option requires HotSpot on JDK 21.0.1 or later.
+
+{{es}} applies each default only if you haven't set that value yourself. Any of the following takes precedence over the default:
+
+- An `es.glibc.env.` JVM option for the same variable.
+- An environment variable with the same name, or the equivalent tunable in `GLIBC_TUNABLES`.
+- An explicit `-XX:TrimNativeHeapInterval` JVM option.
+
+If you set `MALLOC_ARENA_TEST` or `glibc.malloc.arena_test`, {{es}} does not set `MALLOC_ARENA_MAX`. glibc ignores the arena test when the arena max is set, so {{es}} leaves `MALLOC_ARENA_MAX` unset.

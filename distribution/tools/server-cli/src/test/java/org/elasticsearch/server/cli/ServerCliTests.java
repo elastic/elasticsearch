@@ -385,18 +385,29 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(environment, equalTo(Map.of("MALLOC_TRIM_THRESHOLD_", "10", "MALLOC_MMAP_THRESHOLD_", "1048576")));
     }
 
-    public void testGlibcEnvironmentWarnsWhenOnlyOneThresholdIsSet() throws Exception {
-        ServerCli.addGlibcEnvironment(terminal, List.of("-Des.glibc.env.MALLOC_TRIM_THRESHOLD_=4194304"), new HashMap<>());
-        assertThat(terminal.getErrorOutput(), containsString("[MALLOC_MMAP_THRESHOLD_] stays at its glibc default"));
-
+    public void testGlibcDefaultsDoNotOverrideUserValues() throws Exception {
+        // MALLOC_ARENA_MAX comes from the launcher's environment, MALLOC_TRIM_THRESHOLD_ from a system property
+        Map<String, String> environment = new HashMap<>(Map.of("MALLOC_ARENA_MAX", "4"));
+        List<String> jvmOptions = List.of("-Des.glibc.env.MALLOC_TRIM_THRESHOLD_=4194304");
+        ServerCli.addGlibcEnvironment(terminal, jvmOptions, environment);
         terminal.reset();
-        // a threshold already in the environment counts as set
-        ServerCli.addGlibcEnvironment(
-            terminal,
-            List.of("-Des.glibc.env.MALLOC_TRIM_THRESHOLD_=4194304"),
-            new HashMap<>(Map.of("MALLOC_MMAP_THRESHOLD_", "1048576"))
+
+        ServerCli.addGlibcDefaults(terminal, Settings.EMPTY, environment, true);
+        assertThat(
+            environment,
+            equalTo(Map.of("MALLOC_ARENA_MAX", "4", "MALLOC_TRIM_THRESHOLD_", "4194304", "MALLOC_MMAP_THRESHOLD_", "1048576"))
         );
-        assertThat(terminal.getErrorOutput(), emptyString());
+        assertThat(
+            terminal.getOutput(),
+            equalTo("Setting environment variable [MALLOC_MMAP_THRESHOLD_=1048576] by default" + System.lineSeparator())
+        );
+    }
+
+    public void testGlibcDefaultsOnlyOnLinux() {
+        Map<String, String> environment = new HashMap<>();
+        ServerCli.addGlibcDefaults(terminal, Settings.EMPTY, environment, false);
+        assertThat(environment, equalTo(Map.of()));
+        assertThat(terminal.getOutput(), emptyString());
     }
 
     private void assertGlibcEnvironmentRejected(String jvmOption, String expectedMessage) {

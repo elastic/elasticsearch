@@ -88,6 +88,47 @@ public class SkipWarningsTests extends ESTestCase {
         assertEquals(List.of("Some values cannot be read; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME, "mv"), emitted);
     }
 
+    /**
+     * {@link SkipWarnings#acceptsDetail()} answers whether composing a detail is still worth it — for a caller that
+     * formats one per row and would otherwise build thousands for {@code add} to throw away. It has to go false
+     * exactly where {@code add} stops using its argument, which is after the overflow line rather than at the cap:
+     * the call that crosses the cap is the one that carries that line out.
+     */
+    public void testAcceptsDetailTracksWhenAddWouldStillUseItsArgument() {
+        SkipWarnings warnings = new SkipWarnings("summary");
+        assertTrue("nothing added yet", warnings.acceptsDetail());
+        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS; i++) {
+            assertTrue("detail " + i + " is still within the cap", warnings.acceptsDetail());
+            warnings.add("detail " + i);
+        }
+        assertTrue("the overflow line has not gone out yet", warnings.acceptsDetail());
+        warnings.add("the one that overflows");
+        assertFalse("cap spent and overflow emitted", warnings.acceptsDetail());
+
+        // What the probe is worth skipping: from here add() ignores whatever it is handed.
+        List<String> before = drain();
+        warnings.add("ignored");
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 2, before.size());
+        assertNull("nothing more reaches the client", threadContext.getResponseHeaders().get("Warning"));
+    }
+
+    /**
+     * The summary rides out on the first {@code add}, so the probe must stay true while it is unsent however the cap
+     * was spent. {@code addOnce} and {@code addRemovedFromMultiValue} share the cap without emitting that summary, so
+     * a probe testing the cap alone would tell a caller to skip the very call that would have delivered it.
+     */
+    public void testAcceptsDetailStaysTrueWhileTheSummaryIsStillUnsent() {
+        SkipWarnings warnings = new SkipWarnings("summary", new ArrayList<String>()::add);
+        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
+            warnings.addRemovedFromMultiValue("mv detail " + i);
+        }
+        assertTrue("the add() summary has never been emitted", warnings.acceptsDetail());
+    }
+
+    public void testNoopAcceptsNoDetail() {
+        assertFalse(SkipWarnings.NOOP.acceptsDetail());
+    }
+
     public void testNoopDropsEverything() {
         SkipWarnings.NOOP.add("first");
         SkipWarnings.NOOP.add("second");

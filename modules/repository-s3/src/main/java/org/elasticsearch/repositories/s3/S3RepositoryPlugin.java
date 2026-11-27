@@ -22,8 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -43,15 +41,7 @@ import java.util.Map;
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
-
-    private static final Logger logger = LogManager.getLogger(S3RepositoryPlugin.class);
-
     private final SetOnce<S3Service> service = new SetOnce<>();
-    private final Settings settings;
-
-    public S3RepositoryPlugin(Settings settings) {
-        this.settings = settings;
-    }
 
     S3Service getService() {
         return service.get();
@@ -86,7 +76,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         service.set(
             s3Service(services.environment(), services.clusterService(), services.projectResolver(), services.resourceWatcherService())
         );
-        this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
+        this.service.get().refreshAndClearCache(S3ClientSettings.load(services.environment().settings()));
         return List.of(service.get());
     }
 

@@ -224,6 +224,8 @@ The `step` query parameter accepts:
 - A non-negative decimal integer string: seconds between samples (for example, `15` for 15s resolution).
 - Or {{prom}}-style duration literals such as `30s`, `5m`, or `1h30m`: a non-negative integer plus a unit suffix (`ms`, `s`, `m`, `h`, `d`, `w`, or `y`), repeated and concatenated when needed (for example, `1h30m`). See {{prom}} [float literals and time durations](https://prometheus.io/docs/prometheus/latest/querying/basics/#float-literals-and-time-durations).
 
+As in {{prom}}, a range query can return at most 11,000 points per series. If `(end - start) / step` is greater than 11,000, the request fails with `400` and `errorType` `bad_data`. Use a larger `step` or a shorter time range.
+
 ### `timeout` [promql-http-api-timeout]
 
 The `timeout` parameter of the [range](#promql-http-api-query-range), [instant](#promql-http-api-query-instant), and [exemplar](#promql-http-api-query-exemplars) query endpoints accepts the same formats as [`step`](#promql-http-api-param-step): a decimal integer number of seconds, or a {{prom}}-style duration literal such as `30s` or `1m30s`. The timeout must be positive.

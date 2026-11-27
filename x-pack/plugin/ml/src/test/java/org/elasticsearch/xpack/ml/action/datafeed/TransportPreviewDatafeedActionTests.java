@@ -71,6 +71,9 @@ import static org.mockito.Mockito.when;
 
 public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
+    /** The interval DESCRIBE reports for the BUCKET(@timestamp, 1 hour) time column of {@link #esqlDatafeedBuilder}. */
+    private static final long ONE_HOUR_BUCKET_MS = Duration.ofHours(1).toMillis();
+
     public void testEsqlDatafeedWhenFlagOnShouldAllowPreview() {
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
@@ -104,7 +107,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 7_200_000L);
         assertThat(request.getStartTime(), equalTo(OptionalLong.of(1_000L)));
-        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(7_200_000L));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, ONE_HOUR_BUCKET_MS), equalTo(7_200_000L));
     }
 
     public void testResolvePreviewEndTimeEsqlDatafeedWithUnalignedEndShouldCoverBucketContainingEnd() {
@@ -115,7 +118,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         long unalignedEnd = Duration.ofHours(9).plusMinutes(29).plusSeconds(53).toMillis();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nineHours, unalignedEnd);
 
-        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(tenHours));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, ONE_HOUR_BUCKET_MS), equalTo(tenHours));
     }
 
     public void testResolvePreviewEndTimeEsqlDatafeedWithAlignedEndShouldKeepEnd() {
@@ -124,14 +127,17 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nineHours, tenHours);
 
-        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(tenHours));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, ONE_HOUR_BUCKET_MS), equalTo(tenHours));
     }
 
     public void testResolvePreviewEndTimeEsqlDatafeedWithNoEndShouldStayUnbounded() {
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, null, null);
 
-        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false, datafeed), equalTo(Long.MAX_VALUE));
+        assertThat(
+            TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false, datafeed, ONE_HOUR_BUCKET_MS),
+            equalTo(Long.MAX_VALUE)
+        );
     }
 
     public void testResolvePreviewEndTimeRawEsqlDatafeedShouldNotAlignEnd() {
@@ -139,7 +145,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         long unalignedEnd = Duration.ofHours(9).plusMinutes(29).plusSeconds(53).toMillis();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, unalignedEnd);
 
-        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(unalignedEnd));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, 0L), equalTo(unalignedEnd));
     }
 
     public void testResolvePreviewEndTimeRawEsqlDatafeedBeyondDateNanosMaxShouldCapAtNanosMax() {
@@ -147,7 +153,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 0L, nanosMax + 1_000L);
 
-        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(nanosMax));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, 0L), equalTo(nanosMax));
     }
 
     public void testRawEsqlPreviewWithBothBoundsAboveDateNanosMaxShouldBeEmptyWindow() {
@@ -155,7 +161,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nanosMax + 2_000L, nanosMax + 5_000L);
 
-        long end = TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed);
+        long end = TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, 0L);
 
         assertThat(end, equalTo(nanosMax));
         assertTrue(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, nanosMax + 2_000L, end));
@@ -166,7 +172,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nanosMax + 2_000L, nanosMax + 5_000L);
 
-        long end = TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed);
+        long end = TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, ONE_HOUR_BUCKET_MS);
 
         assertTrue(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, nanosMax + 2_000L, end));
     }
@@ -188,7 +194,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         DatafeedConfig datafeed = new DatafeedConfig.Builder("classic", "job").setIndices(List.of("logs-*")).build();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 5_123L);
 
-        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(5_123L));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, 0L), equalTo(5_123L));
     }
 
     public void testResolvePreviewEndTimeEsqlDatafeedNearLongMaxShouldCapAtLongMaxValue() {
@@ -196,7 +202,10 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         long endNearMax = Long.MAX_VALUE - 1_000L;
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 0L, endNearMax);
 
-        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false, datafeed), equalTo(Long.MAX_VALUE));
+        assertThat(
+            TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false, datafeed, ONE_HOUR_BUCKET_MS),
+            equalTo(Long.MAX_VALUE)
+        );
     }
 
     public void testResolvePreviewEndTimeEsqlDatafeedNearDateNanosMaxShouldCapAtNanosMax() {
@@ -204,7 +213,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 0L, nanosMax - 1L);
 
-        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(nanosMax));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, ONE_HOUR_BUCKET_MS), equalTo(nanosMax));
     }
 
     private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {

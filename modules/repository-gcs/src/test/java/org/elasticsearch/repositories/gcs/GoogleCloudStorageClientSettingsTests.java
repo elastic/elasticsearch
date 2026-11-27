@@ -97,7 +97,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         final Tuple<Map<String, GoogleCloudStorageClientSettings>, Settings> randomClient = randomClients(1, deprecationWarnings);
         final GoogleCloudStorageClientSettings expectedClientSettings = randomClient.v1().values().iterator().next();
         final String clientName = randomClient.v1().keySet().iterator().next();
-        assertGoogleCredential(expectedClientSettings.getCredential(), loadCredential(randomClient.v2(), clientName, null));
+        assertGoogleCredential(expectedClientSettings.getCredential(), loadCredential(randomClient.v2(), clientName));
     }
 
     public void testLoadInvalidCredential() throws Exception {
@@ -113,7 +113,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> loadCredential(settings.setSecureSettings(secureSettings).build(), clientName, null)
+                () -> loadCredential(settings.setSecureSettings(secureSettings).build(), clientName)
             ).getMessage(),
             equalTo("failed to load GCS client credentials from [gcs.client." + clientName + ".credentials_file]")
         );
@@ -201,8 +201,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             }
         };
         try (proxyServer) {
-            var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
-            ServiceAccountCredentials credentials = loadCredential(settings, clientName, proxy);
+            ServiceAccountCredentials credentials = loadCredential(settings, clientName);
             assertNotNull(credentials);
             assertEquals("proxy_access_token", credentials.refreshAccessToken().getTokenValue());
         }

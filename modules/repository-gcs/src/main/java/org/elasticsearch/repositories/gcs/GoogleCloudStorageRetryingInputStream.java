@@ -142,7 +142,9 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
                 return false;
             }
             return switch (action) {
-                case OPEN -> BaseService.EXCEPTION_HANDLER.shouldRetry(e, null);
+                // the SDK handler only knows the JDK socket exception types, see isRetryableHttpClientException
+                case OPEN -> BaseService.EXCEPTION_HANDLER.shouldRetry(e, null)
+                    || GoogleCloudStorageService.isRetryableHttpClientException(e);
                 case READ -> e instanceof StorageException;
             };
         }

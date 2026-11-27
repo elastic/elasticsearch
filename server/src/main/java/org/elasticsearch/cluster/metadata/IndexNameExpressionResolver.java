@@ -103,7 +103,8 @@ public class IndexNameExpressionResolver {
      * which defines which part of the resource the expression is targeting.
      * @param resource the name of a resource that an expression refers to.
      * @param selector optionally indicates which part of a resource to target during an operation. A null value indicates selectors are
-     *                 unsupported in an API and the default data component of the expression should be used where applicable.
+     *                 unsupported in an API, or that no selector was specified in the expression. When no selector was specified,
+     *                 callers honour the {@code includeFailureIndices} flag instead of always using the data component.
      */
     public record ResolvedExpression(String resource, @Nullable IndexComponentSelector selector) {
         public ResolvedExpression(String indexAbstraction) {
@@ -439,7 +440,7 @@ public class IndexNameExpressionResolver {
                 if (expressions != null && expressions.length == 1) {
                     selector = SelectorResolver.parseMatchAllToSelector(context, expressions[0]);
                 } else {
-                    selector = IndexComponentSelector.DATA;
+                    selector = null;
                 }
                 return WildcardExpressionResolver.resolveAll(context, selector);
             } else if (isNoneExpression(expressions)) {
@@ -763,9 +764,7 @@ public class IndexNameExpressionResolver {
             // An explicit selector decides: `::failures` includes them, `::data` excludes them.
             // With no selector, honour the caller's includeFailureIndices flag (for example `_cat/indices`
             // asks for them when hidden indices are expanded) instead of always excluding them.
-            return expressionSelector == null
-                ? indicesOptions.includeFailureIndices()
-                : expressionSelector.shouldIncludeFailures();
+            return expressionSelector == null ? indicesOptions.includeFailureIndices() : expressionSelector.shouldIncludeFailures();
         }
         return indicesOptions.includeFailureIndices();
     }
@@ -1585,8 +1584,6 @@ public class IndexNameExpressionResolver {
             }
         }
         if (context.options.allowSelectors()) {
-            // Ensure that the selectors are present and that they are compatible with the abstractions they are used with
-            assert selector != null : "Earlier logic should have parsed selectors or added the default selectors already";
             // Check if ::failures has been explicitly requested
             if (IndexComponentSelector.FAILURES.equals(selector) && indexAbstraction.isDataStreamRelated() == false) {
                 // If requested abstraction is not data stream related, then you cannot use ::failures
@@ -1744,9 +1741,7 @@ public class IndexNameExpressionResolver {
          * Returns all the indices, data streams, and aliases, considering the open/closed, system, and hidden context parameters.
          * Depending on the context, returns the names of the data streams themselves or their backing indices.
          */
-        public static Collection<ResolvedExpression> resolveAll(Context context, IndexComponentSelector selector) {
-            assert selector != null || context.options.allowSelectors() == false
-                : "selectors are enabled in this context, but a selector was not provided";
+        public static Collection<ResolvedExpression> resolveAll(Context context, @Nullable IndexComponentSelector selector) {
             List<ResolvedExpression> concreteIndices = resolveEmptyOrTrivialWildcard(context, selector);
 
             if (context.includeDataStreams() == false
@@ -2243,10 +2238,10 @@ public class IndexNameExpressionResolver {
 
         /**
          * Parses an index expression for a selector suffix. If a suffix is present and supported by the index options, the
-         * expression and its suffix are split apart and returned. If a suffix is not present on the expression, the default
-         * {@link IndexComponentSelector#DATA} selector will be returned. If suffixes are present but not supported by the
-         * index options, this will throw {@link IndexNotFoundException}. When suffixes are not allowed by the context, the
-         * selector returned will be null.
+         * expression and its suffix are split apart and returned. If a suffix is not present on the expression, no selector
+         * is returned (null) so that callers can honour the {@code includeFailureIndices} flag. If suffixes are present but
+         * not supported by the index options, this will throw {@link IndexNotFoundException}. When suffixes are not allowed
+         * by the context, the selector returned will be null.
          * @param options IndicesOptions object
          * @param expression The expression to check for selectors
          * @return A resolved expression, optionally paired with a selector if present and supported.
@@ -2254,8 +2249,7 @@ public class IndexNameExpressionResolver {
         public static ResolvedExpression parseExpression(String expression, IndicesOptions options) {
             return parseAndTransformSelector(expression, (baseExpression, selector) -> {
                 if (options.allowSelectors()) {
-                    IndexComponentSelector resolvedSelector = selector != null ? selector : IndexComponentSelector.DATA;
-                    return new ResolvedExpression(baseExpression, resolvedSelector);
+                    return new ResolvedExpression(baseExpression, selector);
                 } else {
                     // Ensure there is no selector if the API doesn't allow it.
                     ensureNoSelectorsProvided(expression, selector);
@@ -2266,9 +2260,9 @@ public class IndexNameExpressionResolver {
 
         /**
          * Parses an index expression for selector suffixes. If a suffix is present and supported by the index options, the suffix is
-         * returned. If a suffix is not present on the expression, the default selector defined in the context is returned. If selectors
-         * are disabled in the options, this will return a null value. If a selector is provided when selectors are disabled in the options,
-         * this will throw {@link IndexNotFoundException}.
+         * returned. If a suffix is not present on the expression, null is returned so that callers can honour the
+         * {@code includeFailureIndices} flag. If selectors are disabled in the options, this will return a null value. If a selector
+         * is provided when selectors are disabled in the options, this will throw {@link IndexNotFoundException}.
          * @param context Context object
          * @param matchAllExpression The match all expression given to the index request (e.g. `*`, `*::failures`, `_all::data`)
          * @return The selector for this match all expression
@@ -2276,8 +2270,8 @@ public class IndexNameExpressionResolver {
         public static IndexComponentSelector parseMatchAllToSelector(Context context, String matchAllExpression) {
             return parseAndTransformSelector(matchAllExpression, (baseExpression, selector) -> {
                 if (context.options.allowSelectors()) {
-                    // if selector was not present in the expression, default to ::data
-                    return selector == null ? IndexComponentSelector.DATA : selector;
+                    // if selector was not present in the expression, return null so callers honour the includeFailureIndices flag
+                    return selector;
                 } else {
                     // Ensure there is no selector if the API doesn't allow it.
                     ensureNoSelectorsProvided(matchAllExpression, selector);

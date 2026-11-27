@@ -3027,6 +3027,55 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 )
             );
         }
+
+        // Test include failure indices flag with selectors allowed and a match-all expression
+        {
+            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .gatekeeperOptions(
+                    IndicesOptions.GatekeeperOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN.gatekeeperOptions())
+                        .includeFailureIndices(true)
+                        .build()
+                )
+                .build();
+            Index[] result = indexNameExpressionResolver.concreteIndices(project, indicesOptions, true, "*");
+            assertThat(result.length, equalTo(5));
+            List<String> indexNames = Arrays.stream(result).map(Index::getName).toList();
+            assertThat(
+                indexNames,
+                containsInAnyOrder(
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis),
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis),
+                    DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis),
+                    DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis),
+                    otherIndex.getIndex().getName()
+                )
+            );
+        }
+
+        // Test include failure indices flag with selectors allowed and no expressions: the flag applies,
+        // so resolving everything returns the failure store indices as well
+        {
+            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .gatekeeperOptions(
+                    IndicesOptions.GatekeeperOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN.gatekeeperOptions())
+                        .includeFailureIndices(true)
+                        .build()
+                )
+                .build();
+            Index[] result = indexNameExpressionResolver.concreteIndices(project, indicesOptions, true);
+            assertThat(result.length, equalTo(5));
+            List<String> indexNames = Arrays.stream(result).map(Index::getName).toList();
+            assertThat(
+                indexNames,
+                containsInAnyOrder(
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis),
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis),
+                    DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis),
+                    DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis),
+                    otherIndex.getIndex().getName()
+                )
+            );
+        }
     }
 
     public void testDataStreamAliases() {

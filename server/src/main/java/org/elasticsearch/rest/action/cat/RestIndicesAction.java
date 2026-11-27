@@ -117,9 +117,7 @@ public class RestIndicesAction extends AbstractCatAction {
         // `_cat/indices` can never list them even though `_cat/shards` and `_resolve/index` do, leaving no way to see how
         // much disk a failure store uses. See https://github.com/elastic/elasticsearch/issues/166490
         final boolean includeFailureIndices = indicesOptions.expandWildcardsHidden();
-        final IndicesOptions getSettingsIndicesOptions = includeFailureIndices
-            ? withFailureIndices(indicesOptions)
-            : indicesOptions;
+        final IndicesOptions getSettingsIndicesOptions = includeFailureIndices ? withFailureIndices(indicesOptions) : indicesOptions;
 
         return channel -> {
             final var indexSettingsRef = new AtomicReference<GetSettingsResponse>();

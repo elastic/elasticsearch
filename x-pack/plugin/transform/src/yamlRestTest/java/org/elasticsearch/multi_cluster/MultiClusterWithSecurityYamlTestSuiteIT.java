@@ -29,7 +29,7 @@ import org.junit.rules.RuleChain;
 
 import java.util.List;
 
-@TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class MultiClusterWithSecurityYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "test_user";

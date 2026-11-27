@@ -49,8 +49,8 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * having searchable doc values and no keyword normalizer that changes query literals. An exact translation replaces the
  * predicate; one that needs a recheck is pushed and still evaluated; anything else stays in memory. Only the conjuncts of the
  * predicate that Lucene can run on every shard are pushed; with any left out the query is a superset and the predicate is still
- * evaluated. A {@code true} predicate, as
- * in {@code NESTED_ANY(items, true)}, matches any child document. {@code NOT NESTED_ANY(<predicate>)} is pushed as
+ * evaluated. A {@code true} predicate, as in {@code NESTED_ANY(items, true)}, matches any child document.
+ * {@code NOT NESTED_ANY(<predicate>)} is pushed as
  * {@code NOT nested(<predicate>)} only when the translation is exact: negating a superset would drop parents that match.
  */
 public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
@@ -108,7 +108,8 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
         if (stats.nestedQueriesAllowed() == false) {
             return null;
         }
-        List<Expression> conjuncts = predicate.childConjuncts();
+        NestedPredicate.ChildConjuncts childConjuncts = predicate.childConjuncts();
+        List<Expression> conjuncts = childConjuncts.conjuncts();
         List<Expression> pushable = new ArrayList<>();
         Translatable translatable = Translatable.YES;
         for (Expression conjunct : conjuncts) {
@@ -121,7 +122,7 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
         if (pushable.isEmpty()) {
             return null;
         }
-        if (pushable.size() < predicate.conjunctCount()) {
+        if (childConjuncts.complete() == false || pushable.size() < conjuncts.size()) {
             translatable = translatable.merge(Translatable.RECHECK);
         }
         Expression childPredicate = Predicates.combineAnd(pushable);

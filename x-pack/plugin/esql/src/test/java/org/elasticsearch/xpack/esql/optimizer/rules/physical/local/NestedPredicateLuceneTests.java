@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -15,14 +16,19 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -234,6 +240,96 @@ public class NestedPredicateLuceneTests extends ESTestCase {
         EvalExec eval = eval(predicate);
 
         assertThat(new EvaluateNestedPredicateInLucene().apply(eval, context(queryableAsRead(predicate))), equalTo(eval));
+    }
+
+    public void testAConjunctOnAUnionTypedChildIsLeftOutOfTheSupersetQuery() {
+        NestedPredicate predicate = withUnionTypedInput(predicate(EQUALS_A + " AND items.qty > 1"), "items.qty");
+
+        PushNestedPredicateToSource.Translation translation = PushNestedPredicateToSource.translate(
+            predicate,
+            CHILDREN,
+            stats(queryableAsRead(predicate))
+        );
+
+        assertThat(translation.exact(), is(false));
+        assertIsTheNestedQueryForSkuA(translation.query());
+    }
+
+    public void testAPredicateOnlyOnAUnionTypedChildDoesNotTranslate() {
+        NestedPredicate predicate = withUnionTypedInput(predicate("items.qty > 1"), "items.qty");
+
+        assertThat(PushNestedPredicateToSource.translate(predicate, CHILDREN, stats(queryableAsRead(predicate))), is(nullValue()));
+    }
+
+    public void testTheRuleKeepsThePartiallyPushedPredicateInAFilter() {
+        NestedPredicate predicate = predicate(EQUALS_A + " AND " + UNTRANSLATABLE);
+        FilterExec filter = new FilterExec(Source.EMPTY, scan(), predicate);
+
+        PhysicalPlan planned = new PushNestedPredicateToSource().apply(filter, context(queryableAsRead(predicate)));
+
+        assertThat(planned, instanceOf(FilterExec.class));
+        FilterExec kept = (FilterExec) planned;
+        assertThat(kept.condition(), equalTo(predicate));
+        assertThat(kept.child(), instanceOf(EsQueryExec.class));
+        assertIsTheNestedQueryForSkuA(((EsQueryExec) kept.child()).query());
+    }
+
+    public void testTheRuleDropsTheFilterOfAFullyPushedPredicate() {
+        NestedPredicate predicate = predicate(EQUALS_A);
+        FilterExec filter = new FilterExec(Source.EMPTY, scan(), predicate);
+
+        PhysicalPlan planned = new PushNestedPredicateToSource().apply(filter, context(queryableAsRead(predicate)));
+
+        assertThat(planned, instanceOf(EsQueryExec.class));
+        assertIsTheNestedQueryForSkuA(((EsQueryExec) planned).query());
+    }
+
+    public void testTheRuleLeavesANegatedPartiallyPushedPredicateInAFilterWithoutAQuery() {
+        NestedPredicate predicate = predicate(EQUALS_A + " AND " + UNTRANSLATABLE);
+        FilterExec filter = new FilterExec(Source.EMPTY, scan(), new Not(Source.EMPTY, predicate));
+
+        assertThat(new PushNestedPredicateToSource().apply(filter, context(queryableAsRead(predicate))), equalTo(filter));
+    }
+
+    private static NestedPredicate withUnionTypedInput(NestedPredicate predicate, String fieldName) {
+        List<Attribute> inputs = new ArrayList<>();
+        for (int i = 0; i < predicate.inputs().size(); i++) {
+            Attribute input = predicate.inputs().get(i);
+            if (predicate.fieldNames().get(i).equals(fieldName)) {
+                MultiTypeEsField union = new MultiTypeEsField(
+                    fieldName,
+                    input.dataType(),
+                    true,
+                    Map.of(),
+                    EsField.TimeSeriesFieldType.NONE,
+                    null
+                );
+                input = new FieldAttribute(input.source(), null, null, fieldName, union, input.nullable(), input.id(), false);
+            }
+            inputs.add(input);
+        }
+        return new NestedPredicate(
+            predicate.source(),
+            predicate.path(),
+            predicate.body(),
+            inputs,
+            predicate.relativePaths(),
+            null,
+            predicate.configuration()
+        );
+    }
+
+    private static EsQueryExec scan() {
+        return new EsQueryExec(
+            Source.EMPTY,
+            "ne",
+            IndexMode.STANDARD,
+            List.of(),
+            null,
+            List.of(),
+            0,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
     }
 
     private static void assertEvaluatedByTheNestedQuery(PhysicalPlan plan, NestedPredicate predicate) {

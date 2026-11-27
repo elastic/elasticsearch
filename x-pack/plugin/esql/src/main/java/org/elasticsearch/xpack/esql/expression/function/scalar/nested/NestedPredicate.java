@@ -159,11 +159,15 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
     }
 
     /**
-     * The top-level conjuncts of the predicate, each over the child fields themselves, for Lucene to match within each child
-     * document. Conjuncts that read more than child fields, or a child that a cast reads per index, are not included, so the
-     * result is a superset of the predicate unless it has as many conjuncts as the predicate.
+     * The top-level conjuncts of the predicate that read only child fields, each rewritten over the child fields themselves
+     * for Lucene to match within each child document. A conjunct that reads anything else, or a child that a cast reads per
+     * index, is left out.
+     *
+     * @param complete whether no conjunct was left out, so matching all of {@code conjuncts} is matching the predicate
      */
-    public List<Expression> childConjuncts() {
+    public record ChildConjuncts(List<Expression> conjuncts, boolean complete) {}
+
+    public ChildConjuncts childConjuncts() {
         Map<NameId, FieldAttribute> fields = new HashMap<>();
         List<String> names = fieldNames();
         for (int i = 0; i < inputs.size(); i++) {
@@ -174,18 +178,14 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             EsField field = new EsField(names.get(i), input.dataType(), Map.of(), true, EsField.TimeSeriesFieldType.NONE);
             fields.put(input.id(), new FieldAttribute(input.source(), names.get(i), field));
         }
+        List<Expression> all = Predicates.splitAnd(body);
         List<Expression> conjuncts = new ArrayList<>();
-        for (Expression conjunct : Predicates.splitAnd(body)) {
+        for (Expression conjunct : all) {
             if (conjunct.references().stream().allMatch(attribute -> fields.containsKey(attribute.id()))) {
                 conjuncts.add(conjunct.transformUp(Attribute.class, attribute -> fields.get(attribute.id())));
             }
         }
-        return conjuncts;
-    }
-
-    /** The number of top-level conjuncts of the predicate. */
-    public int conjunctCount() {
-        return Predicates.splitAnd(body).size();
+        return new ChildConjuncts(conjuncts, conjuncts.size() == all.size());
     }
 
     @Override

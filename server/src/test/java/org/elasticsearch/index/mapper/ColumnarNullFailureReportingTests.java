@@ -13,7 +13,6 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class ColumnarNullFailureReportingTests extends AbstractColumnarNullContractTestCase {
 
@@ -30,11 +29,14 @@ public class ColumnarNullFailureReportingTests extends AbstractColumnarNullContr
     }
 
     public void testFailureKeepsEveryConfigurationAndTheOriginalAssertion() {
+        final Scenario scenario = neverEqual();
+        final int configurations = configurations(scenario).size();
         final AssertionError error = expectThrows(
             AssertionError.class,
-            () -> assertSourceDropsNullElements(neverEqual(), IndexingStrategy.DOCUMENT)
+            () -> assertSourceDropsNullElements(scenario, IndexingStrategy.DOCUMENT)
         );
-        assertThat(error.getSuppressed().length, greaterThan(0));
+        assertThat(error.getMessage(), containsString(configurations + " of " + configurations + " configurations failed"));
+        assertEquals("one suppressed failure for each configuration after the first", configurations - 1, error.getSuppressed().length);
         Throwable root = error;
         while (root.getCause() != null) {
             root = root.getCause();

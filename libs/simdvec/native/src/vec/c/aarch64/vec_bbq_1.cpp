@@ -214,8 +214,9 @@ EXPORT void vec_dotd1q4_bulk_masked(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd1qN_inner_bulk<int8_t, 4, masked_mapper, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd1q4_bulk_sparse(
@@ -253,8 +254,9 @@ EXPORT void vec_dotd1q1_bulk_masked(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd1qN_inner_bulk<int8_t, 1, masked_mapper, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT int64_t vec_dotd2q2(
@@ -307,8 +309,9 @@ EXPORT void vec_dotd2q2_bulk_masked(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd2q2_inner_bulk<int8_t, masked_mapper, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd2q2_bulk_sparse(
@@ -519,8 +522,9 @@ EXPORT void vec_dotd2q4_bulk_masked(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd2q4_inner_bulk<int8_t, masked_mapper, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd2q4_bulk_sparse(
@@ -532,13 +536,69 @@ EXPORT void vec_dotd2q4_bulk_sparse(
     dotd2q4_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
-EXPORT int64_t vec_dotd4q4(const int8_t* a, const int8_t* query, const int32_t length) {
+// 4-bit doc x 4-bit query in one pass. The doc is four contiguous bit planes of length/4 bytes, the
+// query four planes of length/4 bytes. Each doc plane has its own accumulator, into which UDOT applies the
+// query plane's bit value as a weight; the doc plane's bit value is applied after the reduction, so four
+// weights cover the 16 plane pairs.
+static inline int64_t dotd4q4_inner(const int8_t* a, const int8_t* q, const int32_t length) {
+    constexpr int doc_bits = 4;
+    constexpr int query_bits = 4;
+    constexpr int u64_bytes = sizeof(uint64_t);
+    constexpr int u32_bytes = sizeof(uint32_t);
+    constexpr int u16_bytes = sizeof(uint16_t);
+    constexpr int chunk_size = sizeof(uint8x16_t);
     const int32_t bit_length = length / 4;
-    int64_t p0 = dotd1qN_inner<4>(a + 0 * bit_length, query, bit_length);
-    int64_t p1 = dotd1qN_inner<4>(a + 1 * bit_length, query, bit_length);
-    int64_t p2 = dotd1qN_inner<4>(a + 2 * bit_length, query, bit_length);
-    int64_t p3 = dotd1qN_inner<4>(a + 3 * bit_length, query, bit_length);
-    return p0 + (p1 << 1) + (p2 << 2) + (p3 << 3);
+    int64_t sum = 0;
+
+    int r = 0;
+    if (bit_length >= chunk_size) {
+        uint32x4_t acc[doc_bits];
+        uint8x16_t weight[query_bits];
+        apply_indexed<doc_bits>([&](auto D) {
+            acc[D] = vdupq_n_u32(0);
+        });
+        apply_indexed<query_bits>([&](auto Q) {
+            weight[Q] = vdupq_n_u8(1 << Q);
+        });
+
+        for (; r + chunk_size <= bit_length; r += chunk_size) {
+            uint8x16_t qv[query_bits];
+            apply_indexed<query_bits>([&](auto Q) {
+                qv[Q] = vld1q_u8((const uint8_t*)q + Q * bit_length + r);
+            });
+            apply_indexed<doc_bits>([&](auto D) {
+                const uint8x16_t doc_plane = vld1q_u8((const uint8_t*)a + D * bit_length + r);
+                apply_indexed<query_bits>([&](auto Q) {
+                    acc[D] = dot_bit_weighted_neon(acc[D], doc_plane, qv[Q], weight[Q]);
+                });
+            });
+        }
+        apply_indexed<doc_bits>([&](auto D) {
+            sum += (int64_t)vaddvq_u32(acc[D]) << D;
+        });
+    }
+
+    // fewer than 16 bytes are left: at most one step each of 8, 4, 2 and 1 bytes
+    if (bit_length - r >= u64_bytes) {
+        dot_striped_scalar<doc_bits, query_bits, u64_bytes>(sum, a, q, bit_length, r);
+        r += u64_bytes;
+    }
+    if (bit_length - r >= u32_bytes) {
+        dot_striped_scalar<doc_bits, query_bits, u32_bytes>(sum, a, q, bit_length, r);
+        r += u32_bytes;
+    }
+    if (bit_length - r >= u16_bytes) {
+        dot_striped_scalar<doc_bits, query_bits, u16_bytes>(sum, a, q, bit_length, r);
+        r += u16_bytes;
+    }
+    if (r < bit_length) {
+        dot_striped_scalar<doc_bits, query_bits, 1>(sum, a, q, bit_length, r);
+    }
+    return sum;
+}
+
+EXPORT int64_t vec_dotd4q4(const int8_t* a, const int8_t* query, const int32_t length) {
+    return dotd4q4_inner(a, query, length);
 }
 
 template <
@@ -554,17 +614,96 @@ static inline void dotd4q4_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
+    // Two vectors per batch, each with one accumulator per doc bit plane so the UDOT chains stay
+    // independent; the doc planes are loaded and consumed one at a time. Four vectors would not leave
+    // enough of the 32 NEON registers for the query planes, the weights and the temporaries.
+    constexpr int batches = 2;
+    constexpr int doc_bits = 4;
+    constexpr int query_bits = 4;
+    constexpr int u64_bytes = sizeof(uint64_t);
+    constexpr int u32_bytes = sizeof(uint32_t);
+    constexpr int u16_bytes = sizeof(uint16_t);
+    constexpr int chunk_size = sizeof(uint8x16_t);
     const int32_t bit_length = length / 4;
 
-    for (int c = 0; c < count; c++) {
+    uint8x16_t weight[query_bits];
+    apply_indexed<query_bits>([&](auto Q) {
+        weight[Q] = vdupq_n_u8(1 << Q);
+    });
+    const int blk = bit_length & ~(chunk_size - 1);
+
+    int c = 0;
+    for (; c + batches - 1 < count; c += batches) {
+        const uint8_t* as[batches];
+        apply_indexed<batches>([&](auto B) {
+            as[B] = (const uint8_t*)mapper(a, c + B, offsets, pitch);
+        });
+
+        uint32x4_t acc[batches][doc_bits];
+        apply_indexed<batches>([&](auto B) {
+            apply_indexed<doc_bits>([&](auto D) {
+                acc[B][D] = vdupq_n_u32(0);
+            });
+        });
+
+        for (int r = 0; r < blk; r += chunk_size) {
+            uint8x16_t qv[query_bits];
+            apply_indexed<query_bits>([&](auto Q) {
+                qv[Q] = vld1q_u8((const uint8_t*)query + Q * bit_length + r);
+            });
+            apply_indexed<batches>([&](auto B) {
+                apply_indexed<doc_bits>([&](auto D) {
+                    const uint8x16_t doc_plane = vld1q_u8(as[B] + D * bit_length + r);
+                    apply_indexed<query_bits>([&](auto Q) {
+                        acc[B][D] = dot_bit_weighted_neon(acc[B][D], doc_plane, qv[Q], weight[Q]);
+                    });
+                });
+            });
+        }
+
+        int64_t res[batches];
+        apply_indexed<batches>([&](auto B) {
+            res[B] = 0;
+            apply_indexed<doc_bits>([&](auto D) {
+                res[B] += (int64_t)vaddvq_u32(acc[B][D]) << D;
+            });
+        });
+
+        // Tail of fewer than 16 bytes: at most one step each of 8, 4, 2 and 1 bytes. Every load stays within
+        // its plane, so none reads past the end of a vector (with sparse addresses, a vector can end right
+        // before an unmapped page).
+        int r = blk;
+        if (bit_length - r >= u64_bytes) {
+            apply_indexed<batches>([&](auto B) {
+                dot_striped_scalar<doc_bits, query_bits, u64_bytes>(res[B], (const int8_t*)as[B], query, bit_length, r);
+            });
+            r += u64_bytes;
+        }
+        if (bit_length - r >= u32_bytes) {
+            apply_indexed<batches>([&](auto B) {
+                dot_striped_scalar<doc_bits, query_bits, u32_bytes>(res[B], (const int8_t*)as[B], query, bit_length, r);
+            });
+            r += u32_bytes;
+        }
+        if (bit_length - r >= u16_bytes) {
+            apply_indexed<batches>([&](auto B) {
+                dot_striped_scalar<doc_bits, query_bits, u16_bytes>(res[B], (const int8_t*)as[B], query, bit_length, r);
+            });
+            r += u16_bytes;
+        }
+        if (r < bit_length) {
+            apply_indexed<batches>([&](auto B) {
+                dot_striped_scalar<doc_bits, query_bits, 1>(res[B], (const int8_t*)as[B], query, bit_length, r);
+            });
+        }
+        apply_indexed<batches>([&](auto B) {
+            results[out_mapper(offsets, c + B)] = (f32_t)res[B];
+        });
+    }
+
+    for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-
-        int64_t p0 = dotd1qN_inner<4>(a0 + 0 * bit_length, query, bit_length);
-        int64_t p1 = dotd1qN_inner<4>(a0 + 1 * bit_length, query, bit_length);
-        int64_t p2 = dotd1qN_inner<4>(a0 + 2 * bit_length, query, bit_length);
-        int64_t p3 = dotd1qN_inner<4>(a0 + 3 * bit_length, query, bit_length);
-
-        results[out_mapper(offsets, c)] = (f32_t)(p0 + (p1 << 1) + (p2 << 2) + (p3 << 3));
+        results[out_mapper(offsets, c)] = (f32_t)dotd4q4_inner(a0, query, length);
     }
 }
 
@@ -587,8 +726,9 @@ EXPORT void vec_dotd4q4_bulk_masked(
     const int32_t count,
     f32_t* results
 ) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd4q4_inner_bulk<int8_t, masked_mapper, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd4q4_bulk_sparse(

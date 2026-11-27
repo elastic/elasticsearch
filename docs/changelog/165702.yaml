@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 165702
+summary: Charge cached query tokens and stop copying stale term bytes
+type: bug

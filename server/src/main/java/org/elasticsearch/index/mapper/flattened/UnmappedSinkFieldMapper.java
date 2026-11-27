@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The implicit {@code _unmapped} sink that absorbs unmapped fields on strict columnar indices as full dotted keys. It exists on every index
@@ -140,7 +141,7 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
      * Whether the columnar batch path can absorb unmapped leaves into the sink, which holds when its wrapped flattened mapper can batch.
      */
     public boolean supportsColumnarAbsorb(IndexSettings indexSettings) {
-        return delegate.supportsColumnarParse(indexSettings);
+        return delegate.supportsColumnarParse(indexSettings, Set.of());
     }
 
     /**

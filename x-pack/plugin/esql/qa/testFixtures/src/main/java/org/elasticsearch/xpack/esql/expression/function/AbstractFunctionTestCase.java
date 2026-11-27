@@ -684,7 +684,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 .or(endsWith("∅")) // Math
         );
 
-        Set<FunctionSignatures.ConcreteSignature> testedSignatures = concreteSignatures(signatures(testClass));
+        Set<FunctionSignatures.ConcreteSignature> testedSignatures = concreteSignatures(signatures(testClass), args);
         Set<FunctionSignatures.ConcreteSignature> declaredSignatures = FunctionSignatures.declaredSignatures(definition);
         List<Set<String>> typesFromSignature = new ArrayList<>();
         Set<String> returnFromSignature = new TreeSet<>();
@@ -693,6 +693,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         if (declaredSignatures.isEmpty() == false) {
+            assertNamedParametersMatchMapParams(functionName(), args, declaredSignatures);
             Set<FunctionSignatures.ConcreteSignature> filteredDeclared = filterUnderConstruction(declaredSignatures);
             Set<FunctionSignatures.ConcreteSignature> filteredTested = filterUnderConstruction(testedSignatures);
             assertSignaturesMatchTests(filteredDeclared, filteredTested);
@@ -852,26 +853,118 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    private static Set<FunctionSignatures.ConcreteSignature> concreteSignatures(Set<DocsV3Support.TypeSignature> signatures) {
+    private static Set<FunctionSignatures.ConcreteSignature> concreteSignatures(
+        Set<DocsV3Support.TypeSignature> signatures,
+        List<EsqlFunctionRegistry.ArgSignature> args
+    ) {
         Set<FunctionSignatures.ConcreteSignature> result = new HashSet<>();
         for (DocsV3Support.TypeSignature signature : signatures) {
-            result.add(toConcreteSignature(signature));
+            result.add(toConcreteSignature(signature, args));
         }
         return result;
     }
 
-    private static FunctionSignatures.ConcreteSignature toConcreteSignature(DocsV3Support.TypeSignature signature) {
-        return new FunctionSignatures.ConcreteSignature(
-            signature.argTypes().stream().map(DocsV3Support.Param::dataType).toList(),
-            signature.returnType()
-        );
+    /**
+     * Test rows type a {@link MapParam} with whatever placeholder the supplier picked
+     * ({@code OBJECT}, {@code SOURCE}, ...). Declared signatures use {@link FunctionSignatures#NAMED_PARAMETERS}
+     * for that position, so the comparison rewrites it to the same token.
+     */
+    private static FunctionSignatures.ConcreteSignature toConcreteSignature(
+        DocsV3Support.TypeSignature signature,
+        List<EsqlFunctionRegistry.ArgSignature> args
+    ) {
+        int offset = signatureOffset(args, signature);
+        List<FunctionSignatures.SignatureArg> argTypes = new ArrayList<>(signature.argTypes().size());
+        for (int i = 0; i < signature.argTypes().size(); i++) {
+            int argIndex = offset + i;
+            if (argIndex < args.size() && args.get(argIndex).mapArg()) {
+                argTypes.add(FunctionSignatures.SignatureArg.ofNamedParameters());
+            } else {
+                argTypes.add(FunctionSignatures.SignatureArg.of(signature.argTypes().get(i).dataType()));
+            }
+        }
+        return new FunctionSignatures.ConcreteSignature(argTypes, signature.returnType());
+    }
+
+    /**
+     * A {@link MapParam} position must be {@link FunctionSignatures#NAMED_PARAMETERS}, and that token
+     * must be a {@link MapParam}. Optional map parameters may be omitted from a shorter overload.
+     */
+    static void assertNamedParametersMatchMapParams(
+        String functionName,
+        List<EsqlFunctionRegistry.ArgSignature> args,
+        Set<FunctionSignatures.ConcreteSignature> declared
+    ) {
+        for (FunctionSignatures.ConcreteSignature signature : declared) {
+            DocsV3Support.TypeSignature alignment = alignmentSignature(signature);
+            int offset = signatureOffset(args, alignment);
+            for (int i = 0; i < signature.argTypes().size(); i++) {
+                boolean token = signature.argTypes().get(i).namedParameters();
+                int argIndex = offset + i;
+                boolean map = argIndex < args.size() && args.get(argIndex).mapArg();
+                if (token == map) {
+                    continue;
+                }
+                String parameter = argIndex < args.size() ? args.get(argIndex).name() : "<none>";
+                if (token) {
+                    fail(
+                        "function ["
+                            + functionName
+                            + "] signature "
+                            + formatSignature(signature)
+                            + " uses "
+                            + FunctionSignatures.NAMED_PARAMETERS
+                            + " for ["
+                            + parameter
+                            + "], which is not a @MapParam"
+                    );
+                }
+                fail(
+                    "function ["
+                        + functionName
+                        + "] signature "
+                        + formatSignature(signature)
+                        + " @MapParam ["
+                        + parameter
+                        + "] must use "
+                        + FunctionSignatures.NAMED_PARAMETERS
+                        + ", found ["
+                        + signature.argTypes().get(i).typeName()
+                        + "]"
+                );
+            }
+        }
+    }
+
+    private static int signatureOffset(List<EsqlFunctionRegistry.ArgSignature> args, DocsV3Support.TypeSignature signature) {
+        boolean variadic = args.stream().anyMatch(EsqlFunctionRegistry.ArgSignature::variadic);
+        if (signature.argTypes().size() > args.size() && variadic == false) {
+            // Extra arguments injected by the test (for example the case-insensitive flag) are past the named parameters.
+            return 0;
+        }
+        return DocsV3Support.getFirstParametersIndexForSignature(args, signature);
+    }
+
+    /**
+     * Alignment only looks at {@link DataType#typeName()}. {@code named_parameters} is not a data type,
+     * so this uses {@link DataType#UNSUPPORTED}, whose name matches no {@link Param#type()}.
+     */
+    private static DocsV3Support.TypeSignature alignmentSignature(FunctionSignatures.ConcreteSignature signature) {
+        List<DocsV3Support.Param> params = new ArrayList<>(signature.argTypes().size());
+        for (FunctionSignatures.SignatureArg arg : signature.argTypes()) {
+            DataType type = arg.namedParameters() ? DataType.UNSUPPORTED : arg.dataType();
+            params.add(new DocsV3Support.Param(type, List.of()));
+        }
+        return new DocsV3Support.TypeSignature(params, signature.returnType());
     }
 
     private static Set<FunctionSignatures.ConcreteSignature> filterUnderConstruction(Set<FunctionSignatures.ConcreteSignature> signatures) {
         return signatures.stream()
             .filter(
                 s -> DataType.UNDER_CONSTRUCTION.contains(s.returnType()) == false
-                    && s.argTypes().stream().noneMatch(DataType.UNDER_CONSTRUCTION::contains)
+                    && s.argTypes()
+                        .stream()
+                        .noneMatch(arg -> arg.namedParameters() == false && DataType.UNDER_CONSTRUCTION.contains(arg.dataType()))
             )
             .collect(Collectors.toSet());
     }
@@ -917,22 +1010,23 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static String formatSignature(FunctionSignatures.ConcreteSignature signature) {
-        String args = signature.argTypes().stream().map(DataType::typeName).collect(Collectors.joining(", "));
+        String args = signature.argTypes().stream().map(FunctionSignatures.SignatureArg::typeName).collect(Collectors.joining(", "));
         return "(" + args + ") -> " + signature.returnType().typeName();
     }
 
     private static void collectPositionalTypes(
         List<EsqlFunctionRegistry.ArgSignature> args,
-        List<DataType> argTypes,
+        List<FunctionSignatures.SignatureArg> argTypes,
         List<Set<String>> typesFromSignature
     ) {
-        DocsV3Support.TypeSignature asDocs = new DocsV3Support.TypeSignature(
-            argTypes.stream().map(t -> new DocsV3Support.Param(t, List.of())).toList(),
-            DataType.NULL
-        );
-        int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, asDocs);
+        DocsV3Support.TypeSignature asDocs = alignmentSignature(new FunctionSignatures.ConcreteSignature(argTypes, DataType.NULL));
+        int initialProvidedParamIndex = signatureOffset(args, asDocs);
         for (int i = 0; i < args.size() && i < argTypes.size(); i++) {
-            typesFromSignature.get(initialProvidedParamIndex + i).add(argTypes.get(i).esNameIfPossible());
+            FunctionSignatures.SignatureArg argType = argTypes.get(i);
+            if (argType.namedParameters()) {
+                continue;
+            }
+            typesFromSignature.get(initialProvidedParamIndex + i).add(argType.dataType().esNameIfPossible());
         }
     }
 
@@ -949,14 +1043,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (declared.isEmpty()) {
             return signatures(testClass);
         }
+        List<EsqlFunctionRegistry.ArgSignature> descriptionArgs = EsqlFunctionRegistry.description(definition).args();
         Set<DocsV3Support.TypeSignature> tested = signatures(testClass).stream()
             .filter(s -> DataType.UNDER_CONSTRUCTION.contains(s.returnType()) == false)
             .filter(s -> s.argTypes().stream().noneMatch(p -> DataType.UNDER_CONSTRUCTION.contains(p.dataType())))
             .collect(Collectors.toSet());
         Map<FunctionSignatures.ConcreteSignature, DocsV3Support.TypeSignature> testedByConcrete = tested.stream()
-            .collect(
-                Collectors.toMap(AbstractFunctionTestCase::toConcreteSignature, s -> s, AbstractFunctionTestCase::mergeTypeSignatures)
-            );
+            .collect(Collectors.toMap(s -> toConcreteSignature(s, descriptionArgs), s -> s, AbstractFunctionTestCase::mergeTypeSignatures));
         Set<DocsV3Support.TypeSignature> result = new HashSet<>();
         for (FunctionSignatures.ConcreteSignature concrete : declared) {
             DocsV3Support.TypeSignature fromTests = testedByConcrete.get(concrete);
@@ -966,13 +1059,21 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             } else {
                 result.add(
                     new DocsV3Support.TypeSignature(
-                        concrete.argTypes().stream().map(t -> new DocsV3Support.Param(t, List.of())).toList(),
+                        concrete.argTypes().stream().map(AbstractFunctionTestCase::docsParamForDeclaredArg).toList(),
                         concrete.returnType()
                     )
                 );
             }
         }
         return result;
+    }
+
+    /**
+     * Docs rendering replaces a {@link MapParam} column, so the stand-in type is only used for alignment.
+     */
+    private static DocsV3Support.Param docsParamForDeclaredArg(FunctionSignatures.SignatureArg arg) {
+        DataType type = arg.namedParameters() ? DataType.UNSUPPORTED : arg.dataType();
+        return new DocsV3Support.Param(type, List.of());
     }
 
     /**

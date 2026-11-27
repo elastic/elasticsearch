@@ -333,6 +333,61 @@ teardown:
   - match: { _source.foo: "" }
 
 ---
+"Test set processor with a templated field and value that render empty, with ignore_empty_value":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "set": {
+                  "description": "where this writes to, and what, depends on the document, so for some there is nothing to write",
+                  "field": "{{name}}",
+                  "value": "{{other}}",
+                  "ignore_empty_value": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # there is no name and no other, so the field renders as nothing and so does the value, and there is nothing to write
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          message: "test"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.message: "test" }
+  - length: { _source: 1 }
+
+  # but when there is something to write, it is written
+  - do:
+      index:
+        index: test
+        id: "2"
+        pipeline: "1"
+        body: {
+          message: "test",
+          name: "destination",
+          other: "something"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+  - match: { _source.destination: "something" }
+
+---
 "Test set processor with copy_from handles BigInteger":
   - do:
       ingest.put_pipeline:

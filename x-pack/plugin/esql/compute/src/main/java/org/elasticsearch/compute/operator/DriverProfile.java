@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,6 +46,8 @@ import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
  *                    waiting time.
  * @param iterations The number of times the driver has moved a single page up the chain of operators as far as it'll go.
  * @param operators Status of each {@link Operator} in the driver when it finished.
+ * @param phase The phase of the query the driver ran in, when the query had several. See {@link ProfileLabels}.
+ * @param phaseKind Why that phase ran. See {@link ProfileLabels}.
  */
 public record DriverProfile(
     String description,
@@ -57,7 +60,9 @@ public record DriverProfile(
     long driverNanos,
     long iterations,
     List<OperatorStatus> operators,
-    DriverSleeps sleeps
+    DriverSleeps sleeps,
+    @Nullable String phase,
+    @Nullable String phaseKind
 ) implements Writeable, ChunkedToXContentObject {
 
     public static final ProfileSchema<DriverProfile> PROFILE_SCHEMA = ProfileSchema.chunked(
@@ -67,6 +72,10 @@ public record DriverProfile(
         .required("description", ProfileSchema.string())
         .required("cluster_name", ProfileSchema.string())
         .required("node_name", ProfileSchema.string())
+        .optional("kind", ProfileSchema.string())
+        .optional("branch", ProfileSchema.string())
+        .optional("phase", ProfileSchema.string())
+        .optional("phase_kind", ProfileSchema.string())
         .optional("start", ProfileSchema.string())
         .required("start_millis", ProfileSchema.integer())
         .optional("stop", ProfileSchema.string())
@@ -102,6 +111,7 @@ public record DriverProfile(
         builder.field("description", value.description);
         builder.field("cluster_name", value.clusterName);
         builder.field("node_name", value.nodeName);
+        ProfileLabels.write(builder, value.description, value.phase, value.phaseKind);
         builder.timestampFieldsFromUnixEpochMillis("start_millis", "start", value.startMillis);
         builder.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", value.stopMillis);
         builder.field("took_nanos", value.tookNanos);
@@ -126,6 +136,56 @@ public record DriverProfile(
         return builder;
     }
 
+    /** A driver of a query that ran in one phase. */
+    public DriverProfile(
+        String description,
+        String clusterName,
+        String nodeName,
+        long startMillis,
+        long stopMillis,
+        long tookNanos,
+        long cpuNanos,
+        long driverNanos,
+        long iterations,
+        List<OperatorStatus> operators,
+        DriverSleeps sleeps
+    ) {
+        this(
+            description,
+            clusterName,
+            nodeName,
+            startMillis,
+            stopMillis,
+            tookNanos,
+            cpuNanos,
+            driverNanos,
+            iterations,
+            operators,
+            sleeps,
+            null,
+            null
+        );
+    }
+
+    /** The same driver, labelled with the phase of the query it ran in. */
+    public DriverProfile withPhase(@Nullable String phase, @Nullable String phaseKind) {
+        return new DriverProfile(
+            description,
+            clusterName,
+            nodeName,
+            startMillis,
+            stopMillis,
+            tookNanos,
+            cpuNanos,
+            driverNanos,
+            iterations,
+            operators,
+            sleeps,
+            phase,
+            phaseKind
+        );
+    }
+
     private static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = TransportVersion.fromName("esql_driver_node_description");
     private static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = TransportVersion.fromName("esql_driver_task_description");
 
@@ -141,7 +201,9 @@ public record DriverProfile(
             in.getTransportVersion().supports(ESQL_DRIVER_NANOS) ? in.readVLong() : 0,
             in.readVLong(),
             in.readCollectionAsImmutableList(OperatorStatus::readFrom),
-            DriverSleeps.read(in)
+            DriverSleeps.read(in),
+            in.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION) ? in.readOptionalString() : null,
+            in.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION) ? in.readOptionalString() : null
         );
     }
 
@@ -164,6 +226,10 @@ public record DriverProfile(
         out.writeVLong(iterations);
         out.writeCollection(operators);
         sleeps.writeTo(out);
+        if (out.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION)) {
+            out.writeOptionalString(phase);
+            out.writeOptionalString(phaseKind);
+        }
     }
 
     @Override

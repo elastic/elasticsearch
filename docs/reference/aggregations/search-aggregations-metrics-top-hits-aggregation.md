@@ -2,6 +2,9 @@
 navigation_title: "Top hits"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-top-hits-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Top hits aggregation [search-aggregations-metrics-top-hits-aggregation]

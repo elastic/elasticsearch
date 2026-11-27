@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.common.bytes.PagedBytesBuilder;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -18,7 +16,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -453,16 +450,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                     randomBlocksResult.elementTypes,
                     randomBlocksResult.encoders,
                     uniqueOrders,
-                    new GroupKeyEncoder(
-                        groupKeys.stream().mapToInt(Integer::intValue).toArray(),
-                        randomBlocksResult.elementTypes,
-                        new PagedBytesBuilder(
-                            PageCacheRecycler.NON_RECYCLING_INSTANCE,
-                            nonBreakingBigArrays().breakerService().getBreaker("request"),
-                            "group-key-encoder",
-                            64
-                        )
-                    ),
+                    groupKeys.stream().mapToInt(Integer::intValue).toArray(),
                     rows,
                     Long.MAX_VALUE,
                     GroupedTopNOperator.OutputOrdering.SORTED
@@ -538,16 +526,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         elementTypes,
                         encoders,
                         sortOrders,
-                        new GroupKeyEncoder(
-                            groupKeys,
-                            elementTypes,
-                            new PagedBytesBuilder(
-                                PageCacheRecycler.NON_RECYCLING_INSTANCE,
-                                nonBreakingBigArrays().breakerService().getBreaker("request"),
-                                "group-key-encoder",
-                                64
-                            )
-                        ),
+                        groupKeys,
                         randomPageSize(),
                         Long.MAX_VALUE,
                         outputOrdering

@@ -31,7 +31,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowCommitMetadata;
@@ -182,16 +182,16 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
         final var lastCommitIsHollow = recoveryInfoFromSource != null && recoveryInfoFromSource.lastCommitIsHollow();
         final var hasRecentIdLookup = recoveryInfoFromSource != null && recoveryInfoFromSource.hasRecentIdLookup();
         final var hollowRecoveryState = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.hollowRecoveryState();
-        final Set<BlobFile> region0Blobs;
+        final Set<BccBlob> region0Blobs;
         if (lastCommitIsHollow) {
-            region0Blobs = sourceBlobsInfo == null ? null : Set.of(sourceBlobsInfo.latestBlobFile());
+            region0Blobs = sourceBlobsInfo == null ? null : Set.of(sourceBlobsInfo.latestBccBlob());
         } else {
             region0Blobs = lastCommitBlobs;
         }
         final long readIndexingShardStateStartMillis = threadPool.relativeTimeInMillis();
         SubscribableListener.<ObjectStoreService.IndexingShardState>newForked(l -> {
             if (hollowRecoveryState != null) {
-                assert sourceBlobsInfo != null && sourceBlobsInfo.latestBlobFile().equals(hollowRecoveryState.commit().toBlobFile())
+                assert sourceBlobsInfo != null && sourceBlobsInfo.latestBccBlob().equals(hollowRecoveryState.commit().toBccBlob())
                     : sourceBlobsInfo + " vs " + hollowRecoveryState.commit();
                 ActionListener.completeWith(
                     l,

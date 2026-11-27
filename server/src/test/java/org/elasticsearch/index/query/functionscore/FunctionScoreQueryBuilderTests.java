@@ -64,6 +64,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
@@ -112,19 +113,38 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
+    protected List<QueryBuilder> subQueriesHiddenFromVisit(QueryBuilder builder) {
+        if (builder instanceof FunctionScoreQueryBuilder functionScore) {
+            // Only the filters that are built are charged, a match_all filter is not
+            return Arrays.stream(functionScore.filterFunctionBuilders())
+                .map(FilterFunctionBuilder::getFilter)
+                .filter(filter -> filter instanceof MatchAllQueryBuilder == false)
+                .toList();
+        }
+        return List.of();
+    }
+
+    @Override
     protected FunctionScoreQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
-        if (randomBoolean()) {
-            return new FunctionScoreQueryBuilder(queryBuilder);
-        }
-        int iters = randomIntBetween(1, 3);
-        FilterFunctionBuilder[] filterFunctionBuilders = new FilterFunctionBuilder[iters];
-        for (int i = 0; i < iters; i++) {
-            filterFunctionBuilders[i] = new FilterFunctionBuilder(queryBuilder, new RandomScoreFunctionBuilder());
-        }
-        if (randomBoolean()) {
-            return new FunctionScoreQueryBuilder(filterFunctionBuilders);
-        }
-        return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
+        // 1 to 3 random score functions, the first filtered by firstFilter, the rest by createInnerQuery()
+        Function<QueryBuilder, FilterFunctionBuilder[]> randomFilterFunctions = firstFilter -> {
+            FilterFunctionBuilder[] filterFunctionBuilders = new FilterFunctionBuilder[randomIntBetween(1, 3)];
+            for (int i = 0; i < filterFunctionBuilders.length; i++) {
+                QueryBuilder filter = i == 0 ? firstFilter : createInnerQuery();
+                filterFunctionBuilders[i] = new FilterFunctionBuilder(filter, new RandomScoreFunctionBuilder());
+            }
+            return filterFunctionBuilders;
+        };
+
+        return switch (randomIntBetween(0, 2)) {
+            // Nest through the query only
+            case 0 -> new FunctionScoreQueryBuilder(queryBuilder);
+            // Nest through the first filter only, so the inner query is built once
+            case 1 -> new FunctionScoreQueryBuilder(randomFilterFunctions.apply(queryBuilder));
+            // Nest through the query, with match_all filters so the inner query is built once
+            case 2 -> new FunctionScoreQueryBuilder(queryBuilder, randomFilterFunctions.apply(createInnerQuery()));
+            default -> throw new AssertionError("unexpected shape");
+        };
     }
 
     @Override

@@ -59,7 +59,7 @@ public final class StXMinFromWKBEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, BytesRefBlock wkbBlockBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!wkbBlockBlock.isNull(p)) {

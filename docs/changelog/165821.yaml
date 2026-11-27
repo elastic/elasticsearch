@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 165821
+summary: Bump ingest-attachment commons-codec to 1.23.0
+type: upgrade

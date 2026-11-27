@@ -70,7 +70,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     /**
      * Factory hold released from {@link #close()} so a producer that finishes during pipeline
      * construction cannot drop the last {@code operatorRefCount} before later {@code get()} calls.
-     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory}.
+     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory} or
+     * {@link AsyncConnectorSourceOperatorFactory}.
      */
     private final Releasable onOperatorClose;
     /**
@@ -81,6 +82,15 @@ public class AsyncExternalSourceOperator extends SourceOperator {
      */
     @Nullable
     private final String datasetLabel;
+    /**
+     * Optional hook fired from {@link #getOutput()} or {@link #isBlocked()} after a previous
+     * non-empty page has been returned, so LimitOperator can charge remaining before the ramp
+     * counts the page. {@link #isBlocked()} covers a paused reader whose next {@code getOutput}
+     * never runs because the driver skips blocked sources.
+     */
+    @Nullable
+    private final Runnable onPagePolled;
+    private boolean pendingPagePolled;
     /**
      * Reference point for the time-to-first-row measurement, captured when this SCAN OPERATOR is constructed
      * (per driver, after planning and discovery) — NOT at query start. The measurement is therefore a per-scan
@@ -127,6 +137,19 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         Releasable onOperatorClose,
         @Nullable String datasetLabel
     ) {
+        this(buffer, driverContext, externalSourceMetrics, scheme, format, onOperatorClose, datasetLabel, null);
+    }
+
+    public AsyncExternalSourceOperator(
+        AsyncExternalSourceBuffer buffer,
+        DriverContext driverContext,
+        ExternalSourceMetrics externalSourceMetrics,
+        String scheme,
+        String format,
+        Releasable onOperatorClose,
+        @Nullable String datasetLabel,
+        @Nullable Runnable onPagePolled
+    ) {
         this.buffer = Objects.requireNonNull(buffer, "buffer");
         this.driverContext = Objects.requireNonNull(driverContext, "driverContext");
         this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
@@ -134,12 +157,23 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         this.format = format;
         this.onOperatorClose = onOperatorClose == null ? () -> {} : onOperatorClose;
         this.datasetLabel = datasetLabel;
+        this.onPagePolled = onPagePolled;
+    }
+
+    private void notifyPendingPagePolled() {
+        if (pendingPagePolled) {
+            pendingPagePolled = false;
+            if (onPagePolled != null) {
+                onPagePolled.run();
+            }
+        }
     }
 
     @Override
     public Page getOutput() {
         long startNanos = System.nanoTime();
         try {
+            notifyPendingPagePolled();
             final var page = buffer.pollPage();
             if (page != null) {
                 if (pagesEmitted == 0) {
@@ -152,6 +186,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 // buffer ran on another thread, so this is the first place on the driver's that sees it.
                 for (int channel = 0; channel < page.getBlockCount(); channel++) {
                     bytesDecoded += ValueBytes.of(page.getBlock(channel));
+                }
+                if (onPagePolled != null && page.getPositionCount() > 0) {
+                    pendingPagePolled = true;
                 }
                 return page;
             }
@@ -179,6 +216,26 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         return classified;
     }
 
+    /**
+     * Whether a page is queued without firing {@link #onPagePolled}. Tests use this to wait for
+     * overflow while LIMIT remaining is still positive: {@link #isBlocked()} and {@link #getOutput()}
+     * would count the previous page and can double the filtered-LIMIT ramp.
+     */
+    boolean hasQueuedPage() {
+        return buffer.size() > 0;
+    }
+
+    /**
+     * Surface a producer failure without firing {@link #onPagePolled}. {@link #isFinished()} stays
+     * false while a failure is pending, so waiters must check this instead of treating unfinished
+     * as still waiting for a page.
+     */
+    void throwIfFailed() {
+        if (buffer.failure() != null) {
+            throw propagateFailure(buffer.failure());
+        }
+    }
+
     @Override
     public boolean isFinished() {
         // Keep "not finished" while a failure is pending so the driver calls getOutput() and the
@@ -193,6 +250,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public IsBlockedResult isBlocked() {
+        // Driver checks isBlocked before getOutput. Count the last returned page here so a
+        // paused reader with an empty buffer still reports progress without waiting for page K+1.
+        notifyPendingPagePolled();
         if (isBlocked.listener().isDone()) {
             isBlocked = buffer.waitForReading();
             if (isBlocked.listener().isDone()) {
@@ -554,9 +614,10 @@ public class AsyncExternalSourceOperator extends SourceOperator {
          * Derived from {@link #capturedSourceMetadata} rather than carried as a separate wire field: a
          * stripe-addressed contribution is exactly one carrying {@link ExternalStats#STRIPE_ORDINAL_KEY}
          * (with {@link ExternalStats#STRIPE_SIZE_KEY}, which marks it cacheable). Counts every such
-         * fragment, including sibling fragments of the same stripe, since each is a committed unit of
-         * harvest work; this is a "did harvest happen, and how much" signal, not the deduped final
-         * stripe count.
+         * record. The chunks of one read contribute one record per stripe between them, because their
+         * pieces of a stripe are joined before they reach the sink; two reads that each cover part of a
+         * stripe contribute one record each, since neither can see the other's pieces. So this is a "did
+         * harvest happen, and how much" signal, not the deduped final stripe count.
          */
         public long stripesCommitted() {
             long count = 0;

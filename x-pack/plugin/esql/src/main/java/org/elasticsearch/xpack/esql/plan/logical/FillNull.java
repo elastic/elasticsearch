@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -85,9 +86,9 @@ public class FillNull extends UnaryPlan implements TelemetryAware, PostAnalysisV
     // The aliases cannot be derived without the Configuration: converterFor reads the time zone from it for datetime/date_nanos.
     private final @Nullable Configuration configuration;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
-    private Set<String> lazyFilledNames;
+    private volatile Set<String> lazyFilledNames;
 
     public FillNull(Source source, LogicalPlan child, @Nullable Expression fillValue, List<NamedExpression> targetFields) {
         this(source, child, fillValue, targetFields, false);
@@ -260,7 +261,7 @@ public class FillNull extends UnaryPlan implements TelemetryAware, PostAnalysisV
             // `*` sweeps up every user column, not the internals: metadata (_index, _score) and synthetic attributes such
             // as the `$$<field>$converted_to$<type>` union-type columns. Naming one explicitly still fills it, even
             // alongside a `*` - what a column does must not depend on whether a `*` happens to be in the same list.
-            if (field.isInternal() && namedTargets.contains(field.name()) == false) {
+            if (leftAloneByAllFields(field) && namedTargets.contains(field.name()) == false) {
                 continue;
             }
             if (fillNames == null || fillNames.contains(field.name())) {
@@ -271,6 +272,25 @@ public class FillNull extends UnaryPlan implements TelemetryAware, PostAnalysisV
             }
         }
         return aliases;
+    }
+
+    /**
+     * Whether a {@code *} leaves the column alone: the internals and the metadata columns a merge passes on. A union or a {@code FORK}
+     * turns a metadata column into a reference attribute, which is not internal any more, so for one that a merge below produces
+     * the branches decide whether the query made it, see {@link MergePlan#mergesColumnThatTheQueryMade}. A column that the query
+     * creates with such a name, as in {@code EVAL _score = ROUND(_score, 4)}, is an ordinary one and is filled, also when it goes
+     * through a {@code FORK}.
+     */
+    private boolean leftAloneByAllFields(Attribute attribute) {
+        return attribute.isInternal() || (MetadataAttribute.isSupported(attribute.name()) && passedOnByAMerge(attribute));
+    }
+
+    private boolean passedOnByAMerge(Attribute attribute) {
+        return child().anyMatch(
+            plan -> plan instanceof MergePlan merge
+                && merge.outputSet().contains(attribute)
+                && merge.mergesColumnThatTheQueryMade(attribute) == false
+        );
     }
 
     public boolean fills(Attribute attribute) {
@@ -532,7 +552,7 @@ public class FillNull extends UnaryPlan implements TelemetryAware, PostAnalysisV
             for (Attribute attr : child().output()) {
                 // `*` never sweeps up the internals, so they were never in scope and are not "left unchanged". Naming
                 // one explicitly does put it in scope, so it is reported like any other target. Mirrors fillAliases.
-                if (attr.isInternal() && namedTargets.contains(attr.name()) == false) {
+                if (leftAloneByAllFields(attr) && namedTargets.contains(attr.name()) == false) {
                     continue;
                 }
                 if (attr.resolved() && filled.contains(attr.name()) == false) {

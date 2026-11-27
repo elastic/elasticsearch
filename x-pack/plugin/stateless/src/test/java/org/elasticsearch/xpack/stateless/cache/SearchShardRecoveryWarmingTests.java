@@ -42,8 +42,7 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.SearchRecoveryWaitOutcome;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -67,7 +66,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.apache.logging.log4j.Level.DEBUG;
+import static org.apache.logging.log4j.Level.INFO;
 import static org.apache.logging.log4j.Level.WARN;
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -191,7 +190,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 threadPool,
                 clusterSettings,
                 onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-                ByteSizeValue.ZERO
+                ByteSizeValue.ZERO,
+                TelemetryProvider.NOOP
             )
         ) {
             @Override
@@ -201,7 +201,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
                 WarmingRatioProvider warmingRatioProvider,
-                @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                 boolean preWarmForIdLookup,
                 ActionListener<Void> listener
             ) {
@@ -266,6 +266,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mock(WarmingRatioProvider.class),
                 null,
+                SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
             // recovery is resumed
@@ -331,9 +332,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
                 Map.of(
-                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    new BccBlob(BccBlob.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
                     WarmTarget.withUnknownTimestamp(1L, 1L)
                 ),
+                SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
             // recovery is NOT resumed
@@ -390,9 +392,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mock(WarmingRatioProvider.class),
                 Map.of(
-                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    new BccBlob(BccBlob.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
                     WarmTarget.withUnknownTimestamp(1L, 1L)
                 ),
+                SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
             // recovery resumed (synchronously)
@@ -450,10 +453,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
-                Map.of(
-                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
-                    new WarmTarget(1L, 1L, 1L)
-                ),
+                Map.of(new BccBlob(BccBlob.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)), new WarmTarget(1L, 1L, 1L)),
+                SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
             // make sure warming started running
@@ -673,6 +674,32 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         assertWaitOutcome(measurements.getFirst(), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
     }
 
+    public void testSearchRecoveryWarmingListenerRegistersShardOnlyWhileRecoveryAwaitsWarming() {
+        try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
+            var service = newWarmingService(threadPool);
+            var indexShard = randomMockIndexShard();
+            PlainActionFuture<Void> resume = new PlainActionFuture<>();
+            var warmingListener = service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(TimeValue.timeValueMillis(randomLongBetween(1, 100_000)), TimeoutContext.RESHARD_SPLIT_TARGET),
+                () -> null, // unused in this test case: re-evaluation is disabled, so the cluster state is never read
+                indexShard,
+                mockDirectory(),
+                randomNonNegativeLong(),
+                resume
+            );
+            assertTrue(service.shardsAwaitingRecoveryWarming.contains(indexShard));
+
+            switch (between(0, 2)) {
+                case 0 -> warmingListener.onResponse(null);
+                case 1 -> warmingListener.onFailure(new ElasticsearchException(randomAlphaOfLength(10)));
+                case 2 -> threadPool.scheduledCommand.get().run();
+                default -> throw new AssertionError("unexpected case");
+            }
+            assertFalse(service.shardsAwaitingRecoveryWarming.contains(indexShard));
+            assertTrue(service.shardsAwaitingRecoveryWarming.isEmpty());
+        }
+    }
+
     /// A warming failure that beats the timeout must propagate to the resume listener and still record the wait metric (attributed
     /// to `WARMING_COMPLETE`, since the warming side won the race), preserving the behavior that predates the race fix.
     public void testSearchRecoveryWarmingListenerWarmingFailurePropagatesAndRecordsMetric() {
@@ -741,14 +768,16 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 threadPool,
                 clusterSettings,
                 onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-                ByteSizeValue.ZERO
+                ByteSizeValue.ZERO,
+                TelemetryProvider.NOOP
             ) {
                 @Override
                 public SearchRecoveryTimeout searchRecoveryTimeout(
                     ClusterState state,
                     IndexShard indexShard,
                     long totalBytesToWarm,
-                    @Nullable SearchRecoveryTimeout previous
+                    @Nullable SearchRecoveryTimeout previous,
+                    SourceShardWarmingInfo sourceShardWarmingInfo
                 ) {
                     return planForBytesToWarmAndPreviousPlan.apply(totalBytesToWarm, previous);
                 }
@@ -761,7 +790,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
                 @Nullable WarmingRatioProvider warmingRatioProvider,
-                @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                 boolean preWarmForIdLookup,
                 ActionListener<Void> listener
             ) {}
@@ -860,7 +889,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     /// lazily on each re-evaluation, not captured once at the start. This is the mechanism that allows a recovery waiting
     /// for warming to react to a node shutdown that was registered after the wait began.
     ///
-    /// The test verifies by switching the plan between re-evaluations: the DEBUG log on the first re-evaluation must
+    /// The test verifies by switching the plan between re-evaluations: the INFO log on the first re-evaluation must
     /// reflect the new plan's context, not the one that was current when the listener was built.
     @TestLogging(
         value = "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService:DEBUG",
@@ -907,9 +936,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 task,
                 SharedBlobCacheWarmingService.class,
                 new MockLog.SeenEventExpectation(
-                    "DEBUG log must reflect the updated context, not the one current at listener-build time",
+                    "INFO log must reflect the updated context, not the one current at listener-build time",
                     SharedBlobCacheWarmingService.class.getCanonicalName(),
-                    DEBUG,
+                    INFO,
                     "*timeout extended*cluster shutdown metadata present*"
                 )
             );
@@ -1237,7 +1266,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "extension reports the previous and the new context and the total timeout so far",
                     SharedBlobCacheWarmingService.class.getCanonicalName(),
-                    DEBUG,
+                    INFO,
                     "Search shard recovery cache warming timeout extended by [200ms] ("
                         + initialPlan.timeoutContext().description()
                         + " -> "

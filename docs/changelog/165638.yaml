@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165638
+summary: Fail FFW gather on breaker trip
+type: bug

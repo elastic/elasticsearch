@@ -15,6 +15,10 @@ dependencies {
 
   clusterModules project(xpackModule('downsample'))
   clusterModules project(xpackModule('esql'))
+  // x-pack-esql extends x-pack-eql (-> x-pack-ql -> mapper-version); stage that chain so the cluster can load esql.
+  clusterModules project(xpackModule('eql'))
+  clusterModules project(xpackModule('ql'))
+  clusterModules project(xpackModule('mapper-version'))
   clusterModules project(xpackModule('autoscaling'))
   clusterModules project(xpackModule('analytics'))
   clusterModules project(xpackModule('ilm'))

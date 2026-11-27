@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165838
+summary: Fail oversized `INLINE STATS` and `IN` subquery results while they are collected
+type: enhancement

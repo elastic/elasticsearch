@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166096
+summary: Keep factory bugs as 500s
+type: bug

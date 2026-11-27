@@ -27,7 +27,7 @@ public class BatchedCompoundCommitTests extends ESTestCase {
 
         var batchedCompoundCommit = new BatchedCompoundCommit(first.primaryTermAndGeneration(), List.of(first, second, third));
 
-        assertThat(batchedCompoundCommit.toBlobFile().blobName(), equalTo("stateless_commit_5"));
+        assertThat(batchedCompoundCommit.toBccBlob().blobName(), equalTo("stateless_commit_5"));
         assertThat(batchedCompoundCommit.toString(), equalTo("[stateless_commit_5][term:" + primaryTerm + "][gen:7][h]"));
     }
 }

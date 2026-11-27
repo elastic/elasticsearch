@@ -2,6 +2,9 @@
 navigation_title: "Significant text"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-significanttext-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Significant text aggregation [search-aggregations-bucket-significanttext-aggregation]

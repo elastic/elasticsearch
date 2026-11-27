@@ -33,7 +33,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -315,6 +320,212 @@ public class VersionLookupTests extends ESTestCase {
         reader.close();
         writer.close();
         dir.close();
+    }
+
+    /**
+     * The batch lookup must find every indexed id, whatever the order and the number of the requested ids. The segment holds only
+     * the even ids, so that many seeks land on a later term, and the batch has more ids than the insertion-sort threshold of
+     * Lucene's sorters, so that the sort of the requested ids goes through a quicksort partition.
+     */
+    public void testBatchLookupManyUidsWithMisses() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter writer = newNoMergeWriter(dir);
+        final int numIds = 20;
+        for (int i = 0; i < numIds; i += 2) {
+            writer.addDocument(makeDoc("doc-" + i, i + 1, i, 1L));
+        }
+        DirectoryReader reader = DirectoryReader.open(writer);
+
+        final String[] ids = new String[2 * numIds];
+        for (int i = 0; i < numIds; i++) {
+            ids[2 * i] = "doc-" + i;
+            ids[2 * i + 1] = "created-" + i;
+        }
+        DocIdAndVersion[] results = batchLookup(reader, ids);
+
+        for (int i = 0; i < numIds; i++) {
+            if (i % 2 == 0) {
+                assertNotNull("[doc-" + i + "] is in the index", results[2 * i]);
+                assertEquals(i + 1, results[2 * i].version);
+            } else {
+                assertNull("[doc-" + i + "] is not in the index", results[2 * i]);
+            }
+            assertNull("[created-" + i + "] is not in the index", results[2 * i + 1]);
+        }
+
+        reader.close();
+        writer.close();
+        dir.close();
+    }
+
+    /** Randomized variant: random subset of ids indexed, random number and order of requested ids (including misses). */
+    public void testBatchLookupRandomIdsAndOrder() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter writer = newNoMergeWriter(dir);
+        final int universe = randomIntBetween(1, 500);
+        final Set<Integer> indexed = new HashSet<>();
+        for (int i = 0; i < universe; i++) {
+            if (randomBoolean()) {
+                indexed.add(i);
+                writer.addDocument(makeDoc("id-" + i, i + 1, i, 1L));
+            }
+            if (rarely()) {
+                writer.commit(); // spread documents over several segments
+            }
+        }
+        DirectoryReader reader = DirectoryReader.open(writer);
+
+        final List<Integer> requested = new ArrayList<>();
+        for (int i = 0; i < universe; i++) {
+            requested.add(i);
+        }
+        Collections.shuffle(requested, random());
+        final String[] ids = new String[requested.size()];
+        for (int i = 0; i < ids.length; i++) {
+            ids[i] = "id-" + requested.get(i);
+        }
+        DocIdAndVersion[] results = batchLookup(reader, ids);
+
+        for (int i = 0; i < ids.length; i++) {
+            final int value = requested.get(i);
+            if (indexed.contains(value)) {
+                assertNotNull("[" + ids[i] + "] is in the index", results[i]);
+                assertEquals(value + 1, results[i].version);
+            } else {
+                assertNull("[" + ids[i] + "] is not in the index", results[i]);
+            }
+        }
+
+        reader.close();
+        writer.close();
+        dir.close();
+    }
+
+    /** Batch lookup must agree with the single-uid lookup on random data with updates and deletes across segments. */
+    public void testBatchLookupMatchesSingleLookup() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter writer = newNoMergeWriter(dir);
+        final int universe = randomIntBetween(1, 300);
+        final int rounds = randomIntBetween(1, 4);
+        for (int round = 0; round < rounds; round++) {
+            for (int i = 0; i < universe; i++) {
+                final String id = "id-" + i;
+                if (randomBoolean()) {
+                    writer.updateDocument(new Term(IdFieldMapper.NAME, id), makeDoc(id, round + 1, i, 1L));
+                } else if (rarely()) {
+                    writer.deleteDocuments(new Term(IdFieldMapper.NAME, id));
+                }
+            }
+            writer.commit();
+        }
+        DirectoryReader reader = DirectoryReader.open(writer);
+
+        final List<String> requested = new ArrayList<>();
+        for (int i = 0; i < universe + randomIntBetween(0, 50); i++) {
+            requested.add("id-" + i);
+        }
+        Collections.shuffle(requested, random());
+        final String[] ids = requested.toArray(new String[0]);
+        DocIdAndVersion[] batch = batchLookup(reader, ids);
+
+        for (int i = 0; i < ids.length; i++) {
+            DocIdAndVersion single = VersionsAndSeqNoResolver.loadDocIdAndVersion(reader, new BytesRef(ids[i]), false);
+            if (single == null) {
+                assertNull("[" + ids[i] + "] should be missing", batch[i]);
+            } else {
+                assertNotNull("[" + ids[i] + "] should be found", batch[i]);
+                assertEquals(single.version, batch[i].version);
+                assertEquals(single.docBase + single.docId, batch[i].docBase + batch[i].docId);
+            }
+        }
+
+        reader.close();
+        writer.close();
+        dir.close();
+    }
+
+    /** Duplicate uids in one batch must each resolve, whether or not the uid exists. */
+    public void testBatchLookupDuplicateUids() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter writer = newNoMergeWriter(dir);
+        writer.addDocument(makeDoc("b", 2L, 20L, 1L));
+        writer.addDocument(makeDoc("d", 4L, 40L, 1L));
+        DirectoryReader reader = DirectoryReader.open(writer);
+
+        DocIdAndVersion[] results = batchLookup(reader, "d", "a", "b", "a", "d", "b", "c", "c");
+
+        assertEquals(4L, results[0].version);
+        assertNull(results[1]);
+        assertEquals(2L, results[2].version);
+        assertNull(results[3]);
+        assertEquals(4L, results[4].version);
+        assertEquals(2L, results[5].version);
+        assertNull(results[6]);
+        assertNull(results[7]);
+
+        reader.close();
+        writer.close();
+        dir.close();
+    }
+
+    /**
+     * Randomized time series batch lookup with more ids than the sorter's insertion-sort threshold, spread over several segments
+     * with descending timestamp ranges, compared against the single-uid time series lookup.
+     */
+    public void testBatchTimeSeriesLookupManyIdsMatchesSingleLookup() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter writer = newNoMergeWriter(dir);
+        final int numSegments = randomIntBetween(1, 4);
+        final long bandWidth = 1_000_000L;
+        final Set<String> indexed = new HashSet<>();
+        int discriminator = 0;
+        // Segments are written newest-first so that they are ordered by descending max timestamp, as in a real time series shard.
+        for (int s = 0; s < numSegments; s++) {
+            final long base = (numSegments - s) * bandWidth;
+            final int docs = randomIntBetween(5, 60);
+            for (int d = 0; d < docs; d++) {
+                final String id = makeTsdbId(discriminator++ % 256, base + randomLongBetween(0, bandWidth - 1));
+                if (indexed.add(id)) {
+                    writer.addDocument(makeDocWithTimestamp(id, extractTimestamp(id), 1L, d, 1L));
+                }
+            }
+            writer.commit();
+        }
+        DirectoryReader reader = DirectoryReader.open(writer);
+
+        final List<String> requested = new ArrayList<>(indexed);
+        final int misses = randomIntBetween(0, 40);
+        for (int i = 0; i < misses; i++) {
+            // may fall inside, between or beyond the segments' timestamp ranges
+            requested.add(makeTsdbId(randomIntBetween(0, 255), randomLongBetween(0, (numSegments + 2) * bandWidth)));
+        }
+        Collections.shuffle(requested, random());
+        final String[] ids = requested.toArray(new String[0]);
+        DocIdAndVersion[] batch = batchTimeSeriesLookup(reader, ids);
+
+        for (int i = 0; i < ids.length; i++) {
+            DocIdAndVersion single = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
+                reader,
+                new BytesRef(ids[i]),
+                ids[i],
+                false,
+                false
+            );
+            if (single == null) {
+                assertNull("[" + ids[i] + "] should be missing", batch[i]);
+            } else {
+                assertNotNull("[" + ids[i] + "] should be found", batch[i]);
+                assertEquals(single.docBase + single.docId, batch[i].docBase + batch[i].docId);
+            }
+        }
+
+        reader.close();
+        writer.close();
+        dir.close();
+    }
+
+    private static long extractTimestamp(String tsdbId) {
+        return ByteBuffer.wrap(Base64.getUrlDecoder().decode(tsdbId)).getLong(12);
     }
 
     public void testBatchLookupSkipPathReusesSeek() throws Exception {

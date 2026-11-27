@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.core.Nullable;
 
 /**
  * Thrown when a listing pulled more objects than {@code esql.external.max_listed_objects}.
@@ -16,13 +17,20 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
  */
 public final class ListedObjectsLimitException extends IllegalArgumentException {
     public ListedObjectsLimitException(int listedCount, int maxListedObjects) {
-        super(
-            LoggerMessageFormat.format(
-                "Glob pattern listed too many objects ({}, limit {}). Narrow your glob pattern, add partition "
-                    + "filters, or increase the [esql.external.max_listed_objects] cluster setting.",
-                listedCount,
-                maxListedObjects
-            )
+        this(listedCount, maxListedObjects, null);
+    }
+
+    ListedObjectsLimitException(int listedCount, int maxListedObjects, @Nullable WalkDiagnostics walk) {
+        super(limitMessage(listedCount, maxListedObjects, walk));
+    }
+
+    private static String limitMessage(int listedCount, int maxListedObjects, @Nullable WalkDiagnostics walk) {
+        String message = LoggerMessageFormat.format(
+            "Glob pattern listed too many objects ({}, limit {}). Narrow your glob pattern, add partition "
+                + "filters, or increase the [esql.external.max_listed_objects] cluster setting.",
+            listedCount,
+            maxListedObjects
         );
+        return walk == null ? message : walk.appendTo(message);
     }
 }

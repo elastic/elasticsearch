@@ -36,6 +36,8 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -43,21 +45,25 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 
 /**
@@ -173,10 +179,147 @@ public final class ReanalyzingTextQuery extends Query {
     }
 
     /**
-     * The terms of a phrase that can be confirmed by walking a document's values rather than indexing them, or null
-     * where it cannot: anything but an exact phrase, whose terms sit at consecutive positions, on one field.
+     * A boolean query flattened for {@link TokenStreamMatching.ClauseWalker}: the clauses each term matches, the
+     * number of required clauses (they come first), the total number of clauses, and the minimum number of optional
+     * clauses that must match.
+     *
+     * <p>{@link ReanalyzingTextQuery#walkableClauses} returns null, and the query falls back to a per-document {@link MemoryIndex}, for:
+     * clauses that do not list their terms (prefix, fuzzy, ...), phrases, nested booleans, {@code MUST_NOT} (only
+     * settled at the last token), {@code FILTER} (does not score), and duplicate clauses (rewriting merges them, so
+     * counting both would score higher).
+     */
+    record WalkableClauses(Map<BytesRef, int[]> clausesOfTerm, int required, int clauses, int leastOptional) {}
+
+    static WalkableClauses walkableClauses(Query query, String field) {
+        final List<List<BytesRef>> required = new ArrayList<>();
+        final List<List<BytesRef>> optional = new ArrayList<>();
+        final int leastOptional;
+        if (query instanceof BooleanQuery bool) {
+            final Set<List<BytesRef>> seen = new HashSet<>();
+            for (BooleanClause clause : bool) {
+                final List<BytesRef> terms = clauseTerms(clause.query(), field);
+                if (terms == null) {
+                    return null;
+                }
+                // Rewriting merges clauses with the same terms, whatever their query type, so counting both would
+                // score higher than the rewritten query. Fall back to indexing.
+                if (seen.add(new ArrayList<>(new TreeSet<>(terms))) == false) {
+                    return null;
+                }
+                switch (clause.occur()) {
+                    case MUST -> required.add(terms);
+                    case SHOULD -> optional.add(terms);
+                    default -> {
+                        return null;
+                    }
+                }
+            }
+            if (required.isEmpty() && optional.isEmpty()) {
+                return null;
+            }
+            // A query with only optional clauses needs at least one of them to match.
+            leastOptional = Math.max(bool.getMinimumNumberShouldMatch(), required.isEmpty() ? 1 : 0);
+            if (leastOptional > optional.size()) {
+                return null;
+            }
+        } else {
+            final List<BytesRef> terms = clauseTerms(query, field);
+            if (terms == null) {
+                return null;
+            }
+            required.add(terms);
+            leastOptional = 0;
+        }
+        final List<List<BytesRef>> clauses = new ArrayList<>(required.size() + optional.size());
+        clauses.addAll(required);
+        clauses.addAll(optional);
+        return new WalkableClauses(
+            TokenStreamMatching.ClauseWalker.clausesOfTerms(clauses),
+            required.size(),
+            clauses.size(),
+            leastOptional
+        );
+    }
+
+    /**
+     * The terms of one clause, any of which matches it, or null if the clause does not list its terms or targets
+     * another field.
+     */
+    private static List<BytesRef> clauseTerms(Query query, String field) {
+        if (query instanceof TermQuery term) {
+            return term.getTerm().field().equals(field) ? List.of(term.getTerm().bytes()) : null;
+        }
+        if (query instanceof SynonymQuery synonyms) {
+            if (synonyms.getField().equals(field) == false) {
+                return null;
+            }
+            final List<BytesRef> terms = new ArrayList<>(synonyms.getTerms().size());
+            for (Term term : synonyms.getTerms()) {
+                terms.add(term.bytes());
+            }
+            return terms.isEmpty() ? null : terms;
+        }
+        if (query instanceof TermInSetQuery set) {
+            if (set.getField().equals(field) == false || set.getTermsCount() == 0) {
+                return null;
+            }
+            final List<BytesRef> terms = new ArrayList<>((int) set.getTermsCount());
+            try {
+                final BytesRefIterator spellings = set.getBytesRefIterator();
+                for (BytesRef term = spellings.next(); term != null; term = spellings.next()) {
+                    terms.add(BytesRef.deepCopyOf(term));
+                }
+            } catch (IOException e) {
+                // The terms are held in memory, so reading them cannot fail.
+                throw new UncheckedIOException(e);
+            }
+            return terms;
+        }
+        return null;
+    }
+
+    /**
+     * The number of clauses the document's values match, which is the frequency a field without terms scores, or
+     * zero if the document does not match the query.
+     */
+    static int walkClauseFreq(WalkableClauses clauses, String field, Analyzer analyzer, List<Object> values) throws IOException {
+        final TokenStreamMatching.ClauseWalker walker = new TokenStreamMatching.ClauseWalker(clauses.clausesOfTerm(), clauses.clauses());
+        for (Object value : values) {
+            if (value == null) {
+                continue;
+            }
+            try (TokenStream stream = analyzer.tokenStream(field, TokenStreamMatching.textOf(value))) {
+                stream.reset();
+                walker.accept(stream);
+                // The walk may stop before the last token, so the stream is ended explicitly.
+                stream.end();
+            }
+            if (walker.answeredEvery()) {
+                break;
+            }
+        }
+        for (int clause = 0; clause < clauses.required(); clause++) {
+            if (walker.answered(clause) == false) {
+                return 0;  // A required clause does not match.
+            }
+        }
+        int answeredOptional = 0;
+        for (int clause = clauses.required(); clause < clauses.clauses(); clause++) {
+            if (walker.answered(clause)) {
+                answeredOptional++;
+            }
+        }
+        return answeredOptional < clauses.leastOptional() ? 0 : clauses.required() + answeredOptional;
+    }
+
+    /**
+     * The terms of a query that a phrase walk can match without indexing the values, or null: a single term (a
+     * phrase of one), or an exact phrase on one field whose terms are at consecutive positions.
      */
     static Term[] walkablePhrase(Query query) {
+        if (query instanceof TermQuery term) {
+            return new Term[] { term.getTerm() };
+        }
         if (query instanceof PhraseQuery phrase && phrase.getSlop() == 0) {
             final Term[] terms = phrase.getTerms();
             final int[] positions = phrase.getPositions();
@@ -294,40 +437,64 @@ public final class ReanalyzingTextQuery extends Query {
     private final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
     private final boolean scansEveryDocument;
+    /** The field's analyzer when {@link CandidateValues} supports it, otherwise null. */
+    @Nullable
+    private final Analyzer valuesAnalyzer;
 
     public ReanalyzingTextQuery(
         Query in,
         IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
         Analyzer indexAnalyzer
     ) {
-        this(in, valueFetcherProvider, indexAnalyzer, false);
+        this(in, valueFetcherProvider, indexAnalyzer, false, null);
     }
 
-    /**
-     * @param scansEveryDocument whether the field indexes no terms, leaving no postings to narrow the documents read
-     *                           or to weigh a term
-     */
     public ReanalyzingTextQuery(
         Query in,
         IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
         Analyzer indexAnalyzer,
         boolean scansEveryDocument
     ) {
+        this(in, valueFetcherProvider, indexAnalyzer, scansEveryDocument, null);
+    }
+
+    /**
+     * @param scansEveryDocument whether the field indexes no terms, leaving no postings to narrow the documents
+     *                           read or to weigh a term
+     * @param valuesAnalyzer     the field's analyzer when {@link CandidateValues#valuesSpellTheirTokens} accepts it,
+     *                           which enables scanning the values' bytes before analyzing them; null otherwise. This
+     *                           is the field's own analyzer, unlike {@code indexAnalyzer}, which is the index-wide
+     *                           per-field wrapper.
+     */
+    public ReanalyzingTextQuery(
+        Query in,
+        IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
+        Analyzer indexAnalyzer,
+        boolean scansEveryDocument,
+        @Nullable Analyzer valuesAnalyzer
+    ) {
         this.in = in;
         this.valueFetcherProvider = valueFetcherProvider;
         this.indexAnalyzer = indexAnalyzer;
         this.scansEveryDocument = scansEveryDocument;
+        this.valuesAnalyzer = valuesAnalyzer;
     }
 
     public Query getQuery() {
         return in;
     }
 
+    /** The field's analyzer used by {@link CandidateValues}, or null. */
+    @Nullable
+    Analyzer valuesAnalyzer() {
+        return valuesAnalyzer;
+    }
+
     /**
      * Returns a copy of this query that wraps {@code query} instead, reading the field's values the same way.
      */
     public ReanalyzingTextQuery withQuery(Query query) {
-        return new ReanalyzingTextQuery(query, valueFetcherProvider, indexAnalyzer, scansEveryDocument);
+        return new ReanalyzingTextQuery(query, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesAnalyzer);
     }
 
     @Override
@@ -344,7 +511,9 @@ public final class ReanalyzingTextQuery extends Query {
         // We intentionally do not compare the value fetcher or analyzer, as they
         // do not typically implement equals() themselves, and the inner
         // Query is sufficient to establish identity.
-        return Objects.equals(in, that.in) && scansEveryDocument == that.scansEveryDocument;
+        return Objects.equals(in, that.in)
+            && scansEveryDocument == that.scansEveryDocument
+            && (valuesAnalyzer != null) == (that.valuesAnalyzer != null);
     }
 
     @Override
@@ -352,7 +521,7 @@ public final class ReanalyzingTextQuery extends Query {
         // We intentionally do not hash the value fetcher or analyzer, as they
         // do not typically implement hashCode() themselves, and the inner
         // Query is sufficient to establish identity.
-        return 31 * Objects.hash(in, scansEveryDocument) + classHash();
+        return 31 * Objects.hash(in, scansEveryDocument, valuesAnalyzer != null) + classHash();
     }
 
     @Override
@@ -365,14 +534,19 @@ public final class ReanalyzingTextQuery extends Query {
         // A term the index does not hold rewrites away, so where it holds none the query is left as it is.
         Query inRewritten = scansEveryDocument ? in : in.rewrite(searcher);
         if (inRewritten != in) {
-            return new ReanalyzingTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer, scansEveryDocument);
+            return new ReanalyzingTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesAnalyzer);
         } else if (in instanceof ConstantScoreQuery) {
             Query sub = ((ConstantScoreQuery) in).getQuery();
-            return new ConstantScoreQuery(new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument));
+            return new ConstantScoreQuery(
+                new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesAnalyzer)
+            );
         } else if (in instanceof BoostQuery) {
             Query sub = ((BoostQuery) in).getQuery();
             float boost = ((BoostQuery) in).getBoost();
-            return new BoostQuery(new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument), boost);
+            return new BoostQuery(
+                new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesAnalyzer),
+                boost
+            );
         } else if (in instanceof MatchNoDocsQuery) {
             return in; // e.g. empty phrase query
         }
@@ -582,6 +756,10 @@ public final class ReanalyzingTextQuery extends Query {
 
             @Override
             public QueryVisitor getSubVisitor(Occur occur, Query parent) {
+                if (parent instanceof BoostQuery boost && boost.getBoost() != 1f) {
+                    // A boost scales the clause's score, so a match no longer adds one point.
+                    bounded[0] = false;
+                }
                 return this;
             }
         });
@@ -609,11 +787,18 @@ public final class ReanalyzingTextQuery extends Query {
         private final float maxFreq;
         private final MemoryIndexEntry cacheEntry = new MemoryIndexEntry();
         private final Term[] walkablePhrase;
+        /** The flattened clauses when the field has no terms and the query can be walked, otherwise null. */
+        @Nullable
+        private final WalkableClauses walkableClauses;
+        /** The prefilter applied to the values' bytes before they are analyzed. */
+        private final CandidateValues candidates;
         private int valuesDocID = -1;
         private List<Object> values;
 
         private int doc = -1;
         private float freq;
+        /** Whether a {@link CandidateValues.Answer#YES} from the prefilter also gives the frequency, which is then 1. */
+        private final boolean holdingSettlesFreq;
 
         private ReanalyzingScorer(
             DocIdSetIterator approximation,
@@ -631,6 +816,15 @@ public final class ReanalyzingTextQuery extends Query {
             this.query = query;
             this.maxFreq = maxFreq;
             this.walkablePhrase = walkablePhrase(query);
+            // The number of matching clauses is the score only when the field has no term statistics.
+            this.walkableClauses = scansEveryDocument ? walkableClauses(query, field) : null;
+            // With an indexed field, the postings already restrict the documents to those holding the terms.
+            this.candidates = scansEveryDocument && valuesAnalyzer != null
+                ? CandidateValues.of(query, field).readingTokensOf(valuesAnalyzer)
+                : CandidateValues.ANY;
+            // When the score counts matching clauses and the query has a single one, a match always has frequency 1.
+            // With term statistics the frequency is the number of occurrences, which only analysis gives.
+            this.holdingSettlesFreq = scansEveryDocument && maxFreq == 1f;
             twoPhase = new TwoPhaseIterator(approximation) {
 
                 @Override
@@ -642,7 +836,7 @@ public final class ReanalyzingTextQuery extends Query {
                 public float matchCost() {
                     // Reading the values and analyzing them dominates either way, so both stay high enough to run
                     // last among cheaper checks. The walk compares terms as they come rather than indexing them all.
-                    return walkablePhrase != null ? 1_000f : 10_000f;
+                    return walkablePhrase != null || walkableClauses != null ? 1_000f : 10_000f;
                 }
             };
         }
@@ -711,6 +905,22 @@ public final class ReanalyzingTextQuery extends Query {
         }
 
         private float computeFreq() throws IOException {
+            if (candidates.reads()) {
+                switch (candidates.held(values())) {
+                    case NO -> {
+                        // The values contain none of the required terms, so analysis would not match either.
+                        return 0;
+                    }
+                    case YES -> {
+                        if (holdingSettlesFreq) {
+                            // The values hold a matching token, so analysis would give the same frequency.
+                            return 1;
+                        }
+                    }
+                    case MAYBE -> {
+                    }
+                }
+            }
             if (scansEveryDocument && walkablePhrase != null) {
                 // One clause, so holding the phrase counts once however often the document holds it, and the walk
                 // stops at the first one.
@@ -718,6 +928,11 @@ public final class ReanalyzingTextQuery extends Query {
             }
             if (walkablePhrase != null) {
                 return walkPhraseFreq(walkablePhrase, field, indexAnalyzer, values());
+            }
+            if (walkableClauses != null) {
+                // Each matching clause counts once, as with a MemoryIndex of the values. The walk stops once every
+                // clause has matched.
+                return walkClauseFreq(walkableClauses, field, indexAnalyzer, values());
             }
             return getOrCreateMemoryIndex().search(query);
         }

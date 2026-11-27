@@ -98,6 +98,9 @@ public class RestIntegTestsExtension {
      * Registers a new plain {@link Test} task as a REST integ test and applies the given action.
      * The task automatically receives the standard REST integ-test configuration from
      * {@link RestTestBasePlugin}.
+     * <p>
+     * Gradle's {@link Test} is itself a {@code @CacheableTask}, so registered tasks are cacheable just like
+     * {@link StandaloneRestIntegTestTask} without any extra opt-in.
      */
     public TaskProvider<Test> register(String name, Action<? super Test> action) {
         restTestTaskNames.add(name);

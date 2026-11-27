@@ -227,7 +227,8 @@ spec:
           enabled: false
         Daily lucene_snapshot_11 snapshot:
           branch: main
-          cronline: "0 2 * * * America/New_York"
+          # 15:00 Europe/Rome. New_York stays aligned except the weeks when US and EU DST differ.
+          cronline: "0 9 * * * America/New_York"
           message: "lucene-snapshot-update: Lucene → lucene_snapshot_11"
           env:
             TARGET_BRANCH: lucene_snapshot_11
@@ -278,7 +279,8 @@ spec:
           message: "Merges main into lucene_snapshot branch 1x per day"
         Daily lucene_snapshot_11 merge:
           branch: main
-          cronline: "0 6 * * * America/New_York"
+          # 07:00 Europe/Rome. New_York stays aligned except the weeks when US and EU DST differ.
+          cronline: "0 1 * * * America/New_York"
           message: "lucene-merge-conflicts: main → lucene_snapshot_11"
           env:
             TARGET_BRANCH: lucene_snapshot_11

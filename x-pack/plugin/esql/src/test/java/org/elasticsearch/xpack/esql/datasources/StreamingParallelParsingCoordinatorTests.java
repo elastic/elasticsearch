@@ -104,6 +104,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntConsumer;
 import java.util.zip.GZIPOutputStream;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
@@ -157,6 +158,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     null,
                     -1L,
                     StripeColumnScope.PROJECTED,
+                    FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                     StreamingParallelParsingCoordinator.WarningSinks.NONE,
                     StreamingSegmentatorAdmission.unbounded(),
                     NoopCircuitBreaker.INSTANCE,
@@ -217,12 +219,41 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    public void testTheConfiguredExtremumWidthReachesEveryChunkContext() throws Exception {
+        int narrow = 64;
+        LineFormatReader reader = new LineFormatReader(512);
+
+        List<FormatReadContext> contexts = readAllPinned(reader, narrow, 4);
+
+        assertThat(contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : contexts) {
+            assertEquals("every chunk reads at the configured width", narrow, ctx.statsMaxExtremumBytes());
+        }
+
+        List<FormatReadContext> single = readAllPinned(new LineFormatReader(512), narrow, 1);
+        assertEquals("the single-pass fallback reads once", 1, single.size());
+        assertEquals(narrow, single.get(0).statsMaxExtremumBytes());
+    }
+
     private static List<FormatReadContext> readAllPinned(LineFormatReader reader) throws Exception {
-        return readAllPinned(reader, null);
+        return readAllPinned(reader, null, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES, 4);
     }
 
     /** As above, over a given file, so a header read that fails names a location in the log. */
     private static List<FormatReadContext> readAllPinned(LineFormatReader reader, @Nullable StorageObject file) throws Exception {
+        return readAllPinned(reader, file, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES, 4);
+    }
+
+    private static List<FormatReadContext> readAllPinned(LineFormatReader reader, int maxExtremumBytes, int parallelism) throws Exception {
+        return readAllPinned(reader, null, maxExtremumBytes, parallelism);
+    }
+
+    private static List<FormatReadContext> readAllPinned(
+        LineFormatReader reader,
+        @Nullable StorageObject file,
+        int maxExtremumBytes,
+        int parallelism
+    ) throws Exception {
         InputStream stream = new ByteArrayInputStream(buildContent(500).getBytes(StandardCharsets.UTF_8));
         List<Attribute> pinned = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
@@ -235,7 +266,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 file,
                 List.of("line"),
                 50,
-                4,
+                parallelism,
                 executor,
                 ErrorPolicy.STRICT,
                 pinned,
@@ -244,6 +275,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                maxExtremumBytes,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("test"),
@@ -354,6 +386,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 sink,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
@@ -663,6 +696,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 sink,
                 -1L,
                 sink == null ? StripeColumnScope.NONE : StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
@@ -711,6 +745,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 sink,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
@@ -774,6 +809,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 sink,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
@@ -1004,6 +1040,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             assertBusy(
@@ -1125,6 +1162,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("streaming-parse-test"),
@@ -1251,6 +1289,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("streaming-parse-test"),
@@ -1367,6 +1406,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("streaming-parse-test"),
@@ -1520,6 +1560,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 breaker,
@@ -1607,6 +1648,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 sink,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
@@ -1836,6 +1878,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     sink,
                     64L, // stripe addressing active
                     StripeColumnScope.PROJECTED,
+                    FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                     StreamingParallelParsingCoordinator.WarningSinks.NONE
                 )
             );
@@ -1911,6 +1954,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 sink,
                 stripeSize,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             try (outer) {
@@ -2031,7 +2075,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                         StripeStatsHarvester harvester = new StripeStatsHarvester(
                             context.statsStripeSize(),
                             context.statsFileFinal(),
-                            context.statsStripeSink()
+                            context.statsStripeSink(),
+                            context.statsMaxExtremumBytes()
                         );
                         harvester.getOrCreate(harvester.ordinalOf(context.statsBaseOffset())).rows = rows;
                         harvester.emit(path, context.statsBaseOffset(), chunkBytes, MTIME, "cfg", "read", true, SCHEMA);
@@ -2212,6 +2257,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("test"),
@@ -2261,6 +2307,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("test"),
@@ -2729,6 +2776,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                         null,
                         -1L,
                         StripeColumnScope.PROJECTED,
+                        FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                         StreamingParallelParsingCoordinator.WarningSinks.NONE,
                         StreamingSegmentatorAdmission.unbounded(),
                         new NoopCircuitBreaker("streaming-parse-test"),
@@ -2748,7 +2796,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * Same gated inter-chunk gap as {@link #testProducerLoopDoesNotDropRowsAcrossDeterministicPoisonGap}
      * but drained with production {@code tryAdvanceOrPark} (no {@code hasNext} fallback). A lone
-     * POISON must park, not declare EOF.
+     * POISON must park, not declare EOF. Wait until the drain parks at chunk 1 before opening the
+     * gate so a late chunk-0 POISON cannot skip the gap. Leftover empty-polls can start after drain;
+     * wait until {@code isExhausted()} is true rather than sampling it once (#164484).
      */
     public void testTryAdvanceOrParkDoesNotDropRowsAcrossDeterministicPoisonGap() throws Exception {
         int linesPerFile = 2000;
@@ -2758,6 +2808,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         CountDownLatch gate = new CountDownLatch(1);
         CountDownLatch gatedReached = new CountDownLatch(1);
+        CountDownLatch parkedAtGap = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(6);
         PlainActionFuture<List<String>> done = new PlainActionFuture<>();
         CloseableIterator<Page> it = null;
@@ -2776,19 +2827,23 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             CloseableIterator<Page> iter = it;
             pool.execute(() -> {
                 try {
-                    done.onResponse(drainLinesViaTryAdvanceOrPark(iter));
+                    done.onResponse(drainLinesViaTryAdvanceOrPark(iter, chunk -> {
+                        if (chunk >= 1) {
+                            parkedAtGap.countDown();
+                        }
+                    }));
                 } catch (Exception e) {
                     done.onFailure(e);
                 }
             });
 
             assertTrue("gated chunk parser never reached", gatedReached.await(30, TimeUnit.SECONDS));
-            Thread.sleep(200);
+            assertTrue("drain never parked at the chunk-0→chunk-1 POISON gap", parkedAtGap.await(30, TimeUnit.SECONDS));
             assertFalse("tryAdvanceOrPark drain wrongly concluded EOF at a mid-stream POISON gap", done.isDone());
 
             gate.countDown();
             List<String> rows = done.actionGet(TimeValue.timeValueSeconds(30));
-            assertTrue("drain finished so the iterator must be exhausted", iter.isExhausted());
+            assertBusy(() -> assertTrue("drain finished so the iterator must be exhausted", iter.isExhausted()));
             assertEquals("every row across the gated gap must be delivered", linesPerFile, rows.size());
             for (int i = 0; i < linesPerFile; i++) {
                 assertEquals("row order preserved across the gap", "line-" + String.format(Locale.ROOT, "%04d", i), rows.get(i));
@@ -2801,6 +2856,76 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 } catch (IOException ignored) {}
             }
             pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Leftover {@code runParserOnce} after an inline steal is counted only when it runs. Drain can
+     * already have every row while that empty-poll has incremented {@code tasksOutstanding}, so a
+     * one-shot {@code isExhausted()} is false (#164484). Do not count at submit: a rejected
+     * {@code execute} would stick the counter.
+     */
+    public void testIsExhaustedIsFalseWhileLeftoverEmptyPollIsInFlight() throws Exception {
+        int linesPerFile = 2000;
+        int chunkSize = 64;
+        int batchSize = 8;
+        int parsingParallelism = 4;
+
+        CountDownLatch leftoverCounted = new CountDownLatch(1);
+        CountDownLatch leftoverHold = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(6);
+        AtomicReference<Runnable> segmentator = new AtomicReference<>();
+        List<Runnable> parserTasks = new CopyOnWriteArrayList<>();
+        Executor executor = command -> {
+            if (segmentator.compareAndSet(null, command)) {
+                pool.execute(command);
+                return;
+            }
+            parserTasks.add(command);
+        };
+        StreamingParallelParsingCoordinator.StreamingParallelIterator it = null;
+        try {
+            it = (StreamingParallelParsingCoordinator.StreamingParallelIterator) StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(chunkSize),
+                new ByteArrayInputStream(buildContent(linesPerFile).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                batchSize,
+                parsingParallelism,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            StreamingParallelParsingCoordinator.StreamingParallelIterator iter = it;
+            List<String> rows = drainLinesViaTryAdvanceOrPark(iter);
+            assertEquals(linesPerFile, rows.size());
+            assertFalse("dispatch must have submitted leftover parser tasks", parserTasks.isEmpty());
+            iter.afterConsumeChunkCount = () -> {
+                leftoverCounted.countDown();
+                try {
+                    if (leftoverHold.await(30, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out holding leftover consumeChunk");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError("interrupted holding leftover consumeChunk", e);
+                }
+            };
+            pool.execute(parserTasks.remove(0));
+            assertTrue("leftover parser never incremented tasksOutstanding", leftoverCounted.await(30, TimeUnit.SECONDS));
+            assertFalse("in-flight leftover empty-poll is not EOF", iter.isExhausted());
+            iter.afterConsumeChunkCount = null;
+            leftoverHold.countDown();
+            assertBusy(() -> assertTrue("leftover empty-poll finished so the iterator must be exhausted", iter.isExhausted()));
+        } finally {
+            leftoverHold.countDown();
+            if (it != null) {
+                it.afterConsumeChunkCount = null;
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
         }
     }
 
@@ -3260,6 +3385,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                         null,
                         -1L,
                         StripeColumnScope.PROJECTED,
+                        FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                         StreamingParallelParsingCoordinator.WarningSinks.NONE,
                         admission,
                         NoopCircuitBreaker.INSTANCE,
@@ -3345,6 +3471,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 admission,
                 NoopCircuitBreaker.INSTANCE,
@@ -3386,6 +3513,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 admission,
                 NoopCircuitBreaker.INSTANCE,
@@ -3427,6 +3555,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 admission,
                 NoopCircuitBreaker.INSTANCE,
@@ -3484,6 +3613,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 admission,
                 NoopCircuitBreaker.INSTANCE,
@@ -3581,6 +3711,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 admission,
                 NoopCircuitBreaker.INSTANCE,
@@ -3626,6 +3757,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 admission,
                 NoopCircuitBreaker.INSTANCE,
@@ -3671,6 +3803,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 new StreamingSegmentatorAdmission(1),
                 NoopCircuitBreaker.INSTANCE,
@@ -3719,6 +3852,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 new StreamingSegmentatorAdmission(1),
                 NoopCircuitBreaker.INSTANCE,
@@ -3783,6 +3917,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 breaker,
@@ -3908,6 +4043,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             StreamingParallelParsingCoordinator.WarningSinks.NONE,
             StreamingSegmentatorAdmission.unbounded(),
             new NoopCircuitBreaker("streaming-parse-test"),
@@ -4111,6 +4247,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 breaker,
@@ -4245,6 +4382,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     null,
                     -1L,
                     StripeColumnScope.PROJECTED,
+                    FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                     StreamingParallelParsingCoordinator.WarningSinks.NONE,
                     StreamingSegmentatorAdmission.unbounded(),
                     breaker,
@@ -4432,6 +4570,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 breaker,
@@ -4476,11 +4615,17 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         return lines;
     }
 
+    private static List<String> drainLinesViaTryAdvanceOrPark(CloseableIterator<Page> iterator) throws Exception {
+        return drainLinesViaTryAdvanceOrPark(iterator, null);
+    }
+
     /**
      * Production drain: {@code waitForReady} then {@link ExternalSourceDrainUtils#tryAdvanceOrPark}.
-     * Does not call {@code hasNext}. Does not close {@code iterator}.
+     * Does not call {@code hasNext}. Does not close {@code iterator}. {@code onPark} runs on the
+     * consumer thread when the drain parks, with the iterator's chunk cursor after POISON skips.
      */
-    private static List<String> drainLinesViaTryAdvanceOrPark(CloseableIterator<Page> iterator) throws Exception {
+    private static List<String> drainLinesViaTryAdvanceOrPark(CloseableIterator<Page> iterator, @Nullable IntConsumer onPark)
+        throws Exception {
         List<String> lines = new ArrayList<>();
         BytesRef scratch = new BytesRef();
         while (true) {
@@ -4488,6 +4633,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
             Page page = ExternalSourceDrainUtils.tryAdvanceOrPark(iterator, blockedOn);
             if (blockedOn.get() != null) {
+                if (onPark != null && iterator instanceof StreamingParallelParsingCoordinator.StreamingParallelIterator streaming) {
+                    onPark.accept(streaming.consumerChunkIndex());
+                }
                 awaitListener(blockedOn.get());
                 continue;
             }
@@ -4754,6 +4902,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
@@ -4944,6 +5093,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             StreamingParallelParsingCoordinator.WarningSinks.NONE,
             StreamingSegmentatorAdmission.unbounded(),
             breaker,
@@ -5244,6 +5394,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             StreamingParallelParsingCoordinator.WarningSinks.NONE,
             StreamingSegmentatorAdmission.unbounded(),
             breaker,
@@ -5276,6 +5427,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 breaker,
@@ -5353,6 +5505,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(strictIterator));
@@ -5382,6 +5535,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             )
         ) {
@@ -5431,6 +5585,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 new StreamingParallelParsingCoordinator.WarningSinks(sink::add, null)
             );
             List<String> got = collectLines(iterator);
@@ -5475,6 +5630,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             StreamingParallelParsingCoordinator.WarningSinks.NONE
         );
         List<String> got = collectLines(iterator);
@@ -5687,6 +5843,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 NoopCircuitBreaker.INSTANCE,
@@ -5837,6 +5994,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             StreamingParallelParsingCoordinator.WarningSinks.NONE,
             admission,
             NoopCircuitBreaker.INSTANCE,

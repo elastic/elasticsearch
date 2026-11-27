@@ -100,6 +100,11 @@ public class DatafeedJobBuilder {
         return restartTimeInfo.getLatestRecordTimeMs() == null ? -1 : restartTimeInfo.getLatestRecordTimeMs();
     }
 
+    private static long latencyMs(Job job) {
+        TimeValue latency = job.getAnalysisConfig().getLatency();
+        return latency == null ? 0 : latency.millis();
+    }
+
     private static long latestFinalBucketEndMs(Job job, RestartTimeInfo restartTimeInfo) {
         return restartTimeInfo.getLatestFinalBucketTimeMs() == null
             ? -1
@@ -108,16 +113,13 @@ public class DatafeedJobBuilder {
 
     /**
      * Maps the latest posted record time to the last time the datafeed has fully read. Rows of a bucketed ES|QL query carry the bucket
-     * start, so the whole bucket has been posted. The bucket length is the larger of the DESCRIBE interval and the grouping interval,
-     * because the chunked extractor still floors the window start on the grouping interval. That term goes away when the aligner uses
-     * the DESCRIBE interval.
+     * start, so the whole bucket of the DESCRIBE interval has been posted.
      */
-    private static LongUnaryOperator lastEndTimeForRecord(DatafeedConfig datafeedConfig, DataExtractorFactory dataExtractorFactory) {
-        long describedBucketMs = dataExtractorFactory.timeBucketMillis();
-        if (describedBucketMs <= 0) {
+    private static LongUnaryOperator lastEndTimeForRecord(DataExtractorFactory dataExtractorFactory) {
+        long bucketMs = dataExtractorFactory.timeBucketMillis();
+        if (bucketMs <= 0) {
             return LongUnaryOperator.identity();
         }
-        long bucketMs = Math.max(describedBucketMs, datafeedConfig.getGroupingInterval().millis());
         return recordMs -> recordMs + bucketMs - 1;
     }
 
@@ -252,7 +254,11 @@ public class DatafeedJobBuilder {
         DataExtractorFactory dataExtractorFactory
     ) {
         final long latestRecordTimeMs = latestRecordTimeMs(context.restartTimeInfo());
-        TimeValue frequency = datafeedConfig.getFrequencyOrDefault(job.getAnalysisConfig().getBucketSpan(), xContentRegistry);
+        TimeValue frequency = datafeedConfig.getFrequencyOrDefault(
+            job.getAnalysisConfig().getBucketSpan(),
+            xContentRegistry,
+            dataExtractorFactory.timeBucketMillis()
+        );
         TimeValue queryDelay = datafeedConfig.getQueryDelay();
         DelayedDataDetector delayedDataDetector = DelayedDataDetectorFactory.buildDetector(
             job,
@@ -287,7 +293,11 @@ public class DatafeedJobBuilder {
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
             crossClusterSearchStats,
-            lastEndTimeForRecord(datafeedConfig, dataExtractorFactory)
+            lastEndTimeForRecord(dataExtractorFactory),
+            // Only ES|QL datafeeds skip long empty gaps for now. Search-query datafeeds get the same fix in #167833.
+            datafeedConfig.getEsqlQuery() != null,
+            job.getAnalysisConfig().getBucketSpan().millis(),
+            latencyMs(job)
         );
         listener.onResponse(datafeedJob);
     }

@@ -284,11 +284,11 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             // Raw ES|QL still needs the date_nanos cap; DSL keeps the requested end.
             return datafeed.getEsqlQuery() != null ? Math.min(end, cap) : end;
         }
-        // An aggregating ES|QL datafeed emits one row per grouping-interval bucket, stamped with the bucket start, and the
+        // A bucketed ES|QL datafeed emits one row per DESCRIBE-interval bucket, stamped with the bucket start, and the
         // extractor factory floors the window end so an open bucket is never extracted. A preview is a
         // diagnostic view of the requested range, so round the end up to keep the bucket containing it
         // (otherwise a range that ends or sits inside a single bucket previews as empty even though it has data).
-        long alignedEnd = Intervals.alignToCeil(end, datafeed.getGroupingInterval().millis());
+        long alignedEnd = Intervals.alignToCeil(end, describedBucketMs);
         // alignToCeil overflows (wraps negative) near Long.MAX_VALUE and may exceed the date_nanos max.
         return (alignedEnd < end || alignedEnd > cap) ? cap : alignedEnd;
     }

@@ -7,6 +7,10 @@ mapped_pages:
 
 Span queries are low-level positional queries which provide expert control over the order and proximity of the specified terms. These are typically used to implement very specific queries on legal documents or patents.
 
+:::{tip}
+We recommend using the [`intervals` query](/reference/query-languages/query-dsl/query-dsl-intervals-query.md) instead of span queries. It gives similar control over the order and proximity of terms, but is simpler to use and more flexible. For example, its rules take analyzed text (including synonyms) instead of individual terms, support script filters on match positions, and offer more positional relations, such as `overlapping` and `not_contained_by`, all without wrapper queries.
+:::
+
 It is only allowed to set boost on an outer span query. Compound span queries, like span_near, only use the list of matching spans of inner span queries in order to find their own spans, which they then use to produce a score. Scores are never computed on inner span queries, which is the reason why boosts are not allowed: they only influence the way scores are computed, not spans.
 
 Span queries cannot be mixed with non-span queries (with the exception of the `span_multi` query).

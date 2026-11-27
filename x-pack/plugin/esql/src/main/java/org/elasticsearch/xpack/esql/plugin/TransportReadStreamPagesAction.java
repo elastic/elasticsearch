@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.streaming.StreamMetadata;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -85,12 +84,12 @@ import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescr
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.STREAM_TOTAL_PAGES;
 
 /**
- * Reads consecutive pages of one stored result straight from the shard holding it, up to a byte budget. Pages are returned as
- * they were stored, in page order, and are decoded by the caller. Their bytes are charged to the request breaker until the
- * response is released. Stateless clusters read from the indexing shard, others from any copy.
+ * Reads one page of a stored result straight from the shard holding it. The page is returned as it was stored and is decoded by
+ * the caller. Its bytes are charged to the request breaker until the response is released. Stateless clusters read from the
+ * indexing shard, others from any copy.
  * <p>
- * A read can wait for its first page, through {@link StoredPagesService}, unless the result has ended before it. The index is
- * never refreshed on a schedule.
+ * A read can wait for its page, through {@link StoredPagesService}, unless the result has ended before it. The index is never
+ * refreshed on a schedule.
  */
 public class TransportReadStreamPagesAction extends TransportSingleShardAction<
     TransportReadStreamPagesAction.Request,
@@ -101,7 +100,6 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
 
     static final String REFRESH_SOURCE = "esql_stored_result_read";
     static final String BREAKER_LABEL = "esql_stored_result_pages";
-    static final int MAX_PAGES_PER_READ = 1024;
     static final TimeValue MAX_WAIT_TIMEOUT = TimeValue.timeValueMinutes(1);
     /**
      * The seq of the metadata document of a result; its pages of rows start at {@code 0}.
@@ -197,9 +195,8 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
     }
 
     /**
-     * Reads pages from {@code fromSeq} on until one is missing, {@code maxPages} are read, or the next would go over
-     * {@code maxBytes}; the first page is always read. A page that trips the breaker ends the read, or fails it if it is the first.
-     * A read that finds no page tells whether the result ended before it.
+     * Reads page {@code fromSeq}. A page that trips the breaker fails the read. The response tells whether the result ends with
+     * the page read, or before it if there is none.
      */
     @Override
     protected Response shardOperation(Request request, ShardId shardId) throws IOException {
@@ -219,14 +216,12 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
             PageReader reader = new PageReader(context);
             List<Run> runs = runs(searcher, context, request.streamId);
             int fromSeq = request.fromRow >= 0 ? seqForRow(reader, runs, request.fromRow) : request.fromSeq;
-            int toSeq = (int) Math.min((long) fromSeq + request.maxPages - 1, Integer.MAX_VALUE);
-            List<PageDoc> docs = findPages(reader, runs, fromSeq, toSeq);
-            Response response = readPages(searcher, reader, docs, fromSeq, request.maxBytes);
-            if (response.pages.isEmpty() && endsBefore(searcher, context, reader, runs, fromSeq)) {
-                response.decRef();
-                return new Response(List.of(), true, () -> {});
+            List<PageDoc> docs = findPages(reader, runs, fromSeq, fromSeq);
+            if (docs.isEmpty()) {
+                return new Response(null, endsBefore(searcher, context, reader, runs, fromSeq), () -> {});
             }
-            return response;
+            boolean ended = endsBefore(searcher, context, reader, runs, fromSeq + 1);
+            return readPage(searcher, reader, docs.getFirst(), ended);
         }
     }
 
@@ -327,7 +322,7 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
 
     /**
      * Whether the result ended before page {@code fromSeq}: its metadata document says the query is done, with at most
-     * {@code fromSeq} pages when it says how many. The pages are indexed before the final status, on the same shard, so a reader
+     * {@code fromSeq} pages when it says how many, or without page {@code fromSeq} when it does not. The pages are indexed before the final status, on the same shard, so a reader
      * that sees the end sees every page before it.
      */
     private static boolean endsBefore(
@@ -351,42 +346,25 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
             return false;
         }
         SortedNumericLongValues pages = PageReader.numeric(context, STREAM_TOTAL_PAGES).load(leaf).getLongValues();
-        return pages.advanceExact(doc.doc) == false || fromSeq >= pages.nextValue();
+        if (pages.advanceExact(doc.doc) == false) {
+            return findPages(reader, runs, fromSeq, fromSeq).isEmpty();
+        }
+        return fromSeq >= pages.nextValue();
     }
 
-    private Response readPages(Engine.Searcher searcher, PageReader reader, List<PageDoc> docs, int fromSeq, long maxBytes)
-        throws IOException {
-        List<StoredPage> pages = new ArrayList<>();
-        long charged = 0;
+    private Response readPage(Engine.Searcher searcher, PageReader reader, PageDoc doc, boolean resultEnded) throws IOException {
+        LeafPageReader leaf = new LeafPageReader(reader, searcher.getLeafContexts().get(doc.leaf));
+        BytesRef bytes = leaf.page(doc.doc);
+        breaker.addEstimateBytesAndMaybeBreak(bytes.length, BREAKER_LABEL);
+        long charged = bytes.length;
+        StoredPage page;
         try {
-            // one leaf's pages come in doc order, as the index is sorted by page
-            Map<Integer, LeafPageReader> leaves = new HashMap<>();
-            for (PageDoc doc : docs) {
-                if (doc.seq != fromSeq + pages.size()) {
-                    break;
-                }
-                LeafPageReader leaf = leaves.computeIfAbsent(doc.leaf, l -> new LeafPageReader(reader, searcher.getLeafContexts().get(l)));
-                BytesRef page = leaf.page(doc.doc);
-                if (pages.isEmpty() == false && charged + page.length > maxBytes) {
-                    break;
-                }
-                try {
-                    breaker.addEstimateBytesAndMaybeBreak(page.length, BREAKER_LABEL);
-                } catch (CircuitBreakingException e) {
-                    if (pages.isEmpty()) {
-                        throw e;
-                    }
-                    break;
-                }
-                charged += page.length;
-                pages.add(leaf.storedPage(doc, page));
-            }
+            page = leaf.storedPage(doc, bytes);
         } catch (Exception e) {
             breaker.addWithoutBreaking(-charged);
             throw e;
         }
-        long toRelease = charged;
-        return new Response(pages, false, () -> breaker.addWithoutBreaking(-toRelease));
+        return new Response(page, resultEnded, () -> breaker.addWithoutBreaking(-charged));
     }
 
     /**
@@ -457,7 +435,7 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
     private record PageDoc(int seq, int leaf, int doc) {}
 
     /**
-     * Reads the content of the pages of one leaf, in doc order.
+     * Reads the content of a page of one leaf.
      */
     private static class LeafPageReader {
         private final SortedNumericLongValues firstRow;
@@ -512,47 +490,42 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
     }
 
     /**
-     * A read of consecutive pages of one result, from a page or from the page that holds a row.
+     * A read of one page of a result, a given page or the page that holds a row.
      */
     public static class Request extends SingleShardRequest<Request> {
         private final String streamId;
         private final int fromSeq;
         private final long fromRow;
-        private final int maxPages;
-        private final long maxBytes;
         private final TimeValue waitTimeout;
 
         /**
-         * Reads what is visible, without waiting and whatever its size.
+         * Reads the page if it is visible, without waiting.
          */
-        public Request(String streamId, int fromSeq, int maxPages) {
-            this(streamId, fromSeq, maxPages, Long.MAX_VALUE, TimeValue.ZERO);
+        public Request(String streamId, int fromSeq) {
+            this(streamId, fromSeq, TimeValue.ZERO);
         }
 
         /**
-         * Reads from the page that holds {@code row}, as {@link #Request(String, int, int, long, TimeValue)} does. The first page
-         * returned can start before the row.
+         * Reads the page that holds {@code row}, as {@link #Request(String, int, TimeValue)} does. The page returned can start
+         * before the row.
          */
-        public static Request fromRow(String streamId, long row, int maxPages, long maxBytes, TimeValue waitTimeout) {
-            return new Request(streamId, -1, row, maxPages, maxBytes, waitTimeout);
+        public static Request fromRow(String streamId, long row, TimeValue waitTimeout) {
+            return new Request(streamId, -1, row, waitTimeout);
         }
 
         /**
-         * Reads up to {@code maxPages} pages and {@code maxBytes} bytes, at least one page. Waits up to {@code waitTimeout} when
-         * the first page is not stored yet. The response can still be empty: the wait ends at the timeout, or as soon as a
-         * document of the result is indexed, which may not be one of these pages.
+         * Waits up to {@code waitTimeout} when the page is not stored yet. The response can still have no page: the wait ends at
+         * the timeout, or as soon as a document of the result is indexed, which may not be this page.
          */
-        public Request(String streamId, int fromSeq, int maxPages, long maxBytes, TimeValue waitTimeout) {
-            this(streamId, fromSeq, -1, maxPages, maxBytes, waitTimeout);
+        public Request(String streamId, int fromSeq, TimeValue waitTimeout) {
+            this(streamId, fromSeq, -1, waitTimeout);
         }
 
-        private Request(String streamId, int fromSeq, long fromRow, int maxPages, long maxBytes, TimeValue waitTimeout) {
+        private Request(String streamId, int fromSeq, long fromRow, TimeValue waitTimeout) {
             super(EsqlStreamResultsIndexDescriptor.INDEX);
             this.streamId = streamId;
             this.fromSeq = fromSeq;
             this.fromRow = fromRow;
-            this.maxPages = maxPages;
-            this.maxBytes = maxBytes;
             this.waitTimeout = waitTimeout;
         }
 
@@ -561,8 +534,6 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
             this.streamId = in.readString();
             this.fromSeq = Math.toIntExact(in.readZLong());
             this.fromRow = in.readZLong();
-            this.maxPages = in.readVInt();
-            this.maxBytes = in.readVLong();
             this.waitTimeout = in.readTimeValue();
         }
 
@@ -572,8 +543,6 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
             out.writeString(streamId);
             out.writeZLong(fromSeq);
             out.writeZLong(fromRow);
-            out.writeVInt(maxPages);
-            out.writeVLong(maxBytes);
             out.writeTimeValue(waitTimeout);
         }
 
@@ -589,14 +558,6 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
             return fromRow;
         }
 
-        int maxPages() {
-            return maxPages;
-        }
-
-        long maxBytes() {
-            return maxBytes;
-        }
-
         TimeValue waitTimeout() {
             return waitTimeout;
         }
@@ -610,12 +571,6 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
             if (fromRow < 0 && fromSeq <= METADATA_SEQ) {
                 e = addValidationError("[fromSeq] or [fromRow] must be at least 0, got [" + fromSeq + "] and [" + fromRow + "]", e);
             }
-            if (maxPages < 1 || maxPages > MAX_PAGES_PER_READ) {
-                e = addValidationError("[maxPages] must be between 1 and [" + MAX_PAGES_PER_READ + "], got [" + maxPages + "]", e);
-            }
-            if (maxBytes < 0) {
-                e = addValidationError("[maxBytes] must be positive, got [" + maxBytes + "]", e);
-            }
             if (waitTimeout.compareTo(MAX_WAIT_TIMEOUT) > 0) {
                 e = addValidationError("[waitTimeout] must be at most [" + MAX_WAIT_TIMEOUT + "], got [" + waitTimeout + "]", e);
             }
@@ -624,44 +579,40 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
     }
 
     /**
-     * The pages read, or none and whether the result ended before them. On the shard, it holds the memory charged for the pages
-     * until it is released.
+     * The page read, or none and whether the result ended before it. When there is a page, it tells whether the result ends with it.
+     * On the shard, it holds the memory charged for the page until it is released.
      */
     public static class Response extends ActionResponse {
-        private final List<StoredPage> pages;
+        @Nullable
+        private final StoredPage page;
         private final boolean resultEnded;
         @Nullable
         private final CircuitBreakingException tripped;
         private final RefCounted refCounted;
 
-        Response(List<StoredPage> pages, boolean resultEnded, Releasable onRelease) {
-            this.pages = pages;
+        Response(@Nullable StoredPage page, boolean resultEnded, Releasable onRelease) {
+            this.page = page;
             this.resultEnded = resultEnded;
             this.tripped = null;
             this.refCounted = LeakTracker.wrap(AbstractRefCounted.of(onRelease::close));
         }
 
         /**
-         * Reads a response from another node, charging each page to {@code breaker} of this node before copying its bytes, until
-         * the response is released. Once a page trips the breaker, the pages are dropped and the response holds the trip, see
+         * Reads a response from another node, charging the page to {@code breaker} of this node before copying its bytes, until
+         * the response is released. If the page trips the breaker, it is dropped and the response holds the trip, see
          * {@link #failOnTrip}.
          */
         Response(StreamInput in, CircuitBreaker breaker) throws IOException {
             ChargingPageReader reader = new ChargingPageReader(breaker);
-            List<StoredPage> read;
+            StoredPage read;
             try {
-                read = in.readCollectionAsList(reader);
+                read = in.readBoolean() ? reader.read(in) : null;
                 this.resultEnded = in.readBoolean();
             } catch (Exception e) {
                 breaker.addWithoutBreaking(-reader.charged);
                 throw e;
             }
-            if (reader.trip != null) {
-                breaker.addWithoutBreaking(-reader.charged);
-                reader.charged = 0;
-                read = List.of();
-            }
-            this.pages = read;
+            this.page = read;
             this.tripped = reader.trip;
             long toRelease = reader.charged;
             this.refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> breaker.addWithoutBreaking(-toRelease)));
@@ -671,7 +622,7 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
          * Whether a read can answer with it rather than wait.
          */
         boolean answers() {
-            return pages.isEmpty() == false || resultEnded;
+            return page != null || resultEnded;
         }
 
         public boolean resultEnded() {
@@ -698,18 +649,19 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
             return refCounted.hasReferences();
         }
 
-        public List<StoredPage> pages() {
-            return pages;
+        @Nullable
+        public StoredPage page() {
+            return page;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(pages);
+            out.writeOptionalWriteable(page);
             out.writeBoolean(resultEnded);
         }
 
         /**
-         * Reads pages, charging each one before copying its bytes out of the stream. Once one trips, the next pages are skipped.
+         * Reads a page, charging it before copying its bytes out of the stream.
          */
         private static class ChargingPageReader implements Writeable.Reader<StoredPage> {
             private final CircuitBreaker breaker;
@@ -728,9 +680,6 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
                 TransportVersion transportVersion = TransportVersion.readVersion(in);
                 // valid until the stream is released
                 BytesReference bytes = in.readSlicedBytesReference();
-                if (trip != null) {
-                    return null;
-                }
                 try {
                     breaker.addEstimateBytesAndMaybeBreak(bytes.length(), BREAKER_LABEL);
                 } catch (CircuitBreakingException e) {

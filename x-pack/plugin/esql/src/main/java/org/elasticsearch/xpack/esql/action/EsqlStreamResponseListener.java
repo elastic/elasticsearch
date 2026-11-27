@@ -139,7 +139,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private final AtomicLong rowsWritten = new AtomicLong();
     private final AtomicLong bytesWritten = new AtomicLong();
     private volatile long firstRow;
-    private volatile boolean complete = true;
+    private volatile BooleanSupplier complete = () -> true;
     private volatile SystemIndexStreamWriter writer;
     private volatile Exception storeFailure;
     private volatile String streamId;
@@ -564,7 +564,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
                 Exception failure = storeFailure;
                 ChunkedRestResponseBodyPart footerPart = failure == null
-                    ? new NdjsonFooterBodyPart(footer, complete)
+                    ? new NdjsonFooterBodyPart(footer, complete.getAsBoolean())
                     : new NdjsonFooterBodyPart(footerWithError(footer, failure), false);
                 if (responseSent == false) {
                     responseSent = true;

@@ -172,24 +172,15 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
      * {@code firstSeq} and hold every row up to {@code rowCount}, in order.
      */
     private void assertReadsStoredRows(String streamId, long row, int firstSeq, long rowCount) {
-        TransportReadStreamPagesAction.Request request = TransportReadStreamPagesAction.Request.fromRow(
-            streamId,
-            row,
-            between(1, 10),
-            Long.MAX_VALUE,
-            TimeValue.ZERO
-        );
+        TransportReadStreamPagesAction.Request request = TransportReadStreamPagesAction.Request.fromRow(streamId, row, TimeValue.ZERO);
         int nextSeq = firstSeq;
         long nextRow = -1;
         while (true) {
             TransportReadStreamPagesAction.Response response = client().execute(TransportReadStreamPagesAction.TYPE, request)
                 .actionGet(TEST_REQUEST_TIMEOUT);
             try {
-                if (response.resultEnded()) {
-                    break;
-                }
-                assertThat(response.pages(), not(empty()));
-                for (StoredPage page : response.pages()) {
+                StoredPage page = response.page();
+                if (page != null) {
                     assertThat(page.seq(), equalTo(nextSeq));
                     if (nextRow < 0) {
                         assertThat(page.firstRow(), lessThanOrEqualTo(row));
@@ -200,10 +191,14 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
                     nextSeq++;
                     nextRow = page.firstRow() + page.rowCount();
                 }
+                if (response.resultEnded()) {
+                    break;
+                }
+                assertNotNull("a read of a result that did not end finds a page", page);
             } finally {
                 response.decRef();
             }
-            request = new TransportReadStreamPagesAction.Request(streamId, nextSeq, between(1, 10));
+            request = new TransportReadStreamPagesAction.Request(streamId, nextSeq);
         }
         assertThat(nextRow, equalTo(rowCount));
     }

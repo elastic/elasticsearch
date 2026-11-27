@@ -23,71 +23,48 @@ import org.elasticsearch.xpack.esql.plugin.TransportReadStreamPagesAction.Respon
 import org.elasticsearch.xpack.esql.plugin.TransportReadStreamPagesAction.StoredPage;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.plugin.TransportReadStreamPagesAction.MAX_PAGES_PER_READ;
 import static org.elasticsearch.xpack.esql.plugin.TransportReadStreamPagesAction.MAX_WAIT_TIMEOUT;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ReadStreamPagesRequestTests extends ESTestCase {
 
     public void testValid() {
-        assertThat(new Request("r", 0, MAX_PAGES_PER_READ, 0, MAX_WAIT_TIMEOUT).validate(), nullValue());
-        assertThat(Request.fromRow("r", 0, 1, Long.MAX_VALUE, TimeValue.ZERO).validate(), nullValue());
+        assertThat(new Request("r", 0, MAX_WAIT_TIMEOUT).validate(), nullValue());
+        assertThat(Request.fromRow("r", 0, TimeValue.ZERO).validate(), nullValue());
     }
 
     public void testInvalid() {
         // seq -1 is the metadata document, not a page
-        assertInvalid(new Request("r", -1, 1, 0, TimeValue.ZERO), "[fromSeq] or [fromRow] must be at least 0");
-        assertInvalid(Request.fromRow("r", -5, 1, 0, TimeValue.ZERO), "got [-1] and [-5]");
-        assertInvalid(new Request("r", randomIntBetween(Integer.MIN_VALUE, -2), 1, 0, TimeValue.ZERO), "[fromSeq]");
-        assertInvalid(new Request("r", 1, 0, 0, TimeValue.ZERO), "[maxPages]");
-        assertInvalid(new Request("r", 1, MAX_PAGES_PER_READ + 1, 0, TimeValue.ZERO), "[maxPages]");
-        assertInvalid(new Request("r", 1, 1, -1, TimeValue.ZERO), "[maxBytes]");
-        assertInvalid(new Request("r", 1, 1, 0, TimeValue.timeValueMillis(MAX_WAIT_TIMEOUT.millis() + 1)), "[waitTimeout]");
+        assertInvalid(new Request("r", -1, TimeValue.ZERO), "[fromSeq] or [fromRow] must be at least 0");
+        assertInvalid(Request.fromRow("r", -5, TimeValue.ZERO), "got [-1] and [-5]");
+        assertInvalid(new Request("r", randomIntBetween(Integer.MIN_VALUE, -2), TimeValue.ZERO), "[fromSeq]");
+        assertInvalid(new Request("r", 1, TimeValue.timeValueMillis(MAX_WAIT_TIMEOUT.millis() + 1)), "[waitTimeout]");
     }
 
     public void testRequestRoundTrip() throws IOException {
         Request request = randomBoolean()
-            ? new Request(
-                randomAlphaOfLength(8),
-                randomIntBetween(0, Integer.MAX_VALUE),
-                randomIntBetween(1, MAX_PAGES_PER_READ),
-                randomNonNegativeLong(),
-                randomTimeValue()
-            )
-            : Request.fromRow(randomAlphaOfLength(8), randomNonNegativeLong(), randomIntBetween(1, MAX_PAGES_PER_READ), 0, TimeValue.ZERO);
+            ? new Request(randomAlphaOfLength(8), randomIntBetween(0, Integer.MAX_VALUE), randomTimeValue())
+            : Request.fromRow(randomAlphaOfLength(8), randomNonNegativeLong(), TimeValue.ZERO);
         Request copy = copyWriteable(request, new NamedWriteableRegistry(List.of()), Request::new);
         assertThat(copy.streamId(), equalTo(request.streamId()));
         assertThat(copy.fromSeq(), equalTo(request.fromSeq()));
         assertThat(copy.fromRow(), equalTo(request.fromRow()));
-        assertThat(copy.maxPages(), equalTo(request.maxPages()));
-        assertThat(copy.maxBytes(), equalTo(request.maxBytes()));
         assertThat(copy.waitTimeout(), equalTo(request.waitTimeout()));
     }
 
     /**
-     * A response read from another node holds its pages as they were written, charged to the breaker of the reading node
-     * until it is released.
+     * A response read from another node holds its page as it was written, charged to the breaker of the reading node until it
+     * is released.
      */
     public void testResponseRoundTripChargesBreaker() throws IOException {
-        List<StoredPage> pages = new ArrayList<>();
-        long bytes = 0;
-        long firstRow = 0;
-        int count = between(0, 5);
-        for (int seq = 0; seq < count; seq++) {
-            int rowCount = between(1, 100);
-            byte[] content = randomByteArrayOfLength(between(0, 1024));
-            pages.add(new StoredPage(seq, firstRow, rowCount, TransportVersionUtils.randomVersion(), new BytesArray(content)));
-            firstRow += rowCount;
-            bytes += content.length;
-        }
+        StoredPage page = randomBoolean() ? null : randomPage(between(0, 1024));
+        long bytes = page == null ? 0 : page.bytes().length();
         boolean ended = randomBoolean();
-        Response response = new Response(pages, ended, () -> {});
+        Response response = new Response(page, ended, () -> {});
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         Response copy;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -99,27 +76,21 @@ public class ReadStreamPagesRequestTests extends ESTestCase {
             response.decRef();
         }
         assertThat(copy.resultEnded(), equalTo(ended));
-        assertThat(copy.pages(), equalTo(pages));
+        assertThat(copy.page(), equalTo(page));
         assertThat(breaker.getUsed(), equalTo(bytes));
         copy.decRef();
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     /**
-     * Pages that trip the breaker of the reading node fail the read there, holding nothing, instead of being read again from
-     * another copy. The pages after the one that trips are skipped.
+     * A page that trips the breaker of the reading node fails the read there, holding nothing, instead of being read again from
+     * another copy.
      */
     public void testResponseThatTripsBreakerFailsRead() throws IOException {
-        List<StoredPage> pages = new ArrayList<>();
-        long bytes = 0;
-        for (int seq = 0, count = between(1, 4); seq < count; seq++) {
-            byte[] content = randomByteArrayOfLength(between(1, 1024));
-            pages.add(new StoredPage(seq, seq * 10L, 10, TransportVersionUtils.randomVersion(), new BytesArray(content)));
-            bytes += content.length;
-        }
+        StoredPage page = randomPage(between(1, 1024));
         boolean ended = randomBoolean();
-        Response response = new Response(pages, ended, () -> {});
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(between(0, (int) bytes - 1)));
+        Response response = new Response(page, ended, () -> {});
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(between(0, page.bytes().length() - 1)));
         Response copy;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
@@ -129,7 +100,7 @@ public class ReadStreamPagesRequestTests extends ESTestCase {
         } finally {
             response.decRef();
         }
-        assertThat(copy.pages(), empty());
+        assertThat(copy.page(), nullValue());
         assertThat(copy.resultEnded(), equalTo(ended));
         assertThat(breaker.getUsed(), equalTo(0L));
         PlainActionFuture<Response> future = new PlainActionFuture<>();
@@ -137,6 +108,16 @@ public class ReadStreamPagesRequestTests extends ESTestCase {
         expectThrows(CircuitBreakingException.class, future::actionGet);
         copy.decRef();
         assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    private static StoredPage randomPage(int bytes) {
+        return new StoredPage(
+            between(0, 100),
+            randomNonNegativeLong(),
+            between(1, 100),
+            TransportVersionUtils.randomVersion(),
+            new BytesArray(randomByteArrayOfLength(bytes))
+        );
     }
 
     private static void assertInvalid(Request request, String message) {

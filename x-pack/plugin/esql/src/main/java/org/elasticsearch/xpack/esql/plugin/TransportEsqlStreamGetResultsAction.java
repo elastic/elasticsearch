@@ -22,7 +22,6 @@ import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.esql.streaming.StreamMetadataDocument;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
@@ -75,15 +73,20 @@ public class TransportEsqlStreamGetResultsAction extends TransportAction<GetStre
     @Override
     protected void doExecute(Task task, GetStreamResultRequest request, ActionListener<ActionResponse.Empty> listener) {
         Client storeClient = new OriginSettingClient(client.projectClient(projectResolver.getProjectId()), ESQL_ORIGIN);
-        String streamId = request.streamId();
+        fetchStream(storeClient, request.streamId(), listener.delegateFailureAndWrap((l, stream) -> {
+            if (request.resultStreamListener() == null) {
+                throw new IllegalStateException("[resultStreamListener] is required to read a stream");
+            }
+            new PageProducer((CancellableTask) task, request, stream, storeClient, l).start();
+        }));
+    }
+
+    private static void fetchStream(Client storeClient, String streamId, ActionListener<StoredStream> listener) {
         storeClient.prepareGet(INDEX, streamId).setRouting(streamId).execute(ActionListener.wrap(get -> {
             if (get.isExists() == false) {
                 throw new ResourceNotFoundException(streamId);
             }
-            if (request.resultStreamListener() == null) {
-                throw new IllegalStateException("[resultStreamListener] is required to read a stream");
-            }
-            read(task, request, storedStream(StreamMetadataDocument.fromSource(get.getSourceAsMap())), storeClient, listener);
+            listener.onResponse(storedStream(StreamMetadataDocument.fromSource(get.getSourceAsMap())));
         }, e -> {
             if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                 listener.onFailure(new ResourceNotFoundException(streamId));
@@ -91,71 +94,6 @@ public class TransportEsqlStreamGetResultsAction extends TransportAction<GetStre
                 listener.onFailure(e);
             }
         }));
-    }
-
-    private void read(
-        Task task,
-        GetStreamResultRequest request,
-        StoredStream stream,
-        Client storeClient,
-        ActionListener<ActionResponse.Empty> listener
-    ) {
-        if (request.statusOnly()) {
-            respond(task, request, stream, List.of(), request.offset(), listener);
-            return;
-        }
-        TransportReadStreamPagesAction.Request read = TransportReadStreamPagesAction.Request.fromRow(
-            request.streamId(),
-            request.offset(),
-            TransportReadStreamPagesAction.MAX_PAGES_PER_READ,
-            request.hasByteLimit() ? request.maxBytes() : Long.MAX_VALUE,
-            waitTimeout(request)
-        );
-        storeClient.execute(TransportReadStreamPagesAction.TYPE, read, ActionListener.wrap(response -> {
-            List<Page> pages = decode(response.pages(), request.offset());
-            respond(task, request, stream, pages, endRow(response.pages(), request.offset()), listener);
-        }, listener::onFailure));
-    }
-
-    private static void respond(
-        Task task,
-        GetStreamResultRequest request,
-        StoredStream stream,
-        List<Page> pages,
-        long endRow,
-        ActionListener<ActionResponse.Empty> listener
-    ) {
-        if (((CancellableTask) task).notifyIfCancelled(listener)) {
-            Releasables.closeExpectNoException(pages);
-            return;
-        }
-        PageStreamPublisher publisher = new PageStreamPublisher();
-        PageStreamPublisher.Producer producer = publisher.registerProducer();
-        for (Page page : pages) {
-            producer.addPage(page);
-        }
-        producer.finish();
-        publisher.completeWithFooter(stream.footer());
-        boolean partial = stream.footer().isPartial();
-        request.resultStreamListener()
-            .onResponse(
-                new ResultStream(
-                    stream.columns(),
-                    publisher,
-                    null,
-                    ZoneOffset.UTC,
-                    null,
-                    () -> partial,
-                    request.offset(),
-                    stream.completeAt(endRow)
-                )
-            );
-        Exception failure = publisher.failure();
-        if (failure != null) {
-            listener.onFailure(failure);
-        } else {
-            listener.onResponse(ActionResponse.Empty.INSTANCE);
-        }
     }
 
     private static TimeValue waitTimeout(GetStreamResultRequest request) {
@@ -166,25 +104,122 @@ public class TransportEsqlStreamGetResultsAction extends TransportAction<GetStre
         return TimeValue.timeValueMillis(Math.min(millis, TransportReadStreamPagesAction.MAX_WAIT_TIMEOUT.millis()));
     }
 
-    private static long endRow(List<StoredPage> stored, long offset) {
-        if (stored.isEmpty()) {
-            return offset;
-        }
-        StoredPage last = stored.getLast();
-        return last.firstRow() + last.rowCount();
-    }
+    private final class PageProducer {
+        private final CancellableTask task;
+        private final GetStreamResultRequest request;
+        private final StoredStream stream;
+        private final Client storeClient;
+        private final ActionListener<ActionResponse.Empty> listener;
+        private final PageStreamPublisher publisher = new PageStreamPublisher();
+        private final PageStreamPublisher.Producer producer = publisher.registerProducer();
+        private volatile boolean complete;
+        private boolean firstRead = true;
+        private int nextSeq;
+        private long endRow;
 
-    private List<Page> decode(List<StoredPage> stored, long offset) throws IOException {
-        List<Page> pages = new ArrayList<>(stored.size());
-        try {
-            for (StoredPage page : stored) {
-                pages.add(decode(page, offset));
-            }
-        } catch (Exception e) {
-            Releasables.closeExpectNoException(pages);
-            throw e;
+        PageProducer(
+            CancellableTask task,
+            GetStreamResultRequest request,
+            StoredStream stream,
+            Client storeClient,
+            ActionListener<ActionResponse.Empty> listener
+        ) {
+            this.task = task;
+            this.request = request;
+            this.stream = stream;
+            this.storeClient = storeClient;
+            this.listener = listener;
+            this.endRow = request.offset();
         }
-        return pages;
+
+        void start() {
+            if (task.notifyIfCancelled(listener)) {
+                return;
+            }
+            boolean partial = stream.footer().isPartial();
+            request.resultStreamListener()
+                .onResponse(
+                    new ResultStream(
+                        stream.columns(),
+                        publisher,
+                        null,
+                        ZoneOffset.UTC,
+                        null,
+                        () -> partial,
+                        request.offset(),
+                        () -> complete
+                    )
+                );
+            if (publisher.failure() != null) {
+                end();
+            } else if (request.statusOnly()) {
+                finish(stream);
+            } else {
+                readWhenRequested();
+            }
+        }
+
+        private void readWhenRequested() {
+            publisher.waitForWriting().listener().addListener(ActionListener.wrap(ignored -> {
+                if (publisher.isClosed()) {
+                    end();
+                } else if (task.isCancelled()) {
+                    fail(task.getTaskCancelledException());
+                } else {
+                    readPage();
+                }
+            }, this::fail));
+        }
+
+        private void readPage() {
+            TimeValue waitTimeout = waitTimeout(request);
+            TransportReadStreamPagesAction.Request read = firstRead
+                ? TransportReadStreamPagesAction.Request.fromRow(request.streamId(), request.offset(), waitTimeout)
+                : new TransportReadStreamPagesAction.Request(request.streamId(), nextSeq, waitTimeout);
+            storeClient.execute(TransportReadStreamPagesAction.TYPE, read, ActionListener.wrap(response -> {
+                StoredPage stored = response.page();
+                if (stored == null) {
+                    finishWithLatestStream();
+                    return;
+                }
+                Page page = decode(stored, request.offset());
+                firstRead = false;
+                nextSeq = stored.seq() + 1;
+                endRow = stored.firstRow() + stored.rowCount();
+                if (producer.addPage(page) == false) {
+                    end();
+                } else if (response.resultEnded()) {
+                    finishWithLatestStream();
+                } else {
+                    readWhenRequested();
+                }
+            }, this::fail));
+        }
+
+        private void finishWithLatestStream() {
+            fetchStream(storeClient, request.streamId(), ActionListener.wrap(this::finish, this::fail));
+        }
+
+        private void finish(StoredStream latest) {
+            complete = latest.completeAt(endRow);
+            producer.finish();
+            publisher.completeWithFooter(latest.footer());
+            end();
+        }
+
+        private void fail(Exception e) {
+            publisher.failStream(e);
+            listener.onFailure(e);
+        }
+
+        private void end() {
+            Exception failure = publisher.failure();
+            if (failure != null) {
+                listener.onFailure(failure);
+            } else {
+                listener.onResponse(ActionResponse.Empty.INSTANCE);
+            }
+        }
     }
 
     private Page decode(StoredPage stored, long offset) throws IOException {

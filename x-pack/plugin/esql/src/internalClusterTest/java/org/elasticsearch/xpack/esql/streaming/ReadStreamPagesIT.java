@@ -58,10 +58,10 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Reads of stored stream pages straight from the shard holding them. The tests write the pages and the metadata document of a
@@ -115,32 +115,34 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         List<BytesRef> first = randomBlobs(between(1, 3));
         writePages(streamId, 0, first);
         // indexed but never refreshed
-        List<StoredPage> visible = read(
-            new TransportReadStreamPagesAction.Request(streamId, 0, first.size(), Long.MAX_VALUE, TimeValue.timeValueSeconds(30))
-        );
-        assertThat(visible.size(), equalTo(first.size()));
+        StoredPage visible = read(new TransportReadStreamPagesAction.Request(streamId, 0, TimeValue.timeValueSeconds(30)));
+        assertThat(visible.seq(), equalTo(0));
+        assertThat(readAll(streamId, 0).size(), equalTo(first.size()));
 
         int nextSeq = first.size();
         ActionFuture<TransportReadStreamPagesAction.Response> waiting = startWaitingRead(
             streamId,
-            new TransportReadStreamPagesAction.Request(streamId, nextSeq, 10, Long.MAX_VALUE, TimeValue.timeValueSeconds(30))
+            new TransportReadStreamPagesAction.Request(streamId, nextSeq, TimeValue.timeValueSeconds(30))
         );
         assertFalse(waiting.isDone());
 
         List<BytesRef> next = randomBlobs(between(1, 3));
         writePages(streamId, nextSeq, next);
-        List<StoredPage> woken = pagesOf(waiting);
-        assertThat(woken.size(), equalTo(next.size()));
+        StoredPage woken = pageOf(waiting);
+        assertThat(woken.seq(), equalTo(nextSeq));
+        assertThat(woken.bytes().toBytesRef(), equalTo(next.getFirst()));
+        List<StoredPage> nextPages = readAll(streamId, nextSeq);
+        assertThat(nextPages.size(), equalTo(next.size()));
         for (int i = 0; i < next.size(); i++) {
-            assertThat(woken.get(i).seq(), equalTo(nextSeq + i));
-            assertThat(woken.get(i).bytes().toBytesRef(), equalTo(next.get(i)));
+            assertThat(nextPages.get(i).seq(), equalTo(nextSeq + i));
+            assertThat(nextPages.get(i).bytes().toBytesRef(), equalTo(next.get(i)));
         }
 
         // the wait times out
-        List<StoredPage> timedOut = read(
-            new TransportReadStreamPagesAction.Request(streamId, nextSeq + next.size(), 10, Long.MAX_VALUE, TimeValue.timeValueMillis(100))
+        StoredPage timedOut = read(
+            new TransportReadStreamPagesAction.Request(streamId, nextSeq + next.size(), TimeValue.timeValueMillis(100))
         );
-        assertThat(timedOut.size(), equalTo(0));
+        assertThat(timedOut, nullValue());
         // a read frees its slot once it has answered
         assertBusy(() -> {
             for (StoredPagesService service : internalCluster().getInstances(StoredPagesService.class)) {
@@ -151,7 +153,8 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A read past the last page of a result that ended answers at once that it ended: its wait is longer than the test waits
-     * for the answer. A result that failed has no page count, and ends wherever it stopped.
+     * for the answer. A result that failed has no page count, and ends wherever it stopped. The read of the last page tells that
+     * the result ends with it, and the read of any page before it that it does not.
      */
     public void testReadPastEndedResultDoesNotWait() {
         String streamId = randomAlphaOfLength(12);
@@ -167,36 +170,40 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
 
         TransportReadStreamPagesAction.Response response = client().execute(
             TransportReadStreamPagesAction.TYPE,
-            new TransportReadStreamPagesAction.Request(streamId, pages, 1, Long.MAX_VALUE, TimeValue.timeValueMinutes(1))
+            new TransportReadStreamPagesAction.Request(streamId, pages, TimeValue.timeValueMinutes(1))
         ).actionGet(TEST_REQUEST_TIMEOUT);
         try {
             assertTrue(response.resultEnded());
-            assertThat(response.pages().size(), equalTo(0));
+            assertThat(response.page(), nullValue());
         } finally {
             response.decRef();
         }
         // the pages before the end are still read
-        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, 0, pages)).size(), equalTo(pages));
+        assertThat(readAll(streamId, 0).size(), equalTo(pages));
+        assertTrue(resultEnded(new TransportReadStreamPagesAction.Request(streamId, pages - 1)));
+        for (int seq = 0; seq < pages - 1; seq++) {
+            assertFalse(resultEnded(new TransportReadStreamPagesAction.Request(streamId, seq)));
+        }
     }
 
     /**
-     * A read past the last page of a result that is still written waits, and is not answered as ended.
+     * A read past the last page of a result that is still written waits, and is not answered as ended. Nor is the read of its last
+     * page so far.
      */
     public void testReadPastRunningResultWaits() throws Exception {
         String streamId = randomAlphaOfLength(12);
         writeMetadata(running(streamId));
         writePages(streamId, 0, randomBlobs(2));
         refreshPages();
+        assertFalse(resultEnded(new TransportReadStreamPagesAction.Request(streamId, 1)));
 
         ActionFuture<TransportReadStreamPagesAction.Response> waiting = startWaitingRead(
             streamId,
-            new TransportReadStreamPagesAction.Request(streamId, 2, 1, Long.MAX_VALUE, TimeValue.timeValueSeconds(30))
+            new TransportReadStreamPagesAction.Request(streamId, 2, TimeValue.timeValueSeconds(30))
         );
         assertFalse(waiting.isDone());
         writePages(streamId, 2, randomBlobs(1));
-        List<StoredPage> pages = pagesOf(waiting);
-        assertThat(pages.size(), equalTo(1));
-        assertThat(pages.get(0).seq(), equalTo(2));
+        assertThat(pageOf(waiting).seq(), equalTo(2));
     }
 
     /**
@@ -216,12 +223,10 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
 
         ActionFuture<TransportReadStreamPagesAction.Response> waiting = startWaitingRead(
             streamId,
-            TransportReadStreamPagesAction.Request.fromRow(streamId, 45, 1, Long.MAX_VALUE, TimeValue.timeValueSeconds(30))
+            TransportReadStreamPagesAction.Request.fromRow(streamId, 45, TimeValue.timeValueSeconds(30))
         );
         writePages(streamId, 4, randomBlobs(1));
-        List<StoredPage> pages = pagesOf(waiting);
-        assertThat(pages.size(), equalTo(1));
-        assertThat(pages.get(0).seq(), equalTo(4));
+        assertThat(pageOf(waiting).seq(), equalTo(4));
     }
 
     /**
@@ -233,10 +238,10 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         writeMetadata(running(streamId));
         ActionFuture<TransportReadStreamPagesAction.Response> waiting = startWaitingRead(
             streamId,
-            TransportReadStreamPagesAction.Request.fromRow(streamId, 5, 1, Long.MAX_VALUE, TimeValue.timeValueSeconds(30))
+            TransportReadStreamPagesAction.Request.fromRow(streamId, 5, TimeValue.timeValueSeconds(30))
         );
         writePages(streamId, 3, randomBlobs(2));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> pagesOf(waiting));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> pageOf(waiting));
         assertThat(e.getMessage(), equalTo("row [5] is not stored, the stored rows start at [30]"));
 
         // the later pages in another segment
@@ -245,30 +250,14 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         refreshPages();
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> read(TransportReadStreamPagesAction.Request.fromRow(streamId, 29, 1, Long.MAX_VALUE, TimeValue.ZERO))
+            () -> read(TransportReadStreamPagesAction.Request.fromRow(streamId, 29, TimeValue.ZERO))
         );
         assertThat(e.getMessage(), equalTo("row [29] is not stored, the stored rows start at [30]"));
         assertThat(firstSeqFromRow(streamId, 30), equalTo(3));
     }
 
     /**
-     * A read takes pages while they fit in its budget, and always the first.
-     */
-    public void testReadStopsAtByteBudget() {
-        String streamId = randomAlphaOfLength(12);
-        int pageBytes = 1024;
-        int pageCount = between(2, 8);
-        writePages(streamId, 0, sameSizeBlobs(pageCount, pageBytes));
-        refreshPages();
-
-        int fitting = between(1, pageCount);
-        long maxBytes = fitting * pageBytes + between(0, pageBytes - 1);
-        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, 0, 100, maxBytes, TimeValue.ZERO)).size(), equalTo(fitting));
-        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, 0, 100, 0, TimeValue.ZERO)).size(), equalTo(1));
-    }
-
-    /**
-     * A read ends before a page that is not visible, so that the pages after it are read once it is.
+     * A read of a page that is not visible finds none, so that the pages after it are read once it is.
      */
     public void testReadStopsAtMissingPage() {
         String streamId = randomAlphaOfLength(12);
@@ -277,28 +266,23 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         writePages(streamId, before + 1, randomBlobs(between(1, 4)));
         refreshPages();
 
-        List<StoredPage> pages = read(new TransportReadStreamPagesAction.Request(streamId, 0, 100, Long.MAX_VALUE, TimeValue.ZERO));
+        List<StoredPage> pages = readAll(streamId, 0);
         assertThat(pages.stream().map(StoredPage::seq).toList(), equalTo(IntStream.range(0, before).boxed().toList()));
+        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, before + 1)).seq(), equalTo(before + 1));
     }
 
     /**
-     * The pages of a read are charged to the request breaker: a page that trips it ends the read, unless it is the first.
+     * The page of a read is charged to the request breaker: a page that trips it fails the read.
      */
     public void testReadChargesRequestBreaker() {
         String streamId = randomAlphaOfLength(12);
         int pageBytes = 64 * 1024;
         writePages(streamId, 0, sameSizeBlobs(between(2, 4), pageBytes));
         refreshPages();
-        TransportReadStreamPagesAction.Request request = new TransportReadStreamPagesAction.Request(
-            streamId,
-            1,
-            100,
-            Long.MAX_VALUE,
-            TimeValue.ZERO
-        );
+        TransportReadStreamPagesAction.Request request = new TransportReadStreamPagesAction.Request(streamId, 1);
         try {
             setRequestBreakerLimit(pageBytes * 3 / 2 + "b");
-            assertThat(read(request).size(), equalTo(1));
+            assertThat(read(request).seq(), equalTo(1));
 
             setRequestBreakerLimit(pageBytes / 2 + "b");
             expectThrows(CircuitBreakingException.class, () -> read(request));
@@ -332,10 +316,10 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         try {
             expectThrows(
                 CircuitBreakingException.class,
-                () -> pagesOf(
+                () -> pageOf(
                     client(coordinator).execute(
                         TransportReadStreamPagesAction.TYPE,
-                        new TransportReadStreamPagesAction.Request(streamId, 0, 100)
+                        new TransportReadStreamPagesAction.Request(streamId, 0)
                     )
                 )
             );
@@ -368,7 +352,7 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
             updateClusterSettings(Settings.builder().put(ALLOW_EXPENSIVE_QUERIES.getKey(), false));
             for (String streamId : streamIds) {
                 int fromSeq = between(0, pageCount - 1);
-                List<StoredPage> pages = read(new TransportReadStreamPagesAction.Request(streamId, fromSeq, 100));
+                List<StoredPage> pages = readAll(streamId, fromSeq);
                 assertThat(pages.stream().map(StoredPage::seq).toList(), equalTo(IntStream.range(fromSeq, pageCount).boxed().toList()));
                 long row = randomLongBetween(0, pageCount * 10L - 1);
                 assertThat(firstSeqFromRow(streamId, row), equalTo((int) (row / 10)));
@@ -433,15 +417,11 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         assertThat(copies, greaterThan(0));
         for (int i = 0; i < 20; i++) {
             int fromSeq = between(0, pageCount - 1);
-            List<StoredPage> pages = read(new TransportReadStreamPagesAction.Request(streamId, fromSeq, 3));
-            assertThat(
-                pages.stream().map(StoredPage::seq).toList(),
-                equalTo(IntStream.rangeClosed(fromSeq, Math.min(fromSeq + 2, pageCount - 1)).boxed().toList())
-            );
+            assertThat(read(new TransportReadStreamPagesAction.Request(streamId, fromSeq)).seq(), equalTo(fromSeq));
             long row = randomLongBetween(0, pageCount * 10L - 1);
             assertThat(firstSeqFromRow(streamId, row), equalTo((int) (row / 10)));
         }
-        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, pageCount, 3)), empty());
+        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, pageCount)), nullValue());
         assertThat(firstSeqFromRow(streamId, pageCount * 10L), equalTo(-1));
     }
 
@@ -529,8 +509,8 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
     }
 
     private int firstSeqFromRow(String streamId, long row) {
-        List<StoredPage> pages = read(TransportReadStreamPagesAction.Request.fromRow(streamId, row, 1, Long.MAX_VALUE, TimeValue.ZERO));
-        return pages.isEmpty() ? -1 : pages.get(0).seq();
+        StoredPage page = read(TransportReadStreamPagesAction.Request.fromRow(streamId, row, TimeValue.ZERO));
+        return page == null ? -1 : page.seq();
     }
 
     /**
@@ -566,18 +546,41 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Returns the pages of a read and releases the response, which the future holds a reference to.
+     * Returns the page of a read, or null if it found none, and releases the response, which the future holds a reference to.
      */
-    private static List<StoredPage> pagesOf(ActionFuture<TransportReadStreamPagesAction.Response> future) {
+    private static StoredPage pageOf(ActionFuture<TransportReadStreamPagesAction.Response> future) {
         TransportReadStreamPagesAction.Response response = future.actionGet(TEST_REQUEST_TIMEOUT);
         try {
-            return response.pages();
+            return response.page();
         } finally {
             response.decRef();
         }
     }
 
-    private List<StoredPage> read(TransportReadStreamPagesAction.Request request) {
-        return pagesOf(client().execute(TransportReadStreamPagesAction.TYPE, request));
+    private StoredPage read(TransportReadStreamPagesAction.Request request) {
+        return pageOf(client().execute(TransportReadStreamPagesAction.TYPE, request));
+    }
+
+    private boolean resultEnded(TransportReadStreamPagesAction.Request request) {
+        TransportReadStreamPagesAction.Response response = client().execute(TransportReadStreamPagesAction.TYPE, request)
+            .actionGet(TEST_REQUEST_TIMEOUT);
+        try {
+            return response.resultEnded();
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
+     * Reads the pages from {@code fromSeq} one by one, until a page is not visible.
+     */
+    private List<StoredPage> readAll(String streamId, int fromSeq) {
+        List<StoredPage> pages = new ArrayList<>();
+        StoredPage page = read(new TransportReadStreamPagesAction.Request(streamId, fromSeq));
+        while (page != null) {
+            pages.add(page);
+            page = read(new TransportReadStreamPagesAction.Request(streamId, fromSeq + pages.size()));
+        }
+        return pages;
     }
 }

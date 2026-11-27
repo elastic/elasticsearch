@@ -57,7 +57,7 @@ public class EsqlStreamQueryAction extends ActionType<ActionResponse.Empty> {
         TaskId taskId,
         BooleanSupplier isPartial,
         long firstRow,
-        boolean complete
+        BooleanSupplier complete
     ) {
         public ResultStream(
             List<ColumnInfoImpl> columns,
@@ -67,7 +67,7 @@ public class EsqlStreamQueryAction extends ActionType<ActionResponse.Empty> {
             TaskId taskId,
             BooleanSupplier isPartial
         ) {
-            this(columns, publisher, nullColumns, zoneId, taskId, isPartial, 0L, true);
+            this(columns, publisher, nullColumns, zoneId, taskId, isPartial, 0L, () -> true);
         }
     }
 }

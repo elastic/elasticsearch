@@ -1007,7 +1007,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
                     null,
                     () -> false,
                     firstRow,
-                    complete
+                    () -> complete
                 )
             );
         return new Subscribed(publisher, producer, channel, listener);

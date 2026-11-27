@@ -28,6 +28,7 @@ import java.util.concurrent.Executor;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * The refreshes run by {@link StoredPagesService} are completed by the test, and its tasks run on a {@link DeterministicTaskQueue},
@@ -58,7 +59,7 @@ public class StoredPagesServiceTests extends ESTestCase {
     });
 
     // what a read of the shard finds
-    private List<StoredPage> visible = List.of();
+    private StoredPage visible;
     private boolean ended;
     private int unreleased;
     private int reads;
@@ -110,9 +111,9 @@ public class StoredPagesServiceTests extends ESTestCase {
     }
 
     public void testVisiblePagesAnswerAtOnce() throws Exception {
-        visible = pages(1);
+        visible = page();
         Answers answers = read(SHARD, TIMEOUT);
-        assertThat(answers.pages, equalTo(visible));
+        assertThat(answers.page, equalTo(visible));
         assertThat(refreshed.size(), equalTo(0));
     }
 
@@ -130,11 +131,11 @@ public class StoredPagesServiceTests extends ESTestCase {
         Answers answers = startWaiting(SHARD);
         assertThat(service.waitingReads(), equalTo(1));
 
-        visible = pages(1);
+        visible = page();
         service.wake(RESULT);
         completeRefreshes();
         queue.runAllRunnableTasks();
-        assertThat(answers.pages, equalTo(visible));
+        assertThat(answers.page, equalTo(visible));
         assertThat(service.waitingReads(), equalTo(0));
 
         // its timeout does nothing more
@@ -153,11 +154,11 @@ public class StoredPagesServiceTests extends ESTestCase {
         // it holds a slot until it answers
         assertThat(service.waitingReads(), equalTo(1));
 
-        visible = pages(1);
+        visible = page();
         completeRefreshes();
         queue.runAllRunnableTasks();
         assertThat(answers.count, equalTo(1));
-        assertThat(answers.pages, equalTo(visible));
+        assertThat(answers.page, equalTo(visible));
         assertThat(service.waitingReads(), equalTo(0));
         assertThat(waiting, equalTo(List.of()));
         assertThat(unreleased, equalTo(0));
@@ -167,7 +168,7 @@ public class StoredPagesServiceTests extends ESTestCase {
         Answers answers = startWaiting(SHARD);
         queue.runAllTasksInTimeOrder();
         assertThat(answers.count, equalTo(1));
-        assertThat(answers.pages, equalTo(List.of()));
+        assertThat(answers.page, nullValue());
         assertThat(service.waitingReads(), equalTo(0));
         assertThat(unreleased, equalTo(0));
     }
@@ -273,23 +274,19 @@ public class StoredPagesServiceTests extends ESTestCase {
         toComplete.forEach(l -> l.onResponse(null));
     }
 
-    private static List<StoredPage> pages(int count) {
-        List<StoredPage> pages = new ArrayList<>();
-        for (int seq = 0; seq < count; seq++) {
-            pages.add(new StoredPage(seq, seq * 10L, 10, TransportVersion.current(), new BytesArray(new byte[10])));
-        }
-        return pages;
+    private static StoredPage page() {
+        return new StoredPage(0, 0L, 10, TransportVersion.current(), new BytesArray(new byte[10]));
     }
 
     private static class Answers implements ActionListener<Response> {
         private int count;
-        private List<StoredPage> pages;
+        private StoredPage page;
         private Exception failure;
 
         @Override
         public void onResponse(Response response) {
             count++;
-            pages = response.pages();
+            page = response.page();
         }
 
         @Override

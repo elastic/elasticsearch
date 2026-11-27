@@ -14,13 +14,27 @@ dependencies {
   javaRestTestImplementation project(':test:fixtures:arrow-interop-fixture')
   javaRestTestImplementation project(':test:fixtures:testcontainer-utils')
   javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+
+  // Modules that provide ES|QL and the field types under test, on top of the minimal distribution
+  clusterModules project(xpackModule('esql'))
+  // x-pack-esql extends x-pack-eql (-> x-pack-ql -> mapper-version)
+  clusterModules project(xpackModule('eql'))
+  clusterModules project(xpackModule('ql'))
+  clusterModules project(xpackModule('mapper-version'))
+  clusterModules project(xpackModule('mapper-unsigned-long'))
+  clusterModules project(xpackModule('mapper-aggregate-metric'))
+  clusterModules project(xpackModule('spatial'))
+  clusterModules project(xpackModule('analytics')) // histogram, exponential_histogram, tdigest
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:data-streams') // time series
+  clusterModules project(':modules:aggregations')
+  clusterModules project(xpackModule('autoscaling'))
+  clusterModules project(xpackModule('ilm')) // x-pack core registers ILM settings and actions, which must then exist
 }
 
 tasks.named('javaRestTest') {
   // Docker availability is only checked by a JUnit rule, which skips the whole suite when Docker is missing. Gradle
   // must not reuse such a skipped run as an up-to-date result once Docker is available.
   outputs.upToDateWhen { false }
-  usesDefaultDistribution(
-    "ES|QL plus the field types under test (spatial, analytics histograms and t-digest, unsigned_long, version, aggregate_metric_double) are x-pack modules; the default distribution avoids maintaining that list of modules and their dependencies here"
-  )
 }

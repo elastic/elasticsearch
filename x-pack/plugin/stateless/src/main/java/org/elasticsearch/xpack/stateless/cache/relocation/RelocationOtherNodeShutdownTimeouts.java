@@ -76,7 +76,7 @@ public class RelocationOtherNodeShutdownTimeouts {
             return fallbackTimeout();
         }
         final var deadlineShares = deadlineShares(state, targetNodeId);
-        // the recoveries only grow with the deadline, so we only need to check the latest deadline, which is the first one
+        // The latest deadline counts every recovery on the target, so we check it as the worst case
         if (deadlineShares.isEmpty() || deadlineShares.getFirst().noShardWaitingForRelocationSlot()) {
             // no shutting-down node waits for this target before its deadline, or nobody queues behind anybody: treat this as if it were
             // not a shutting-down node

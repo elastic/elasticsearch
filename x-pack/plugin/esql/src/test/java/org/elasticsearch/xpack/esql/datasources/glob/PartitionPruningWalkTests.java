@@ -1237,6 +1237,102 @@ public class PartitionPruningWalkTests extends ESTestCase {
         }
     }
 
+    /**
+     * Later remaining dirs list under the current remaining listed budget, not the whole folder, so a
+     * slow head slot cannot buffer siblings past {@code max_listed_objects}.
+     */
+    public void testParallelFinishLaterSlotsHonorListedBudget() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        int maxListed = FINISH_CAP_FILES_PER_DAY + 3;
+        int laterFiles = 80;
+        ListingWalkHarness provider = new ListingWalkHarness(finishCapTree(laterFiles));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            expectThrows(
+                ListedObjectsLimitException.class,
+                () -> PartitionPruningWalk.withFinishMode(
+                    PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                    () -> tryWalkAsync(
+                        provider,
+                        WIDE_HIVE_GLOB,
+                        List.of(),
+                        pred,
+                        () -> false,
+                        4,
+                        executor,
+                        Integer.MAX_VALUE,
+                        maxListed,
+                        PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS,
+                        Integer.MAX_VALUE
+                    )
+                )
+            );
+            int later = 0;
+            for (String path : provider.enumeratedFiles) {
+                if (path.contains("aws-account-id=000000000003")) {
+                    later++;
+                }
+            }
+            assertThat("later remaining dir must stop at the remaining listed trip cap, not the whole folder", later, lessThan(laterFiles));
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    /**
+     * A later remaining dir's listObjects failure must not replace a truncated result from an earlier
+     * slot. Sequential never opens that later dir after the trip object.
+     */
+    public void testParallelFinishLaterListFailureDoesNotReplaceTruncation() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        int maxListed = FINISH_CAP_FILES_PER_DAY + 3;
+        int maxFiles = 100;
+
+        ListingWalkHarness sequentialProvider = new ListingWalkHarness(finishCapTree());
+        sequentialProvider.setFailListObjectsContaining("aws-account-id=000000000004");
+        PartitionPruningWalk.WalkResult sequential = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> tryWalk(
+                sequentialProvider,
+                WIDE_HIVE_GLOB,
+                List.of(),
+                pred,
+                () -> false,
+                Integer.MAX_VALUE,
+                maxListed,
+                PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS,
+                maxFiles
+            )
+        );
+        assertNotNull(sequential);
+        assertTrue(sequential.truncated());
+
+        ListingWalkHarness parallelProvider = new ListingWalkHarness(finishCapTree());
+        parallelProvider.setFailListObjectsContaining("aws-account-id=000000000004");
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            PartitionPruningWalk.WalkResult parallel = PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> tryWalkAsync(
+                    parallelProvider,
+                    WIDE_HIVE_GLOB,
+                    List.of(),
+                    pred,
+                    () -> false,
+                    4,
+                    executor,
+                    Integer.MAX_VALUE,
+                    maxListed,
+                    PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS,
+                    maxFiles
+                )
+            );
+            assertEquals(sequential, parallel);
+        } finally {
+            terminate(executor);
+        }
+    }
+
     public void testParallelFinishUnavailableFailsClosed() throws Exception {
         FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
         String failFragment = "aws-account-id=000000000002";
@@ -1363,6 +1459,10 @@ public class PartitionPruningWalkTests extends ESTestCase {
      * each matching day so a raw-entry listing cap never reaches the trip file.
      */
     private static List<StorageEntry> finishCapTree() {
+        return finishCapTree(FINISH_CAP_FILES_PER_DAY);
+    }
+
+    private static List<StorageEntry> finishCapTree(int laterFiles) {
         List<StorageEntry> entries = new ArrayList<>();
         for (int a = 1; a <= FINISH_CAP_ACCOUNTS; a++) {
             String prefix = WIDE_HIVE_PREFIX
@@ -1371,12 +1471,20 @@ public class PartitionPruningWalkTests extends ESTestCase {
                 + "/aws-service=vpcflowlogs/aws-region=us-east-1";
             String day = prefix + "/year=2026/month=06/day=01";
             entries.add(ListingWalkHarness.entry(day + "/"));
-            for (int hour = 0; hour < 2; hour++) {
+            int files = a == 1 ? FINISH_CAP_FILES_PER_DAY : laterFiles;
+            int n = 0;
+            for (int hour = 0; hour < 2 && n < files; hour++) {
                 String hourFolder = day + "/hour=" + String.format(Locale.ROOT, "%02d", hour);
                 entries.add(ListingWalkHarness.entry(hourFolder + "/"));
-                for (int n = 0; n < 2; n++) {
-                    entries.add(ListingWalkHarness.entry(hourFolder + "/f-" + n + ".parquet"));
+                int perHour = hour == 0 ? Math.min(2, files) : files - n;
+                for (int f = 0; f < perHour; f++) {
+                    entries.add(ListingWalkHarness.entry(hourFolder + "/f-" + f + ".parquet"));
+                    n++;
                 }
+            }
+            while (n < files) {
+                entries.add(ListingWalkHarness.entry(day + "/hour=01/f-" + n + ".parquet"));
+                n++;
             }
             entries.add(ListingWalkHarness.entry(prefix + "/year=2026/month=06/day=02/hour=00/f-0.parquet"));
             entries.add(ListingWalkHarness.entry(prefix + "/year=2026/month=07/day=01/hour=00/f-0.parquet"));

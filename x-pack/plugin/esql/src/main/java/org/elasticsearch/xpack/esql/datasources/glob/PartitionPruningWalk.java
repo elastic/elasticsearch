@@ -827,9 +827,10 @@ final class PartitionPruningWalk {
         BooleanSupplier cancelled,
         ActionListener<WalkResult> listener
     ) {
+        ActionListener<WalkResult> once = ActionListener.notifyOnce(listener);
         if (concurrency <= 1 || executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             ActionListener.completeWith(
-                listener,
+                once,
                 () -> finishSurvivors(
                     collector,
                     provider,
@@ -845,54 +846,54 @@ final class PartitionPruningWalk {
             return;
         }
         if (collector.truncated()) {
-            listener.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
+            once.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
             return;
         }
         if (prunedColumns.isEmpty() || mode == FinishMode.ALWAYS_FLAT) {
-            listener.onResponse(null);
+            once.onResponse(null);
             return;
         }
         if (dirs.isEmpty()) {
-            listener.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
+            once.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
             return;
         }
         FinishProbe probe = null;
         try {
             Exception cancelledNow = cancellationFailure(cancelled);
             if (cancelledNow != null) {
-                listener.onFailure(cancelledNow);
+                once.onFailure(cancelledNow);
                 return;
             }
             probe = probeFinish(provider, dirs, estimatedPrefixWidth, mode, templateFrontier);
             if (probe.flatten) {
-                listener.onResponse(null);
+                once.onResponse(null);
                 return;
             }
             applyFinishProbe(collector, probe);
             closeDirSample(probe.secondSample);
             probe.secondSample = null;
             if (collector.truncated()) {
-                listener.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
+                once.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
                 return;
             }
             List<StoragePath> remaining = remainingFinishDirs(dirs, probe.measure, probe.second);
             if (remaining.isEmpty()) {
-                listener.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
+                once.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
                 return;
             }
             listObjectsParallel(provider, remaining, collector, concurrency, executor, cancelled, new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
-                    listener.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
+                    once.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                    once.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            listener.onFailure(e);
+            once.onFailure(e);
         } finally {
             if (probe != null) {
                 try {
@@ -1163,7 +1164,7 @@ final class PartitionPruningWalk {
             listener.onResponse(null);
             return;
         }
-        AtomicReference<AtomicReferenceArray<List<StorageEntry>>> liveSlots = new AtomicReference<>(new AtomicReferenceArray<>(size));
+        AtomicReference<AtomicReferenceArray<FinishSlot>> liveSlots = new AtomicReference<>(new AtomicReferenceArray<>(size));
         AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicBoolean skipRest = new AtomicBoolean();
         AtomicInteger nextMerge = new AtomicInteger();
@@ -1189,19 +1190,22 @@ final class PartitionPruningWalk {
                             }
                             return;
                         }
-                        int cap = Integer.MAX_VALUE;
+                        int cap;
                         synchronized (mergeLock) {
-                            if (nextMerge.get() == i) {
-                                cap = collector.remainingListedTripCap();
-                            }
+                            cap = collector.remainingListedTripCap();
                         }
-                        List<StorageEntry> entries = listDirUntilSkip(
-                            provider,
-                            dirs.get(i),
-                            () -> skipRest.get() || failure.get() != null || cancellationFailure(cancelled) != null,
-                            cap,
-                            collector
-                        );
+                        List<StorageEntry> entries = listDirUntilSkip(provider, dirs.get(i), () -> {
+                            if (skipRest.get() || failure.get() != null) {
+                                return true;
+                            }
+                            Exception cancelledMid = cancellationFailure(cancelled);
+                            if (cancelledMid != null) {
+                                recordBatchFailure(failure, cancelledMid);
+                                skipRest.set(true);
+                                return true;
+                            }
+                            return false;
+                        }, cap, collector);
                         Exception cancelledAfter = cancellationFailure(cancelled);
                         if (cancelledAfter != null || failure.get() != null) {
                             if (cancelledAfter != null) {
@@ -1214,8 +1218,8 @@ final class PartitionPruningWalk {
                             return;
                         }
                         synchronized (mergeLock) {
-                            storeSlot(liveSlots, i, entries);
-                            mergeReadyFinishSlots(collector, liveSlots, nextMerge, size, skipRest);
+                            storeSlot(liveSlots, i, FinishSlot.ok(entries));
+                            mergeReadyFinishSlots(collector, liveSlots, nextMerge, size, skipRest, failure);
                         }
                         cancelledAfter = cancellationFailure(cancelled);
                         if (cancelledAfter != null || failure.get() != null) {
@@ -1225,12 +1229,13 @@ final class PartitionPruningWalk {
                             discardFinishSlots(mergeLock, liveSlots);
                         }
                     } catch (Exception e) {
-                        if (skipRest.get() && collector.truncated()) {
-                            return;
+                        synchronized (mergeLock) {
+                            if (collector.truncated() || skipRest.get()) {
+                                return;
+                            }
+                            storeSlot(liveSlots, i, FinishSlot.fail(e));
+                            mergeReadyFinishSlots(collector, liveSlots, nextMerge, size, skipRest, failure);
                         }
-                        recordBatchFailure(failure, e);
-                        skipRest.set(true);
-                        discardFinishSlots(mergeLock, liveSlots);
                     } finally {
                         releasable.close();
                     }
@@ -1253,14 +1258,14 @@ final class PartitionPruningWalk {
                 listener.onFailure(cancelledNow);
                 return;
             }
+            synchronized (mergeLock) {
+                mergeReadyFinishSlots(collector, liveSlots, nextMerge, size, skipRest, failure);
+            }
             Exception e = failure.get();
             if (e != null) {
                 discardFinishSlots(mergeLock, liveSlots);
                 listener.onFailure(e);
                 return;
-            }
-            synchronized (mergeLock) {
-                mergeReadyFinishSlots(collector, liveSlots, nextMerge, size, skipRest);
             }
             if (collector.truncated() || nextMerge.get() == size) {
                 discardFinishSlots(mergeLock, liveSlots);
@@ -1284,30 +1289,65 @@ final class PartitionPruningWalk {
     }
 
     /**
+     * One remaining-dir listObjects outcome. Failures stay in slot order: a later-folder error is
+     * dropped if an earlier slot truncates first, matching sequential {@link Collector#addRecursively}.
+     */
+    private static final class FinishSlot {
+        final List<StorageEntry> entries;
+        final Exception error;
+
+        private FinishSlot(List<StorageEntry> entries, Exception error) {
+            this.entries = entries;
+            this.error = error;
+        }
+
+        static FinishSlot ok(List<StorageEntry> entries) {
+            return new FinishSlot(entries == null ? List.of() : entries, null);
+        }
+
+        static FinishSlot fail(Exception error) {
+            return new FinishSlot(List.of(), error);
+        }
+    }
+
+    /**
      * Adds consecutive ready finish slots to {@code collector} in directory order. Sets {@code skipRest}
-     * when the collector truncates so unstarted siblings do not list.
+     * when the collector truncates so unstarted siblings do not list. A failed slot fails the walk only
+     * if earlier slots have not already truncated. Must not throw: a throw after {@code skipRest} is set
+     * leaves {@link ThrottledIterator} waiting for this item's releasable.
      */
     private static void mergeReadyFinishSlots(
         Collector collector,
-        AtomicReference<AtomicReferenceArray<List<StorageEntry>>> liveSlots,
+        AtomicReference<AtomicReferenceArray<FinishSlot>> liveSlots,
         AtomicInteger nextMerge,
         int size,
-        AtomicBoolean skipRest
+        AtomicBoolean skipRest,
+        AtomicReference<Exception> failure
     ) {
-        AtomicReferenceArray<List<StorageEntry>> results = liveSlots.get();
+        AtomicReferenceArray<FinishSlot> results = liveSlots.get();
         if (results == null) {
             skipRest.set(true);
             return;
         }
         while (nextMerge.get() < size) {
             int n = nextMerge.get();
-            List<StorageEntry> ready = results.get(n);
+            FinishSlot ready = results.get(n);
             if (ready == null) {
                 return;
             }
+            if (ready.error != null) {
+                results.set(n, null);
+                nextMerge.incrementAndGet();
+                if (collector.truncated() == false) {
+                    recordBatchFailure(failure, ready.error);
+                    skipRest.set(true);
+                    return;
+                }
+                continue;
+            }
             if (collector.truncated() == false) {
                 try {
-                    for (StorageEntry entry : ready) {
+                    for (StorageEntry entry : ready.entries) {
                         collector.add(entry);
                         if (collector.truncated()) {
                             break;
@@ -1315,7 +1355,10 @@ final class PartitionPruningWalk {
                     }
                 } catch (RuntimeException e) {
                     skipRest.set(true);
-                    throw e;
+                    recordBatchFailure(failure, e);
+                    results.set(n, null);
+                    nextMerge.incrementAndGet();
+                    return;
                 }
             }
             results.set(n, null);
@@ -2183,6 +2226,7 @@ final class PartitionPruningWalk {
         }
 
         private void afterListingsStopAsync(int concurrency, Executor executor, ActionListener<WalkResult> listener) {
+            listener = ActionListener.notifyOnce(listener);
             if (concurrency <= 1 || executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                 // Sequential finish on this thread so a throwing onResponse surfaces, matching
                 // ActionListener.completeWith used before remaining dirs were fanned out.
@@ -2617,7 +2661,7 @@ final class PartitionPruningWalk {
         /**
          * Listed-eligible objects the next merge slot may take, including the {@code listed > max}
          * trip object sequential {@link #addRecursively} observes. Zero once truncated. A later slot
-         * cannot use this: earlier folders may still consume budget.
+         * is an upper bound: earlier unmerged folders can only consume more.
          */
         int remainingListedTripCap() {
             if (truncated) {

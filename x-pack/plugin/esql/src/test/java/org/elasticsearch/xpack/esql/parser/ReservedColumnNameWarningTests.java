@@ -98,6 +98,35 @@ public class ReservedColumnNameWarningTests extends AbstractStatementParserTests
         );
     }
 
+    public void testStatsWithFilter() {
+        assertWarnsAt("FROM foo | STATS _c = COUNT(*) WHERE a > 1", "_c");
+    }
+
+    public void testRerankFieldAlias() {
+        assertWarnsAt("FROM foo | RERANK \"q\" ON _t = a WITH { \"inference_id\" : \"id\" }", "_t");
+    }
+
+    public void testForkBranch() {
+        assertWarnsAt("FROM foo | FORK (EVAL _x = 1) (EVAL y = 2)", "_x");
+    }
+
+    public void testSubquery() {
+        assertWarnsAt("FROM foo, (FROM bar | EVAL _x = 1)", "_x");
+    }
+
+    public void testSecondLine() {
+        TEST_PARSER.parseQuery("ROW a = 1\n| EVAL _x = a");
+        assertWarnings(reservedColumnNameWarning(2, 8, "_x"));
+    }
+
+    /**
+     * The names are reported once the query is parsed, so a query that fails to parse doesn't warn on top of its error.
+     */
+    public void testNoWarningWhenParsingFails() {
+        expectThrows(ParsingException.class, () -> TEST_PARSER.parseQuery("ROW _x = 1 | EVAL y ="));
+        ensureNoWarnings();
+    }
+
     public void testInlineStats() {
         assertWarnsAt("FROM foo | INLINE STATS _c = COUNT(*) BY a", "_c");
     }

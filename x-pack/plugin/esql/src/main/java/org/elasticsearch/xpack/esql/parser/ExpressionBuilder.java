@@ -82,6 +82,7 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.BiFunction;
@@ -147,10 +148,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     protected final ParsingContext context;
 
     /**
-     * Whether {@link #warnIfReservedColumnName} already warned. A builder parses a single query, so this caps the warning at
-     * one per query.
+     * The column names starting with {@code _} that the query defines, collected by {@link #warnIfReservedColumnName}. A builder
+     * parses a single query, and {@link #addReservedColumnNameWarning} reports them all in one warning once it is done.
      */
-    private boolean reservedColumnNameWarned = false;
+    private final List<ReservedColumnName> reservedColumnNames = new ArrayList<>();
+
+    private record ReservedColumnName(int line, int column, String name) {}
 
     /**
      * @param pragmas the pragmas of the query, which override the cluster limits in {@code flags} for this query
@@ -238,33 +241,62 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     /**
-     * Format of the warning from {@link #warnIfReservedColumnName}; the arguments are the line, the column and the column name.
+     * Start of the warning from {@link #addReservedColumnNameWarning}, about the first column name starting with {@code _};
+     * the arguments are its line, its column and the name. Further such names of the query are listed after it.
      */
     public static final String RESERVED_COLUMN_NAME_WARNING =
         "Line {}:{}: Column name [{}] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]";
 
     /**
-     * Warns when the query explicitly names a new column with a leading {@code _}. Such names are reserved for columns that
+     * How many column names starting with {@code _} the warning lists besides the first one, to bound the size of the header.
+     */
+    static final int MAX_LISTED_RESERVED_COLUMN_NAMES = 20;
+
+    /**
+     * Records that the query explicitly names a new column with a leading {@code _}. Such names are reserved for columns that
      * {@code ES|QL} itself provides, like metadata fields ({@code _index}, {@code _score}) or columns that commands add
      * ({@code _fork}). A user-defined column with such a name can clash with one of those, and new internal columns may be
      * added in later versions.
      * <p>
      * Call this only where the user wrote the name, not for names a command picks by default (e.g. {@code RERANK}'s
      * {@code _score}), so that queries relying on the defaults stay warning-free.
-     * <p>
-     * Only the first such name in a query is reported: a query can define many of them, and one warning is enough to point
-     * the user at the problem without flooding the response headers.
      */
     protected void warnIfReservedColumnName(Source source, String name) {
-        if (reservedColumnNameWarned == false && name != null && name.startsWith("_") && source.source().getLineNumber() > 0) {
-            reservedColumnNameWarned = true;
-            HeaderWarning.addWarning(
-                RESERVED_COLUMN_NAME_WARNING,
-                source.source().getLineNumber(),
-                source.source().getColumnNumber(),
-                name
-            );
+        if (name != null && name.startsWith("_") && source.source().getLineNumber() > 0) {
+            reservedColumnNames.add(new ReservedColumnName(source.source().getLineNumber(), source.source().getColumnNumber(), name));
         }
+    }
+
+    /**
+     * Adds a single warning for all the column names starting with {@code _} that the query defines, if any: it points at the
+     * first one and lists the others, rather than warning once per name, which could flood the response headers.
+     */
+    void addReservedColumnNameWarning() {
+        if (reservedColumnNames.isEmpty()) {
+            return;
+        }
+        List<ReservedColumnName> names = reservedColumnNames.stream()
+            .distinct()
+            .sorted(Comparator.comparingInt(ReservedColumnName::line).thenComparingInt(ReservedColumnName::column))
+            .toList();
+        ReservedColumnName first = names.getFirst();
+        StringBuilder format = new StringBuilder(RESERVED_COLUMN_NAME_WARNING);
+        List<Object> params = new ArrayList<>(List.of(first.line(), first.column(), first.name()));
+        List<ReservedColumnName> others = names.subList(1, names.size());
+        if (others.isEmpty() == false) {
+            format.append("; other column names starting with [_]: ");
+            int listed = Math.min(others.size(), MAX_LISTED_RESERVED_COLUMN_NAMES);
+            for (int i = 0; i < listed; i++) {
+                ReservedColumnName other = others.get(i);
+                format.append(i == 0 ? "" : ", ").append("[{}] at line {}:{}");
+                params.addAll(List.of(other.name(), other.line(), other.column()));
+            }
+            if (others.size() > listed) {
+                format.append(" and [{}] more");
+                params.add(others.size() - listed);
+            }
+        }
+        HeaderWarning.addWarning(format.toString(), params.toArray());
     }
 
     protected static ParsingException qualifiersUnsupportedInPatterns(Source source, String qualifiedNamePattern) {

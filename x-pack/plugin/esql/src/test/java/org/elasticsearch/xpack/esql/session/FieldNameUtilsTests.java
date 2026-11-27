@@ -2470,7 +2470,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _fork = mv_sort(_fork)
             | EVAL _score = round(_score, 5)
             | KEEP _score, _fork, _id""", Set.of("_index", "title", "author", "title.*", "author.*"));
-        assertWarnings(reservedColumnNameWarning(6, 8, "_fork"));
+        assertWarnings(reservedColumnNameWarning(6, 8, "_fork") + "; other column names starting with [_]: [_score] at line 7:8");
     }
 
     public void testFuseWithDisjunctionAndPostFilter() {
@@ -2484,7 +2484,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _score = round(_score, 5)
             | KEEP _score, _fork, _id
             | WHERE _score > 0.014""", Set.of("_index", "title", "author", "title.*", "author.*"));
-        assertWarnings(reservedColumnNameWarning(6, 8, "_fork"));
+        assertWarnings(reservedColumnNameWarning(6, 8, "_fork") + "; other column names starting with [_]: [_score] at line 7:8");
     }
 
     public void testFuseWithStats() {
@@ -2511,7 +2511,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _score = round(_score, 4)
             | EVAL title = trim(substring(title, 1, 20))
             | KEEP _score, author, title, _fork""", Set.of("_index", "author", "title", "year", "title.*", "author.*", "year.*"));
-        assertWarnings(reservedColumnNameWarning(8, 8, "_fork"));
+        assertWarnings(reservedColumnNameWarning(8, 8, "_fork") + "; other column names starting with [_]: [_score] at line 9:8");
     }
 
     public void testFuseWithSemanticSearch() {
@@ -2524,7 +2524,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _score = round(_score, 4)
             | EVAL _fork = mv_sort(_fork)
             | KEEP _fork, _score, _id, semantic_text_field""", Set.of("_index", "semantic_text_field", "semantic_text_field.*"));
-        assertWarnings(reservedColumnNameWarning(6, 8, "_score"));
+        assertWarnings(reservedColumnNameWarning(6, 8, "_score") + "; other column names starting with [_]: [_fork] at line 7:8");
     }
 
     public void testSimpleFork() {

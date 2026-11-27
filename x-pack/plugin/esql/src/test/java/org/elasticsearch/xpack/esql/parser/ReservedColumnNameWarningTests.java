@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -44,10 +45,52 @@ public class ReservedColumnNameWarningTests extends AbstractStatementParserTests
     }
 
     /**
-     * A query can define many {@code _} names; only the first one is reported, so the response headers aren't flooded.
+     * A query defining several {@code _} names gets a single warning, which points at the first one and lists the others in
+     * the order they appear in the query.
      */
-    public void testOnlyFirstNameWarns() {
-        assertWarnsAt("ROW a = 1 | EVAL b = a, _x = a, _y = a | STATS _c = COUNT(*) BY _g = _x | RENAME _c AS _d", "_x");
+    public void testOneWarningListsAllNames() {
+        String query = "ROW a = 1 | EVAL b = a, _x = a, _y = a | STATS _c = COUNT(*) BY _g = _x | RENAME _c AS _d";
+        TEST_PARSER.parseQuery(query);
+        assertWarnings(
+            warning(query, "_x", "_x")
+                + "; other column names starting with [_]: "
+                + String.join(
+                    ", ",
+                    other(query, "_y", "_y"),
+                    other(query, "_c =", "_c"),
+                    other(query, "_g", "_g"),
+                    other(query, "_d", "_d")
+                )
+        );
+    }
+
+    /**
+     * The same name defined twice is listed at both places.
+     */
+    public void testSameNameTwice() {
+        String query = "ROW a = 1 | EVAL _x = a | EVAL _x = _x + 1";
+        TEST_PARSER.parseQuery(query);
+        assertWarnings(warning(query, "_x", "_x") + "; other column names starting with [_]: " + other(query, "_x =", 1, "_x"));
+    }
+
+    /**
+     * The list of other names is capped, so a query with very many of them doesn't produce a huge header.
+     */
+    public void testListOfOtherNamesIsCapped() {
+        int count = ExpressionBuilder.MAX_LISTED_RESERVED_COLUMN_NAMES + 3;
+        List<String> fields = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            fields.add("_f" + i + " = " + i);
+        }
+        String query = "ROW " + String.join(", ", fields);
+        TEST_PARSER.parseQuery(query);
+        List<String> others = new ArrayList<>();
+        for (int i = 1; i <= ExpressionBuilder.MAX_LISTED_RESERVED_COLUMN_NAMES; i++) {
+            others.add(other(query, "_f" + i + " ", "_f" + i));
+        }
+        assertWarnings(
+            warning(query, "_f0", "_f0") + "; other column names starting with [_]: " + String.join(", ", others) + " and [2] more"
+        );
     }
 
     public void testInlineStats() {
@@ -164,8 +207,29 @@ public class ReservedColumnNameWarningTests extends AbstractStatementParserTests
     }
 
     private static String warning(String query, String locator, String name) {
-        int column = query.indexOf(locator);
-        assertTrue("[" + locator + "] not found in [" + query + "]", column >= 0);
-        return reservedColumnNameWarning(1, column + 1, name);
+        return reservedColumnNameWarning(1, column(query, locator, 0), name);
+    }
+
+    /**
+     * How the warning lists a further name, located where {@code locator} first occurs in the query.
+     */
+    private static String other(String query, String locator, String name) {
+        return other(query, locator, 0, name);
+    }
+
+    /**
+     * How the warning lists a further name, located at the occurrence of {@code locator} after the first {@code skip} ones.
+     */
+    private static String other(String query, String locator, int skip, String name) {
+        return "[" + name + "] at line 1:" + column(query, locator, skip);
+    }
+
+    private static int column(String query, String locator, int skip) {
+        int index = query.indexOf(locator);
+        for (int i = 0; i < skip && index >= 0; i++) {
+            index = query.indexOf(locator, index + 1);
+        }
+        assertTrue("[" + locator + "] not found in [" + query + "]", index >= 0);
+        return index + 1;
     }
 }

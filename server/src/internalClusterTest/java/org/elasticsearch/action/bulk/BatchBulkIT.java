@@ -562,6 +562,115 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertTrue(getResponse.isExists());
     }
 
+    public void testColumnarScaledFloatBatchMode() throws IOException {
+        final String index = "test-columnar-scaled-float";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("cpu_pct").field("type", "scaled_float").field("scaling_factor", 1000).endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        // One shard, so that the whole bulk is one batch that has both integer and floating-point literals.
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        final String coordinatingNode = findCoordinatingNode();
+
+        // Metric data typically has 0 in some documents and 0.25 in others, which makes the batch's source column a union.
+        final int numDocs = randomIntBetween(30, 100);
+        final Number[] sent = new Number[numDocs];
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            sent[i] = switch (i % 4) {
+                case 0 -> Integer.valueOf(randomIntBetween(0, 4));
+                case 1, 3 -> Double.valueOf(randomIntBetween(1, 3999) / 1000.0);
+                case 2 -> null;
+                default -> throw new AssertionError("unreachable");
+            };
+            final IndexRequest indexRequest = new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.CREATE);
+            if (sent[i] == null) {
+                // The field is absent. An explicit null stays on the row path.
+                indexRequest.source(XContentType.JSON, "host", "host-" + (i % 5));
+            } else {
+                indexRequest.source(XContentType.JSON, "host", "host-" + (i % 5), "cpu_pct", sent[i]);
+            }
+            bulkRequest.add(indexRequest);
+        }
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class, ShardBatchMapper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            // A chunk the mappers refuse is logged and re-indexed by the row path, which would hide a broken batch path.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no batch mapping fallback",
+                    ShardBatchMapper.class.getName(),
+                    Level.WARN,
+                    "columnar batch mapping failed*"
+                )
+            );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs).addDocValueField("cpu_pct"),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                assertThat(searchResponse.getHits().getHits().length, equalTo(numDocs));
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    final Number expected = sent[Integer.parseInt(hit.getId().substring("doc-".length()))];
+                    final var field = hit.field("cpu_pct");
+                    if (expected == null) {
+                        assertTrue(hit.getId(), field == null || field.getValues().isEmpty());
+                    } else {
+                        assertNotNull(hit.getId(), field);
+                        assertThat(hit.getId(), field.getValues().size(), equalTo(1));
+                        assertEquals(hit.getId(), expected.doubleValue(), ((Number) field.getValue()).doubleValue(), 1e-9);
+                    }
+                }
+            }
+        );
+    }
+
     /**
      * A {@code vectordb_columnar} index with a {@code dense_vector} field is indexed through the batch path, not only accepted by it
      * and then sent down the row path, and the vectors it indexes are searchable, whether they are sent as arrays of numbers, as

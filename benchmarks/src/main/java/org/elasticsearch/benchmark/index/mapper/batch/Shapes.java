@@ -98,7 +98,6 @@ public final class Shapes {
             numeric("scaled_float").param("scaling_factor", 100)
                 .values(ValueDist.FRACTIONAL, JsonKind.DOUBLE)
                 .fields(4)
-                .expect(Expect.FALLBACK_RESOLVE)
                 .build("scaled_float.dense")
         );
         add(shapes, metrics4());

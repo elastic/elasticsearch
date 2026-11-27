@@ -290,7 +290,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     }
 
     public void testIntoDataNodePlanRoundTripsAndPlansLocally() throws IOException {
-        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        assumeTrue("INTO command required", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
 
         String query = "FROM test | KEEP emp_no | INTO dst";
         Configuration configuration = randomConfiguration(query, randomTables());
@@ -342,7 +342,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     }
 
     public void testRowIntoProducesNoDataNodePlanEvenAtOldestVersion() {
-        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        assumeTrue("INTO command required", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
 
         TransportVersion oldest = TransportVersion.minimumCompatible();
         var oldAnalyzer = analyzer().minimumTransportVersion(oldest).buildAnalyzer();

@@ -5041,6 +5041,13 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * {@code INTO} authorizes its destination before planning, and a destination that does not exist is a 404 instead of being
+         * created. Nodes without this create the destination on the first write, so a mixed cluster must not run tests of the new
+         * behavior.
+         */
+        INTO_AUTHORIZES_DESTINATION(Build.current().isSnapshot()),
+
+        /**
          * Support for {@code ROW} under {@code unmapped_fields="LOAD_ALL"}, alone or as a branch of a subquery next to an index. A
          * {@code ROW} has no {@code _source}, so it adds no unmapped fields and its rows have a null {@code _unmapped_fields}. Only
          * meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.

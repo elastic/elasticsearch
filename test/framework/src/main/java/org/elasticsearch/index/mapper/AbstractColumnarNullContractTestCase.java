@@ -422,6 +422,26 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         }
     }
 
+    private static void indexGroups(
+        Scenario scenario,
+        IndexingStrategy strategy,
+        Configuration configuration,
+        MapperService mapperService,
+        IndexWriter indexWriter,
+        List<DocumentGroup> groups
+    ) throws IOException {
+        int firstSeqNo = 0;
+        for (final DocumentGroup group : groups) {
+            final IndexingStrategy.Outcome outcome = strategy.index(mapperService, indexWriter, sources(group.documents()), firstSeqNo);
+            assertExecutedAs(scenario, strategy, configuration, group.shape(), outcome);
+            indexWriter.commit();
+            firstSeqNo += group.documents().size();
+        }
+        try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+            assertEquals("one segment per group", groups.size(), reader.leaves().size());
+        }
+    }
+
     private void forEachConfiguration(
         Scenario scenario,
         IndexingStrategy strategy,
@@ -441,21 +461,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                 Directory directory = new MockDirectoryWrapper(random(), new ByteBuffersDirectory());
                 IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig(mapperService))
             ) {
-                int firstSeqNo = 0;
-                for (final DocumentGroup group : groups) {
-                    final IndexingStrategy.Outcome outcome = strategy.index(
-                        mapperService,
-                        indexWriter,
-                        sources(group.documents()),
-                        firstSeqNo
-                    );
-                    assertExecutedAs(scenario, strategy, configuration, group.shape(), outcome);
-                    indexWriter.commit();
-                    firstSeqNo += group.documents().size();
-                }
-                try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
-                    assertEquals("one segment per group", groups.size(), reader.leaves().size());
-                }
+                indexGroups(scenario, strategy, configuration, mapperService, indexWriter, groups);
                 try {
                     assertion.accept(configuration, mapperService, indexWriter, documents);
                 } catch (AssertionError e) {
@@ -559,18 +565,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                 Directory directory = new MockDirectoryWrapper(random(), new ByteBuffersDirectory());
                 IndexWriter syntheticWriter = new IndexWriter(directory, indexWriterConfig(synthetic))
             ) {
-                int firstSeqNo = 0;
-                for (final DocumentGroup group : groups) {
-                    final IndexingStrategy.Outcome outcome = strategy.index(
-                        synthetic,
-                        syntheticWriter,
-                        sources(group.documents()),
-                        firstSeqNo
-                    );
-                    assertExecutedAs(scenario, strategy, syntheticConfiguration, group.shape(), outcome);
-                    syntheticWriter.commit();
-                    firstSeqNo += group.documents().size();
-                }
+                indexGroups(scenario, strategy, syntheticConfiguration, synthetic, syntheticWriter, groups);
                 for (final boolean merged : new boolean[] { false, true }) {
                     if (merged) {
                         storedWriter.forceMerge(1);

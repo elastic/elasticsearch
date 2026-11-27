@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 166195
+pr: 167822
+summary: Report a missing ENRICH policy under `unmapped_fields`
+type: bug

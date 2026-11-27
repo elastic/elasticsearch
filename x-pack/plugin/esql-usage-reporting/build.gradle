@@ -26,4 +26,6 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
 
   testImplementation project(':test:framework')
+  // LocalStateCompositeXPackPlugin: a node of a test cluster has no shared SSL service of x-pack-core, see EsqlUsageReportingPlugin#getSslService
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }

@@ -61,7 +61,11 @@ import javax.net.ssl.TrustManager;
  * It records every request that completed the TLS handshake (a client without a valid certificate never reaches the handler, so it
  * leaves no request, as with the real API), and answers according to a script that a test sets: one {@link Behavior} for every
  * request, or one-shot behaviors queued ahead of it. The statuses are those the contract of the collector classifies: 201 is the
- * only success the OpenAPI specification lists; 400 and 422 invalid; 401 and 403 authentication; 408, 429 and 5xx retryable.
+ * only success the OpenAPI specification lists; 400 invalid; 401 and 403 authentication; 408, 429, 5xx and every status that the
+ * pipeline does not document, 422 included, retryable (see {@code HttpUsagePublisher#classify}).
+ * <p>
+ * It does not deduplicate: a record that is sent again is stored again here, where the real API discards it by id. A test can show
+ * that the same id was sent again, not that it was billed once.
  * <p>
  * The TLS material is in {@code src/test/resources/org/elasticsearch/xpack/esql/usage/testfixture} (see its README). It is checked in,
  * as for the other mutual TLS tests of the repository, so that no test depends on a certificate generator.
@@ -192,7 +196,10 @@ public final class FakeUsageApi implements Closeable {
         return api;
     }
 
-    /** The base URL to set as {@code xpack.esql.usage_reporting.url}. */
+    /**
+     * The base URL of the server. The {@code xpack.esql.usage_reporting.url} setting is the whole endpoint, {@code url() + PATH}: see
+     * {@link #pluginSettings()}.
+     */
     public String url() {
         // the address the server is bound to, not the name "localhost", which may resolve to the other IP family; the server
         // certificate has the loopback addresses in its subject alternative names
@@ -243,7 +250,8 @@ public final class FakeUsageApi implements Closeable {
      */
     public Settings.Builder pluginSettings() {
         return Settings.builder()
-            .put(UsageReportingSettings.URL.getKey(), url())
+            // the setting is the whole endpoint: the publisher posts to it as it is
+            .put(UsageReportingSettings.URL.getKey(), url() + PATH)
             .put(UsageReportingSettings.DEPLOYMENT_ID.getKey(), "fake-deployment")
             .put(UsageReportingSettings.CLUSTER_ID.getKey(), "fake-cluster")
             .put(UsageReportingSettings.PROVIDER.getKey(), "aws")
@@ -275,7 +283,7 @@ public final class FakeUsageApi implements Closeable {
         return ids;
     }
 
-    /** The ids of the records in the requests that the fixture answered with a 2xx. */
+    /** The ids of the records that the fixture stored, once per request that stored them: a resent record appears again. */
     public List<String> acceptedRecordIds() {
         return List.copyOf(acceptedRecordIds);
     }
@@ -283,6 +291,13 @@ public final class FakeUsageApi implements Closeable {
     /** The first request that satisfies the predicate, or {@code null}. */
     public ReceivedRequest firstRequest(Predicate<ReceivedRequest> predicate) {
         return requests.stream().filter(predicate).findFirst().orElse(null);
+    }
+
+    /** Back to a new fixture: forgets the recorded requests and the queued one-shot behaviors, and answers {@link Behavior#CREATED}. */
+    public void reset() {
+        clearRequests();
+        oneShot.clear();
+        behavior = Behavior.CREATED;
     }
 
     /** Forgets the recorded requests, not the script. */

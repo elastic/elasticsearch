@@ -255,7 +255,7 @@ public class FakeUsageApiTests extends ESTestCase {
         Settings settings = api.pluginSettings().put(UsageReportingSettings.ENABLED.getKey(), true).build();
         assertThat(UsageReportingSettings.URL.get(settings), startsWith("https://"));
         assertThat(UsageReportingSettings.of(settings).problems(), empty());
-        assertThat(UsageReportingSettings.URL.get(settings), equalTo(api.url()));
+        assertThat(UsageReportingSettings.URL.get(settings), equalTo(api.url() + FakeUsageApi.PATH));
         assertThat(settings.get(UsageReportingSettings.SSL_PREFIX + ".certificate"), containsString("client.crt"));
         assertThat(settings.get(UsageReportingSettings.SSL_PREFIX + ".key"), containsString("client.key"));
         assertThat(UsageReportingSettings.CLUSTER_ID.get(settings), equalTo("fake-cluster"));

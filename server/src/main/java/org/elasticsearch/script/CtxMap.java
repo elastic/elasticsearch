@@ -34,21 +34,30 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
     protected final T metadata;
 
     /**
-     * Create CtxMap from a source and metadata
+     * Create CtxMap from a source and metadata.
+     *
+     * When the source is accessed directly via ctx (see {@link #directSourceAccess()}), source keys and metadata keys share
+     * one namespace, so a source key that is also a metadata key is rejected. When the source is accessed via the
+     * {@link #SOURCE} key, the two namespaces are disjoint and source keys may have the same names as metadata keys,
+     * e.g. a document field named {@code _type}.
      *
      * @param source the source document map
      * @param metadata the metadata map
+     * @throws IllegalArgumentException if the source is accessed directly and contains a metadata key
      */
+    @SuppressWarnings("this-escape") // directSourceAccess() returns a constant in every implementation
     public CtxMap(Map<String, Object> source, T metadata) {
         this.source = source;
         this.metadata = metadata;
-        Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
-        if (badKeys.size() > 0) {
-            throw new IllegalArgumentException(
-                "unexpected metadata ["
-                    + badKeys.stream().sorted().map(k -> k + ":" + this.source.get(k)).collect(Collectors.joining(", "))
-                    + "] in source"
-            );
+        if (directSourceAccess()) {
+            Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
+            if (badKeys.size() > 0) {
+                throw new IllegalArgumentException(
+                    "unexpected metadata ["
+                        + badKeys.stream().sorted().map(k -> k + ":" + this.source.get(k)).collect(Collectors.joining(", "))
+                        + "] in source"
+                );
+            }
         }
     }
 
@@ -56,7 +65,9 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
      * Does this access to the internal {@link #source} map occur directly via ctx? ie {@code ctx['myField']}.
      * Or does it occur via the {@link #SOURCE} key? ie {@code ctx['_source']['myField']}.
      *
-     * Defaults to indirect, {@code ctx['_source']}
+     * Defaults to indirect, {@code ctx['_source']}. Only with direct access must source keys be distinct from metadata
+     * keys. This method is called from the constructor, so implementations must return a constant and must not depend
+     * on subclass state.
      */
     protected boolean directSourceAccess() {
         return false;

@@ -11,16 +11,21 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,13 +62,27 @@ public class TransportOpenPointInTimeActionTests extends ESTestCase {
         assertNull(TransportOpenPointInTimeAction.failureForUnreachableProjects(randomBoolean(), Map.of()));
     }
 
-    public void testLaterProjectsAreSuppressedOnTheFirstFailure() {
+    public void testLaterProjectsAreSuppressedOnTheFirstFailure() throws IOException {
         EsRejectedExecutionException first = new EsRejectedExecutionException("first-link-down");
         IllegalArgumentException second = new IllegalArgumentException("second-link-down");
         Map<String, Exception> remoteFailures = new LinkedHashMap<>();
         remoteFailures.put("b-cluster", second);
         remoteFailures.put("a-cluster", first);
         Exception failure = TransportOpenPointInTimeAction.failureForUnreachableProjects(false, remoteFailures);
+        BytesReference rendered = toXContent(
+            (builder, params) -> ElasticsearchException.generateFailureXContent(builder, params, failure, true),
+            XContentType.JSON,
+            randomBoolean()
+        );
+        assertThat(
+            rendered.utf8ToString(),
+            allOf(
+                containsString("[a-cluster]"),
+                containsString("first-link-down"),
+                containsString("[b-cluster]"),
+                containsString("second-link-down")
+            )
+        );
         assertThat(failure, instanceOf(ElasticsearchStatusException.class));
         assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
         assertNull(failure.getCause());

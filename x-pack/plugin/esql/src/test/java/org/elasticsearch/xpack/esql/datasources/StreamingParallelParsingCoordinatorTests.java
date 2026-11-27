@@ -104,6 +104,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntConsumer;
 import java.util.zip.GZIPOutputStream;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
@@ -2748,8 +2749,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * Same gated inter-chunk gap as {@link #testProducerLoopDoesNotDropRowsAcrossDeterministicPoisonGap}
      * but drained with production {@code tryAdvanceOrPark} (no {@code hasNext} fallback). A lone
-     * POISON must park, not declare EOF. Leftover empty-polls can start after drain; wait until
-     * {@code isExhausted()} is true rather than sampling it once (#164484).
+     * POISON must park, not declare EOF. Wait until the drain parks at chunk 1 before opening the
+     * gate so a late chunk-0 POISON cannot skip the gap. Leftover empty-polls can start after drain;
+     * wait until {@code isExhausted()} is true rather than sampling it once (#164484).
      */
     public void testTryAdvanceOrParkDoesNotDropRowsAcrossDeterministicPoisonGap() throws Exception {
         int linesPerFile = 2000;
@@ -2759,6 +2761,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         CountDownLatch gate = new CountDownLatch(1);
         CountDownLatch gatedReached = new CountDownLatch(1);
+        CountDownLatch parkedAtGap = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(6);
         PlainActionFuture<List<String>> done = new PlainActionFuture<>();
         CloseableIterator<Page> it = null;
@@ -2777,14 +2780,18 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             CloseableIterator<Page> iter = it;
             pool.execute(() -> {
                 try {
-                    done.onResponse(drainLinesViaTryAdvanceOrPark(iter));
+                    done.onResponse(drainLinesViaTryAdvanceOrPark(iter, chunk -> {
+                        if (chunk >= 1) {
+                            parkedAtGap.countDown();
+                        }
+                    }));
                 } catch (Exception e) {
                     done.onFailure(e);
                 }
             });
 
             assertTrue("gated chunk parser never reached", gatedReached.await(30, TimeUnit.SECONDS));
-            Thread.sleep(200);
+            assertTrue("drain never parked at the chunk-0→chunk-1 POISON gap", parkedAtGap.await(30, TimeUnit.SECONDS));
             assertFalse("tryAdvanceOrPark drain wrongly concluded EOF at a mid-stream POISON gap", done.isDone());
 
             gate.countDown();
@@ -4547,11 +4554,17 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         return lines;
     }
 
+    private static List<String> drainLinesViaTryAdvanceOrPark(CloseableIterator<Page> iterator) throws Exception {
+        return drainLinesViaTryAdvanceOrPark(iterator, null);
+    }
+
     /**
      * Production drain: {@code waitForReady} then {@link ExternalSourceDrainUtils#tryAdvanceOrPark}.
-     * Does not call {@code hasNext}. Does not close {@code iterator}.
+     * Does not call {@code hasNext}. Does not close {@code iterator}. {@code onPark} runs on the
+     * consumer thread when the drain parks, with the iterator's chunk cursor after POISON skips.
      */
-    private static List<String> drainLinesViaTryAdvanceOrPark(CloseableIterator<Page> iterator) throws Exception {
+    private static List<String> drainLinesViaTryAdvanceOrPark(CloseableIterator<Page> iterator, @Nullable IntConsumer onPark)
+        throws Exception {
         List<String> lines = new ArrayList<>();
         BytesRef scratch = new BytesRef();
         while (true) {
@@ -4559,6 +4572,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
             Page page = ExternalSourceDrainUtils.tryAdvanceOrPark(iterator, blockedOn);
             if (blockedOn.get() != null) {
+                if (onPark != null && iterator instanceof StreamingParallelParsingCoordinator.StreamingParallelIterator streaming) {
+                    onPark.accept(streaming.consumerChunkIndex());
+                }
                 awaitListener(blockedOn.get());
                 continue;
             }

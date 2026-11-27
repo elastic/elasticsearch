@@ -12,6 +12,7 @@ import fixture.azure.MockAzureBlobStore;
 
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -123,5 +124,16 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
             hasItems(EXPECTED_OBS_REQUEST_NAMES.toArray(new String[] {}))
         );
         repositoryStats.actionStats.values().forEach(count -> assertThat(count.operations(), greaterThan(0L)));
+    }
+
+    public void testDefaultConnectionPoolSettings() {
+        var indexNode = startMasterAndIndexNode();
+        var searchNode = startSearchNode();
+
+        var indexNodeSettings = internalCluster().getInstance(ClusterService.class, indexNode).getSettings();
+        assertTrue(Integer.parseInt(indexNodeSettings.get("azure.client.test.max_connections")) > 0);
+
+        var searchNodeSettings = internalCluster().getInstance(ClusterService.class, searchNode).getSettings();
+        assertTrue(Integer.parseInt(searchNodeSettings.get("azure.client.test.max_connections")) > 0);
     }
 }

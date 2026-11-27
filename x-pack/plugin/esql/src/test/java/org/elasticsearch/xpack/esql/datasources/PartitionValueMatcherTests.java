@@ -369,6 +369,7 @@ public class PartitionValueMatcherTests extends ESTestCase {
                 }
                 yield new WildcardLike(SRC, column, new WildcardPattern(String.valueOf(hint.values().get(0))));
             }
+            case RANGE -> null;
             case IN -> throw new AssertionError("handled above");
         };
     }

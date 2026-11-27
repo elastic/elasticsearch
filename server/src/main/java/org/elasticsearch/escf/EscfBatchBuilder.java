@@ -17,6 +17,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.simdjson.Utf8Value;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -181,7 +182,7 @@ public final class EscfBatchBuilder implements Releasable {
                 Double.longBitsToDouble(rowBuffer.scratchNumeric(col)),
                 (XContentString.UTF8Bytes) rowBuffer.scratchVar(col) // the stored spelling, or null
             );
-            case SourceValueType.STRING -> builder.addString((XContentString.UTF8Bytes) rowBuffer.scratchVar(col));
+            case SourceValueType.STRING -> builder.addUtf8String((Utf8Value) rowBuffer.scratchVar(col));
             case SourceValueType.BINARY -> addBinary(builder, rowBuffer.scratchVar(col));
             case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) rowBuffer.scratchVar(col));
             case SourceValueType.KEY_VALUE -> builder.addKeyValue((byte[]) rowBuffer.scratchVar(col));

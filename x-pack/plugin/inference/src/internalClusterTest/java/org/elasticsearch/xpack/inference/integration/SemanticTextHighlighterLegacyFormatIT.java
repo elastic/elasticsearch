@@ -8,18 +8,22 @@
 package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.xpack.diskbbq.TrialLicenseStateDiskBBQPlugin;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +49,11 @@ public class SemanticTextHighlighterLegacyFormatIT extends SemanticTextLegacyFor
     private static final String LONG_CHUNK_2 = "For a moment, nothing happened. Then, after a second or so, nothing continued to happen.";
     private static final String DOC_2_TEXT =
         "Nothing travels faster than the speed of light with the possible exception of bad news, which obeys its own special laws.";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TrialLicenseStateDiskBBQPlugin.class);
+    }
 
     @Before
     public void storeBbqDenseModel() throws Exception {

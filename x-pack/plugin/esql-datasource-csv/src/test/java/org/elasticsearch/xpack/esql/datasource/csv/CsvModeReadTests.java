@@ -587,6 +587,19 @@ public class CsvModeReadTests extends ESTestCase {
         assertTrue(csvReader(Map.of("multiline_fields", true)).configWarnings().isEmpty());
     }
 
+    /**
+     * {@code pad_short_rows: true} has nothing to pad in a headerless file, which states no width, so it is accepted
+     * but reported, as {@code multiline_fields} on a plain dialect is.
+     */
+    public void testPadShortRowsOnAHeaderlessFileIsNoticed() {
+        assertEquals(
+            List.of(CsvFormatReader.PAD_SHORT_ROWS_HEADERLESS_MESSAGE),
+            csvReader(Map.of("header_row", false, "pad_short_rows", true)).configWarnings()
+        );
+        assertTrue(csvReader(Map.of("header_row", true, "pad_short_rows", true)).configWarnings().isEmpty());
+        assertTrue(csvReader(Map.of("header_row", false, "pad_short_rows", false)).configWarnings().isEmpty());
+    }
+
     private static int drain(CsvFormatReader reader, StorageObject object, FormatReadContext context) throws IOException {
         int rows = 0;
         try (CloseableIterator<Page> pages = reader.read(object, context)) {

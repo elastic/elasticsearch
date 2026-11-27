@@ -435,6 +435,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             var codecMode = randomFrom(CodecMode.values());
             indexRandomly(dir, codecMode, between(100, 1000), doc -> addRandomDocValuesField(doc, true));
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            assertThat(stats.total().getDocValuesSkipperBytes(), greaterThan(0L));
             logger.info("--> stats {}", stats);
             try (Directory perFieldDir = createNewDirectory()) {
                 rewriteIndexWithPerFieldCodec(dir, codecMode, perFieldDir);
@@ -442,6 +443,56 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 assertStats(stats, perFieldStats);
                 assertStats(IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(perFieldDir), () -> {}), perFieldStats);
             }
+        }
+    }
+
+    public void testDocValuesSkipperBytesReportedSeparately() throws Exception {
+        assertSkipperBytesReportedSeparately(between(500, 2000));
+    }
+
+    public void testDocValuesSkipperBytesWithFullUpperIntervals() throws Exception {
+        // 512 documents fill whole upper-level skip intervals, which is where the final intervals are easiest to miss
+        assertSkipperBytesReportedSeparately(512);
+    }
+
+    private void assertSkipperBytesReportedSeparately(int numDocs) throws Exception {
+        final CodecMode codecMode = randomFrom(CodecMode.values());
+        final long[] values = new long[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            values[i] = random().nextInt(1024);
+        }
+        final NumericFieldUsage withSkipper = analyzeNumericField(codecMode, values, true);
+        final NumericFieldUsage withoutSkipper = analyzeNumericField(codecMode, values, false);
+
+        assertThat(withoutSkipper.analyzed().getDocValuesSkipperBytes(), equalTo(0L));
+        assertThat(withoutSkipper.analyzed().getDocValuesBytes(), greaterThan(0L));
+        assertThat(withSkipper.analyzed().getDocValuesSkipperBytes(), greaterThan(0L));
+        // every leaf interval has a record of at least a level byte plus max/min doc id, max/min value and doc count
+        final long minRecordBytes = 1 + 2 * Integer.BYTES + 2 * Long.BYTES + Integer.BYTES;
+        assertThat(
+            withSkipper.analyzed().getDocValuesSkipperBytes(),
+            greaterThanOrEqualTo((numDocs / SMALL_SKIP_INTERVAL) * minRecordBytes)
+        );
+        // identical values must give the same doc values size whether or not the skipper exists
+        assertThat(withSkipper.analyzed().getDocValuesBytes(), greaterThan(0L));
+        assertThat(withSkipper.analyzed().getDocValuesBytes(), equalTo(withoutSkipper.analyzed().getDocValuesBytes()));
+        // the only difference between the two files on disk is the skipper, so that is the independent expected size
+        final long expectedSkipperBytes = withSkipper.onDisk().getDocValuesBytes() - withoutSkipper.onDisk().getDocValuesBytes();
+        assertFieldStats("ndv", "skipper", withSkipper.analyzed().getDocValuesSkipperBytes(), expectedSkipperBytes, 0.01, 256);
+    }
+
+    private record NumericFieldUsage(IndexDiskUsageStats.PerFieldDiskUsage analyzed, IndexDiskUsageStats.PerFieldDiskUsage onDisk) {}
+
+    private NumericFieldUsage analyzeNumericField(CodecMode codecMode, long[] values, boolean withSkipper) throws Exception {
+        try (Directory dir = createNewDirectory()) {
+            final int[] next = { 0 };
+            indexRandomly(dir, new CodecWithSmallSkipInterval(codecMode.mode()), values.length, doc -> {
+                final long value = values[next[0]++];
+                doc.add(withSkipper ? NumericDocValuesField.indexedField("ndv", value) : new NumericDocValuesField("ndv", value));
+            });
+            final IndexDiskUsageStats analyzed = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            final IndexDiskUsageStats onDisk = collectPerFieldStats(dir);
+            return new NumericFieldUsage(analyzed.getFields().get("ndv"), onDisk.getFields().get("ndv"));
         }
     }
 
@@ -816,11 +867,19 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             IndexDiskUsageStats.PerFieldDiskUsage expectedField = perFieldStats.getFields().get(field);
             if (expectedField == null) {
                 assertThat(actualField.getDocValuesBytes(), equalTo(0L));
+                assertThat(actualField.getDocValuesSkipperBytes(), equalTo(0L));
                 assertThat(actualField.getInvertedIndexBytes(), equalTo(0L));
                 continue;
             }
             // Allow difference up to 2.5KB as we can load up to 256 long values in the table for numeric docValues
-            assertFieldStats(field, "doc values", actualField.getDocValuesBytes(), expectedField.getDocValuesBytes(), 0.01, 2560);
+            assertFieldStats(
+                field,
+                "doc values and skippers",
+                actualField.getDocValuesBytes() + actualField.getDocValuesSkipperBytes(),
+                expectedField.getDocValuesBytes() + expectedField.getDocValuesSkipperBytes(),
+                0.01,
+                2560
+            );
             assertFieldStats(
                 field,
                 "inverted index",
@@ -960,6 +1019,22 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         @Override
         public BytesRef binaryValue() {
             return binaryValue;
+        }
+    }
+
+    static final int SMALL_SKIP_INTERVAL = 4;
+
+    // a tiny interval gives many skip index leaves, and several levels, from a few hundred documents
+    static class CodecWithSmallSkipInterval extends Lucene104Codec {
+        private final DocValuesFormat smallIntervalFormat = new Lucene90DocValuesFormat(SMALL_SKIP_INTERVAL);
+
+        CodecWithSmallSkipInterval(Mode mode) {
+            super(mode);
+        }
+
+        @Override
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            return smallIntervalFormat;
         }
     }
 

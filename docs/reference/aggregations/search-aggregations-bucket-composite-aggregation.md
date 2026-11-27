@@ -2,6 +2,9 @@
 navigation_title: "Composite"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-composite-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Composite aggregation [search-aggregations-bucket-composite-aggregation]

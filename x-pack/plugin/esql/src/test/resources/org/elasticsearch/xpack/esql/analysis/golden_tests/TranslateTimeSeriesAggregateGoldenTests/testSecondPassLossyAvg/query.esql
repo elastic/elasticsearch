@@ -1,0 +1,1 @@
+TS k8s | STATS a = AVG(RATE(network.total_bytes_in)), b = AVG(MAX_OVER_TIME(network.bytes_in)) BY TBUCKET(1 minute)

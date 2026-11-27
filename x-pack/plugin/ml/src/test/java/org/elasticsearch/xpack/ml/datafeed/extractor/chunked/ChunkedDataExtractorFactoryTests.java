@@ -29,6 +29,7 @@ import java.util.Date;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ChunkedDataExtractorFactoryTests extends ESTestCase {
 
@@ -181,29 +182,36 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.hasNext(), is(true));
     }
 
-    public void testEsqlQueryWithoutOuterLimitShouldInjectRowLimit() {
-        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueSeconds(1), "FROM logs");
+    public void testEsqlSingleChunkSpanShouldBeConfiguredFrequency() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueSeconds(1), "FROM logs", TimeValue.timeValueMinutes(7));
 
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(0L, 5_000L);
 
         assertThat(dataExtractor.getContext().hasEsqlQuery(), is(true));
-        assertThat(dataExtractor.getContext().injectsEsqlRowLimit(), is(true));
+        assertThat(dataExtractor.getContext().singleChunkSpan(), equalTo(TimeValue.timeValueMinutes(7).millis()));
     }
 
-    public void testEsqlQueryWithOuterLimitShouldNotInjectRowLimit() {
-        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueSeconds(1), "FROM logs | LIMIT 20000");
+    public void testEsqlSingleChunkSpanShouldDefaultFromBucketSpanWhenFrequencyIsUnset() {
+        // A bucket span of up to two minutes defaults the frequency to one minute, which is a multiple of the 1s grouping interval.
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueSeconds(1), "FROM logs", null);
 
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(0L, 5_000L);
 
-        assertThat(dataExtractor.getContext().hasEsqlQuery(), is(true));
-        assertThat(dataExtractor.getContext().injectsEsqlRowLimit(), is(false));
+        assertThat(dataExtractor.getContext().singleChunkSpan(), equalTo(TimeValue.timeValueMinutes(1).millis()));
     }
 
-    public void testDslDatafeedShouldNotInjectRowLimit() {
+    public void testEsqlTimeBucketMillisShouldDelegateToInnerFactory() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueSeconds(1));
+        when(dataExtractorFactory.timeBucketMillis()).thenReturn(3_600_000L);
+
+        assertThat(factory.timeBucketMillis(), equalTo(3_600_000L));
+    }
+
+    public void testDslDatafeedShouldHaveNoSingleChunkSpan() {
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) createFactory(1000L).newExtractor(2000, 5000);
 
         assertThat(dataExtractor.getContext().hasEsqlQuery(), is(false));
-        assertThat(dataExtractor.getContext().injectsEsqlRowLimit(), is(false));
+        assertThat(dataExtractor.getContext().singleChunkSpan(), equalTo(0L));
     }
 
     private static final String RAW_ESQL_QUERY = "FROM logs";
@@ -214,6 +222,10 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
     }
 
     private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval, String esqlQuery) {
+        return createEsqlFactory(groupingInterval, esqlQuery, null);
+    }
+
+    private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval, String esqlQuery, TimeValue frequency) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Detector.Builder detectorBuilder = new Detector.Builder();
@@ -225,8 +237,12 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         jobBuilder.setAnalysisConfig(analysisConfig);
         DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("foo-feed", jobBuilder.getId());
         datafeedConfigBuilder.setEsqlQuery(esqlQuery);
-        datafeedConfigBuilder.setSourceTimeField("@timestamp");
         datafeedConfigBuilder.setGroupingInterval(groupingInterval);
+        // DESCRIBE reports a bucket interval only for a query that rewrites the time column
+        when(dataExtractorFactory.timeBucketMillis()).thenReturn(esqlQuery.equals(AGGREGATING_ESQL_QUERY) ? groupingInterval.millis() : 0L);
+        if (frequency != null) {
+            datafeedConfigBuilder.setFrequency(frequency);
+        }
         return new ChunkedDataExtractorFactory(
             datafeedConfigBuilder.build(),
             jobBuilder.build(new Date()),

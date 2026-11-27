@@ -60,6 +60,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -381,6 +383,23 @@ public class NestedAnySameChildTests extends ComputeTestCase {
         assertParents(predicate, new IndexedByShardIdFromSingleton<>(shard), parents(parentDocs), false, true, false);
     }
 
+    public void testNotNestedAnyIsTrueWhereTheChildrenGiveFalseOrNull() throws IOException {
+        index(parentWithSplitChildren(), parentWithMatchOnTheNextPage(), parentWithNullPrice());
+        NestedPredicate predicate = referencePredicate();
+        NestedPredicate planned = plan(predicate, SearchContextStats.from(List.of(shard.executionContext())));
+
+        for (NestedPredicate variant : List.of(predicate, planned)) {
+            assertParents(
+                new Not(Source.EMPTY, variant),
+                new IndexedByShardIdFromSingleton<>(shard),
+                parents(parentDocs),
+                true,
+                false,
+                true
+            );
+        }
+    }
+
     /**
      * A lowercase normalizer on one shard makes the sku not queryable, so the comparison stays in the predicate. The stored
      * value is {@code a}, and comparing it with {@code A} does not match that parent.
@@ -590,7 +609,7 @@ public class NestedAnySameChildTests extends ComputeTestCase {
     }
 
     private void assertParents(
-        NestedPredicate predicate,
+        Expression predicate,
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shards,
         Block parents,
         boolean... expected

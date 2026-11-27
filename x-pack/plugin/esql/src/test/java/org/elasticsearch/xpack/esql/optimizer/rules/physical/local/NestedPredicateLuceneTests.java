@@ -200,6 +200,13 @@ public class NestedPredicateLuceneTests extends ESTestCase {
         assertThat(new EvaluateNestedPredicateInLucene().apply(eval, context(queryableAsRead(predicate))), equalTo(eval));
     }
 
+    public void testADisjunctionIsNotExtracted() {
+        NestedPredicate predicate = predicate("items.sku == \"a\" OR items.qty + 1 > 2");
+        EvalExec eval = eval(predicate);
+
+        assertThat(new EvaluateNestedPredicateInLucene().apply(eval, context(queryableAsRead(predicate))), equalTo(eval));
+    }
+
     public void testAnUnqueryableExactConjunctStaysInThePredicate() {
         NestedPredicate predicate = predicate("items.sku == \"a\" AND items.qty + 1 > 2");
         Map<String, DataType> withoutSku = new HashMap<>(queryableAsRead(predicate));

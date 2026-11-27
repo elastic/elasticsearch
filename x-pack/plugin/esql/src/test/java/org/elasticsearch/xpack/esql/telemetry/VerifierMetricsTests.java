@@ -413,7 +413,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testInto() {
-        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        assumeTrue("INTO command required", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
         Counters c = esql("ROW a = 1 | INTO dst");
         assertMetrics(c, Map.of(FeatureMetric.INTO, 1L, ROW, 1L));
     }

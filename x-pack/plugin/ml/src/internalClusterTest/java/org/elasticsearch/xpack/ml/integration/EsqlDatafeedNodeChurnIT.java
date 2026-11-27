@@ -352,12 +352,10 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
         return builder;
     }
 
-    private static DatafeedConfig buildEsqlDatafeed(String datafeedId, String jobId, String indexName, TimeValue groupingInterval) {
+    private static DatafeedConfig buildEsqlDatafeed(String datafeedId, String jobId, String indexName, TimeValue timeBucket) {
         return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + indexName + " | KEEP @timestamp")
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(groupingInterval)
-            .setFrequency(groupingInterval)
-            .setQueryDelay(groupingInterval)
+            .setFrequency(timeBucket)
+            .setQueryDelay(timeBucket)
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
             .build();
     }

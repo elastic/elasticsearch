@@ -136,6 +136,7 @@ import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.O
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.FS;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.MOCK;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.S3;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -334,11 +335,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
     }
 
     /**
-     * The service passes briefly through {@link Lifecycle.State#STOPPED} on its way to {@code CLOSED}. Enqueueing an upload during that
-     * window must be treated the same as enqueueing after close: the liveness check considers the service not running and notifies the
-     * listener rather than letting the upload proceed against a service that is shutting down.
+     * On node shutdown the service is stopped before the shards are closed, and closing shards may still depend on uploads completing.
+     * So uploads must still go through while the service is {@link Lifecycle.State#STOPPED}; it only rejects them once closed, after
+     * waiting for the in-flight ones.
      */
-    public void testEnqueueWhileStoppedNotifiesListener() throws IOException {
+    public void testEnqueueWhileStoppedStillUploads() throws IOException {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
             final var objectStoreService = testHarness.objectStoreService;
 
@@ -347,9 +348,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             final var future = new PlainActionFuture<Void>();
             objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), () -> false, () -> {}, future);
-
-            final var e = expectThrows(IllegalStateException.class, future::actionGet);
-            assertThat(e.getMessage(), startsWith("Object store service is not running"));
+            future.actionGet();
         }
     }
 
@@ -1844,6 +1843,50 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY), equalTo(true));
             assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY), notNullValue());
         }
+    }
+
+    public void testConnectionPoolSettings() {
+        var config = new StatelessThreadPools.ThreadPoolConfig(10, 0, 10, 0, 10, 0, 10, 0, 10, 0, 10, 10, 0, 10, 0, 10);
+        // This is what the `config` above should produce plus buffer added inside `connectionPoolSettings`.
+        int expected = 6 * 10 + 6;
+
+        var s3Settings = Settings.builder()
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), S3)
+            .put(ObjectStoreService.CLIENT_SETTING.getKey(), "my_client")
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
+            .build();
+        var s3ConnectionPoolsSettings = ObjectStoreService.connectionPoolSettings(s3Settings, config);
+        assertEquals(Integer.toString(expected), s3ConnectionPoolsSettings.get("s3.client.my_client.max_connections"));
+
+        var azureSettings = Settings.builder()
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), AZURE)
+            .put(ObjectStoreService.CLIENT_SETTING.getKey(), "my_client")
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
+            .build();
+        var azureConnectionPoolsSettings = ObjectStoreService.connectionPoolSettings(azureSettings, config);
+        assertEquals(Integer.toString(expected), azureConnectionPoolsSettings.get("azure.client.my_client.max_connections"));
+
+        var gcsSettings = Settings.builder()
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), GCS)
+            .put(ObjectStoreService.CLIENT_SETTING.getKey(), "my_client")
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
+            .build();
+        var gcsConnectionPoolsSettings = ObjectStoreService.connectionPoolSettings(gcsSettings, config);
+        assertTrue(gcsConnectionPoolsSettings.isEmpty());
+
+        var fsSettings = Settings.builder()
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), FS)
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
+            .build();
+        var fsConnectionPoolsSettings = ObjectStoreService.connectionPoolSettings(fsSettings, config);
+        assertTrue(fsConnectionPoolsSettings.isEmpty());
+
+        var mockSettings = Settings.builder()
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), MOCK)
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
+            .build();
+        var mockConnectionPoolsSettings = ObjectStoreService.connectionPoolSettings(mockSettings, config);
+        assertTrue(mockConnectionPoolsSettings.isEmpty());
     }
 
     public void testListBlobsIgnoresMergeBlobsWithoutWarning() throws Exception {

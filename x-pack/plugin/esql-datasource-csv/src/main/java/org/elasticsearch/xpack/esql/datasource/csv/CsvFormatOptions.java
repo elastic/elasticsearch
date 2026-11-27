@@ -72,6 +72,11 @@ import java.util.Locale;
  *                           blank and comment-prefix records (which do not count toward N) and
  *                           before {@link #headerRow} is applied. Default {@code 0}. Must be
  *                           non-negative; the reader also caps the value at registration.
+ * @param padShortRows       whether a row that stops before the file's width is read with its missing trailing
+ *                           fields as null (padded rows are reported by warnings, up to the warning cap), instead of being a row error
+ *                           the {@code error_mode} decides the fate of. Default {@code false}: a row narrower than
+ *                           the file's width is as structural a fault as a wider one, and a padded null cannot be
+ *                           told from a null the file carries.
  */
 public record CsvFormatOptions(
     char delimiter,
@@ -88,7 +93,8 @@ public record CsvFormatOptions(
     boolean quoting,
     boolean escaping,
     boolean trimSpaces,
-    int skipRows
+    int skipRows,
+    boolean padShortRows
 ) {
 
     public enum MultiValueSyntax {
@@ -170,7 +176,8 @@ public record CsvFormatOptions(
         true,
         true,
         false, // trimSpaces (default; see the record javadoc)
-        0
+        0,
+        false // padShortRows (default; see the record javadoc)
     );
 
     /**
@@ -195,7 +202,8 @@ public record CsvFormatOptions(
         false,
         false,
         false, // trimSpaces (default; see the record javadoc)
-        0
+        0,
+        false // padShortRows (default; see the record javadoc)
     );
 
     /**
@@ -231,7 +239,8 @@ public record CsvFormatOptions(
             true,
             true,
             false, // trimSpaces (default; see the record javadoc)
-            0
+            0,
+            false // padShortRows (default; see the record javadoc)
         );
     }
 
@@ -269,7 +278,8 @@ public record CsvFormatOptions(
             quoting,
             escaping,
             trimSpaces,
-            0
+            0,
+            false // padShortRows (default; see the record javadoc)
         );
     }
 

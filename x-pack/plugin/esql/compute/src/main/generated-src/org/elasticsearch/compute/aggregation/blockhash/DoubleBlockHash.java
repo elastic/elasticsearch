@@ -88,7 +88,7 @@ final class DoubleBlockHash extends BlockHash {
      */
     IntVector add(DoubleVector vector) {
         int positions = vector.getPositionCount();
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions, true)) {
             for (int i = 0; i < positions; i++) {
                 long v = Double.doubleToLongBits(vector.getDouble(i));
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));

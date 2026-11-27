@@ -177,11 +177,6 @@ $$$catalan-stop-words$$$
 `_catalan_`
 :   [Catalan stop words](https://github.com/apache/lucene/blob/main/lucene/analysis/common/src/resources/org/apache/lucene/analysis/ca/stopwords.txt)
 
-$$$cjk-stop-words$$$
-
-`_cjk_` (Chinese, Japanese, and Korean)
-:   [CJK stop words](https://github.com/apache/lucene/blob/main/lucene/analysis/common/src/resources/org/apache/lucene/analysis/cjk/stopwords.txt)
-
 $$$czech-stop-words$$$
 
 `_czech_`

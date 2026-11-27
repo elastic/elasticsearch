@@ -240,7 +240,7 @@ $$$esql-external-cache-schema-ttl$$$
 $$$esql-external-cache-stats-max-extremum-size$$$
 
 `esql.external.cache.stats.max_extremum_size` {applies_to}`stack: preview 9.6+`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Maximum byte width of a cached minimum or maximum value collected from CSV, TSV, or NDJSON reads for `keyword`, `text`, and `ip` columns. Values wider than this limit aren't stored; queries that need a withheld bound (such as `MIN`, `MAX`, or range filters on that column) read the file instead, while counts and other columns remain usable. Columnar formats such as Parquet read statistics from the file footer and aren't affected. Refer to [caching](esql-data-federation-querying.md#caching) for how cached statistics affect query reads.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Maximum byte width of a cached minimum or maximum value collected from CSV, TSV, or NDJSON reads for `keyword`, `text`, and `ip` columns. Values wider than this limit aren't stored; queries that need a withheld bound (such as `MIN`, `MAX`, or range filters on that column) read the file instead, while counts and other columns remain usable. Columnar formats such as Parquet read statistics from the file footer and aren't affected. Refer to [column statistics for text files](esql-data-federation-querying.md#column-statistics-for-text-files) for how cached statistics affect query reads.
 
     - **Default:** `1kb`
     - **Valid values:** A byte size from `0b` to `1mb`. `0b` withholds all non-empty bounds. Values below `16b` also withhold bounds for `ip` columns.

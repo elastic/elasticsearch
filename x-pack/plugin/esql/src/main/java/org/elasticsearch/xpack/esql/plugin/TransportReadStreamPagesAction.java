@@ -509,6 +509,41 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
             TransportVersion.writeVersion(transportVersion, out);
             out.writeBytesReference(bytes);
         }
+
+        /**
+         * Reads pages, charging each one before copying its bytes out of the stream. Once one trips, the next pages are skipped.
+         */
+        static class ChargingReader {
+            private final CircuitBreaker breaker;
+            private long charged;
+            private CircuitBreakingException trip;
+
+            ChargingReader(CircuitBreaker breaker) {
+                this.breaker = breaker;
+            }
+
+            void read(StreamInput in, List<StoredPage> pages) throws IOException {
+                int seq = in.readVInt();
+                long firstRow = in.readVLong();
+                int rowCount = in.readVInt();
+                TransportVersion transportVersion = TransportVersion.readVersion(in);
+                // valid until the stream is released
+                BytesReference bytes = in.readSlicedBytesReference();
+                if (trip != null) {
+                    return;
+                }
+                try {
+                    breaker.addEstimateBytesAndMaybeBreak(bytes.length(), BREAKER_LABEL);
+                } catch (CircuitBreakingException e) {
+                    trip = e;
+                    return;
+                }
+                charged += bytes.length();
+                byte[] copy = new byte[bytes.length()];
+                bytes.streamInput().readBytes(copy, 0, copy.length);
+                pages.add(new StoredPage(seq, firstRow, rowCount, transportVersion, new BytesArray(copy)));
+            }
+        }
     }
 
     /**
@@ -647,10 +682,10 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
          * {@link #failOnTrip}.
          */
         Response(StreamInput in, CircuitBreaker breaker) throws IOException {
-            ChargingPageReader reader = new ChargingPageReader(breaker);
+            StoredPage.ChargingReader reader = new StoredPage.ChargingReader(breaker);
             List<StoredPage> read;
             try {
-                read = in.readCollectionAsList(reader);
+                read = in.readCollection(ArrayList::new, reader::read);
                 this.resultEnded = in.readBoolean();
             } catch (Exception e) {
                 breaker.addWithoutBreaking(-reader.charged);
@@ -706,40 +741,6 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(pages);
             out.writeBoolean(resultEnded);
-        }
-
-        /**
-         * Reads pages, charging each one before copying its bytes out of the stream. Once one trips, the next pages are skipped.
-         */
-        private static class ChargingPageReader implements Writeable.Reader<StoredPage> {
-            private final CircuitBreaker breaker;
-            private long charged;
-            private CircuitBreakingException trip;
-
-            ChargingPageReader(CircuitBreaker breaker) {
-                this.breaker = breaker;
-            }
-
-            @Override
-            public StoredPage read(StreamInput in) throws IOException {
-                int seq = in.readVInt();
-                long firstRow = in.readVLong();
-                int rowCount = in.readVInt();
-                TransportVersion transportVersion = TransportVersion.readVersion(in);
-                // valid until the stream is released
-                BytesReference bytes = in.readSlicedBytesReference();
-                if (trip != null) {
-                    return null;
-                }
-                try {
-                    breaker.addEstimateBytesAndMaybeBreak(bytes.length(), BREAKER_LABEL);
-                } catch (CircuitBreakingException e) {
-                    trip = e;
-                    return null;
-                }
-                charged += bytes.length();
-                return new StoredPage(seq, firstRow, rowCount, transportVersion, new BytesArray(BytesRef.deepCopyOf(bytes.toBytesRef())));
-            }
         }
     }
 }

@@ -16,8 +16,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -952,7 +955,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testEnabledByPrefixSerializationRoundTrip() throws Exception {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            MapperService mapperService = createMapperService(settings, mapping(b -> {
+            MapperService mapperService = createMapperService(beforeEnabledFalseRejection(), settings, mapping(b -> {
                 b.startObject("attributes").field("enabled", false).endObject();
                 b.startObject("resource").field("enabled", false).endObject();
             }));
@@ -960,7 +963,8 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             String mappingJson1 = mapperService.documentMapper().mappingSource().string();
 
             // Re-parse and re-serialize — must be identical (idempotence)
-            MapperService mapperService2 = createMapperService(settings, mappingJson1);
+            MapperService mapperService2 = createMapperService(beforeEnabledFalseRejection(), settings, () -> true);
+            merge(mapperService2, mappingJson1);
             String mappingJson2 = mapperService2.documentMapper().mappingSource().string();
             assertEquals("prefix_properties.enabled must survive round-trip for " + indexMode, mappingJson1, mappingJson2);
 
@@ -979,7 +983,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testEnabledByPrefixMergeAddsEntry() throws Exception {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            MapperService mapperService = createMapperService(settings, mapping(b -> {
+            MapperService mapperService = createMapperService(beforeEnabledFalseRejection(), settings, mapping(b -> {
                 b.startObject("attributes").field("enabled", false).endObject();
             }));
 
@@ -994,7 +998,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testEnabledAndDynamicCoexistInPrefixProperties() throws Exception {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            MapperService mapperService = createMapperService(settings, mapping(b -> {
+            MapperService mapperService = createMapperService(beforeEnabledFalseRejection(), settings, mapping(b -> {
                 b.startObject("attributes");
                 {
                     b.field("dynamic", "false");
@@ -1009,7 +1013,8 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             String mappingJson = mapperService.documentMapper().mappingSource().string();
 
             // Round-trip must be identical
-            MapperService mapperService2 = createMapperService(settings, mappingJson);
+            MapperService mapperService2 = createMapperService(beforeEnabledFalseRejection(), settings, () -> true);
+            merge(mapperService2, mappingJson);
             assertEquals(mappingJson, mapperService2.documentMapper().mappingSource().string());
 
             RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
@@ -1052,5 +1057,10 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         // Ensure the new guard does not affect non-columnar indices.
         MapperService mapperService = createMapperService(topMapping(b -> b.field("enabled", false)));
         assertFalse(mapperService.documentMapper().mapping().getRoot().isEnabled());
+    }
+
+    /** Indices created before this version still accept {@code enabled: false} on objects in strict columnar modes. */
+    private static IndexVersion beforeEnabledFalseRejection() {
+        return IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_REJECTS_ENABLED_FALSE_ON_OBJECTS);
     }
 }

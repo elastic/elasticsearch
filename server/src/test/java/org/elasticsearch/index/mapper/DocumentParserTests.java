@@ -22,10 +22,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -1150,7 +1153,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testColumnarEnabledFalseDropsDottedNotation() throws Exception {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            DocumentMapper mapper = createMapperService(beforeEnabledFalseRejection(), settings, mapping(b -> {
                 b.startObject("@timestamp").field("type", "date").endObject();
                 b.startObject("attributes");
                 {
@@ -1172,7 +1175,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testColumnarEnabledFalseDropsObjectNotation() throws Exception {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            DocumentMapper mapper = createMapperService(beforeEnabledFalseRejection(), settings, mapping(b -> {
                 b.startObject("@timestamp").field("type", "date").endObject();
                 b.startObject("attributes");
                 {
@@ -1198,7 +1201,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             // Even with a declared host:keyword child, no leaf mapper is created and no field is indexed.
-            DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            DocumentMapper mapper = createMapperService(beforeEnabledFalseRejection(), settings, mapping(b -> {
                 b.startObject("@timestamp").field("type", "date").endObject();
                 b.startObject("attributes");
                 {
@@ -4109,5 +4112,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 }
             }));
         }
+    }
+
+    /** Indices created before this version still accept {@code enabled: false} on objects in strict columnar modes. */
+    private static IndexVersion beforeEnabledFalseRejection() {
+        return IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_REJECTS_ENABLED_FALSE_ON_OBJECTS);
     }
 }

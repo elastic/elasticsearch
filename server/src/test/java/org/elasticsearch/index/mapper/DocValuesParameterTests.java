@@ -56,7 +56,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     public void testColumnarEnabledFalseObjectIsLossy() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+        DocumentMapper mapper = createMapperService(beforeEnabledFalseRejection(), settings, mapping(b -> {
             b.startObject("meta");
             b.field("type", "object");
             b.field("enabled", false);
@@ -1344,5 +1344,10 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field.raw".equals(f.stringValue())),
             equalTo(true)
         );
+    }
+
+    /** Indices created before this version still accept {@code enabled: false} on objects in strict columnar modes. */
+    private static IndexVersion beforeEnabledFalseRejection() {
+        return IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_REJECTS_ENABLED_FALSE_ON_OBJECTS);
     }
 }

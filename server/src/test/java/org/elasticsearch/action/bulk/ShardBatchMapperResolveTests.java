@@ -17,6 +17,7 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractShardBatchMapperResolveTestCase;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ColumnGroupResolver;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -51,6 +53,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolveTestCase {
+
+    private static final IndexVersion BEFORE_ENABLED_FALSE_REJECTION = IndexVersionUtils.getPreviousVersion(
+        IndexVersions.COLUMNAR_REJECTS_ENABLED_FALSE_ON_OBJECTS
+    );
 
     /** A mapping whose root sets {@code dynamic: flattened}, so unmapped leaves are absorbed by the {@code _unmapped} sink. */
     private static XContentBuilder dynamicFlattened(CheckedConsumer<XContentBuilder, IOException> properties) throws IOException {
@@ -228,7 +234,8 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     @TestLogging(reason = "asserts the fallback reason", value = "org.elasticsearch.index.mapper.ShardBatchMapper:DEBUG")
     public void testUnmappedLeafUnderEnabledFalseFallsBack() throws IOException {
         final boolean rootFalse = randomBoolean();
-        final MapperService ms = columnarMapperService(topMapping(b -> {
+        // enabled:false on an object is rejected on indices created from COLUMNAR_REJECTS_ENABLED_FALSE_ON_OBJECTS, so pin an older one
+        final MapperService ms = columnarMapperService(BEFORE_ENABLED_FALSE_REJECTION, Settings.EMPTY, topMapping(b -> {
             if (rootFalse) {
                 b.field("dynamic", "false");
             }
@@ -1015,7 +1022,9 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     @TestLogging(reason = "asserts the fallback reason", value = "org.elasticsearch.index.mapper.ShardBatchMapper:DEBUG")
     public void testUnmappedObjectMatchingDynamicTemplateFallsBack() throws IOException {
         for (boolean disabledObject : new boolean[] { true, false }) {
+            // enabled:false on an object is rejected on indices created from COLUMNAR_REJECTS_ENABLED_FALSE_ON_OBJECTS
             final MapperService ms = columnarMapperService(
+                BEFORE_ENABLED_FALSE_REJECTION,
                 Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build(),
                 topMapping(b -> {
                     if (disabledObject == false) {

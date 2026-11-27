@@ -19,10 +19,12 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -1027,7 +1029,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             // Columnar's per-prefix flattening facets (enabled:false, heterogeneous dynamic) are captured on the root
             // object only. Inside a nested scope that capture would be lost, so they are rejected rather than silently
             // mishandled - the single nested level stays plain (flat leaves, no per-prefix facets), which is simpler to
-            // reason about. enabled:false is accepted at the root (see testStrictColumnarModesAllowEnabledFalse).
+            // reason about. enabled:false is rejected everywhere in columnar modes (see testStrictColumnarModesRejectsEnabledFalse).
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
                 b.startObject("comments");
                 {
@@ -1047,7 +1049,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 }
                 b.endObject();
             })));
-            assertThat(e.getMessage(), containsString("the value of [enabled] is [false]"));
+            assertThat(e.getMessage(), containsString("parameter [enabled] cannot be [false] on object [meta]"));
         }
     }
 
@@ -1057,7 +1059,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             // Columnar's per-prefix flattening facets (enabled:false, heterogeneous dynamic) are captured on the root
             // object only. Inside a nested scope that capture would be lost, so they are rejected rather than silently
             // mishandled - the single nested level stays plain (flat leaves, no per-prefix facets), which is simpler to
-            // reason about. enabled:false is accepted at the root (see testStrictColumnarModesAllowEnabledFalse).
+            // reason about. enabled:false is rejected everywhere in columnar modes (see testStrictColumnarModesRejectsEnabledFalse).
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
                 b.startObject("comments");
                 {
@@ -1077,7 +1079,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 }
                 b.endObject();
             })));
-            assertThat(e.getMessage(), containsString("the value of [enabled] is [false]"));
+            assertThat(e.getMessage(), containsString("parameter [enabled] cannot be [false] on object [meta]"));
         }
     }
 
@@ -1506,10 +1508,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         );
     }
 
-    public void testStrictColumnarModesAllowEnabledFalse() throws Exception {
+    public void testStrictColumnarModesAllowEnabledFalseBeforeGateVersion() throws Exception {
+        IndexVersion before = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_REJECTS_ENABLED_FALSE_ON_OBJECTS);
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            MapperService mapperService = createMapperService(settings, mapping(b -> {
+            MapperService mapperService = createMapperService(before, settings, mapping(b -> {
                 b.startObject("attributes");
                 {
                     b.field("enabled", false);
@@ -1519,15 +1522,28 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 }
                 b.endObject();
             }));
-            // The disabled object is flattened away — no ObjectMapper in the tree
+            // The disabled object is flattened away and its prefix captured in prefixProperties
             assertNull(mapperService.mappingLookup().objectMappers().get("attributes"));
-            // No children are flattened — the entire subtree is disabled.
-            assertNull("children of an enabled:false object must not appear as indexed fields", mapperService.fieldType("attributes.host"));
-            // The enabled:false prefix is captured in prefixProperties
+            assertNull(mapperService.fieldType("attributes.host"));
             RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
             assertEquals(Boolean.FALSE, root.getPrefixProperties().get("attributes").enabled());
-            // No dynamic facet for the disabled prefix
-            assertNull(root.getPrefixProperties().get("attributes").dynamic());
+        }
+    }
+
+    public void testStrictColumnarModesRejectsEnabledFalse() {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("enabled", false);
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("parameter [enabled] cannot be [false] on object [attributes]"));
         }
     }
 

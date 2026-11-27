@@ -785,7 +785,22 @@ public class ObjectMapper extends Mapper {
                 }
                 return true;
             } else if (fieldName.equals("enabled")) {
-                builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
+                boolean enabled = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled");
+                // The root object has its own, more specific, validation in RootObjectMapper. Indices created before the gate
+                // version keep accepting enabled:false on objects (captured in prefix_properties), so they stay readable.
+                if (enabled == false
+                    && builder instanceof RootObjectMapper.Builder == false
+                    && parserContext.getIndexSettings().getMode().isStrictColumnar()
+                    && parserContext.indexVersionCreated().onOrAfter(IndexVersions.COLUMNAR_REJECTS_ENABLED_FALSE_ON_OBJECTS)) {
+                    throw new MapperParsingException(
+                        "parameter [enabled] cannot be [false] on object ["
+                            + builder.leafName()
+                            + "] in index using ["
+                            + parserContext.getIndexSettings().getMode()
+                            + "] index mode"
+                    );
+                }
+                builder.enabled(enabled);
                 return true;
             } else if (fieldName.equals(STORE_ARRAY_SOURCE_PARAM)) {
                 if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {

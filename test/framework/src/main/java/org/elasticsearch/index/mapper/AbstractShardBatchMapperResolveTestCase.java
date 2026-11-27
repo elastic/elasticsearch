@@ -84,7 +84,17 @@ public abstract class AbstractShardBatchMapperResolveTestCase extends MapperServ
      * disabled, additionally applying {@code extra} settings.
      */
     protected final MapperService columnarMapperService(Settings extra, XContentBuilder mapping) throws IOException {
+        return columnarMapperService(IndexVersion.current(), extra, mapping);
+    }
+
+    /**
+     * Like {@link #columnarMapperService(Settings, XContentBuilder)} but for an index created on {@code indexVersion}, for mappings
+     * that the current version rejects (such as {@code enabled: false} on an object).
+     */
+    protected final MapperService columnarMapperService(IndexVersion indexVersion, Settings extra, XContentBuilder mapping)
+        throws IOException {
         return createMapperService(
+            indexVersion,
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).put(extra).build(),
             mapping
         );

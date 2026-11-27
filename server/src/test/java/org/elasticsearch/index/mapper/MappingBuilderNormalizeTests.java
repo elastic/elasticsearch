@@ -13,7 +13,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -363,7 +366,7 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
      */
     public void testPrefixPropertiesBelowADisabledObjectAreNotRecorded() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        MapperService mapperService = createMapperService(beforeEnabledFalseRejection(), settings, mapping(b -> {}));
         String disabledObject = """
             {
               "_doc": {
@@ -436,5 +439,10 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
         Mapping mapping = parse(HOISTED_FIELD_THEN_DIRECT_FIELD).build(MergeReason.INDEX_TEMPLATE);
 
         assertThat(mapping.getRoot().getMapper("a.x"), instanceOf(TextFieldMapper.class));
+    }
+
+    /** Indices created before this version still accept {@code enabled: false} on objects in strict columnar modes. */
+    private static IndexVersion beforeEnabledFalseRejection() {
+        return IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_REJECTS_ENABLED_FALSE_ON_OBJECTS);
     }
 }

@@ -105,7 +105,10 @@ public class ShapeDocValuesIndexVersionTests extends MapperServiceTestCase {
      * the fielddata and the bounds and centroid block loaders read for each shape, in document order.
      */
     private List<String> readDocValues(String type, IndexVersion version, GeometryDocValueFormat expectedFormat) throws IOException {
-        MapperService mapperService = createMapperService(version, fieldMapping(b -> b.field("type", type).field("index", false)));
+        MapperService mapperService = createMapperService(
+            version,
+            fieldMapping(b -> b.field("type", type).field("index", false).field("doc_values", true))
+        );
         var fieldType = (AbstractShapeGeometryFieldType<?>) mapperService.fieldType("field");
         assertThat("index version " + version, fieldType.docValueFormat(), equalTo(expectedFormat));
         List<String> values = new ArrayList<>();

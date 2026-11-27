@@ -58,7 +58,12 @@ This mapping definition maps the geometry field to the shape type. The indexer u
 
 ## Doc values [shape-doc-values]
 
-When `doc_values` is enabled, each shape is also stored on disk as a tree of the triangles in its triangular mesh, encoded as single precision floats like the index. Aggregations such as [`cartesian_bounds`](/reference/aggregations/search-aggregations-metrics-cartesian-bounds-aggregation.md) and [`cartesian_centroid`](/reference/aggregations/search-aggregations-metrics-cartesian-centroid-aggregation.md) read these doc values instead of the `_source`.
+When `doc_values` is enabled, each shape is also stored on disk, encoded as single precision floats like the index. Aggregations such as [`cartesian_bounds`](/reference/aggregations/search-aggregations-metrics-cartesian-bounds-aggregation.md) and [`cartesian_centroid`](/reference/aggregations/search-aggregations-metrics-cartesian-centroid-aggregation.md) read these doc values instead of the `_source`.
+
+How a value is stored depends on the version the index was created in:
+
+* {applies_to}`stack: ga 9.7` {applies_to}`serverless: ga` Each value stores its vertices once, in a table that is shared by a tree of the triangles in its triangular mesh and by a description of how the vertices connect into the original points, lines, and polygons. The original geometry can therefore be rebuilt from the doc values, at the precision of the index. Values made only of points store just the table of points.
+* In indices created in earlier versions, each value is stored as a tree of the triangles in its triangular mesh, with the coordinates inline. These indices keep this layout until they are reindexed.
 
 
 ## Input Structure [shape-input-structure]

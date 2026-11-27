@@ -177,7 +177,6 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         Map<String, String> headers = Map.of("es-security-runas-user", "test-user");
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed-1", "job-1");
         builder.setEsqlQuery(ESQL_QUERY);
-        builder.setGroupingInterval(TimeValue.timeValueMinutes(1));
         builder.setHeaders(headers);
         builder.setProjectRouting("_alias:_origin");
 
@@ -389,7 +388,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     private static Job buildJob(String jobId, String timeField, String summaryCountFieldName) {
         Detector.Builder detector = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
-        analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(60));
+        analysisConfig.setBucketSpan(TimeValue.timeValueDays(1));
         if (summaryCountFieldName != null) {
             analysisConfig.setSummaryCountFieldName(summaryCountFieldName);
         }
@@ -407,7 +406,6 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     ) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setEsqlQuery(ESQL_QUERY);
-        builder.setGroupingInterval(TimeValue.timeValueMinutes(1));
         builder.setDelayedDataCheckConfig(delayedDataCheckConfig);
         if (headers != null) {
             builder.setHeaders(headers);
@@ -418,7 +416,6 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     private static DatafeedConfig buildDatafeedWithProjectRouting(String datafeedId, String jobId, String projectRouting) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setEsqlQuery(ESQL_QUERY);
-        builder.setGroupingInterval(TimeValue.timeValueMinutes(1));
         builder.setProjectRouting(projectRouting);
         return builder.build();
     }

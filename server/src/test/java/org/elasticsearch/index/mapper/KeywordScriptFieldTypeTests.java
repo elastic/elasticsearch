@@ -26,6 +26,9 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -311,6 +314,31 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                     ),
                     equalTo(2)
                 );
+            }
+        }
+    }
+
+    /** An automaton built by the caller runs over the values, as it runs over the terms of an indexed keyword. */
+    public void testAutomatonQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                Automaton automaton = Operations.determinize(
+                    Operations.concatenate(List.of(Automata.makeString("ca"), Automata.makeAnyChar(), Automata.makeAnyString())),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                );
+                Query query = simpleMappedFieldType().automatonQuery(
+                    () -> automaton,
+                    () -> new CharacterRunAutomaton(automaton),
+                    null,
+                    mockContext(),
+                    "ca.+"
+                );
+                assertThat(searcher.count(query), equalTo(2));
+                assertThat(query.toString("test"), equalTo("ca.+"));
             }
         }
     }

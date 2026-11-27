@@ -13,6 +13,8 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -26,6 +28,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.runtime.StringScriptFieldAutomatonQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
@@ -44,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.toSet;
 
@@ -244,6 +248,22 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             maxDeterminizedStates,
             context.getCircuitBreaker()
         );
+    }
+
+    /**
+     * Runs the automaton over the values the script emits, as an indexed {@code keyword} runs it over its terms, so a
+     * query built from an automaton rather than a pattern, such as an ES|QL {@code RLIKE} list, runs here too.
+     */
+    @Override
+    public Query automatonQuery(
+        Supplier<Automaton> automatonSupplier,
+        Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context,
+        String description
+    ) {
+        applyScriptContext(context);
+        return new StringScriptFieldAutomatonQuery(script, leafFactory(context), name(), automatonSupplier.get(), description);
     }
 
     @Override

@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -111,6 +114,49 @@ public class PrometheusPlanBuilderUtilsTests extends ESTestCase {
         Expression cond = PrometheusPlanBuilderUtils.buildPostInfoSelectorCondition(selector);
         assertThat(containsAttribute(cond, PrometheusPlanBuilderUtils.METRIC_NAME_FIELD), is(true));
         assertThat(containsAttribute(cond, "__name__"), is(false));
+    }
+
+    /**
+     * A metric stored as {@code metrics.<name>} is matched by its name without the prefix, so the {@code ^} of the regex
+     * holds at the start of the name. A name of eight other characters before the same suffix has no prefix to take off.
+     */
+    public void testBuildPostInfoSelectorConditionMatchesPrefixedNameWithoutThePrefix() {
+        for (String regex : List.of("^system\\..*", "^system\\.(cpu|memory)\\..*")) {
+            String escaped = regex.replace("\\", "\\\\");
+            Expression matches = PrometheusPlanBuilderUtils.buildPostInfoSelectorCondition(
+                parseInstantSelector("{__name__=~\"" + escaped + "\"}")
+            );
+            Expression doesNotMatch = PrometheusPlanBuilderUtils.buildPostInfoSelectorCondition(
+                parseInstantSelector("{__name__!~\"" + escaped + "\", job=\"a\"}")
+            );
+            for (String name : List.of("system.cpu.time", "metrics.system.cpu.time")) {
+                assertThat(regex + " on " + name, matchesMetricName(matches, name), is(true));
+                assertThat(regex + " on " + name, matchesMetricName(doesNotMatch, name), is(false));
+            }
+            for (String name : List.of("abcdefghsystem.cpu.time", "metrics.xsystem.cpu.time", "metrics.")) {
+                assertThat(regex + " on " + name, matchesMetricName(matches, name), is(false));
+                assertThat(regex + " on " + name, matchesMetricName(doesNotMatch, name), is(true));
+            }
+        }
+    }
+
+    /** A literal is compared with the prefix prepended, which needs no regex. */
+    public void testBuildPostInfoSelectorConditionComparesPrefixedNameForLiteral() {
+        Expression cond = PrometheusPlanBuilderUtils.buildPostInfoSelectorCondition(parseInstantSelector("{__name__!=\"up\", job=\"a\"}"));
+        assertThat(containsExpressionOfType(cond, Substring.class), is(false));
+        assertThat(matchesMetricName(cond, "up"), is(false));
+        assertThat(matchesMetricName(cond, "metrics.up"), is(false));
+        assertThat(matchesMetricName(cond, "down"), is(true));
+        assertThat(matchesMetricName(cond, "abcdefghup"), is(true));
+    }
+
+    /** Evaluates the condition on a metric named {@code name}. */
+    private static boolean matchesMetricName(Expression condition, String name) {
+        Expression bound = condition.transformUp(
+            UnresolvedAttribute.class,
+            a -> a.name().equals(PrometheusPlanBuilderUtils.METRIC_NAME_FIELD) ? Literal.keyword(Source.EMPTY, name) : a
+        );
+        return Boolean.TRUE.equals(bound.fold(FoldContext.small()));
     }
 
     public void testBuildPostInfoSelectorConditionForNameRegexMatcherDoesNotWrapWithIsNotNull() {

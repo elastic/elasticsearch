@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -25,13 +27,14 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogra
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -43,7 +46,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -130,25 +135,36 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(in.list().stream().map(Expression::toString).toList(), containsInAnyOrder("host-0", "host-1", "host-2"));
     }
 
+    /** A regex with a metacharacter in any alternative, a prefix included, is matched as a whole, as Prometheus parses it. */
     public void testLabelSelectorPrefix() {
-        var plan = planPromql("""
-            PROMQL index=k8s step=1m avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-.*"}[5m]))
-            """);
-        assertTrue(anyFilterContains(plan, StartsWith.class));
-        assertFalse(anyFilterContains(plan, NotEquals.class));
-    }
-
-    public void testLabelSelectorProperPrefix() {
-        var plan = planPromql("""
-            PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~"host-.+"}[1h]))
-            """);
-        assertTrue(anyFilterContains(plan, StartsWith.class));
-        assertTrue(anyFilterContains(plan, NotEquals.class));
+        for (String regex : List.of("host-.*", "host-.+", "host-.*|web")) {
+            var plan = planPromql("PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~\"" + regex + "\"}[1h]))");
+            var re2Like = collectInnermostSelectorFilter(plan, Re2Like.class);
+            assertThat(as(re2Like.field(), FieldAttribute.class).name(), equalTo("pod"));
+            assertThat(re2Like.pattern().pattern(), equalTo(regex));
+            assertFalse(regex, anyFilterContains(plan, StartsWith.class));
+        }
     }
 
     public void testLabelSelectorRegex() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~\"[a-z]+\"}[1h]))");
         assertTrue(anyFilterContains(plan, RegexMatch.class));
+    }
+
+    /**
+     * A node that predates {@link Re2Like} can't read it, so a plan optimized for a cluster that has one carries the
+     * matcher as an {@link RLike} instead: a matcher both syntaxes read alike, that no selector rewrite lowers.
+     */
+    public void testLabelSelectorRegexFallsBackToRLikeForOlderNodes() {
+        var analyzed = planPromql("PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~\"[a-z]+_total\"}[1h]))", false);
+        TransportVersion beforeRe2Like = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_re2_like"));
+        var optimized = new LogicalPlanOptimizer(logicalOptimizerContext(TEST_CFG, FoldContext.small(), beforeRe2Like)).optimize(analyzed);
+        List<Expression> matches = new ArrayList<>();
+        optimized.forEachExpressionDown(RegexMatch.class, matches::add);
+        assertThat(matches, hasSize(1));
+        var rLike = as(matches.getFirst(), RLike.class);
+        assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(rLike.pattern().pattern(), equalTo("[a-z]+_total"));
     }
 
     public void testLabelSelectorNotEquals() {
@@ -178,16 +194,25 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
     public void testLabelSelectorRegexNegation() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})");
         var not = collectInnermostSelectorFilter(plan, Not.class);
-        var rLike = as(not.field(), RLike.class);
-        assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
-        assertThat(rLike.pattern().pattern(), equalTo("f.o"));
+        var re2Like = as(not.field(), Re2Like.class);
+        assertThat(as(re2Like.field(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(re2Like.pattern().pattern(), equalTo("f.o"));
+    }
+
+    /** The regex fallback keeps the regex in RE2 syntax, where Lucene's own operators are literals. */
+    public void testLabelSelectorRegexLuceneOnlyOperatorsAreLiterals() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"(a<1-3>|~b&c)\"})");
+        var not = collectInnermostSelectorFilter(plan, Not.class);
+        var re2Like = as(not.field(), Re2Like.class);
+        assertThat(as(re2Like.field(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(re2Like.pattern().pattern(), equalTo("(a<1-3>|~b&c)"));
     }
 
     public void testLabelSelectors() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\",cluster=~\"bar|baz\",region!~\"us-.*\"})");
         assertTrue(anyFilterContains(plan, Not.class));
         assertTrue(anyFilterContains(plan, In.class));
-        assertTrue(anyFilterContains(plan, StartsWith.class));
+        assertTrue(anyFilterContains(plan, Re2Like.class));
     }
 
     /**

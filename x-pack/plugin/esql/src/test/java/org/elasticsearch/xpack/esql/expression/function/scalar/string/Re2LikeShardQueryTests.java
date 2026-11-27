@@ -1,0 +1,302 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.scalar.string;
+
+import org.apache.lucene.search.AutomatonQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2RegExp;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
+import org.elasticsearch.xpack.wildcard.Wildcard;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+
+/**
+ * The query a shard builds for a pushed down {@link Re2Like}: it applies the checks a {@code regexp} query applies, and
+ * builds the automaton against the shard's circuit breaker.
+ */
+public class Re2LikeShardQueryTests extends MapperServiceTestCase {
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new Wildcard());
+    }
+
+    public void testRefusesPatternLongerThanTheIndexAllows() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey(), 5).build(),
+            mapping(b -> b.startObject("label").field("type", "keyword").endObject())
+        );
+        SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query("abc.*def", context));
+        assertThat(
+            e.getMessage(),
+            containsString("The length of regex [8] used in a label matcher has exceeded the allowed maximum of [5]")
+        );
+    }
+
+    public void testRefusesWhenExpensiveQueriesAreNotAllowed() throws IOException {
+        SearchExecutionContext context = noExpensiveQueries(keyword(true));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> query("a.*", context));
+        assertThat(e.getMessage(), equalTo("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false."));
+    }
+
+    /**
+     * A field without a terms index refuses it too, as it refuses a {@code regexp} query, even one such as a doc-values-only
+     * flattened key, which doesn't check the setting when given an automaton.
+     */
+    public void testDocValuesOnlyFieldRefusesWhenExpensiveQueriesAreNotAllowed() throws IOException {
+        MapperService mapperService = createMapperService(
+            mapping(b -> b.startObject("labels").field("type", "flattened").field("index", false).endObject())
+        );
+        assertThat(
+            "the key builds the query when expensive ones are allowed",
+            query("labels.pod", "a.*", createSearchExecutionContext(mapperService)),
+            notNullValue()
+        );
+        SearchExecutionContext context = noExpensiveQueries(mapperService);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> query("labels.pod", "a.*", context));
+        assertThat(e.getMessage(), equalTo("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false."));
+    }
+
+    /** A constant field tests its one value, so it runs the match as it runs a {@code regexp} query, whatever the setting. */
+    public void testConstantFieldRunsWhenExpensiveQueriesAreNotAllowed() throws IOException {
+        SearchExecutionContext context = noExpensiveQueries(keyword(true));
+        String index = context.getFullyQualifiedIndex().getName();
+        assertThat(query("_index", "\\Q" + index + "\\E", context), equalTo(Queries.ALL_DOCS_INSTANCE));
+        assertThat(query("_index", "\\Q" + index + "\\Ex", context), instanceOf(MatchNoDocsQuery.class));
+    }
+
+    /** A runtime field refuses it before the automaton is built, with the error it gives a {@code regexp} query. */
+    public void testRuntimeFieldRefusesWhenExpensiveQueriesAreNotAllowed() throws IOException {
+        MapperService mapperService = createMapperService(runtimeMapping(b -> b.startObject("label").field("type", "keyword").endObject()));
+        LabelTrackingCircuitBreaker breaker = new LabelTrackingCircuitBreaker();
+        SearchExecutionContext context = noExpensiveQueries(
+            new SearchExecutionContext(createSearchExecutionContext(mapperService), breaker)
+        );
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> query("a.*", context));
+        assertThat(
+            e.getMessage(),
+            equalTo("queries cannot be executed against runtime fields while [search.allow_expensive_queries] is set to [false].")
+        );
+        assertThat("nothing is built", breaker.firstCharge, equalTo(-1L));
+    }
+
+    /** A wildcard field runs a {@code regexp} query whatever the setting, so it runs the match too. */
+    public void testWildcardFieldRunsWhenExpensiveQueriesAreNotAllowed() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> b.startObject("label").field("type", "wildcard").endObject()));
+        assertThat(query("prod-[0-9]+", noExpensiveQueries(mapperService)), notNullValue());
+    }
+
+    public void testAutomatonIsChargedToTheShardBreaker() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), breaker);
+
+        assertThat(query("(a|b)c.*", context), notNullValue());
+        assertTrue("the build reserves memory while it runs", breaker.peak() > 0);
+        context.releaseQueryConstructionMemory();
+        assertThat("nothing stays reserved once the request ends", breaker.getUsed(), equalTo(0L));
+
+        // a program that fits the breaker, 100 copies of a class of hundreds of ranges, whose transitions don't: the
+        // build is charged as it grows and stops when the breaker trips
+        String regex = "\\pL{100}";
+        TrackingCircuitBreaker small = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
+        SearchExecutionContext limited = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), small);
+        expectThrows(CircuitBreakingException.class, () -> query(regex, limited));
+        assertThat("past the program's reservation", small.peak(), greaterThan(100 * Re2RegExp.BYTES_PER_INSTRUCTION));
+        assertThat(small.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The field compiles the automaton while it builds the query, which for an indexed keyword expands it to UTF-8 bytes:
+     * the peak of that is held on the breaker while it runs, as it is for a {@code regexp} query.
+     */
+    public void testCompilationIsChargedToTheShardBreaker() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), breaker);
+
+        assertThat(query("abc", context), notNullValue());
+        assertThat(breaker.peak(), greaterThanOrEqualTo(new AutomatonQueryCostEstimator(0).estimate()));
+        context.releaseQueryConstructionMemory();
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        TrackingCircuitBreaker small = new TrackingCircuitBreaker(new AutomatonQueryCostEstimator(0).estimate() - 1);
+        SearchExecutionContext limited = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), small);
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> query("abc", limited));
+        assertThat("charged under the category of a regexp query", e.getMessage(), containsString("regexp[RE2_LIKE:label]"));
+        assertThat(small.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The query keeps its compiled automaton until the request ends, so it stays charged until then, as a {@code regexp}
+     * query does, and is marked so that the walk over the built query, which a wrapping query builder runs as well, doesn't
+     * charge it again.
+     */
+    public void testQueryStaysChargedUntilTheRequestEnds() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), breaker);
+
+        Re2Like re2Like = new Re2Like(Source.EMPTY, getFieldAttribute("label"), new Re2Pattern("(a|b)c.*"));
+        AutomatonQuery query = asInstanceOf(AutomatonQuery.class, new ExpressionQueryBuilder("label", re2Like).toQuery(context));
+        assertThat(breaker.getUsed(), equalTo(query.ramBytesUsed()));
+        assertTrue(context.isQueryMemoryPreCharged(query));
+
+        context.releaseQueryConstructionMemory();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** Each charge is refunded under the label it was made under, so the held memory of each breaker category balances. */
+    public void testChargesAreRefundedUnderTheirLabel() throws IOException {
+        LabelTrackingCircuitBreaker breaker = new LabelTrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), breaker);
+
+        assertThat(query("(a|b)c.*", context), notNullValue());
+        context.releaseQueryConstructionMemory();
+        assertThat(breaker.held.keySet(), equalTo(Set.of("regexp[RE2_LIKE:label]")));
+        assertThat(breaker.held.values(), everyItem(equalTo(0L)));
+
+        // a build that trips while the builder holds a reservation past the program's refunds that reservation as well
+        LabelTrackingCircuitBreaker tripped = new LabelTrackingCircuitBreaker();
+        SearchExecutionContext limited = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), tripped);
+        expectThrows(CircuitBreakingException.class, () -> query("\\pL{100}", limited));
+        assertThat("the builder holds a reservation when it trips", tripped.usedWhenTripped, greaterThan(tripped.firstCharge));
+        limited.releaseQueryConstructionMemory();
+        assertThat(tripped.held.keySet(), equalTo(Set.of("regexp[RE2_LIKE:label]")));
+        assertThat(tripped.held.values(), everyItem(equalTo(0L)));
+    }
+
+    /** A field that can't build the query fails after the automaton is built, and nothing stays reserved for it. */
+    public void testFailedQueryReleasesItsReservation() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
+        MapperService mapperService = createMapperService(
+            mapping(b -> b.startObject("label").field("type", "keyword").field("index", false).field("doc_values", false).endObject())
+        );
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(mapperService), breaker);
+
+        expectThrows(IllegalArgumentException.class, () -> query("(a|b)c.*", context));
+        assertTrue("the build reserves memory while it runs", breaker.peak() > 0);
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** A regex Prometheus runs without an automaton can be too complex to build one for, as the compatibility docs say. */
+    public void testRefusesRegexTooComplexToDeterminize() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext(keyword(true));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query(".*a.{20}", context));
+        assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
+
+        // built against the shard breaker, it fails as a regexp query's automaton does, which the search reports the same way
+        SearchExecutionContext limited = new SearchExecutionContext(
+            createSearchExecutionContext(keyword(true)),
+            new TrackingCircuitBreaker(ByteSizeValue.ofMb(100).getBytes())
+        );
+        expectThrows(TooComplexToDeterminizeException.class, () -> query(".*a.{20}", limited));
+    }
+
+    private MapperService keyword(boolean indexed) throws IOException {
+        return createMapperService(mapping(b -> b.startObject("label").field("type", "keyword").field("index", indexed).endObject()));
+    }
+
+    /**
+     * A context whose {@code search.allow_expensive_queries} is false: the test framework's context allows them, and the
+     * setting is read through this method.
+     */
+    private SearchExecutionContext noExpensiveQueries(MapperService mapperService) {
+        return noExpensiveQueries(createSearchExecutionContext(mapperService));
+    }
+
+    private static SearchExecutionContext noExpensiveQueries(SearchExecutionContext context) {
+        return new SearchExecutionContext(context) {
+            @Override
+            public boolean allowExpensiveQueries() {
+                return false;
+            }
+        };
+    }
+
+    private static org.apache.lucene.search.Query query(String regex, SearchExecutionContext context) {
+        return query("label", regex, context);
+    }
+
+    /**
+     * A breaker that keeps what each label holds, an unlabeled refund under its own key, as well as its first charge, which
+     * reserves the program, and what it held when it tripped.
+     */
+    private static class LabelTrackingCircuitBreaker extends TrackingCircuitBreaker {
+        private final Map<String, Long> held = new ConcurrentHashMap<>();
+        private volatile long firstCharge = -1;
+        private volatile long usedWhenTripped = -1;
+
+        LabelTrackingCircuitBreaker() {
+            super(ByteSizeValue.ofMb(1).getBytes());
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+            held.merge(label, bytes, Long::sum);
+            if (firstCharge < 0) {
+                firstCharge = bytes;
+            }
+        }
+
+        @Override
+        public void circuitBreak(String label, long bytesNeeded) {
+            usedWhenTripped = getUsed();
+            super.circuitBreak(label, bytesNeeded);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            super.addWithoutBreaking(bytes);
+            held.merge("unlabeled", bytes, Long::sum);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes, String label) {
+            super.addWithoutBreaking(bytes);
+            held.merge(label, bytes, Long::sum);
+        }
+    }
+
+    private static org.apache.lucene.search.Query query(String field, String regex, SearchExecutionContext context) {
+        Re2Like re2Like = new Re2Like(Source.EMPTY, getFieldAttribute(field), new Re2Pattern(regex));
+        MappedFieldType fieldType = context.getFieldType(field);
+        return re2Like.asLuceneQuery(fieldType, MultiTermQuery.CONSTANT_SCORE_REWRITE, context);
+    }
+}

@@ -4382,6 +4382,12 @@ public class EsqlCapabilities {
         PROMQL_ABSENT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL label matchers {@code =~} and {@code !~} read their regex in RE2 syntax, as Prometheus does, rather than in
+         * Lucene's regexp syntax.
+         */
+        PROMQL_RE2_LABEL_MATCHERS(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix PromQL {@code count_values} over a metric the index does not map: like Prometheus, it gives no element rather than
          * failing to plan.
          */

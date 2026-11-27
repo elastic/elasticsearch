@@ -75,6 +75,8 @@ Time durations, such as `1h30m`, and duration arithmetic, such as `x[5m + 1m]`.
 
 A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_requests_total{job="api", code=~"5.."}`.
 
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The regex of `=~` and `!~` in RE2 syntax, as in {{prom}}, such as `http_requests_total{code=~"\\d{3}"}` and `http_requests_total{path=~"(?i)/api/.*"}`. While the cluster, or a remote cluster the query reads, has nodes on an earlier version, a matcher that still needs a regex after rewriting and that Lucene regexp syntax reads differently, such as `(?i)/api/.*`, is rejected, even when every queried shard is on an upgraded node. A regex is matched with an automaton, within the limits listed under **Not supported yet**. Requests coordinated by a node on an earlier version still use Lucene regexp syntax.
+
 **Not supported yet**
 
 :::{table}
@@ -84,6 +86,8 @@ A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_r
 |---|---|---|---|---|
 | 4 | Selector without a metric name | `{job="api"}` | - | [#146977]({{es-issue}}146977) |
 | 5 | Regex matcher on `__name__` | `{__name__=~"node_.*"}` | Combine the metrics with `or`: `node_cpu or node_mem` | [#146977]({{es-issue}}146977) |
+| 6 | In a regex matcher, a capture group name used twice, a long or lowercase Unicode class name, or a `{` that starts no count followed by a repetition {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~"(?P<n>a)(?P<n>b)"}`, `up{l=~"\\p{Letter}"}`, `up{l=~"x{*"}` | Use distinct group names, short class names such as `\\p{L}`, and `\\{` | - |
+| 7 | A regex matcher longer than 1,000 UTF-16 code units, where a character outside the Basic Multilingual Plane counts as two, or whose automaton is too large to build. A regex that runs as a query on a shard, rather than as exact matches, is also checked there against that index's [`index.max_regex_length`](/reference/elasticsearch/index-settings/index-modules.md#index-max-regex-length). {{prom}} runs a regex without building one {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~".*a.{20}"}` | Shorten or simplify the regex | - |
 :::
 
 **Behaves differently**
@@ -93,7 +97,12 @@ A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_r
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 6 | Negative matcher on `__name__` | `{__name__!="up", job="node"}` | No results | Every other matching metric | [#146977]({{es-issue}}146977) |
+| 8 | Negative matcher on `__name__` | `{__name__!="up", job="node"}` | No results | Every other matching metric | [#146977]({{es-issue}}146977) |
+| 9 | Regex matcher syntax {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `http_requests_total{path=~".*a~b.*"}`, `up{v=~".*<1-5>.*"}` | Lucene regexp syntax, where `~`, `&`, `@`, `"` and `<1-5>` are operators, in a regex that is not rewritten to an exact, prefix or suffix match | RE2 syntax, where they are literals | - |
+| 10 | Unicode classes in a regex matcher {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~"\\pL+"}` | The classes of Unicode 6.0 | The classes of Unicode 15.0, which hold characters added since | - |
+| 11 | A backslash before a non-ASCII character in a regex matcher {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~"\\é"}` | Matches `é` | Rejected | - |
+| 12 | A regex matcher on a label mapped as a `keyword` with a [normalizer](/reference/elasticsearch/mapping-reference/normalizer.md) {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~"[A-Z]+"}`, where `l` has a `lowercase` normalizer | A regex that is not rewritten to exact matches, as one of literal alternatives only is, is matched as written against the normalized values: `[A-Z]+` matches none of them. While the cluster has nodes on an earlier version, such a regex is matched as on those versions, in the next row, if both syntaxes read it alike, and rejected otherwise | The values as ingested. {{prom}} has no normalizers | - |
+| 13 | A regex matcher on a label mapped as a `keyword` with a [normalizer](/reference/elasticsearch/mapping-reference/normalizer.md) {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `up{l=~"[A-Z]+"}`, where `l` has a `lowercase` normalizer | A regex that is not rewritten to an exact, prefix or suffix match is normalized first where it runs as a Lucene query: `[A-Z]+` matches `abc`. Where it is evaluated on loaded values instead, it is matched as written | The values as ingested. {{prom}} has no normalizers | - |
 :::
 
 #### Range vector selectors [prometheus-compatibility-range-vector-selectors]
@@ -109,7 +118,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 7 | `anchored` and `smoothed` modifiers ({{prom}}: `promql-extended-range-selectors` feature flag) | `increase(x[5m] anchored)` | - | [#164222]({{es-issue}}164222) |
+| 14 | `anchored` and `smoothed` modifiers ({{prom}}: `promql-extended-range-selectors` feature flag) | `increase(x[5m] anchored)` | - | [#164222]({{es-issue}}164222) |
 :::
 
 #### Offset modifier [prometheus-compatibility-offset-modifier]
@@ -125,7 +134,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 8 | Negative offset at the end of the query range | `x offset -5m` | No value at the last steps. Samples after the query end aren't read | Reads samples after the query end | - |
+| 15 | Negative offset at the end of the query range | `x offset -5m` | No value at the last steps. Samples after the query end aren't read | Reads samples after the query end | - |
 :::
 
 #### @ modifier [prometheus-compatibility-at-modifier]
@@ -137,7 +146,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 9 | `@` modifier | `x @ 1700000000`, `x @ end()` | - | [#164139]({{es-issue}}164139) |
+| 16 | `@` modifier | `x @ 1700000000`, `x @ end()` | - | [#164139]({{es-issue}}164139) |
 :::
 
 ### Subquery [prometheus-compatibility-subquery]
@@ -149,7 +158,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 10 | Subquery | `max_over_time(rate(x[5m])[1h:1m])` | - | [#164139]({{es-issue}}164139) |
+| 17 | Subquery | `max_over_time(rate(x[5m])[1h:1m])` | - | [#164139]({{es-issue}}164139) |
 :::
 
 ### Gotchas [prometheus-compatibility-gotchas]
@@ -167,7 +176,7 @@ A selector without a range, such as `http_requests_total`, returns the latest sa
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 11 | Lookback in instant queries | `/api/v1/query` | Five minutes, fixed | Five minutes by default, configurable with `lookback_delta` | [#149939]({{es-issue}}149939) |
-| 12 | Lookback in range queries | `/api/v1/query_range` | One `step`. A series disappears at the first step without its own sample | Five minutes. The last sample repeats until then | - |
-| 13 | Staleness markers | - | Ignored. A series disappears once its samples leave the lookback window | A series disappears at its staleness marker | - |
+| 18 | Lookback in instant queries | `/api/v1/query` | Five minutes, fixed | Five minutes by default, configurable with `lookback_delta` | [#149939]({{es-issue}}149939) |
+| 19 | Lookback in range queries | `/api/v1/query_range` | One `step`. A series disappears at the first step without its own sample | Five minutes. The last sample repeats until then | - |
+| 20 | Staleness markers | - | Ignored. A series disappears once its samples leave the lookback window | A series disappears at its staleness marker | - |
 :::

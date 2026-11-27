@@ -1,0 +1,298 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
+
+import org.apache.lucene.search.AutomatonQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
+import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQuery;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+
+import java.io.IOException;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+
+/**
+ * Whether a string matches a regular expression in RE2 syntax as a whole, which is what a PromQL label matcher asks.
+ * It is not part of the ES|QL language, whose {@code RLIKE} takes Lucene's regexp syntax instead.
+ */
+public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, TransportVersionAware {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Re2Like", Re2Like::new);
+    public static final String NAME = "RE2_LIKE";
+
+    private static final TransportVersion ESQL_RE2_LIKE = TransportVersion.fromName("esql_re2_like");
+
+    public Re2Like(Source source, Expression field, Re2Pattern pattern) {
+        super(source, field, pattern, false);
+    }
+
+    private Re2Like(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), new Re2Pattern(in.readString()));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeString(pattern().pattern());
+    }
+
+    @Override
+    public String name() {
+        return NAME;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected NodeInfo<Re2Like> info() {
+        return NodeInfo.create(this, Re2Like::new, field(), pattern());
+    }
+
+    @Override
+    protected Re2Like replaceChild(Expression newChild) {
+        return new Re2Like(source(), newChild, pattern());
+    }
+
+    /**
+     * A {@code regexp} query parses Lucene's syntax, so the expression goes to the shard and builds its automaton there.
+     */
+    @Override
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        var fa = LucenePushdownPredicates.checkIsFieldAttribute(field());
+        return new ExpressionQuery(source(), handler.nameOf(fa.exactAttribute()), this);
+    }
+
+    @Override
+    public org.apache.lucene.search.Query asLuceneQuery(
+        MappedFieldType fieldType,
+        MultiTermQuery.RewriteMethod constantScoreRewrite,
+        SearchExecutionContext context
+    ) {
+        // the checks a regexp query makes on the shard, which the RE2 automaton bypasses
+        int maxRegexLength = context.getIndexSettings().getMaxRegexLength();
+        if (pattern().pattern().length() > maxRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of regex ["
+                    + pattern().pattern().length()
+                    + "] used in a label matcher has exceeded the allowed maximum of ["
+                    + maxRegexLength
+                    + "]. This maximum can be set by changing the ["
+                    + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
+        // refused before the automaton is built, as a regexp query is: on a runtime field, and on a string field whether or not
+        // it has a terms index; a constant field tests its one value and a wildcard field runs a regexp query whatever the setting
+        if (context.allowExpensiveQueries() == false) {
+            if (fieldType instanceof AbstractScriptFieldType<?>) {
+                throw new ElasticsearchException(
+                    "queries cannot be executed against runtime fields while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
+                );
+            }
+            if (fieldType instanceof StringFieldType) {
+                throw new ElasticsearchException(
+                    "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+        }
+        // accounted on the breaker of the shard, as a regexp query's automaton is
+        CircuitBreaker circuitBreaker = context.getCircuitBreaker();
+        if (circuitBreaker == null) {
+            return automatonQuery(pattern().createAutomaton(caseInsensitive()), fieldType, constantScoreRewrite, context);
+        }
+        // under the category of a regexp query's automaton
+        String label = ChildMemoryCircuitBreaker.CATEGORY_REGEXP + "[" + NAME + ":" + fieldType.name() + "]";
+        Automaton automaton = pattern().createAutomaton(caseInsensitive(), circuitBreaker, label);
+        // the field compiles the automaton as it builds the query, an indexed keyword to the UTF-8 automaton it walks its
+        // terms with, so the peak of that is held while it runs, as a regexp query's shared automaton holds it
+        long reservation = new AutomatonQueryCostEstimator(automaton.ramBytesUsed()).estimate();
+        context.addCircuitBreakerMemory(reservation, label);
+        long retained = 0;
+        try {
+            org.apache.lucene.search.Query query = automatonQuery(automaton, fieldType, constantScoreRewrite, context);
+            if (query instanceof AutomatonQuery automatonQuery) {
+                // then the query it keeps stays charged until the request ends, as a regexp query's does, and is marked so
+                // that the walk over the built query, which a wrapping query builder runs too, doesn't charge it again; any
+                // other query, such as a doc values scan, is charged by that walk
+                retained = automatonQuery.ramBytesUsed();
+                context.markQueryMemoryPreCharged(query);
+            }
+            return query;
+        } finally {
+            // and nothing stays reserved for a build that failed
+            context.addCircuitBreakerMemory(retained, reservation, label);
+        }
+    }
+
+    /**
+     * Unlike a {@code regexp} query, the pattern isn't run through the field's normalizer, which reads it as text rather
+     * than as a regex, so a normalized keyword is matched as written, as the compatibility docs say.
+     */
+    private org.apache.lucene.search.Query automatonQuery(
+        Automaton automaton,
+        MappedFieldType fieldType,
+        MultiTermQuery.RewriteMethod constantScoreRewrite,
+        SearchExecutionContext context
+    ) {
+        return fieldType.automatonQuery(
+            () -> automaton,
+            () -> new CharacterRunAutomaton(automaton),
+            constantScoreRewrite,
+            context,
+            NAME + "(\"" + pattern().pattern() + "\")"
+        );
+    }
+
+    /**
+     * A node that predates this expression can't read it, so while there is one the pattern is matched as {@link RLike}
+     * matches it, in Lucene's regexp syntax, as PromQL label matchers were matched before. That is only done when both
+     * syntaxes give the pattern the same strings, as they do for the usual {@code a|b} or {@code prefix.*}; any other
+     * pattern is refused rather than matched in a way the query didn't ask for.
+     */
+    @Override
+    public Expression forTransportVersion(TransportVersion minTransportVersion) {
+        if (minTransportVersion.supports(ESQL_RE2_LIKE) == false) {
+            RLikePattern lucene = luceneReading(pattern(), source());
+            if (lucene == null) {
+                throw new IllegalArgumentException(
+                    "regex ["
+                        + pattern().pattern()
+                        + "] can't be matched until every node is upgraded: nodes on older versions read it as a Lucene regexp,"
+                        + " which matches different strings"
+                );
+            }
+            return new RLike(source(), field(), lucene);
+        }
+        return this;
+    }
+
+    /**
+     * The pattern as a Lucene regexp that gives the same strings, or null if there is none. Either matches the whole value,
+     * so a leading {@code ^} or a trailing {@code $}, which Lucene reads as a literal, as in {@code ^prod-.*}, is also tried
+     * without, as label matchers took them off before; the comparison decides, so one that is escaped or quantified, as
+     * in {@code prod\$}, is never taken off. The automata and the differences between them are built within a fold budget,
+     * as a label matcher's automaton is, so that the check is bounded on the coordinator. A pattern whose own automaton
+     * is too complex is refused as it would be once every node is upgraded; one past the budget otherwise, such as
+     * {@code @a.{20}} whose {@code @} Lucene reads as any string, is refused as one that can't be checked, which it is
+     * told apart from.
+     */
+    private static RLikePattern luceneReading(Re2Pattern re2, Source source) {
+        Automaton a;
+        try {
+            CircuitBreaker breaker = FoldContext.small().circuitBreakerView(source);
+            a = re2.createAutomaton(false, breaker, NAME);
+            breaker.addEstimateBytesAndMaybeBreak(a.ramBytesUsed(), NAME);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+        } catch (FoldContext.FoldTooMuchMemoryException e) {
+            throw tooComplexToCheck(re2, e);
+        }
+        String regex = re2.pattern();
+        String unanchored = regex.startsWith("^") ? regex.substring(1) : regex;
+        Set<String> readings = new LinkedHashSet<>();
+        readings.add(regex);
+        readings.add(unanchored);
+        for (String reading : List.of(regex, unanchored)) {
+            if (reading.endsWith("$")) {
+                readings.add(reading.substring(0, reading.length() - 1));
+            }
+        }
+        RuntimeException tooComplex = null;
+        for (String reading : readings) {
+            try {
+                if (sameLanguage(a, reading, source)) {
+                    return new RLikePattern(reading);
+                }
+            } catch (TooComplexToDeterminizeException | FoldContext.FoldTooMuchMemoryException e) {
+                tooComplex = e;
+            }
+        }
+        if (tooComplex != null) {
+            throw tooComplexToCheck(re2, tooComplex);
+        }
+        return null;
+    }
+
+    /**
+     * Whether Lucene reads {@code lucene} as the strings of {@code a}, false if it can't parse it.
+     */
+    private static boolean sameLanguage(Automaton a, String lucene, Source source) {
+        // a fresh budget, discarded after the check, so the inputs it holds while the differences are built need no release
+        CircuitBreaker breaker = FoldContext.small().circuitBreakerView(source);
+        // which holds the RE2 automaton too, as it stays live while the Lucene side and the differences are built
+        breaker.addEstimateBytesAndMaybeBreak(a.ramBytesUsed(), NAME);
+        try {
+            // the Lucene side is built as the old label matcher built it, every step charged to the budget
+            Automaton nfa = new CircuitBreakingRegExp(lucene, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, 0).toAutomaton(breaker, NAME);
+            breaker.addEstimateBytesAndMaybeBreak(nfa.ramBytesUsed(), NAME);
+            Automaton b = CircuitBreakingOperations.determinize(nfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, NAME);
+            breaker.addEstimateBytesAndMaybeBreak(b.ramBytesUsed(), NAME);
+            return Operations.isEmpty(CircuitBreakingOperations.minus(a, b, breaker, NAME))
+                && Operations.isEmpty(CircuitBreakingOperations.minus(b, a, breaker, NAME));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    private static IllegalArgumentException tooComplexToCheck(Re2Pattern re2, RuntimeException e) {
+        return new IllegalArgumentException(
+            "regex ["
+                + re2.pattern()
+                + "] can't be matched until every node is upgraded: it is too complex to check that nodes on older versions,"
+                + " which read it as a Lucene regexp, match the same strings",
+            e
+        );
+    }
+
+    /**
+     * The case check reads the pattern's text, which in RE2 can spell letters as escapes like {@code \x41} or change
+     * their case with {@code (?i)}, so the match stays as it is.
+     */
+    @Override
+    public Expression optimizeStringCasingWithInsensitiveRegexMatch(Expression unwrappedField, Predicate<String> matchesCaseFn) {
+        return this;
+    }
+}

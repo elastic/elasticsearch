@@ -10,15 +10,14 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
-import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
@@ -155,7 +154,7 @@ public class LabelMatcher implements NodeStringRenderable {
         } catch (TooComplexToDeterminizeException e) {
             throw new IllegalArgumentException("The regex used in a label matcher is too complex to determinize", e);
         } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
-            // Lucene's parser recurses on nested groups; this Error must not escape the request.
+            // Compiling the regex recurses on nested groups; this Error must not escape the request.
             throw new IllegalArgumentException("The regex used in a label matcher is too deeply nested");
         }
         return automaton;
@@ -193,8 +192,17 @@ public class LabelMatcher implements NodeStringRenderable {
             // The DFA is not minimized. Everything read from it (isTotal, isEmpty, run and getSingleton) needs a deterministic
             // automaton without dead states, which determinize and complement both produce, and a matcher does not outlive
             // the planning of its query, so the smaller automaton would not be worth a step whose memory can only be guessed.
-            result = CircuitBreakingOperations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);
-            held += hold(result, breaker);
+            Automaton dfa = CircuitBreakingOperations.determinize(
+                result,
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                breaker,
+                BREAKER_LABEL
+            );
+            // an automaton that is deterministic already, such as a single regex's, comes back as it is and is held once
+            if (dfa != result) {
+                held += hold(dfa, breaker);
+            }
+            result = dfa;
             // negate if needed
             if (matcher == NEQ || matcher == NREG) {
                 result = CircuitBreakingOperations.complement(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);
@@ -221,13 +229,11 @@ public class LabelMatcher implements NodeStringRenderable {
                     + "]"
             );
         }
-        CircuitBreakingRegExp re;
         try {
-            re = new CircuitBreakingRegExp(regex, RegExp.ALL, 0);
+            return new Re2Pattern(regex).createAutomaton(false, breaker, BREAKER_LABEL);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException("Cannot parse regex " + regex, ex);
         }
-        return re.toAutomaton(breaker, BREAKER_LABEL);
     }
 
     public boolean matchesAll() {

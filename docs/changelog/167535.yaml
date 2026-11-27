@@ -1,0 +1,5 @@
+area: Task Management
+issues: []
+pr: 167535
+summary: Charge the node replies of a task listing to the in-flight requests breaker
+type: enhancement

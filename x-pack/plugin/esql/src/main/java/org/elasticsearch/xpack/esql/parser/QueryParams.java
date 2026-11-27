@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.Token;
+import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -90,6 +91,25 @@ public class QueryParams {
 
     public void addParsingError(ParsingException e) {
         this.parsingErrors.add(e);
+    }
+
+    /**
+     * Whether {@code param} stands for "Any": a string with the reserved value {@code anyParamValue} of the statement being parsed,
+     * or a list of just that one string. A list with more elements is a normal value, even if all are the reserved value. A parameter
+     * declared as a pattern is a normal one too, as the declaration says that the string is a pattern to match, and so is a literal of
+     * the reserved value in the query.
+     *
+     * @param anyParamValue the reserved value, or {@code null} if none is recognized
+     */
+    public boolean isAny(@Nullable QueryParam param, @Nullable String anyParamValue) {
+        if (anyParamValue == null || param == null || param.classification() == ParserUtils.ParamClassification.PATTERN) {
+            return false;
+        }
+        Object value = param.value();
+        if (value instanceof List<?> list) {
+            value = list.size() == 1 ? list.getFirst() : null;
+        }
+        return anyParamValue.equals(value);
     }
 
     public List<QueryParam> params() {

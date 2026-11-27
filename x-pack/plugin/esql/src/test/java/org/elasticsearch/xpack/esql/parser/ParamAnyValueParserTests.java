@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.AnyParam;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
@@ -153,13 +154,39 @@ public class ParamAnyValueParserTests extends ESTestCase {
         assertThat(valueAfterParsing("SET param_any_value = \"\"; ROW x = 1", "custom"), equalTo("custom"));
     }
 
-    public void testSetWithAParameterFails() {
-        QueryParams params = new QueryParams(List.of(paramAsConstant("v", "*")));
+    /**
+     * The value of {@code SET param_any_value} can be a parameter: parameters in {@code SET} values are never taken for the reserved
+     * value, so the parameter doesn't depend on the value it sets.
+     */
+    public void testSetWithAParameterOverridesTheValue() {
+        String query = "SET param_any_value = ?v; FROM t | WHERE a == ?x";
+        assertThat(anyMarkers(query, new QueryParams(List.of(paramAsConstant("v", "custom"), paramAsConstant("x", "custom")))), equalTo(1));
+        // the default is not reserved anymore
+        assertThat(
+            anyMarkers(query, new QueryParams(List.of(paramAsConstant("v", "custom"), paramAsConstant("x", "__ANY__")))),
+            equalTo(0)
+        );
+    }
+
+    public void testSetWithAParameterWithTheReservedValue() {
+        // the parameter has the value it reserves: as a value of SET it is a plain string, and it stays the reserved value
+        QueryParams params = new QueryParams(List.of(paramAsConstant("v", "__ANY__"), paramAsConstant("x", "__ANY__")));
+        assertThat(anyMarkers("SET param_any_value = ?v; FROM t | WHERE a == ?x", params), equalTo(1));
+    }
+
+    public void testSetWithAParameterOfAnotherTypeIsRejected() {
+        QueryParams params = new QueryParams(List.of(paramAsConstant("v", 1)));
         ParsingException e = expectThrows(
             ParsingException.class,
-            () -> parse(TEST_PARSER, "SET param_any_value = ?v; ROW x = 1", params, Map.of())
+            () -> TEST_PARSER.createStatement("SET param_any_value = ?v; ROW x = 1", params)
         );
-        assertThat(e.getMessage(), containsString("Setting [param_any_value] can't be set with a parameter"));
+        assertThat(e.getMessage(), containsString("Setting [param_any_value] must be of type KEYWORD"));
+    }
+
+    private static int anyMarkers(String query, QueryParams params) {
+        int[] markers = new int[1];
+        TEST_PARSER.createStatement(query, params).plan().forEachExpressionDown(AnyParam.class, any -> markers[0]++);
+        return markers[0];
     }
 
     public void testSetWithAnotherTypeIsRejected() {

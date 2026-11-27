@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.eql.EqlRequests;
+import org.elasticsearch.xpack.esql.expression.AnyParam;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -222,7 +223,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             QuerySetting setting = visitSetCommand(setCommandContext);
             settings.add(setting);
             if (anyParamValue() != null && setting.name().equals(QuerySettings.PARAM_ANY_VALUE.name())) {
-                applyAnyParamValueSetting(setCommandContext, setting);
+                applyAnyParamValueSetting(setting);
             }
         }
 
@@ -242,13 +243,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     /**
      * Makes a {@code SET param_any_value} the value of the statement's reserved parameter value, so the last one wins, as it does
-     * when {@link QuerySettings#resolve} folds the settings. Parameters are decided with this value, so it can't come from one.
+     * when {@link QuerySettings#resolve} folds the settings. The value can come from a parameter: parameters in {@code SET} values are
+     * never taken for the reserved value, so there is no dependency between the two.
      * A value of another type or an empty one is left as it is: the settings validation rejects it right after the parsing.
      */
-    private void applyAnyParamValueSetting(EsqlBaseParser.SetCommandContext ctx, QuerySetting setting) {
-        if (ctx.setField().constant() instanceof EsqlBaseParser.InputParameterContext) {
-            throw new ParsingException(setting.source(), "Setting [{}] can't be set with a parameter", setting.name());
-        }
+    private void applyAnyParamValueSetting(QuerySetting setting) {
         // a list of strings is a keyword literal too
         if (setting.value() instanceof Literal literal
             && literal.dataType() == DataType.KEYWORD
@@ -1531,6 +1530,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (expressions.isEmpty()) {
             throw new ParsingException(source(ctx), "JOIN ON clause cannot be empty");
         }
+        for (Expression expression : expressions) {
+            // A join condition is not a filter that can drop a part, as the join keys are what the lookup is about
+            List<Expression> anyParams = expression.collect(AnyParam.class::isInstance);
+            if (anyParams.isEmpty() == false) {
+                AnyParam any = (AnyParam) anyParams.getFirst();
+                throw anyParamError(anyParamValue(), any.source(), any.parameterText(), "in a LOOKUP JOIN condition");
+            }
+        }
 
         // Inspect the first expression to determine the type of join (field-based or expression-based)
         // We treat literals as field-based as it is more likely the user was trying to write a field name
@@ -2238,6 +2245,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (param == null) {
                 throw new ParsingException(source, "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             }
+            rejectAnyParam(context.params(), anyParamValue(), param, source, ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             if (param.value() instanceof String s) {
                 promqlQuery = s;
             } else {
@@ -2280,6 +2288,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             promqlStartLine,
             promqlStartColumn,
             context.params(),
+            anyParamValue(),
             context.viewName()
         );
 
@@ -2475,6 +2484,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (param == null) {
                 throw new ParsingException(source(ctx), "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             }
+            rejectAnyParam(context.params(), anyParamValue(), param, source(ctx), ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             return param.value().toString();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             throw new ParsingException(source(ctx), "Parameter value [{}] must not be a quoted identifier", ctx.getText());
@@ -2499,6 +2509,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (param == null) {
                 throw new ParsingException(source(ctx), "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             }
+            rejectAnyParam(context.params(), anyParamValue(), param, source(ctx), ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             if (param.value() instanceof String s) {
                 return new IndexPattern(source(ctx), s);
             }

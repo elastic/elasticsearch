@@ -1,5 +1,5 @@
 ---
-description: How Prometheus-compatible clients choose a base URL for PromQL queries against time series metrics in Elasticsearch.
+description: Prometheus-compatible clients can use HTTP endpoints for PromQL queries and metric discovery against time series data in Elasticsearch.
 navigation_title: HTTP API
 type: overview
 applies_to:
@@ -45,3 +45,45 @@ Do not repeat a parameter in both the URL and the form body.
 ::::{note}
 Form-encoded `POST` requests are accepted only when [security](/reference/elasticsearch/configuration-reference/security-settings.md) is enabled, [`xpack.security.http.ssl.enabled`](/reference/elasticsearch/configuration-reference/security-settings.md) is `true` on the {{es}} HTTP interface, and the request is authenticated (not anonymous). The check uses the {{es}} HTTP TLS setting, so deployments that terminate TLS before {{es}} and expose plain HTTP to the node must use `GET` with query-string parameters instead. Unauthenticated or plain-HTTP `POST` requests with `application/x-www-form-urlencoded` bodies return HTTP `406 Not Acceptable`.
 ::::
+
+## Response format [promql-http-api-response]
+
+Responses use JSON. Successful calls return HTTP 200 with:
+
+```json
+{
+  "status": "success",
+  "data": { ... }
+}
+```
+
+The `data` object shape depends on the route (for example, `resultType` and `result` for [query]({{es-apis}}operation/operation-prometheus-query) and [query_range]({{es-apis}}operation/operation-prometheus-query-range)).
+
+When the `limit` is reached and the server detects truncation, the response might include a top-level `warnings` array (strings). The preview uses a fixed message such as `results truncated due to limit`.
+
+Numeric sample values in query results are JSON strings (including `NaN`, `+Inf`, and `-Inf`), matching common {{prom}} JSON encoding.
+
+Errors return a non-2xx HTTP status and a JSON body of the form:
+
+```json
+{
+  "status": "error",
+  "errorType": "bad_data",
+  "error": "<message>"
+}
+```
+
+Client errors (HTTP 4xx) mean the request or expression is not valid for this implementation, for example, malformed parameters, parameters not supported yet on a route, invalid selectors, or {{promql}} that {{es}} does not evaluate yet (refer to [{{prom}} compatibility](prometheus-compatibility.md)).
+Those failures usually return `errorType: bad_data`.
+
+Server errors (HTTP 5xx) and timeout responses reflect operational failures inside {{es}}.
+Those responses typically use `errorType: timeout` or `execution` depending on the situation.
+
+## Related pages
+
+- [{{es}} {{prom}} APIs]({{es-apis}}group/endpoint-prometheus)
+- [{{es-serverless}} {{prom}} APIs]({{es-serverless-apis}}group/endpoint-prometheus).
+- [{{prom}} remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md)
+- [`PROMQL` command ({{esql}})](/reference/query-languages/esql/commands/promql.md)
+- [Use {{es}} as a {{prom}} data source in Grafana](promql-grafana.md)
+- [{{prom}} compatibility](prometheus-compatibility.md)

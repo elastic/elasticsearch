@@ -163,11 +163,11 @@ public class ShardIndexingBenchmarkTests extends ESTestCase {
             return state;
         };
         runLifecycles(FallbackState.class, fallbackFactory, List.of(bench::columnThenRow));
-        // The default fallback shape stops at mapper resolution; double.mv1to4 is opt-in, so check a mapping-stage fallback explicitly.
+        // double.mv1to4 is opt-in, because it falls back only with the simdjson encoder, so check it explicitly.
         runLifecycle(fallbackFactory, "double.mv1to4", ALTERNATE_SOURCE_MODE, ShardIndexingBenchmark.DOCS_PER_INVOCATION, List.of());
         runLifecycle(fallbackFactory, "double.mv1to4", SOURCE_MODE, ALTERNATE_DOCS_PER_REQUEST, List.of());
         ColumnState column = new ColumnState();
-        column.shape = "scaled_float.dense";
+        column.shape = "scaled_float.nullexplicit";
         column.docsPerRequest = ShardIndexingBenchmark.DOCS_PER_INVOCATION;
         assertSetupRejects(column);
         FallbackState fallback = new FallbackState();

@@ -8,6 +8,7 @@
  */
 
 module org.elasticsearch.mapper.extras {
+    requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.columnar;
     requires org.elasticsearch.xcontent;

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: [167043]
+pr: 167069
+summary: Keep precision-sensitive ES|QL comparisons in compute
+type: bug

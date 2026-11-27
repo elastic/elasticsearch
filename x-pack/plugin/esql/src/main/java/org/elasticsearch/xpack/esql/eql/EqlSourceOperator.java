@@ -402,9 +402,7 @@ public class EqlSourceOperator extends SourceOperator {
     }
 
     private static String failureCluster(ShardSearchFailure failure, String searchedCluster) {
-        return failure.shard() == null || failure.shard().getClusterAlias() == null
-            ? searchedCluster
-            : failure.shard().getClusterAlias();
+        return failure.shard() == null || failure.shard().getClusterAlias() == null ? searchedCluster : failure.shard().getClusterAlias();
     }
 
     private static boolean listedForCluster(List<ShardSearchFailure> failures, String clusterAlias, String searchedCluster) {

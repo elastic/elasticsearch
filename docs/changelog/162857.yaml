@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 161843
+pr: 162857
+summary: Fix `field_caps` task leak when the `search_coordination` queue is full
+type: bug

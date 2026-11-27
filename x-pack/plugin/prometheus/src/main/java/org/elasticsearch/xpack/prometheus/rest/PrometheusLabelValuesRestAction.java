@@ -12,13 +12,10 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
-import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
-import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusQuery.LabelValuesQuery;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -89,14 +86,8 @@ public class PrometheusLabelValuesRestAction extends BaseRestHandler {
         // limit+1 sentinel to detect and report truncation.
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
-        PreparedEsqlQueryRequest esqlRequest = new PromqlQueryRequest(
-            index,
-            () -> new PromqlStatementResult(
-                new EsqlStatement(
-                    PrometheusLabelValuesPlanBuilder.buildPlan(labelName, index, matchSelectors, start, end, limit),
-                    PrometheusPlanBuilderUtils.QUERY_SETTINGS
-                )
-            ),
+        var queryRequest = new PrometheusQueryRequest(
+            new LabelValuesQuery(labelName, index, matchSelectors, start, end, limit),
             "prometheus_label_values",
             "name",
             labelName,
@@ -111,9 +102,9 @@ public class PrometheusLabelValuesRestAction extends BaseRestHandler {
         );
 
         return channel -> client.execute(
-            EsqlQueryAction.INSTANCE,
-            esqlRequest,
-            PrometheusLabelValuesResponseListener.create(channel, limit)
+            PrometheusQueryTransportAction.TYPE,
+            queryRequest,
+            PrometheusQueryResponse.esqlResponseListener(PrometheusLabelValuesResponseListener.create(channel, limit))
         );
     }
 }

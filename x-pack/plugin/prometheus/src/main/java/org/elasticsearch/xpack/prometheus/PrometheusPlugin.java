@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.prometheus.rest.PrometheusLabelsRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusMetadataRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryExemplarsRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryRangeRestAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryTransportAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusSeriesRestAction;
@@ -148,7 +149,10 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     @Override
     public Collection<ActionHandler> getActions() {
         if (enabled) {
-            return List.of(new ActionHandler(PrometheusRemoteWriteTransportAction.TYPE, PrometheusRemoteWriteTransportAction.class));
+            return List.of(
+                new ActionHandler(PrometheusRemoteWriteTransportAction.TYPE, PrometheusRemoteWriteTransportAction.class),
+                new ActionHandler(PrometheusQueryTransportAction.TYPE, PrometheusQueryTransportAction.class)
+            );
         }
         return List.of();
     }

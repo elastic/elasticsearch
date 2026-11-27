@@ -15,6 +15,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusQuery.RangeQuery;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -25,8 +26,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEF
 
 /**
  * REST handler for the Prometheus {@code GET} and {@code POST /api/v1/query_range} endpoint.
- * Translates Prometheus query_range parameters into an ES|QL PromqlCommand logical plan,
- * executes it, and converts the result into the Prometheus matrix JSON format.
+ * Runs the query with {@link PrometheusQueryTransportAction}, which translates it into an ES|QL PromqlCommand logical plan,
+ * and converts the result into the Prometheus matrix JSON format.
  *
  * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries">Prometheus Range Queries API</a>
  */
@@ -92,17 +93,8 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
         TimeValue timeout = PromqlQueryExecutor.resolveTimeout(request, maxQueryTimeout.get());
 
-        var esqlRequest = new PromqlQueryRequest(
-            index,
-            () -> PromqlQueryPlanBuilder.buildStatement(
-                query,
-                index,
-                start,
-                end,
-                step,
-                limit,
-                PrometheusQueryResponseListener.QueryMode.RANGE
-            ),
+        var queryRequest = new PrometheusQueryRequest(
+            new RangeQuery(query, index, start, end, step, limit),
             query,
             LIMIT_PARAM,
             limit == DEFAULT_LIMIT ? null : limit,
@@ -117,11 +109,10 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         return channel -> PromqlQueryExecutor.execute(
             client,
             request.getHttpChannel(),
-            esqlRequest,
+            queryRequest,
             timeout,
             new PrometheusQueryResponseListener(
                 channel,
-                () -> esqlRequest.result().resultType(),
                 PrometheusQueryResponseListener.QueryMode.RANGE,
                 limit == 0 ? Integer.MAX_VALUE : limit
             )

@@ -647,6 +647,7 @@ public class Constants {
         "indices:data/read/profiling/stack_traces",
         "indices:data/read/profiling/flamegraph",
         "indices:data/read/profiling/topn/functions",
+        "indices:data/read/prometheus/query",
         "indices:data/read/rank_eval",
         "indices:data/read/scroll",
         "indices:data/read/scroll/clear",

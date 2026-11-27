@@ -20,6 +20,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusQuery.InstantQuery;
 
 import java.time.Instant;
 import java.util.List;
@@ -33,7 +34,7 @@ import static org.elasticsearch.xpack.prometheus.rest.PrometheusQueryRangeRestAc
 /**
  * REST handler for the Prometheus {@code GET} and {@code POST /api/v1/query} instant query endpoint.
  *
- * Builds instant-query plan for the requested evaluation time.
+ * Reads the query and its evaluation time, and runs it with {@link PrometheusQueryTransportAction}.
  *
  * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries">Prometheus Instant Queries API</a>
  */
@@ -100,9 +101,8 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
             ? PromqlParserUtils.parseDate(Source.EMPTY, timeStr)
             : Instant.now();
 
-        var esqlRequest = new PromqlQueryRequest(
-            index,
-            () -> PromqlQueryPlanBuilder.buildStatement(query, index, evaluationTime, PrometheusQueryResponseListener.QueryMode.INSTANT),
+        var queryRequest = new PrometheusQueryRequest(
+            new InstantQuery(query, index, evaluationTime),
             query,
             LIMIT_PARAM,
             limit == DEFAULT_LIMIT ? null : limit
@@ -111,12 +111,11 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
         return channel -> {
             var queryListener = new PrometheusQueryResponseListener(
                 channel,
-                () -> esqlRequest.result().resultType(),
                 PrometheusQueryResponseListener.QueryMode.INSTANT,
                 limit == 0 ? Integer.MAX_VALUE : limit
             );
-            PromqlQueryExecutor.execute(client, request.getHttpChannel(), esqlRequest, timeout, ActionListener.wrap(response -> {
-                String value = esqlRequest.result().stringValue();
+            PromqlQueryExecutor.execute(client, request.getHttpChannel(), queryRequest, timeout, ActionListener.wrap(response -> {
+                String value = response.stringValue();
                 if (value == null) {
                     queryListener.onResponse(response);
                 } else {

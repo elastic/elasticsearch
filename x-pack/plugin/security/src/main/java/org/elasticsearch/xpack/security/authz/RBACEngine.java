@@ -302,6 +302,7 @@ public class RBACEngine implements AuthorizationEngine {
             case "indices:data/write/otlp/traces":
             case "indices:data/write/otlp/logs":
             case "indices:data/write/prometheus/remote_write":
+            case "indices:data/read/prometheus/query":
             case "indices:data/read/sql":
             case "indices:data/read/sql/translate":
             case "indices:data/read/esql":

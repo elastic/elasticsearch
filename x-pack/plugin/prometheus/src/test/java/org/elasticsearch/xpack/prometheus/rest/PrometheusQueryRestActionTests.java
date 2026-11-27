@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -31,12 +31,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plan.EsqlStatement;
-import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.junit.After;
 import org.junit.Before;
 
@@ -53,6 +48,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertSame;
 
@@ -99,15 +95,71 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
     }
 
     /**
-     * The query is parsed where ES|QL parses a query string, once the query action has authorized the request, not before the
-     * action runs: an invalid one reaches the action, which is what refuses it.
+     * The query is parsed by the transport action, once it has authorized the request, not by the REST handler: an invalid one
+     * reaches the action, which is what refuses it.
      */
-    public void testInstantQueryIsParsedByTheQueryAction() throws Exception {
-        assertParsedByTheQueryAction(new PrometheusInstantQueryRestAction(() -> NO_TIMEOUT), instantQueryRequest(Map.of("query", "up{")));
+    public void testInstantQueryIsParsedByTheTransportAction() throws Exception {
+        assertParsedByTheTransportAction(
+            new PrometheusInstantQueryRestAction(() -> NO_TIMEOUT),
+            instantQueryRequest(Map.of("query", "up{")),
+            PrometheusQuery.InstantQuery.class,
+            ParsingException.class
+        );
     }
 
-    public void testQueryRangeIsParsedByTheQueryAction() throws Exception {
-        assertParsedByTheQueryAction(new PrometheusQueryRangeRestAction(() -> NO_TIMEOUT), rangeQueryRequest(Map.of("query", "up{")));
+    public void testQueryRangeIsParsedByTheTransportAction() throws Exception {
+        assertParsedByTheTransportAction(
+            new PrometheusQueryRangeRestAction(() -> NO_TIMEOUT),
+            rangeQueryRequest(Map.of("query", "up{")),
+            PrometheusQuery.RangeQuery.class,
+            ParsingException.class
+        );
+    }
+
+    public void testQueryExemplarsIsParsedByTheTransportAction() throws Exception {
+        assertParsedByTheTransportAction(
+            new PrometheusQueryExemplarsRestAction(() -> NO_TIMEOUT, new NoneCircuitBreakerService()),
+            request(Map.of("query", "up{", "start", "2026-01-01T00:00:00Z", "end", "2026-01-01T01:00:00Z"), Map.of()),
+            PrometheusQuery.ExemplarsQuery.class,
+            ParsingException.class
+        );
+    }
+
+    public void testSeriesSelectorIsParsedByTheTransportAction() throws Exception {
+        assertParsedByTheTransportAction(
+            new PrometheusSeriesRestAction(),
+            selectorRequest(),
+            PrometheusQuery.SeriesQuery.class,
+            IllegalArgumentException.class
+        );
+    }
+
+    public void testLabelsSelectorIsParsedByTheTransportAction() throws Exception {
+        assertParsedByTheTransportAction(
+            new PrometheusLabelsRestAction(),
+            selectorRequest(),
+            PrometheusQuery.LabelsQuery.class,
+            IllegalArgumentException.class
+        );
+    }
+
+    public void testLabelValuesSelectorIsParsedByTheTransportAction() throws Exception {
+        var request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(
+            new HashMap<>(Map.of("name", "job", "match[]", "{"))
+        ).build();
+        assertParsedByTheTransportAction(
+            new PrometheusLabelValuesRestAction(),
+            request,
+            PrometheusQuery.LabelValuesQuery.class,
+            IllegalArgumentException.class
+        );
+    }
+
+    public void testMetadataRunsInTheTransportAction() throws Exception {
+        var request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(new HashMap<>(Map.of("metric", "up"))).build();
+        FakeRestChannel channel = handle(new PrometheusMetadataRestAction(), request);
+        assertThat(client.capturedRequest.query(), equalTo(new PrometheusQuery.MetadataQuery(DEFAULT_PROMQL_INDEX_PATTERN, "up", 0, 0)));
+        assertThat(sentResponses(channel), equalTo(0));
     }
 
     public void testInstantQueryTimesOut() throws Exception {
@@ -212,18 +264,22 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
         assertThat(body.evaluate("error"), equalTo(expectedError));
     }
 
-    private void assertParsedByTheQueryAction(BaseRestHandler action, RestRequest request) throws Exception {
+    private void assertParsedByTheTransportAction(
+        BaseRestHandler action,
+        RestRequest request,
+        Class<? extends PrometheusQuery> queryType,
+        Class<? extends Exception> parseFailure
+    ) throws Exception {
         FakeRestChannel channel = handle(action, request);
-        assertNotNull("the request reaches the query action", client.capturedRequest);
+        assertNotNull("the request reaches the transport action", client.capturedRequest);
         assertThat(sentResponses(channel), equalTo(0));
-        expectThrows(IllegalStateException.class, client.capturedRequest::statement);
-        expectThrows(ParsingException.class, () -> parse(client.capturedRequest));
+        assertThat(client.capturedRequest.query(), instanceOf(queryType));
+        expectThrows(parseFailure, () -> PrometheusQueryTransportAction.buildStatement(client.capturedRequest.query()));
         request.getHttpChannel().close();
     }
 
-    /** Parses the request as the query action does once it is authorized. */
-    private static EsqlStatement parse(PreparedEsqlQueryRequest request) {
-        return request.parse(null, new SettingsValidationContext(false, Build.current().isSnapshot()), null, null);
+    private static RestRequest selectorRequest() {
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(new HashMap<>(Map.of("match[]", "{"))).build();
     }
 
     private void assertQueryTimesOut(BaseRestHandler action, RestRequest request) throws Exception {
@@ -269,19 +325,19 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
 
     private String capturedIndexPattern() {
         assertNotNull(client.capturedRequest);
-        return parse(client.capturedRequest).plan().collect(UnresolvedRelation.class).getFirst().indexPattern().indexPattern();
+        return client.capturedRequest.query().index();
     }
 
     /**
-     * Captures the ES|QL request instead of running it, and leaves it pending until the test completes it via {@link #failQuery}.
-     * Records the task cancellations it receives.
+     * Captures the request to {@link PrometheusQueryTransportAction} instead of running it, and leaves it pending until the test
+     * completes it via {@link #failQuery}. Records the task cancellations it receives.
      */
     private static class CapturingNodeClient extends NoOpNodeClient {
         private static final String LOCAL_NODE_ID = "local-node";
 
         private final AtomicLong taskIdGenerator = new AtomicLong();
         private final List<CancelTasksRequest> cancelRequests = new CopyOnWriteArrayList<>();
-        private volatile PreparedEsqlQueryRequest capturedRequest;
+        private volatile PrometheusQueryRequest capturedRequest;
         private volatile Consumer<Exception> failQuery;
         private volatile Task task;
 
@@ -295,8 +351,8 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            assertSame(EsqlQueryAction.INSTANCE, action);
-            capturedRequest = (PreparedEsqlQueryRequest) request;
+            assertSame(PrometheusQueryTransportAction.TYPE, action);
+            capturedRequest = (PrometheusQueryRequest) request;
             failQuery = listener::onFailure;
             task = new CancellableTask(taskIdGenerator.incrementAndGet(), "transport", action.name(), "", TaskId.EMPTY_TASK_ID, Map.of());
             return task;
@@ -311,6 +367,9 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
             if (request instanceof CancelTasksRequest cancelTasksRequest) {
                 cancelRequests.add(cancelTasksRequest);
                 listener.onResponse(null);
+            } else if (action == PrometheusQueryTransportAction.TYPE) {
+                capturedRequest = (PrometheusQueryRequest) request;
+                failQuery = listener::onFailure;
             } else {
                 fail("unexpected action [" + action.name() + "]");
             }

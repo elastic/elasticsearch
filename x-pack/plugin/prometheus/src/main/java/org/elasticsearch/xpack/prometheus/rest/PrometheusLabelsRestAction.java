@@ -12,13 +12,10 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
-import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
-import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusQuery.LabelsQuery;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -89,14 +86,8 @@ public class PrometheusLabelsRestAction extends BaseRestHandler {
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
         String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
-        PreparedEsqlQueryRequest esqlRequest = new PromqlQueryRequest(
-            index,
-            () -> new PromqlStatementResult(
-                new EsqlStatement(
-                    PrometheusLabelsPlanBuilder.buildPlan(index, matchSelectors, start, end, limit),
-                    PrometheusPlanBuilderUtils.QUERY_SETTINGS
-                )
-            ),
+        var queryRequest = new PrometheusQueryRequest(
+            new LabelsQuery(index, matchSelectors, start, end, limit),
             "prometheus_labels",
             LIMIT_PARAM,
             limit == DEFAULT_LIMIT ? null : limit,
@@ -108,6 +99,10 @@ public class PrometheusLabelsRestAction extends BaseRestHandler {
             matchSelectors
         );
 
-        return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, PrometheusLabelsResponseListener.create(channel, limit));
+        return channel -> client.execute(
+            PrometheusQueryTransportAction.TYPE,
+            queryRequest,
+            PrometheusQueryResponse.esqlResponseListener(PrometheusLabelsResponseListener.create(channel, limit))
+        );
     }
 }

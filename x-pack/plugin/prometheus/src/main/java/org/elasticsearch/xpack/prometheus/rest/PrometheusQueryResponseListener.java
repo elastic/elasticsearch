@@ -40,10 +40,9 @@ import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
- * Listens for an {@link EsqlQueryResponse}, converts its columnar result into the
+ * Listens for the {@link PrometheusQueryResponse} of a query, converts the columnar result of its {@link EsqlQueryResponse} into the
  * Prometheus JSON format, and sends it as a {@link RestResponse}.
  * <p>
  * Supports two query modes:
@@ -77,7 +76,7 @@ import java.util.function.Supplier;
  *
  * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/">Prometheus HTTP API</a>
  */
-class PrometheusQueryResponseListener implements ActionListener<EsqlQueryResponse> {
+class PrometheusQueryResponseListener implements ActionListener<PrometheusQueryResponse> {
 
     private static final Logger logger = LogManager.getLogger(PrometheusQueryResponseListener.class);
 
@@ -98,26 +97,21 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     }
 
     private final RestChannel channel;
-    private final Supplier<String> resultType;
     private final QueryMode mode;
     private final int limit;
 
-    PrometheusQueryResponseListener(RestChannel channel, String resultType, QueryMode mode, int limit) {
-        this(channel, () -> resultType, mode, limit);
-    }
-
-    /**
-     * @param resultType supplies the result type once the query has run, as it is only known once the query is parsed
-     */
-    PrometheusQueryResponseListener(RestChannel channel, Supplier<String> resultType, QueryMode mode, int limit) {
+    PrometheusQueryResponseListener(RestChannel channel, QueryMode mode, int limit) {
         this.channel = channel;
-        this.resultType = resultType;
         this.mode = mode;
         this.limit = limit;
     }
 
+    /**
+     * Renders the response with its Prometheus result type, which is only known once the query is parsed.
+     */
     @Override
-    public void onResponse(EsqlQueryResponse queryResponse) {
+    public void onResponse(PrometheusQueryResponse prometheusResponse) {
+        EsqlQueryResponse queryResponse = prometheusResponse.esqlResponse();
         // Do not close queryResponse here - the transport framework's respondAndRelease handles decRef.
         // If we close it manually, it will cause an AssertionError ("invalid decRef call: already closed")
         // and crash the node. Reading its pages/blocks directly (without incRef/decRef/close) is safe: the
@@ -136,7 +130,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 queryResponse.pages(),
                 queryResponse.columns(),
                 queryResponse.zoneId(),
-                resultType.get(),
+                prometheusResponse.resultType(),
                 mode,
                 limit
             );

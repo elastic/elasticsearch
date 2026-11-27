@@ -12,11 +12,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
-import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
-import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusQuery.MetadataQuery;
 
 import java.io.IOException;
 import java.util.List;
@@ -62,14 +59,8 @@ public class PrometheusMetadataRestAction extends BaseRestHandler {
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
         int limitPerMetric = request.paramAsInt(LIMIT_PER_METRIC_PARAM, DEFAULT_LIMIT);
 
-        PreparedEsqlQueryRequest esqlRequest = new PromqlQueryRequest(
-            index,
-            () -> new PromqlStatementResult(
-                new EsqlStatement(
-                    PrometheusMetadataPlanBuilder.buildPlan(index, metric, limit, limitPerMetric),
-                    PrometheusPlanBuilderUtils.QUERY_SETTINGS
-                )
-            ),
+        var queryRequest = new PrometheusQueryRequest(
+            new MetadataQuery(index, metric, limit, limitPerMetric),
             "prometheus_metadata",
             LIMIT_PARAM,
             limit == DEFAULT_LIMIT ? null : limit,
@@ -80,9 +71,9 @@ public class PrometheusMetadataRestAction extends BaseRestHandler {
         );
 
         return channel -> client.execute(
-            EsqlQueryAction.INSTANCE,
-            esqlRequest,
-            PrometheusMetadataResponseListener.create(channel, limit, limitPerMetric)
+            PrometheusQueryTransportAction.TYPE,
+            queryRequest,
+            PrometheusQueryResponse.esqlResponseListener(PrometheusMetadataResponseListener.create(channel, limit, limitPerMetric))
         );
     }
 }

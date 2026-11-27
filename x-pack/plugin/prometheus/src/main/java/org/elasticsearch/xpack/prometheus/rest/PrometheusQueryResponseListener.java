@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -121,8 +123,16 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // and crash the node. Reading its pages/blocks directly (without incRef/decRef/close) is safe: the
         // response holds a live reference for the duration of this synchronous callback, same as the
         // generic EsqlResponse.rows()/ResponseValueUtils path this class used to go through.
+        // The body goes into the channel's output, which writes to recycled pages and fails with an exception near 2 GB
+        // instead of growing a single byte array until the node runs out of memory. A plain JSON builder keeps the
+        // response media type independent of the request's Accept header.
+        // TODO: the whole body is still buffered, next to the pages it is built from, and the circuit breaker does not see
+        // it. Send it as a chunked response instead, serializing each page into chunks and releasing the page once it is
+        // written, so the JSON never exceeds a chunk and memory goes down while the body is sent.
+        RestResponse response;
         try {
             XContentBuilder builder = convertToPrometheusJson(
+                XContentFactory.jsonBuilder(Streams.flushOnCloseStream(channel.bytesOutput())),
                 queryResponse.pages(),
                 queryResponse.columns(),
                 queryResponse.zoneId(),
@@ -130,10 +140,23 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 mode,
                 limit
             );
-            channel.sendResponse(new RestResponse(RestStatus.OK, builder));
+            // Building the response closes the builder, which flushes the rest of the body and can hit the limit too.
+            response = new RestResponse(RestStatus.OK, builder);
         } catch (Exception e) {
-            sendErrorResponse(e);
+            // The partial body is never sent: free its pages now rather than when the error response is written.
+            channel.releaseOutputBuffer();
+            // The query already ran, so failing to write its result, for example past the output's 2 GB limit, is a server
+            // error even when the exception, like that limit's IllegalArgumentException, would otherwise map to 400.
+            sendErrorResponse(
+                new ElasticsearchStatusException(
+                    "failed to write the query response: " + e.getMessage(),
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    e
+                )
+            );
+            return;
         }
+        channel.sendResponse(response);
     }
 
     @Override
@@ -175,6 +198,22 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         QueryMode mode,
         int limit
     ) throws IOException {
+        return convertToPrometheusJson(XContentFactory.jsonBuilder(), pages, columns, zoneId, resultType, mode, limit);
+    }
+
+    /**
+     * Writes the Prometheus-compatible JSON response into {@code builder}, see
+     * {@link #convertToPrometheusJson(List, List, ZoneId, String, QueryMode)}.
+     */
+    static XContentBuilder convertToPrometheusJson(
+        XContentBuilder builder,
+        List<Page> pages,
+        List<ColumnInfoImpl> columns,
+        ZoneId zoneId,
+        String resultType,
+        QueryMode mode,
+        int limit
+    ) throws IOException {
         if (columns.size() < 1 || VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
         }
@@ -185,7 +224,6 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // Column 1 is either _timeseries (a JSON blob) or the first of the individual dimension columns
         final boolean useSeriesCol = columns.size() > 2 && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
 
-        XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field("status", "success");
         builder.startObject("data");

@@ -909,7 +909,7 @@ public class FileSplitProvider implements SplitProvider {
             partitionKeys
         );
         if (spec == null || spec.isEmpty()) {
-            return hints;
+            return PartitionSpec.EMPTY.projectListingHints(hints);
         }
         List<PartitionFilterHintExtractor.PartitionFilterHint> merged = new ArrayList<>(hints);
         merged.addAll(

@@ -131,6 +131,19 @@ public class GzipPageInflaterTests extends ESTestCase {
         // GZIPInputStream is not a valid oracle here: JDK 21 treats a header-only suffix as end of stream, while JDK 25
         // always starts the next member and fails with EOFException. The fast path defines it as end of stream.
         assertArrayEquals(data, inflateViaFastPath(gz, data.length));
+
+        byte[] oversized = new byte[data.length + between(1, 32)];
+        Arrays.fill(oversized, (byte) 0x5A);
+        Inflater inflater = new Inflater(true);
+        try {
+            GzipPageInflater.inflate(inflater, BytesInput.from(gz), oversized, data.length);
+        } finally {
+            inflater.end();
+        }
+        assertArrayEquals(data, Arrays.copyOf(oversized, data.length));
+        for (int i = data.length; i < oversized.length; i++) {
+            assertEquals((byte) 0x5A, oversized[i]);
+        }
     }
 
     public void testTrailingJunkIgnoredWhenDestLenMatches() throws IOException {

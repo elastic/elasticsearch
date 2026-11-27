@@ -4338,9 +4338,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (rgDone) {
                     return null;
                 }
+                int budgetRoom = rowBudget == FormatReader.NO_LIMIT ? Integer.MAX_VALUE : rowBudget - accRows;
+                if (budgetRoom <= 0) {
+                    return accRows > 0 ? finishFilledPage(acc, accRows) : null;
+                }
                 int rowsToRead = (int) Math.min(batchSize, rowsRemainingInGroup);
                 int firstRowOfBatchInRG = (int) (reader.getRowGroups().get(rowGroupOrdinal).getRowCount() - rowsRemainingInGroup);
-                Block[] window = nextWithLateMaterialization(rowsToRead, firstRowOfBatchInRG);
+                Block[] window = nextWithLateMaterialization(rowsToRead, firstRowOfBatchInRG, budgetRoom);
                 try {
                     listCorruptionHandler.completeBatch(rowsToRead, 0);
                 } catch (RuntimeException e) {
@@ -4361,11 +4365,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (newRows == 0) {
                     Releasables.closeExpectNoException(window);
                     continue;
-                }
-                int budgetRoom = rowBudget == FormatReader.NO_LIMIT ? Integer.MAX_VALUE : rowBudget - accRows;
-                if (budgetRoom <= 0) {
-                    Releasables.closeExpectNoException(window);
-                    return accRows > 0 ? finishFilledPage(acc, accRows) : null;
                 }
                 int keep = Math.min(newRows, budgetRoom);
                 boolean pastLimit = newRows > budgetRoom;
@@ -4506,7 +4505,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
-    private Block[] nextWithLateMaterialization(int rowsToRead, int firstRowOfBatchInRG) {
+    /**
+     * Decode one {@code batchSize} source window, filter, then materialize projection only for
+     * the prefix of survivors that still fit {@code maxEmit} (remaining LIMIT). fail_fast
+     * declared-type coercion must not see later matching rows that LIMIT would drop.
+     */
+    private Block[] nextWithLateMaterialization(int rowsToRead, int firstRowOfBatchInRG, int maxEmit) {
         Block[] blocks = new Block[attributes.size()];
         try {
             // Phase 1: decode predicate columns
@@ -4526,7 +4530,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // pushed expression) so it's always handled below in Phase 3, where the survivor mask
             // is already known and the values can be filled in survivor order.
 
-            // Phase 2: evaluate filter
+            // Phase 2: evaluate filter, then cap to remaining LIMIT before projection decode.
             WordMask mask = pushedExpressions.evaluateFilter(
                 predicateBlockMap,
                 rowsToRead,
@@ -4541,11 +4545,24 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 rowsEliminatedByLateMaterialization += (rowsToRead - survivorCount);
                 if (survivorCount < rowsToRead) {
                     positions = mask.survivingPositions();
-                    // Compact predicate blocks
-                    for (int col = 0; col < columnInfos.length; col++) {
-                        if (isPredicateColumn[col] && blocks[col] != null) {
-                            blocks[col] = PageColumnReader.filterBlock(blocks[col], positions, survivorCount, blockFactory);
-                        }
+                }
+            }
+            int emitCount = Math.min(survivorCount, maxEmit);
+            if (emitCount < survivorCount) {
+                if (positions == null) {
+                    positions = UninitializedArrays.newIntArray(emitCount);
+                    for (int i = 0; i < emitCount; i++) {
+                        positions[i] = i;
+                    }
+                } else {
+                    positions = Arrays.copyOf(positions, emitCount);
+                }
+                survivorCount = emitCount;
+            }
+            if (positions != null) {
+                for (int col = 0; col < columnInfos.length; col++) {
+                    if (isPredicateColumn[col] && blocks[col] != null) {
+                        blocks[col] = PageColumnReader.filterBlock(blocks[col], positions, survivorCount, blockFactory);
                     }
                 }
             }

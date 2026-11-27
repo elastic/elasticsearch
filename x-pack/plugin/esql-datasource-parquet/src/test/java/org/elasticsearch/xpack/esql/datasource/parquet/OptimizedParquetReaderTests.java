@@ -33,12 +33,14 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -60,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -741,6 +744,22 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         return pages;
     }
 
+    /** Fail if the iterator emits a 0-row page. Filter skip_row leftovers must not surface as empty pages. */
+    private List<Page> collectPagesStrict(CloseableIterator<Page> iter) throws IOException {
+        List<Page> pages = new ArrayList<>();
+        try (iter) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                if (page.getPositionCount() == 0) {
+                    page.releaseBlocks();
+                    fail("iterator emitted a 0-row page");
+                }
+                pages.add(page);
+            }
+        }
+        return pages;
+    }
+
     private void assertPagesEqual(List<Page> expected, List<Page> actual) {
         assertThat("page count mismatch", actual.size(), equalTo(expected.size()));
         for (int p = 0; p < expected.size(); p++) {
@@ -981,6 +1000,175 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         int total = pages.stream().mapToInt(Page::getPositionCount).sum();
         assertThat("LIMIT caps emitted survivors", total, equalTo(10));
         assertThat("selective LIMIT must not emit one page per source window", pages.size(), lessThanOrEqualTo(2));
+    }
+
+    /**
+     * LIMIT 1 must not decode later matching rows. The first survivor is a valid declared-long;
+     * the second is unparseable. fail_fast would abort if projection decoded the whole window.
+     */
+    public void testLateMaterializationLimitDoesNotFailFastOnUnemittedSurvivors() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("keep")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("val")
+            .named("limit_failfast");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            groups.add(factory.newGroup().append("keep", 1L).append("val", "41"));
+            groups.add(factory.newGroup().append("keep", 1L).append("val", "not_a_long"));
+            for (int i = 0; i < 50; i++) {
+                groups.add(factory.newGroup().append("keep", 0L).append("val", "0"));
+            }
+            return groups;
+        });
+        ReferenceAttribute keepAttr = new ReferenceAttribute(Source.EMPTY, "keep", DataType.LONG);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new Equals(Source.EMPTY, keepAttr, new Literal(Source.EMPTY, 1L, DataType.LONG), null))
+        );
+        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed)
+            .withDeclaredTypeColumns(Set.of("val"));
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, "keep", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "val", DataType.LONG)
+        );
+        try (
+            CloseableIterator<Page> iter = reader.read(
+                createStorageObject(parquetData),
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("keep", "val"))
+                    .batchSize(100)
+                    .rowLimit(1)
+                    .readSchema(readSchema)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .build()
+            )
+        ) {
+            assertTrue(iter.hasNext());
+            Page page = iter.next();
+            try {
+                assertThat(page.getPositionCount(), equalTo(1));
+                LongBlock val = (LongBlock) page.getBlock(1);
+                assertThat(val.getLong(0), equalTo(41L));
+            } finally {
+                page.releaseBlocks();
+            }
+            assertFalse("LIMIT 1 must exhaust after the first valid survivor", iter.hasNext());
+        }
+    }
+
+    /**
+     * 400 then 700 survivors across two {@code batchSize=1000} windows: first window is below
+     * minPage so fill continues; second overflows maxPage and must leftover-split.
+     */
+    public void testLateMaterializationMaxPageLeftoverSplit() throws Exception {
+        int batchSize = 1000;
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("keep")
+            .named("leftover_split");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(2000);
+            for (int i = 0; i < 2000; i++) {
+                boolean keep = i < 400 || (i >= 1000 && i < 1700);
+                groups.add(factory.newGroup().append("id", (long) i).append("keep", keep ? 1L : 0L));
+            }
+            return groups;
+        });
+        ReferenceAttribute keepAttr = new ReferenceAttribute(Source.EMPTY, "keep", DataType.LONG);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new Equals(Source.EMPTY, keepAttr, new Literal(Source.EMPTY, 1L, DataType.LONG), null))
+        );
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        List<Page> pages = collectPagesStrict(
+            reader.read(createStorageObject(parquetData), FormatReadContext.builder().batchSize(batchSize).build())
+        );
+        try {
+            int total = pages.stream().mapToInt(Page::getPositionCount).sum();
+            assertThat("400 + 700 survivors", total, equalTo(1100));
+            assertThat("maxPage split yields more than one page", pages.size(), equalTo(2));
+            assertThat(pages.get(0).getPositionCount(), equalTo(batchSize));
+            assertThat(pages.get(1).getPositionCount(), equalTo(100));
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    /**
+     * Same clustered windows as {@link #testLateMaterializationMaxPageLeftoverSplit} with LIMIT 500:
+     * leftover must not carry rows past the budget.
+     */
+    public void testLateMaterializationLeftoverDoesNotCarryPastLimit() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("keep")
+            .named("leftover_limit");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(2000);
+            for (int i = 0; i < 2000; i++) {
+                boolean keep = i < 400 || (i >= 1000 && i < 1700);
+                groups.add(factory.newGroup().append("id", (long) i).append("keep", keep ? 1L : 0L));
+            }
+            return groups;
+        });
+        ReferenceAttribute keepAttr = new ReferenceAttribute(Source.EMPTY, "keep", DataType.LONG);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new Equals(Source.EMPTY, keepAttr, new Literal(Source.EMPTY, 1L, DataType.LONG), null))
+        );
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        List<Page> pages = collectPagesStrict(
+            reader.read(createStorageObject(parquetData), FormatReadContext.builder().batchSize(1000).rowLimit(500).build())
+        );
+        try {
+            int total = pages.stream().mapToInt(Page::getPositionCount).sum();
+            assertThat(total, equalTo(500));
+            assertThat(pages.size(), equalTo(1));
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    /**
+     * First {@code batchSize} window is fully filtered; later windows have survivors.
+     * Iterator must not emit a 0-row page for the empty window.
+     */
+    public void testLateMaterializationEmptyFilterWindowsNotEmitted() throws Exception {
+        int batchSize = 1000;
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("keep")
+            .named("empty_windows");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(3000);
+            for (int i = 0; i < 3000; i++) {
+                groups.add(factory.newGroup().append("id", (long) i).append("keep", i >= 1000 ? 1L : 0L));
+            }
+            return groups;
+        });
+        ReferenceAttribute keepAttr = new ReferenceAttribute(Source.EMPTY, "keep", DataType.LONG);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(
+            List.of(new Equals(Source.EMPTY, keepAttr, new Literal(Source.EMPTY, 1L, DataType.LONG), null))
+        );
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        List<Page> pages = collectPagesStrict(
+            reader.read(createStorageObject(parquetData), FormatReadContext.builder().batchSize(batchSize).build())
+        );
+        try {
+            int total = pages.stream().mapToInt(Page::getPositionCount).sum();
+            assertThat(total, equalTo(2000));
+            for (Page page : pages) {
+                assertThat(page.getPositionCount(), greaterThan(0));
+            }
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
     }
 
     public void testLateMaterializationUnselectivePagesStayNearBatchSize() throws Exception {

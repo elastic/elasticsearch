@@ -8310,6 +8310,84 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("duplicate column names ['a\\u0027, \\u0027b']"));
     }
 
+    /**
+     * A duplicate name too wide for the cap is counted at its escaped width, quotes and all, without being escaped
+     * whole: the marker reports the list's rendered width and the kept ends are the escape's.
+     */
+    public void testAWideQuotedDuplicateNameIsCountedAtItsEscapedWidth() {
+        String quotes = "'".repeat(300);
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
+        Exception e = expectThrows(
+            ExternalClientException.class,
+            () -> bindingReader(new CsvFormatReader(blockFactory)).read(
+                createStorageObject("\"" + quotes + "\",ts,\"" + quotes + "\"\n1,2,3\n"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat(e.getMessage(), containsString("(truncated, " + 6 * quotes.length() + " chars total)"));
+        assertThat(e.getMessage(), containsString("['\\u0027\\u0027"));
+    }
+
+    /**
+     * A schema sampled on a later split counts its rows from that split, so a sampling refusal says so, as the
+     * data-row refusals do. The first split's count is the file's and takes no clause.
+     */
+    public void testASamplingRefusalNamesTheWindowOnALaterSplit() {
+        CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        String rows = "1,a\n2,\"https://example.com/x";
+        Exception later = expectThrows(
+            ExternalClientException.class,
+            () -> drainAllPages(
+                headerless.read(
+                    createStorageObject(rows),
+                    FormatReadContext.builder()
+                        .firstSplit(false)
+                        .recordAligned(true)
+                        .splitStartByte(4096)
+                        .batchSize(10)
+                        .errorPolicy(ErrorPolicy.STRICT)
+                        .build()
+                )
+            )
+        );
+        assertThat(
+            later.getMessage(),
+            containsString("CSV schema sampling failed at row [2] of [test.csv] counted from byte [4096] of the decoded stream: ")
+        );
+        Exception first = expectThrows(
+            ExternalClientException.class,
+            () -> drainAllPages(
+                headerless.read(
+                    createStorageObject(rows),
+                    FormatReadContext.builder().firstSplit(true).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            )
+        );
+        assertThat(first.getMessage(), containsString("CSV schema sampling failed at row [2] of [test.csv]: "));
+    }
+
+    /** A malformed typed header is one file's fault, so both of its refusals name the file, and the format. */
+    public void testATypedHeaderRefusalNamesTheObject() {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ExternalClientException format = expectThrows(
+            ExternalClientException.class,
+            () -> reader.schema(createStorageObject("id:long,name\n", "typed.csv"))
+        );
+        assertThat(format.getMessage(), containsString("Invalid CSV schema format: [name] in the header of [typed.csv]"));
+        ExternalClientException type = expectThrows(
+            ExternalClientException.class,
+            () -> reader.schema(createStorageObject("id:nope\n", "typed.csv"))
+        );
+        assertThat(type.getMessage(), containsString("illegal data type [NOPE] in the CSV header of [typed.csv]"));
+        Exception onRead = expectThrows(
+            ExternalClientException.class,
+            () -> drainAllPages(
+                reader.read(createStorageObject("id:nope\n1\n", "typed.csv"), FormatReadContext.builder().batchSize(10).build())
+            )
+        );
+        assertThat(onRead.getMessage(), containsString("in the CSV header of [typed.csv]"));
+    }
+
     /** A failure with no message still says so, rather than printing {@code null} as if a parser had. */
     public void testAFailureWithNoMessageSaysSo() {
         assertEquals("(no message)", CsvFormatReader.rowErrorReason(null, "csv"));
@@ -9831,6 +9909,13 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue(
             "a padded cut value must still name multiline_fields, got: " + padded,
             padded.stream().anyMatch(w -> w.contains("read as null") && w.contains("multiline_fields"))
+        );
+        assertTrue(
+            "a padded row on a later split must say where its count started, got: " + padded,
+            padded.stream()
+                .anyMatch(
+                    w -> w.startsWith("row [1] counted from byte [4096] of the decoded stream: missing trailing fields, read as null")
+                )
         );
     }
 

@@ -1477,22 +1477,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * The escape is taken once, on the kept windows, rather than per name: escaping each name first would spend six
      * characters and a formatter call on every bracket or control character in the header to show 256 of them. The
      * brackets go on outside this, because the escape rewrites {@code [} and {@code ]} and would otherwise spell the
-     * message's own delimiters. The width the marker reports is the list's -- the names, plus the four characters
-     * spent between each pair of them -- and not the header's spelling of the same names, which separates with one.
+     * message's own delimiters. The width the marker reports is the list's -- the names with their quotes escaped,
+     * plus the four characters spent between each pair of them -- and not the header's spelling of the same names,
+     * which separates with one. The quote escape is likewise taken only on the kept ends, so a header of quotes costs
+     * the window and not six characters for each of them.
      */
     private static String renderDuplicateNames(Collection<String> duplicates) {
         assert duplicates.isEmpty() == false : "a refusal for duplicate names needs at least one";
         int window = ErrorExcerpts.MAX_EXCERPT_CHARS;
-        String[] names = new String[duplicates.size()];
+        String[] names = duplicates.toArray(new String[0]);
         long total = (long) DUPLICATE_NAME_SEPARATOR.length() * (names.length - 1);
-        int n = 0;
-        for (String name : duplicates) {
-            names[n] = quoteSafe(name);
-            total += names[n].length();
-            n++;
+        for (String name : names) {
+            total += quoteSafeWidth(name);
         }
         if (total <= window) {
-            return ErrorExcerpts.summarizeEscaped(String.join(DUPLICATE_NAME_SEPARATOR, names));
+            String[] safe = new String[names.length];
+            for (int i = 0; i < names.length; i++) {
+                safe[i] = quoteSafe(names[i]);
+            }
+            return ErrorExcerpts.summarizeEscaped(String.join(DUPLICATE_NAME_SEPARATOR, safe));
         }
         StringBuilder head = new StringBuilder(window);
         // Position, not head.isEmpty(): an empty name is a duplicate like any other -- two leading commas are the
@@ -1501,11 +1504,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (i > 0) {
                 appendBounded(head, DUPLICATE_NAME_SEPARATOR, window);
             }
-            appendBounded(head, names[i], window);
+            appendQuoteSafeBounded(head, names[i], window);
         }
         StringBuilder tail = new StringBuilder(window);
         for (int i = names.length - 1; i >= 0 && tail.length() < window; i--) {
-            prependBounded(tail, names[i], window);
+            prependQuoteSafeBounded(tail, names[i], window);
             if (i > 0) {
                 prependBounded(tail, DUPLICATE_NAME_SEPARATOR, window);
             }
@@ -1522,7 +1525,57 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * are the list's own.
      */
     private static String quoteSafe(String name) {
-        return name.indexOf('\'') < 0 ? name : name.replace("'", "\\u0027");
+        return name.indexOf('\'') < 0 ? name : name.replace("'", QUOTE_ESCAPE);
+    }
+
+    /** {@link #quoteSafe}'s escape for one single quote. */
+    private static final String QUOTE_ESCAPE = "\\u0027";
+
+    /** How wide {@link #quoteSafe} renders {@code name}, without building it. */
+    private static long quoteSafeWidth(String name) {
+        long width = name.length();
+        for (int i = 0; i < name.length(); i++) {
+            if (name.charAt(i) == '\'') {
+                width += QUOTE_ESCAPE.length() - 1;
+            }
+        }
+        return width;
+    }
+
+    /**
+     * Appends {@link #quoteSafe} of {@code name}, escaping only the characters it keeps, and leaves {@code sb} exactly
+     * {@code window} wide once it is full -- the width {@link ErrorExcerpts#summarizeEscaped(String, String, int)}
+     * requires of each end.
+     */
+    private static void appendQuoteSafeBounded(StringBuilder sb, String name, int window) {
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c == '\'') {
+                sb.append(QUOTE_ESCAPE);
+            } else {
+                sb.append(c);
+            }
+            if (sb.length() >= window) {
+                sb.setLength(window);
+                return;
+            }
+        }
+    }
+
+    /** The mirror of {@link #appendQuoteSafeBounded}: prepends the end of {@code name} that fits. */
+    private static void prependQuoteSafeBounded(StringBuilder sb, String name, int window) {
+        for (int i = name.length() - 1; i >= 0; i--) {
+            char c = name.charAt(i);
+            if (c == '\'') {
+                sb.insert(0, QUOTE_ESCAPE);
+            } else {
+                sb.insert(0, c);
+            }
+            if (sb.length() >= window) {
+                sb.delete(0, sb.length() - window);
+                return;
+            }
+        }
     }
 
     /** Appends as much of {@code text} as leaves {@code sb} no wider than {@code window}. */
@@ -1937,7 +1990,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (headerLine == null) {
                 throw noSchemaLineError(format, sourceLocation);
             }
-            List<Attribute> typedSchema = parseSchema(headerLine);
+            List<Attribute> typedSchema = parseSchema(headerLine, sourceLocation);
             if (typedSchema != null) {
                 checkUniqueAttributeNames(typedSchema, format, sourceLocation);
                 return new InferredSchema(typedSchema, 0L, 0);
@@ -2027,6 +2080,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             effectivePolicy,
             recordReader,
             0L,
+            0L,
             schemaSampleBytes,
             format,
             sourceLocation
@@ -2065,6 +2119,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             breaker,
             effectivePolicy,
             recordReader,
+            0L,
             0L,
             schemaSampleBytes,
             format,
@@ -2431,7 +2486,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     ) {
         // No object in scope on this overload, so its errors name none; the production sites all use the
         // variant below, which carries one.
-        return collectSampleRows(csvIterator, commentPrefix, sampleSize, breaker, policy, null, 0L, Long.MAX_VALUE, format, "");
+        return collectSampleRows(csvIterator, commentPrefix, sampleSize, breaker, policy, null, 0L, 0L, Long.MAX_VALUE, format, "");
     }
 
     /**
@@ -2442,7 +2497,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Used by the data-path sampling sites so the prefetched rows can replay with their original
      * {@code _rowPosition} value attached. {@code recordReader} must be the source reader feeding
      * {@code csvIterator}; pass {@code null} to skip offset capture and the byte budget (the 5-arg
-     * overload used by unit tests).
+     * overload used by unit tests). {@code messageStartByte} is the window a refusal's row is counted in, as
+     * {@link RowLocation#of} takes it; it is not {@code splitStartByte}, which is on the compressed axis for a
+     * block-aligned split.
      */
     static SchemaSample collectSampleRows(
         Iterator<List<?>> csvIterator,
@@ -2452,6 +2509,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         ErrorPolicy policy,
         CsvLogicalRecordReader recordReader,
         long splitStartByte,
+        long messageStartByte,
         long maxSampleBytes,
         String format,
         String sourceLocation
@@ -2525,7 +2583,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         // Single point of truth for FAIL_FAST: same exception type and hint as
                         // the data-row path so users see consistent error messages whether
                         // sampling or reading actually tripped the failure.
-                        throw failFastSamplingError(totalRowCount, e, format, sourceLocation);
+                        throw failFastSamplingError(totalRowCount, messageStartByte, e, format, sourceLocation);
                     }
                     consecutiveFailures++;
                     if (firstCause == null) {
@@ -2544,6 +2602,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             policy,
                             capturedErrors,
                             firstCause,
+                            messageStartByte,
                             format,
                             sourceLocation
                         );
@@ -2651,7 +2710,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return noHeader;
     }
 
-    private static ExternalClientException failFastSamplingError(long row, Throwable cause, String format, String sourceLocation) {
+    private static ExternalClientException failFastSamplingError(
+        long row,
+        long messageStartByte,
+        Throwable cause,
+        String format,
+        String sourceLocation
+    ) {
         Exception e = cause instanceof Exception ex ? ex : null;
         ExternalClientException result = new ExternalClientException(
             ExternalException.Condition.MALFORMED_DATA,
@@ -2662,10 +2727,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         );
         result.setDetail(
             displayName(format)
-                + " schema sampling failed at row ["
-                + row
-                + "]"
-                + RowLocation.objectClause(" of", sourceLocation)
+                + " schema sampling failed at "
+                + RowLocation.of(row, sourceLocation, messageStartByte)
                 + ": "
                 + rowErrorReason(cause, format)
                 + "; set [error_mode] to [skip_row] to skip the row instead"
@@ -2680,6 +2743,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         ErrorPolicy policy,
         List<String> capturedErrors,
         Throwable firstCause,
+        long messageStartByte,
         String format,
         String sourceLocation
     ) {
@@ -2692,7 +2756,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             .append(errorCount)
             .append("] errors in [")
             .append(rowCount)
-            .append("] rows, ")
+            .append("] rows")
+            .append(RowLocation.countedIn(messageStartByte))
+            .append(", ")
             .append(policy.trippedLimit(errorCount))
             .append("; first errors: ");
         appendCapturedErrors(details, capturedErrors);
@@ -2931,7 +2997,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 CsvLogicalRecordReader leading = leadingRecordReader(reader);
                 leading.setInitialByteOffset(bomBytesConsumed);
                 skipLeadingContentRows(leading, options.skipRows(), options.commentPrefix());
-                leadingColumns = leadingColumns(leading);
+                leadingColumns = leadingColumns(leading, RowLocation.displayObjectName(object.path().objectName()));
                 leadingBytes = leading.bytesRead();
             } catch (Exception e) {
                 abortRead(rawStream, e);
@@ -3003,7 +3069,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (context.firstSplit() && options.headerRow() && leadingPass == false) {
                     // Main's step and names: the escape-aware data reader consumes the header and names the columns, so an
                     // inferred headered first split steps over it too, and a declared one binds the same names main does.
-                    leadingColumns = leadingColumns(recordReader);
+                    leadingColumns = leadingColumns(recordReader, RowLocation.displayObjectName(object.path().objectName()));
                 }
                 if (headeredByName) {
                     headerBinding = bindHeaderedColumns(
@@ -3382,7 +3448,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         InputStream stream = file.newStream();
         try (stream) {
             CsvLogicalRecordReader leading = openLeadingRecords(stream);
-            List<String> columns = leadingColumns(leading);
+            List<String> columns = leadingColumns(leading, RowLocation.displayObjectName(file.path().objectName()));
             return columns.isEmpty() || leading.lastRecordTerminated() ? columns : List.of();
         }
     }
@@ -3458,9 +3524,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * A headered file's column names: its header's.
      *
+     * @param objectName the object as messages name it, for a typed header's refusals
      * @return the names in file order, or an empty list when the file has no header line
      */
-    private List<String> leadingColumns(CsvLogicalRecordReader recordReader) throws IOException {
+    private List<String> leadingColumns(CsvLogicalRecordReader recordReader, String objectName) throws IOException {
         String headerLine = consumeHeaderLine(recordReader);
         if (headerLine == null) {
             return List.of();
@@ -3469,7 +3536,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // after it is allocated; the cap counts only non-empty names, so a header of bare delimiters is bounded by the
         // breaker alone. A declared schema is not capped by the file's width, only charged (see effectiveMaxFields).
         try (HeaderBudget budget = newHeaderBudget()) {
-            return List.of(headerColumnNames(headerLine, splitFieldsForOptions(headerLine, options, effectiveMaxFields(), budget)));
+            return List.of(
+                headerColumnNames(headerLine, splitFieldsForOptions(headerLine, options, effectiveMaxFields(), budget), objectName)
+            );
         }
     }
 
@@ -3480,9 +3549,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * would expose — any divergence here would recreate the strict-vs-dynamic split this binding exists to close.
      *
      * @param fields the already-split header fields, parallel to the returned names
+     * @param objectName the object as messages name it, for a typed header's refusals
      */
-    private String[] headerColumnNames(String headerLine, String[] fields) {
-        List<Attribute> typed = parseSchema(headerLine); // non-null iff the header carries type annotations
+    private String[] headerColumnNames(String headerLine, String[] fields, String objectName) {
+        List<Attribute> typed = parseSchema(headerLine, objectName); // non-null iff the header carries type annotations
         String[] names = new String[fields.length];
         for (int i = 0; i < fields.length; i++) {
             if (typed != null && i < typed.size()) {
@@ -3494,11 +3564,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return names;
     }
 
-    private List<Attribute> parseSchema(String schemaLine) {
+    /**
+     * The header's typed schema, or {@code null} when it carries no type annotations. {@code objectName} is the object as
+     * messages name it: a malformed header is a fault of one file, and a glob user has to be told which.
+     */
+    private List<Attribute> parseSchema(String schemaLine, String objectName) {
         try (HeaderBudget budget = newHeaderBudget()) {
             String[] columns = splitFieldsForOptions(schemaLine, options, effectiveMaxFields(), budget);
             if (hasTypeAnnotations(columns)) {
-                return parseTypedSchema(columns);
+                return parseTypedSchema(columns, objectName);
             }
             return null;
         }
@@ -3518,7 +3592,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return false;
     }
 
-    private List<Attribute> parseTypedSchema(String[] columns) {
+    private List<Attribute> parseTypedSchema(String[] columns, String objectName) {
         List<Attribute> attributes = new ArrayList<>(columns.length);
         for (String column : columns) {
             String trimmedColumn = column.trim();
@@ -3535,7 +3609,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         + displayName(format)
                         + " schema format: ["
                         + ErrorExcerpts.summarizeEscaped(column)
-                        + "]. Expected 'name:type'"
+                        + "]"
+                        + RowLocation.objectClause(" in the header of", objectName)
+                        + ". Expected 'name:type'"
                 );
                 schemaEx.markMessageQuotesInput();
                 throw schemaEx;
@@ -3543,7 +3619,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String name = options.quoting() ? unquoteHeaderName(parts[0], options.quoteChar()) : parts[0].trim();
             String trimmedType = parts[1].trim();
             String typeName = trimmedType.toUpperCase(Locale.ROOT);
-            DataType dataType = parseDataType(typeName);
+            DataType dataType = parseDataType(typeName, objectName);
             attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, dataType, Nullability.TRUE, null, false));
         }
         return attributes;
@@ -3554,7 +3630,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * are widened to INTEGER/DOUBLE since the planner expects widened types.
      * Typed-schema aliases TEXT and TXT map to KEYWORD (same string family as KEYWORD/STRING).
      */
-    private DataType parseDataType(String typeName) {
+    private DataType parseDataType(String typeName, String objectName) {
         String upper = typeName.toUpperCase(Locale.ROOT);
         return switch (upper) {
             // Widened to INTEGER/DOUBLE: ESQL's compute engine lacks native blocks for these small numeric types.
@@ -3579,7 +3655,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     "",
                     ""
                 );
-                dtEx.setDetail("illegal data type [" + ErrorExcerpts.summarizeEscaped(typeName) + "]");
+                dtEx.setDetail(
+                    "illegal data type ["
+                        + ErrorExcerpts.summarizeEscaped(typeName)
+                        + "] in the "
+                        + displayName(format)
+                        + " header"
+                        + RowLocation.objectClause(" of", objectName)
+                );
                 dtEx.markMessageQuotesInput();
                 throw dtEx;
             }
@@ -5468,7 +5551,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (counters != null) {
                         counters.markHeaderDetected();
                     }
-                    schema = parseSchema(headerLine);
+                    schema = parseSchema(headerLine, messageLocation);
                     if (schema == null) {
                         schema = inferSchemaFromBatchReader(headerLine);
                     }
@@ -5796,6 +5879,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 errorPolicy,
                 recordReader,
                 splitStartByte,
+                messageStartByte,
                 schemaSampleBytes,
                 format,
                 messageLocation
@@ -5833,6 +5917,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 errorPolicy,
                 recordReader,
                 splitStartByte,
+                messageStartByte,
                 schemaSampleBytes,
                 format,
                 messageLocation

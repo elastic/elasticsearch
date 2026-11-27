@@ -213,11 +213,6 @@ tests:
   - :x-pack:plugin:vector-tile:test
   method: testDegeneratedPolygon
   issue: https://github.com/elastic/elasticsearch/issues/165844
-- class: org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerServiceTests
-  tasks:
-  - :x-pack:plugin:ml:test
-  method: test_noEarlyScaleDownToZero_afterReelectedAsMaster
-  issue: https://github.com/elastic/elasticsearch/issues/167577
 - class: org.elasticsearch.nativeaccess.PreallocateTests
   tasks:
   - :libs:native:test

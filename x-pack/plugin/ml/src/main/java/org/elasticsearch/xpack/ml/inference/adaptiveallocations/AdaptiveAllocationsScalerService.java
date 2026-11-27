@@ -51,6 +51,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 /**
@@ -222,6 +223,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private final long scaleUpCooldownTimeMillis;
     private final Set<String> deploymentIdsWithInFlightScaleFromZeroRequests = new ConcurrentSkipListSet<>();
     private final Map<String, String> lastWarningMessages = new ConcurrentHashMap<>();
+    private final LongSupplier currentTimeMillisSupplier;
 
     public AdaptiveAllocationsScalerService(
         ThreadPool threadPool,
@@ -256,6 +258,33 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         long scaleToZeroAfterNoRequestsSeconds,
         long scaleUpCooldownTimeMillis
     ) {
+        this(
+            threadPool,
+            clusterService,
+            client,
+            inferenceAuditor,
+            meterRegistry,
+            isNlpEnabled,
+            timeIntervalSeconds,
+            scaleToZeroAfterNoRequestsSeconds,
+            scaleUpCooldownTimeMillis,
+            System::currentTimeMillis
+        );
+    }
+
+    // visible for testing
+    AdaptiveAllocationsScalerService(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        Client client,
+        InferenceAuditor inferenceAuditor,
+        MeterRegistry meterRegistry,
+        boolean isNlpEnabled,
+        int timeIntervalSeconds,
+        long scaleToZeroAfterNoRequestsSeconds,
+        long scaleUpCooldownTimeMillis,
+        LongSupplier currentTimeMillisSupplier
+    ) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
@@ -265,6 +294,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         this.timeIntervalSeconds = timeIntervalSeconds;
         this.scaleToZeroAfterNoRequestsSeconds = scaleToZeroAfterNoRequestsSeconds;
         this.scaleUpCooldownTimeMillis = scaleUpCooldownTimeMillis;
+        this.currentTimeMillisSupplier = currentTimeMillisSupplier;
 
         lastInferenceStatsByDeploymentAndNode = new HashMap<>();
         lastInferenceStatsTimestampMillis = null;
@@ -388,7 +418,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
     private void processDeploymentStats(GetDeploymentStatsAction.Response statsResponse) {
         Double statsTimeInterval;
-        long now = System.currentTimeMillis();
+        long now = currentTimeMillisSupplier.getAsLong();
         if (lastInferenceStatsTimestampMillis != null) {
             statsTimeInterval = (now - lastInferenceStatsTimestampMillis) / 1000.0;
         } else {
@@ -513,7 +543,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 // the allocations after the scaler has already scaled up to the minimum.
                 Integer minNumberOfAllocations = assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations();
                 int numberOfAllocations = minNumberOfAllocations == null ? 1 : Math.max(1, minNumberOfAllocations);
-                lastScaleUpTimesMillis.put(assignment.getDeploymentId(), System.currentTimeMillis());
+                lastScaleUpTimesMillis.put(assignment.getDeploymentId(), currentTimeMillisSupplier.getAsLong());
                 var updateListener = updateAssigmentListener(assignment.getDeploymentId(), numberOfAllocations);
                 var cleanUpListener = ActionListener.runAfter(
                     updateListener,

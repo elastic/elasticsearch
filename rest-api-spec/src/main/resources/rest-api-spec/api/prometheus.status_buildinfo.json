@@ -1,0 +1,37 @@
+{
+  "prometheus.status_buildinfo": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/reference/query-languages/promql/promql-http-api#promql-http-api-buildinfo",
+      "description": "Get Prometheus build information"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_prometheus/api/v1/status/buildinfo",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/_prometheus/{index}/api/v1/status/buildinfo",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "Accepted for consistency with the other endpoints. The response does not depend on it"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

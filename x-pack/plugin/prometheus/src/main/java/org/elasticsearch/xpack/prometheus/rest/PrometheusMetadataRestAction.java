@@ -15,8 +15,8 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
 import java.io.IOException;
 import java.util.List;
@@ -62,11 +62,14 @@ public class PrometheusMetadataRestAction extends BaseRestHandler {
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
         int limitPerMetric = request.paramAsInt(LIMIT_PER_METRIC_PARAM, DEFAULT_LIMIT);
 
-        LogicalPlan plan = PrometheusMetadataPlanBuilder.buildPlan(index, metric, limit, limitPerMetric);
-        EsqlStatement statement = new EsqlStatement(plan, PrometheusPlanBuilderUtils.QUERY_SETTINGS);
         PreparedEsqlQueryRequest esqlRequest = new PromqlQueryRequest(
             index,
-            statement,
+            () -> new PromqlStatementResult(
+                new EsqlStatement(
+                    PrometheusMetadataPlanBuilder.buildPlan(index, metric, limit, limitPerMetric),
+                    PrometheusPlanBuilderUtils.QUERY_SETTINGS
+                )
+            ),
             "prometheus_metadata",
             LIMIT_PARAM,
             limit == DEFAULT_LIMIT ? null : limit,

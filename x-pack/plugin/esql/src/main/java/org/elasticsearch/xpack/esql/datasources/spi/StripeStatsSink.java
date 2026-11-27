@@ -49,9 +49,10 @@ public interface StripeStatsSink {
      *                      the stripe's true start — a byte-cover predicate, not "holds the stripe's first record"
      * @param atStripeEnd   whether its chunk covers the right grid line, or is the file-final chunk
      * @param eof           whether its chunk observed the end of the input and this is its last stripe
-     * @param statistics    the piece's own statistics over the records attributed to this stripe, already
-     *                      filtered to the file schema, so a sink retains only what a published contribution
-     *                      carries
+     * @param statistics    the piece's own statistics over the records attributed to this stripe. A caller must
+     *                      filter them to the file schema and cap them to the publishable extremum width before
+     *                      contributing: a sink retains what it is given, so an uncapped contribution publishes
+     *                      a value a record of its own would have withheld
      */
     void contribute(
         String sourceLocation,

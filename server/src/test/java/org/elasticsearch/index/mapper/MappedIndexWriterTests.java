@@ -1,0 +1,420 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.mapper;
+
+import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.hamcrest.Matcher;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat.Mode.LUCENE;
+import static org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+
+public class MappedIndexWriterTests extends MapperServiceTestCase {
+
+    public void testBuilderWritesColumnarFormat() throws IOException {
+        assertWritesMappedFormat(columnarVersion(true), columnar(), this::mappedWriter, instanceOf(ColumNARDocValuesFormat.class));
+    }
+
+    public void testBuilderWritesEs819Format() throws IOException {
+        assertWritesMappedFormat(
+            columnarVersion(false),
+            columnar(),
+            this::mappedWriter,
+            instanceOf(ES819Version3TSDBDocValuesFormat.class)
+        );
+    }
+
+    public void testBuilderWritesEs95Format() throws IOException {
+        assertWritesMappedFormat(IndexVersion.current(), timeSeriesEs95(), this::mappedWriter, instanceOf(ES95TSDBDocValuesFormat.class));
+    }
+
+    public void testSyntheticSourceWriterWritesColumnarFormat() throws IOException {
+        assertWritesMappedFormat(
+            columnarVersion(true),
+            columnar(),
+            this::indexWriterForSyntheticSource,
+            instanceOf(ColumNARDocValuesFormat.class)
+        );
+    }
+
+    public void testSyntheticSourceWriterWritesEs819Format() throws IOException {
+        assertWritesMappedFormat(
+            columnarVersion(false),
+            columnar(),
+            this::indexWriterForSyntheticSource,
+            instanceOf(ES819Version3TSDBDocValuesFormat.class)
+        );
+    }
+
+    public void testSyntheticSourceWriterWritesEs95Format() throws IOException {
+        assertWritesMappedFormat(
+            IndexVersion.current(),
+            timeSeriesEs95(),
+            this::indexWriterForSyntheticSource,
+            instanceOf(ES95TSDBDocValuesFormat.class)
+        );
+    }
+
+    public void testAssertDocValuesWrittenAsMappedRejectsUnmappedWriter() throws IOException {
+        final MapperService mapperService = createMapperService(columnarVersion(false), columnar(), keywordMapping(false));
+        final String expected = productionDocValuesFormat(mapperService, "foo").getName();
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+                iw.addDocuments(mapperService.documentMapper().parse(source(b -> b.field("foo", "value"))).docs());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                final AssertionError e = expectThrows(AssertionError.class, () -> assertDocValuesWrittenAsMapped(mapperService, reader));
+                assertThat(e.getMessage(), containsString("foo in segment ["));
+                assertThat(e.getMessage(), containsString("mapped to [" + expected + "]"));
+            }
+        }
+    }
+
+    public void testSyntheticSourceAppliesDynamicMappingsBeforeIndexing() throws IOException {
+        final MapperService mapperService = createMapperService(columnarVersion(true), columnar(), mapping(b -> {}));
+        assertThat(syntheticSource(mapperService, b -> b.field("new_keyword", "alpha")), equalTo("{\"new_keyword\":\"alpha\"}"));
+        assertThat(mapperService.fieldType("new_keyword"), notNullValue());
+        assertThat(productionDocValuesFormat(mapperService, "new_keyword"), instanceOf(ColumNARDocValuesFormat.class));
+    }
+
+    public void testBuilderPreservesInsertionOrderAcrossMerges() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {}));
+        final int docCount = 40;
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+                for (int i = 0; i < docCount; i++) {
+                    final Document doc = new Document();
+                    doc.add(new NumericDocValuesField("ord", i));
+                    doc.add(new StoredField("payload", randomAlphaOfLength(between(1, 4096))));
+                    iw.addDocument(doc);
+                    iw.commit();
+                }
+                iw.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertThat(reader.leaves(), hasSize(1));
+                final NumericDocValues ords = reader.leaves().get(0).reader().getNumericDocValues("ord");
+                for (int doc = 0; doc < docCount; doc++) {
+                    assertTrue(ords.advanceExact(doc));
+                    assertThat(ords.longValue(), equalTo((long) doc));
+                }
+            }
+        }
+    }
+
+    public void testBuilderUsesIndexModeDefaultCodec() throws IOException {
+        withSingleDocSegment(
+            columnarVersion(false),
+            columnar(),
+            (mapperService, leaf) -> assertThat(storedFieldsMode(leaf), equalTo(ZSTD_BEST_COMPRESSION.name()))
+        );
+    }
+
+    public void testBuilderUsesConfiguredDefaultCodec() throws IOException {
+        withSingleDocSegment(columnarVersion(false), withCodec(columnar(), CodecService.DEFAULT_CODEC), (mapperService, leaf) -> {
+            assertThat(storedFieldsMode(leaf), equalTo(LUCENE.name()));
+            assertThat(writtenDocValuesFormat(leaf), equalTo(productionDocValuesFormat(mapperService, "foo").getName()));
+        });
+    }
+
+    public void testBuilderUsesLuceneDefaultCodec() throws IOException {
+        withSingleDocSegment(columnarVersion(false), withCodec(columnar(), CodecService.LUCENE_DEFAULT_CODEC), (mapperService, leaf) -> {
+            assertThat(productionDocValuesFormat(mapperService, "foo"), not(instanceOf(ES819Version3TSDBDocValuesFormat.class)));
+            assertThat(writtenDocValuesFormat(leaf), equalTo(productionDocValuesFormat(mapperService, "foo").getName()));
+        });
+    }
+
+    public void testAssertDocValuesWrittenAsMappedNamesTheMismatchedSegment() throws IOException {
+        final MapperService mapperService = createMapperService(columnarVersion(false), columnar(), keywordMapping(false));
+        try (Directory unmapped = newDirectory(); Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), unmapped)) {
+                iw.addDocuments(mapperService.documentMapper().parse(source(b -> b.field("foo", "unmapped"))).docs());
+            }
+            try (RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+                iw.addDocuments(mapperService.documentMapper().parse(source(b -> b.field("foo", "mapped"))).docs());
+                iw.commit();
+                iw.addIndexes(unmapped);
+                iw.commit();
+                try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                    assertThat(reader.leaves(), hasSize(2));
+                    final String expected = productionDocValuesFormat(mapperService, "foo").getName();
+                    final AssertionError e = expectThrows(
+                        AssertionError.class,
+                        () -> assertDocValuesWrittenAsMapped(mapperService, reader)
+                    );
+                    for (LeafReaderContext leaf : reader.leaves()) {
+                        final String segment = ((SegmentReader) leaf.reader()).getSegmentName();
+                        final Matcher<String> named = containsString("foo in segment [" + segment + "]");
+                        assertThat(e.getMessage(), expected.equals(writtenDocValuesFormat(leaf.reader())) ? not(named) : named);
+                    }
+                }
+                iw.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertThat(reader.leaves(), hasSize(1));
+                assertDocValuesWrittenAsMapped(mapperService, reader);
+            }
+        }
+    }
+
+    public void testBuilderKeepsNestedDocumentsWithTheirParentWhenSorting() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "sort_key").build(),
+            mapping(b -> {
+                b.startObject("sort_key").field("type", "long").endObject();
+                b.startObject("items").field("type", "nested");
+                b.startObject("properties").startObject("v").field("type", "long").endObject().endObject();
+                b.endObject();
+            })
+        );
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+                iw.addDocuments(parseWithItems(mapperService, 2, 20, 21).docs());
+                iw.commit();
+                iw.addDocuments(parseWithItems(mapperService, 1, 10).docs());
+                iw.commit();
+                iw.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertThat(reader.leaves(), hasSize(1));
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final NumericDocValues roots = leaf.getNumericDocValues(Engine.ROOT_DOC_FIELD_NAME);
+                final SortedNumericDocValues sortKeys = leaf.getSortedNumericDocValues("sort_key");
+                final SortedNumericDocValues items = leaf.getSortedNumericDocValues("items.v");
+                final List<String> docs = new ArrayList<>();
+                for (int doc = 0; doc < leaf.maxDoc(); doc++) {
+                    if (roots.advanceExact(doc)) {
+                        assertTrue(sortKeys.advanceExact(doc));
+                        docs.add("parent " + sortKeys.nextValue());
+                    } else {
+                        assertTrue(items.advanceExact(doc));
+                        docs.add("child " + items.nextValue());
+                    }
+                }
+                assertThat(docs, equalTo(List.of("child 10", "parent 1", "child 20", "child 21", "parent 2")));
+            }
+        }
+    }
+
+    public void testSortedIndexKeepsTheRunnerBlockFromTheVersionThatSetsTheParentField() throws IOException {
+        for (IndexVersion version : List.of(IndexVersion.current(), IndexVersions.INDEX_SORTING_ON_NESTED)) {
+            final MapperService mapperService = sortedService(version);
+            assertTrue(version.toString(), TestIndexWriterBuilder.acceptsDocumentBlocks(mapperService));
+            try (Directory directory = newDirectory()) {
+                try (RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+                    iw.addDocuments(List.of(List.of(), realDocument(mapperService), List.of()));
+                }
+                try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                    final LeafReader leaf = reader.leaves().get(0).reader();
+                    assertThat(version.toString(), leaf.maxDoc(), equalTo(3));
+                    final SortedNumericDocValues sortKeys = leaf.getSortedNumericDocValues("sort_key");
+                    final NumericDocValues parents = leaf.getNumericDocValues(Engine.ROOT_DOC_FIELD_NAME);
+                    assertFalse(sortKeys.advanceExact(0));
+                    assertTrue(sortKeys.advanceExact(1));
+                    assertFalse(sortKeys.advanceExact(2));
+                    assertFalse(parents.advanceExact(0));
+                    assertFalse(parents.advanceExact(1));
+                    assertTrue(parents.advanceExact(2));
+                }
+            }
+        }
+    }
+
+    public void testSortedIndexBeforeTheParentFieldRejectsDocumentBlocks() throws IOException {
+        final MapperService mapperService = sortedService(IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORTING_ON_NESTED));
+        assertFalse(TestIndexWriterBuilder.acceptsDocumentBlocks(mapperService));
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> iw.addDocuments(List.of(List.of(), realDocument(mapperService), List.of()))
+            );
+            assertThat(e.getMessage(), containsString("a parent field must be set"));
+        }
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+                iw.addDocument(realDocument(mapperService));
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertThat(reader.maxDoc(), equalTo(1));
+            }
+        }
+    }
+
+    public void testUnsortedIndexAcceptsDocumentBlocksAtAnyVersion() throws IOException {
+        for (IndexVersion version : List.of(
+            IndexVersion.current(),
+            IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORTING_ON_NESTED)
+        )) {
+            assertTrue(
+                version.toString(),
+                TestIndexWriterBuilder.acceptsDocumentBlocks(createMapperService(version, keywordMapping(false)))
+            );
+        }
+    }
+
+    public void testBuilderRequiresMapperService() {
+        expectThrows(NullPointerException.class, () -> TestIndexWriterBuilder.mapped(null));
+    }
+
+    private void withSingleDocSegment(
+        IndexVersion indexVersion,
+        Settings settings,
+        CheckedBiConsumer<MapperService, LeafReader, IOException> test
+    ) throws IOException {
+        final MapperService mapperService = createMapperService(indexVersion, settings, keywordMapping(false));
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+                iw.addDocuments(mapperService.documentMapper().parse(source(b -> b.field("foo", "value"))).docs());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertDocValuesWrittenAsMapped(mapperService, reader);
+                assertThat(reader.leaves(), hasSize(1));
+                test.accept(mapperService, reader.leaves().get(0).reader());
+            }
+        }
+    }
+
+    private static String storedFieldsMode(LeafReader leaf) {
+        return ((SegmentReader) leaf).getSegmentInfo().info.getAttribute(ElasticsearchStoredFieldsFormat.MODE_KEY);
+    }
+
+    private static String writtenDocValuesFormat(LeafReader leaf) {
+        return leaf.getFieldInfos().fieldInfo("foo").getAttribute(PerFieldDocValuesFormat.PER_FIELD_FORMAT_KEY);
+    }
+
+    private static Settings withCodec(Settings settings, String codec) {
+        return Settings.builder().put(settings).put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec).build();
+    }
+
+    private ParsedDocument parseWithItems(MapperService mapperService, long sortKey, long... values) throws IOException {
+        return mapperService.documentMapper().parse(source(b -> {
+            b.field("sort_key", sortKey);
+            b.startArray("items");
+            for (long value : values) {
+                b.startObject().field("v", value).endObject();
+            }
+            b.endArray();
+        }));
+    }
+
+    private MapperService sortedService(IndexVersion version) throws IOException {
+        return createMapperService(version, Settings.builder().put("index.sort.field", "sort_key").build(), mapping(b -> {
+            b.startObject("sort_key").field("type", "long").endObject();
+        }));
+    }
+
+    private LuceneDocument realDocument(MapperService mapperService) throws IOException {
+        return mapperService.documentMapper().parse(source(b -> b.field("sort_key", 5L))).rootDoc();
+    }
+
+    private RandomIndexWriter mappedWriter(MapperService mapperService, Directory directory) throws IOException {
+        return TestIndexWriterBuilder.mapped(mapperService).build(directory);
+    }
+
+    private static Settings columnar() {
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+    }
+
+    private static IndexVersion columnarVersion(boolean columnarCodec) {
+        return columnarCodec ? IndexVersion.current() : IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
+    }
+
+    private static Settings timeSeriesEs95() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), true)
+            // NOTE: synthetic _id postings report a docFreq of 0, which CheckIndex rejects when the test directory closes.
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+            .build();
+    }
+
+    private XContentBuilder keywordMapping(boolean timeSeries) throws IOException {
+        return mapping(b -> {
+            b.startObject("foo").field("type", "keyword");
+            if (timeSeries) {
+                b.field("time_series_dimension", true);
+            }
+            b.endObject();
+        });
+    }
+
+    private void assertWritesMappedFormat(
+        IndexVersion indexVersion,
+        Settings settings,
+        CheckedBiFunction<MapperService, Directory, RandomIndexWriter, IOException> writer,
+        Matcher<? super DocValuesFormat> productionFormat
+    ) throws IOException {
+        final boolean timeSeries = IndexSettings.MODE.get(settings) == IndexMode.TIME_SERIES;
+        final MapperService mapperService = createMapperService(indexVersion, settings, keywordMapping(timeSeries));
+        final DocValuesFormat expected = productionDocValuesFormat(mapperService, "foo");
+        assertThat("production picks a specialized format for [foo]", expected, productionFormat);
+
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = writer.apply(mapperService, directory)) {
+                iw.addDocuments(mapperService.documentMapper().parse(source(timeSeries ? null : "1", b -> {
+                    b.field("foo", "value");
+                    if (timeSeries) {
+                        b.field("@timestamp", "2021-10-01");
+                    }
+                }, timeSeries ? TimeSeriesRoutingHashFieldMapper.encode(0) : null)).docs());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    final FieldInfo foo = leaf.reader().getFieldInfos().fieldInfo("foo");
+                    assertThat(foo.getAttribute(PerFieldDocValuesFormat.PER_FIELD_FORMAT_KEY), equalTo(expected.getName()));
+                }
+                assertDocValuesWrittenAsMapped(mapperService, reader);
+            }
+        }
+    }
+}

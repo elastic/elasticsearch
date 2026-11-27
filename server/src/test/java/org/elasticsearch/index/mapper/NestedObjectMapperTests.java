@@ -1781,7 +1781,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithObject() throws IOException {
-        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested");
             {
                 b.startObject("properties");
@@ -1792,9 +1792,9 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
+        }));
         var syntheticSource = syntheticSource(
-            documentMapper,
+            mapperService,
             b -> { b.startObject("path").field("foo", "A").field("bar", "B").endObject(); }
         );
         assertEquals("""
@@ -1802,7 +1802,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithArray() throws IOException {
-        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested");
             {
                 b.startObject("properties");
@@ -1813,8 +1813,8 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
-        var syntheticSource = syntheticSource(documentMapper, b -> {
+        }));
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startArray("path");
             {
                 b.startObject().field("foo", "A").field("bar", "B").endObject();
@@ -1827,7 +1827,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithSubObjects() throws IOException {
-        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("boolean_value").field("type", "boolean").endObject();
             b.startObject("path");
             {
@@ -1849,11 +1849,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
         boolean booleanValue = randomBoolean();
         int intValue = randomInt();
-        var syntheticSource = syntheticSource(documentMapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.field("boolean_value", booleanValue);
             b.startObject("path");
             {
@@ -1867,7 +1867,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithSubArrays() throws IOException {
-        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("boolean_value").field("type", "boolean").endObject();
             b.startObject("path");
             {
@@ -1889,11 +1889,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
         boolean booleanValue = randomBoolean();
         int intValue = randomInt();
-        var syntheticSource = syntheticSource(documentMapper, b -> {
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.field("boolean_value", booleanValue);
             b.startObject("path");
             {
@@ -1915,7 +1915,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithIncludeInRoot() throws IOException {
-        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested").field("include_in_root", true);
             {
                 b.startObject("properties");
@@ -1926,9 +1926,9 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
+        }));
         var syntheticSource = syntheticSource(
-            documentMapper,
+            mapperService,
             b -> { b.startObject("path").field("foo", "A").field("bar", "B").endObject(); }
         );
         assertEquals("""
@@ -1936,7 +1936,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithEmptyObject() throws IOException {
-        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested");
             {
                 b.startObject("properties");
@@ -1946,14 +1946,14 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
-        var syntheticSource = syntheticSource(documentMapper, b -> { b.startObject("path").nullField("foo").endObject(); });
+        }));
+        var syntheticSource = syntheticSource(mapperService, b -> { b.startObject("path").nullField("foo").endObject(); });
         assertEquals("""
             {"path":{}}""", syntheticSource);
     }
 
     public void testSyntheticNestedWithEmptySubObject() throws IOException {
-        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested");
             {
                 b.startObject("properties");
@@ -1967,8 +1967,8 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
-        var syntheticSource = syntheticSource(documentMapper, b -> {
+        }));
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startObject("path");
             {
                 b.startObject("to").nullField("foo").endObject();
@@ -1980,7 +1980,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithArrayContainingEmptyObject() throws IOException {
-        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested");
             {
                 b.startObject("properties");
@@ -1990,8 +1990,8 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
-        var syntheticSource = syntheticSource(documentMapper, b -> {
+        }));
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startArray("path");
             {
                 b.startObject().field("foo", "A").endObject();
@@ -2004,7 +2004,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithArrayContainingOnlyEmptyObject() throws IOException {
-        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested");
             {
                 b.startObject("properties");
@@ -2014,8 +2014,8 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
-        var syntheticSource = syntheticSource(documentMapper, b -> {
+        }));
+        var syntheticSource = syntheticSource(mapperService, b -> {
             b.startArray("path");
             {
                 b.startObject().nullField("foo").endObject();

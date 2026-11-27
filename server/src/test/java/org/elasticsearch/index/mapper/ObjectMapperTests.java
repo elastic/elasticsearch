@@ -666,13 +666,12 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.startObject("kwd").field("type", "keyword").field("ignore_above", 1).endObject();
             b.startObject("other").field("type", "keyword").field("ignore_above", 1).endObject();
         }));
-        DocumentMapper mapper = mapperService.documentMapper();
 
-        String unfilteredSource = syntheticSource(mapper, b -> b.field("kwd", "toolong").field("other", "alsotoolong"));
+        String unfilteredSource = syntheticSource(mapperService, b -> b.field("kwd", "toolong").field("other", "alsotoolong"));
         assertEquals("{\"kwd\":\"toolong\",\"other\":\"alsotoolong\"}", unfilteredSource);
 
         SourceFilter filterKwdOnly = new SourceFilter(new String[] { "kwd" }, null);
-        String filteredSource = syntheticSource(mapper, filterKwdOnly, b -> b.field("kwd", "toolong").field("other", "alsotoolong"));
+        String filteredSource = syntheticSource(mapperService, filterKwdOnly, b -> b.field("kwd", "toolong").field("other", "alsotoolong"));
         assertEquals("{\"kwd\":\"toolong\"}", filteredSource);
     }
 
@@ -1173,7 +1172,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         // The synthetic source reconstruction path is identical for both modes (both are strict columnar and default
         // to synthetic source); the mapping-acceptance tests above already cover LOGSDB_COLUMNAR.
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("comments");
             {
                 b.field("type", "nested");
@@ -1185,11 +1184,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
         // Each nested object is indexed as its own child document; the nested synthetic source loader
         // reconstructs the array in document order from the children's doc values.
-        String synthetic = syntheticSource(mapper, b -> {
+        String synthetic = syntheticSource(mapperService, b -> {
             b.startArray("comments");
             {
                 b.startObject().field("message", "first").field("votes", 3).endObject();
@@ -1291,7 +1290,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testStrictColumnarModesNestedLeafArrayRoundTrip() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("comments");
             {
                 b.field("type", "nested");
@@ -1303,11 +1302,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
         // A multi-valued leaf inside a nested object preserves array order: offsets are recorded per document, so each
         // nested child records its own offsets on its child document and the order is reconstructed when it is read back.
-        String synthetic = syntheticSource(mapper, b -> {
+        String synthetic = syntheticSource(mapperService, b -> {
             b.startArray("comments");
             {
                 b.startObject().field("message", "first").array("stars", 50, 10, 30).endObject();
@@ -1322,7 +1321,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     private void assertNestedLeafArrayRoundTrip(String leafType, CheckedConsumer<XContentBuilder, IOException> doc, String expected)
         throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("comments");
             {
                 b.field("type", "nested");
@@ -1331,8 +1330,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
-        assertThat(syntheticSource(mapper, doc), equalTo(expected));
+        }));
+        assertThat(syntheticSource(mapperService, doc), equalTo(expected));
     }
 
     public void testStrictColumnarModesNestedKeywordArrayPreservesOrder() throws Exception {

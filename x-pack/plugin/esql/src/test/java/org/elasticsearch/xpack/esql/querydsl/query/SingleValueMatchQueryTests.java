@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TestIndexWriterBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -83,10 +84,10 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
         /**
          * Whether the index is written with the codec its mapping selects, rather than a randomized Lucene test codec. Setups that
-         * build their doc values by hand need the test codec to keep them as written.
+         * build their doc values by hand need the test codec to keep them as written, and return {@code false}.
          */
         default boolean writesWithIndexCodec() {
-            return false;
+            return true;
         }
 
         void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException;
@@ -181,6 +182,11 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         }
     }
 
+    @Override
+    protected boolean checksDocValuesFormats() {
+        return setup.writesWithIndexCodec();
+    }
+
     private void assertQuery(MapperService mapper, IndexReader reader, List<List<Object>> fieldValues) throws IOException {
         SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
         IndexFieldData<?> fieldData = ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH);
@@ -193,7 +199,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
     public void testEmpty() throws IOException {
         MapperService mapper = createMapperService(setup.indexVersion(), setup.indexSettings(), mapping(setup::mapping));
-        try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
+        try (Directory d = newDirectory(); RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapper).build(d)) {
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 withBoundQuery(
@@ -313,9 +319,11 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
         @Override
         public void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException {
-            // The high-cardinality setups write their doc values through the test's own codec rather than as a column, and only a
-            // column says whether its documents each hold one value, so the query never rewrites away.
-            if (docValuesMode.highCardinality() == false && empty == false && multivaluedField == false) {
+            final boolean docValuesProveOneValuePerDoc = switch (docValuesMode) {
+                case DEFAULT, DOC_VALUES_ONLY, DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD, DOC_VALUES_ONLY_SINGLE_VALUED_COLUMNAR -> true;
+                case DOC_VALUES_ONLY_HIGH_CARDINALITY, DOC_VALUES_ONLY_SINGLE_VALUED -> false;
+            };
+            if (docValuesProveOneValuePerDoc && empty == false && multivaluedField == false) {
                 assertThat(query.rewrite(indexSearcher), instanceOf(MatchAllDocsQuery.class));
             } else {
                 assertThat(query.rewrite(indexSearcher), sameInstance(query));

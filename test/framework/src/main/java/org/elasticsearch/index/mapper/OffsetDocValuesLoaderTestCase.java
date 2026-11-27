@@ -180,7 +180,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
                 b.startObject().field("field", values).endObject();
                 expected = Strings.toString(b);
             }
-            assertThat(syntheticSource(mapper, b -> b.field("field", values)), Matchers.equalTo(expected));
+            assertThat(syntheticSource(mapperService, b -> b.field("field", values)), Matchers.equalTo(expected));
         }
     }
 
@@ -222,7 +222,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
                 b.startObject().field("field", values).endObject();
                 expected = Strings.toString(b);
             }
-            assertThat(syntheticSource(mapper, b -> b.field("field", values)), Matchers.equalTo(expected));
+            assertThat(syntheticSource(mapperService, b -> b.field("field", values)), Matchers.equalTo(expected));
         }
     }
 
@@ -249,7 +249,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
 
             var doc = mapper.parse(source(b -> b.field("field", values)));
             assertThat(doc.rootDoc().getFields("field.offsets"), Matchers.empty());
-            assertSyntheticSourceHasIgnoredValues(syntheticSource(mapper, b -> b.field("field", values)), values);
+            assertSyntheticSourceHasIgnoredValues(syntheticSource(mapperService, b -> b.field("field", values)), values);
         }
     }
 
@@ -306,7 +306,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
 
             var doc = mapper.parse(source(document));
             assertThat(doc.rootDoc().getFields("obj.inner.field.offsets"), Matchers.empty());
-            assertThat(syntheticSource(mapper, document), Matchers.equalTo(toJson(document)));
+            assertThat(syntheticSource(mapperService, document), Matchers.equalTo(toJson(document)));
         }
     }
 
@@ -399,7 +399,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
             for (String fieldName : oversized) {
                 assertThat(doc.rootDoc().getFields((inObject ? "obj." : "") + fieldName + ".offsets"), Matchers.empty());
             }
-            assertThat(syntheticSource(mapper, document), Matchers.equalTo(toJson(expectedDocument)));
+            assertThat(syntheticSource(mapperService, document), Matchers.equalTo(toJson(expectedDocument)));
         }
     }
 
@@ -472,7 +472,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
             assertThat(doc.dynamicMappingsUpdate(), notNullValue());
             merge(mapperService, doc.dynamicMappingsUpdate().string());
 
-            var indexWriter = indexWriterForSyntheticSource(directory);
+            var indexWriter = indexWriterForSyntheticSource(mapperService, directory);
             doc.updateSeqID(0, 0);
             doc.version().setLongValue(0);
             indexWriter.addDocuments(doc.docs());
@@ -547,22 +547,21 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
      */
     public void testStrictColumnarKeepsOnlyNullsInsideTheFieldsArray() throws Exception {
         try (var mapperService = createStrictColumnarMapperService()) {
-            DocumentMapper mapper = mapperService.documentMapper();
-            String absent = syntheticSource(mapper, b -> b.field("@timestamp", TIMESTAMP));
-            assertEquals(absent, syntheticSource(mapper, b -> b.field("@timestamp", TIMESTAMP).nullField("field")));
+            String absent = syntheticSource(mapperService, b -> b.field("@timestamp", TIMESTAMP));
+            assertEquals(absent, syntheticSource(mapperService, b -> b.field("@timestamp", TIMESTAMP).nullField("field")));
             assertEquals(
                 absent,
-                syntheticSource(mapper, b -> b.field("@timestamp", TIMESTAMP).startObject("obj").nullField("field").endObject())
+                syntheticSource(mapperService, b -> b.field("@timestamp", TIMESTAMP).startObject("obj").nullField("field").endObject())
             );
 
             Object value = randomValue();
             int nullsBefore = between(0, 3);
             int nullsAfter = between(nullsBefore == 0 ? 1 : 0, 3);
             String valueOnly = syntheticSource(
-                mapper,
+                mapperService,
                 b -> b.field("@timestamp", TIMESTAMP).startArray("obj").startObject().field("field", value).endObject().endArray()
             );
-            assertEquals(valueOnly, syntheticSource(mapper, b -> {
+            assertEquals(valueOnly, syntheticSource(mapperService, b -> {
                 b.field("@timestamp", TIMESTAMP).startArray("obj");
                 for (int i = 0; i < nullsBefore; i++) {
                     b.startObject().nullField("field").endObject();
@@ -576,7 +575,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
 
             int numNulls = between(1, 5);
             String nulls = String.join(",", Collections.nCopies(numNulls, "null"));
-            assertEquals("{\"@timestamp\":\"" + TIMESTAMP + "\",\"field\":[" + nulls + "]}", syntheticSource(mapper, b -> {
+            assertEquals("{\"@timestamp\":\"" + TIMESTAMP + "\",\"field\":[" + nulls + "]}", syntheticSource(mapperService, b -> {
                 b.field("@timestamp", TIMESTAMP).startArray("field");
                 for (int i = 0; i < numNulls; i++) {
                     b.nullValue();
@@ -621,7 +620,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
             var mapper = mapperService.documentMapper();
 
             try (var directory = newDirectory()) {
-                var iw = indexWriterForSyntheticSource(directory);
+                var iw = indexWriterForSyntheticSource(mapperService, directory);
                 var doc = mapper.parse(new SourceToParse("_id", new BytesArray(source), XContentType.JSON));
 
                 var offsetsField = doc.rootDoc().getFields("field.offsets");

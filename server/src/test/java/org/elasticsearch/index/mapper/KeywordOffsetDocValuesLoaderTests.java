@@ -64,7 +64,7 @@ public class KeywordOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTest
                 b.startObject().field("field", values).endObject();
                 expected = Strings.toString(b);
             }
-            assertThat(syntheticSource(mapper, b -> b.field("field", values)), Matchers.equalTo(expected));
+            assertThat(syntheticSource(mapperService, b -> b.field("field", values)), Matchers.equalTo(expected));
         }
     }
 
@@ -88,7 +88,7 @@ public class KeywordOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTest
 
             var doc = mapper.parse(source(b -> b.field("field", values)));
             assertThat(doc.rootDoc().getFields("field.offsets"), Matchers.empty());
-            assertSyntheticSourceHasIgnoredValues(syntheticSource(mapper, b -> b.field("field", values)), values);
+            assertSyntheticSourceHasIgnoredValues(syntheticSource(mapperService, b -> b.field("field", values)), values);
         }
     }
 

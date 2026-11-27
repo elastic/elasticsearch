@@ -453,9 +453,9 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     }
 
     public void testArrayValueSyntheticSource() throws Exception {
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        MapperService mapperService = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", "true"))
-        ).documentMapper();
+        );
 
         var randomString = randomAlphaOfLength(10);
         CheckedConsumer<XContentBuilder, IOException> arrayValue = b -> {
@@ -480,7 +480,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         }
         expected.endObject();
 
-        var syntheticSource = syntheticSource(mapper, arrayValue);
+        var syntheticSource = syntheticSource(mapperService, arrayValue);
         assertEquals(Strings.toString(expected), syntheticSource);
     }
 

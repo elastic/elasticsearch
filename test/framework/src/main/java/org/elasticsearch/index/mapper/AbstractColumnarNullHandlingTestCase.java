@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ColumnBatch;
@@ -31,7 +30,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.escf.EscfBatch;
@@ -40,8 +38,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
@@ -153,7 +149,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
                 withCodec,
                 ColumnarDocValuesFormatSelector.useColumnarCodec(mapperService.getIndexSettings())
             );
-            assertEquals("codec=" + withCodec, expected, syntheticSource(mapperService.documentMapper(), doc));
+            assertEquals("codec=" + withCodec, expected, syntheticSource(mapperService, doc));
         }
     }
 
@@ -520,14 +516,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
 
     private static IndexWriterConfig batchIndexWriterConfig(MapperService mapperService) {
         return new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
-            new PerFieldMapperCodec(
-                Lucene104Codec.Mode.BEST_SPEED,
-                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                mapperService,
-                BigArrays.NON_RECYCLING_INSTANCE,
-                null
-            )
+            TestIndexWriterBuilder.productionCodec(mapperService)
         );
     }
 

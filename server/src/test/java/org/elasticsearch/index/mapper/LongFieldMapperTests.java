@@ -368,13 +368,12 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
-        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "long").endObject()))
-            .documentMapper();
+        MapperService mapperService = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "long").endObject()));
         long v1 = randomLong();
         long v2 = randomLong();
         long v3 = randomLong();
         // Out-of-order with v2 duplicated — sorted-deduped output would collapse the run.
-        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        String src = syntheticSource(mapperService, b -> b.array("field", v2, v1, v3, v2));
         assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
     }
 
@@ -419,14 +418,14 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
      */
     public void testColumnarCodecSyntheticSourceKeepsArrayOrder() throws IOException {
         assumeTrue("behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createMapperService(
+        MapperService mapper = createMapperService(
             columnarNumericCodecSettings(),
             mapping(b -> b.startObject("field").field("type", "long").endObject())
-        ).documentMapper();
-        DocumentMapper sortedNumeric = createMapperService(
+        );
+        MapperService sortedNumeric = createMapperService(
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
             mapping(b -> b.startObject("field").field("type", "long").endObject())
-        ).documentMapper();
+        );
         long v1 = randomLong();
         long v2 = randomLong();
         assertThat(

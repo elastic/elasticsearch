@@ -10,21 +10,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -41,10 +34,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
-import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -173,7 +164,7 @@ public class BlockLoaderTestRunner {
                 XContentMeteringParserDecorator.NOOP,
                 null
             );
-            return mapperService.documentMapper().parse(source);
+            return MapperServiceTestCase.parseAsIndexed(mapperService, source);
         } catch (IOException e) {
             throw new RuntimeException("shouldn't be possible", e);
         }
@@ -238,73 +229,54 @@ public class BlockLoaderTestRunner {
             // disable index checks on directory close, this is needed
             // for time_series which use synthetic ids. The synthetic ids doesn't
             // have postings and CheckIndex would fail because docfreq is 0.
-            if (mapperService.getIndexSettings().useTimeSeriesSyntheticId()) {
+            final boolean syntheticId = mapperService.getIndexSettings().useTimeSeriesSyntheticId();
+            if (syntheticId) {
                 if (directory instanceof BaseDirectoryWrapper directoryWrapper) {
                     directoryWrapper.setCheckIndexOnClose(false);
                 }
             }
 
-            final Random rg = random();
-            final RandomIndexWriter iw;
-            if (mapperService.getIndexSettings().useTimeSeriesSyntheticId()) {
-                iw = new RandomIndexWriter(rg, directory, indexWriterConfigForTimeSeries(rg));
-            } else {
-                iw = new RandomIndexWriter(rg, directory);
-            }
+            RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory);
 
             LuceneDocument doc = this.document().rootDoc();
 
-            /*
-             * Add three documents with doc id 0, 1, 2. The real document is 1.
-             * The other two are empty documents.
-             */
-            if (mapperService.getIndexSettings().useTimeSeriesSyntheticId()) {
+            final boolean documentBlocks = TestIndexWriterBuilder.acceptsDocumentBlocks(mapperService);
+            if (syntheticId) {
                 // The index is sorted by _tsid asc, @timestamp desc, so the empty docs get the same
-                // dimension and a later/earlier timestamp than the real doc: after sorting the
-                // real doc is still doc id 1.
+                // dimension and a later/earlier timestamp than the real doc: after sorting the real
+                // doc is still doc id 1.
                 long timestamp = ((Number) mapDoc().get("@timestamp")).longValue();
                 LuceneDocument firstEmpty = emptyDocument(timestamp + 1).rootDoc();
                 LuceneDocument lastEmpty = emptyDocument(timestamp - 1).rootDoc();
                 iw.addDocuments(List.of(firstEmpty, doc, lastEmpty));
-            } else {
+            } else if (documentBlocks) {
+                /*
+                 * Add three documents with doc id 0, 1, 2. The real document is 1.
+                 * The other two are empty documents.
+                 */
                 iw.addDocuments(List.of(List.of(), doc, List.of()));
+            } else {
+                iw.addDocument(doc);
             }
             iw.close();
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                MapperServiceTestCase.assertDocValuesWrittenAsMapped(mapperService, reader);
                 LeafReaderContext context = reader.leaves().getFirst();
-                return load(createBlockLoader(fieldName), context);
+                return load(createBlockLoader(fieldName), context, syntheticId || documentBlocks ? 1 : 0);
             }
         }
     }
 
-    /**
-     * The synthetic {@code _id} terms are computed from doc values walking the docs in doc id order, which is only
-     * a valid (increasing) term order if the segment is sorted by {@code _tsid} asc, {@code @timestamp} desc.
-     * Production enforces that through the index sort, so the test writer must configure it too.
-     */
-    private IndexWriterConfig indexWriterConfigForTimeSeries(Random rg) {
-        IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(rg, new MockAnalyzer(rg));
-        Sort indexSort = new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
-            mapperService::fieldType,
-            (ft, searchLookup) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
-        );
-        if (indexSort != null) {
-            config.setIndexSort(indexSort);
-        }
-        config.setParentField(Engine.ROOT_DOC_FIELD_NAME);
-        return config;
-    }
-
-    private Object load(BlockLoader blockLoader, LeafReaderContext context) throws IOException {
+    private Object load(BlockLoader blockLoader, LeafReaderContext context, int realDoc) throws IOException {
         // `columnAtATimeReader` is tried first, we mimic `ValuesSourceReaderOperator`
         var columnAtATimeReaderSource = blockLoader.columnAtATimeReader(context);
         if (columnAtATimeReaderSource != null) {
             int[] docArray;
             int offset;
-            if (randomBoolean()) {
+            if (realDoc == 0 || randomBoolean()) {
                 // Half the time we load a single document. Nice and simple.
-                docArray = new int[] { 1 };
+                docArray = new int[] { realDoc };
                 offset = 0;
             } else {
                 /*
@@ -344,11 +316,11 @@ public class BlockLoaderTestRunner {
             StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(context, null),
             leafSourceLoader
         );
-        storedFieldsLoader.advanceTo(1);
+        storedFieldsLoader.advanceTo(realDoc);
 
         BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(), 1);
         try (BlockLoader.RowStrideReader reader = blockLoader.rowStrideReader(breaker, context)) {
-            reader.read(1, storedFieldsLoader, builder);
+            reader.read(realDoc, storedFieldsLoader, builder);
             var block = (TestBlock) builder.build();
             assertThat(block.size(), equalTo(1));
             return block.get(0);

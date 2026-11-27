@@ -58,6 +58,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -130,6 +131,75 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                 .build()
         );
         assertThat(service.largestRecentIndexingOpSize(), equalTo(0L));
+    }
+
+    public void testLargestIndexingOperationSizeKeepsLargerValueUntilExpiry() {
+        final long validityNanos = randomLongBetween(1_000L, 1_000_000L);
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(
+                    StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING.getKey(),
+                    validityNanos + "nanos"
+                )
+                .build()
+        );
+        final AtomicLong now = new AtomicLong(randomLongBetween(0L, 1_000_000_000L));
+        final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
+        final long start = now.get();
+        final long larger = randomLongBetween(2L, 1_000_000L);
+        final long smaller = randomLongBetween(1L, larger - 1);
+
+        timed.updateLargestIndexingOperationSize(larger);
+        assertThat(timed.largestRecentIndexingOpSize(), equalTo(larger));
+
+        now.set(start + randomLongBetween(0L, validityNanos));
+        timed.updateLargestIndexingOperationSize(smaller);
+        assertThat(timed.largestRecentIndexingOpSize(), equalTo(larger));
+
+        // Do not read the expired sample first. A read would clear it, so a smaller update would land even if expiry were ignored.
+        now.set(start + validityNanos + 1 + randomLongBetween(0L, 1_000L));
+        timed.updateLargestIndexingOperationSize(smaller);
+        assertThat(timed.largestRecentIndexingOpSize(), equalTo(smaller));
+    }
+
+    public void testClusterChangedClearsLargestIndexingOperationSizeWhenNodeLosesMastership() {
+        final String localNodeId = randomIdentifier();
+        final String otherNodeId = randomValueOtherThan(localNodeId, ESTestCase::randomIdentifier);
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create(localNodeId);
+        final DiscoveryNode otherNode = DiscoveryNodeUtils.create(otherNodeId);
+        final ClusterState masterState = ClusterState.builder(new ClusterName(randomIdentifier()))
+            .nodes(DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNodeId).masterNodeId(localNodeId))
+            .build();
+        final ClusterState demotedState = ClusterState.builder(new ClusterName(randomIdentifier()))
+            .nodes(DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNodeId).masterNodeId(otherNodeId))
+            .build();
+
+        final long rawSize = randomLongBetween(1L, 10_000_000L);
+        service.updateLargestIndexingOperationSize(rawSize);
+        service.clusterChanged(new ClusterChangedEvent(randomIdentifier(), masterState, ClusterState.EMPTY_STATE));
+        assertThat(service.largestRecentIndexingOpSize(), equalTo(rawSize));
+
+        service.clusterChanged(new ClusterChangedEvent(randomIdentifier(), demotedState, masterState));
+        assertThat(service.largestRecentIndexingOpSize(), equalTo(0L));
+    }
+
+    public void testLargestIndexingOperationAndLegacyHeapStayIndependent() {
+        final long heap = randomLongBetween(0L, 500_000L);
+        final long rawSize = randomValueOtherThan(heap, () -> randomLongBetween(0L, 500_000L));
+        service.updateIndexingOperationsHeapMemoryRequirements(heap);
+        service.updateLargestIndexingOperationSize(rawSize);
+        assertThat(service.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(heap));
+        assertThat(service.largestRecentIndexingOpSize(), equalTo(rawSize));
+
+        final long largerRawSize = Math.max(rawSize, heap) + randomLongBetween(1L, 10_000L);
+        service.updateLargestIndexingOperationSize(largerRawSize);
+        assertThat(service.largestRecentIndexingOpSize(), equalTo(largerRawSize));
+        assertThat(service.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(heap));
+
+        final long largerHeap = largerRawSize + randomLongBetween(1L, 10_000L);
+        service.updateIndexingOperationsHeapMemoryRequirements(largerHeap);
+        assertThat(service.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(largerHeap));
+        assertThat(service.largestRecentIndexingOpSize(), equalTo(largerRawSize));
     }
 
     public void testGetShardHeapUsageEstimates() {

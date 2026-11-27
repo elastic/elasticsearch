@@ -280,7 +280,6 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         jobBuilder.setAnalysisConfig(analysisConfig);
         DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("foo-feed", jobBuilder.getId());
         datafeedConfigBuilder.setEsqlQuery(esqlQuery);
-        datafeedConfigBuilder.setSourceTimeField("@timestamp");
         when(dataExtractorFactory.timeBucketMillis()).thenReturn(timeBucketMillis);
         if (frequency != null) {
             datafeedConfigBuilder.setFrequency(frequency);

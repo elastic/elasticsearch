@@ -33,7 +33,6 @@ public class DatafeedJobValidatorTests extends ESTestCase {
             .build(new Date());
 
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "esql-job").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
             .setFrequency(TimeValue.timeValueMinutes(10))
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
             .build();

@@ -812,7 +812,6 @@ public class CredentialTransitionsTests extends ESTestCase {
     private static DatafeedConfig esqlDatafeed() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
         builder.setEsqlQuery(ESQL_QUERY);
-        builder.setSourceTimeField("@timestamp");
         builder.setProjectRouting("_alias:_origin");
         return builder.build();
     }

@@ -78,12 +78,10 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGG
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INVALID_ID;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.getMessage;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
@@ -135,6 +133,21 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     static final TransportVersion DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_READDED = TransportVersion.fromName(
         "datafeed_max_consecutive_extraction_failures_readded"
     );
+
+    // TODO: drop the removed source_time_field slot together with grouping_interval under one transport version, in a single
+    // backportable clean-up PR (https://github.com/elastic/elasticsearch/issues/161207). Until then the wire keeps the slot.
+    /** Skips the slot of the removed {@code source_time_field}, which the wire still carries. */
+    static void readRemovedSourceTimeField(StreamInput in) throws IOException {
+        in.readOptionalString();
+    }
+
+    /**
+     * Fills the slot of the removed {@code source_time_field} with null. Nodes that still read it are behind the ES|QL datafeeds
+     * feature flag, so no released datafeed depends on the value.
+     */
+    static void writeRemovedSourceTimeField(StreamOutput out) throws IOException {
+        out.writeOptionalString(null);
+    }
 
     /**
      * Reads the slot of the removed ES|QL {@code grouping_interval} setting. Nodes since {@link #ML_DATAFEED_ESQL_QUERY} still carry it
@@ -211,7 +224,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final ParseField INDICES = new ParseField("indices");
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField ESQL_QUERY = new ParseField("esql_query");
-    public static final ParseField SOURCE_TIME_FIELD = new ParseField("source_time_field");
     public static final ParseField SCROLL_SIZE = new ParseField("scroll_size");
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
     public static final ParseField AGGS = new ParseField("aggs");
@@ -274,7 +286,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             QUERY
         );
         parser.declareString(Builder::setEsqlQuery, ESQL_QUERY);
-        parser.declareString(Builder::setSourceTimeField, SOURCE_TIME_FIELD);
         parser.declareObject(Builder::setAggregationsSafe, (p, c) -> AggProvider.fromXContent(p, ignoreUnknownFields), AGGREGATIONS);
         parser.declareObject(Builder::setAggregationsSafe, (p, c) -> AggProvider.fromXContent(p, ignoreUnknownFields), AGGS);
         parser.declareObject(Builder::setScriptFields, (p, c) -> {
@@ -337,8 +348,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     private final QueryProvider queryProvider;
     @Nullable
     private final String esqlQuery;
-    @Nullable
-    private final String sourceTimeField;
     private final AggProvider aggProvider;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
@@ -362,7 +371,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         List<String> indices,
         QueryProvider queryProvider,
         String esqlQuery,
-        String sourceTimeField,
         AggProvider aggProvider,
         List<SearchSourceBuilder.ScriptField> scriptFields,
         Integer scrollSize,
@@ -383,7 +391,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.indices = indices == null ? null : Collections.unmodifiableList(indices);
         this.queryProvider = queryProvider == null ? null : new QueryProvider(queryProvider);
         this.esqlQuery = esqlQuery;
-        this.sourceTimeField = sourceTimeField;
         this.aggProvider = aggProvider == null ? null : new AggProvider(aggProvider);
         this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
         this.scrollSize = scrollSize;
@@ -412,12 +419,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (in.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
             this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
             this.esqlQuery = in.readOptionalString();
-            this.sourceTimeField = in.readOptionalString();
+            readRemovedSourceTimeField(in);
             readRemovedGroupingInterval(in);
         } else {
             this.queryProvider = QueryProvider.fromStream(in);
             this.esqlQuery = null;
-            this.sourceTimeField = null;
         }
         // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
         this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
@@ -675,11 +681,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return esqlQuery;
     }
 
-    @Nullable
-    public String getSourceTimeField() {
-        return sourceTimeField;
-    }
-
     /**
      * Fully parses the semi-parsed {@code Map<String, Object>} aggregations
      *
@@ -849,7 +850,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (out.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
             out.writeOptionalWriteable(queryProvider);
             out.writeOptionalString(esqlQuery);
-            out.writeOptionalString(sourceTimeField);
+            writeRemovedSourceTimeField(out);
             writeRemovedGroupingInterval(out);
         } else {
             failIfEsqlDatafeedCannotBeSerialized();
@@ -952,7 +953,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         if (esqlQuery != null) {
             builder.field(ESQL_QUERY.getPreferredName(), esqlQuery);
-            builder.field(SOURCE_TIME_FIELD.getPreferredName(), sourceTimeField);
         }
 
         if (frequency != null) {
@@ -1046,7 +1046,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             && Objects.equals(this.indices, that.indices)
             && Objects.equals(this.queryProvider, that.queryProvider)
             && Objects.equals(this.esqlQuery, that.esqlQuery)
-            && Objects.equals(this.sourceTimeField, that.sourceTimeField)
             && Objects.equals(this.scrollSize, that.scrollSize)
             && Objects.equals(this.aggProvider, that.aggProvider)
             && Objects.equals(this.scriptFields, that.scriptFields)
@@ -1071,7 +1070,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             indices,
             queryProvider,
             esqlQuery,
-            sourceTimeField,
             scrollSize,
             aggProvider,
             scriptFields,
@@ -1172,7 +1170,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         private List<String> indices = Collections.emptyList();
         private QueryProvider queryProvider;
         private String esqlQuery;
-        private String sourceTimeField;
         private AggProvider aggProvider;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
@@ -1202,7 +1199,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.indices = new ArrayList<>(config.indices);
             this.queryProvider = config.queryProvider == null ? null : new QueryProvider(config.queryProvider);
             this.esqlQuery = config.esqlQuery;
-            this.sourceTimeField = config.sourceTimeField;
             this.aggProvider = config.aggProvider == null ? null : new AggProvider(config.aggProvider);
             this.scriptFields = config.scriptFields == null ? null : new ArrayList<>(config.scriptFields);
             this.scrollSize = config.scrollSize;
@@ -1231,12 +1227,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (in.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
                 this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
                 this.esqlQuery = in.readOptionalString();
-                this.sourceTimeField = in.readOptionalString();
+                readRemovedSourceTimeField(in);
                 readRemovedGroupingInterval(in);
             } else {
                 this.queryProvider = QueryProvider.fromStream(in);
                 this.esqlQuery = null;
-                this.sourceTimeField = null;
             }
             // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
             this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
@@ -1283,7 +1278,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (out.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
                 out.writeOptionalWriteable(queryProvider);
                 out.writeOptionalString(esqlQuery);
-                out.writeOptionalString(sourceTimeField);
+                writeRemovedSourceTimeField(out);
                 writeRemovedGroupingInterval(out);
             } else {
                 failIfEsqlDatafeedCannotBeSerialized();
@@ -1342,7 +1337,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 && Objects.equals(indices, builder.indices)
                 && Objects.equals(queryProvider, builder.queryProvider)
                 && Objects.equals(esqlQuery, builder.esqlQuery)
-                && Objects.equals(sourceTimeField, builder.sourceTimeField)
                 && Objects.equals(aggProvider, builder.aggProvider)
                 && Objects.equals(scriptFields, builder.scriptFields)
                 && Objects.equals(scrollSize, builder.scrollSize)
@@ -1367,7 +1361,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indices,
                 queryProvider,
                 esqlQuery,
-                sourceTimeField,
                 aggProvider,
                 scriptFields,
                 scrollSize,
@@ -1430,11 +1423,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         public Builder setEsqlQuery(String esqlQuery) {
             this.esqlQuery = esqlQuery;
-            return this;
-        }
-
-        public Builder setSourceTimeField(String sourceTimeField) {
-            this.sourceTimeField = sourceTimeField;
             return this;
         }
 
@@ -1623,7 +1611,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indices,
                 queryProvider,
                 esqlQuery,
-                sourceTimeField,
                 aggProvider,
                 scriptFields,
                 scrollSize,
@@ -1650,15 +1637,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         void validateEsqlQueryConflicts() {
             if (esqlQuery == null) {
-                if (sourceTimeField != null) {
-                    throw ExceptionsHelper.badRequestException(
-                        getMessage(DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY, SOURCE_TIME_FIELD.getPreferredName())
-                    );
-                }
                 return;
-            }
-            if (Strings.isNullOrEmpty(sourceTimeField)) {
-                throw ExceptionsHelper.badRequestException(DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD);
             }
             if (queryProvider != null) {
                 throw ExceptionsHelper.badRequestException(

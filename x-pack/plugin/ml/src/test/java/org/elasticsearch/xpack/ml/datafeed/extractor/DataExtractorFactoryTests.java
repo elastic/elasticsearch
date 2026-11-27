@@ -765,7 +765,6 @@ public class DataExtractorFactoryTests extends ESTestCase {
     private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setEsqlQuery("FROM myIndex");
-        builder.setSourceTimeField("time");
         return builder;
     }
 

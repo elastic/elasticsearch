@@ -473,7 +473,7 @@ public class TransportPutJobActionTests extends ESTestCase {
     }
 
     private static DatafeedConfig.Builder esqlDatafeedBuilder() {
-        return new DatafeedConfig.Builder().setEsqlQuery("FROM logs").setSourceTimeField("@timestamp");
+        return new DatafeedConfig.Builder().setEsqlQuery("FROM logs");
     }
 
     private static ClusterState clusterStateWithMinTransportVersion(TransportVersion transportVersion) {

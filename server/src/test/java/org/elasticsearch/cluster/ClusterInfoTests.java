@@ -126,7 +126,89 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
 
     @Override
     protected ClusterInfo mutateInstance(ClusterInfo instance) {
-        return randomClusterInfo();
+        var leastAvailableSpaceUsage = instance.getNodeLeastAvailableDiskUsages();
+        var mostAvailableSpaceUsage = instance.getNodeMostAvailableDiskUsages();
+        var shardSizes = instance.shardSizes;
+        var shardDataSetSizes = instance.shardDataSetSizes;
+        var dataPath = instance.dataPath;
+        var reservedSpace = instance.reservedSpace;
+        var nodeHeapMetrics = instance.getNodeHeapMetrics();
+        var estimatedShardHeapUsages = instance.getEstimatedShardHeapUsages();
+        var defaultShardHeapUsage = instance.getDefaultShardHeapUsageForShardsWithoutMetrics();
+        var nodeUsageStatsForThreadPools = instance.getNodeUsageStatsForThreadPools();
+        var shardWriteLoads = instance.getShardWriteLoads();
+        var maxHeapSizePerNode = instance.getMaxHeapSizePerNode();
+        var nodeIdsWriteLoadHotspotting = instance.nodeIdsWriteLoadHotspotting;
+        var nodeCacheSizeAndCommitments = instance.getNodeCacheSizeAndCommitments();
+        var shardCacheRequirements = instance.getShardCacheRequirements();
+        var hostedShardsPartitionSizeByNodeId = instance.getHostedShardsPartitionSizeByNodeId();
+        var shardSearchLaneRequirements = instance.getShardSearchLaneRequirements();
+        var shardSearchLoads = instance.getShardSearchLoads();
+        var searchCopyDemands = instance.getSearchCopyDemands();
+        var nodeSearchCapacities = instance.getNodeSearchCapacities();
+        switch (between(0, 19)) {
+            case 0 -> leastAvailableSpaceUsage = randomValueOtherThan(leastAvailableSpaceUsage, ClusterInfoTests::randomDiskUsage);
+            case 1 -> mostAvailableSpaceUsage = randomValueOtherThan(mostAvailableSpaceUsage, ClusterInfoTests::randomDiskUsage);
+            case 2 -> shardSizes = randomValueOtherThan(shardSizes, ClusterInfoTests::randomShardSizes);
+            case 3 -> shardDataSetSizes = randomValueOtherThan(shardDataSetSizes, ClusterInfoTests::randomDataSetSizes);
+            case 4 -> dataPath = randomValueOtherThan(dataPath, ClusterInfoTests::randomRoutingToDataPath);
+            case 5 -> reservedSpace = randomValueOtherThan(reservedSpace, ClusterInfoTests::randomReservedSpace);
+            case 6 -> nodeHeapMetrics = randomValueOtherThan(nodeHeapMetrics, ClusterInfoTests::randomNodeHeapUsage);
+            case 7 -> estimatedShardHeapUsages = randomValueOtherThan(estimatedShardHeapUsages, ClusterInfoTests::randomShardHeapUsages);
+            case 8 -> defaultShardHeapUsage = randomValueOtherThan(defaultShardHeapUsage, ClusterInfoTests::randomShardAndIndexHeapUsage);
+            case 9 -> nodeUsageStatsForThreadPools = randomValueOtherThan(
+                nodeUsageStatsForThreadPools,
+                ClusterInfoTests::randomNodeUsageStatsForThreadPools
+            );
+            case 10 -> shardWriteLoads = randomValueOtherThan(shardWriteLoads, ClusterInfoTests::randomPerShardDoubles);
+            case 11 -> maxHeapSizePerNode = randomValueOtherThan(maxHeapSizePerNode, ClusterInfoTests::randomMaxHeapSizes);
+            case 12 -> nodeIdsWriteLoadHotspotting = randomValueOtherThan(
+                nodeIdsWriteLoadHotspotting,
+                ClusterInfoTests::randomNodeIdsWriteLoadHotspottingSet
+            );
+            case 13 -> nodeCacheSizeAndCommitments = randomValueOtherThan(
+                nodeCacheSizeAndCommitments,
+                ClusterInfoTests::randomNodeCacheSizeAndCommitmentsMap
+            );
+            case 14 -> shardCacheRequirements = randomValueOtherThan(
+                shardCacheRequirements,
+                ClusterInfoTests::randomShardCacheRequirements
+            );
+            case 15 -> hostedShardsPartitionSizeByNodeId = randomValueOtherThan(
+                hostedShardsPartitionSizeByNodeId,
+                ClusterInfoTests::randomHostedShardsPartitionSizes
+            );
+            case 16 -> shardSearchLaneRequirements = randomValueOtherThan(
+                shardSearchLaneRequirements,
+                ClusterInfoTests::randomPerShardDoubles
+            );
+            case 17 -> shardSearchLoads = randomValueOtherThan(shardSearchLoads, ClusterInfoTests::randomPerShardDoubles);
+            case 18 -> searchCopyDemands = randomValueOtherThan(searchCopyDemands, ClusterInfoTests::randomSearchCopyDemands);
+            case 19 -> nodeSearchCapacities = randomValueOtherThan(nodeSearchCapacities, ClusterInfoTests::randomNodeSearchCapacities);
+            default -> throw new IllegalArgumentException();
+        }
+        return new ClusterInfo(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            dataPath,
+            reservedSpace,
+            nodeHeapMetrics,
+            estimatedShardHeapUsages,
+            defaultShardHeapUsage,
+            nodeUsageStatsForThreadPools,
+            shardWriteLoads,
+            maxHeapSizePerNode,
+            nodeIdsWriteLoadHotspotting,
+            nodeCacheSizeAndCommitments,
+            shardCacheRequirements,
+            hostedShardsPartitionSizeByNodeId,
+            shardSearchLaneRequirements,
+            shardSearchLoads,
+            searchCopyDemands,
+            nodeSearchCapacities
+        );
     }
 
     public static ClusterInfo randomClusterInfo() {

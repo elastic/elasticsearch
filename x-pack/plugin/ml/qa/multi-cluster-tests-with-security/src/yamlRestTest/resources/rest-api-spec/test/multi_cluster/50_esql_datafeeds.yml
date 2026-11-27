@@ -66,7 +66,6 @@ teardown:
           {
             "job_id": "esql-ccs-job",
             "esql_query": "FROM my_remote_cluster:remote_test_index | KEEP date, user",
-            "source_time_field": "date",
             "delayed_data_check_config": {"enabled": false}
           }
   - match: { datafeed_id: "esql-ccs-feed" }
@@ -102,7 +101,6 @@ teardown:
           {
             "job_id": "esql-ccs-job",
             "esql_query": "FROM my_remote_cluster:remote_test_index | KEEP date, user",
-            "source_time_field": "date",
             "delayed_data_check_config": {"enabled": false}
           }
 
@@ -124,7 +122,6 @@ teardown:
           {
             "job_id": "esql-ccs-job",
             "esql_query": "FROM my_remote_cluster:remote_test_* | KEEP date, user",
-            "source_time_field": "date",
             "delayed_data_check_config": {"enabled": false}
           }
   - match: { datafeed_id: "esql-ccs-wildcard-feed" }
@@ -160,7 +157,6 @@ teardown:
           {
             "job_id": "esql-ccs-job",
             "esql_query": "FROM my_remote_cluster:does_not_exist",
-            "source_time_field": "date",
             "delayed_data_check_config": {"enabled": false}
           }
   - match: { datafeed_id: "esql-ccs-missing-feed" }

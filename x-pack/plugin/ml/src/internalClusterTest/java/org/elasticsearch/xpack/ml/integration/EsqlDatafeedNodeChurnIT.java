@@ -354,7 +354,6 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
 
     private static DatafeedConfig buildEsqlDatafeed(String datafeedId, String jobId, String indexName, TimeValue timeBucket) {
         return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + indexName + " | KEEP @timestamp")
-            .setSourceTimeField("@timestamp")
             .setFrequency(timeBucket)
             .setQueryDelay(timeBucket)
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())

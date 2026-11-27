@@ -141,7 +141,7 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
     public void testParseRequestEsqlDatafeedShouldHaveNoIndicesOptions() throws IOException {
         // The REST handler always passes a non-null default; it must not be applied to ES|QL datafeeds.
         String json = """
-            {"job_id": "job1", "esql_query": "FROM logs", "source_time_field": "@timestamp"}
+            {"job_id": "job1", "esql_query": "FROM logs"}
             """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             Request request = Request.parseRequest("datafeed1", SearchRequest.DEFAULT_INDICES_OPTIONS, parser);
@@ -155,7 +155,6 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
             {
               "job_id": "job1",
               "esql_query": "FROM logs",
-              "source_time_field": "@timestamp",
               "indices_options": {"expand_wildcards": ["all"]}
             }
             """;

@@ -276,7 +276,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs");
-        datafeed.setSourceTimeField("@timestamp");
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         long hour = TimeValue.timeValueHours(1).millis();
@@ -319,7 +318,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 15 minutes)");
-        datafeed.setSourceTimeField("@timestamp");
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
@@ -349,7 +347,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)");
-        datafeed.setSourceTimeField("@timestamp");
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
@@ -378,7 +375,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)");
-        datafeed.setSourceTimeField("@timestamp");
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         long hour = TimeValue.timeValueHours(1).millis();
@@ -454,7 +450,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery(esqlQuery);
-        datafeed.setSourceTimeField("@timestamp");
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         DatafeedConfig datafeedConfig = datafeed.build();
@@ -504,7 +499,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs");
-        datafeed.setSourceTimeField("@timestamp");
         // Delayed-data check for ES|QL is wired separately; keep it off so this test covers routing only.
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
@@ -620,9 +614,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             CloudCredentialManager.Noop::new,
             DatafeedSearchTelemetry.NOOP
         );
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed1", "job1").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
-            .build();
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed1", "job1").setEsqlQuery("FROM logs").build();
 
         datafeedJobBuilder.checkRemoteIndicesAreAvailable(newDatafeedTask("datafeed1", null), datafeed);
     }
@@ -714,7 +706,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM east:logs-*");
-        datafeed.setSourceTimeField("@timestamp");
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
         return new DatafeedContext(
             datafeed.build(),

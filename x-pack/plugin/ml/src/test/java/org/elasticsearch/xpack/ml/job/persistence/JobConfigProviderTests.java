@@ -115,7 +115,7 @@ public class JobConfigProviderTests extends ESTestCase {
     }
 
     private static DatafeedConfig.Builder newEsqlDatafeed() {
-        return new DatafeedConfig.Builder("df", "job").setEsqlQuery(ESQL_QUERY).setSourceTimeField("@timestamp");
+        return new DatafeedConfig.Builder("df", "job").setEsqlQuery(ESQL_QUERY);
     }
 
     /** Completes the {@code validateQuery} probe with {@code failure}, or successfully when it is null. */

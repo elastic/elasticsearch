@@ -30,6 +30,7 @@ public class EsqlToJsonProcessorTests extends ESTestCase {
     private static final String DATE_NANOS = "date_nanos";
     private static final String LONG = "long";
     private static final String KEYWORD = "keyword";
+    private static final EsqlToJsonProcessor.TimeWindow WINDOW = new EsqlToJsonProcessor.TimeWindow("job-1", TIME_FIELD, 0L, 10_000L);
 
     public void testStringAndLongFieldsShouldPassThrough() throws IOException {
         String ndjson = rowsToString(
@@ -78,17 +79,51 @@ public class EsqlToJsonProcessorTests extends ESTestCase {
     public void testMultipleRowsShouldIncrementWrittenDocumentCount() throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         List<ColumnInfo> columns = List.of(column(TIME_FIELD, DATE));
-        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, outputStream)) {
-            processor.process(List.of(isoAtEpochMillis(100L)));
-            processor.process(List.of(isoAtEpochMillis(200L)));
+        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, WINDOW, outputStream)) {
+            process(processor, List.of(isoAtEpochMillis(100L)));
+            process(processor, List.of(isoAtEpochMillis(200L)));
             assertThat(processor.getWrittenDocumentCount(), equalTo(2L));
         }
     }
 
+    public void testTimeOutsideTheWindowShouldFailTheRowAfterEarlierRowsWereWritten() throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        List<ColumnInfo> columns = List.of(column("host", KEYWORD), column(TIME_FIELD, DATE));
+        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, WINDOW, outputStream)) {
+            process(processor, List.of("web-1", isoAtEpochMillis(100L)));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> process(processor, List.of("web-2", isoAtEpochMillis(10_000L)))
+            );
+            assertThat(e.getMessage(), containsString("job-1"));
+            assertThat(processor.getWrittenDocumentCount(), equalTo(1L));
+        }
+    }
+
+    public void testRowWithoutTimeValueShouldFail() throws IOException {
+        List<ColumnInfo> columns = List.of(column("host", KEYWORD), column(TIME_FIELD, DATE));
+        expectThrows(IllegalArgumentException.class, () -> rowsToString(columns, List.of("web-1")));
+        expectThrows(IllegalArgumentException.class, () -> rowsToString(columns, Arrays.asList("web-1", null)));
+    }
+
+    public void testMissingTimeColumnShouldFailBeforeWriting() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new EsqlToJsonProcessor(List.of(column("host", KEYWORD)), WINDOW, new ByteArrayOutputStream())
+        );
+        assertThat(e.getMessage(), containsString(TIME_FIELD));
+    }
+
+    /** Passes the time value the way the extractor does: the cell at the time column index, or null when the row is shorter. */
+    private static void process(EsqlToJsonProcessor processor, List<Object> row) throws IOException {
+        int index = processor.timeColumnIndex();
+        processor.process(row, index < row.size() ? row.get(index) : null);
+    }
+
     private static String rowsToString(List<ColumnInfo> columns, List<Object> rowValues) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, outputStream)) {
-            processor.process(rowValues);
+        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, WINDOW, outputStream)) {
+            process(processor, rowValues);
         }
         return outputStream.toString(StandardCharsets.UTF_8).stripTrailing();
     }

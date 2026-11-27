@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
@@ -41,7 +42,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -52,9 +52,9 @@ import static org.mockito.Mockito.when;
 public class EsqlDataExtractorFactoryTests extends ESTestCase {
 
     private static final String ESQL_QUERY =
-        "FROM logs | STATS avg_bytes = AVG(bytes), doc_count = COUNT(*) BY ts = BUCKET(@timestamp, 1 hour)";
-    private static final String TIME_FIELD = "ts";
-    private static final String SOURCE_TIME_FIELD = "@timestamp";
+        "FROM logs | STATS avg_bytes = AVG(bytes), doc_count = COUNT(*) BY @timestamp = BUCKET(@timestamp, 1 hour)";
+    private static final String TIME_FIELD = "@timestamp";
+    private static final TimeColumn RAW_TIME_COLUMN = new TimeColumn(TIME_FIELD, 0L);
     private static final String SUMMARY_COUNT_FIELD = "doc_count";
 
     private Client client;
@@ -69,7 +69,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     public void testNewExtractorShouldMapContextFields() {
         Job job = buildJob("job-1", TIME_FIELD, null);
         DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", null, null);
-        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, 0L);
+        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, RAW_TIME_COLUMN);
 
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(1000L, 2000L);
 
@@ -78,9 +78,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         EsqlDataExtractorContext context = extractor.getContext();
         assertThat(context.jobId(), equalTo("job-1"));
         assertThat(context.esqlQuery(), equalTo(ESQL_QUERY));
-        assertThat(context.sourceTimeField(), equalTo(SOURCE_TIME_FIELD));
-        assertThat(context.emittedTimeField(), equalTo(TIME_FIELD));
-        assertThat(context.sourceTimeField(), not(equalTo(context.emittedTimeField())));
+        assertThat(context.timeField(), equalTo(TIME_FIELD));
         assertThat(context.start(), equalTo(1000L));
         assertThat(context.end(), equalTo(2000L));
         assertThat(context.requiredSummaryCountField(), nullValue());
@@ -90,7 +88,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     public void testDelayedDataCheckEnabledShouldSetRequiredSummaryCountFieldOnNewExtractor() {
         Job job = buildJob("job-1", TIME_FIELD, SUMMARY_COUNT_FIELD);
         DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.defaultDelayedDataCheckConfig(), null);
-        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, 0L);
+        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, RAW_TIME_COLUMN);
 
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
 
@@ -101,7 +99,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         Job job = buildJob("job-1", TIME_FIELD, null);
         Map<String, String> headers = Map.of("es-security-runas-user", "test-user");
         DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", null, headers);
-        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, 0L);
+        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, RAW_TIME_COLUMN);
 
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
 
@@ -111,7 +109,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     public void testProjectRoutingShouldBeCopiedIntoContextOnNewExtractor() {
         Job job = buildJob("job-1", TIME_FIELD, null);
         DatafeedConfig datafeed = buildDatafeedWithProjectRouting("datafeed-1", "job-1", "_alias:_origin");
-        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, 0L);
+        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, RAW_TIME_COLUMN);
 
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
 
@@ -119,10 +117,11 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     }
 
     public void testCreateShouldRunOneDescribeAndFlagRawQueryAsNotBucketed() {
-        StubRunner runner = new StubRunner(describeResponse(row(TIME_FIELD, "date", "time", SOURCE_TIME_FIELD, "mapped", null)));
+        StubRunner runner = new StubRunner(describeResponse(row(TIME_FIELD, "date", "time", TIME_FIELD, "mapped", null)));
 
         EsqlDataExtractorFactory factory = createFactory(runner);
 
+        assertThat(factory.timeColumn(), equalTo(RAW_TIME_COLUMN));
         assertThat(factory.timeBucketMillis(), equalTo(0L));
         assertThat(
             runner.queries,
@@ -137,6 +136,32 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         assertThat(createFactoryWithInterval("1 day").timeBucketMillis(), equalTo(TimeValue.timeValueDays(1).millis()));
     }
 
+    public void testCreateShouldKeepTheComputedTimeColumnWithItsInterval() {
+        TimeColumn timeColumn = createFactoryWithInterval("1 hour").timeColumn();
+
+        assertThat(timeColumn, equalTo(new TimeColumn(TIME_FIELD, TimeValue.timeValueHours(1).millis())));
+    }
+
+    public void testCreateShouldFailWhenTimeColumnIsRenamed() {
+        StubRunner runner = new StubRunner(describeResponse(row(TIME_FIELD, "date", "time", "event.ingested", "renamed", null)));
+
+        Exception e = createFactoryFailure(runner);
+
+        assertThat(e, instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_TIME_COLUMN_RENAMED,
+                    Messages.getMessage(Messages.DATAFEED_ESQL_SUBJECT_WITH_ID, "datafeed-1"),
+                    TIME_FIELD,
+                    "event.ingested"
+                )
+            )
+        );
+    }
+
     public void testCreateShouldFailWhenTimeColumnIsBucketedByCalendarInterval() {
         StubRunner runner = new StubRunner(describeResponse(row(TIME_FIELD, "date", "time", null, "computed", "1 month")));
 
@@ -148,11 +173,10 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     }
 
     public void testCreateShouldRunDescribeWithDatafeedHeadersAndProjectRouting() {
-        StubRunner runner = new StubRunner(describeResponse(row(TIME_FIELD, "date", "time", SOURCE_TIME_FIELD, "mapped", null)));
+        StubRunner runner = new StubRunner(describeResponse(row(TIME_FIELD, "date", "time", TIME_FIELD, "mapped", null)));
         Map<String, String> headers = Map.of("es-security-runas-user", "test-user");
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed-1", "job-1");
         builder.setEsqlQuery(ESQL_QUERY);
-        builder.setSourceTimeField(SOURCE_TIME_FIELD);
         builder.setHeaders(headers);
         builder.setProjectRouting("_alias:_origin");
 
@@ -382,7 +406,6 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     ) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setEsqlQuery(ESQL_QUERY);
-        builder.setSourceTimeField(SOURCE_TIME_FIELD);
         builder.setDelayedDataCheckConfig(delayedDataCheckConfig);
         if (headers != null) {
             builder.setHeaders(headers);
@@ -393,7 +416,6 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     private static DatafeedConfig buildDatafeedWithProjectRouting(String datafeedId, String jobId, String projectRouting) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setEsqlQuery(ESQL_QUERY);
-        builder.setSourceTimeField(SOURCE_TIME_FIELD);
         builder.setProjectRouting(projectRouting);
         return builder.build();
     }

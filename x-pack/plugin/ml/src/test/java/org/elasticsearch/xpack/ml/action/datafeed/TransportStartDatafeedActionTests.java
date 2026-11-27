@@ -89,17 +89,13 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         // flag-off rejection path (Messages.DATAFEED_ESQL_START_DISABLED) is covered in DatafeedEsqlGatesTests;
         // on a release build, verify with -Des.esql_datafeeds_feature_flag_enabled=false.
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
-            .build();
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
         // Does not throw: the feature flag is on and the cluster is fully upgraded.
         TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState());
     }
 
     public void testStoredEsqlDatafeedOnMixedVersionClusterShouldRejectStart() {
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
-            .build();
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
         ClusterState state = ClusterState.builder(new ClusterName("test"))
             .putCompatibilityVersions(
                 "older-node",
@@ -400,7 +396,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
     }
 
     private static DatafeedConfig.Builder newEsqlDatafeed() {
-        return new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM east:logs-*").setSourceTimeField("@timestamp");
+        return new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM east:logs-*");
     }
 
     private static Job newJob() {
@@ -415,9 +411,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
     public void testStartEsqlDatafeedWithCrossProjectEnabledSkipsIndicesOptions() {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
-        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
-            .build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs").build();
 
         CrossProjectModeDecider decider = new CrossProjectModeDecider(
             Settings.builder().put("serverless.cross_project.enabled", true).build()
@@ -440,9 +434,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
 
     public void testStartSkipsFactoryValidationOnlyForEsqlDatafeeds() {
         // The start action must not build an ES|QL extractor factory (it would run a second | DESCRIBE); the task node does.
-        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
-            .build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs").build();
         DatafeedConfig classicDatafeed = new DatafeedConfig.Builder("classic-datafeed", "job_id").setIndices(List.of("logs")).build();
 
         CrossProjectModeDecider notCrossProject = new CrossProjectModeDecider(Settings.EMPTY);
@@ -454,9 +446,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
     public void testStartValidatesEsqlDatafeedFactoryInCrossProjectMode() {
         // The master skips its | DESCRIBE in cross-project mode, so the factory creation must validate or errors surface as a timeout.
         assumeTrue("cross-project ML is off in this build", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
-            .build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs").build();
         CrossProjectModeDecider crossProject = new CrossProjectModeDecider(
             Settings.builder().put("serverless.cross_project.enabled", true).build()
         );

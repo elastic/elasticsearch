@@ -135,7 +135,7 @@ public class TransportPutDatafeedActionTests extends ESTestCase {
     }
 
     private static DatafeedConfig esqlDatafeed() {
-        return new DatafeedConfig.Builder("datafeed-1", "job-1").setEsqlQuery("FROM logs").setSourceTimeField("@timestamp").build();
+        return new DatafeedConfig.Builder("datafeed-1", "job-1").setEsqlQuery("FROM logs").build();
     }
 
     private static TransportPutDatafeedAction createAction(

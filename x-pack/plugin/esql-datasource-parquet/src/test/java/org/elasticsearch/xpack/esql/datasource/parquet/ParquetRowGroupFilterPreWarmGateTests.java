@@ -160,15 +160,21 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
     }
 
     /**
-     * Same predicate on the unmodified file: dictionaries are pre-warmed, so the level runs
-     * from memory and still adds no synchronous GETs.
+     * Same range predicate on the unmodified file: min/max already exist and are AMBIGUOUS, so
+     * dictionary cannot uniquely drop after STATISTICS. Preload is skipped and the DICTIONARY
+     * level is dropped; the per-row predicate still yields the exact rows and no sync GET is
+     * added.
      */
     public void testModernFileRangePredicateIssuesNoSyncDictionaryReads() throws Exception {
         byte[] file = parquetFile();
         long baselineSync = readAll(file, null).syncGets();
         ReadResult filtered = readAll(file, valueGreaterThan(codeToValue(5)));
         assertEquals(expectedRows(c -> c > 5), filtered.rows());
-        assertEquals(0L, filtered.status().rowGroupsDictionaryFilterSkipped());
+        assertEquals(
+            "range + existing min/max cannot uniquely drop via dictionary, so the level is skipped",
+            filtered.status().rowGroupsTotal(),
+            filtered.status().rowGroupsDictionaryFilterSkipped()
+        );
         assertThat(filtered.syncGets(), lessThanOrEqualTo(baselineSync));
     }
 
@@ -229,6 +235,29 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
         assertTrue(ParquetFormatReader.dictionaryFilterLevelApplies(omitted, Set.of("value"), chunks(1_000L, 1L)));
     }
 
+    public void testBloomLevelAppliesWhenNoPredicateColumnHasBloom() {
+        BlockMetaData block = block(column("value", 1_500L, 1_000L, dictEncodings(), PURE_DICTIONARY_STATS));
+        assertTrue(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), new TreeMap<>()));
+        assertTrue(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("missing"), new TreeMap<>()));
+    }
+
+    public void testBloomLevelRequiresChunkCoveringBloomOffset() {
+        BlockMetaData block = block(column("value", 1_500L, 1_000L, dictEncodings(), PURE_DICTIONARY_STATS));
+        block.getColumns().get(0).setBloomFilterOffset(9_000L);
+        block.getColumns().get(0).setBloomFilterLength(64);
+        assertFalse(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), new TreeMap<>()));
+        assertFalse(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), chunks(0L, 1_000L)));
+        assertTrue(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), chunks(9_000L, 64L)));
+        assertTrue(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), chunks(8_990L, 20L)));
+    }
+
+    public void testBloomLevelDropsWhenLengthUnknown() {
+        BlockMetaData block = block(column("value", 1_500L, 1_000L, dictEncodings(), PURE_DICTIONARY_STATS));
+        block.getColumns().get(0).setBloomFilterOffset(9_000L);
+        // length stays parquet-mr's default -1, so preload adds no range and the level must drop
+        assertFalse(ParquetFormatReader.bloomFilterLevelApplies(block, Set.of("value"), new TreeMap<>()));
+    }
+
     /** {@code DictionaryFilter} answers "might match" for chunks with non-dictionary pages without reading the dictionary. */
     public void testDictionaryLevelAppliesWhenEncodingStatsShowNonDictionaryPages() {
         EncodingStats mixed = new EncodingStats.Builder().addDictEncoding(Encoding.PLAIN)
@@ -271,7 +300,7 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
     private record ReadResult(int rows, long syncGets, ParquetReaderStatus status) {}
 
     private ReadResult readAll(byte[] file, Expression pushed) throws IOException {
-        CountingStorage storage = new CountingStorage(file, asyncIo);
+        CountingStorage storage = new CountingStorage(file, asyncIo, pushed != null);
         ParquetReaderCounters counters = new ParquetReaderCounters();
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(
             new ParquetIoWatermark(1024L * 1024 * 1024)
@@ -576,16 +605,27 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
     /**
      * In-memory storage with native async reads so the optimized iterator and the metadata preload
      * take the async path, while synchronous ranged {@link #newStream(long, long)} opens -- the
-     * ones parquet-mr's {@code RowGroupFilter} dictionary reads end up in -- are counted.
+     * ones parquet-mr's {@code RowGroupFilter} dictionary reads end up in -- are counted. When
+     * {@code tripwire} is set, a sync range that overlaps a dictionary page or bloom filter fails:
+     * RowGroupFilter must not fall back to those reads after preload / level gating.
      */
     private static final class CountingStorage extends AbstractTestStorageObject {
         private final byte[] data;
         private final Executor asyncIo;
         private final AtomicLong syncGets = new AtomicLong();
+        private final List<long[]> dictBloomRanges;
 
         private CountingStorage(byte[] data, Executor asyncIo) {
+            this(data, asyncIo, false);
+        }
+
+        private CountingStorage(byte[] data, Executor asyncIo, boolean tripwire) {
             this.data = data;
             this.asyncIo = asyncIo;
+            this.dictBloomRanges = tripwire ? ParquetOpenRequestCountTests.dictBloomRanges(data) : List.of();
+            if (tripwire && this.dictBloomRanges.isEmpty()) {
+                throw new AssertionError("dict/bloom tripwire armed but no dictionary or bloom ranges were found");
+            }
         }
 
         @Override
@@ -596,6 +636,28 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
         @Override
         public InputStream newStream(long position, long length) {
             syncGets.incrementAndGet();
+            // Windowed footer/header fills start at 0 or the tail; those overlap RG0's
+            // dictionary the same way a real dict GET would, so ignore them. A RowGroupFilter
+            // miss on a later group or a bloom page lands at a distinct offset.
+            boolean footerOrHeader = position == 0
+                || position >= Math.max(0L, data.length - ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES);
+            if (footerOrHeader == false) {
+                for (long[] range : dictBloomRanges) {
+                    if (position < range[0] + range[1] && range[0] < position + length) {
+                        throw new AssertionError(
+                            "sync newStream ["
+                                + position
+                                + ","
+                                + length
+                                + ") overlapped dict/bloom ["
+                                + range[0]
+                                + ","
+                                + range[1]
+                                + ") during RowGroupFilter"
+                        );
+                    }
+                }
+            }
             return new ByteArrayInputStream(data, (int) position, (int) Math.min(length, data.length - position));
         }
 

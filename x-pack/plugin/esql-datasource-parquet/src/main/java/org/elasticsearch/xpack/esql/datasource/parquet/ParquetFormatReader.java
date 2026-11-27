@@ -249,6 +249,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         RowGroupFilter.FilterLevel.BLOOMFILTER
     );
 
+    /** {@link #ALL_ROW_GROUP_FILTER_LEVELS} minus BLOOMFILTER; see {@link #bloomFilterLevelApplies}. */
+    private static final List<RowGroupFilter.FilterLevel> ROW_GROUP_FILTER_LEVELS_WITHOUT_BLOOM = List.of(
+        RowGroupFilter.FilterLevel.STATISTICS,
+        RowGroupFilter.FilterLevel.DICTIONARY
+    );
+
+    /** Footer-only STATISTICS pass before dictionary/bloom preload, and groups where neither level is pre-warmed. */
+    private static final List<RowGroupFilter.FilterLevel> ROW_GROUP_FILTER_LEVELS_STATISTICS_ONLY = List.of(
+        RowGroupFilter.FilterLevel.STATISTICS
+    );
+
     /** Clears both footer caches held by this reader. Intended for test isolation only. */
     void clearFooterCachesForTests() {
         parsedFooters.invalidateAll();
@@ -2972,6 +2983,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // a small object, so re-seed it before either of them peeks the cache. See
         // ParquetStorageObjectAdapter#refillWholeFileFooter for why nothing else on this path would.
         adapter.refillWholeFileFooter();
+        List<BlockMetaData> blocks = reader.getRowGroups();
+        boolean[] dictUseful = null;
+        boolean[] bloomUseful = null;
+        // Footer-only STATISTICS, then preload dictionary/bloom only where those levels can still
+        // drop a group. Legacy FilterPredicateCompat (predicateColumnPaths == null) skips this and
+        // preloads every row group as today. All-false masks still build the iterator; they just
+        // issue no dict/bloom GETs.
+        if (FilterCompat.isFilteringRequired(recordFilter) && predicateColumnPaths != null && filterPredicate != null) {
+            boolean[] statsSurvivors = new boolean[blocks.size()];
+            markSurvivors(blocks, filterRowGroups(ROW_GROUP_FILTER_LEVELS_STATISTICS_ONLY, recordFilter, blocks, reader), statsSurvivors);
+            dictUseful = new boolean[blocks.size()];
+            bloomUseful = new boolean[blocks.size()];
+            FilterLevelUsefulness.fill(filterPredicate, blocks, statsSurvivors, dictUseful, bloomUseful);
+        }
         PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(
             reader,
             storageObject,
@@ -2983,16 +3008,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ioWatermark,
             footerBytes,
             QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS,
-            externalIoThreads
+            externalIoThreads,
+            dictUseful,
+            bloomUseful
         );
         boolean metadataHandedOff = false;
         try {
             adapter.installPreWarmedChunks(preloadedMetadata.preWarmedChunks());
 
-            List<BlockMetaData> blocks;
             boolean[] survivingRowGroups;
             try {
-                blocks = reader.getRowGroups();
                 survivingRowGroups = computeSurvivingRowGroups(
                     reader,
                     blocks,
@@ -3249,15 +3274,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * column-index filtering is intentionally excluded — the optimized iterator handles that itself
      * via the {@link RowRanges} path. Returns {@code null} when no filter is set.
      * <p>
-     * The DICTIONARY level is applied to a row group only when every dictionary page it would read
-     * was pre-warmed by {@link PreloadedRowGroupMetadata#preload} (see
-     * {@link #dictionaryFilterLevelApplies}). parquet-mr reads dictionaries through the reader's
-     * synchronous stream, and on remote storage a miss there costs one blocking window-sized range
-     * GET per row group on the calling {@code esql_worker} thread — far more than the predicate
-     * column's data pages for the common case where statistics already said the group might match.
-     * Skipping the level only widens the survivor set; the pushed predicate is still applied per row
-     * (late materialization and, for RECHECK conjuncts, {@code FilterExec}). This also covers a
-     * preload that failed and fell back to {@code preloadSequential}, which pre-warms nothing.
+     * The DICTIONARY and BLOOMFILTER levels are applied to a row group only when every page they
+     * would read was pre-warmed by {@link PreloadedRowGroupMetadata#preload} (see
+     * {@link #dictionaryFilterLevelApplies} and {@link #bloomFilterLevelApplies}). parquet-mr reads
+     * those pages through the reader's synchronous stream, and on remote storage a miss there costs
+     * one blocking window-sized range GET per row group on the calling {@code esql_worker} thread —
+     * far more than the predicate column's data pages for the common case where statistics already
+     * said the group might match. Skipping a level only widens the survivor set; the pushed
+     * predicate is still applied per row (late materialization and, for RECHECK conjuncts,
+     * {@code FilterExec}). This also covers a preload that failed and fell back to
+     * {@code preloadSequential}, which pre-warms nothing, and bloom filters whose length is unknown
+     * so they were never pre-warmed.
      *
      * @param predicateColumnPaths dot-string paths of the pushed predicate's columns, or {@code null}
      *                             on the legacy {@code FilterPredicateCompat} path where they cannot
@@ -3277,27 +3304,47 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         if (FilterCompat.isFilteringRequired(recordFilter) == false) {
             return null;
         }
-        // Split the blocks by level list and filter each partition in one call: parquet-mr's
-        // RowGroupFilter handles the blocks it is given independently and in order, so two calls
-        // over the partitions are equivalent to one call over the whole list, without the per-block
-        // list, visitor and predicate validation that a call per row group would cost on large files.
-        List<BlockMetaData> withDictionary = new ArrayList<>(blocks.size());
-        List<BlockMetaData> withoutDictionary = new ArrayList<>();
+        // Split the blocks by which levels can run from pre-warmed chunks. parquet-mr's
+        // RowGroupFilter cannot mix level lists in one call, so four partitions, empty skipped.
+        // At most four calls, never per row group.
+        List<BlockMetaData> dictAndBloom = new ArrayList<>(blocks.size());
+        List<BlockMetaData> bloomOnly = new ArrayList<>();
+        List<BlockMetaData> dictOnly = new ArrayList<>();
+        List<BlockMetaData> neither = new ArrayList<>();
         for (BlockMetaData block : blocks) {
-            if (predicateColumnPaths == null || dictionaryFilterLevelApplies(block, predicateColumnPaths, preWarmedChunks)) {
-                withDictionary.add(block);
+            boolean dict = predicateColumnPaths == null || dictionaryFilterLevelApplies(block, predicateColumnPaths, preWarmedChunks);
+            boolean bloom = predicateColumnPaths == null || bloomFilterLevelApplies(block, predicateColumnPaths, preWarmedChunks);
+            if (dict && bloom) {
+                dictAndBloom.add(block);
+            } else if (bloom) {
+                bloomOnly.add(block);
+            } else if (dict) {
+                dictOnly.add(block);
             } else {
-                withoutDictionary.add(block);
+                neither.add(block);
             }
         }
         boolean[] flags = new boolean[blocks.size()];
-        markSurvivors(blocks, filterRowGroups(ALL_ROW_GROUP_FILTER_LEVELS, recordFilter, withDictionary, reader), flags);
-        markSurvivors(blocks, filterRowGroups(ROW_GROUP_FILTER_LEVELS_WITHOUT_DICTIONARY, recordFilter, withoutDictionary, reader), flags);
-        if (withoutDictionary.isEmpty() == false) {
+        markSurvivors(blocks, filterRowGroups(ALL_ROW_GROUP_FILTER_LEVELS, recordFilter, dictAndBloom, reader), flags);
+        markSurvivors(blocks, filterRowGroups(ROW_GROUP_FILTER_LEVELS_WITHOUT_DICTIONARY, recordFilter, bloomOnly, reader), flags);
+        markSurvivors(blocks, filterRowGroups(ROW_GROUP_FILTER_LEVELS_WITHOUT_BLOOM, recordFilter, dictOnly, reader), flags);
+        markSurvivors(blocks, filterRowGroups(ROW_GROUP_FILTER_LEVELS_STATISTICS_ONLY, recordFilter, neither, reader), flags);
+        int dictionarySkipped = bloomOnly.size() + neither.size();
+        int bloomSkipped = dictOnly.size() + neither.size();
+        if (dictionarySkipped > 0) {
             logger.debug(
                 "Skipped DICTIONARY row-group filtering for [{}] of [{}] row groups in [{}]: "
                     + "dictionary pages of the predicate columns were not pre-warmed",
-                withoutDictionary.size(),
+                dictionarySkipped,
+                blocks.size(),
+                fileLocation
+            );
+        }
+        if (bloomSkipped > 0) {
+            logger.debug(
+                "Skipped BLOOMFILTER row-group filtering for [{}] of [{}] row groups in [{}]: "
+                    + "bloom filters of the predicate columns were not pre-warmed",
+                bloomSkipped,
                 blocks.size(),
                 fileLocation
             );
@@ -3309,7 +3356,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             for (int i = 0; i < blocks.size(); i++) {
                 counters.addRowGroupFiltered(flags[i]);
             }
-            counters.addRowGroupsDictionaryFilterSkipped(withoutDictionary.size());
+            counters.addRowGroupsDictionaryFilterSkipped(dictionarySkipped);
         }
         return flags;
     }
@@ -3360,13 +3407,44 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (predicateColumnPaths.contains(col.getPath().toDotString()) == false || dictionaryFilterReadsDictionary(col) == false) {
                 continue;
             }
-            long dictionaryPos = col.getStartingPos();
-            Map.Entry<Long, ColumnChunkPrefetcher.PrefetchedChunk> entry = preWarmedChunks.floorEntry(dictionaryPos);
-            if (entry == null || dictionaryPos >= entry.getValue().offset() + entry.getValue().length()) {
+            if (chunkCovers(preWarmedChunks, col.getStartingPos()) == false) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * {@code true} when parquet-mr's BLOOMFILTER row-group filter level can run on {@code block}
+     * without touching the reader's synchronous stream. Every predicate column with a known
+     * {@code bloomOffset > 0} must have a pre-warmed chunk covering that offset. Unknown bloom
+     * length is never pre-warmed, so this returns {@code false} and the level is dropped — closing
+     * the sync {@code newStream} parquet-mr would otherwise issue. Columns with no bloom do not
+     * disable the level.
+     */
+    static boolean bloomFilterLevelApplies(
+        BlockMetaData block,
+        Set<String> predicateColumnPaths,
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks
+    ) {
+        for (ColumnChunkMetaData col : block.getColumns()) {
+            if (predicateColumnPaths.contains(col.getPath().toDotString()) == false) {
+                continue;
+            }
+            long bloomOffset = col.getBloomFilterOffset();
+            if (bloomOffset <= 0) {
+                continue;
+            }
+            if (chunkCovers(preWarmedChunks, bloomOffset) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean chunkCovers(NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks, long pos) {
+        Map.Entry<Long, ColumnChunkPrefetcher.PrefetchedChunk> entry = preWarmedChunks.floorEntry(pos);
+        return entry != null && pos < entry.getValue().offset() + entry.getValue().length();
     }
 
     /**
@@ -3377,7 +3455,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * encodings set holds nothing but {@code PLAIN_DICTIONARY} and the level encodings, as a V2
      * {@code RLE_DICTIONARY} chunk cannot prove it never fell back to plain.
      */
-    private static boolean dictionaryFilterReadsDictionary(ColumnChunkMetaData col) {
+    static boolean dictionaryFilterReadsDictionary(ColumnChunkMetaData col) {
         if (col.hasDictionaryPage() == false) {
             return false;
         }

@@ -591,11 +591,11 @@ public abstract class ESTestCase extends LuceneTestCase {
             // also for codecs created by CodecService
             CodecService.setCodecWrapper(wrapper);
             // and for the codec instance possibly already loaded by ServiceLoader
-            ((ElasticsearchCodec)Codec.forName(codec.getName())).setWrapper(wrapper);
+            ((ElasticsearchCodec) Codec.forName(codec.getName())).setWrapper(wrapper);
         } else {
             // remove any existing wrapper from previous tests
             CodecService.setCodecWrapper(null);
-            ((ElasticsearchCodec)Codec.forName(codec.getName())).setWrapper(null);
+            ((ElasticsearchCodec) Codec.forName(codec.getName())).setWrapper(null);
         }
         // this is not exhaustive - test that need something from MapperService should define the codec/format explicitly
         Codec.setDefault(codec);

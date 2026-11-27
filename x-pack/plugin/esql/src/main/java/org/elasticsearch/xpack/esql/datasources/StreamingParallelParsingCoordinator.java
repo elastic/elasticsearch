@@ -172,6 +172,7 @@ public final class StreamingParallelParsingCoordinator {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             WarningSinks.NONE,
             StreamingSegmentatorAdmission.unbounded(),
             new NoopCircuitBreaker("streaming-parse-test"),
@@ -237,6 +238,7 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         WarningSinks warningSinks
     ) throws IOException {
         return parallelRead(
@@ -254,6 +256,7 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             warningSinks,
             StreamingSegmentatorAdmission.unbounded(),
             new NoopCircuitBreaker("streaming-parse-test"),
@@ -290,6 +293,7 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
@@ -312,6 +316,7 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             warningSinks,
             admission,
             breaker,
@@ -348,6 +353,7 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
@@ -370,6 +376,7 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             warningSinks,
             admission,
             breaker,
@@ -400,6 +407,7 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
@@ -430,6 +438,7 @@ public final class StreamingParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(baseFileOffset, statsStripeSize, true)
                 .statsColumnScope(statsColumnScope)
+                .statsMaxExtremumBytes(statsMaxExtremumBytes)
                 .informationalWarningSink(warningSinks.informationalWarningSink())
                 .readCounters(formatCounters)
                 .build();
@@ -451,6 +460,7 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             warningSinks,
             admission,
             breaker,
@@ -480,6 +490,7 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
@@ -501,6 +512,7 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             warningSinks,
             admission,
             breaker,
@@ -529,6 +541,7 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
@@ -550,6 +563,7 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             warningSinks,
             admission,
             breaker,
@@ -706,6 +720,7 @@ public final class StreamingParallelParsingCoordinator {
         private final long statsStripeSize;
         /** How much per-stripe statistics each chunk harvests (row count only / + projected / + all / nothing). */
         private final StripeColumnScope statsColumnScope;
+        private final int statsMaxExtremumBytes;
         /**
          * Where the chunks of this read hand their pieces of a stripe, so a stripe several chunks observed is
          * staged once rather than once per chunk. {@code null} when there is no sink to stage into or no stripe
@@ -842,6 +857,7 @@ public final class StreamingParallelParsingCoordinator {
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
+            int statsMaxExtremumBytes,
             WarningSinks warningSinks
         ) {
             this(
@@ -859,6 +875,7 @@ public final class StreamingParallelParsingCoordinator {
                 captureSink,
                 statsStripeSize,
                 statsColumnScope,
+                statsMaxExtremumBytes,
                 warningSinks,
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("streaming-parse-test"),
@@ -884,6 +901,7 @@ public final class StreamingParallelParsingCoordinator {
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
+            int statsMaxExtremumBytes,
             WarningSinks warningSinks,
             StreamingSegmentatorAdmission admission,
             CircuitBreaker breaker,
@@ -906,6 +924,7 @@ public final class StreamingParallelParsingCoordinator {
                 captureSink,
                 statsStripeSize,
                 statsColumnScope,
+                statsMaxExtremumBytes,
                 warningSinks,
                 admission,
                 breaker,
@@ -931,6 +950,7 @@ public final class StreamingParallelParsingCoordinator {
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
+            int statsMaxExtremumBytes,
             WarningSinks warningSinks,
             StreamingSegmentatorAdmission admission,
             CircuitBreaker breaker,
@@ -954,6 +974,7 @@ public final class StreamingParallelParsingCoordinator {
             this.statsStripeSize = statsStripeSize;
             this.stripeStaging = captureSink != null && statsStripeSize > 0 ? new StripeStatsStaging(captureSink) : null;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+            this.statsMaxExtremumBytes = statsMaxExtremumBytes;
             this.warningSinks = warningSinks;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
@@ -1715,6 +1736,7 @@ public final class StreamingParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())
                 .statsColumnScope(statsColumnScope)
+                .statsMaxExtremumBytes(statsMaxExtremumBytes)
                 .statsStripeSink(stripeStaging)
                 .informationalWarningSink(warningSinks.informationalWarningSink())
                 .readCounters(formatCounters)

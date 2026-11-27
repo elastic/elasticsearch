@@ -426,6 +426,60 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
     }
 
     /**
+     * One unservable aggregate abandons the substitution for the whole list rather than serving its servable
+     * siblings and scanning only for itself, so a query mixing the two reads every row. Both halves are
+     * asserted here because only the pair discriminates: COUNT(*) and MIN(age) each serve on their own
+     * against this summary, and putting MIN(score) -- a column the summary never harvested -- beside them
+     * leaves the AggregateExec unsubstituted.
+     */
+    public void testOneUnservableAggregateStopsTheWholeList() {
+        Map<String, Object> metadata = statsMetadata(100L, "age", 0L);
+        metadata.put("_stats.columns.age.min", 18);
+        metadata.put("_stats.columns.age.max", 99);
+
+        var countStar = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), countStarAlias());
+        as(applyRuleText(countStar), LocalSourceExec.class);
+        var minAge = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("mn", new Min(Source.EMPTY, AGE)));
+        as(applyRuleText(minAge), LocalSourceExec.class);
+
+        var mixed = aggregateExec(
+            AggregatorMode.SINGLE,
+            externalSource(metadata),
+            countStarAlias(),
+            alias("mn", new Min(Source.EMPTY, AGE)),
+            alias("un", new Min(Source.EMPTY, SCORE))
+        );
+        as(applyRuleText(mixed), AggregateExec.class);
+    }
+
+    /**
+     * A withheld extremum leaves its column present, carrying counts and the end that was published. That is a
+     * different branch from an absent column: {@code resolveMax} clears {@code columnStatUnservable} and then
+     * fails on the null value, so serving the published end for the missing one would pass the test above.
+     */
+    public void testAWithheldExtremumIsUnservableWhileItsColumnStaysPresent() {
+        Map<String, Object> metadata = statsMetadata(100L, "age", 0L);
+        metadata.put("_stats.columns.age.min", 18);
+
+        var published = aggregateExec(
+            AggregatorMode.SINGLE,
+            externalSource(metadata),
+            countStarAlias(),
+            alias("mn", new Min(Source.EMPTY, AGE))
+        );
+        as(applyRuleText(published), LocalSourceExec.class);
+
+        var withheld = aggregateExec(
+            AggregatorMode.SINGLE,
+            externalSource(metadata),
+            countStarAlias(),
+            alias("mn", new Min(Source.EMPTY, AGE)),
+            alias("mx", new Max(Source.EMPTY, AGE))
+        );
+        as(applyRuleText(withheld), AggregateExec.class);
+    }
+
+    /**
      * gate/fold servability ALIGNMENT. The skip-discovery gate ({@code ComputeService.canSkipSplitDiscovery}) and the
      * fold rule previously diverged: the gate's type-only
      * {@code AggregatePushdownSupport.canPushAggregates} said {@code MIN(score)} was pushable while the fold

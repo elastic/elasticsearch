@@ -407,6 +407,18 @@ public final class ListingWalkHarness implements StorageProvider {
         return wideHiveTree(days);
     }
 
+    /** June 1–30 plus 1 July. Hour-grain peeks of pruned June days exceed the 3000 directory ceiling. */
+    public static final int WIDE_HIVE_JUNE_DAYS = 30;
+
+    public static List<StorageEntry> wideHiveJuneTree() {
+        List<LocalDate> days = new ArrayList<>(WIDE_HIVE_JUNE_DAYS + 1);
+        for (int d = 1; d <= WIDE_HIVE_JUNE_DAYS; d++) {
+            days.add(LocalDate.of(2026, 6, d));
+        }
+        days.add(LocalDate.of(2026, 7, 1));
+        return wideHiveTree(days);
+    }
+
     private static List<StorageEntry> wideHiveTree(List<LocalDate> days) {
         assert WIDE_HIVE_REGIONS.length == 20 : WIDE_HIVE_REGIONS.length;
         int extraDualRegionAccounts = WIDE_HIVE_PREFIXES - WIDE_HIVE_ACCOUNTS;

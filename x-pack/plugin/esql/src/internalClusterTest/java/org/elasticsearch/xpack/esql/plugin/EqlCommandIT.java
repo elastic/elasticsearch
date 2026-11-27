@@ -440,8 +440,7 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
     public void testSequenceCountsAShardWhenLaterStagesFail() throws Exception {
         setupFailingShardIndices();
         String eql = "sequence [process where value == 1 or value == 3] [process where value == 3 or fail_me == 1]";
-        String query = "EQL " + PARTIAL_PATTERN + " \"" + eql
-            + "\" METADATA _id WITH {\"fetch_size\": 2}  | KEEP _id";
+        String query = "EQL " + PARTIAL_PATTERN + " \"" + eql + "\" METADATA _id WITH {\"fetch_size\": 2}  | KEEP _id";
         updateClusterSettings(Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getKey(), true));
         try {
             CapturedQuery result = assertPartialResults(query, PARTIAL_MATCH_IDS);

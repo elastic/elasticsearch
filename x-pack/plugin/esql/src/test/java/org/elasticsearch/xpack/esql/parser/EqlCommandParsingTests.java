@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -16,9 +19,13 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeE
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
+import org.elasticsearch.xpack.ql.QlClientException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.regex.MatchResult;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -27,9 +34,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for parsing the {@code EQL "<query>"} source command into an {@link UnresolvedEqlRelation}.
@@ -128,16 +138,81 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
         expectError("EQL logs-* ?q", List.of(paramAsConstant("p", "process where true")), "Unknown query parameter [q]");
     }
 
-    public void testMalformedEqlQueryRejected() {
+    public void testMalformedEqlQueryReportsTheEqlParserError() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
-        expectError("EQL logs-* \"process where\"", "line 1:12: cannot parse EQL query [process where]: ");
-        ParsingException internalFailure = expectThrows(ParsingException.class, () -> query("EQL logs-* \"process where x like null\""));
-        assertThat(internalFailure.getErrorMessage(), equalTo("cannot parse EQL query [process where x like null]"));
-        expectError(
-            "EQL logs-* \"sample by c [a where true] [b where true] | head 2\"",
-            "line 1:12: cannot parse EQL query [sample by c [a where true] [b where true] | head 2]"
+        expectError("EQL logs-* \"process where\"", expectedEqlParserError("process where", "1:14"));
+        ParsingException samplePipe = expectThrows(
+            ParsingException.class,
+            () -> query("EQL logs-* \"sample by c [a where true] [b where true] | head 2\"")
         );
+        assertThat(
+            samplePipe.getMessage(),
+            startsWith("line 1:12: cannot parse EQL query [sample by c [a where true] [b where true] | head 2]: line 1:")
+        );
+        assertThat(samplePipe.getMessage(), endsWith(" of the EQL query: Samples do not support pipes yet"));
+    }
+
+    public void testEqlParserErrorWithoutAPositionIsReportedWithoutOne() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        expectError(
+            "EQL logs-* \"sample by c [a where true] ![b where true]\"",
+            "line 1:12: cannot parse EQL query [sample by c [a where true] ![b where true]]: "
+                + "Missing events are supported only for sequences"
+        );
+    }
+
+    public void testEqlParserErrorPositionIsRelativeToTheEqlQuery() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        String eql = "process where\nx ==";
+        expectError("EQL logs-* ?q", List.of(paramAsConstant("q", eql)), expectedEqlParserError(eql, "2:5"));
+    }
+
+    public void testInvalidLikeEscapeInEqlQueryKeepsItsMessage() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        for (String eql : List.of("process where x like \"\\u{01}\"", "process where x like~ \"\\u{01}\"")) {
+            expectThrows(InvalidArgumentException.class, () -> EqlQueryIntrospection.inspect(eql));
+            expectError(
+                "EQL logs-* ?q",
+                List.of(paramAsConstant("q", eql)),
+                "line 1:12: cannot parse EQL query ["
+                    + eql
+                    + "]: Invalid sequence - escape character is not followed by special wildcard char"
+            );
+        }
+    }
+
+    public void testInternalEqlParserFailureIsAServerError() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        RuntimeException failure = expectThrows(RuntimeException.class, () -> EqlQueryIntrospection.inspect("process where x like null"));
+        assertThat(failure, not(instanceOf(QlClientException.class)));
+        RuntimeException e = expectThrows(RuntimeException.class, () -> query("EQL logs-* \"process where x like null\""));
+        assertThat(e, instanceOf(failure.getClass()));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    public void testEqlParseErrorsKeepTheEsqlPositionAsTheOnlyMarker() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        for (String eql : List.of("process where", "sample by c [a where true] ![b where true]", "process where x like \"\\u{01}\"")) {
+            QueryParams params = new QueryParams(List.of(paramAsConstant("q", eql)));
+            ParsingException e = expectThrows(ParsingException.class, () -> query("EQL logs-* ?q", params));
+            assertOnlyMarkerIsAtTheStart(e.getMessage());
+        }
+    }
+
+    private static void assertOnlyMarkerIsAtTheStart(String message) {
+        List<Integer> markers = Pattern.compile("line \\d+:\\d+:").matcher(message).results().map(MatchResult::start).toList();
+        assertThat(message, markers, equalTo(List.of(0)));
+    }
+
+    private static String expectedEqlParserError(String eql, String position) {
+        var e = expectThrows(org.elasticsearch.xpack.eql.parser.ParsingException.class, () -> EqlQueryIntrospection.inspect(eql));
+        return "line 1:12: cannot parse EQL query [" + eql + "]: line " + position + " of the EQL query: " + e.getErrorMessage();
     }
 
     public void testMultipleIndexPatterns() {

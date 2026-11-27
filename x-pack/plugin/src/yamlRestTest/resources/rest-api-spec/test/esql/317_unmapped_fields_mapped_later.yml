@@ -16,29 +16,25 @@ setup:
 
   # Indexed under dynamic:false, so "f", "n" and "other" are in _source only. "f" and "n" are mapped afterwards.
   #
-  # The rebalancer must not move a copy of these indices once "f" and "n" are mapped: a copy that is built by recovery
-  # replays the translog with the current mapping, so it holds doc values for the first document, and the result then
-  # depends on which copy answers. Rebalancing is disabled for them, see https://github.com/elastic/elasticsearch/issues/164963.
+  # No shard copy of these indices may be built after "f" and "n" are mapped: a copy that is built by recovery replays the
+  # translog with the current mapping, so it holds doc values for the first document, and the result then depends on which
+  # copy answers. So the indices have no replica, which could be assigned only after the mapping update
+  # (https://github.com/elastic/elasticsearch/issues/167562), and their primary is not rebalanced
+  # (https://github.com/elastic/elasticsearch/issues/164963).
+  # This is the same replay with the current mapping as in https://github.com/elastic/elasticsearch/issues/167063, where it fails
+  # a replica's recovery; the guard can be removed when that is fixed.
   - do:
       indices.create:
         index: mapped-later-stored
         body:
           settings:
+            index.number_of_replicas: 0
             index.routing.rebalance.enable: none
           mappings:
             dynamic: false
             properties:
               id:
                 type: keyword
-  # Wait for any replica to be initialized and started before the first document. A replica that is still recovering replays the
-  # translog with the current mapping, so it would hold doc values for "f" and "n" for the first document, and the
-  # result would depend on which copy answers. Not waiting for green: on a single node the replica stays unassigned.
-  - do:
-      cluster.health:
-        index: mapped-later-stored
-        wait_for_status: yellow
-        wait_for_events: languid
-        wait_for_no_initializing_shards: true
   - do:
       index:
         index: mapped-later-stored
@@ -76,18 +72,13 @@ setup:
         body:
           settings:
             index.mapping.source.mode: synthetic
+            index.number_of_replicas: 0
             index.routing.rebalance.enable: none
           mappings:
             dynamic: false
             properties:
               id:
                 type: keyword
-  - do:
-      cluster.health:
-        index: mapped-later-synthetic
-        wait_for_status: yellow
-        wait_for_events: languid
-        wait_for_no_initializing_shards: true
   - do:
       index:
         index: mapped-later-synthetic

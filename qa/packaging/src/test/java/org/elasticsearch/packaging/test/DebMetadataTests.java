@@ -86,4 +86,24 @@ public class DebMetadataTests extends PackagingTestCase {
         String oppositePackageName = "elasticsearch-oss";
         TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: " + oppositePackageName + "$").matcher(result.stdout()).find());
     }
+
+    /**
+     * Config files must be registered as conffiles so that an upgrade keeps administrator edits in place.
+     */
+    public void test07ConfFiles() {
+        final Shell sh = new Shell();
+        final Shell.Result result = sh.run("dpkg -I " + getDistributionFile(distribution()) + " conffiles");
+
+        for (String configFile : List.of(
+            "/etc/elasticsearch/elasticsearch.yml",
+            "/etc/elasticsearch/jvm.options",
+            "/etc/elasticsearch/log4j2.properties",
+            "/etc/default/elasticsearch"
+        )) {
+            TestCase.assertTrue(
+                "expected [" + configFile + "] to be a conffile in:\n" + result.stdout(),
+                Pattern.compile("(?m)^" + Pattern.quote(configFile) + "$").matcher(result.stdout()).find()
+            );
+        }
+    }
 }

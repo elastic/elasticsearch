@@ -10,6 +10,7 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.ESTestCase;
@@ -26,6 +28,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -39,8 +43,31 @@ import static org.mockito.Mockito.when;
 public class MockGatewayMetaState extends GatewayMetaState {
     private final DiscoveryNode localNode;
 
-    public MockGatewayMetaState(DiscoveryNode localNode) {
+    @Nullable // if using a real executor for the asynchronous writes of a master-ineligible data node
+    private final ExecutorService asyncPersistedStateExecutor;
+
+    public MockGatewayMetaState(DiscoveryNode localNode, @Nullable ExecutorService asyncPersistedStateExecutor) {
         this.localNode = localNode;
+        this.asyncPersistedStateExecutor = asyncPersistedStateExecutor;
+    }
+
+    /**
+     * Creates the kind of persisted state that a master-ineligible data node uses, which writes to the given persisted state (standing in
+     * for the disk) asynchronously using the given executor, so that it is possible for the latest state to be lost if the node stops.
+     */
+    public static CoordinationState.PersistedState newAsyncPersistedState(
+        CoordinationState.PersistedState diskState,
+        ExecutorService executor
+    ) {
+        return new AsyncPersistedState(diskState, executor);
+    }
+
+    @Override
+    ExecutorService createAsyncPersistedStateExecutor(Settings settings, ThreadPool threadPool) {
+        return Objects.requireNonNullElseGet(
+            asyncPersistedStateExecutor,
+            () -> super.createAsyncPersistedStateExecutor(settings, threadPool)
+        );
     }
 
     @Override

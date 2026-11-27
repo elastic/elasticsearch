@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -35,6 +36,7 @@ import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Parameterized testing for {@link DateTrunc}.  See also {@link DateTruncRoundingTests} for non-parametrized tests.
@@ -55,6 +57,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         makeTruncPeriodTestCases().stream().map(DateTruncTests::ofDatePeriod).forEach(suppliers::addAll);
 
         suppliers.add(randomSecond());
+        suppliers.add(nanosBucketBeforeEpoch());
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
@@ -427,6 +430,28 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                 equalTo(toMillis(dateFragment + ".00Z"))
             );
         });
+    }
+
+    /** 1970-01-01 is a Thursday, so its week starts in 1969, which nanoseconds can't represent. */
+    private static TestCaseSupplier nanosBucketBeforeEpoch() {
+        return new TestCaseSupplier(
+            "week before the epoch, nanos",
+            List.of(DataType.DATE_PERIOD, DataType.DATE_NANOS),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(Period.ofWeeks(1), DataType.DATE_PERIOD, "interval").forceLiteral(),
+                    new TestCaseSupplier.TypedData(DateUtils.toLong(Instant.parse("1970-01-02T12:00:00Z")), DataType.DATE_NANOS, "date")
+                ),
+                Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                DataType.DATE_NANOS,
+                nullValue()
+            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                .withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning(
+                    "Line 1:1: java.lang.IllegalArgumentException: milliSeconds [-259200000] are before the epoch in 1970 and cannot "
+                        + "be converted to nanoseconds"
+                )
+        );
     }
 
     private static String pad(int i) {

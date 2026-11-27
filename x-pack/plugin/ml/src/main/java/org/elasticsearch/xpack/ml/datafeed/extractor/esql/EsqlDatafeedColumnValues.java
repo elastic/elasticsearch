@@ -24,23 +24,15 @@ final class EsqlDatafeedColumnValues {
         return "date".equals(outputType) || "date_nanos".equals(outputType);
     }
 
-    static Long toEpochMillisOrNull(Object value, boolean isDate) {
-        if (value == null) {
-            return null;
-        }
-        return toEpochMillis(value, isDate);
+    static Long toEpochMillisOrNull(Object value) {
+        return value == null ? null : toEpochMillis(value);
     }
 
-    static long toEpochMillis(Object value, boolean isDate) {
-        if (isDate) {
-            if (value instanceof String isoDate) {
-                return Instant.parse(isoDate).toEpochMilli();
-            }
-            throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_ESQL_EXPECTED_DATE_VALUE));
+    /** Converts an ES|QL date or date_nanos value, which the response renders as an ISO-8601 string, to epoch milliseconds. */
+    static long toEpochMillis(Object value) {
+        if (value instanceof String isoDate) {
+            return Instant.parse(isoDate).toEpochMilli();
         }
-        if (value instanceof Number number) {
-            return number.longValue();
-        }
-        throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_ESQL_EXPECTED_NUMERIC_TIMESTAMP));
+        throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_ESQL_EXPECTED_DATE_VALUE));
     }
 }

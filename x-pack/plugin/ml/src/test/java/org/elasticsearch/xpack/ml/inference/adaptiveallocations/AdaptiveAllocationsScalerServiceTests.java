@@ -86,9 +86,10 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         private final Semaphore schedulerContinued = new Semaphore(0);
 
         /**
-         * Answers the stats request with the response of the current cycle, which is created now, so that its timestamps
-         * are current. Afterwards, it doesn't return until {@link #continueScheduler}. This pauses the scheduler, because
-         * it schedules the next cycle only after this one returns. After {@link #close}, it returns without answering.
+         * Answers the stats request with the response of the current cycle. Afterwards, it doesn't return until
+         * {@link #continueScheduler}. This pauses the scheduler, because it schedules the next cycle only after this one
+         * returns. After {@link #close}, it returns without answering. The queue holds suppliers, so that {@link #close}
+         * can add one that returns {@code null}, because the queue can't hold {@code null} itself.
          */
         void answer(ActionListener<GetDeploymentStatsAction.Response> listener) throws InterruptedException {
             GetDeploymentStatsAction.Response response = responses.take().get(); // waits for run() or close()

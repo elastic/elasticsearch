@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IntoParserTests extends AbstractStatementParserTests {
     @Before
-    public void requiresSnapshot() {
-        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+    public void requiresIntoCommand() {
+        assumeTrue("INTO command required", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
     }
 
     public void testDestination() {

@@ -11,3 +11,5 @@ highlight:
     is now enabled by default in technical preview on non-serverless deployments.
     To turn it off, set `esql.federation.enabled` to `false`. It requires an
     Enterprise or trial license.
+
+    Read more about these changes in the {{es-labs}} [ES|QL Data Federation](https://www.elastic.co/search-labs/blog/esql-data-federation-query-s3-elasticsearch) and [How to query Amazon S3 from Elasticsearch with ES|QL](https://www.elastic.co/search-labs/blog/query-parquet-ndjson-csv-s3-esql) blogs.

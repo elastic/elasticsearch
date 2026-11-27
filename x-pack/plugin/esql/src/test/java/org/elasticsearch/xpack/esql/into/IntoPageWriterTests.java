@@ -825,6 +825,29 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(e.getMessage(), containsString("ingest pipelines"));
     }
 
+    public void testNodeDoesNotSayWhyTheDestinationIsNoLongerEligible() {
+        IndexMetadata index = IndexMetadata.builder("dest")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "my-pipeline"))
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, true).build();
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> IntoPageWriter.Factory.requireBatchDestinationUnchanged(true, project, "dest")
+        );
+        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(e.getMessage(), not(containsString("pipeline")));
+    }
+
+    public void testNodeStillSaysThatBatchIndexingWasDisabled() {
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> IntoPageWriter.Factory.requireBatchDestinationUnchanged(false, project, "dest")
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("requires batch indexing"));
+    }
+
     public void testBatchIndexingDisabledIsRejected() {
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         ElasticsearchStatusException e = expectThrows(

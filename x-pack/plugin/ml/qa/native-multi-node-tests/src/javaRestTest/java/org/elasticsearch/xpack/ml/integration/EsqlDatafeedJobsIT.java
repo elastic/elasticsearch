@@ -13,7 +13,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
@@ -24,7 +27,10 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.junit.After;
@@ -33,19 +39,24 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.LongSummaryStatistics;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     private static final TimeValue BUCKET_SPAN = TimeValue.timeValueHours(1);
     // Large epoch-millis anchor: values of 10 digits or fewer are read as seconds by flush's skip_time. It must be a whole
-    // multiple of BUCKET_SPAN because the chunked extractor aligns the window to the grouping interval.
+    // multiple of BUCKET_SPAN because the chunked extractor aligns the window to the time bucket.
     private static final int ROW_LIMIT = Math.toIntExact(EsqlDataExtractor.INJECTED_ROW_LIMIT);
     private static final long BASE_TIME = 472_222 * BUCKET_SPAN.millis();
     private static final long FIRST_WINDOW_END = BASE_TIME + BUCKET_SPAN.millis();
@@ -113,20 +124,23 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     /**
      * When the row cap is hit, the rows that survive must be the earliest by time (the injected cap follows the time
-     * sort). Documents are indexed latest-first so that a cap applied before the sort would keep the latest rows
-     * in index order instead.
+     * sort). The later documents are indexed first so that a cap applied before the sort would let them in.
      */
     public void testEsqlDatafeedAtRowCapShouldKeepEarliestRowsByTime() throws Exception {
         String index = "esql-cap-order-oracle";
         String jobId = "esql-cap-order-job";
         String datafeedId = jobId + "-datafeed";
         createSourceIndex(index);
-        int totalDocs = ROW_LIMIT + 50;
         long firstEventTime = BASE_TIME + 1_000L;
+        int laterDocs = 50;
         BulkRequestBuilder bulk = client().prepareBulk();
-        for (int i = 0; i < totalDocs; i++) {
-            long eventTime = firstEventTime + (totalDocs - 1 - i);
-            bulk.add(new IndexRequest(index).source("event_time", eventTime, "value", i));
+        for (int i = 1; i <= laterDocs; i++) {
+            bulk.add(new IndexRequest(index).source("event_time", firstEventTime + i, "value", i));
+        }
+        // Raw rows keep source timestamps, so the extractor shrinks a truncated chunk by time. The rows that fill the cap
+        // share one timestamp so that no window can drop below it.
+        for (int i = 0; i < ROW_LIMIT; i++) {
+            bulk.add(new IndexRequest(index).source("event_time", firstEventTime, "value", laterDocs + 1 + i));
         }
         BulkResponse bulkResponse = bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         for (BulkItemResponse item : bulkResponse) {
@@ -140,16 +154,142 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         List<Map<String, Object>> rows = previewRows(datafeedId, BASE_TIME, FIRST_WINDOW_END);
 
+        // The cap rows tie on time, so check the exact set of unique values: no earliest document dropped or repeated.
+        Set<Long> expectedValues = LongStream.range(laterDocs + 1L, laterDocs + 1L + ROW_LIMIT).boxed().collect(Collectors.toSet());
+        Set<Long> actualValues = rows.stream().map(row -> ((Number) row.get("value")).longValue()).collect(Collectors.toSet());
         assertThat(rows.size(), equalTo(ROW_LIMIT));
-        LongSummaryStatistics eventTimes = rows.stream().mapToLong(row -> ((Number) row.get("event_time")).longValue()).summaryStatistics();
-        assertThat(eventTimes.getMin(), equalTo(firstEventTime));
-        assertThat(eventTimes.getMax(), equalTo(firstEventTime + ROW_LIMIT - 1L));
+        assertThat(actualValues, equalTo(expectedValues));
+        for (Map<String, Object> row : rows) {
+            assertThat(((Number) row.get("event_time")).longValue(), equalTo(firstEventTime));
+        }
+    }
+
+    public void testEsqlPreviewWithBothBoundsAboveDateNanosMaxShouldReturnNoRows() throws Exception {
+        String index = "esql-preview-beyond-nanos";
+        String jobId = "esql-preview-beyond-nanos-job";
+        String datafeedId = jobId + "-datafeed";
+        createSourceIndex(index);
+        indexDocuments(index, 1, BASE_TIME + 1_000L);
+        putJob(createJob(jobId));
+        putDatafeed(
+            createDatafeed(datafeedId, jobId, "FROM " + index + " | KEEP event_time, value", ChunkingConfig.newManual(BUCKET_SPAN))
+        );
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+
+        assertThat(previewRowCount(datafeedId, nanosMax + 2_000L, nanosMax + 5_000L), equalTo(0));
+    }
+
+    /**
+     * Records 6 hours old with a 1s bucket span leave about 21,600 empty buckets before real-time. Without the skip, the first
+     * real-time flush writes a bucket result for each of them. The short span keeps real-time fast to reach.
+     */
+    public void testRealtimeAfterSparseLookbackShouldSkipEmptyBuckets() throws Exception {
+        String index = "esql-sparse-realtime";
+        String jobId = "esql-sparse-realtime-job";
+        String datafeedId = jobId + "-datafeed";
+        TimeValue bucketSpan = TimeValue.timeValueSeconds(1);
+        long now = System.currentTimeMillis();
+        long firstBucket = Intervals.alignToFloor(now - TimeValue.timeValueHours(6).millis(), bucketSpan.millis());
+        // Autodetect never writes the bucket that holds the first record of a job, so the checked records go in the next one.
+        long lastRecordBucket = firstBucket + bucketSpan.millis();
+        int lastBucketRecords = 5;
+        createSourceIndex(index);
+        indexDocuments(index, 1, firstBucket + 500L);
+        indexDocuments(index, lastBucketRecords, lastRecordBucket + 500L);
+
+        putJob(createJob(jobId, bucketSpan));
+        putDatafeed(
+            new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + index + " | KEEP event_time, value")
+                .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueDays(1)))
+                .setFrequency(bucketSpan)
+                .setQueryDelay(bucketSpan)
+                .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+                .build()
+        );
+        openJob(jobId);
+        startDatafeed(datafeedId, firstBucket - TimeValue.timeValueDays(1).millis(), null);
+
+        // Real-time has run once the model holds a bucket in the last few minutes.
+        long recentBucketStart = Intervals.alignToFloor(now - TimeValue.timeValueSeconds(30).millis(), bucketSpan.millis());
+        assertBusy(() -> assertThat(bucketCount(jobId, recentBucketStart, Long.MAX_VALUE), greaterThan(0L)), 2, TimeUnit.MINUTES);
+
+        assertThat(bucketCount(jobId, 0, Long.MAX_VALUE), lessThan(1_000L));
+        // The skip must not drop the still open bucket that holds the last record.
+        GetBucketsAction.Request lastRecordBucketRequest = new GetBucketsAction.Request(jobId);
+        lastRecordBucketRequest.setTimestamp(Long.toString(lastRecordBucket));
+        List<Bucket> buckets = getBuckets(lastRecordBucketRequest);
+        assertThat(buckets.size(), equalTo(1));
+        assertThat(buckets.get(0).getEventCount(), equalTo((long) lastBucketRecords));
+        assertThat(getJobStats(jobId).get(0).getState(), equalTo(JobState.OPENED));
+        // Audit messages are written asynchronously, so wait for the skip message before asserting that no failure was audited.
+        assertBusy(() -> assertThat(fetchAllAuditMessages(jobId).toString(), containsString("Datafeed skipped")), 30, TimeUnit.SECONDS);
+        assertThat(fetchAllAuditMessages(jobId).toString(), not(containsString("could not skip")));
+
+        stopDatafeed(datafeedId);
+        closeJob(jobId);
+    }
+
+    /**
+     * A restart with a start time of now skips the model clock to that time and has no lookback range. The real-time gap
+     * check must start from that clock, so it neither skips the gap again nor sends a flush behind the clock.
+     */
+    public void testRestartWithStartNowAfterSparseLookbackShouldNotMoveModelClockBack() throws Exception {
+        String index = "esql-sparse-restart";
+        String jobId = "esql-sparse-restart-job";
+        String datafeedId = jobId + "-datafeed";
+        TimeValue bucketSpan = TimeValue.timeValueSeconds(1);
+        long firstBucket = Intervals.alignToFloor(System.currentTimeMillis() - TimeValue.timeValueHours(6).millis(), bucketSpan.millis());
+        long lastRecordBucket = firstBucket + bucketSpan.millis();
+        createSourceIndex(index);
+        indexDocuments(index, 1, firstBucket + 500L);
+        indexDocuments(index, 5, lastRecordBucket + 500L);
+
+        putJob(createJob(jobId, bucketSpan));
+        putDatafeed(
+            new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + index + " | KEEP event_time, value")
+                .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueDays(1)))
+                .setFrequency(bucketSpan)
+                .setQueryDelay(bucketSpan)
+                .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+                .build()
+        );
+        openJob(jobId);
+        runLookback(
+            datafeedId,
+            jobId,
+            firstBucket - TimeValue.timeValueDays(1).millis(),
+            firstBucket + TimeValue.timeValueHours(1).millis(),
+            6L
+        );
+
+        openJob(jobId);
+        long restartTime = System.currentTimeMillis();
+        startDatafeed(datafeedId, restartTime, null);
+        long recentBucketStart = Intervals.alignToFloor(restartTime + TimeValue.timeValueSeconds(2).millis(), bucketSpan.millis());
+        assertBusy(() -> assertThat(bucketCount(jobId, recentBucketStart, Long.MAX_VALUE), greaterThan(0L)), 2, TimeUnit.MINUTES);
+
+        // Audit messages are written asynchronously, so wait for the restart message before asserting that no skip was audited.
+        assertBusy(() -> assertThat(fetchAllAuditMessages(jobId).toString(), containsString("real-time")), 30, TimeUnit.SECONDS);
+        // The start time skip already moved the model clock, so no second skip over the same gap is audited.
+        assertThat(fetchAllAuditMessages(jobId).toString(), not(containsString("Datafeed skipped")));
+        assertThat(bucketCount(jobId, 0, Long.MAX_VALUE), lessThan(1_000L));
+
+        stopDatafeed(datafeedId);
+        closeJob(jobId);
+    }
+
+    private long bucketCount(String jobId, long start, long end) {
+        GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
+        request.setStart(Long.toString(start));
+        request.setEnd(Long.toString(end));
+        request.setPageParams(new PageParams(0, 0));
+        return client().execute(GetBucketsAction.INSTANCE, request).actionGet().getBuckets().count();
     }
 
     private void assertPreviewAndLookbackRowCount(String jobId, String query, long expectedRecords) throws Exception {
         String datafeedId = jobId + "-datafeed";
         putJob(createJob(jobId));
-        // ES|QL datafeeds require chunking (grouping-interval alignment and truncation detection depend on it);
+        // ES|QL datafeeds require chunking (time bucket alignment and truncation detection depend on it);
         // a manual chunk spanning the whole test window behaves like no chunking here.
         putDatafeed(createDatafeed(datafeedId, jobId, query, ChunkingConfig.newManual(BUCKET_SPAN)));
 
@@ -159,10 +299,14 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private Job.Builder createJob(String jobId) {
+        return createJob(jobId, BUCKET_SPAN);
+    }
+
+    private Job.Builder createJob(String jobId, TimeValue bucketSpan) {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
             Collections.singletonList(new Detector.Builder("count", null).build())
         );
-        analysisConfig.setBucketSpan(BUCKET_SPAN);
+        analysisConfig.setBucketSpan(bucketSpan);
         DataDescription.Builder dataDescription = new DataDescription.Builder().setTimeField("event_time");
         return new Job.Builder(jobId).setAnalysisConfig(analysisConfig).setDataDescription(dataDescription);
     }
@@ -171,8 +315,6 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         // These tests exercise LIMIT injection and chunk-truncation auditing, not delayed
         // data detection, which for ES|QL datafeeds separately requires summary_count_field_name.
         return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery(query)
-            .setSourceTimeField("event_time")
-            .setGroupingInterval(BUCKET_SPAN)
             .setChunkingConfig(chunkingConfig)
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
             .build();

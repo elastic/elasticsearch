@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167492
+summary: Report the DESCRIBE columns in column metadata
+type: enhancement

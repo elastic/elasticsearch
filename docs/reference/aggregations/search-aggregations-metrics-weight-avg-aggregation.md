@@ -2,6 +2,9 @@
 navigation_title: "Weighted avg"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-weight-avg-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Weighted avg aggregation [search-aggregations-metrics-weight-avg-aggregation]

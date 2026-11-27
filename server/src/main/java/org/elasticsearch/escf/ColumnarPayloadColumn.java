@@ -89,8 +89,8 @@ public final class ColumnarPayloadColumn extends LuceneBinaryColumn {
 
     @Override
     protected IndexableField fieldFor(int doc, BytesRef value) {
-        // A plain Field cannot carry the valueless type over a BytesRef — it is tokenized, and that constructor rejects it — and
-        // would be inverted as the single term its bytes spell. The payload field states the type and inverts into nothing.
+        // A plain Field would be inverted as the single term its bytes spell, and cannot carry a tokenized valueless type over a BytesRef
+        // at all, since that constructor rejects it. The payload field states the type and inverts into nothing.
         if (valuelessDocs.get(doc)) {
             return ColumnarBinaryDocValuesField.encoded(name(), value, false, typeWhenValueless);
         }

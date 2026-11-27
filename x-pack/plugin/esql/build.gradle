@@ -103,6 +103,7 @@ dependencies {
     exclude(group: "org.elasticsearch.plugin", module: "esql")
   }
   testImplementation(testArtifact(project(xpackModule('inference'))))
+  testImplementation(testArtifact(project(xpackModule('diskbbq'))))
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
   testImplementation project(path: xpackModule('inference'))
@@ -138,6 +139,7 @@ dependencies {
   testImplementation project(path: ':modules:mapper-extras')
   testImplementation project(path: ':modules:user-agent')
   testImplementation project(xpackModule('esql:compute:test'))
+  testImplementation project(xpackModule('mapper-aggregate-metric'))
   testImplementation('ch.obermuhlner:big-math:2.3.2')
   // PlanFieldSafePublicationTests reads the bytecode of plan classes to check how they assign lazily computed fields.
   testImplementation 'org.ow2.asm:asm:9.11.1'

@@ -1,0 +1,86 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ partially_unmapped_conflict_index_count ]
+      reason: 'the index counts of a type conflict were wrong with unmapped_fields="load"'
+  #
+  # | Field | idx_count_l1 .. idx_count_l5 | idx_count_kw | idx_count_unmapped |
+  # |-------|------------------------------|--------------|--------------------|
+  # | f     | long                         | keyword      | -                  |
+  #
+  - do:
+      indices.create:
+        index: idx_count_l1
+        body:
+          mappings:
+            properties:
+              f:
+                type: long
+  - do:
+      indices.create:
+        index: idx_count_l2
+        body:
+          mappings:
+            properties:
+              f:
+                type: long
+  - do:
+      indices.create:
+        index: idx_count_l3
+        body:
+          mappings:
+            properties:
+              f:
+                type: long
+  - do:
+      indices.create:
+        index: idx_count_l4
+        body:
+          mappings:
+            properties:
+              f:
+                type: long
+  - do:
+      indices.create:
+        index: idx_count_l5
+        body:
+          mappings:
+            properties:
+              f:
+                type: long
+  - do:
+      indices.create:
+        index: idx_count_kw
+        body:
+          mappings:
+            properties:
+              f:
+                type: keyword
+  - do:
+      indices.create:
+        index: idx_count_unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+---
+'index counts of a type conflict, with and without unmapped_fields load':
+  # Only three indices of each type are listed, the others are counted
+  - do:
+      catch: '/\[long\] in \[idx_count_l1, idx_count_l2, idx_count_l3\] and \[2\] other indices/'
+      esql.query:
+        body:
+          query: 'FROM idx_count_* | EVAL x = f + 1'
+  - do:
+      catch: '/\[long\] in \[idx_count_l1, idx_count_l2, idx_count_l3\] and \[2\] other indices/'
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM idx_count_* | EVAL x = f + 1'

@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -184,6 +185,8 @@ public class PainlessContextAction {
 
     public static class RestAction extends BaseRestHandler {
 
+        private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(SCRIPT_CONTEXT_NAME_PARAM);
+
         @Override
         public List<Route> routes() {
             return List.of(new Route(GET, "/_scripts/painless/_context"));
@@ -200,5 +203,11 @@ public class PainlessContextAction {
             request.setScriptContextName(restRequest.param(SCRIPT_CONTEXT_NAME_PARAM));
             return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
         }
+
+        @Override
+        public Set<String> supportedQueryParameters() {
+            return SUPPORTED_QUERY_PARAMETERS;
+        }
+
     }
 }

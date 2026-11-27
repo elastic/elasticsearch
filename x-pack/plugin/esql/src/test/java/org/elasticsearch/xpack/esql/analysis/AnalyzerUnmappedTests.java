@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -1182,6 +1183,26 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     private static final String AMBIGUOUS_FOO = "Cannot use field [foo] due to ambiguities";
 
+    /**
+     * [foo] is long in more indices than the error message lists, keyword in another one and unmapped in the last one: the message
+     * still counts the indices it doesn't list.
+     */
+    public void testPartiallyUnmappedConflictCountsUnlistedIndices() {
+        List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            responses.add(fieldCapabilitiesIndexResponse("idx_long" + i, fieldResponseMap(Map.of("foo", "long", "k", "keyword"))));
+        }
+        responses.add(fieldCapabilitiesIndexResponse("idx_keyword", fieldResponseMap(Map.of("foo", "keyword", "k", "keyword"))));
+        responses.add(fieldCapabilitiesIndexResponse("idx_unmapped", fieldResponseMap("k", "keyword")));
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(responses, List.of());
+
+        analyzer().addIndex("idx*", mergedResolution("idx*", caps, true))
+            .statementError(
+                setUnmappedLoad("FROM idx* | EVAL x = foo + 1"),
+                allOf(containsString(AMBIGUOUS_FOO), containsString("[long] in [idx_long1, idx_long2, idx_long3] and [2] other indices"))
+            );
+    }
+
     /** [foo] is double in idx1, long in idx2 and unmapped in idx3; [k] is keyword everywhere. */
     private TestAnalyzer partiallyUnmappedFoo() {
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
@@ -1212,20 +1233,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         )) {
             assertThat(outputNames(analyzer().addK8s().addView("v", body).statement(set.apply("FROM v"))), equalTo(expected));
         }
-    }
-
-    /**
-     * The {@code LOAD_ALL} command allow-list checks a view body under the view's own mode, not the caller's: a command that
-     * {@code LOAD_ALL} does not support, here {@code ROW}, is allowed in a view the caller reads with {@code LOAD_ALL}, but still
-     * rejected in a plain subquery next to it, which the caller's mode does reach. Use another command here when {@code ROW} is
-     * supported.
-     */
-    public void testLoadAllCommandAllowListStopsAtView() {
-        String body = "ROW a = 1";
-        analyzer().addK8s().addView("v", body).statement(setUnmappedLoadAll("FROM v"));
-        analyzer().addK8s()
-            .addView("v", body)
-            .statementError(setUnmappedLoadAll("FROM v, (" + body + ")"), containsString(Verifier.loadAllUnsupportedCommandMessage("ROW")));
     }
 
     private static List<String> outputNames(LogicalPlan plan) {
@@ -2467,6 +2474,25 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("PROMQL index=test step=5m avg(network.bytes_in)"),
                 containsString("PROMQL is not supported with unmapped_fields=\"load_all\"")
             );
+    }
+
+    /**
+     * The setting ends at the boundary of a view, so a view that does not set it may use PROMQL, though the query that uses the view
+     * runs under LOAD_ALL. The same PROMQL written in the query itself is still rejected.
+     */
+    public void testLoadAllModeAllowsPromQlInsideAViewThatDoesNotLoad() {
+        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        String promql = "PROMQL index=test step=5m avg(network.bytes_in)";
+        // A range selector makes the plan carry the time-series dimension nodes, which LOAD_ALL has to admit too.
+        String promqlRate = "PROMQL index=test step=5m rate(network.bytes_in[5m])";
+        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .addView("promql_view", promql)
+            .addView("promql_rate_view", promqlRate);
+
+        analyzer.statement(setUnmappedLoadAll("FROM promql_view"));
+        analyzer.statement(setUnmappedLoadAll("FROM promql_view | LIMIT 10"));
+        analyzer.statement(setUnmappedLoadAll("FROM promql_rate_view"));
+        analyzer.statementError(setUnmappedLoadAll(promql), containsString("PROMQL is not supported with unmapped_fields=\"load_all\""));
     }
 
     /**

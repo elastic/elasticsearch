@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -25,8 +26,13 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Links the date buckets of a plan to the interval and time zone they were bucketed with.
@@ -49,33 +55,18 @@ public final class ColumnIntervals {
 
     /**
      * Returns the interval of every column of {@code plan} that buckets dates with a constant interval, keyed by
-     * attribute id. Renames keep it, and so do merges whose branches bucket the same way. Bucket arguments are
-     * folded with {@code foldContext}.
+     * attribute id. Renames keep it, and so do merges whose branches bucket the same way. Only the interval arguments of
+     * buckets are folded, with {@code foldContext}, since other constants, such as inference functions, may not fold yet.
      */
     public static Map<NameId, Interval> collect(LogicalPlan plan, FoldContext foldContext) {
-        Map<NameId, Literal> constants = new HashMap<>();
+        Constants constants = new Constants(foldContext);
         Map<NameId, Bucketing> buckets = new HashMap<>();
         plan.forEachUp(node -> {
             node.forEachExpression(Alias.class, alias -> {
-                if (alias.child() instanceof Attribute source) {
-                    Bucketing bucketing = buckets.get(source.id());
-                    if (bucketing != null) {
-                        buckets.put(alias.id(), bucketing);
-                    }
-                    Literal constant = constants.get(source.id());
-                    if (constant != null) {
-                        constants.put(alias.id(), constant);
-                    }
-                    return;
-                }
-                Expression child = alias.child().transformUp(ReferenceAttribute.class, r -> {
-                    Literal constant = constants.get(r.id());
-                    return constant != null ? constant : r;
-                });
-                if (child.foldable()) {
-                    constants.put(alias.id(), Literal.of(foldContext, child));
-                }
-                Bucketing bucketing = of(child, foldContext);
+                constants.define(alias);
+                Bucketing bucketing = alias.child() instanceof Attribute source
+                    ? buckets.get(source.id())
+                    : of(alias.child(), constants, foldContext);
                 if (bucketing != null) {
                     buckets.put(alias.id(), bucketing);
                 }
@@ -89,7 +80,80 @@ public final class ColumnIntervals {
         return intervals;
     }
 
-    private static Bucketing of(Expression e, FoldContext foldContext) {
+    /**
+     * The aliases of a plan, folded on demand, each at most once, so that only the ones a bucket reads are folded.
+     */
+    private static final class Constants {
+        private final FoldContext foldContext;
+        private final Map<NameId, Expression> definitions = new HashMap<>();
+        private final Map<NameId, Optional<Literal>> folded = new HashMap<>();
+
+        Constants(FoldContext foldContext) {
+            this.foldContext = foldContext;
+        }
+
+        void define(Alias alias) {
+            definitions.put(alias.id(), alias.child());
+        }
+
+        /**
+         * {@code e} with every reference to a constant alias replaced by its value.
+         */
+        Expression resolve(Expression e) {
+            return e.transformUp(ReferenceAttribute.class, r -> {
+                Literal value = value(r.id());
+                return value != null ? value : r;
+            });
+        }
+
+        /**
+         * The value of the alias {@code id}, or {@code null} if it is not constant. The aliases it reads are folded first,
+         * from a worklist rather than by recursion, so that long chains of aliases don't grow the stack.
+         */
+        @Nullable
+        private Literal value(NameId id) {
+            Optional<Literal> cached = folded.get(id);
+            if (cached != null) {
+                return cached.orElse(null);
+            }
+            Deque<NameId> pending = new ArrayDeque<>();
+            pending.push(id);
+            while (pending.isEmpty() == false) {
+                NameId next = pending.peek();
+                if (folded.containsKey(next)) {
+                    pending.pop();
+                    continue;
+                }
+                Expression definition = definitions.get(next);
+                if (definition == null) {
+                    folded.put(next, Optional.empty());
+                    pending.pop();
+                    continue;
+                }
+                int before = pending.size();
+                definition.forEachDown(ReferenceAttribute.class, r -> {
+                    if (folded.containsKey(r.id()) == false) {
+                        pending.push(r.id());
+                    }
+                });
+                if (pending.size() == before) {
+                    pending.pop();
+                    Expression resolved = resolve(definition);
+                    folded.put(next, resolved.foldable() ? Optional.of(Literal.of(foldContext, resolved)) : Optional.empty());
+                }
+            }
+            return folded.get(id).orElse(null);
+        }
+    }
+
+    private static Bucketing of(Expression e, Constants constants, FoldContext foldContext) {
+        e = switch (e) {
+            case Bucket bucket -> resolveInterval(bucket, 0, constants);
+            case TBucket tbucket -> resolveInterval(tbucket, 1, constants);
+            case TStep tstep -> resolveInterval(tstep, 1, constants);
+            case DateTrunc dateTrunc -> resolveInterval(dateTrunc, 1, constants);
+            default -> e;
+        };
         if (e instanceof Bucket bucket) {
             return bucket.field().dataType().isDate() ? of(bucket, foldContext) : null;
         }
@@ -109,6 +173,20 @@ public final class ColumnIntervals {
             return of(dateTrunc.timeBucketSpecRef(), foldContext);
         }
         return null;
+    }
+
+    /**
+     * {@code bucket} with the constant aliases its interval arguments read replaced by their values. The dates it buckets,
+     * its child at {@code datesIndex}, are left as they are, since they don't change the interval and may not fold yet.
+     */
+    private static Expression resolveInterval(Expression bucket, int datesIndex, Constants constants) {
+        List<Expression> children = new ArrayList<>(bucket.children());
+        for (int i = 0; i < children.size(); i++) {
+            if (i != datesIndex) {
+                children.set(i, constants.resolve(children.get(i)));
+            }
+        }
+        return bucket.replaceChildrenSameSize(children);
     }
 
     /**

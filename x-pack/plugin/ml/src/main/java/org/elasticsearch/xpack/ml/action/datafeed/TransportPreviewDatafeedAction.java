@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.MachineLearningExtensionHolder;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -223,6 +225,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
+                DatafeedSearchTelemetry.NOOP,
                 responseHeaderPreservingListener.delegateFailure(
                     (l, dataExtractorFactory) -> isDateNanos(
                         previewClient,
@@ -245,28 +248,47 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         ActionListener<PreviewDatafeedAction.Response> listener
     ) {
         final long start = request.getStartTime().orElse(0);
-        final long end = resolvePreviewEndTime(request, isDateNanos, datafeed);
+        final long end = resolvePreviewEndTime(request, isDateNanos, datafeed, dataExtractorFactory.timeBucketMillis());
+        if (isEmptyEsqlPreviewWindow(datafeed, start, end)) {
+            listener.onResponse(new PreviewDatafeedAction.Response(new BytesArray("[]")));
+            return;
+        }
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, listener));
     }
 
     /**
-     * Visible for testing
+     * Whether the date_nanos cap in {@link #resolvePreviewEndTime} left an ES|QL window that ends before it starts, which
+     * the extractor factory rejects. Visible for testing.
      */
-    static long resolvePreviewEndTime(PreviewDatafeedAction.Request request, boolean isDateNanos, DatafeedConfig datafeed) {
+    static boolean isEmptyEsqlPreviewWindow(DatafeedConfig datafeed, long start, long end) {
+        return datafeed.getEsqlQuery() != null && start > end;
+    }
+
+    /**
+     * {@code describedBucketMs} is the bucket interval DESCRIBE reported for the ES|QL time column, 0 when the rows keep source
+     * timestamps. Visible for testing.
+     */
+    static long resolvePreviewEndTime(
+        PreviewDatafeedAction.Request request,
+        boolean isDateNanos,
+        DatafeedConfig datafeed,
+        long describedBucketMs
+    ) {
         long cap = isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE;
         if (request.getEndTime().isPresent() == false) {
             return cap;
         }
         long end = request.getEndTime().getAsLong();
-        if (datafeed.getEsqlQuery() == null) {
-            return end;
+        if (describedBucketMs <= 0) {
+            // Raw ES|QL still needs the date_nanos cap; DSL keeps the requested end.
+            return datafeed.getEsqlQuery() != null ? Math.min(end, cap) : end;
         }
-        // An ES|QL datafeed emits one row per grouping-interval bucket, stamped with the bucket start, and the
+        // A bucketed ES|QL datafeed emits one row per DESCRIBE-interval bucket, stamped with the bucket start, and the
         // extractor factory floors the window end so an open bucket is never extracted. A preview is a
         // diagnostic view of the requested range, so round the end up to keep the bucket containing it
         // (otherwise a range that ends or sits inside a single bucket previews as empty even though it has data).
-        long alignedEnd = Intervals.alignToCeil(end, datafeed.getGroupingInterval().millis());
+        long alignedEnd = Intervals.alignToCeil(end, describedBucketMs);
         // alignToCeil overflows (wraps negative) near Long.MAX_VALUE and may exceed the date_nanos max.
         return (alignedEnd < end || alignedEnd > cap) ? cap : alignedEnd;
     }

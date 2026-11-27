@@ -28,7 +28,6 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -37,9 +36,11 @@ import java.util.zip.GZIPOutputStream;
  * FFI binding to libzstd in {@code esql-datasource-compression-libs} (the same binding Lucene's
  * {@code ZstdCompressionMode} uses since 8.14), avoiding zstd-jni's
  * {@code GetPrimitiveArrayCritical} G1GC region pinning. Snappy and the LZ4 fallback still use
- * JNI (snappy-java, aircompressor); GZIP uses the JDK. Decompressors and compressors are created
- * lazily on first use so native libraries are only loaded when a Parquet file actually uses that
- * codec.
+ * JNI (snappy-java, aircompressor); GZIP uses the JDK. Data-page GZIP inflate reuses one
+ * {@link java.util.zip.Inflater} owned by {@link PrefetchedPageReader}; the gzip decompressor
+ * itself stays a singleton. Dictionary pages and {@code decompress(BytesInput, int)} still
+ * allocate a {@link java.util.zip.GZIPInputStream}. Decompressors and compressors are created lazily on first
+ * use so native libraries are only loaded when a Parquet file actually uses that codec.
  *
  * <p>This replaces Parquet-MR's default {@code CodecFactory} which requires Hadoop's
  * {@code Configuration} and pulls in ~50MB of Hadoop JARs.
@@ -368,23 +369,17 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
         public void release() {}
     }
 
-    private static class GzipBytesDecompressor implements HeapDestDecompressor {
+    /**
+     * Singleton gzip decompressor. Mutable {@link java.util.zip.Inflater} state lives on
+     * {@link PrefetchedPageReader}, not here: {@link #getDecompressor} must keep returning one
+     * instance. Data pages call {@link GzipPageInflater#inflate}; this class is the
+     * {@link java.util.zip.GZIPInputStream} fallback for dictionary pages and the parquet-mr
+     * {@code decompress(BytesInput, int)} path.
+     */
+    static class GzipBytesDecompressor implements HeapDestDecompressor {
         @Override
         public void decompressInto(BytesInput compressed, byte[] dest, int destLen) throws IOException {
-            requireDestCapacity(dest, destLen);
-            try (GZIPInputStream gis = new GZIPInputStream(compressed.toInputStream())) {
-                int off = 0;
-                while (off < destLen) {
-                    int read = gis.read(dest, off, destLen - off);
-                    if (read < 0) {
-                        throw new IOException("Premature end of GZIP stream: expected " + destLen + " bytes, got " + off);
-                    }
-                    off += read;
-                }
-                if (gis.read() >= 0) {
-                    throw new IOException("GZIP stream produced more than " + destLen + " uncompressed bytes declared by the page header");
-                }
-            }
+            GzipPageInflater.decompressWithInputStream(compressed, dest, destLen);
         }
 
         @Override

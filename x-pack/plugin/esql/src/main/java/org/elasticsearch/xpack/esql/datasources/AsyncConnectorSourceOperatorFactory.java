@@ -136,7 +136,9 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     @Override
     public SourceOperator get(DriverContext driverContext) {
         started.set(true);
-        QueryRequest request = baseRequest.withBlockFactory(driverContext.blockFactory());
+        // Connectors build pages on the producer thread, so bind the per-query parent factory rather than the
+        // driver-local one, whose LocalCircuitBreaker is not thread-safe.
+        QueryRequest request = baseRequest.withBlockFactory(AsyncExternalSourceOperatorFactory.producerBlockFactory(driverContext));
         long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
         Releasable operatorHold = null;
         boolean refsTaken = false;

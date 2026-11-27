@@ -6,6 +6,6 @@ ROW into_long = [1, 2, 3]
 | INTO into_destination
 ;
 
-total:long | created:long
-3          | 3
+total:long | created:long | failures:long | failure_details:keyword
+3          | 3            | 0             | null
 ;

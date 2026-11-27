@@ -169,7 +169,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
     protected final ReindexSettings reindexSettings;
     private final CircuitBreaker circuitBreaker;
-    private final String breakerLabel;
+    private final String bulkBreakerLabel;
+    private final String searchHitsBreakerLabel;
 
     protected CircuitBreaker getCircuitBreaker() {
         return circuitBreaker;
@@ -193,7 +194,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
         CircuitBreaker circuitBreaker,
-        String breakerLabel
+        String bulkBreakerLabel,
+        String searchHitsBreakerLabel
     ) {
         this(
             task,
@@ -215,7 +217,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             maxTaskShutdownGracePeriod,
             reindexSettings,
             circuitBreaker,
-            breakerLabel
+            bulkBreakerLabel,
+            searchHitsBreakerLabel
         );
     }
 
@@ -239,7 +242,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
         CircuitBreaker circuitBreaker,
-        String breakerLabel
+        String bulkBreakerLabel,
+        String searchHitsBreakerLabel
     ) {
         this.task = task;
         this.scriptService = scriptService;
@@ -264,7 +268,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         this.remoteVersion = remoteVersion;
         this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
-        this.breakerLabel = Objects.requireNonNull(breakerLabel);
+        this.bulkBreakerLabel = Objects.requireNonNull(bulkBreakerLabel);
+        this.searchHitsBreakerLabel = Objects.requireNonNull(searchHitsBreakerLabel);
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
         paginatedHitSource = buildPaginatedSearchResultSource(
             backoffPolicy,
@@ -426,7 +431,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                     bulkRequest.add(request.self());
                     long delta = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
                     if (delta >= reindexSettings.getMemoryAccountingThresholdInBytes()) {
-                        circuitBreaker.addEstimateBytesAndMaybeBreak(delta, breakerLabel);
+                        circuitBreaker.addEstimateBytesAndMaybeBreak(delta, bulkBreakerLabel);
                         reservedBytes.addAndGet(delta);
                     }
                 }
@@ -435,7 +440,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         // Reserve any bytes not yet covered by threshold checks above
         long remaining = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
         if (remaining > 0) {
-            circuitBreaker.addEstimateBytesAndMaybeBreak(remaining, breakerLabel);
+            circuitBreaker.addEstimateBytesAndMaybeBreak(remaining, bulkBreakerLabel);
             reservedBytes.addAndGet(remaining);
         }
         return bulkRequest;
@@ -453,7 +458,10 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                 this::finishHim,
                 searchClient,
                 searchRequest,
-                searchContextKeepaliveDeadline
+                searchContextKeepaliveDeadline,
+                circuitBreaker,
+                searchHitsBreakerLabel,
+                reindexSettings::getMemoryAccountingThresholdInBytes
             );
         }
         // Default to scroll
@@ -466,7 +474,10 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             this::finishHim,
             searchClient,
             searchRequest,
-            searchContextKeepaliveDeadline
+            searchContextKeepaliveDeadline,
+            circuitBreaker,
+            searchHitsBreakerLabel,
+            reindexSettings::getMemoryAccountingThresholdInBytes
         );
     }
 
@@ -631,7 +642,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         final Releasable cleanup = Releasables.wrap(releaseBatchHits, () -> {
             long r = reservedBytes.getAndSet(0);
             if (r > 0) circuitBreaker.addWithoutBreaking(-r);
-            asyncResponse.response().closeBodyReleasable();
+            asyncResponse.releaseChargeIfConsumed();
         });
         boolean cleanupHandedOff = false;
         try {
@@ -1395,6 +1406,16 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
          */
         void releaseRemainingHits() {
             releaseRemainingHitsOnce.close();
+        }
+
+        /**
+         * Releases the breaker charge for the page once all its hits have been consumed. Hits left for a later batch ({@code maxDocs})
+         * keep it charged; that batch, or {@link #releaseRemainingHits()}, releases it.
+         */
+        void releaseChargeIfConsumed() {
+            if (hasRemainingHits() == false) {
+                asyncResponse.response().closeBodyReleasable();
+            }
         }
 
         private void doReleaseRemainingHits() {

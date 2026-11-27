@@ -957,6 +957,15 @@ teardown:
           {"index": { "_id": "12" }}
           {"content_embedding":{"cats": 0.1 }}
 
+  # Force merge to a single segment so that the term statistics used by token pruning are the same however many
+  # segments the bulk request produced. Otherwise the default pruning can flip between runs.
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.forcemerge:
+        index: test-sparse-vector-pruning-default
+        max_num_segments: 1
+
   - do:
       search:
         index: test-sparse-vector-pruning-default

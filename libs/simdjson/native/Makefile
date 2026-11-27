@@ -16,7 +16,8 @@
 #
 # Intended to be run inside the shared cross-compilation toolchain container
 # (es-native-cross-toolchain:8 — clang-21, GCC 8 libstdc++ cross libs, and llvm-mingw;
-# the open-source Darwin sysroot baked in). See publish_simdjson_binaries.sh.
+# the open-source Darwin sysroot baked in). Gradle runs it through the nativeLibraryBuild block in
+# ../build.gradle; see libs/native-toolchain/README.md.
 #
 # Linux cross builds pin libstdc++ to GCC 8 (GLIBCXX_3.4.25) while keeping
 # clang-21 codegen. Clang supplies intrinsics/SIMD headers; only C++ stdlib

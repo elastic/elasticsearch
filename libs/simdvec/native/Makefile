@@ -17,7 +17,8 @@
 #
 # Intended to be run inside the cross-compilation toolchain container
 # (es-native-cross-toolchain:8 — clang-21 plus GCC 8 libstdc++ cross libs and llvm-mingw;
-# the open-source Darwin sysroot baked in). See publish_vec_binaries.sh.
+# the open-source Darwin sysroot baked in). Gradle runs it through the nativeLibraryBuild block in
+# ../build.gradle; see libs/native-toolchain/README.md.
 
 HEADERS    = -I src/vec/headers/
 CXXFLAGS   = -std=c++17 -O3 -fpic -g -fstandalone-debug -DNDEBUG

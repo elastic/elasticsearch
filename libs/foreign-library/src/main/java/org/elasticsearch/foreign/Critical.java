@@ -20,13 +20,27 @@ import java.lang.annotation.Target;
  * calls, which is faster for short, leaf-style functions but forbids upcalls back into Java and
  * pins any on-heap {@link java.lang.foreign.MemorySegment} arguments for the duration of the call.
  *
- * <p>Use {@code @Critical} for hot, well-bounded native routines such as compression primitives.
- * Pair it with {@link Function @Function} on the same method:
+ * <p>Only bind a function this way if it is critical in the sense of the JDK's
+ * {@code Linker.Option.critical(boolean)}: it has "an extremely short running time in all cases (similar
+ * to calling an empty function)" and never calls back into Java. Linking any other function as critical
+ * "is likely to have adverse effects, such as loss of performance or JVM crashes". {@code memcmp} on a
+ * small buffer qualifies; a function that can block or run for long, such as {@code fread}, does not.
+ *
+ * <p>A critical call also has a cost outside its own thread. A thread inside a critical call cannot
+ * respond to the JVM-wide handshake that closing a shared {@link java.lang.foreign.Arena} requires, so
+ * every such close elsewhere in the process waits until the call returns
+ * (see <a href="https://github.com/elastic/elasticsearch/issues/160667">#160667</a>). Prefer passing
+ * off-heap segments to a binding without {@code @Critical}. Add a {@code @Critical} overload that takes
+ * heap segments only when copying the data off-heap is measurably too expensive, and keep it next to an
+ * off-heap twin that has no {@code @Critical}:
  *
  * <pre>{@code
- * @Function("ZSTD_decompress")
- * @Critical
- * long decompressHeap(MemorySegment dst, long dstCap, MemorySegment src, long srcSize);
+ * @Function("memcmp")
+ * int memcmp(MemorySegment a, MemorySegment b, long n);
+ *
+ * @Function("memcmp")
+ * @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+ * int memcmpHeap(MemorySegment a, MemorySegment b, long n);
  * }</pre>
  *
  * <h2>JDK 21 fallback (required)</h2>

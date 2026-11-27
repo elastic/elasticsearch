@@ -16,6 +16,7 @@ import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
@@ -42,5 +43,53 @@ public class RpmMetadataTests extends PackagingTestCase {
 
         String oppositePackageName = "elasticsearch-oss";
         TestCase.assertTrue(Pattern.compile("(?m)^" + oppositePackageName + "\\s*$").matcher(conflicts.stdout()).find());
+    }
+
+    /**
+     * Config files must be flagged both {@code config} and {@code noreplace} so that an upgrade keeps administrator edits in place
+     * and writes the packaged version to {@code .rpmnew} instead of overwriting them.
+     */
+    public void test12ConfigFilesAreNoReplace() {
+        assumeTrue(Platforms.isRPM());
+
+        final Shell sh = new Shell();
+        final Shell.Result result = sh.run("rpm -qp --qf '[%{FILEFLAGS:fflags} %{FILENAMES}\\n]' " + getDistributionFile(distribution()));
+
+        for (String configFile : List.of(
+            "/etc/elasticsearch/elasticsearch.yml",
+            "/etc/elasticsearch/jvm.options",
+            "/etc/elasticsearch/log4j2.properties",
+            "/etc/sysconfig/elasticsearch",
+            "/usr/lib/systemd/system/elasticsearch.service",
+            "/usr/lib/sysctl.d/elasticsearch.conf"
+        )) {
+            TestCase.assertTrue(
+                "expected [" + configFile + "] to be flagged config and noreplace in:\n" + result.stdout(),
+                Pattern.compile("(?m)^cn " + Pattern.quote(configFile) + "$").matcher(result.stdout()).find()
+            );
+        }
+    }
+
+    /**
+     * The package must own the intermediate directories of its installation tree so that the package manager removes them on
+     * uninstallation instead of leaving them behind.
+     */
+    public void test13InstallationDirectoriesAreOwned() {
+        assumeTrue(Platforms.isRPM());
+
+        final Shell sh = new Shell();
+        final Shell.Result result = sh.run("rpm -qp --qf '[%{FILEMODES:perms} %{FILENAMES}\\n]' " + getDistributionFile(distribution()));
+
+        for (String directory : List.of(
+            "/usr/share/elasticsearch/bin",
+            "/usr/share/elasticsearch/lib",
+            "/usr/share/elasticsearch/modules",
+            "/usr/share/elasticsearch/jdk"
+        )) {
+            TestCase.assertTrue(
+                "expected directory entry for [" + directory + "] in:\n" + result.stdout(),
+                Pattern.compile("(?m)^d\\S* " + Pattern.quote(directory) + "$").matcher(result.stdout()).find()
+            );
+        }
     }
 }

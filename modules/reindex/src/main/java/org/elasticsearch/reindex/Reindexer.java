@@ -1038,7 +1038,8 @@ public class Reindexer {
                 maxTaskShutdownGracePeriod,
                 reindexSettings,
                 requestBreaker,
-                "reindex_bulk_batch"
+                "reindex_bulk_batch",
+                "reindex_search_hits"
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idTransformerForReindex();
             this.destinationSliceEnabled = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && destinationSliceEnabled(state);

@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.P
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_ACCOUNTS;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_DAY_END;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_DAY_START;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_DENSE_FILES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_GLOB;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_MATCHING_FILES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_PREFIX;
@@ -650,6 +651,77 @@ public class ListingWalkHarnessTests extends ESTestCase {
         FileList walked = expand(walk, RETENTION_HIVE_GLOB, hints, MAX, pred);
         assertEquals(RETENTION_HIVE_ACCOUNTS, walked.fileCount());
         assertTrue("uniformly sparse RULE must prefix-list the dataset", walk.listedPrefixes().contains(RETENTION_HIVE_PREFIX + "/"));
+    }
+
+    /**
+     * Quiet first survivor + huge second: the second probe samples {@code MIN_FINISH_SAMPLE} then streams
+     * through the collector, so {@code max_discovered_files} fires without buffering the whole folder.
+     */
+    public void testQuietFirstHugeSecondDoesNotBufferWholeDir() {
+        List<StorageEntry> tree = new ArrayList<>(retentionHiveTree());
+        String hugeDir = RETENTION_HIVE_PREFIX + "/account=a01/year=2026/month=01/day=01/";
+        for (int i = RETENTION_HIVE_DENSE_FILES; i < 2500; i++) {
+            tree.add(ListingWalkHarness.entry(hugeDir + "f-" + i + ".parquet"));
+        }
+        List<Expression> filters = List.of(window(RETENTION_HIVE_DAY_START, RETENTION_HIVE_DAY_END));
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        expectThrows(DiscoveredFilesLimitException.class, () -> expand(walk, RETENTION_HIVE_GLOB, hints, 50, pred));
+        int huge = walk.keysPulled.getOrDefault(hugeDir, 0);
+        assertThat(
+            "second dir must not be fully buffered before the cap",
+            huge,
+            lessThanOrEqualTo(50 + PartitionPruningWalk.MIN_FINISH_SAMPLE)
+        );
+        assertThat(
+            "must stream past the sample, not flatten after it",
+            huge,
+            greaterThanOrEqualTo(PartitionPruningWalk.MIN_FINISH_SAMPLE + 1)
+        );
+        assertThat(walk.listedPrefixes(), not(hasItem(RETENTION_HIVE_PREFIX + "/")));
+    }
+
+    /**
+     * TEMPLATE finish: two glob dirs so {@code year=2024/2025/a.parquet} is listed. Collector
+     * {@code fileBindings} bind {@code {year}} to 2025 (filename dropped). Hive pathBindings would drop it.
+     */
+    public void testTemplateCollectorFolderRangeKeepsMixedHivePrefixFile() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/data/year=2024/2024/b.parquet"),
+            ListingWalkHarness.entry("s3://bucket/data/year=2024/2025/a.parquet")
+        );
+        FolderRangePredicate year2025 = new FolderRangePredicate() {
+            @Override
+            public boolean mayContain(Map<String, String> boundKeyValues) {
+                String year = boundKeyValues.get("year");
+                return year == null || "2025".equals(year);
+            }
+
+            @Override
+            public String identity() {
+                return "year=2025";
+            }
+
+            @Override
+            public List<String> bindKeys() {
+                return List.of("year");
+            }
+        };
+        Map<String, Object> template = Map.of(
+            PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+            "template",
+            PartitionConfig.CONFIG_PARTITIONING_PATH,
+            "{year}"
+        );
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList result = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> expand(walk, "s3://bucket/data/*/*/*.parquet", null, MAX, template, year2025)
+        );
+        assertEquals(List.of("s3://bucket/data/year=2024/2025/a.parquet"), pathsOf(result));
+        assertThat(walk.listChildrenRequests(), greaterThanOrEqualTo(1));
+        assertThat("finish must not prefix-drain the dataset", walk.listedPrefixes(), not(hasItem("s3://bucket/data/")));
     }
 
     /**

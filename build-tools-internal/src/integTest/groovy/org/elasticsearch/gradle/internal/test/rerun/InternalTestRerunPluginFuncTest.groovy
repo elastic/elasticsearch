@@ -136,11 +136,11 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
         result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
-        testNotExecuted(result.output, "someTest1 > someTest1 {phase=0}")
-        testExecuted(result.output, "someTest1 > someTest1 {phase=1}")
-        testExecuted(result.output, "someTest1 > someTest1 {phase=2}")
+        testNotExecuted(result.output, "ParameterizedTestClazz > someTest1 {phase=0}")
+        testExecuted(result.output, "ParameterizedTestClazz > someTest1 {phase=1}")
+        testExecuted(result.output, "ParameterizedTestClazz > someTest1 {phase=2}")
         // Only the excluded parameter is filtered out: the other method still runs
-        testExecuted(result.output, "someTest2 > someTest2 {phase=0}")
+        testExecuted(result.output, "ParameterizedTestClazz > someTest2 {phase=0}")
     }
 
     def "excludes a plain method of a randomized runner suite that has no parameters"() {
@@ -172,10 +172,10 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
         result.output.contains("excluding 1 successful suites and 0 successful tests")
-        testNotExecuted(result.output, "someTest1 > someTest1 {phase=0}")
-        testNotExecuted(result.output, "someTest1 > someTest1 {phase=1}")
-        testNotExecuted(result.output, "someTest1 > someTest1 {phase=2}")
-        testNotExecuted(result.output, "someTest2 > someTest2 {phase=0}")
+        testNotExecuted(result.output, "ParameterizedTestClazz > someTest1 {phase=0}")
+        testNotExecuted(result.output, "ParameterizedTestClazz > someTest1 {phase=1}")
+        testNotExecuted(result.output, "ParameterizedTestClazz > someTest1 {phase=2}")
+        testNotExecuted(result.output, "ParameterizedTestClazz > someTest2 {phase=0}")
         // The plain suite in the same task is untouched
         testExecuted(result.output, "SubProject1TestClazz1 > someTest1")
     }
@@ -192,8 +192,8 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
         result.output.contains("project opted out of individual test pruning")
-        testExecuted(result.output, "someTest1 > someTest1 {phase=0}")
-        testExecuted(result.output, "someTest1 > someTest1 {phase=1}")
+        testExecuted(result.output, "ParameterizedTestClazz > someTest1 {phase=0}")
+        testExecuted(result.output, "ParameterizedTestClazz > someTest1 {phase=1}")
     }
 
     def "suite level pruning still applies when the project opted out of individual test pruning"() {
@@ -215,7 +215,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         )
         result.output.contains("rerunning 1 successful tests in :subproject1:test") == false
         testNotExecuted(result.output, "SubProject1TestClazz1 > someTest1")
-        testExecuted(result.output, "someTest1 > someTest1 {phase=0}")
+        testExecuted(result.output, "ParameterizedTestClazz > someTest1 {phase=0}")
     }
 
     def "task level pruning still applies when the project opted out of individual test pruning"() {

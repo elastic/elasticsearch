@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -85,7 +86,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * location for that file. Removing a file does not shrink the length. The entry is dropped once no retained file
      * references the blob.
      */
-    private volatile Map<PrimaryTermAndGeneration, Long> blobLengths = Map.of();
+    private volatile Map<Blob, Long> blobLengths = Map.of();
 
     /**
      * Map of terms/generations that are currently in use by opened Lucene generational files.
@@ -220,7 +221,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return objectStoreUploadTracker.getLatestUploadInfo(bccTermAndGen).isUploaded();
     }
 
-    private Releasable acquireGenerationalFileTermAndGeneration(PrimaryTermAndGeneration termAndGen, String name) {
+    private Releasable acquireGenerationalFileTermAndGeneration(BlobLocation blobLocation, String name) {
+        final var termAndGen = generationalFileBcc(blobLocation);
         synchronized (generationalFilesTermAndGens) {
             var refCounted = generationalFilesTermAndGens.get(termAndGen);
             if (refCounted == null || refCounted.tryIncRef() == false) {
@@ -269,7 +271,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         if (isGenerationalFile(name) == false) {
             return super.doOpenInput(name, context, blobFileRanges, cacheService.getBlobCacheMetrics());
         }
-        var releasable = acquireGenerationalFileTermAndGeneration(blobFileRanges.getBatchedCompoundCommitTermAndGeneration(), name);
+        var releasable = acquireGenerationalFileTermAndGeneration(blobFileRanges.blobLocation(), name);
         return doOpenInput(name, context, blobFileRanges, cacheService.getBlobCacheMetrics(), releasable);
     }
 
@@ -358,15 +360,15 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     /**
      * The exclusive end ({@code offset + fileLength}) of the furthest file observed for the blob.
-     * Empty when that primary term and generation are not tracked.
+     * Empty when the provided blob is not tracked.
      * <p>
      * The value grows as a virtual batched compound commit is appended, including when a generational file is carried
      * in a later blob whose location this directory does not store. It is kept while any file still references the blob,
      * because an uploaded blob is immutable and a virtual one only grows, so it can stay past the end of the files that
      * remain after a later file is removed.
      */
-    public OptionalLong blobLength(PrimaryTermAndGeneration termAndGeneration) {
-        final Long length = blobLengths.get(termAndGeneration);
+    public OptionalLong blobLength(Blob blob) {
+        final Long length = blobLengths.get(blob);
         return length == null ? OptionalLong.empty() : OptionalLong.of(length);
     }
 
@@ -380,13 +382,13 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
             try {
                 final var currentLengths = blobLengths;
-                final var termGensRetained = new HashSet<PrimaryTermAndGeneration>(currentLengths.size());
+                final var blobsRetained = new HashSet<Blob>(currentLengths.size());
                 final var updated = new HashMap<String, BlobFileRanges>(current.size());
 
                 for (var entry : current.entrySet()) {
                     if (filesToRetain.contains(entry.getKey())) {
                         updated.put(entry.getKey(), entry.getValue());
-                        termGensRetained.add(entry.getValue().blobLocation().getBatchedCompoundCommitTermAndGeneration());
+                        blobsRetained.add(entry.getValue().blobLocation().blob());
                     }
                 }
                 assert updated.keySet().containsAll(filesToRetain)
@@ -395,9 +397,9 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 assert filesRemoved;
 
                 // A removed file does not drop its blob while another retained file still references it.
-                if (termGensRetained.size() != currentLengths.size()) {
+                if (blobsRetained.size() != currentLengths.size()) {
                     final var lengths = new HashMap<>(currentLengths);
-                    lengths.keySet().retainAll(termGensRetained);
+                    lengths.keySet().retainAll(blobsRetained);
                     blobLengths = Map.copyOf(lengths);
                 }
                 currentMetadata = Map.copyOf(updated);
@@ -830,16 +832,17 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                     // one (latest) BCC like recovery does. That needs the search node to know the latest unuploaded copies
                     // (read the unuploaded VBCC from the indexing shard, or track unuploaded StatelessCompoundCommits) to
                     // override the blob-file-ranges timestamp.
-                    var incoming = reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
+                    var incoming = reconciledRanges.blobLocation();
                     if (reconciledMetadata.putIfAbsent(fileName, reconciledRanges) != null) {
                         // read the first known location
-                        incoming = reconciledMetadata.get(fileName).blobLocation().getBatchedCompoundCommitTermAndGeneration();
+                        incoming = reconciledMetadata.get(fileName).blobLocation();
                     }
+                    var termAndGeneration = generationalFileBcc(incoming);
                     // The commit carried this file at reconciledRanges. When the directory keeps an earlier location,
                     // that value is the copy, which is not stored, but the copy still occupies bytes in its blob.
                     extendBlobLength(lengths, reconciledRanges.blobLocation());
                     // Pin the BCC of the location we actually keep, which is what doOpenInput will use.
-                    incomingGenerationalFilesTermAndGens.add(incoming);
+                    incomingGenerationalFilesTermAndGens.add(termAndGeneration);
                 } else {
                     reconciledMetadata.put(fileName, reconciledRanges);
                     extendBlobLength(lengths, reconciledRanges.blobLocation());
@@ -897,7 +900,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         final var bccs = new HashSet<PrimaryTermAndGeneration>();
         for (var entry : incomingFileRanges.entrySet()) {
             if (isGenerationalFile(entry.getKey())) {
-                bccs.add(entry.getValue().blobLocation().getBatchedCompoundCommitTermAndGeneration());
+                bccs.add(generationalFileBcc(entry.getValue().blobLocation()));
             }
         }
         final boolean result = bccs.size() <= 1;
@@ -926,25 +929,29 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * Move the blob's stored length forward when {@code location} ends past it. A file that ends at or before the stored
      * length leaves it unchanged.
      */
-    private static void extendBlobLength(Map<PrimaryTermAndGeneration, Long> lengths, BlobLocation location) {
+    private static void extendBlobLength(Map<Blob, Long> lengths, BlobLocation location) {
         final long end = Math.addExact(location.offset(), location.fileLength());
-        lengths.merge(location.getBatchedCompoundCommitTermAndGeneration(), end, Math::max);
+        lengths.merge(location.blob(), end, Math::max);
     }
 
     /**
-     * {@code blobLengths} is keyed by exactly the primary term and generation pairs referenced by {@code metadata}.
+     * {@code blobLengths} is keyed by the blob instance referenced in {@code metadata}.
      * Length values are not checked: a generational file copy can extend a blob past every file that remains stored,
      * and removing a file does not shrink a length.
      */
-    private static boolean assertBlobLengthsMatchMetadata(
-        Map<String, BlobFileRanges> metadata,
-        Map<PrimaryTermAndGeneration, Long> blobLengths
-    ) {
-        final Set<PrimaryTermAndGeneration> referenced = metadata.values()
-            .stream()
-            .map(ranges -> ranges.blobLocation().getBatchedCompoundCommitTermAndGeneration())
-            .collect(Collectors.toSet());
+    private static boolean assertBlobLengthsMatchMetadata(Map<String, BlobFileRanges> metadata, Map<Blob, Long> blobLengths) {
+        final Set<Blob> referenced = metadata.values().stream().map(ranges -> ranges.blobLocation().blob()).collect(Collectors.toSet());
         assert blobLengths.keySet().equals(referenced) : "blob lengths " + blobLengths.keySet() + " must contain only " + referenced;
         return true;
+    }
+
+    /**
+     * Generational files are carried over into every BCC and are never stored in a merge blob, so they are always located in a BCC.
+     */
+    private static PrimaryTermAndGeneration generationalFileBcc(BlobLocation location) {
+        if (location.blob() instanceof BccBlob bccBlob) {
+            return bccBlob.termAndGeneration();
+        }
+        throw new IllegalStateException("expecting BCC blob for generational file: " + location);
     }
 }

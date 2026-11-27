@@ -1491,4 +1491,26 @@ public final class DeclaredTypeCoercions {
         }
         return raw * scale;
     }
+
+    /**
+     * Footer-stats twin of {@link #scaleEpoch}: range-check {@code raw} against the same
+     * {@link #epochMinRaw}/{@link #epochMaxRaw} bounds {@link #castEpochIntegral} uses, then multiply.
+     * Returns {@code null} when the raw tick cannot be stored in {@code to} — callers poison rather than
+     * serving a truncated extremum. Does not use {@link #rawStatToDecoded}: that {@code multiplyExact}s and
+     * DATE_NANOS decode rejects pre-epoch ({@code epochMinRaw} is 0) while a negative raw second would
+     * still decode-fail in the scan.
+     *
+     * @param raw   the file's physical min or max tick (INTEGER/LONG footer value, already {@code longValue()}d)
+     * @param to    declared {@code datetime} or {@code date_nanos}
+     * @param scale units-per-tick from {@link #declaredEpochFormatScale}
+     */
+    @Nullable
+    public static Long scaleEpochExtremum(long raw, DataType to, long scale) {
+        long minRaw = epochMinRaw(to, scale);
+        long maxRaw = epochMaxRaw(to, scale);
+        if (raw < minRaw || raw > maxRaw) {
+            return null;
+        }
+        return raw * scale;
+    }
 }

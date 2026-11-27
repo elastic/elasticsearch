@@ -276,7 +276,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs");
-        datafeed.setSourceTimeField("@timestamp");
         datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
@@ -321,7 +320,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)");
-        datafeed.setSourceTimeField("@timestamp");
         datafeed.setGroupingInterval(groupingInterval);
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
@@ -351,7 +349,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)");
-        datafeed.setSourceTimeField("@timestamp");
         datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
@@ -428,7 +425,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery(esqlQuery);
-        datafeed.setSourceTimeField("@timestamp");
         datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
@@ -479,7 +475,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs");
-        datafeed.setSourceTimeField("@timestamp");
         datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
         // Delayed-data check for ES|QL is wired separately; keep it off so this test covers routing only.
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
@@ -597,7 +592,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             DatafeedSearchTelemetry.NOOP
         );
         DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed1", "job1").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
 
@@ -691,7 +685,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM east:logs-*");
-        datafeed.setSourceTimeField("@timestamp");
         datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
         return new DatafeedContext(

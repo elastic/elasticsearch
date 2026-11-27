@@ -124,7 +124,6 @@ public class DatafeedEsqlGatesTests extends ESTestCase {
 
     private static DatafeedConfig esqlDatafeed() {
         return new DatafeedConfig.Builder("datafeed-1", "job-1").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
     }

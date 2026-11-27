@@ -25,6 +25,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
@@ -95,8 +96,7 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         );
         assertThat(warning(response), containsString("INTO includes an index refresh that requires the [maintenance] privilege"));
         // The header escapes the quotes of the option, so only what follows it is matched
-        assertThat(warning(response), containsString(": false in future INTO queries to skip it"));
-        assertThat(warning(response), containsString("re-running this one writes the documents again"));
+        assertThat(warning(response), containsString(": false to skip it"));
 
         assertThat("the refresh did not happen", countDestination(), equalTo(0L));
         refreshDestination();
@@ -147,7 +147,8 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
 
     private static void assertSummary(Response response) throws IOException {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(entityAsMap(response).get("values"), equalTo(List.of(List.of(2, 2))));
+        // total, created, failures, failure_details
+        assertThat(entityAsMap(response).get("values"), equalTo(List.of(Arrays.asList(2, 2, 0, null))));
     }
 
     private static String warning(Response response) {

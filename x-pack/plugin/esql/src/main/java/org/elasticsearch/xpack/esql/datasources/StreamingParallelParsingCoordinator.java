@@ -757,6 +757,11 @@ public final class StreamingParallelParsingCoordinator {
          */
         volatile IntConsumer afterOfferBeforeDispatchCount;
         /**
+         * Test-only. Invoked on the parser thread after {@link #tasksOutstanding} is incremented in
+         * {@link #consumeChunk}. Null in production.
+         */
+        volatile Runnable afterConsumeChunkCount;
+        /**
          * Bounds how far ahead of the consumer the segmentator may dispatch. {@link #pageQueues} is
          * indexed by {@code chunk.index % pageQueueRingSize}; without this semaphore a fast parser
          * could recycle a buffer (and the segmentator could dispatch a new chunk) before the consumer
@@ -1678,6 +1683,10 @@ public final class StreamingParallelParsingCoordinator {
             tasksOutstanding.incrementAndGet();
             ArrayBlockingQueue<Page> queue = chunk == null ? null : pageQueues[chunk.index % pageQueueRingSize];
             try {
+                Runnable afterCount = afterConsumeChunkCount;
+                if (afterCount != null) {
+                    afterCount.run();
+                }
                 if (chunk == null || closed.get() || firstError.get() != null) {
                     return;
                 }

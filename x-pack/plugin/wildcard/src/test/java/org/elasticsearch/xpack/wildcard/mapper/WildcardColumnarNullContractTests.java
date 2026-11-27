@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.wildcard.Wildcard;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 
 public class WildcardColumnarNullContractTests extends AbstractColumnarNullContractTestCase {
 
@@ -29,7 +30,7 @@ public class WildcardColumnarNullContractTests extends AbstractColumnarNullContr
 
     private static Scenario wildcard() {
         return scenario("wildcard", () -> randomAlphaOfLengthBetween(1, 8)).withDefaultIndexSetting()
-            .batchedGroups((configuration, shape) -> true);
+            .requireBatchFor(EnumSet.allOf(Shape.class));
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)

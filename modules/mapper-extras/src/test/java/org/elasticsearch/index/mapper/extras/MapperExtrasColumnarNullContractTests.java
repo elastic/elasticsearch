@@ -16,6 +16,7 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -32,7 +33,7 @@ public class MapperExtrasColumnarNullContractTests extends AbstractColumnarNullC
 
     private static Scenario matchOnlyText() {
         return scenario("match_only_text", () -> randomAlphaOfLengthBetween(1, 8)).withDefaultIndexSetting()
-            .batchedGroups((configuration, shape) -> true);
+            .requireBatchFor(EnumSet.allOf(Shape.class));
     }
 
     // NOTE: scaled_float does not implement batch indexing today, so the scenario lists no batched shape and the BATCH tests are not

@@ -14,6 +14,7 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 
 public class VersionStringColumnarNullContractTests extends AbstractColumnarNullContractTestCase {
@@ -26,7 +27,7 @@ public class VersionStringColumnarNullContractTests extends AbstractColumnarNull
     private static Scenario version() {
         return scenario("version", () -> randomIntBetween(0, 9) + "." + randomIntBetween(0, 9) + "." + randomIntBetween(0, 9))
             .withDefaultIndexSetting()
-            .batchedGroups((configuration, shape) -> true);
+            .requireBatchFor(EnumSet.allOf(Shape.class));
     }
 
     public void testVersionExistsDocument() throws IOException {

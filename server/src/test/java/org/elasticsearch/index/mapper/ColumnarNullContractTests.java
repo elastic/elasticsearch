@@ -22,9 +22,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -109,17 +111,19 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
     // takes a column without a null, a date and a boolean take a column of scalars, a keyword, a text and an ip without an index take
     // every shape, and a binary field takes none. A shape that is not listed may fall back to the rows of the batch, and the BATCH tests
     // never require that fallback: they exercise batch indexing as soon as a mapper accepts the shape.
+    // A long that writes the numeric codec is refused, because NumberFieldMapper#doSupportsColumnarParse returns false for the BINARY
+    // disk format.
     private static Scenario plain(String type) {
         final Scenario scenario = scenario(type, values(type));
         return switch (type) {
-            case "keyword", "text" -> scenario.batchedGroups((configuration, shape) -> true);
-            case "ip" -> scenario.batchedGroups((configuration, shape) -> configuration.index() == IndexSetting.DISABLED);
-            case "long", "integer", "short", "byte", "double", "float", "half_float" -> scenario.batchedGroups(
-                (configuration, shape) -> shape == SCALARS || shape == ARRAYS
+            case "keyword", "text" -> scenario.requireBatchFor(EnumSet.allOf(Shape.class));
+            case "ip" -> scenario.requireBatchFor((configuration, shape) -> configuration.index() == IndexSetting.DISABLED);
+            case "long", "integer", "short", "byte", "double", "float", "half_float" -> scenario.requireBatchFor(
+                (configuration, shape) -> configuration.numericCodec() == false && (shape == Shape.SCALARS || shape == Shape.ARRAYS)
             );
             case "date", "date_nanos" -> scenario.withCanonical(value -> Instant.parse(String.valueOf(value)).toString())
-                .batchedGroups((configuration, shape) -> shape == SCALARS);
-            case "boolean" -> scenario.batchedGroups((configuration, shape) -> shape == SCALARS);
+                .requireBatchFor(Set.of(Shape.SCALARS));
+            case "boolean" -> scenario.requireBatchFor(Set.of(Shape.SCALARS));
             case "binary" -> scenario.withDefaultIndexSetting().withParameters(Map.of("doc_values", true));
             default -> throw new AssertionError("no scenario for [" + type + "]");
         };
@@ -138,7 +142,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         return plain("long").withParameters(Map.of("ignore_malformed", true))
             .withValues(() -> calls[0]++ % 2 == 0 ? randomLong() : "malformed-" + randomAlphaOfLength(3))
             .withIndexable(value -> value instanceof Long)
-            .batchedGroups((configuration, shape) -> false);
+            .requireBatchFor(Set.of());
     }
 
     // NOTE: DateFieldMapper#doMapColumnBatch does not apply ignore_malformed and throws for a malformed value, which IndexingStrategy
@@ -150,7 +154,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
             .withValues(() -> calls[0]++ % 2 == 0 ? dates.get() : MALFORMED_DATE)
             .withCanonical(value -> value.equals(MALFORMED_DATE) ? MALFORMED_DATE : Instant.parse(String.valueOf(value)).toString())
             .withIndexable(value -> value.equals(MALFORMED_DATE) == false)
-            .batchedGroups((configuration, shape) -> false);
+            .requireBatchFor(Set.of());
     }
 
     private static Scenario keywordEmptyString() {
@@ -297,7 +301,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         return scenario("geo_point", () -> Map.of("lat", randomIntBetween(-160, 160) / 2.0, "lon", randomIntBetween(-340, 340) / 2.0))
             .withDefaultIndexSetting()
             .withCanonical(ColumnarNullContractTests::canonicalGeoPoint)
-            .batchedGroups((configuration, shape) -> shape == SCALARS);
+            .requireBatchFor(Set.of(Shape.SCALARS));
     }
 
     public void testGeoPointExistsMatchesOnlyDocumentsWithValueDocument() throws IOException {
@@ -332,7 +336,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
 
     // NOTE: a geo_point with a null_value is refused for batch indexing today, so the scenario lists no batched shape.
     public void testGeoPointNullValueReplacesNullBatch() throws IOException {
-        final Scenario scenario = geoPoint().withNullValue("10.5,20.5").batchedGroups((configuration, shape) -> false);
+        final Scenario scenario = geoPoint().withNullValue("10.5,20.5").requireBatchFor(Set.of());
         assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.BATCH);
         assertSourceDropsNullElements(scenario, IndexingStrategy.BATCH);
     }

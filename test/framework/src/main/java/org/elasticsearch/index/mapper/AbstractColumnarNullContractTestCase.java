@@ -44,6 +44,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.BiPredicate;
@@ -59,7 +60,7 @@ import java.util.function.Supplier;
  * <p>Each helper indexes the same documents with an {@link IndexingStrategy}, in each strict mode and with the synthetic and the
  * {@code columnar_stored} source. Batch indexing is the path
  * {@code InternalEngine} takes. Any exception from the mappers makes the chunk fall back to document indexing, as it does in
- * production, so a scenario states which column shapes it expects to execute as a batch today ({@link Scenario#batchedGroups}) and a
+ * production, so a scenario states which column shapes it expects to execute as a batch today ({@link Scenario#requireBatchFor}) and a
  * helper fails when one of them falls back. A shape that is not listed may execute either way, which keeps the tests valid when batch
  * indexing learns to map more shapes. A test of a scenario that lists no shape exercises the fallback, not batch indexing.
  *
@@ -70,12 +71,6 @@ import java.util.function.Supplier;
 public abstract class AbstractColumnarNullContractTestCase extends MapperServiceTestCase {
 
     protected static final String FIELD = "field";
-    protected static final int SCALARS = 0;
-    protected static final int ARRAYS = 1;
-    protected static final int BARE_NULL = 2;
-    protected static final int NULL_ELEMENTS = 3;
-
-    private static final List<Integer> DOCUMENT_SHAPES = List.of(SCALARS, ARRAYS, BARE_NULL, NULL_ELEMENTS);
     private static final long TIMESTAMP = 1735689600000L;
     private static final List<IndexMode> MODES = List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
 
@@ -90,6 +85,15 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
 
     private static final String NUMERIC_CODEC = IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey();
     protected static final Predicate<Configuration> NUMERIC_CODEC_ENABLED = Configuration::numericCodec;
+
+    protected enum Shape {
+        SCALARS,
+        ARRAYS,
+        BARE_NULL,
+        NULL_ELEMENTS
+    }
+
+    protected record DocumentGroup(Shape shape, List<TestDocument> documents) {}
 
     private enum Kind {
         ABSENT,
@@ -153,7 +157,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
      * @param nullValue     the {@code null_value} of the field, or {@code null} when it has none
      * @param canonical     the form in which a value is compared, applied to the expected values and to those in the reconstructed source
      * @param varyIndex     whether the tests run the {@code index} parameter both ways, or leave it to the mapper default
-     * @param batchedGroups the configurations and column shapes that are known to execute as a batch today
+     * @param batchRequired the configurations and column shapes that are known to execute as a batch today
      * @param singleValued  whether the type rejects a document with more than one value, which the documents then respect
      * @param indexable     whether a value is indexed, which is false for a value that {@code ignore_malformed} keeps in the source only
      */
@@ -164,42 +168,46 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         Object nullValue,
         Function<Object, String> canonical,
         boolean varyIndex,
-        BiPredicate<Configuration, Integer> batchedGroups,
+        BiPredicate<Configuration, Shape> batchRequired,
         boolean singleValued,
         Predicate<Object> indexable
     ) {
         public Scenario withParameters(Map<String, Object> parameters) {
-            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchedGroups, singleValued, indexable);
+            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchRequired, singleValued, indexable);
         }
 
         public Scenario withNullValue(Object nullValue) {
             final Map<String, Object> withNullValue = new HashMap<>(parameters);
             withNullValue.put("null_value", nullValue);
-            return new Scenario(type, withNullValue, values, nullValue, canonical, varyIndex, batchedGroups, singleValued, indexable);
+            return new Scenario(type, withNullValue, values, nullValue, canonical, varyIndex, batchRequired, singleValued, indexable);
         }
 
         public Scenario withValues(Supplier<Object> values) {
-            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchedGroups, singleValued, indexable);
+            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchRequired, singleValued, indexable);
         }
 
         public Scenario withCanonical(Function<Object, String> canonical) {
-            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchedGroups, singleValued, indexable);
+            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchRequired, singleValued, indexable);
         }
 
         public Scenario withDefaultIndexSetting() {
-            return new Scenario(type, parameters, values, nullValue, canonical, false, batchedGroups, singleValued, indexable);
+            return new Scenario(type, parameters, values, nullValue, canonical, false, batchRequired, singleValued, indexable);
         }
 
         public Scenario asSingleValued() {
-            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchedGroups, true, indexable);
+            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchRequired, true, indexable);
         }
 
         public Scenario withIndexable(Predicate<Object> indexable) {
-            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchedGroups, singleValued, indexable);
+            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchRequired, singleValued, indexable);
         }
 
-        public Scenario batchedGroups(BiPredicate<Configuration, Integer> batchedGroups) {
-            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchedGroups, singleValued, indexable);
+        public Scenario requireBatchFor(Set<Shape> shapes) {
+            return requireBatchFor((configuration, shape) -> shapes.contains(shape));
+        }
+
+        public Scenario requireBatchFor(BiPredicate<Configuration, Shape> batchRequired) {
+            return new Scenario(type, parameters, values, nullValue, canonical, varyIndex, batchRequired, singleValued, indexable);
         }
 
         boolean hasValue(TestDocument document) {
@@ -244,39 +252,48 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
 
     // NOTE: each group is one column shape. Batch indexing maps a column of mixed scalars and arrays, or one that holds a null, as a
     // UNION, which most mappers refuse, so a group that mixes shapes would hide whether the others execute as a batch.
-    private static List<List<TestDocument>> documentGroups(Scenario scenario) {
+    private static List<DocumentGroup> documentGroups(Scenario scenario) {
         final Supplier<Object> values = scenario.values();
         if (scenario.singleValued()) {
             return List.of(
-                List.of(scalar(values.get()), absent(), scalar(values.get())),
-                List.of(array(values.get()), array()),
-                List.of(scalar(values.get()), bareNull()),
-                List.of(
-                    array((Object) null),
-                    array(null, null),
-                    array(values.get(), null),
-                    array(null, values.get()),
-                    array(null, values.get(), null)
+                new DocumentGroup(Shape.SCALARS, List.of(scalar(values.get()), absent(), scalar(values.get()))),
+                new DocumentGroup(Shape.ARRAYS, List.of(array(values.get()), array())),
+                new DocumentGroup(Shape.BARE_NULL, List.of(scalar(values.get()), bareNull())),
+                new DocumentGroup(
+                    Shape.NULL_ELEMENTS,
+                    List.of(
+                        array((Object) null),
+                        array(null, null),
+                        array(values.get(), null),
+                        array(null, values.get()),
+                        array(null, values.get(), null)
+                    )
                 )
             );
         }
         final Object repeated = values.get();
         return List.of(
-            List.of(scalar(values.get()), absent(), scalar(values.get())),
-            List.of(array(values.get()), array(), array(values.get(), values.get()), array(repeated, values.get(), repeated)),
-            List.of(scalar(values.get()), bareNull()),
-            List.of(
-                array((Object) null),
-                array(null, null),
-                array(values.get(), null),
-                array(null, values.get()),
-                array(values.get(), null, values.get()),
-                array(null, values.get(), null, values.get(), null)
+            new DocumentGroup(Shape.SCALARS, List.of(scalar(values.get()), absent(), scalar(values.get()))),
+            new DocumentGroup(
+                Shape.ARRAYS,
+                List.of(array(values.get()), array(), array(values.get(), values.get()), array(repeated, values.get(), repeated))
+            ),
+            new DocumentGroup(Shape.BARE_NULL, List.of(scalar(values.get()), bareNull())),
+            new DocumentGroup(
+                Shape.NULL_ELEMENTS,
+                List.of(
+                    array((Object) null),
+                    array(null, null),
+                    array(values.get(), null),
+                    array(null, values.get()),
+                    array(values.get(), null, values.get()),
+                    array(null, values.get(), null, values.get(), null)
+                )
             )
         );
     }
 
-    private static List<List<TestDocument>> orderedDocumentGroups(Supplier<Object> values) {
+    private static List<DocumentGroup> orderedDocumentGroups(Supplier<Object> values) {
         final Object first = values.get();
         Object second = values.get();
         for (int attempt = 0; attempt < 100 && first.equals(second); attempt++) {
@@ -284,11 +301,14 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         }
         assertNotEquals("the values of the scenario must offer two distinct values", first, second);
         return List.of(
-            List.of(
-                array(first, null, second),
-                array(null, first, second),
-                array(first, second, null),
-                array(second, null, first, null, null)
+            new DocumentGroup(
+                Shape.NULL_ELEMENTS,
+                List.of(
+                    array(first, null, second),
+                    array(null, first, second),
+                    array(first, second, null),
+                    array(second, null, first, null, null)
+                )
             )
         );
     }
@@ -371,7 +391,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         Scenario scenario,
         IndexingStrategy strategy,
         Configuration configuration,
-        int shape,
+        Shape shape,
         IndexingStrategy.Outcome outcome
     ) {
         switch (strategy) {
@@ -380,16 +400,15 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         }
     }
 
-    private static void assertDocument(Scenario scenario, Configuration configuration, int shape, IndexingStrategy.Outcome outcome) {
+    private static void assertDocument(Scenario scenario, Configuration configuration, Shape shape, IndexingStrategy.Outcome outcome) {
         assertFalse(
             scenario.type() + " " + configuration + " column shape " + shape + " was indexed as a batch by DOCUMENT",
             outcome.batched()
         );
     }
 
-    // NOTE: NumberFieldMapper#doSupportsColumnarParse refuses the BINARY disk format, which the numeric codec uses
-    private static void assertBatch(Scenario scenario, Configuration configuration, int shape, IndexingStrategy.Outcome outcome) {
-        if (NUMERIC_CODEC_ENABLED.test(configuration) == false && scenario.batchedGroups().test(configuration, shape)) {
+    private static void assertBatch(Scenario scenario, Configuration configuration, Shape shape, IndexingStrategy.Outcome outcome) {
+        if (scenario.batchRequired().test(configuration, shape)) {
             assertTrue(
                 scenario.type()
                     + " "
@@ -407,11 +426,10 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         Scenario scenario,
         IndexingStrategy strategy,
         Predicate<Configuration> slice,
-        List<List<TestDocument>> groups,
-        List<Integer> shapes,
+        List<DocumentGroup> groups,
         IndexedAssertion assertion
     ) throws IOException {
-        final List<TestDocument> documents = groups.stream().flatMap(List::stream).toList();
+        final List<TestDocument> documents = groups.stream().flatMap(group -> group.documents().stream()).toList();
         final List<String> failures = new ArrayList<>();
         final List<Configuration> configurations = configurations(scenario).stream().filter(slice).toList();
         assertFalse("the slice selects no configuration of " + scenario.type(), configurations.isEmpty());
@@ -424,11 +442,16 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                 IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig(mapperService))
             ) {
                 int firstSeqNo = 0;
-                for (int g = 0; g < groups.size(); g++) {
-                    final IndexingStrategy.Outcome outcome = strategy.index(mapperService, indexWriter, sources(groups.get(g)), firstSeqNo);
-                    assertExecutedAs(scenario, strategy, configuration, shapes.get(g), outcome);
+                for (final DocumentGroup group : groups) {
+                    final IndexingStrategy.Outcome outcome = strategy.index(
+                        mapperService,
+                        indexWriter,
+                        sources(group.documents()),
+                        firstSeqNo
+                    );
+                    assertExecutedAs(scenario, strategy, configuration, group.shape(), outcome);
                     indexWriter.commit();
-                    firstSeqNo += groups.get(g).size();
+                    firstSeqNo += group.documents().size();
                 }
                 try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
                     assertEquals("one segment per group", groups.size(), reader.leaves().size());
@@ -454,41 +477,34 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         IndexingStrategy strategy,
         Predicate<Configuration> slice
     ) throws IOException {
-        forEachConfiguration(
-            scenario,
-            strategy,
-            slice,
-            documentGroups(scenario),
-            DOCUMENT_SHAPES,
-            (configuration, mapperService, indexWriter, docs) -> {
-                // NOTE: the deleted document is the last one, which sits in the segment of the null elements, and the documents before it
-                // keep their ids when the deletion is expunged by the merge.
-                final int deleted = docs.size() - 1;
-                final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
-                for (final String stage : List.of("indexed", "deleted", "merged")) {
-                    if (stage.equals("deleted")) {
-                        indexWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId("d" + deleted)));
-                    } else if (stage.equals("merged")) {
-                        indexWriter.forceMerge(1);
-                    }
-                    final List<Integer> expected = new ArrayList<>();
-                    for (int i = 0; i < docs.size(); i++) {
-                        if (scenario.hasValue(docs.get(i)) && (i != deleted || stage.equals("indexed"))) {
-                            expected.add(i);
-                        }
-                    }
-                    try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
-                        assertEquals(configuration + " " + stage, stage.equals("deleted"), reader.numDeletedDocs() > 0);
-                        final List<Integer> matched = new ArrayList<>();
-                        for (final ScoreDoc hit : new IndexSearcher(reader).search(exists, docs.size()).scoreDocs) {
-                            matched.add(hit.doc);
-                        }
-                        Collections.sort(matched);
-                        assertEquals(configuration + " " + stage + " documents=" + docs, expected, matched);
+        forEachConfiguration(scenario, strategy, slice, documentGroups(scenario), (configuration, mapperService, indexWriter, docs) -> {
+            // NOTE: the deleted document is the last one, which sits in the segment of the null elements, and the documents before it
+            // keep their ids when the deletion is expunged by the merge.
+            final int deleted = docs.size() - 1;
+            final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
+            for (final String stage : List.of("indexed", "deleted", "merged")) {
+                if (stage.equals("deleted")) {
+                    indexWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId("d" + deleted)));
+                } else if (stage.equals("merged")) {
+                    indexWriter.forceMerge(1);
+                }
+                final List<Integer> expected = new ArrayList<>();
+                for (int i = 0; i < docs.size(); i++) {
+                    if (scenario.hasValue(docs.get(i)) && (i != deleted || stage.equals("indexed"))) {
+                        expected.add(i);
                     }
                 }
+                try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+                    assertEquals(configuration + " " + stage, stage.equals("deleted"), reader.numDeletedDocs() > 0);
+                    final List<Integer> matched = new ArrayList<>();
+                    for (final ScoreDoc hit : new IndexSearcher(reader).search(exists, docs.size()).scoreDocs) {
+                        matched.add(hit.doc);
+                    }
+                    Collections.sort(matched);
+                    assertEquals(configuration + " " + stage + " documents=" + docs, expected, matched);
+                }
             }
-        );
+        });
     }
 
     protected final void assertExistsCountAgreesWithHits(Scenario scenario, IndexingStrategy strategy) throws IOException {
@@ -497,103 +513,82 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
 
     protected final void assertExistsCountAgreesWithHits(Scenario scenario, IndexingStrategy strategy, Predicate<Configuration> slice)
         throws IOException {
-        forEachConfiguration(
-            scenario,
-            strategy,
-            slice,
-            documentGroups(scenario),
-            DOCUMENT_SHAPES,
-            (configuration, mapperService, indexWriter, docs) -> {
-                final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
-                for (final String stage : List.of("indexed", "deleted", "merged")) {
-                    if (stage.equals("deleted")) {
-                        indexWriter.deleteDocuments(
-                            new Term(IdFieldMapper.NAME, Uid.encodeId("d0")),
-                            new Term(IdFieldMapper.NAME, Uid.encodeId("d" + (docs.size() - 1)))
-                        );
-                    } else if (stage.equals("merged")) {
-                        indexWriter.forceMerge(1);
-                    }
-                    try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
-                        assertEquals(configuration + " " + stage, stage.equals("deleted"), reader.numDeletedDocs() > 0);
-                        final IndexSearcher searcher = new IndexSearcher(reader);
-                        assertEquals(
-                            configuration + " " + stage + " documents=" + docs,
-                            searcher.search(exists, docs.size()).scoreDocs.length,
-                            searcher.count(exists)
-                        );
-                    }
+        forEachConfiguration(scenario, strategy, slice, documentGroups(scenario), (configuration, mapperService, indexWriter, docs) -> {
+            final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
+            for (final String stage : List.of("indexed", "deleted", "merged")) {
+                if (stage.equals("deleted")) {
+                    indexWriter.deleteDocuments(
+                        new Term(IdFieldMapper.NAME, Uid.encodeId("d0")),
+                        new Term(IdFieldMapper.NAME, Uid.encodeId("d" + (docs.size() - 1)))
+                    );
+                } else if (stage.equals("merged")) {
+                    indexWriter.forceMerge(1);
+                }
+                try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+                    assertEquals(configuration + " " + stage, stage.equals("deleted"), reader.numDeletedDocs() > 0);
+                    final IndexSearcher searcher = new IndexSearcher(reader);
+                    assertEquals(
+                        configuration + " " + stage + " documents=" + docs,
+                        searcher.search(exists, docs.size()).scoreDocs.length,
+                        searcher.count(exists)
+                    );
                 }
             }
-        );
+        });
     }
 
     protected final void assertSourceDropsNullElements(Scenario scenario, IndexingStrategy strategy) throws IOException {
-        forEachConfiguration(
-            scenario,
-            strategy,
-            ALL,
-            documentGroups(scenario),
-            DOCUMENT_SHAPES,
-            (configuration, mapperService, indexWriter, docs) -> {
-                assertSources(scenario, mapperService, indexWriter, docs, AbstractColumnarNullContractTestCase::assertSourceDropsNulls);
-            }
-        );
+        forEachConfiguration(scenario, strategy, ALL, documentGroups(scenario), (configuration, mapperService, indexWriter, docs) -> {
+            assertSources(scenario, mapperService, indexWriter, docs, AbstractColumnarNullContractTestCase::assertSourceDropsNulls);
+        });
     }
 
     // NOTE: compares the two source modes as they behave today, nulls included. It does not depend on the null contract, so it passes
     // while the tests of that contract are muted, and it fails if `columnar_stored` returns a source that differs from the synthetic one.
     protected final void assertSourceModesAgree(Scenario scenario, IndexingStrategy strategy) throws IOException {
-        final List<List<TestDocument>> groups = documentGroups(scenario);
-        forEachConfiguration(
-            scenario,
-            strategy,
-            COLUMNAR_STORED_SOURCE,
-            groups,
-            DOCUMENT_SHAPES,
-            (configuration, stored, storedWriter, docs) -> {
-                final Configuration syntheticConfiguration = new Configuration(
-                    configuration.mode(),
-                    configuration.index(),
-                    SourceFieldMapper.Mode.SYNTHETIC,
-                    configuration.numericCodec()
-                );
-                final MapperService synthetic = createMapperService(scenario, syntheticConfiguration);
-                try (
-                    Directory directory = new MockDirectoryWrapper(random(), new ByteBuffersDirectory());
-                    IndexWriter syntheticWriter = new IndexWriter(directory, indexWriterConfig(synthetic))
-                ) {
-                    int firstSeqNo = 0;
-                    for (int g = 0; g < groups.size(); g++) {
-                        final IndexingStrategy.Outcome outcome = strategy.index(
-                            synthetic,
-                            syntheticWriter,
-                            sources(groups.get(g)),
-                            firstSeqNo
-                        );
-                        assertExecutedAs(scenario, strategy, syntheticConfiguration, DOCUMENT_SHAPES.get(g), outcome);
-                        syntheticWriter.commit();
-                        firstSeqNo += groups.get(g).size();
+        final List<DocumentGroup> groups = documentGroups(scenario);
+        forEachConfiguration(scenario, strategy, COLUMNAR_STORED_SOURCE, groups, (configuration, stored, storedWriter, docs) -> {
+            final Configuration syntheticConfiguration = new Configuration(
+                configuration.mode(),
+                configuration.index(),
+                SourceFieldMapper.Mode.SYNTHETIC,
+                configuration.numericCodec()
+            );
+            final MapperService synthetic = createMapperService(scenario, syntheticConfiguration);
+            try (
+                Directory directory = new MockDirectoryWrapper(random(), new ByteBuffersDirectory());
+                IndexWriter syntheticWriter = new IndexWriter(directory, indexWriterConfig(synthetic))
+            ) {
+                int firstSeqNo = 0;
+                for (final DocumentGroup group : groups) {
+                    final IndexingStrategy.Outcome outcome = strategy.index(
+                        synthetic,
+                        syntheticWriter,
+                        sources(group.documents()),
+                        firstSeqNo
+                    );
+                    assertExecutedAs(scenario, strategy, syntheticConfiguration, group.shape(), outcome);
+                    syntheticWriter.commit();
+                    firstSeqNo += group.documents().size();
+                }
+                for (final boolean merged : new boolean[] { false, true }) {
+                    if (merged) {
+                        storedWriter.forceMerge(1);
+                        syntheticWriter.forceMerge(1);
                     }
-                    for (final boolean merged : new boolean[] { false, true }) {
-                        if (merged) {
-                            storedWriter.forceMerge(1);
-                            syntheticWriter.forceMerge(1);
-                        }
-                        final List<String> storedSources = sourcesOfAllSegments(stored, storedWriter, merged);
-                        final List<String> syntheticSources = sourcesOfAllSegments(synthetic, syntheticWriter, merged);
-                        assertEquals("documents", syntheticSources.size(), storedSources.size());
-                        for (int i = 0; i < docs.size(); i++) {
-                            assertEquals(
-                                configuration + " merged=" + merged + " document=" + docs.get(i),
-                                XContentHelper.convertToMap(JsonXContent.jsonXContent, syntheticSources.get(i), false),
-                                XContentHelper.convertToMap(JsonXContent.jsonXContent, storedSources.get(i), false)
-                            );
-                        }
+                    final List<String> storedSources = sourcesOfAllSegments(stored, storedWriter, merged);
+                    final List<String> syntheticSources = sourcesOfAllSegments(synthetic, syntheticWriter, merged);
+                    assertEquals("documents", syntheticSources.size(), storedSources.size());
+                    for (int i = 0; i < docs.size(); i++) {
+                        assertEquals(
+                            configuration + " merged=" + merged + " document=" + docs.get(i),
+                            XContentHelper.convertToMap(JsonXContent.jsonXContent, syntheticSources.get(i), false),
+                            XContentHelper.convertToMap(JsonXContent.jsonXContent, storedSources.get(i), false)
+                        );
                     }
                 }
             }
-        );
+        });
     }
 
     protected final void assertSourceHoldsTheValues(Scenario scenario, IndexingStrategy strategy) throws IOException {
@@ -601,8 +596,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             scenario,
             strategy,
             ALL,
-            documentGroups(scenario).subList(0, 2),
-            List.of(SCALARS, ARRAYS),
+            documentGroups(scenario).stream().filter(group -> group.shape() == Shape.SCALARS || group.shape() == Shape.ARRAYS).toList(),
             (configuration, mapperService, indexWriter, docs) -> {
                 assertSources(scenario, mapperService, indexWriter, docs, AbstractColumnarNullContractTestCase::assertSourceDropsNulls);
             }
@@ -615,7 +609,6 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             strategy,
             ALL,
             orderedDocumentGroups(scenario.values()),
-            List.of(NULL_ELEMENTS),
             (configuration, mapperService, indexWriter, docs) -> {
                 assertSources(scenario, mapperService, indexWriter, docs, AbstractColumnarNullContractTestCase::assertSourceKeepsSequence);
             }

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 
 public class PatternTextColumnarNullContractTests extends AbstractColumnarNullContractTestCase {
@@ -27,7 +28,7 @@ public class PatternTextColumnarNullContractTests extends AbstractColumnarNullCo
     private static Scenario patternText() {
         return scenario("pattern_text", () -> randomAlphaOfLengthBetween(1, 8)).withDefaultIndexSetting()
             .asSingleValued()
-            .batchedGroups((configuration, shape) -> true);
+            .requireBatchFor(EnumSet.allOf(Shape.class));
     }
 
     public void testExistsMatchesOnlyDocumentsWithValueDocument() throws IOException {

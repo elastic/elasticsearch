@@ -345,6 +345,8 @@ public class EqlSourceOperator extends SourceOperator {
             }
             executionInfo.swapCluster(cluster, (alias, current) -> {
                 EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(current);
+                boolean local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(alias);
+                boolean reportsStatus = executionInfo.isMainPlan() || local;
                 if (recordCounts) {
                     EsqlExecutionInfo.applyShardCounts(
                         builder,
@@ -355,8 +357,13 @@ public class EqlSourceOperator extends SourceOperator {
                         counts.failed(),
                         true
                     );
-                    // This response has non-zero shard counts (the all-zero case was skipped above).
-                    ComputeService.applyClusterStatusAfterBranch(builder, current, counts.failed() > 0, true);
+                    if (reportsStatus) {
+                        boolean failed = executionInfo.isStopped()
+                            || counts.failed() > 0
+                            || (current.getFailedShards() != null && current.getFailedShards() > 0)
+                            || current.getFailures().isEmpty() == false;
+                        ComputeService.applyClusterStatusAfterBranch(builder, current, failed, true);
+                    }
                 }
                 if (current.getTook() != null && executionInfo.clusterReportsSearchTook(alias)) {
                     builder.setTook(TimeValue.timeValueNanos(current.getTook().nanos() + took.nanos()));
@@ -367,8 +374,7 @@ public class EqlSourceOperator extends SourceOperator {
                     builder.addFailures(
                         List.of(new ShardSearchFailure(new ElasticsearchException("[" + counts.failed() + "] shards failed")))
                     );
-                    boolean local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(alias);
-                    if ((executionInfo.isMainPlan() || local)
+                    if (reportsStatus
                         && (current.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING
                             || current.getStatus() == EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)) {
                         builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);

@@ -813,6 +813,71 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         }
     }
 
+    public void testInSubqueryShardCountsLeaveARemoteClusterRunning() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote1");
+        executionInfo.startSubPlans(true);
+        pullEventPage(executionInfo, eqlRequestOn("remote1:logs"), 4L, List.of(new EqlClusterShards(LOCAL, 2, 1, 0, 1)));
+        EsqlExecutionInfo.Cluster remote = executionInfo.getCluster("remote1");
+        assertThat(remote.getTotalShards(), equalTo(2));
+        assertThat(remote.getSuccessfulShards(), equalTo(1));
+        assertThat(remote.getFailedShards(), equalTo(1));
+        assertThat(remote.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+    }
+
+    public void testStoppedQueryDoesNotMarkASuccessfulSearchSuccessful() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        executionInfo.markAsStopped();
+        pullEventPage(executionInfo, eqlRequestOn("logs"), 3L, List.of(new EqlClusterShards(LOCAL, 1, 1, 0, 0)));
+        EsqlExecutionInfo.Cluster local = executionInfo.getCluster(LOCAL);
+        assertThat(local.getSuccessfulShards(), equalTo(1));
+        assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
+    public void testInSubqueryShardCountsUpdateTheLocalClusterStatus() {
+        EsqlExecutionInfo succeeded = executionInfo(LOCAL);
+        succeeded.startSubPlans(true);
+        pullEventPage(succeeded, eqlRequestOn("logs"), 2L, List.of(new EqlClusterShards(LOCAL, 2, 2, 0, 0)));
+        assertThat(succeeded.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        assertThat(succeeded.getCluster(LOCAL).getTotalShards(), equalTo(2));
+
+        EsqlExecutionInfo lost = executionInfo(LOCAL);
+        lost.startSubPlans(true);
+        pullEventPage(lost, eqlRequestOn("logs"), 2L, List.of(new EqlClusterShards(LOCAL, 2, 1, 0, 1)));
+        assertThat(lost.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        assertThat(lost.getCluster(LOCAL).getFailedShards(), equalTo(1));
+    }
+
+    public void testSuccessfulSearchStaysPartialWhenTheClusterAlreadyListsAFailure() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote1");
+        ShardSearchFailure earlier = shardFailure(new IllegalStateException("earlier"), 0, "n1", "remote1");
+        executionInfo.swapCluster("remote1", (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).addFailures(List.of(earlier)).build());
+        pullEventPage(executionInfo, eqlRequestOn("remote1:logs"), 3L, List.of(new EqlClusterShards(LOCAL, 1, 1, 0, 0)));
+        EsqlExecutionInfo.Cluster remote = executionInfo.getCluster("remote1");
+        assertThat(remote.getTotalShards(), equalTo(1));
+        assertThat(remote.getSuccessfulShards(), equalTo(1));
+        assertThat(remote.getFailedShards(), equalTo(0));
+        assertThat(remote.getFailures(), equalTo(List.of(earlier)));
+        assertThat(remote.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
+    public void testSuccessfulSearchStaysPartialWhenTheClusterAlreadyLostAShard() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote1");
+        executionInfo.swapCluster(
+            "remote1",
+            (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(2)
+                .setSuccessfulShards(1)
+                .setSkippedShards(0)
+                .setFailedShards(1)
+                .build()
+        );
+        pullEventPage(executionInfo, eqlRequestOn("remote1:logs"), 3L, List.of(new EqlClusterShards(LOCAL, 2, 2, 0, 0)));
+        EsqlExecutionInfo.Cluster remote = executionInfo.getCluster("remote1");
+        assertThat(remote.getTotalShards(), equalTo(4));
+        assertThat(remote.getSuccessfulShards(), equalTo(3));
+        assertThat(remote.getFailedShards(), equalTo(1));
+        assertThat(remote.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
     public void testLostShardInASubplanLeavesARemoteClusterStatusToTheMainPlan() {
         EsqlExecutionInfo executionInfo = executionInfo(LOCAL, "remote1");
         executionInfo.startSubPlans(true);

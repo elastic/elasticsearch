@@ -20,6 +20,7 @@ setup:
         job_id: esql-ccs-job
         body: >
           {
+            "results_index_name": "esql-ccs-job",
             "analysis_config": {
               "bucket_span": "1h",
               "detectors": [{"function": "count"}]
@@ -85,13 +86,11 @@ teardown:
   - do:
       ml.stop_datafeed:
         datafeed_id: esql-ccs-feed
-        force: true
   - match: { stopped: true }
 
   - do:
       ml.close_job:
         job_id: esql-ccs-job
-        force: true
 
 ---
 "Test preview ES|QL datafeed returns the rows of a remote cluster index":
@@ -143,13 +142,11 @@ teardown:
   - do:
       ml.stop_datafeed:
         datafeed_id: esql-ccs-wildcard-feed
-        force: true
   - match: { stopped: true }
 
   - do:
       ml.close_job:
         job_id: esql-ccs-job
-        force: true
 
 ---
 "Test start of ES|QL datafeed fails when the only source is on a skipped remote":
@@ -180,4 +177,3 @@ teardown:
   - do:
       ml.close_job:
         job_id: esql-ccs-job
-        force: true

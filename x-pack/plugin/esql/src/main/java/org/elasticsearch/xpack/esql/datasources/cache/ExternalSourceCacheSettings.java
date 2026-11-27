@@ -192,7 +192,8 @@ public final class ExternalSourceCacheSettings {
      * The widest text extremum a CSV, TSV or NDJSON read publishes, in bytes. A wider one is withheld: the
      * column keeps its counts and {@code MIN}/{@code MAX} over it scans.
      * <p>
-     * Not part of stripe identity, so changing it invalidates nothing. Restart-only for the reason
+     * Not part of stripe identity, so changing it invalidates no cached entry; what changes is what later
+     * reads publish. Restart-only for the reason
      * {@link #STRIPE_COLUMNS} is: its consumer reads it from the node's startup {@code Settings}.
      */
     public static final Setting<ByteSizeValue> STATS_MAX_EXTREMUM_SIZE = Setting.byteSizeSetting(

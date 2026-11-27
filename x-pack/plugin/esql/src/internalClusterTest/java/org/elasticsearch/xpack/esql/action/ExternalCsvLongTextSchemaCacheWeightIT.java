@@ -109,6 +109,23 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
         long statisticsBudget = (Long) stats.get("statistics_budget_bytes");
         assertThat("statistics retained weight must stay inside its own budget", retainedStatistics, lessThanOrEqualTo(statisticsBudget));
 
+        // The counts are what withholding is traded for: a record that keeps them answers COUNT without a
+        // scan, which is the whole gain over caching nothing for the file. MIN/MAX below would pass even if
+        // the counts had gone with the extrema, so they are asserted here on their own.
+        try (
+            var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS COUNT(*), COUNT(note)"), TimeValue.timeValueMinutes(5))
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(1));
+            assertThat("every row of every file", rows.get(0).get(0), equalTo((long) FILE_COUNT));
+            assertThat("and every one has a note", rows.get(0).get(1), equalTo((long) FILE_COUNT));
+            assertThat(
+                "a withheld extremum leaves the counts servable, so neither count reads a file",
+                response.documentsFound(),
+                equalTo(0L)
+            );
+        }
+
         // Withholding the extrema creates a state that did not exist before: a retained record for a column
         // that has no MIN and no MAX. A warm query over that column must fall back to a scan and return the
         // file's true extrema, not serve nothing from the record it found. The fold is read to safe-miss on an

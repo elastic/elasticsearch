@@ -251,7 +251,7 @@ $$$esql-external-cache-stats-max-extremum-size$$$
 
     The limit is on the stored byte width, and an `ip` is stored encoded at 16 bytes, so a node set below that stores no minimum or maximum for any `ip` column it reads. Set the same value on every node, so what a column can answer doesn't depend on which node read the file.
 
-    Changing this setting only changes what a later read publishes. A file measured before the change keeps what it has: a value stored under a higher setting is still served after you lower it, and an end withheld under a lower setting stays unserved after you raise it, until that file's cache entry is evicted or the file itself changes.
+    Changing this setting changes what later reads publish; no cached entry is rewritten or invalidated. Whether a file answers differently afterwards depends on it being read again, and on how many records cover it. Where one record covers the file, nothing marks the withheld end, so a later read at a wider setting publishes the minimum or maximum and it is served. Where several records are combined, the combination marks that end unservable, and the mark outlives a value a later read publishes for it, until the entry is evicted or the file changes.
 
     Raise it to answer `MIN` and `MAX` without reading files whose text columns hold long values, but not far: a measurement too large for the statistics cache's per-entry budget, a few hundred kilobytes on a small heap, is dropped whole and the file then caches no statistics at all, row counts included. Lower it to keep long values out of the statistics cache; the value is still held while the file is read, whatever this is set to. Columnar formats such as Parquet read their statistics from the file itself and aren't affected.
 

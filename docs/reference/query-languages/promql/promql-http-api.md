@@ -19,7 +19,7 @@ Parameters, methods, and response bodies for each call are in the [{{es}} {{prom
 For differences from {{prom}}, refer to [{{prom}} compatibility](prometheus-compatibility.md).
 To connect Grafana, refer to [Use {{es}} as a {{prom}} data source in Grafana](promql-grafana.md).
 
-For an introduction to running queries with {{promql}} through the HTTP API, go to [](promql/promql-tutorial.md).
+For an introduction to running queries with {{promql}} through the HTTP API, go to [](promql-tutorial.md).
 
 ## Index scoping [promql-http-api-index-scope]
 
